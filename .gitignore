@@ -1,14 +1,19 @@
+.DS_Store
+*.versionsBackup
+
 # Compiled class file
 *.class
+target/
 
 # Log file
 *.log
 
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
+# IDE files
+.idea
+*.iml
+.settings/
+.classpath
+.project
 
 # Package Files #
 *.jar
