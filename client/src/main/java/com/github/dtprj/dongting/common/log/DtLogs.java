@@ -26,8 +26,12 @@ public class DtLogs {
         }
     }
 
-    public static DtLogFactory getInstance() {
-        return instance;
+    public static DtLog getLogger(String name) {
+        return instance.getLogger(name);
+    }
+
+    public static DtLog getLogger(Class<?> clazz) {
+        return instance.getLogger(clazz);
     }
 
     public static void setInstance(DtLogFactory instance) {
