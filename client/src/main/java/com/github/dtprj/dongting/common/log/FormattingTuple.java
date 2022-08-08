@@ -57,7 +57,7 @@ package com.github.dtprj.dongting.common.log;
 /**
  * Holds the results of formatting done by {@link MessageFormatter}.
  */
-public final class FormattingTuple {
+final class FormattingTuple {
 
     private final String message;
     private final Throwable throwable;

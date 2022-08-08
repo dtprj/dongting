@@ -123,7 +123,7 @@ import java.util.Set;
  * {@link #format(String, Object, Object)} and
  * {@link #arrayFormat(String, Object[])} methods for more details.
  */
-public final class MessageFormatter {
+final class MessageFormatter {
     private static final String DELIM_STR = "{}";
     private static final char ESCAPE_CHAR = '\\';
 
@@ -292,7 +292,7 @@ public final class MessageFormatter {
             sbuf.append(oAsString);
         } catch (Throwable t) {
             System.err
-                    .println("SLF4J: Failed toString() invocation on an object of type ["
+                    .println("DtLog: Failed toString() invocation on an object of type ["
                             + o.getClass().getName() + ']');
             t.printStackTrace();
             sbuf.append("[FAILED toString()]");
