@@ -52,7 +52,7 @@
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  */
-package com.github.dtprj.dongting.common.log;
+package com.github.dtprj.dongting.log;
 
 /**
  * Holds the results of formatting done by {@link MessageFormatter}.

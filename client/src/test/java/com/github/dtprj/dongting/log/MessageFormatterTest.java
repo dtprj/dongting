@@ -51,7 +51,7 @@
  * OF CONTRACT, TORT OR OTHERWISE,  ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-package com.github.dtprj.dongting.common.log;
+package com.github.dtprj.dongting.log;
 
 import org.junit.jupiter.api.Test;
 

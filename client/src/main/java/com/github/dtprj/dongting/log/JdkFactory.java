@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.common.log;
+package com.github.dtprj.dongting.log;
 
 import java.util.Objects;
 import java.util.logging.Logger;
