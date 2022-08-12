@@ -1,0 +1,15 @@
+syntax = "proto3";
+option java_package = "com.github.dtprj.dongting.pb";
+
+message TestToTag {
+  fixed32 f1 = 1;
+  fixed32 f2 = 2;
+  fixed32 f15 = 15;
+  fixed32 f16 = 16;
+  fixed32 f2047 = 2047;
+  fixed32 f2048 = 2048;
+  fixed32 f262143 = 262143;
+  fixed32 f262144 = 262144;
+  fixed32  f33554431 = 33554431;
+  fixed32  f33554432 = 33554432;
+}
