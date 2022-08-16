@@ -15,6 +15,11 @@
  */
 package com.github.dtprj.dongting.pb;
 
+import com.github.dtprj.dongting.common.DtException;
+
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+
 /**
  * encode/decode util for proto buffer 3.
  * <p>
@@ -50,6 +55,75 @@ public class PbUtil {
             encode <<= 8;
         }
         return encode;
+    }
+
+    public static void parse(ByteBuffer buf, PbCallback callback) {
+        callback.begin();
+        ByteOrder old = buf.order();
+        buf.order(ByteOrder.LITTLE_ENDIAN);
+        int limit = buf.limit();
+        while (buf.hasRemaining()) {
+            int index = readVarInt32(buf);
+            int type = index & 0x07; // 0000 0111
+            index >>>= 3;
+            switch (type) {
+                case TYPE_VAR_INT:
+                    // TODO only support int32 now
+                    callback.readInt(index, readVarInt32(buf));
+                    break;
+                case TYPE_FIX32:
+                    callback.readInt(index, buf.getInt());
+                    break;
+                case TYPE_FIX64:
+                    callback.readLong(index, buf.getLong());
+                    break;
+                case TYPE_LENGTH_DELIMITED:
+                    int length = readVarInt32(buf);
+                    if (length > buf.remaining()) {
+                        throw new DtException("bad protobuf length: " + length);
+                    }
+                    int newLimit = buf.position() + length;
+                    buf.limit(newLimit);
+                    callback.readBytes(index, buf);
+                    buf.position(newLimit);
+                    buf.limit(limit);
+                    break;
+                case TYPE_START_GROUP:
+                case TYPE_END_GROUP:
+                default:
+                    throw new DtException("protobuf type not support: " + type);
+            }
+        }
+        buf.order(old);
+        callback.end();
+    }
+
+    private static int readVarInt32(ByteBuffer buf) {
+        int bitIndex = 0;
+        int value = 0;
+        for (int i = 0; i < 5; i++) {
+            int x = buf.get();
+            value |= (x & 0x7F) << bitIndex;
+            if (x >= 0) {
+                return value;
+            }
+            bitIndex += 7;
+        }
+        throw new DtException("bad protobuf var int input");
+    }
+
+    private static long readVarInt64(ByteBuffer buf) {
+        int bitIndex = 0;
+        long value = 0;
+        for (int i = 0; i < 10; i++) {
+            long x = buf.get();
+            value |= (x & 0x7F) << bitIndex;
+            if (x >= 0) {
+                return value;
+            }
+            bitIndex += 7;
+        }
+        throw new DtException("bad protobuf var int input");
     }
 
 }

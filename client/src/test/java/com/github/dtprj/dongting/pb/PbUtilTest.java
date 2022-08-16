@@ -15,7 +15,10 @@
  */
 package com.github.dtprj.dongting.pb;
 
+import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.Test;
+
+import java.nio.ByteBuffer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -24,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class PbUtilTest {
 
     @Test
-    public void test() {
+    public void testToTag() {
         DtTest.TestToTag pb = DtTest.TestToTag.newBuilder().setF1(1).build();
         compare(pb, 1);
         pb = DtTest.TestToTag.newBuilder().setF2(1).build();
@@ -59,5 +62,44 @@ public class PbUtilTest {
             }
         }
         assertEquals(expect, PbUtil.toTag(PbUtil.TYPE_FIX32, index));
+    }
+
+    @Test
+    public void testParse() {
+        Frame.RpcHeader h = Frame.RpcHeader.newBuilder()
+                .setFrameType(100)
+                .setCommand(200)
+                .setSeq(300)
+                .setRespCode(400)
+                .setRespMsg("5")
+                .setBody(ByteString.copyFrom(new byte[]{'6'}))
+                .build();
+        h.toByteArray();
+        PbUtil.parse(ByteBuffer.wrap(h.toByteArray()), new PbCallback() {
+            @Override
+            public void begin() {
+
+            }
+
+            @Override
+            public void end() {
+
+            }
+
+            @Override
+            public void readInt(int index, int value) {
+                assertEquals(index * 100, value);
+            }
+
+            @Override
+            public void readLong(int index, long value) {
+                throw new AssertionError();
+            }
+
+            @Override
+            public void readBytes(int index, ByteBuffer buf) {
+                assertEquals(String.valueOf(index), Character.valueOf((char) buf.get()).toString());
+            }
+        });
     }
 }
