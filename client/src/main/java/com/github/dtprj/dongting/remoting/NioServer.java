@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.remoting;
 
+import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtException;
-import com.github.dtprj.dongting.common.LifeCircle;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -30,7 +30,7 @@ import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.util.Iterator;
 
-public class NioServer implements LifeCircle, Runnable {
+public class NioServer extends AbstractLifeCircle implements Runnable {
     private static final DtLog log = DtLogs.getLogger(NioServer.class);
 
     private final NioServerConfig config;
@@ -54,7 +54,7 @@ public class NioServer implements LifeCircle, Runnable {
     }
 
     @Override
-    public void start() throws Exception {
+    public void doStart() throws Exception {
         ssc = ServerSocketChannel.open();
         ssc.configureBlocking(false);
         ssc.setOption(StandardSocketOptions.SO_REUSEADDR, true);
@@ -111,7 +111,7 @@ public class NioServer implements LifeCircle, Runnable {
     }
 
     @Override
-    public void stop() throws Exception {
+    public void doStop() throws Exception {
         stop = true;
         if (selector != null) {
             selector.wakeup();

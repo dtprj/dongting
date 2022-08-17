@@ -20,25 +20,30 @@ public class AbstractLifeCircle implements LifeCircle {
     private boolean shutdown;
 
     @Override
-    public final synchronized void start() {
+    public final synchronized void start() throws Exception {
         if (!init) {
             doStart();
             init = true;
+        } else {
+            throw new IllegalStateException("already started");
         }
     }
 
-    protected void doStart() {
+    protected void doStart() throws Exception {
     }
 
     @Override
-    public final synchronized void stop() {
-        if (init && !shutdown) {
-            doStop();
-            init = false;
-            shutdown = true;
+    public final synchronized void stop() throws Exception {
+        if (init) {
+            if (!shutdown) {
+                doStop();
+                shutdown = true;
+            }
+        } else {
+            throw new IllegalStateException("not start");
         }
     }
 
-    protected void doStop() {
+    protected void doStop() throws Exception {
     }
 }
