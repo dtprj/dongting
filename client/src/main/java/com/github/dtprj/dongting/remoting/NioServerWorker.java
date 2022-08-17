@@ -36,6 +36,7 @@ public class NioServerWorker implements LifeCircle, Runnable {
 
     private final String workerName;
     private final Thread thread;
+    private final RpcPbCallback pbCallback = new RpcPbCallback();
     private volatile boolean stop;
     private volatile Selector selector;
 
@@ -128,7 +129,7 @@ public class NioServerWorker implements LifeCircle, Runnable {
         sc.configureBlocking(false);
         sc.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
         sc.setOption(StandardSocketOptions.TCP_NODELAY, true);
-        sc.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE, new ChannelOps(new IoCallback()));
+        sc.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE, new ChannelOps(pbCallback));
         channels.add(sc);
         log.info("accepted new socket: " + sc);
     }

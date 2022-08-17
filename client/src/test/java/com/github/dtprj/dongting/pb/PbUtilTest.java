@@ -66,7 +66,7 @@ public class PbUtilTest {
 
     @Test
     public void testParse() {
-        Frame.RpcHeader h = Frame.RpcHeader.newBuilder()
+        DtFrame.Frame h = DtFrame.Frame.newBuilder()
                 .setFrameType(100)
                 .setCommand(200)
                 .setSeq(300)
@@ -76,16 +76,6 @@ public class PbUtilTest {
                 .build();
         h.toByteArray();
         PbUtil.parse(ByteBuffer.wrap(h.toByteArray()), new PbCallback() {
-            @Override
-            public void begin() {
-
-            }
-
-            @Override
-            public void end() {
-
-            }
-
             @Override
             public void readInt(int index, int value) {
                 assertEquals(index * 100, value);

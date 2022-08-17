@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.remoting;
 
-import com.github.dtprj.dongting.pb.Frame;
+import com.github.dtprj.dongting.pb.DtFrame;
 import com.google.protobuf.ByteString;
 
 import java.io.DataOutputStream;
@@ -31,7 +31,7 @@ public class NioServerTest {
 
         Thread.sleep(100);
         Socket s = new Socket("127.0.0.1", 9000);
-        byte[] bs = Frame.RpcHeader.newBuilder()
+        byte[] bs = DtFrame.Frame.newBuilder()
                 .setCommand(100)
                 .setBody(ByteString.copyFrom("hello".getBytes()))
                 .build().toByteArray();

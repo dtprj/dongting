@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.remoting;
 
 import com.github.dtprj.dongting.common.DtException;
-import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.pb.PbUtil;
 
 import java.lang.ref.WeakReference;
@@ -26,16 +25,16 @@ class ChannelOps {
 
     private static final int INIT_BUF_SIZE = 1024;
     private static final int MAX_FRAME_SIZE = 8 * 1024 * 1024;
-    private final PbCallback callback;
+    private final RpcPbCallback pbCallback;
 
     private WeakReference<ByteBuffer> readBufferCache;
+    private ByteBuffer readBuffer;
 
     private int currentReadFrameSize = -1;
     private int readBufferMark = 0;
-    private ByteBuffer readBuffer;
 
-    public ChannelOps(PbCallback callback) {
-        this.callback = callback;
+    public ChannelOps(RpcPbCallback callback) {
+        this.pbCallback = callback;
     }
 
     public ByteBuffer getOrCreateReadBuffer() {
@@ -88,7 +87,8 @@ class ChannelOps {
         if (buf.remaining() >= this.currentReadFrameSize) {
             int limit = buf.limit();
             buf.limit(buf.position() + this.currentReadFrameSize);
-            PbUtil.parse(buf, callback);
+            pbCallback.setFrame(new Frame());
+            PbUtil.parse(buf, pbCallback);
             buf.limit(limit);
             this.readBufferMark = buf.position();
             this.currentReadFrameSize = -1;

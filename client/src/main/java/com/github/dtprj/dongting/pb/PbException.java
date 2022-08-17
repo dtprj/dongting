@@ -15,14 +15,10 @@
  */
 package com.github.dtprj.dongting.pb;
 
-import java.nio.ByteBuffer;
+import com.github.dtprj.dongting.common.DtException;
 
-public interface PbCallback {
-
-    void readInt(int index, int value);
-
-    void readLong(int index, long value);
-
-    void readBytes(int index, ByteBuffer buf);
-
+public class PbException extends DtException {
+    public PbException(String message) {
+        super(message);
+    }
 }

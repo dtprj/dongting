@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.pb;
 
-import com.github.dtprj.dongting.common.DtException;
-
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -58,7 +56,6 @@ public class PbUtil {
     }
 
     public static void parse(ByteBuffer buf, PbCallback callback) {
-        callback.begin();
         ByteOrder old = buf.order();
         buf.order(ByteOrder.LITTLE_ENDIAN);
         int limit = buf.limit();
@@ -79,8 +76,8 @@ public class PbUtil {
                     break;
                 case TYPE_LENGTH_DELIMITED:
                     int length = readVarInt32(buf);
-                    if (length > buf.remaining()) {
-                        throw new DtException("bad protobuf length: " + length);
+                    if (length > buf.remaining() || length < 0) {
+                        throw new PbException("bad protobuf length: " + length);
                     }
                     int newLimit = buf.position() + length;
                     buf.limit(newLimit);
@@ -91,11 +88,10 @@ public class PbUtil {
                 case TYPE_START_GROUP:
                 case TYPE_END_GROUP:
                 default:
-                    throw new DtException("protobuf type not support: " + type);
+                    throw new PbException("protobuf type not support: " + type);
             }
         }
         buf.order(old);
-        callback.end();
     }
 
     private static int readVarInt32(ByteBuffer buf) {
@@ -109,7 +105,7 @@ public class PbUtil {
             }
             bitIndex += 7;
         }
-        throw new DtException("bad protobuf var int input");
+        throw new PbException("bad protobuf var int input");
     }
 
     private static long readVarInt64(ByteBuffer buf) {
@@ -123,7 +119,7 @@ public class PbUtil {
             }
             bitIndex += 7;
         }
-        throw new DtException("bad protobuf var int input");
+        throw new PbException("bad protobuf var int input");
     }
 
 }
