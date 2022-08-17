@@ -34,8 +34,8 @@ public class NioServer extends AbstractLifeCircle implements Runnable {
     private static final DtLog log = DtLogs.getLogger(NioServer.class);
 
     private final NioServerConfig config;
-    private volatile ServerSocketChannel ssc;
-    private volatile Selector selector;
+    private ServerSocketChannel ssc;
+    private Selector selector;
     private volatile boolean stop;
     private final Thread acceptThread;
     private final NioServerWorker[] workers;
