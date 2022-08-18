@@ -20,12 +20,14 @@ import com.github.dtprj.dongting.pb.PbUtil;
 
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
+import java.util.concurrent.ConcurrentHashMap;
 
 class ChannelOps {
 
     private static final int INIT_BUF_SIZE = 1024;
     private static final int MAX_FRAME_SIZE = 8 * 1024 * 1024;
     private final RpcPbCallback pbCallback;
+    private final ConcurrentHashMap<Integer, CmdProcessor> processors;
 
     private WeakReference<ByteBuffer> readBufferCache;
     private ByteBuffer readBuffer;
@@ -33,8 +35,9 @@ class ChannelOps {
     private int currentReadFrameSize = -1;
     private int readBufferMark = 0;
 
-    public ChannelOps(RpcPbCallback callback) {
+    public ChannelOps(RpcPbCallback callback, ConcurrentHashMap<Integer, CmdProcessor> processors) {
         this.pbCallback = callback;
+        this.processors = processors;
     }
 
     public ByteBuffer getOrCreateReadBuffer() {
@@ -87,11 +90,18 @@ class ChannelOps {
         if (buf.remaining() >= this.currentReadFrameSize) {
             int limit = buf.limit();
             buf.limit(buf.position() + this.currentReadFrameSize);
-            pbCallback.setFrame(new Frame());
+            Frame f = new Frame();
+            pbCallback.setFrame(f);
             PbUtil.parse(buf, pbCallback);
             buf.limit(limit);
             this.readBufferMark = buf.position();
             this.currentReadFrameSize = -1;
+            CmdProcessor p = processors.get(f.getCommand());
+            if (p == null) {
+                // TODO write error response
+            } else {
+                p.process(f);
+            }
         }
     }
 

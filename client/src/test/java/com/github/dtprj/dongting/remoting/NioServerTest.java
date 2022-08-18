@@ -26,13 +26,14 @@ public class NioServerTest {
         NioServerConfig c = new NioServerConfig();
         c.setPort(9000);
         NioServer server = new NioServer(c);
+        server.register(Commands.CMD_PING, f-> System.out.println(f.getCommand()));
 
         server.start();
 
         Thread.sleep(100);
         Socket s = new Socket("127.0.0.1", 9000);
         byte[] bs = DtFrame.Frame.newBuilder()
-                .setCommand(100)
+                .setCommand(Commands.CMD_PING)
                 .setBody(ByteString.copyFrom("hello".getBytes()))
                 .build().toByteArray();
         DataOutputStream os = new DataOutputStream(s.getOutputStream());

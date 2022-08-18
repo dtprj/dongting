@@ -28,6 +28,7 @@ import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -37,6 +38,7 @@ public class NioServerWorker implements LifeCircle, Runnable {
     private final String workerName;
     private final Thread thread;
     private final RpcPbCallback pbCallback = new RpcPbCallback();
+    private final ConcurrentHashMap<Integer, CmdProcessor> processors;
     private volatile boolean stop;
     private volatile Selector selector;
 
@@ -45,7 +47,8 @@ public class NioServerWorker implements LifeCircle, Runnable {
 
     private final HashSet<SocketChannel> channels = new HashSet<>();
 
-    public NioServerWorker(NioServerConfig config, int index) {
+    public NioServerWorker(NioServerConfig config, int index, ConcurrentHashMap<Integer, CmdProcessor> processors) {
+        this.processors = processors;
         this.thread = new Thread(this);
         this.workerName = config.getName() + "IoWorker" + index;
         this.thread.setName(workerName);
@@ -129,7 +132,8 @@ public class NioServerWorker implements LifeCircle, Runnable {
         sc.configureBlocking(false);
         sc.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
         sc.setOption(StandardSocketOptions.TCP_NODELAY, true);
-        sc.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE, new ChannelOps(pbCallback));
+        ChannelOps ops = new ChannelOps(pbCallback, processors);
+        sc.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE, ops);
         channels.add(sc);
         log.info("accepted new socket: " + sc);
     }

@@ -29,6 +29,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.util.Iterator;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class NioServer extends AbstractLifeCircle implements Runnable {
     private static final DtLog log = DtLogs.getLogger(NioServer.class);
@@ -39,6 +40,7 @@ public class NioServer extends AbstractLifeCircle implements Runnable {
     private volatile boolean stop;
     private final Thread acceptThread;
     private final NioServerWorker[] workers;
+    private final ConcurrentHashMap<Integer, CmdProcessor> processors = new ConcurrentHashMap<>();
 
     public NioServer(NioServerConfig config) {
         this.config = config;
@@ -49,7 +51,7 @@ public class NioServer extends AbstractLifeCircle implements Runnable {
         acceptThread.setName(config.getName());
         workers = new NioServerWorker[config.getIoThreads()];
         for (int i = 0; i < workers.length; i++) {
-            workers[i] = new NioServerWorker(config, i);
+            workers[i] = new NioServerWorker(config, i, processors);
         }
     }
 
@@ -119,6 +121,10 @@ public class NioServer extends AbstractLifeCircle implements Runnable {
         for (NioServerWorker worker : workers) {
             worker.stop();
         }
+    }
+
+    public void register(int cmd, CmdProcessor processor) {
+        processors.put(cmd, processor);
     }
 
 }
