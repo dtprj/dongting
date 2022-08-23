@@ -75,6 +75,7 @@ class ChannelOps {
                     }
                     readBufferMark = buf.position();
                 } else {
+                    break;
                     // wait next read
                 }
             }
@@ -129,13 +130,17 @@ class ChannelOps {
                     buf.limit(capacity);
                     this.readBufferMark = 0;
                 } else {
-                    // return, continue read
+                    // continue read
+                    buf.position(endIndex);
+                    buf.limit(capacity);
                 }
             }
         } else {
             int c = endIndex - mark;
             if (capacity - endIndex >= frameSize - c) {
                 // there is enough space for this frame, return, continue read
+                buf.position(endIndex);
+                buf.limit(capacity);
             } else {
                 buf.limit(endIndex);
                 buf.position(mark);
