@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.remoting;
 
 public class NioServerConfig {
     private int ioThreads = computeIoThreads(Runtime.getRuntime().availableProcessors());
+    private int bizThreads = Runtime.getRuntime().availableProcessors() * 4;
     private int port;
     private String name = "DtNioServer";
 
@@ -53,5 +54,13 @@ public class NioServerConfig {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public int getBizThreads() {
+        return bizThreads;
+    }
+
+    public void setBizThreads(int bizThreads) {
+        this.bizThreads = bizThreads;
     }
 }

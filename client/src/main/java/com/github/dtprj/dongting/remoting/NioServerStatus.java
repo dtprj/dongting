@@ -15,6 +15,20 @@
  */
 package com.github.dtprj.dongting.remoting;
 
-public interface CmdProcessor {
-    void process(Frame frame, DtChannel channel);
+import java.net.InetSocketAddress;
+import java.util.concurrent.ConcurrentHashMap;
+
+class NioServerStatus {
+    private final ConcurrentHashMap<Integer, CmdProcessor> processors = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<InetSocketAddress, DtChannel> channels = new ConcurrentHashMap<>();
+
+    public void register(int cmd, CmdProcessor processor) {
+        processors.put(cmd, processor);
+    }
+
+    public CmdProcessor getProcessor(int command) {
+        return processors.get(command);
+    }
+
+
 }

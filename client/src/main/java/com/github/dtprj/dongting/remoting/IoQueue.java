@@ -15,6 +15,18 @@
  */
 package com.github.dtprj.dongting.remoting;
 
-public interface CmdProcessor {
-    void process(Frame frame, DtChannel channel);
+import java.nio.ByteBuffer;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
+// TODO currently just work, optimize performance
+public class IoQueue {
+    private static final ConcurrentLinkedQueue<ByteBuffer> queue = new ConcurrentLinkedQueue<>();
+
+    public void send(ByteBuffer buf) {
+        queue.add(buf);
+    }
+
+    public ByteBuffer poll() {
+        return queue.poll();
+    }
 }

@@ -20,24 +20,29 @@ import com.github.dtprj.dongting.pb.PbUtil;
 
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
-import java.util.concurrent.ConcurrentHashMap;
+import java.nio.channels.SocketChannel;
 
-class ChannelOps {
+class DtChannel {
 
-    private static final int INIT_BUF_SIZE = 1024;
+    private static final int INIT_BUF_SIZE = 2048;
     private static final int MAX_FRAME_SIZE = 8 * 1024 * 1024;
     private final RpcPbCallback pbCallback;
-    private final ConcurrentHashMap<Integer, CmdProcessor> processors;
+    private final NioServerStatus nioServerStatus;
+    private final SocketChannel channel;
 
     private WeakReference<ByteBuffer> readBufferCache;
     private ByteBuffer readBuffer;
-
+    // read status
     private int currentReadFrameSize = -1;
     private int readBufferMark = 0;
 
-    public ChannelOps(RpcPbCallback callback, ConcurrentHashMap<Integer, CmdProcessor> processors) {
+    private ByteBuffer writeBuffer;
+    private final IoQueue ioQueue = new IoQueue();
+
+    public DtChannel(RpcPbCallback callback, NioServerStatus nioServerStatus, SocketChannel channel) {
         this.pbCallback = callback;
-        this.processors = processors;
+        this.nioServerStatus = nioServerStatus;
+        this.channel = channel;
     }
 
     public ByteBuffer getOrCreateReadBuffer() {
@@ -47,17 +52,19 @@ class ChannelOps {
         if (readBufferCache == null) {
             readBuffer = ByteBuffer.allocateDirect(INIT_BUF_SIZE);
             readBufferCache = new WeakReference<>(readBuffer);
+            return readBuffer;
         } else {
             ByteBuffer cached = readBufferCache.get();
             if (cached != null) {
-                readBuffer = cached;
+                return cached;
             } else {
                 readBuffer = ByteBuffer.allocateDirect(INIT_BUF_SIZE);
                 readBufferCache = new WeakReference<>(readBuffer);
+                return readBuffer;
             }
         }
-        return readBuffer;
     }
+
 
     public void afterRead() {
         ByteBuffer buf = this.readBuffer;
@@ -97,11 +104,11 @@ class ChannelOps {
             buf.limit(limit);
             this.readBufferMark = buf.position();
             this.currentReadFrameSize = -1;
-            CmdProcessor p = processors.get(f.getCommand());
+            CmdProcessor p = nioServerStatus.getProcessor(f.getCommand());
             if (p == null) {
                 // TODO write error response
             } else {
-                p.process(f);
+                p.process(f, this);
             }
         }
     }
@@ -159,5 +166,20 @@ class ChannelOps {
                 this.readBufferMark = 0;
             }
         }
+    }
+
+    public ByteBuffer getWriteBuffer() {
+        if (writeBuffer == null || !writeBuffer.hasRemaining()) {
+            writeBuffer = ioQueue.poll();
+        }
+        return writeBuffer;
+    }
+
+    public SocketChannel getChannel() {
+        return channel;
+    }
+
+    public IoQueue getIoQueue() {
+        return ioQueue;
     }
 }

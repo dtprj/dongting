@@ -28,17 +28,19 @@ import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * each worker represent a thread.
+ */
 public class NioServerWorker implements LifeCircle, Runnable {
     private static final DtLog log = DtLogs.getLogger(NioServerWorker.class);
 
     private final String workerName;
     private final Thread thread;
     private final RpcPbCallback pbCallback = new RpcPbCallback();
-    private final ConcurrentHashMap<Integer, CmdProcessor> processors;
+    private final NioServerStatus nioServerStatus;
     private volatile boolean stop;
     private volatile Selector selector;
 
@@ -47,8 +49,8 @@ public class NioServerWorker implements LifeCircle, Runnable {
 
     private final HashSet<SocketChannel> channels = new HashSet<>();
 
-    public NioServerWorker(NioServerConfig config, int index, ConcurrentHashMap<Integer, CmdProcessor> processors) {
-        this.processors = processors;
+    public NioServerWorker(NioServerConfig config, int index, NioServerStatus nioServerStatus) {
+        this.nioServerStatus = nioServerStatus;
         this.thread = new Thread(this);
         this.workerName = config.getName() + "IoWorker" + index;
         this.thread.setName(workerName);
@@ -104,10 +106,10 @@ public class NioServerWorker implements LifeCircle, Runnable {
                     log.info("socket may closed, remove it: {}", key.channel());
                     channels.remove(key);
                 }
+                SocketChannel sc = (SocketChannel) key.channel();
+                DtChannel dtc = (DtChannel) key.attachment();
                 if (key.isReadable()) {
-                    SocketChannel sc = (SocketChannel) key.channel();
-                    ChannelOps op = (ChannelOps) key.attachment();
-                    ByteBuffer buf = op.getOrCreateReadBuffer();
+                    ByteBuffer buf = dtc.getOrCreateReadBuffer();
                     int readCount = sc.read(buf);
                     if (readCount == -1) {
                         log.info("socket closed, remove it: {}", key.channel());
@@ -115,10 +117,13 @@ public class NioServerWorker implements LifeCircle, Runnable {
                         sc.close();
                         continue;
                     }
-                    op.afterRead();
+                    dtc.afterRead();
                 }
                 if (key.isWritable()) {
-
+                    ByteBuffer buf = dtc.getWriteBuffer();
+                    if (buf != null) {
+                        sc.write(buf);
+                    }
                 }
             }
         } catch (ClosedSelectorException e) {
@@ -132,7 +137,7 @@ public class NioServerWorker implements LifeCircle, Runnable {
         sc.configureBlocking(false);
         sc.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
         sc.setOption(StandardSocketOptions.TCP_NODELAY, true);
-        ChannelOps ops = new ChannelOps(pbCallback, processors);
+        DtChannel ops = new DtChannel(pbCallback, nioServerStatus, sc);
         sc.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE, ops);
         channels.add(sc);
         log.info("accepted new socket: " + sc);

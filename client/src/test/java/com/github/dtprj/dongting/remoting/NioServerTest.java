@@ -20,13 +20,19 @@ import com.google.protobuf.ByteString;
 
 import java.io.DataOutputStream;
 import java.net.Socket;
+import java.nio.ByteBuffer;
 
 public class NioServerTest {
     public static void main(String[] args) throws Exception {
         NioServerConfig c = new NioServerConfig();
         c.setPort(9000);
         NioServer server = new NioServer(c);
-        server.register(Commands.CMD_PING, f-> System.out.println(f.getCommand()));
+        server.register(Commands.CMD_PING, (frame, channel) -> {
+            byte[] bs = new byte[frame.getBody().remaining()];
+            frame.getBody().get(bs);
+            System.out.println("server get " + new String(bs));
+            channel.getIoQueue().send(ByteBuffer.wrap(bs));
+        });
 
         server.start();
 
@@ -40,6 +46,9 @@ public class NioServerTest {
         os.writeInt(bs.length);
         os.write(bs);
         os.flush();
+        bs = new byte[1024];
+        int x = s.getInputStream().read(bs);
+        System.out.println("client get " + new String(bs, 0, x));
         s.close();
     }
 }
