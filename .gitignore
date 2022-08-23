@@ -1,6 +1,9 @@
 .DS_Store
 *.versionsBackup
 
+# profiler dump
+*.jfr
+
 # Compiled class file
 *.class
 target/
