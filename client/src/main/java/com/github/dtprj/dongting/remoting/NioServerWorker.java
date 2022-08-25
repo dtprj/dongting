@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.LifeCircle;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
+import java.io.IOException;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedSelectorException;
@@ -29,7 +30,7 @@ import java.nio.channels.spi.SelectorProvider;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * each worker represent a thread.
@@ -40,12 +41,13 @@ public class NioServerWorker implements LifeCircle, Runnable {
     private final String workerName;
     private final Thread thread;
     private final RpcPbCallback pbCallback = new RpcPbCallback();
+    private final IoQueue ioQueue = new IoQueue();
     private final NioServerStatus nioServerStatus;
     private volatile boolean stop;
-    private volatile Selector selector;
+    private Selector selector;
+    private volatile AtomicBoolean notified = new AtomicBoolean(false);
 
     private final ConcurrentLinkedQueue<SocketChannel> newChannels = new ConcurrentLinkedQueue<>();
-    private final AtomicInteger newChannelsCount = new AtomicInteger();
 
     private final HashSet<SocketChannel> channels = new HashSet<>();
 
@@ -58,19 +60,13 @@ public class NioServerWorker implements LifeCircle, Runnable {
 
     public void add(SocketChannel sc) {
         newChannels.add(sc);
-        newChannelsCount.getAndIncrement();
-        if (selector != null) {
-            selector.wakeup();
-        }
+        wakeup();
     }
 
     @Override
     public void run() {
         while (!stop) {
-            initNewChannels();
-            if (!stop) {
-                select();
-            }
+            run0();
         }
         try {
             selector.close();
@@ -83,30 +79,20 @@ public class NioServerWorker implements LifeCircle, Runnable {
         }
     }
 
-    private void initNewChannels() {
+    private void run0() {
         try {
-            while (newChannelsCount.get() > 0) {
-                SocketChannel sc = newChannels.remove();
-                initNewChannel(sc);
-                newChannelsCount.decrementAndGet();
-            }
-        } catch (Throwable e) {
-            log.error("init channel failed: {}", workerName, e);
-        }
-    }
-
-    private void select() {
-        try {
-            selector.select();
+            select();
+            initNewChannels();
+            dispatchWriteQueue();
             Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
             while (iterator.hasNext()) {
                 SelectionKey key = iterator.next();
                 iterator.remove();
+                SocketChannel sc = (SocketChannel) key.channel();
                 if (!key.isValid()) {
                     log.info("socket may closed, remove it: {}", key.channel());
-                    channels.remove(key);
+                    channels.remove(sc);
                 }
-                SocketChannel sc = (SocketChannel) key.channel();
                 DtChannel dtc = (DtChannel) key.attachment();
                 if (key.isReadable()) {
                     ByteBuffer buf = dtc.getOrCreateReadBuffer();
@@ -123,6 +109,9 @@ public class NioServerWorker implements LifeCircle, Runnable {
                     ByteBuffer buf = dtc.getWriteBuffer();
                     if (buf != null) {
                         sc.write(buf);
+                    } else {
+                        // no data to write
+                        key.interestOps(SelectionKey.OP_READ);
                     }
                 }
             }
@@ -133,27 +122,62 @@ public class NioServerWorker implements LifeCircle, Runnable {
         }
     }
 
+    private void select() throws IOException {
+        selector.select();
+        notified.set(false);
+    }
+
+    private void wakeup() {
+        if (notified.compareAndSet(false, true)) {
+            selector.wakeup();
+        }
+    }
+
+    private void initNewChannels() {
+        try {
+            SocketChannel sc;
+            while ((sc = newChannels.poll()) != null) {
+                initNewChannel(sc);
+            }
+        } catch (Throwable e) {
+            log.error("init channel failed: {}", workerName, e);
+        }
+    }
+
     private void initNewChannel(SocketChannel sc) throws Exception {
         sc.configureBlocking(false);
         sc.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
         sc.setOption(StandardSocketOptions.TCP_NODELAY, true);
-        DtChannel ops = new DtChannel(pbCallback, nioServerStatus, sc);
-        sc.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE, ops);
+
+        WorkerParams workerParams = new WorkerParams();
+        workerParams.setChannel(sc);
+        workerParams.setCallback(pbCallback);
+        workerParams.setIoQueue(ioQueue);
+        workerParams.setWakeupRunnable(this::wakeup);
+        DtChannel dtc = new DtChannel(nioServerStatus, workerParams);
+        SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
+        dtc.setSelectionKey(selectionKey);
+
         channels.add(sc);
         log.info("accepted new socket: " + sc);
     }
 
+    private void dispatchWriteQueue() {
+        WriteObj data;
+        while ((data = ioQueue.poll()) != null) {
+            data.getDtc().enqueue(data.getBuffer());
+        }
+    }
+
     @Override
-    public void start() throws Exception {
+    public synchronized void start() throws Exception {
         selector = SelectorProvider.provider().openSelector();
         thread.start();
     }
 
     @Override
-    public void stop() throws Exception {
+    public synchronized void stop() throws Exception {
         stop = true;
-        if (selector != null) {
-            selector.wakeup();
-        }
+        wakeup();
     }
 }

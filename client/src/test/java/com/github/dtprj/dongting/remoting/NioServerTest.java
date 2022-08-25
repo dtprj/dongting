@@ -31,7 +31,7 @@ public class NioServerTest {
             byte[] bs = new byte[frame.getBody().remaining()];
             frame.getBody().get(bs);
             System.out.println("server get " + new String(bs));
-            channel.getIoQueue().send(ByteBuffer.wrap(bs));
+            channel.write(ByteBuffer.wrap(bs));
         });
 
         server.start();
@@ -50,5 +50,7 @@ public class NioServerTest {
         int x = s.getInputStream().read(bs);
         System.out.println("client get " + new String(bs, 0, x));
         s.close();
+
+        server.stop();
     }
 }

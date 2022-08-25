@@ -20,7 +20,9 @@ import com.github.dtprj.dongting.pb.PbUtil;
 
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
+import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
+import java.util.LinkedList;
 
 class DtChannel {
 
@@ -29,6 +31,9 @@ class DtChannel {
     private final RpcPbCallback pbCallback;
     private final NioServerStatus nioServerStatus;
     private final SocketChannel channel;
+    private final Runnable wakeupRunnable;
+    private final IoQueue ioQueue;
+    private SelectionKey selectionKey;
 
     private WeakReference<ByteBuffer> readBufferCache;
     private ByteBuffer readBuffer;
@@ -37,12 +42,19 @@ class DtChannel {
     private int readBufferMark = 0;
 
     private ByteBuffer writeBuffer;
-    private final IoQueue ioQueue = new IoQueue();
 
-    public DtChannel(RpcPbCallback callback, NioServerStatus nioServerStatus, SocketChannel channel) {
-        this.pbCallback = callback;
+    private LinkedList<ByteBuffer> subQueue = new LinkedList<>();
+
+    public DtChannel(NioServerStatus nioServerStatus, WorkerParams workerParams) {
         this.nioServerStatus = nioServerStatus;
-        this.channel = channel;
+        this.pbCallback = workerParams.getCallback();
+        this.channel = workerParams.getChannel();
+        this.ioQueue = workerParams.getIoQueue();
+        this.wakeupRunnable = workerParams.getWakeupRunnable();
+    }
+
+    public SocketChannel getChannel() {
+        return channel;
     }
 
     public ByteBuffer getOrCreateReadBuffer() {
@@ -170,16 +182,27 @@ class DtChannel {
 
     public ByteBuffer getWriteBuffer() {
         if (writeBuffer == null || !writeBuffer.hasRemaining()) {
-            writeBuffer = ioQueue.poll();
+            writeBuffer = subQueue.poll();
         }
         return writeBuffer;
     }
 
-    public SocketChannel getChannel() {
-        return channel;
+    void enqueue(ByteBuffer buf) {
+        subQueue.add(buf);
+        if (subQueue.size() == 1) {
+            selectionKey.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+        }
     }
 
-    public IoQueue getIoQueue() {
-        return ioQueue;
+    public void write(ByteBuffer buf) {
+        WriteObj data = new WriteObj();
+        data.setBuffer(buf);
+        data.setDtc(this);
+        this.ioQueue.write(data);
+        this.wakeupRunnable.run();
+    }
+
+    public void setSelectionKey(SelectionKey selectionKey) {
+        this.selectionKey = selectionKey;
     }
 }

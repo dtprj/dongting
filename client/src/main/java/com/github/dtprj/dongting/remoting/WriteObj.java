@@ -15,17 +15,25 @@
  */
 package com.github.dtprj.dongting.remoting;
 
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.nio.ByteBuffer;
 
-// TODO currently just work, optimize performance
-class IoQueue {
-    private static final ConcurrentLinkedQueue<WriteObj> queue = new ConcurrentLinkedQueue<>();
+class WriteObj {
+    private ByteBuffer buffer;
+    private DtChannel dtc;
 
-    public void write(WriteObj data) {
-        queue.add(data);
+    public ByteBuffer getBuffer() {
+        return buffer;
     }
 
-    public WriteObj poll() {
-        return queue.poll();
+    public void setBuffer(ByteBuffer buffer) {
+        this.buffer = buffer;
+    }
+
+    public DtChannel getDtc() {
+        return dtc;
+    }
+
+    public void setDtc(DtChannel dtc) {
+        this.dtc = dtc;
     }
 }
