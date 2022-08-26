@@ -22,7 +22,7 @@ class NioServerStatus {
     private final ConcurrentHashMap<Integer, CmdProcessor> processors = new ConcurrentHashMap<>();
     private ExecutorService bizExecutor;
 
-    public void register(int cmd, CmdProcessor processor) {
+    public void setProcessor(int cmd, CmdProcessor processor) {
         processors.put(cmd, processor);
     }
 

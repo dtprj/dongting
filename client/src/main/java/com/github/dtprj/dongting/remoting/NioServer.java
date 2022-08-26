@@ -135,7 +135,7 @@ public class NioServer extends AbstractLifeCircle implements Runnable {
     }
 
     public void register(int cmd, CmdProcessor processor) {
-        nioServerStatus.register(cmd, processor);
+        nioServerStatus.setProcessor(cmd, processor);
     }
 
 }
