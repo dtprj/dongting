@@ -19,6 +19,7 @@ public class NioServerConfig {
     private int ioThreads = computeIoThreads(Runtime.getRuntime().availableProcessors());
     private int bizThreads = Runtime.getRuntime().availableProcessors() * 4;
     private int port;
+    private int bizQueueSize = 5000;
     private String name = "DtNioServer";
 
     public NioServerConfig() {
@@ -62,5 +63,13 @@ public class NioServerConfig {
 
     public void setBizThreads(int bizThreads) {
         this.bizThreads = bizThreads;
+    }
+
+    public int getBizQueueSize() {
+        return bizQueueSize;
+    }
+
+    public void setBizQueueSize(int bizQueueSize) {
+        this.bizQueueSize = bizQueueSize;
     }
 }

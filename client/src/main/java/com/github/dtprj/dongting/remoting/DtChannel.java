@@ -120,7 +120,7 @@ class DtChannel {
             if (p == null) {
                 // TODO write error response
             } else {
-                p.process(f, this);
+                nioServerStatus.getBizExecutor().submit(() -> p.process(f, this));
             }
         }
     }

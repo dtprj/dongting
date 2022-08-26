@@ -15,12 +15,12 @@
  */
 package com.github.dtprj.dongting.remoting;
 
-import java.net.InetSocketAddress;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 
 class NioServerStatus {
     private final ConcurrentHashMap<Integer, CmdProcessor> processors = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<InetSocketAddress, DtChannel> channels = new ConcurrentHashMap<>();
+    private ExecutorService bizExecutor;
 
     public void register(int cmd, CmdProcessor processor) {
         processors.put(cmd, processor);
@@ -30,5 +30,11 @@ class NioServerStatus {
         return processors.get(command);
     }
 
+    public ExecutorService getBizExecutor() {
+        return bizExecutor;
+    }
 
+    public void setBizExecutor(ExecutorService bizExecutor) {
+        this.bizExecutor = bizExecutor;
+    }
 }

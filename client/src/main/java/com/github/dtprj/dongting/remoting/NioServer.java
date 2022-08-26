@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.remoting;
 
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtException;
+import com.github.dtprj.dongting.common.DtThreadFactory;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -29,6 +30,10 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.util.Iterator;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public class NioServer extends AbstractLifeCircle implements Runnable {
     private static final DtLog log = DtLogs.getLogger(NioServer.class);
@@ -40,6 +45,7 @@ public class NioServer extends AbstractLifeCircle implements Runnable {
     private final Thread acceptThread;
     private final NioServerWorker[] workers;
     private final NioServerStatus nioServerStatus = new NioServerStatus();
+    private ExecutorService bizExecutor;
 
     public NioServer(NioServerConfig config) {
         this.config = config;
@@ -47,7 +53,7 @@ public class NioServer extends AbstractLifeCircle implements Runnable {
             throw new DtException("no port");
         }
         acceptThread = new Thread(this);
-        acceptThread.setName(config.getName());
+        acceptThread.setName(config.getName() + "IoAccept");
         workers = new NioServerWorker[config.getIoThreads()];
         for (int i = 0; i < workers.length; i++) {
             workers[i] = new NioServerWorker(config, i, nioServerStatus);
@@ -65,6 +71,11 @@ public class NioServer extends AbstractLifeCircle implements Runnable {
 
         log.info("{} listen at port {}", config.getName(), config.getPort());
 
+        // TODO back pressure
+        bizExecutor = new ThreadPoolExecutor(config.getBizThreads(), config.getBizQueueSize(),
+                1, TimeUnit.MINUTES, new ArrayBlockingQueue<>(config.getBizQueueSize()),
+                new DtThreadFactory(config.getName() + "Biz", false));
+        nioServerStatus.setBizExecutor(bizExecutor);
         acceptThread.start();
         for (NioServerWorker worker : workers) {
             worker.start();
@@ -117,6 +128,7 @@ public class NioServer extends AbstractLifeCircle implements Runnable {
         if (selector != null) {
             selector.wakeup();
         }
+        bizExecutor.shutdown();
         for (NioServerWorker worker : workers) {
             worker.stop();
         }
