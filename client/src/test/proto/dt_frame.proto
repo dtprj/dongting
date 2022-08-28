@@ -1,10 +1,10 @@
 syntax = "proto3";
 option java_package = "com.github.dtprj.dongting.pb";
 message Frame {
-  int32 frameType = 1;
-  int32 command = 2;
-  int32 seq = 3;
-  int32 resp_code = 4;
+  uint32 frameType = 1;
+  uint32 command = 2;
+  uint32 seq = 3;
+  uint32 resp_code = 4;
   string resp_msg = 5;
   bytes body = 15;
 }

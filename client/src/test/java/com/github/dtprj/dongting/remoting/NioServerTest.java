@@ -29,9 +29,11 @@ public class NioServerTest {
         NioServer server = new NioServer(c);
         server.register(Commands.CMD_PING, (frame, channel) -> {
             byte[] bs = new byte[frame.getBody().remaining()];
+            frame.getBody().mark();
             frame.getBody().get(bs);
+            frame.getBody().reset();
             System.out.println("server get " + new String(bs));
-            channel.write(ByteBuffer.wrap(bs));
+            return frame;
         });
 
         server.start();
@@ -46,9 +48,10 @@ public class NioServerTest {
         os.writeInt(bs.length);
         os.write(bs);
         os.flush();
-        bs = new byte[1024];
-        int x = s.getInputStream().read(bs);
-        System.out.println("client get " + new String(bs, 0, x));
+        byte[] bs2 = new byte[1024];
+        int x = s.getInputStream().read(bs2);
+        DtFrame.Frame f = DtFrame.Frame.parseFrom(ByteBuffer.wrap(bs2, 4, x -4));
+        System.out.println("client get " + new String(f.getBody().toByteArray()));
         s.close();
 
         server.stop();

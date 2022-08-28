@@ -120,7 +120,10 @@ class DtChannel {
             if (p == null) {
                 // TODO write error response
             } else {
-                nioServerStatus.getBizExecutor().submit(() -> p.process(f, this));
+                nioServerStatus.getBizExecutor().submit(() -> {
+                    Frame resp = p.process(f, this);
+                    write(resp);
+                });
             }
         }
     }
@@ -194,9 +197,9 @@ class DtChannel {
         }
     }
 
-    public void write(ByteBuffer buf) {
+    private void write(Frame frame) {
         WriteObj data = new WriteObj();
-        data.setBuffer(buf);
+        data.setBuffer(frame.toByteBuffer());
         data.setDtc(this);
         this.ioQueue.write(data);
         this.wakeupRunnable.run();

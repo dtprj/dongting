@@ -25,9 +25,7 @@ import java.nio.ByteOrder;
  */
 public class PbUtil {
 
-    // max support 4 bytes (int) to represent a field index, so there is 4 * 7 (base 128) - 3(type) = 25 valid bits.
-    // max value is 33554431
-    public static final int MAX_SUPPORT_FIELD_INDEX = (1 << 25) - 1;
+    public static final int MAX_SUPPORT_FIELD_INDEX = 536870911; // 29 bits
 
     public static final int TYPE_VAR_INT = 0;
     public static final int TYPE_FIX64 = 1;
@@ -36,23 +34,47 @@ public class PbUtil {
     public static final int TYPE_END_GROUP = 4;
     public static final int TYPE_FIX32 = 5;
 
-    public static int toTag(int type, int index) {
+    public static void writeTag(ByteBuffer buf, int type, int index) {
         if (index > MAX_SUPPORT_FIELD_INDEX || index <= 0) {
             throw new IllegalArgumentException(String.valueOf(index));
         }
         int value = (index << 3) | type;
 
-        int encode = 0;
-        for (int i = 0; i < 4; i++) {
-            encode |= (value & 0x7F);
-            value >>>= 7;
-            if (value == 0) {
-                break;
-            }
-            encode |= 0x80;
-            encode <<= 8;
+        writeVarUnsignedInt32(buf, value);
+    }
+
+    public static void writeVarUnsignedInt32(ByteBuffer buf, int value) {
+        if (value == 0) {
+            throw new IllegalArgumentException();
         }
-        return encode;
+        for (int i = 0; i < 5; i++) {
+            int x = value & 0x7F;
+            value >>>= 7;
+            if (value != 0) {
+                x |= 0x80;
+                buf.put((byte) x);
+            } else {
+                buf.put((byte) x);
+                return;
+            }
+        }
+    }
+
+    public static void writeVarUnsignedInt64(ByteBuffer buf, long value) {
+        if (value == 0) {
+            throw new IllegalArgumentException();
+        }
+        for (int i = 0; i < 10; i++) {
+            long x = value & 0x7FL;
+            value >>>= 7;
+            if (value != 0) {
+                x |= 0x80L;
+                buf.put((byte) x);
+            } else {
+                buf.put((byte) x);
+                return;
+            }
+        }
     }
 
     public static void parse(ByteBuffer buf, PbCallback callback) {
@@ -60,13 +82,13 @@ public class PbUtil {
         buf.order(ByteOrder.LITTLE_ENDIAN);
         int limit = buf.limit();
         while (buf.hasRemaining()) {
-            int index = readVarInt32(buf);
+            int index = readVarUnsignedInt32(buf);
             int type = index & 0x07; // 0000 0111
             index >>>= 3;
             switch (type) {
                 case TYPE_VAR_INT:
-                    // TODO only support int32 now
-                    callback.readInt(index, readVarInt32(buf));
+                    // TODO only support uint32 now
+                    callback.readInt(index, readVarUnsignedInt32(buf));
                     break;
                 case TYPE_FIX32:
                     callback.readInt(index, buf.getInt());
@@ -75,7 +97,7 @@ public class PbUtil {
                     callback.readLong(index, buf.getLong());
                     break;
                 case TYPE_LENGTH_DELIMITED:
-                    int length = readVarInt32(buf);
+                    int length = readVarUnsignedInt32(buf);
                     if (length > buf.remaining() || length < 0) {
                         throw new PbException("bad protobuf length: " + length);
                     }
@@ -94,7 +116,7 @@ public class PbUtil {
         buf.order(old);
     }
 
-    private static int readVarInt32(ByteBuffer buf) {
+    public static int readVarUnsignedInt32(ByteBuffer buf) {
         int bitIndex = 0;
         int value = 0;
         for (int i = 0; i < 5; i++) {
@@ -108,7 +130,7 @@ public class PbUtil {
         throw new PbException("bad protobuf var int input");
     }
 
-    private static long readVarInt64(ByteBuffer buf) {
+    public static long readVarUnsignedInt64(ByteBuffer buf) {
         int bitIndex = 0;
         long value = 0;
         for (int i = 0; i < 10; i++) {

@@ -16,5 +16,5 @@
 package com.github.dtprj.dongting.remoting;
 
 public interface CmdProcessor {
-    void process(Frame frame, DtChannel channel);
+    Frame process(Frame frame, DtChannel channel);
 }

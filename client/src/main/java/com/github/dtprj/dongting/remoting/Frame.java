@@ -15,7 +15,10 @@
  */
 package com.github.dtprj.dongting.remoting;
 
+import com.github.dtprj.dongting.pb.PbUtil;
+
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 public class Frame {
     public static final int IDX_TYPE = 1;
@@ -31,6 +34,56 @@ public class Frame {
     private int respCode;
     private String msg;
     private ByteBuffer body;
+
+    private int pbSize;
+
+    public int pbSize() {
+        if (pbSize == 0) {
+            int msgBytes = msg == null ? 0 : msg.length() * 3;
+            pbSize = (1 + 5) * 4 // first int32 field * 4
+                    + (1 + 5) + msgBytes //msg
+                    + (1 + 5) + body.remaining(); // body
+        }
+        return pbSize;
+    }
+
+    public ByteBuffer toByteBuffer() {
+        // TODO need optimise
+        int s = pbSize();
+        ByteBuffer buf = ByteBuffer.allocate(s + 4);
+        buf.position(4);
+        if (frameType != 0) {
+            PbUtil.writeTag(buf, PbUtil.TYPE_VAR_INT, Frame.IDX_TYPE);
+            PbUtil.writeVarUnsignedInt32(buf, frameType);
+        }
+        if (command != 0) {
+            PbUtil.writeTag(buf, PbUtil.TYPE_VAR_INT, Frame.IDX_COMMAND);
+            PbUtil.writeVarUnsignedInt32(buf, command);
+        }
+        if (seq != 0) {
+            PbUtil.writeTag(buf, PbUtil.TYPE_VAR_INT, Frame.IDX_SEQ);
+            PbUtil.writeVarUnsignedInt32(buf,seq);
+        }
+        if (respCode != 0) {
+            PbUtil.writeTag(buf, PbUtil.TYPE_VAR_INT, Frame.IDX_RESP_CODE);
+            PbUtil.writeVarUnsignedInt32(buf, respCode);
+        }
+        if (msg != null && msg.length() > 0) {
+            PbUtil.writeTag(buf, PbUtil.TYPE_LENGTH_DELIMITED, Frame.IDX_MSG);
+            byte[] bs = msg.getBytes(StandardCharsets.UTF_8);
+            PbUtil.writeVarUnsignedInt32(buf, bs.length);
+            buf.put(bs);
+        }
+        if (body != null && body.remaining() > 0) {
+            PbUtil.writeTag(buf, PbUtil.TYPE_LENGTH_DELIMITED, Frame.IDX_BODY);
+            PbUtil.writeVarUnsignedInt32(buf, body.remaining());
+            buf.put(body);
+        }
+        buf.putInt(0, buf.position());
+        buf.flip();
+        return buf;
+    }
+
 
     public int getFrameType() {
         return frameType;
