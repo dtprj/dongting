@@ -118,10 +118,18 @@ class DtChannel {
             this.currentReadFrameSize = -1;
             CmdProcessor p = nioServerStatus.getProcessor(f.getCommand());
             if (p == null) {
-                // TODO write error response
+                Frame resp = new Frame();
+                resp.setCommand(f.getCommand());
+                resp.setFrameType(CmdType.TYPE_RESP);
+                resp.setSeq(f.getSeq());
+                resp.setRespCode(CmdCodes.COMMAND_NOT_SUPPORT);
+                enqueue(resp.toByteBuffer());
             } else {
                 nioServerStatus.getBizExecutor().submit(() -> {
                     Frame resp = p.process(f, this);
+                    resp.setCommand(f.getCommand());
+                    resp.setFrameType(CmdType.TYPE_RESP);
+                    resp.setSeq(f.getSeq());
                     write(resp);
                 });
             }

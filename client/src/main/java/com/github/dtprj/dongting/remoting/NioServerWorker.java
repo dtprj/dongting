@@ -156,6 +156,9 @@ public class NioServerWorker implements LifeCircle, Runnable {
     }
 
     private void wakeup() {
+        if (Thread.currentThread() == thread) {
+            return;
+        }
         if (notified.compareAndSet(false, true)) {
             selector.wakeup();
         }

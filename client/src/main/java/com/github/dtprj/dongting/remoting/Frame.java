@@ -39,10 +39,11 @@ public class Frame {
 
     public int pbSize() {
         if (pbSize == 0) {
-            int msgBytes = msg == null ? 0 : msg.length() * 3;
+            int msgBytes = msg == null ? 0 : msg.length() * 3 + (1 + 5);
+            int bodyBytes = body==null ? 0 : body.remaining() + (1+5);
             pbSize = (1 + 5) * 4 // first int32 field * 4
-                    + (1 + 5) + msgBytes //msg
-                    + (1 + 5) + body.remaining(); // body
+                    + msgBytes //msg
+                    + bodyBytes; // body
         }
         return pbSize;
     }
