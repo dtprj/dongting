@@ -16,16 +16,22 @@
 package com.github.dtprj.dongting.common;
 
 public class AbstractLifeCircle implements LifeCircle {
-    private boolean init;
-    private boolean shutdown;
+
+    protected enum LifeStatus {
+        not_start, starting, running, stopping, stopped
+    }
+
+
+    protected volatile LifeStatus status = LifeStatus.not_start;
 
     @Override
     public final synchronized void start() throws Exception {
-        if (!init) {
+        if (status == LifeStatus.not_start) {
+            status = LifeStatus.starting;
             doStart();
-            init = true;
+            status = LifeStatus.running;
         } else {
-            throw new IllegalStateException("already started");
+            throw new IllegalStateException("error state: " + status);
         }
     }
 
@@ -34,13 +40,12 @@ public class AbstractLifeCircle implements LifeCircle {
 
     @Override
     public final synchronized void stop() throws Exception {
-        if (init) {
-            if (!shutdown) {
-                doStop();
-                shutdown = true;
-            }
+        if (status == LifeStatus.running) {
+            status = LifeStatus.stopping;
+            doStop();
+            status = LifeStatus.stopped;
         } else {
-            throw new IllegalStateException("not start");
+            throw new IllegalStateException("error state: " + status);
         }
     }
 
