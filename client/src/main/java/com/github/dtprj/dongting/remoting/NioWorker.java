@@ -20,47 +20,72 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.io.IOException;
+import java.net.SocketAddress;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
-import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * each worker represent a thread.
  */
-public class NioServerWorker implements LifeCircle, Runnable {
-    private static final DtLog log = DtLogs.getLogger(NioServerWorker.class);
+public class NioWorker implements LifeCircle, Runnable {
+    private static final DtLog log = DtLogs.getLogger(NioWorker.class);
 
     private final String workerName;
     private final Thread thread;
     private final RpcPbCallback pbCallback = new RpcPbCallback();
     private final IoQueue ioQueue = new IoQueue();
-    private final NioServerStatus nioServerStatus;
+    private final NioStatus nioStatus;
     private volatile boolean stop;
     private Selector selector;
-    private volatile AtomicBoolean notified = new AtomicBoolean(false);
+    private final AtomicBoolean notified = new AtomicBoolean(false);
 
-    private final ConcurrentLinkedQueue<SocketChannel> newChannels = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<Runnable> actions = new ConcurrentLinkedQueue<>();
 
-    private final HashSet<SocketChannel> channels = new HashSet<>();
+    private final HashSet<DtChannel> channels = new HashSet<>();
 
-    public NioServerWorker(NioServerConfig config, int index, NioServerStatus nioServerStatus) {
-        this.nioServerStatus = nioServerStatus;
+    public NioWorker(NioStatus nioStatus, String workerName) {
+        this.nioStatus = nioStatus;
         this.thread = new Thread(this);
-        this.workerName = config.getName() + "IoWorker" + index;
+        this.workerName = workerName;
         this.thread.setName(workerName);
     }
 
-    public void add(SocketChannel sc) {
-        newChannels.add(sc);
+    // invoke by NioServer accept thead
+    public void newChannelAccept(SocketChannel sc) {
+        actions.add(() -> {
+            try {
+                initNewChannel(sc);
+            } catch (Exception e) {
+                log.warn("accept channel fail: {}, {}", sc, e.toString());
+                closeChannel(sc, null);
+            }
+        });
         wakeup();
+    }
+
+    // invoke by other threads
+    public CompletableFuture<DtChannel> connect(SocketAddress socketAddress) {
+        CompletableFuture<DtChannel> f = new CompletableFuture<>();
+        actions.add(() -> doConnect(socketAddress, f));
+        wakeup();
+        return f;
+    }
+
+    // invoke by other threads
+    public CompletableFuture<Void> close(SocketChannel channel) {
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        actions.add(() -> closeChannel(channel, f));
+        wakeup();
+        return f;
     }
 
     @Override
@@ -74,8 +99,8 @@ public class NioServerWorker implements LifeCircle, Runnable {
         }
         try {
             selector.close();
-            for (SocketChannel sc : channels) {
-                sc.close();
+            for (DtChannel c : channels) {
+                c.getChannel().close();
             }
             log.info("worker thread finished: {}", workerName);
         } catch (Exception e) {
@@ -87,7 +112,7 @@ public class NioServerWorker implements LifeCircle, Runnable {
         if (!select()) {
             return;
         }
-        initNewChannels();
+        performActions();
         dispatchWriteQueue();
         Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
         while (iterator.hasNext()) {
@@ -102,16 +127,21 @@ public class NioServerWorker implements LifeCircle, Runnable {
         try {
             if (!key.isValid()) {
                 log.info("socket may closed, remove it: {}", key.channel());
-                closeChannel(sc, key);
+                closeChannel(key);
                 return;
             }
+            if (key.isConnectable()) {
+                processConnect(key);
+                return;
+            }
+
             DtChannel dtc = (DtChannel) key.attachment();
             if (key.isReadable()) {
                 ByteBuffer buf = dtc.getOrCreateReadBuffer();
                 int readCount = sc.read(buf);
                 if (readCount == -1) {
                     log.info("socket closed, remove it: {}", key.channel());
-                    closeChannel(sc, key);
+                    closeChannel(key);
                     return;
                 }
                 dtc.afterRead();
@@ -125,21 +155,45 @@ public class NioServerWorker implements LifeCircle, Runnable {
                     key.interestOps(SelectionKey.OP_READ);
                 }
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.warn("socket error: {}", e.getMessage());
-            closeChannel(sc, key);
+            closeChannel(key);
         }
     }
 
-    private void closeChannel(SocketChannel sc, SelectionKey key) {
+    private void closeChannel(SelectionKey key) {
+        Object att = key.attachment();
+        if (att instanceof DtChannel) {
+            closeChannel((DtChannel) att, null);
+        } else {
+            closeChannel((SocketChannel) att, null);
+        }
+    }
+
+    private void closeChannel(SocketChannel sc, CompletableFuture<Void> f) {
+        channels.removeIf(dtc -> dtc.getChannel() == sc);
+        closeChannel0(sc, f);
+    }
+
+    private void closeChannel(DtChannel dtc, CompletableFuture<Void> f) {
+        channels.remove(dtc);
+        closeChannel0(dtc.getChannel(), f);
+    }
+
+    private void closeChannel0(SocketChannel sc, CompletableFuture<Void> f) {
         try {
-            channels.remove(sc);
-            key.cancel();
             if (sc.isOpen()) {
                 sc.close();
+                log.info("channel closed: {}", sc);
+            }
+            if (f != null) {
+                f.complete(null);
             }
         } catch (Exception e) {
             log.warn("close channel fail: {}, {}", sc, e.getMessage());
+            if (f != null) {
+                f.completeExceptionally(new RemotingException(e));
+            }
         }
     }
 
@@ -164,34 +218,60 @@ public class NioServerWorker implements LifeCircle, Runnable {
         }
     }
 
-    private void initNewChannels() {
-        SocketChannel sc;
-        while ((sc = newChannels.poll()) != null) {
-            initNewChannel(sc);
+    private void performActions() {
+        Runnable r;
+        while ((r = actions.poll()) != null) {
+            r.run();
         }
     }
 
-    private void initNewChannel(SocketChannel sc) {
+    private DtChannel initNewChannel(SocketChannel sc) throws IOException {
+        sc.configureBlocking(false);
+        sc.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
+        sc.setOption(StandardSocketOptions.TCP_NODELAY, true);
+
+        WorkerParams workerParams = new WorkerParams();
+        workerParams.setChannel(sc);
+        workerParams.setCallback(pbCallback);
+        workerParams.setIoQueue(ioQueue);
+        workerParams.setWakeupRunnable(this::wakeup);
+        DtChannel dtc = new DtChannel(nioStatus, workerParams);
+        SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
+        dtc.setSelectionKey(selectionKey);
+
+        channels.add(dtc);
+        log.info("new DtChannel init: {}", sc);
+        return dtc;
+    }
+
+    private void doConnect(SocketAddress socketAddress, CompletableFuture<DtChannel> f) {
+        SocketChannel sc = null;
         try {
-            sc.configureBlocking(false);
+            sc = SocketChannel.open();
             sc.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
             sc.setOption(StandardSocketOptions.TCP_NODELAY, true);
+            sc.configureBlocking(false);
+            sc.register(selector, SelectionKey.OP_CONNECT, f);
+            sc.connect(socketAddress);
+        } catch (Throwable e) {
+            if (sc != null) {
+                closeChannel(sc, null);
+            }
+            f.completeExceptionally(new RemotingException(e));
+        }
+    }
 
-            WorkerParams workerParams = new WorkerParams();
-            workerParams.setChannel(sc);
-            workerParams.setCallback(pbCallback);
-            workerParams.setIoQueue(ioQueue);
-            workerParams.setWakeupRunnable(this::wakeup);
-            DtChannel dtc = new DtChannel(nioServerStatus, workerParams);
-            SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
-            dtc.setSelectionKey(selectionKey);
-
-            channels.add(sc);
-            log.info("accepted new socket: {}", sc);
-        } catch (ClosedChannelException e) {
-            log.info("channel is closed: {}", sc);
+    private void processConnect(SelectionKey key) {
+        CompletableFuture<DtChannel> f = (CompletableFuture<DtChannel>) key.attachment();
+        SocketChannel channel = (SocketChannel) key.channel();
+        try {
+            channel.finishConnect();
+            DtChannel dtc = initNewChannel(channel);
+            f.complete(dtc);
         } catch (Exception e) {
-            log.warn("init channel fail: {}", sc, e);
+            log.warn("init channel fail: {}, {}", channel, e.toString());
+            closeChannel(key);
+            f.completeExceptionally(new RemotingException(e));
         }
     }
 

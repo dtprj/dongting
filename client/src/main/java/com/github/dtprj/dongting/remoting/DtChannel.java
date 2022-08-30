@@ -29,7 +29,7 @@ class DtChannel {
     private static final int INIT_BUF_SIZE = 2048;
     private static final int MAX_FRAME_SIZE = 8 * 1024 * 1024;
     private final RpcPbCallback pbCallback;
-    private final NioServerStatus nioServerStatus;
+    private final NioStatus nioStatus;
     private final SocketChannel channel;
     private final Runnable wakeupRunnable;
     private final IoQueue ioQueue;
@@ -45,8 +45,8 @@ class DtChannel {
 
     private LinkedList<ByteBuffer> subQueue = new LinkedList<>();
 
-    public DtChannel(NioServerStatus nioServerStatus, WorkerParams workerParams) {
-        this.nioServerStatus = nioServerStatus;
+    public DtChannel(NioStatus nioStatus, WorkerParams workerParams) {
+        this.nioStatus = nioStatus;
         this.pbCallback = workerParams.getCallback();
         this.channel = workerParams.getChannel();
         this.ioQueue = workerParams.getIoQueue();
@@ -116,7 +116,7 @@ class DtChannel {
             buf.limit(limit);
             this.readBufferMark = buf.position();
             this.currentReadFrameSize = -1;
-            CmdProcessor p = nioServerStatus.getProcessor(f.getCommand());
+            CmdProcessor p = nioStatus.getProcessor(f.getCommand());
             if (p == null) {
                 Frame resp = new Frame();
                 resp.setCommand(f.getCommand());
@@ -125,13 +125,22 @@ class DtChannel {
                 resp.setRespCode(CmdCodes.COMMAND_NOT_SUPPORT);
                 enqueue(resp.toByteBuffer());
             } else {
-                nioServerStatus.getBizExecutor().submit(() -> {
+                if (nioStatus.getBizExecutor() == null) {
                     Frame resp = p.process(f, this);
                     resp.setCommand(f.getCommand());
                     resp.setFrameType(CmdType.TYPE_RESP);
                     resp.setSeq(f.getSeq());
-                    write(resp);
-                });
+                    enqueue(resp.toByteBuffer());
+                } else {
+                    nioStatus.getBizExecutor().submit(() -> {
+                        Frame resp = p.process(f, this);
+                        resp.setCommand(f.getCommand());
+                        resp.setFrameType(CmdType.TYPE_RESP);
+                        resp.setSeq(f.getSeq());
+                        write(resp);
+                    });
+                }
+
             }
         }
     }

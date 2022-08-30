@@ -15,14 +15,16 @@
  */
 package com.github.dtprj.dongting.remoting;
 
-public class NioServerConfig {
-    private int ioThreads = computeIoThreads(Runtime.getRuntime().availableProcessors());
-    private int bizThreads = Runtime.getRuntime().availableProcessors() * 4;
+public class NioServerConfig extends NioConfig {
     private int port;
-    private int bizQueueSize = 5000;
-    private String name = "DtNioServer";
+    private int ioThreads;
 
     public NioServerConfig() {
+        int ioThreads = computeIoThreads(Runtime.getRuntime().availableProcessors());
+        setIoThreads(ioThreads);
+        int bizThreads = Runtime.getRuntime().availableProcessors() * 4;
+        setBizThreads(bizThreads);
+        setName("DtNioServer");
     }
 
     public static int computeIoThreads(int processorCount) {
@@ -33,14 +35,6 @@ public class NioServerConfig {
         return Math.min(((int) Math.pow(processorCount + delta, pow)) + 1, processorCount);
     }
 
-    public int getIoThreads() {
-        return ioThreads;
-    }
-
-    public void setIoThreads(int ioThreads) {
-        this.ioThreads = ioThreads;
-    }
-
     public int getPort() {
         return port;
     }
@@ -49,27 +43,11 @@ public class NioServerConfig {
         this.port = port;
     }
 
-    public String getName() {
-        return name;
+    public int getIoThreads() {
+        return ioThreads;
     }
 
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public int getBizThreads() {
-        return bizThreads;
-    }
-
-    public void setBizThreads(int bizThreads) {
-        this.bizThreads = bizThreads;
-    }
-
-    public int getBizQueueSize() {
-        return bizQueueSize;
-    }
-
-    public void setBizQueueSize(int bizQueueSize) {
-        this.bizQueueSize = bizQueueSize;
+    public void setIoThreads(int ioThreads) {
+        this.ioThreads = ioThreads;
     }
 }

@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.remoting;
 
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
-import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtThreadFactory;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -43,20 +42,20 @@ public class NioServer extends AbstractLifeCircle implements Runnable {
     private Selector selector;
     private volatile boolean stop;
     private final Thread acceptThread;
-    private final NioServerWorker[] workers;
-    private final NioServerStatus nioServerStatus = new NioServerStatus();
+    private final NioWorker[] workers;
+    private final NioStatus nioStatus = new NioStatus();
     private ExecutorService bizExecutor;
 
     public NioServer(NioServerConfig config) {
         this.config = config;
         if (config.getPort() <= 0) {
-            throw new DtException("no port");
+            throw new IllegalArgumentException("no port");
         }
         acceptThread = new Thread(this);
         acceptThread.setName(config.getName() + "IoAccept");
-        workers = new NioServerWorker[config.getIoThreads()];
+        workers = new NioWorker[config.getIoThreads()];
         for (int i = 0; i < workers.length; i++) {
-            workers[i] = new NioServerWorker(config, i, nioServerStatus);
+            workers[i] = new NioWorker(nioStatus, config.getName() + "IoWorker" + i);
         }
     }
 
@@ -72,12 +71,14 @@ public class NioServer extends AbstractLifeCircle implements Runnable {
         log.info("{} listen at port {}", config.getName(), config.getPort());
 
         // TODO back pressure
-        bizExecutor = new ThreadPoolExecutor(config.getBizThreads(), config.getBizQueueSize(),
-                1, TimeUnit.MINUTES, new ArrayBlockingQueue<>(config.getBizQueueSize()),
-                new DtThreadFactory(config.getName() + "Biz", false));
-        nioServerStatus.setBizExecutor(bizExecutor);
+        if (config.getBizThreads() > 0) {
+            bizExecutor = new ThreadPoolExecutor(config.getBizThreads(), config.getBizQueueSize(),
+                    1, TimeUnit.MINUTES, new ArrayBlockingQueue<>(config.getBizQueueSize()),
+                    new DtThreadFactory(config.getName() + "Biz", false));
+            nioStatus.setBizExecutor(bizExecutor);
+        }
         acceptThread.start();
-        for (NioServerWorker worker : workers) {
+        for (NioWorker worker : workers) {
             worker.start();
         }
     }
@@ -112,7 +113,7 @@ public class NioServer extends AbstractLifeCircle implements Runnable {
                 if (key.isAcceptable()) {
                     SocketChannel sc = ssc.accept();
                     log.debug("accept new socket: {}", sc);
-                    workers[sc.hashCode() % workers.length].add(sc);
+                    workers[sc.hashCode() % workers.length].newChannelAccept(sc);
                 }
             }
         } catch (ClosedSelectorException e) {
@@ -129,13 +130,13 @@ public class NioServer extends AbstractLifeCircle implements Runnable {
             selector.wakeup();
         }
         bizExecutor.shutdown();
-        for (NioServerWorker worker : workers) {
+        for (NioWorker worker : workers) {
             worker.stop();
         }
     }
 
     public void register(int cmd, CmdProcessor processor) {
-        nioServerStatus.setProcessor(cmd, processor);
+        nioStatus.setProcessor(cmd, processor);
     }
 
 }

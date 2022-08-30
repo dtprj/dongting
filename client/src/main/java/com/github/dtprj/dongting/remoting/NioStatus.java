@@ -18,7 +18,7 @@ package com.github.dtprj.dongting.remoting;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 
-class NioServerStatus {
+class NioStatus {
     private final ConcurrentHashMap<Integer, CmdProcessor> processors = new ConcurrentHashMap<>();
     private ExecutorService bizExecutor;
 
