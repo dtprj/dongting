@@ -78,9 +78,11 @@ public class Frame {
         if (body != null && body.remaining() > 0) {
             PbUtil.writeTag(buf, PbUtil.TYPE_LENGTH_DELIMITED, Frame.IDX_BODY);
             PbUtil.writeVarUnsignedInt32(buf, body.remaining());
+            body.mark();
             buf.put(body);
+            body.reset();
         }
-        buf.putInt(0, buf.position());
+        buf.putInt(0, buf.position() - 4);
         buf.flip();
         return buf;
     }

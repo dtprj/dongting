@@ -83,6 +83,9 @@ public class NioClient extends NioRemoting {
     }
 
     public CompletableFuture<Frame> sendRequest(Frame request, DtTime timeout) {
+        if (status != LifeStatus.running) {
+            return errorFuture(new IllegalStateException("error state: " + status));
+        }
         List<DtChannel> channels = worker.getChannels();
         DtChannel dtc = null;
         try {

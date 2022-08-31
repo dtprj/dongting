@@ -42,7 +42,6 @@ public class NioServer extends NioRemoting implements Runnable {
     private volatile boolean stop;
     private final Thread acceptThread;
     private final NioWorker[] workers;
-    private final NioStatus nioStatus = new NioStatus();
     private ExecutorService bizExecutor;
 
     public NioServer(NioServerConfig config) {
