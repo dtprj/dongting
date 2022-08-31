@@ -16,12 +16,14 @@
 package com.github.dtprj.dongting.remoting;
 
 import java.nio.channels.SocketChannel;
+import java.util.HashMap;
 
 public class WorkerParams {
     private RpcPbCallback callback;
     private SocketChannel channel;
     private IoQueue ioQueue;
     private Runnable wakeupRunnable;
+    private HashMap<Integer, WriteObj> pendingRequests;
 
     public RpcPbCallback getCallback() {
         return callback;
@@ -53,5 +55,13 @@ public class WorkerParams {
 
     public void setWakeupRunnable(Runnable wakeupRunnable) {
         this.wakeupRunnable = wakeupRunnable;
+    }
+
+    public HashMap<Integer, WriteObj> getPendingRequests() {
+        return pendingRequests;
+    }
+
+    public void setPendingRequests(HashMap<Integer, WriteObj> pendingRequests) {
+        this.pendingRequests = pendingRequests;
     }
 }

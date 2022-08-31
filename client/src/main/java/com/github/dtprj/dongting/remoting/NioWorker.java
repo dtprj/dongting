@@ -27,10 +27,12 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -50,7 +52,8 @@ public class NioWorker implements LifeCircle, Runnable {
 
     private final ConcurrentLinkedQueue<Runnable> actions = new ConcurrentLinkedQueue<>();
 
-    private final HashSet<DtChannel> channels = new HashSet<>();
+    private final CopyOnWriteArrayList<DtChannel> channels = new CopyOnWriteArrayList<>();
+    private final HashMap<Integer, WriteObj> pendingRequests = new HashMap<>();
 
     public NioWorker(NioStatus nioStatus, String workerName) {
         this.nioStatus = nioStatus;
@@ -234,6 +237,7 @@ public class NioWorker implements LifeCircle, Runnable {
         workerParams.setChannel(sc);
         workerParams.setCallback(pbCallback);
         workerParams.setIoQueue(ioQueue);
+        workerParams.setPendingRequests(pendingRequests);
         workerParams.setWakeupRunnable(this::wakeup);
         DtChannel dtc = new DtChannel(nioStatus, workerParams);
         SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
@@ -276,9 +280,20 @@ public class NioWorker implements LifeCircle, Runnable {
     }
 
     private void dispatchWriteQueue() {
-        WriteObj data;
-        while ((data = ioQueue.poll()) != null) {
-            data.getDtc().enqueue(data.getBuffer());
+        WriteObj wo;
+        while ((wo = ioQueue.poll()) != null) {
+            Frame req = wo.getData();
+            if (req.getFrameType() == CmdType.TYPE_REQ) {
+                WriteObj old = pendingRequests.put(req.getSeq(), wo);
+                if (old != null) {
+                    String errMsg = "dup seq: old=" + old.getData() + ", new=" + req;
+                    log.error(errMsg);
+                    wo.getFuture().completeExceptionally(new RemotingException(errMsg));
+                    pendingRequests.put(req.getSeq(), old);
+                    continue;
+                }
+            }
+            wo.getDtc().enqueue(req.toByteBuffer());
         }
     }
 
@@ -292,5 +307,9 @@ public class NioWorker implements LifeCircle, Runnable {
     public synchronized void stop() throws Exception {
         stop = true;
         wakeup();
+    }
+
+    public List<DtChannel> getChannels() {
+        return channels;
     }
 }

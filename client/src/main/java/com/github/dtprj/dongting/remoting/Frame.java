@@ -40,7 +40,7 @@ public class Frame {
     public int pbSize() {
         if (pbSize == 0) {
             int msgBytes = msg == null ? 0 : msg.length() * 3 + (1 + 5);
-            int bodyBytes = body==null ? 0 : body.remaining() + (1+5);
+            int bodyBytes = body == null ? 0 : body.remaining() + (1 + 5);
             pbSize = (1 + 5) * 4 // first int32 field * 4
                     + msgBytes //msg
                     + bodyBytes; // body
@@ -63,7 +63,7 @@ public class Frame {
         }
         if (seq != 0) {
             PbUtil.writeTag(buf, PbUtil.TYPE_VAR_INT, Frame.IDX_SEQ);
-            PbUtil.writeVarUnsignedInt32(buf,seq);
+            PbUtil.writeVarUnsignedInt32(buf, seq);
         }
         if (respCode != 0) {
             PbUtil.writeTag(buf, PbUtil.TYPE_VAR_INT, Frame.IDX_RESP_CODE);
@@ -83,6 +83,17 @@ public class Frame {
         buf.putInt(0, buf.position());
         buf.flip();
         return buf;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Frame(type=").append(frameType)
+                .append(",cmd=").append(command)
+                .append(",seq=").append(seq)
+                .append(",respCode=").append(respCode)
+                .append(")");
+        return sb.toString();
     }
 
 

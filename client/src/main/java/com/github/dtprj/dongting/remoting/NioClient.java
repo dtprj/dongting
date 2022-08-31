@@ -15,26 +15,26 @@
  */
 package com.github.dtprj.dongting.remoting;
 
-import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
-public class NioClient extends AbstractLifeCircle {
+public class NioClient extends NioRemoting {
 
     private static final DtLog log = DtLogs.getLogger(NioClient.class);
 
     private final NioClientConfig config;
     private final NioWorker worker;
-    private final NioStatus nioStatus = new NioStatus();
-    private final CopyOnWriteArrayList<CompletableFuture<DtChannel>> futures = new CopyOnWriteArrayList<>();
+    private int invokeIndex;
 
     public NioClient(NioClientConfig config) {
+        super(config);
         this.config = config;
         if (config.getHostPorts() == null || config.getHostPorts().size() == 0) {
             throw new IllegalArgumentException("no servers");
@@ -45,7 +45,8 @@ public class NioClient extends AbstractLifeCircle {
     @Override
     protected void doStart() throws Exception {
         worker.start();
-        DtTime t = new DtTime(config.getConnectTimeoutMillis(), TimeUnit.MILLISECONDS);
+        final DtTime t = new DtTime(config.getConnectTimeoutMillis(), TimeUnit.MILLISECONDS);
+        final ArrayList<CompletableFuture<DtChannel>> futures = new ArrayList<>();
         for (HostPort hp : config.getHostPorts()) {
             InetSocketAddress addr = new InetSocketAddress(hp.getHost(), hp.getPort());
             CompletableFuture<DtChannel> f = worker.connect(addr);
@@ -81,12 +82,29 @@ public class NioClient extends AbstractLifeCircle {
         }
     }
 
+    public CompletableFuture<Frame> sendRequest(Frame request, DtTime timeout) {
+        List<DtChannel> channels = worker.getChannels();
+        DtChannel dtc = null;
+        try {
+            int size = channels.size();
+            if (size > 0) {
+                dtc = channels.get(invokeIndex++ % size);
+            } else {
+                return errorFuture(new RemotingException("no available servers"));
+            }
+        } catch (ArrayIndexOutOfBoundsException e) {
+            try {
+                dtc = channels.get(0);
+            } catch (ArrayIndexOutOfBoundsException e2) {
+                return errorFuture(new RemotingException("no available servers"));
+            }
+        }
+        return sendRequest(dtc, request, timeout);
+    }
+
     @Override
     protected void doStop() throws Exception {
         worker.stop();
     }
 
-    public void register(int cmd, CmdProcessor processor) {
-        nioStatus.setProcessor(cmd, processor);
-    }
 }

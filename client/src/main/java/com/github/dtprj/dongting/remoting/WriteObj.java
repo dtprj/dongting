@@ -15,18 +15,21 @@
  */
 package com.github.dtprj.dongting.remoting;
 
-import java.nio.ByteBuffer;
+import com.github.dtprj.dongting.common.DtTime;
+
+import java.util.concurrent.CompletableFuture;
 
 class WriteObj {
-    private ByteBuffer buffer;
     private DtChannel dtc;
 
-    public ByteBuffer getBuffer() {
-        return buffer;
-    }
+    private final Frame data;
+    private final DtTime timeout;
+    private final CompletableFuture<Frame> future;
 
-    public void setBuffer(ByteBuffer buffer) {
-        this.buffer = buffer;
+    public WriteObj(Frame data, DtTime timeout, CompletableFuture<Frame> future) {
+        this.data = data;
+        this.timeout = timeout;
+        this.future = future;
     }
 
     public DtChannel getDtc() {
@@ -35,5 +38,17 @@ class WriteObj {
 
     public void setDtc(DtChannel dtc) {
         this.dtc = dtc;
+    }
+
+    public Frame getData() {
+        return data;
+    }
+
+    public DtTime getTimeout() {
+        return timeout;
+    }
+
+    public CompletableFuture<Frame> getFuture() {
+        return future;
     }
 }

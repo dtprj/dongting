@@ -34,6 +34,7 @@ public class DtTime {
     }
 
     public long rest(TimeUnit unit) {
-        return unit.convert(deadline - System.nanoTime(), TimeUnit.NANOSECONDS);
+        long t = unit.convert(deadline - System.nanoTime(), TimeUnit.NANOSECONDS);
+        return t < 0 ? 0 : t;
     }
 }

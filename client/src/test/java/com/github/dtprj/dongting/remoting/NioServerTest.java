@@ -42,6 +42,7 @@ public class NioServerTest {
         Socket s = new Socket("127.0.0.1", 9000);
         byte[] bs = DtFrame.Frame.newBuilder()
                 .setCommand(Commands.CMD_PING)
+                .setFrameType(CmdType.TYPE_REQ)
                 .setBody(ByteString.copyFrom("hello".getBytes()))
                 .build().toByteArray();
         DataOutputStream os = new DataOutputStream(s.getOutputStream());

@@ -19,7 +19,7 @@ import java.util.List;
 
 public class NioClientConfig extends NioConfig {
     private List<HostPort> hostPorts;
-    private int connectTimeoutMillis = 1000;
+    private int connectTimeoutMillis = 2000;
 
     public NioClientConfig() {
         setBizThreads(0);

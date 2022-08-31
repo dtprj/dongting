@@ -16,15 +16,22 @@
 package com.github.dtprj.dongting.remoting;
 
 import com.github.dtprj.dongting.common.DtException;
+import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.pb.PbUtil;
 
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
+import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 
 class DtChannel {
+    private static final DtLog log = DtLogs.getLogger(DtChannel.class);
 
     private static final int INIT_BUF_SIZE = 2048;
     private static final int MAX_FRAME_SIZE = 8 * 1024 * 1024;
@@ -43,7 +50,8 @@ class DtChannel {
 
     private ByteBuffer writeBuffer;
 
-    private LinkedList<ByteBuffer> subQueue = new LinkedList<>();
+    private final LinkedList<ByteBuffer> subQueue = new LinkedList<>();
+    private final HashMap<Integer, WriteObj> pendingRequests;
 
     public DtChannel(NioStatus nioStatus, WorkerParams workerParams) {
         this.nioStatus = nioStatus;
@@ -51,6 +59,7 @@ class DtChannel {
         this.channel = workerParams.getChannel();
         this.ioQueue = workerParams.getIoQueue();
         this.wakeupRunnable = workerParams.getWakeupRunnable();
+        this.pendingRequests = workerParams.getPendingRequests();
     }
 
     public SocketChannel getChannel() {
@@ -107,40 +116,65 @@ class DtChannel {
     }
 
     private void readFrame(ByteBuffer buf) {
-        if (buf.remaining() >= this.currentReadFrameSize) {
-            int limit = buf.limit();
-            buf.limit(buf.position() + this.currentReadFrameSize);
-            Frame f = new Frame();
-            pbCallback.setFrame(f);
-            PbUtil.parse(buf, pbCallback);
-            buf.limit(limit);
-            this.readBufferMark = buf.position();
-            this.currentReadFrameSize = -1;
-            CmdProcessor p = nioStatus.getProcessor(f.getCommand());
-            if (p == null) {
-                Frame resp = new Frame();
-                resp.setCommand(f.getCommand());
+        if (buf.remaining() < this.currentReadFrameSize) {
+            return;
+        }
+        int limit = buf.limit();
+        buf.limit(buf.position() + this.currentReadFrameSize);
+        Frame f = new Frame();
+        pbCallback.setFrame(f);
+        PbUtil.parse(buf, pbCallback);
+        buf.limit(limit);
+        this.readBufferMark = buf.position();
+        this.currentReadFrameSize = -1;
+        int type = f.getFrameType();
+        if (type == CmdType.TYPE_REQ) {
+            processRequest(f);
+        } else if (type == CmdType.TYPE_RESP) {
+            processResponse(f);
+        } else {
+
+        }
+    }
+
+    private void processResponse(Frame resp) {
+        WriteObj wo = pendingRequests.remove(resp.getSeq());
+        if (wo == null) {
+            log.debug("pending request not found. channel={}, resp={}", channel, resp);
+            return;
+        }
+        Frame req = wo.getData();
+        if (resp.getCommand() != req.getCommand()) {
+            wo.getFuture().completeExceptionally(new RemotingException("command not match"));
+            return;
+        }
+        wo.getFuture().complete(resp);
+    }
+
+    private void processRequest(Frame req) {
+        CmdProcessor p = nioStatus.getProcessor(req.getCommand());
+        if (p == null) {
+            Frame resp = new Frame();
+            resp.setCommand(req.getCommand());
+            resp.setFrameType(CmdType.TYPE_RESP);
+            resp.setSeq(req.getSeq());
+            resp.setRespCode(CmdCodes.COMMAND_NOT_SUPPORT);
+            enqueue(resp.toByteBuffer());
+        } else {
+            if (nioStatus.getBizExecutor() == null) {
+                Frame resp = p.process(req, this);
+                resp.setCommand(req.getCommand());
                 resp.setFrameType(CmdType.TYPE_RESP);
-                resp.setSeq(f.getSeq());
-                resp.setRespCode(CmdCodes.COMMAND_NOT_SUPPORT);
+                resp.setSeq(req.getSeq());
                 enqueue(resp.toByteBuffer());
             } else {
-                if (nioStatus.getBizExecutor() == null) {
-                    Frame resp = p.process(f, this);
-                    resp.setCommand(f.getCommand());
+                nioStatus.getBizExecutor().submit(() -> {
+                    Frame resp = p.process(req, this);
+                    resp.setCommand(req.getCommand());
                     resp.setFrameType(CmdType.TYPE_RESP);
-                    resp.setSeq(f.getSeq());
-                    enqueue(resp.toByteBuffer());
-                } else {
-                    nioStatus.getBizExecutor().submit(() -> {
-                        Frame resp = p.process(f, this);
-                        resp.setCommand(f.getCommand());
-                        resp.setFrameType(CmdType.TYPE_RESP);
-                        resp.setSeq(f.getSeq());
-                        write(resp);
-                    });
-                }
-
+                    resp.setSeq(req.getSeq());
+                    writeResp(resp);
+                });
             }
         }
     }
@@ -214,9 +248,20 @@ class DtChannel {
         }
     }
 
-    private void write(Frame frame) {
-        WriteObj data = new WriteObj();
-        data.setBuffer(frame.toByteBuffer());
+    // invoke by other threads
+    private void writeResp(Frame frame) {
+        WriteObj data = new WriteObj(frame, null, null);
+        data.setDtc(this);
+        this.ioQueue.write(data);
+        this.wakeupRunnable.run();
+    }
+
+    // invoke by other threads
+    void writeReq(Frame frame, DtTime timeout, CompletableFuture<Frame> future) {
+        Objects.requireNonNull(timeout);
+        Objects.requireNonNull(future);
+
+        WriteObj data = new WriteObj(frame, timeout, future);
         data.setDtc(this);
         this.ioQueue.write(data);
         this.wakeupRunnable.run();

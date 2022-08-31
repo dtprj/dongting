@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.remoting;
 
 public interface CmdCodes {
     int SUCCESS = 0;
-    int COMMAND_NOT_SUPPORT = 1;
-    int UNKNOWN_ERROR = 2;
+    int UNKNOWN_ERROR = 1;
+    int COMMAND_NOT_SUPPORT = 2;
+    int ERROR_FRAME_TYPE = 3;
 }

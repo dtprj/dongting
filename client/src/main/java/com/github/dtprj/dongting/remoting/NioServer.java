@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.remoting;
 
-import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtThreadFactory;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -34,7 +33,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-public class NioServer extends AbstractLifeCircle implements Runnable {
+public class NioServer extends NioRemoting implements Runnable {
     private static final DtLog log = DtLogs.getLogger(NioServer.class);
 
     private final NioServerConfig config;
@@ -47,6 +46,7 @@ public class NioServer extends AbstractLifeCircle implements Runnable {
     private ExecutorService bizExecutor;
 
     public NioServer(NioServerConfig config) {
+        super(config);
         this.config = config;
         if (config.getPort() <= 0) {
             throw new IllegalArgumentException("no port");
@@ -133,10 +133,6 @@ public class NioServer extends AbstractLifeCircle implements Runnable {
         for (NioWorker worker : workers) {
             worker.stop();
         }
-    }
-
-    public void register(int cmd, CmdProcessor processor) {
-        nioStatus.setProcessor(cmd, processor);
     }
 
 }
