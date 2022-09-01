@@ -166,7 +166,7 @@ public class NioWorker implements LifeCircle, Runnable {
                 }
             }
         } catch (Exception e) {
-            log.warn("socket error: {}", e.getMessage());
+            log.warn("socket error: {}", e.toString());
             closeChannel(key);
         }
     }
@@ -316,6 +316,8 @@ public class NioWorker implements LifeCircle, Runnable {
             DtTime t = en.getValue().getTimeout();
             if (t.rest(TimeUnit.MILLISECONDS) <= 0) {
                 it.remove();
+                log.debug("drop timeout request: {}ms, {}",
+                        t.getTimeout(TimeUnit.MILLISECONDS), en.getValue().getDtc().getChannel());
                 String msg = "timeout: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
                 en.getValue().getFuture().completeExceptionally(new RemotingTimeoutException(msg));
             }

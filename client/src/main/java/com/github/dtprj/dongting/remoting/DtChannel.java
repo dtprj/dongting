@@ -55,6 +55,7 @@ class DtChannel {
 
     private final LinkedList<ByteBuffer> subQueue = new LinkedList<>();
     private final HashMap<Integer, WriteObj> pendingRequests;
+    private int seq = 1;
 
     public DtChannel(NioStatus nioStatus, WorkerParams workerParams) {
         this.nioStatus = nioStatus;
@@ -96,7 +97,7 @@ class DtChannel {
         buf.limit(buf.position());
         buf.position(this.readBufferMark);
 
-        for (int rest = buf.remaining(); rest > this.currentReadFrameSize; rest = buf.remaining()) {
+        for (int rest = buf.remaining(); rest >= this.currentReadFrameSize; rest = buf.remaining()) {
             if (currentReadFrameSize == -1) {
                 // read frame length
                 if (rest >= 4) {
@@ -230,7 +231,7 @@ class DtChannel {
                     // copy bytes to start
                     ByteBuffer newBuffer = buf.slice();
                     buf.clear();
-                    newBuffer.put(buf);
+                    buf.put(newBuffer);
                 }
                 this.readBufferMark = 0;
             }
@@ -264,6 +265,7 @@ class DtChannel {
         Objects.requireNonNull(timeout);
         Objects.requireNonNull(future);
 
+        frame.setSeq(seq++);
         WriteObj data = new WriteObj(frame, timeout, future);
         data.setDtc(this);
         this.ioQueue.write(data);

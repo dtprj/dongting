@@ -26,6 +26,9 @@ import java.util.concurrent.TimeUnit;
  * @author huangli
  */
 public class NioServerTest {
+    private static final int LOOP = 100;
+    private static final int SIZE = 5;
+
     public static void main(String[] args) throws Exception {
         NioServerConfig c = new NioServerConfig();
         c.setIoThreads(1);
@@ -36,7 +39,7 @@ public class NioServerTest {
             frame.getBody().mark();
             frame.getBody().get(bs);
             frame.getBody().reset();
-            System.out.println("server get " + new String(bs));
+            System.out.println("server get " + bs.length);
             return frame;
         });
 
@@ -47,15 +50,18 @@ public class NioServerTest {
         clientConfig.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
         NioClient client = new NioClient(clientConfig);
         client.start();
-        Frame req = new Frame();
-        req.setSeq(1);
-        req.setFrameType(CmdType.TYPE_REQ);
-        req.setCommand(Commands.CMD_PING);
-        req.setBody(ByteBuffer.wrap("hello".getBytes()));
-        CompletableFuture<Frame> future = client.sendRequest(req, new DtTime(1, TimeUnit.SECONDS));
 
-        ByteBuffer buf = future.get().getBody();
-        System.out.println("client get " + new String(buf.array()));
+        for (int i = 0; i < LOOP; i++) {
+            Frame req = new Frame();
+            req.setFrameType(CmdType.TYPE_REQ);
+            req.setCommand(Commands.CMD_PING);
+            req.setBody(ByteBuffer.wrap(new byte[SIZE]));
+            CompletableFuture<Frame> future = client.sendRequest(req, new DtTime(1, TimeUnit.SECONDS));
+
+            ByteBuffer buf = future.get().getBody();
+            System.out.println("client get " + buf.remaining());
+        }
+
         client.stop();
 
         server.stop();
