@@ -133,7 +133,7 @@ class DtChannel {
         } else if (type == CmdType.TYPE_RESP) {
             processResponse(f);
         } else {
-
+            log.warn("bad frame type: {}, {}", type, channel);
         }
     }
 
