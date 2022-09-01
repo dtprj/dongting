@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.remoting;
 
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.LifeCircle;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -30,9 +31,11 @@ import java.nio.channels.spi.SelectorProvider;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -117,6 +120,7 @@ public class NioWorker implements LifeCircle, Runnable {
         }
         performActions();
         dispatchWriteQueue();
+        dropTimeoutReq();
         Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
         while (iterator.hasNext()) {
             processOneSelectionKey(iterator);
@@ -294,6 +298,19 @@ public class NioWorker implements LifeCircle, Runnable {
                 }
             }
             wo.getDtc().enqueue(req.toByteBuffer());
+        }
+    }
+
+    private void dropTimeoutReq() {
+        Iterator<Map.Entry<Integer, WriteObj>> it = pendingRequests.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<Integer, WriteObj> en = it.next();
+            DtTime t = en.getValue().getTimeout();
+            if (t.rest(TimeUnit.MILLISECONDS) <= 0) {
+                it.remove();
+                String msg = "timeout: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
+                en.getValue().getFuture().completeExceptionally(new RemotingTimeoutException(msg));
+            }
         }
     }
 
