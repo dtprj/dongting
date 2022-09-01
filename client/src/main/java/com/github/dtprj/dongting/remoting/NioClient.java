@@ -40,6 +40,7 @@ public class NioClient extends NioRemoting {
             throw new IllegalArgumentException("no servers");
         }
         worker = new NioWorker(nioStatus, config.getName() + "IoWorker");
+        worker.setSelectTimeout(config.getSelectTimeoutMillis());
     }
 
     @Override

@@ -21,6 +21,7 @@ public abstract class NioConfig {
     private String name;
     private int maxRequestPending = 2000;
     private int requestTimeoutMillis = 2000;
+    private int selectTimeoutMillis = 10;
 
     public int getBizThreads() {
         return bizThreads;
@@ -60,5 +61,13 @@ public abstract class NioConfig {
 
     public void setRequestTimeoutMillis(int requestTimeoutMillis) {
         this.requestTimeoutMillis = requestTimeoutMillis;
+    }
+
+    public int getSelectTimeoutMillis() {
+        return selectTimeoutMillis;
+    }
+
+    public void setSelectTimeoutMillis(int selectTimeoutMillis) {
+        this.selectTimeoutMillis = selectTimeoutMillis;
     }
 }

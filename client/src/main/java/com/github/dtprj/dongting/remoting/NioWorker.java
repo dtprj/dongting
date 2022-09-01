@@ -57,6 +57,7 @@ public class NioWorker implements LifeCircle, Runnable {
 
     private final CopyOnWriteArrayList<DtChannel> channels = new CopyOnWriteArrayList<>();
     private final HashMap<Integer, WriteObj> pendingRequests = new HashMap<>();
+    private int selectTimeout;
 
     public NioWorker(NioStatus nioStatus, String workerName) {
         this.nioStatus = nioStatus;
@@ -206,7 +207,12 @@ public class NioWorker implements LifeCircle, Runnable {
 
     private boolean select() {
         try {
-            selector.select();
+            if (selectTimeout > 0) {
+                selector.select(selectTimeout);
+            } else {
+                // for unit test find more problem
+                selector.select();
+            }
             return true;
         } catch (Exception e) {
             log.error("select failed: {}", workerName, e);
@@ -328,5 +334,9 @@ public class NioWorker implements LifeCircle, Runnable {
 
     public List<DtChannel> getChannels() {
         return channels;
+    }
+
+    public void setSelectTimeout(int selectTimeout) {
+        this.selectTimeout = selectTimeout;
     }
 }
