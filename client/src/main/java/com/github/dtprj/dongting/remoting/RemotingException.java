@@ -17,6 +17,9 @@ package com.github.dtprj.dongting.remoting;
 
 import com.github.dtprj.dongting.common.DtException;
 
+/**
+ * @author huangli
+ */
 public class RemotingException extends DtException {
     public RemotingException() {
         super();

@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.remoting;
 
+/**
+ * @author huangli
+ */
 public interface CmdCodes {
     int SUCCESS = 0;
     int UNKNOWN_ERROR = 1;

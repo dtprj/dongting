@@ -18,6 +18,9 @@ package com.github.dtprj.dongting.remoting;
 import java.nio.channels.SocketChannel;
 import java.util.HashMap;
 
+/**
+ * @author huangli
+ */
 public class WorkerParams {
     private RpcPbCallback callback;
     private SocketChannel channel;

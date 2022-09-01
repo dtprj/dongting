@@ -17,6 +17,9 @@ package com.github.dtprj.dongting.pb;
 
 import com.github.dtprj.dongting.common.DtException;
 
+/**
+ * @author huangli
+ */
 public class PbException extends DtException {
     public PbException(String message) {
         super(message);

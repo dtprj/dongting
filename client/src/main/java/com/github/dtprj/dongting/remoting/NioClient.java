@@ -25,6 +25,9 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * @author huangli
+ */
 public class NioClient extends NioRemoting {
 
     private static final DtLog log = DtLogs.getLogger(NioClient.class);

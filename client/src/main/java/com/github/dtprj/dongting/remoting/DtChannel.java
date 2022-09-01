@@ -30,6 +30,9 @@ import java.util.LinkedList;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * @author huangli
+ */
 class DtChannel {
     private static final DtLog log = DtLogs.getLogger(DtChannel.class);
 

@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.common;
 
+/**
+ * @author huangli
+ */
 public interface LifeCircle {
 
     public void start() throws Exception;

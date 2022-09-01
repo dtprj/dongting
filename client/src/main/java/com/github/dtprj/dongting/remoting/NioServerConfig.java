@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.remoting;
 
+/**
+ * @author huangli
+ */
 public class NioServerConfig extends NioConfig {
     private int port;
     private int ioThreads;

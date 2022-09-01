@@ -22,6 +22,9 @@ import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * @author huangli
+ */
 public class NioServerTest {
     public static void main(String[] args) throws Exception {
         NioServerConfig c = new NioServerConfig();

@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.remoting;
 
+/**
+ * @author huangli
+ */
 public interface CmdProcessor {
     Frame process(Frame frame, DtChannel channel);
 }

@@ -40,6 +40,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * each worker represent a thread.
+ *
+ * @author huangli
  */
 public class NioWorker implements LifeCircle, Runnable {
     private static final DtLog log = DtLogs.getLogger(NioWorker.class);

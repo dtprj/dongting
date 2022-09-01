@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.common;
 
+/**
+ * @author huangli
+ */
 public class AbstractLifeCircle implements LifeCircle {
 
     protected enum LifeStatus {

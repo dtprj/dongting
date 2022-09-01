@@ -17,6 +17,9 @@ package com.github.dtprj.dongting.remoting;
 
 import java.util.List;
 
+/**
+ * @author huangli
+ */
 public class NioClientConfig extends NioConfig {
     private List<HostPort> hostPorts;
     private int connectTimeoutMillis = 2000;

@@ -18,6 +18,9 @@ package com.github.dtprj.dongting.common;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * @author huangli
+ */
 public class DtThreadFactory implements ThreadFactory {
 
     private final String prefix;

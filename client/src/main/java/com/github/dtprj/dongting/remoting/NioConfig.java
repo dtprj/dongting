@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.remoting;
 
+/**
+ * @author huangli
+ */
 public abstract class NioConfig {
     private int bizThreads;
     private int bizQueueSize = 5000;

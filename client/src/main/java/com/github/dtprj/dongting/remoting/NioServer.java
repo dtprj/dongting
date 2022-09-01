@@ -33,6 +33,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * @author huangli
+ */
 public class NioServer extends NioRemoting implements Runnable {
     private static final DtLog log = DtLogs.getLogger(NioServer.class);
 

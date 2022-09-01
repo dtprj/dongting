@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.log;
 
+/**
+ * @author huangli
+ */
 public interface DtLogFactory {
     DtLog getLogger(String name);
 

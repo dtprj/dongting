@@ -18,6 +18,9 @@ package com.github.dtprj.dongting.log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * @author huangli
+ */
 public class Slf4jFactory implements DtLogFactory {
 
     public static boolean slf4jExists() {

@@ -17,6 +17,9 @@ package com.github.dtprj.dongting.log;
 
 import org.slf4j.Logger;
 
+/**
+ * @author huangli
+ */
 class Slf4jLog implements DtLog {
     private final Logger log;
 

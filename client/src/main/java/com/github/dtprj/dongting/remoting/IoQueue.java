@@ -17,6 +17,9 @@ package com.github.dtprj.dongting.remoting;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+/**
+ * @author huangli
+ */
 // TODO currently just work, optimize performance
 class IoQueue {
     private static final ConcurrentLinkedQueue<WriteObj> queue = new ConcurrentLinkedQueue<>();

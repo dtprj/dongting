@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.remoting;
 
+/**
+ * @author huangli
+ */
 public class HostPort {
     private final String host;
     private final int port;

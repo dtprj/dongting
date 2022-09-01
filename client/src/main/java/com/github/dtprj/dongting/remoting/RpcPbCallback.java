@@ -21,6 +21,9 @@ import com.github.dtprj.dongting.pb.PbException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
+/**
+ * @author huangli
+ */
 class RpcPbCallback implements PbCallback {
 
     private Frame frame;

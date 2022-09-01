@@ -22,6 +22,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * @author huangli
+ */
 public abstract class NioRemoting extends AbstractLifeCircle {
     private final NioConfig config;
     private final Semaphore semaphore;

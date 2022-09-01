@@ -17,6 +17,9 @@ package com.github.dtprj.dongting.pb;
 
 import java.nio.ByteBuffer;
 
+/**
+ * @author huangli
+ */
 public interface PbCallback {
 
     void readInt(int index, int value);

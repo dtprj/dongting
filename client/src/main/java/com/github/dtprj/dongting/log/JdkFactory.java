@@ -18,6 +18,9 @@ package com.github.dtprj.dongting.log;
 import java.util.Objects;
 import java.util.logging.Logger;
 
+/**
+ * @author huangli
+ */
 public class JdkFactory implements DtLogFactory {
     @Override
     public DtLog getLogger(String name) {

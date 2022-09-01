@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.log;
 
+/**
+ * @author huangli
+ */
 public class DtLogs {
     private static DtLogFactory instance;
 

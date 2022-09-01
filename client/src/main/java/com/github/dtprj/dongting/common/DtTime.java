@@ -17,6 +17,9 @@ package com.github.dtprj.dongting.common;
 
 import java.util.concurrent.TimeUnit;
 
+/**
+ * @author huangli
+ */
 public class DtTime {
     private final long createTime = System.nanoTime();
     private final long deadline;

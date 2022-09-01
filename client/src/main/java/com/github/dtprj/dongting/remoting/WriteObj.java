@@ -19,6 +19,9 @@ import com.github.dtprj.dongting.common.DtTime;
 
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * @author huangli
+ */
 class WriteObj {
     private DtChannel dtc;
 

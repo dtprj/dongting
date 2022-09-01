@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.remoting;
 
+/**
+ * @author huangli
+ */
 public class NioConfigTest {
     public static void main(String[] args) throws Exception {
         for (int i = 1; i <= 128; i++) {

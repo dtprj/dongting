@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.common;
 
+/**
+ * @author huangli
+ */
 public class Pair<L, R> {
     private final L left;
     private final R right;

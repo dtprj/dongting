@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.common;
 
+/**
+ * @author huangli
+ */
 public class DtException extends RuntimeException {
     public DtException() {
         super();

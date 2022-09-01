@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.remoting;
 
+/**
+ * @author huangli
+ */
 public class RemotingTimeoutException extends RemotingException {
     public RemotingTimeoutException() {
         super();

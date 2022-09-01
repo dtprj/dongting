@@ -22,6 +22,8 @@ import java.nio.ByteOrder;
  * encode/decode util for proto buffer 3.
  * <p>
  * see: https://developers.google.com/protocol-buffers/docs/encoding
+ *
+ * @author huangli
  */
 public class PbUtil {
 

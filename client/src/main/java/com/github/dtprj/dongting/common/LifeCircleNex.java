@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.common;
 
+/**
+ * @author huangli
+ */
 public interface LifeCircleNex extends LifeCircle {
     @Override
     public void start();

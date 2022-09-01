@@ -20,6 +20,9 @@ import com.github.dtprj.dongting.pb.PbUtil;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
+/**
+ * @author huangli
+ */
 public class Frame {
     public static final int IDX_TYPE = 1;
     public static final int IDX_COMMAND = 2;
