@@ -74,14 +74,24 @@ public class NioServerBenchmark extends BenchBase {
             req.setCommand(Commands.CMD_PING);
             req.setBody(ByteBuffer.wrap(data));
             CompletableFuture<Frame> f = client.sendRequest(req, timeout);
-            f.get();
-            successCount.increment();
+
+//            f.get();
+//            successCount.increment();
+
+            f.handle((result, ex) -> {
+                if (ex != null) {
+                    failCount.increment();
+                } else {
+                    successCount.increment();
+                }
+                return null;
+            });
         } catch (Exception e) {
             failCount.increment();
         }
     }
 
     public static void main(String[] args) throws Exception {
-        new NioServerBenchmark(1, 5000, 1000).start();
+        new NioServerBenchmark(1, 10000, 1000).start();
     }
 }

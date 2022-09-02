@@ -76,7 +76,11 @@ public abstract class BenchBase {
 
     public void run(int threadIndex) {
         while (!stop) {
-            test(threadIndex);
+            try {
+                test(threadIndex);
+            } catch (Throwable e) {
+                failCount.increment();
+            }
         }
     }
 
