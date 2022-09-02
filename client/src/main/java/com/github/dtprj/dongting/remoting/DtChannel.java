@@ -147,6 +147,7 @@ class DtChannel {
             log.debug("pending request not found. channel={}, resp={}", channel, resp);
             return;
         }
+        nioStatus.getRequestSemaphore().release();
         Frame req = wo.getData();
         if (resp.getCommand() != req.getCommand()) {
             wo.getFuture().completeExceptionally(new RemotingException("command not match"));

@@ -42,8 +42,7 @@ public class NioClient extends NioRemoting {
         if (config.getHostPorts() == null || config.getHostPorts().size() == 0) {
             throw new IllegalArgumentException("no servers");
         }
-        worker = new NioWorker(nioStatus, config.getName() + "IoWorker");
-        worker.setSelectTimeout(config.getSelectTimeoutMillis());
+        worker = new NioWorker(nioStatus, config.getName() + "IoWorker", config);
     }
 
     @Override

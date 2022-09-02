@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -59,13 +60,21 @@ public class NioWorker implements LifeCircle, Runnable {
 
     private final CopyOnWriteArrayList<DtChannel> channels = new CopyOnWriteArrayList<>();
     private final HashMap<Integer, WriteObj> pendingRequests = new HashMap<>();
-    private int selectTimeout;
+    private final int selectTimeoutMillis;
 
-    public NioWorker(NioStatus nioStatus, String workerName) {
+    private final int cleanIntervalNanos;
+    private long lastCleanNanos = System.nanoTime();
+
+    private final Semaphore requestSemaphore;
+
+    public NioWorker(NioStatus nioStatus, String workerName, NioConfig config) {
         this.nioStatus = nioStatus;
         this.thread = new Thread(this);
         this.workerName = workerName;
         this.thread.setName(workerName);
+        this.selectTimeoutMillis = config.getSelectTimeoutMillis();
+        this.cleanIntervalNanos = config.getCleanIntervalMills() * 1000 * 1000;
+        this.requestSemaphore = nioStatus.getRequestSemaphore();
     }
 
     // invoke by NioServer accept thead
@@ -123,11 +132,11 @@ public class NioWorker implements LifeCircle, Runnable {
         }
         performActions();
         dispatchWriteQueue();
-        dropTimeoutReq();
         Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
         while (iterator.hasNext()) {
             processOneSelectionKey(iterator);
         }
+        cleanTimeoutReq();
     }
 
     private void processOneSelectionKey(Iterator<SelectionKey> iterator) {
@@ -209,8 +218,8 @@ public class NioWorker implements LifeCircle, Runnable {
 
     private boolean select() {
         try {
-            if (selectTimeout > 0) {
-                selector.select(selectTimeout);
+            if (selectTimeoutMillis > 0) {
+                selector.select(selectTimeoutMillis);
             } else {
                 // for unit test find more problem
                 selector.select();
@@ -310,7 +319,13 @@ public class NioWorker implements LifeCircle, Runnable {
         }
     }
 
-    private void dropTimeoutReq() {
+    private void cleanTimeoutReq() {
+        long nanos = System.nanoTime();
+        if (nanos - lastCleanNanos < cleanIntervalNanos) {
+            return;
+        } else {
+            lastCleanNanos = nanos;
+        }
         Iterator<Map.Entry<Integer, WriteObj>> it = pendingRequests.entrySet().iterator();
         while (it.hasNext()) {
             Map.Entry<Integer, WriteObj> en = it.next();
@@ -322,6 +337,7 @@ public class NioWorker implements LifeCircle, Runnable {
                         en.getValue().getDtc().getChannel());
                 String msg = "timeout: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
                 en.getValue().getFuture().completeExceptionally(new RemotingTimeoutException(msg));
+                requestSemaphore.release();
             }
         }
     }
@@ -342,7 +358,4 @@ public class NioWorker implements LifeCircle, Runnable {
         return channels;
     }
 
-    public void setSelectTimeout(int selectTimeout) {
-        this.selectTimeout = selectTimeout;
-    }
 }

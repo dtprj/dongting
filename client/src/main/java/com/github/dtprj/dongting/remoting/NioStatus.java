@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.remoting;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Semaphore;
 
 /**
  * @author huangli
@@ -24,6 +25,7 @@ import java.util.concurrent.ExecutorService;
 class NioStatus {
     private final ConcurrentHashMap<Integer, CmdProcessor> processors = new ConcurrentHashMap<>();
     private ExecutorService bizExecutor;
+    private Semaphore requestSemaphore;
 
     public void setProcessor(int cmd, CmdProcessor processor) {
         processors.put(cmd, processor);
@@ -39,5 +41,13 @@ class NioStatus {
 
     public void setBizExecutor(ExecutorService bizExecutor) {
         this.bizExecutor = bizExecutor;
+    }
+
+    public Semaphore getRequestSemaphore() {
+        return requestSemaphore;
+    }
+
+    public void setRequestSemaphore(Semaphore requestSemaphore) {
+        this.requestSemaphore = requestSemaphore;
     }
 }
