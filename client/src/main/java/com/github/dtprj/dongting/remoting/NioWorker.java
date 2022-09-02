@@ -52,6 +52,7 @@ public class NioWorker implements LifeCircle, Runnable {
     private final RpcPbCallback pbCallback = new RpcPbCallback();
     private final IoQueue ioQueue = new IoQueue();
     private final NioStatus nioStatus;
+    private final NioConfig config;
     private volatile boolean stop;
     private Selector selector;
     private final AtomicBoolean notified = new AtomicBoolean(false);
@@ -60,20 +61,15 @@ public class NioWorker implements LifeCircle, Runnable {
 
     private final CopyOnWriteArrayList<DtChannel> channels = new CopyOnWriteArrayList<>();
     private final HashMap<Integer, WriteObj> pendingRequests = new HashMap<>();
-    private final int selectTimeoutMillis;
-
-    private final int cleanIntervalNanos;
-    private long lastCleanNanos = System.nanoTime();
 
     private final Semaphore requestSemaphore;
 
     public NioWorker(NioStatus nioStatus, String workerName, NioConfig config) {
         this.nioStatus = nioStatus;
+        this.config = config;
         this.thread = new Thread(this);
         this.workerName = workerName;
         this.thread.setName(workerName);
-        this.selectTimeoutMillis = config.getSelectTimeoutMillis();
-        this.cleanIntervalNanos = config.getCleanIntervalMills() * 1000 * 1000;
         this.requestSemaphore = nioStatus.getRequestSemaphore();
     }
 
@@ -108,9 +104,14 @@ public class NioWorker implements LifeCircle, Runnable {
 
     @Override
     public void run() {
+        long cleanIntervalNanos = config.getCleanIntervalMills() * 1000 * 1000;
+        long lastCleanNano = System.nanoTime();
+        int selectTimeoutMillis = config.getSelectTimeoutMillis();
+        Selector selector = this.selector;
         while (!stop) {
             try {
-                run0();
+                run0(selector, selectTimeoutMillis);
+                lastCleanNano = cleanTimeoutReq(cleanIntervalNanos, lastCleanNano);
             } catch (Throwable e) {
                 log.error("", e);
             }
@@ -126,8 +127,8 @@ public class NioWorker implements LifeCircle, Runnable {
         }
     }
 
-    private void run0() {
-        if (!select()) {
+    private void run0(Selector selector, int selectTimeoutMillis) {
+        if (!select(selector, selectTimeoutMillis)) {
             return;
         }
         performActions();
@@ -136,7 +137,6 @@ public class NioWorker implements LifeCircle, Runnable {
         while (iterator.hasNext()) {
             processOneSelectionKey(iterator);
         }
-        cleanTimeoutReq();
     }
 
     private void processOneSelectionKey(Iterator<SelectionKey> iterator) {
@@ -216,7 +216,7 @@ public class NioWorker implements LifeCircle, Runnable {
         }
     }
 
-    private boolean select() {
+    private boolean select(Selector selector, int selectTimeoutMillis) {
         try {
             if (selectTimeoutMillis > 0) {
                 selector.select(selectTimeoutMillis);
@@ -301,6 +301,8 @@ public class NioWorker implements LifeCircle, Runnable {
     }
 
     private void dispatchWriteQueue() {
+        IoQueue ioQueue = this.ioQueue;
+        HashMap<Integer, WriteObj> pendingRequests = this.pendingRequests;
         WriteObj wo;
         while ((wo = ioQueue.poll()) != null) {
             Frame req = wo.getData();
@@ -319,13 +321,12 @@ public class NioWorker implements LifeCircle, Runnable {
         }
     }
 
-    private void cleanTimeoutReq() {
+    private long cleanTimeoutReq(long cleanIntervalNanos, long lastCleanNano) {
         long nanos = System.nanoTime();
-        if (nanos - lastCleanNanos < cleanIntervalNanos) {
-            return;
-        } else {
-            lastCleanNanos = nanos;
+        if (nanos - lastCleanNano < cleanIntervalNanos) {
+            return lastCleanNano;
         }
+        HashMap<Integer, WriteObj> pendingRequests = this.pendingRequests;
         Iterator<Map.Entry<Integer, WriteObj>> it = pendingRequests.entrySet().iterator();
         while (it.hasNext()) {
             Map.Entry<Integer, WriteObj> en = it.next();
@@ -340,6 +341,7 @@ public class NioWorker implements LifeCircle, Runnable {
                 requestSemaphore.release();
             }
         }
+        return nanos;
     }
 
     @Override
