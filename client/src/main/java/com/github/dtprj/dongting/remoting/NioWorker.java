@@ -295,6 +295,7 @@ public class NioWorker implements LifeCircle, Runnable {
         WriteObj wo;
         while ((wo = ioQueue.poll()) != null) {
             Frame req = wo.getData();
+            req.setSeq(wo.getDtc().getAndIncSeq());
             if (req.getFrameType() == CmdType.TYPE_REQ) {
                 WriteObj old = pendingRequests.put(req.getSeq(), wo);
                 if (old != null) {
@@ -316,8 +317,9 @@ public class NioWorker implements LifeCircle, Runnable {
             DtTime t = en.getValue().getTimeout();
             if (t.rest(TimeUnit.MILLISECONDS) <= 0) {
                 it.remove();
-                log.debug("drop timeout request: {}ms, {}",
-                        t.getTimeout(TimeUnit.MILLISECONDS), en.getValue().getDtc().getChannel());
+                log.debug("drop timeout request: {}ms, seq={}, {}",
+                        t.getTimeout(TimeUnit.MILLISECONDS), en.getValue().getData().getSeq(),
+                        en.getValue().getDtc().getChannel());
                 String msg = "timeout: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
                 en.getValue().getFuture().completeExceptionally(new RemotingTimeoutException(msg));
             }

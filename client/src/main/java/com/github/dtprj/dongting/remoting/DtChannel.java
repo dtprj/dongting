@@ -265,7 +265,6 @@ class DtChannel {
         Objects.requireNonNull(timeout);
         Objects.requireNonNull(future);
 
-        frame.setSeq(seq++);
         WriteObj data = new WriteObj(frame, timeout, future);
         data.setDtc(this);
         this.ioQueue.write(data);
@@ -274,5 +273,9 @@ class DtChannel {
 
     public void setSelectionKey(SelectionKey selectionKey) {
         this.selectionKey = selectionKey;
+    }
+
+    int getAndIncSeq() {
+        return seq++;
     }
 }

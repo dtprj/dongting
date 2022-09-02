@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.remoting;
 
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
+
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
@@ -22,7 +25,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  */
 // TODO currently just work, optimize performance
 class IoQueue {
-    private static final ConcurrentLinkedQueue<WriteObj> queue = new ConcurrentLinkedQueue<>();
+    private static final DtLog log = DtLogs.getLogger(IoQueue.class);
+    private final ConcurrentLinkedQueue<WriteObj> queue = new ConcurrentLinkedQueue<>();
 
     public void write(WriteObj data) {
         queue.add(data);
