@@ -83,6 +83,7 @@ public class NioClient extends NioRemoting {
             // TODO error message
             throw new RemotingException();
         }
+        initBizExecutor();
     }
 
     public CompletableFuture<Frame> sendRequest(Frame request, DtTime timeout) {
@@ -110,6 +111,7 @@ public class NioClient extends NioRemoting {
 
     @Override
     protected void doStop() throws Exception {
+        shutdownBizExecutor();
         worker.stop();
     }
 

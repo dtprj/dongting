@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.remoting;
 
-import com.github.dtprj.dongting.common.DtThreadFactory;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -28,10 +27,6 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.util.Iterator;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 /**
  * @author huangli
@@ -45,7 +40,6 @@ public class NioServer extends NioRemoting implements Runnable {
     private volatile boolean stop;
     private final Thread acceptThread;
     private final NioWorker[] workers;
-    private ExecutorService bizExecutor;
 
     public NioServer(NioServerConfig config) {
         super(config);
@@ -72,13 +66,7 @@ public class NioServer extends NioRemoting implements Runnable {
 
         log.info("{} listen at port {}", config.getName(), config.getPort());
 
-        // TODO back pressure
-        if (config.getBizThreads() > 0) {
-            bizExecutor = new ThreadPoolExecutor(config.getBizThreads(), config.getBizQueueSize(),
-                    1, TimeUnit.MINUTES, new ArrayBlockingQueue<>(config.getBizQueueSize()),
-                    new DtThreadFactory(config.getName() + "Biz", false));
-            nioStatus.setBizExecutor(bizExecutor);
-        }
+        initBizExecutor();
         acceptThread.start();
         for (NioWorker worker : workers) {
             worker.start();
@@ -131,7 +119,7 @@ public class NioServer extends NioRemoting implements Runnable {
         if (selector != null) {
             selector.wakeup();
         }
-        bizExecutor.shutdown();
+        shutdownBizExecutor();
         for (NioWorker worker : workers) {
             worker.stop();
         }

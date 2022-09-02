@@ -16,10 +16,14 @@
 package com.github.dtprj.dongting.remoting;
 
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
+import com.github.dtprj.dongting.common.DtThreadFactory;
 import com.github.dtprj.dongting.common.DtTime;
 
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -29,6 +33,7 @@ public abstract class NioRemoting extends AbstractLifeCircle {
     private final NioConfig config;
     private final Semaphore semaphore;
     protected final NioStatus nioStatus = new NioStatus();
+    protected ExecutorService bizExecutor;
 
     public NioRemoting(NioConfig config) {
         this.config = config;
@@ -65,5 +70,21 @@ public abstract class NioRemoting extends AbstractLifeCircle {
         CompletableFuture<T> f = new CompletableFuture<>();
         f.completeExceptionally(e);
         return f;
+    }
+
+    protected void initBizExecutor() {
+        // TODO back pressure
+        if (config.getBizThreads() > 0) {
+            bizExecutor = new ThreadPoolExecutor(config.getBizThreads(), config.getBizQueueSize(),
+                    1, TimeUnit.MINUTES, new ArrayBlockingQueue<>(config.getBizQueueSize()),
+                    new DtThreadFactory(config.getName() + "Biz", false));
+            nioStatus.setBizExecutor(bizExecutor);
+        }
+    }
+
+    protected void shutdownBizExecutor() {
+        if (bizExecutor != null) {
+            bizExecutor.shutdownNow();
+        }
     }
 }
