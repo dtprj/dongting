@@ -23,13 +23,14 @@ import java.util.concurrent.CompletableFuture;
  * @author huangli
  */
 class WriteObj {
-    private DtChannel dtc;
+    private final DtChannel dtc;
 
     private final Frame data;
     private final DtTime timeout;
     private final CompletableFuture<Frame> future;
 
-    public WriteObj(Frame data, DtTime timeout, CompletableFuture<Frame> future) {
+    public WriteObj(DtChannel dtc, Frame data, DtTime timeout, CompletableFuture<Frame> future) {
+        this.dtc = dtc;
         this.data = data;
         this.timeout = timeout;
         this.future = future;
@@ -37,10 +38,6 @@ class WriteObj {
 
     public DtChannel getDtc() {
         return dtc;
-    }
-
-    public void setDtc(DtChannel dtc) {
-        this.dtc = dtc;
     }
 
     public Frame getData() {

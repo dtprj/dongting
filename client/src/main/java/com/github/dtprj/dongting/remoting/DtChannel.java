@@ -255,8 +255,7 @@ class DtChannel {
 
     // invoke by other threads
     private void writeResp(Frame frame) {
-        WriteObj data = new WriteObj(frame, null, null);
-        data.setDtc(this);
+        WriteObj data = new WriteObj(this, frame, null, null);
         this.ioQueue.write(data);
         this.wakeupRunnable.run();
     }
@@ -266,8 +265,7 @@ class DtChannel {
         Objects.requireNonNull(timeout);
         Objects.requireNonNull(future);
 
-        WriteObj data = new WriteObj(frame, timeout, future);
-        data.setDtc(this);
+        WriteObj data = new WriteObj(this, frame, timeout, future);
         this.ioQueue.write(data);
         this.wakeupRunnable.run();
     }
