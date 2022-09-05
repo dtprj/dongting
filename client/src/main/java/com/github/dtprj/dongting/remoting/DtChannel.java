@@ -227,7 +227,7 @@ class DtChannel {
                 if (frameSize > capacity) {
                     // allocate bigger buffer
                     ByteBuffer newBuffer = ByteBuffer.allocateDirect(frameSize);
-                    buf.put(newBuffer);
+                    newBuffer.put(buf);
                     this.readBuffer = newBuffer;
                     this.readBufferCache = new WeakReference<>(newBuffer);
                 } else {
