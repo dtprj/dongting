@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.remoting;
 
 import java.nio.ByteBuffer;
-import java.util.LinkedList;
+import java.util.ArrayList;
 
 /**
  * @author huangli
@@ -25,7 +25,7 @@ class IoSubQueue {
     private final Runnable registerForWrite;
     private ByteBuffer writeBuffer;
 
-    private final LinkedList<ByteBuffer> subQueue = new LinkedList<>();
+    private final ArrayList<ByteBuffer> subQueue = new ArrayList<>();
     private int subQueueBytes;
     private boolean writing;
 
@@ -34,7 +34,7 @@ class IoSubQueue {
     }
 
     public void enqueue(ByteBuffer buf) {
-        LinkedList<ByteBuffer> subQueue = this.subQueue;
+        ArrayList<ByteBuffer> subQueue = this.subQueue;
         subQueue.add(buf);
         subQueueBytes += buf.remaining();
         if (subQueue.size() == 1 && !writing) {
@@ -48,10 +48,11 @@ class IoSubQueue {
         if (writeBuffer != null && writeBuffer.remaining() > 0) {
             return writeBuffer;
         }
-        ByteBuffer buf = ByteBuffer.allocateDirect(subQueueBytes);
-        LinkedList<ByteBuffer> subQueue = this.subQueue;
-        for(ByteBuffer frame: subQueue) {
-            buf.put(frame);
+        ByteBuffer buf = ByteBuffer.allocate(subQueueBytes);
+        ArrayList<ByteBuffer> subQueue = this.subQueue;
+        int size = subQueue.size();
+        for (int i = 0; i < size; i++) {
+            buf.put(subQueue.get(i));
         }
         subQueue.clear();
         buf.flip();
