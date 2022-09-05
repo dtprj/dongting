@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.remoting;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
+import java.util.HashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
@@ -28,11 +29,30 @@ class IoQueue {
     private static final DtLog log = DtLogs.getLogger(IoQueue.class);
     private final ConcurrentLinkedQueue<WriteObj> queue = new ConcurrentLinkedQueue<>();
 
+    public IoQueue() {
+    }
+
     public void write(WriteObj data) {
         queue.add(data);
     }
 
-    public WriteObj poll() {
-        return queue.poll();
+    public void dispatchWriteQueue(HashMap<Integer, WriteObj> pendingRequests) {
+        ConcurrentLinkedQueue<WriteObj> queue = this.queue;
+        WriteObj wo;
+        while ((wo = queue.poll()) != null) {
+            Frame req = wo.getData();
+            req.setSeq(wo.getDtc().getAndIncSeq());
+            if (req.getFrameType() == CmdType.TYPE_REQ) {
+                WriteObj old = pendingRequests.put(req.getSeq(), wo);
+                if (old != null) {
+                    String errMsg = "dup seq: old=" + old.getData() + ", new=" + req;
+                    log.error(errMsg);
+                    wo.getFuture().completeExceptionally(new RemotingException(errMsg));
+                    pendingRequests.put(req.getSeq(), old);
+                    continue;
+                }
+            }
+            wo.getDtc().enqueue(req.toByteBuffer());
+        }
     }
 }

@@ -132,7 +132,7 @@ public class NioWorker implements LifeCircle, Runnable {
             return;
         }
         performActions();
-        dispatchWriteQueue();
+        ioQueue.dispatchWriteQueue(pendingRequests);
         Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
         while (iterator.hasNext()) {
             processOneSelectionKey(iterator);
@@ -297,27 +297,6 @@ public class NioWorker implements LifeCircle, Runnable {
             log.warn("init channel fail: {}, {}", channel, e.toString());
             closeChannel(key);
             f.completeExceptionally(new RemotingException(e));
-        }
-    }
-
-    private void dispatchWriteQueue() {
-        IoQueue ioQueue = this.ioQueue;
-        HashMap<Integer, WriteObj> pendingRequests = this.pendingRequests;
-        WriteObj wo;
-        while ((wo = ioQueue.poll()) != null) {
-            Frame req = wo.getData();
-            req.setSeq(wo.getDtc().getAndIncSeq());
-            if (req.getFrameType() == CmdType.TYPE_REQ) {
-                WriteObj old = pendingRequests.put(req.getSeq(), wo);
-                if (old != null) {
-                    String errMsg = "dup seq: old=" + old.getData() + ", new=" + req;
-                    log.error(errMsg);
-                    wo.getFuture().completeExceptionally(new RemotingException(errMsg));
-                    pendingRequests.put(req.getSeq(), old);
-                    continue;
-                }
-            }
-            wo.getDtc().enqueue(req.toByteBuffer());
         }
     }
 

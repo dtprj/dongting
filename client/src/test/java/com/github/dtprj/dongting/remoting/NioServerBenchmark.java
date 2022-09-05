@@ -92,6 +92,6 @@ public class NioServerBenchmark extends BenchBase {
     }
 
     public static void main(String[] args) throws Exception {
-        new NioServerBenchmark(1, 10000, 1000).start();
+        new NioServerBenchmark(128, 10000, 1000).start();
     }
 }
