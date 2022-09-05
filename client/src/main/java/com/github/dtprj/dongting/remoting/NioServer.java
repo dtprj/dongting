@@ -119,10 +119,10 @@ public class NioServer extends NioRemoting implements Runnable {
         if (selector != null) {
             selector.wakeup();
         }
-        shutdownBizExecutor();
         for (NioWorker worker : workers) {
             worker.stop();
         }
+        shutdownBizExecutor();
     }
 
 }
