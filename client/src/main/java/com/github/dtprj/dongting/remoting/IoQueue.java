@@ -27,19 +27,19 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 // TODO currently just work, optimize performance
 class IoQueue {
     private static final DtLog log = DtLogs.getLogger(IoQueue.class);
-    private final ConcurrentLinkedQueue<WriteObj> queue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<WriteObj> writeQueue = new ConcurrentLinkedQueue<>();
 
     public IoQueue() {
     }
 
     public void write(WriteObj data) {
-        queue.add(data);
+        writeQueue.add(data);
     }
 
     public void dispatchWriteQueue(HashMap<Integer, WriteObj> pendingRequests) {
-        ConcurrentLinkedQueue<WriteObj> queue = this.queue;
+        ConcurrentLinkedQueue<WriteObj> writeQueue = this.writeQueue;
         WriteObj wo;
-        while ((wo = queue.poll()) != null) {
+        while ((wo = writeQueue.poll()) != null) {
             Frame req = wo.getData();
             req.setSeq(wo.getDtc().getAndIncSeq());
             if (req.getFrameType() == CmdType.TYPE_REQ) {
