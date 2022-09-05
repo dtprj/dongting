@@ -41,9 +41,11 @@ class IoQueue {
         WriteObj wo;
         while ((wo = writeQueue.poll()) != null) {
             Frame req = wo.getData();
-            req.setSeq(wo.getDtc().getAndIncSeq());
+            DtChannel dtc = wo.getDtc();
+            int seq = dtc.getAndIncSeq();
+            req.setSeq(seq);
             if (req.getFrameType() == CmdType.TYPE_REQ) {
-                WriteObj old = pendingRequests.put(req.getSeq(), wo);
+                WriteObj old = pendingRequests.put(seq, wo);
                 if (old != null) {
                     String errMsg = "dup seq: old=" + old.getData() + ", new=" + req;
                     log.error(errMsg);
@@ -52,7 +54,7 @@ class IoQueue {
                     continue;
                 }
             }
-            wo.getDtc().getSubQueue().enqueue(req.toByteBuffer());
+            dtc.getSubQueue().enqueue(req.toByteBuffer());
         }
     }
 }
