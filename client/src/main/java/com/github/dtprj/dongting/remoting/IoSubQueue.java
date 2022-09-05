@@ -26,6 +26,7 @@ class IoSubQueue {
     private ByteBuffer writeBuffer;
 
     private final LinkedList<ByteBuffer> subQueue = new LinkedList<>();
+    private int subQueueBytes;
     private boolean writing;
 
     public IoSubQueue(Runnable registerForWrite) {
@@ -33,17 +34,30 @@ class IoSubQueue {
     }
 
     public void enqueue(ByteBuffer buf) {
+        LinkedList<ByteBuffer> subQueue = this.subQueue;
         subQueue.add(buf);
+        subQueueBytes += buf.remaining();
         if (subQueue.size() == 1 && !writing) {
             registerForWrite.run();
         }
     }
 
+    //TODO need optimise
     public ByteBuffer getWriteBuffer() {
-        if (writeBuffer == null || !writeBuffer.hasRemaining()) {
-            writeBuffer = subQueue.poll();
+        ByteBuffer writeBuffer = this.writeBuffer;
+        if (writeBuffer != null && writeBuffer.remaining() > 0) {
+            return writeBuffer;
         }
-        return writeBuffer;
+        ByteBuffer buf = ByteBuffer.allocateDirect(subQueueBytes);
+        LinkedList<ByteBuffer> subQueue = this.subQueue;
+        for(ByteBuffer frame: subQueue) {
+            buf.put(frame);
+        }
+        subQueue.clear();
+        buf.flip();
+        subQueueBytes = 0;
+        this.writeBuffer = buf;
+        return buf;
     }
 
     public void setWriting(boolean writing) {
