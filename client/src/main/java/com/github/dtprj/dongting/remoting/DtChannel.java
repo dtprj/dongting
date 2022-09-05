@@ -26,7 +26,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
@@ -51,11 +50,10 @@ class DtChannel {
     private int currentReadFrameSize = -1;
     private int readBufferMark = 0;
 
-    private ByteBuffer writeBuffer;
-
-    private final LinkedList<ByteBuffer> subQueue = new LinkedList<>();
     private final HashMap<Integer, WriteObj> pendingRequests;
     private int seq = 1;
+
+    private IoSubQueue subQueue = new IoSubQueue(this::registerForWrite);
 
     public DtChannel(NioStatus nioStatus, WorkerParams workerParams) {
         this.nioStatus = nioStatus;
@@ -68,6 +66,10 @@ class DtChannel {
 
     public SocketChannel getChannel() {
         return channel;
+    }
+
+    private void registerForWrite() {
+        selectionKey.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
     }
 
     public ByteBuffer getOrCreateReadBuffer() {
@@ -164,14 +166,14 @@ class DtChannel {
             resp.setFrameType(CmdType.TYPE_RESP);
             resp.setSeq(req.getSeq());
             resp.setRespCode(CmdCodes.COMMAND_NOT_SUPPORT);
-            enqueue(resp.toByteBuffer());
+            subQueue.enqueue(resp.toByteBuffer());
         } else {
             if (nioStatus.getBizExecutor() == null) {
                 Frame resp = p.process(req, this);
                 resp.setCommand(req.getCommand());
                 resp.setFrameType(CmdType.TYPE_RESP);
                 resp.setSeq(req.getSeq());
-                enqueue(resp.toByteBuffer());
+                subQueue.enqueue(resp.toByteBuffer());
             } else {
                 nioStatus.getBizExecutor().submit(() -> {
                     Frame resp = p.process(req, this);
@@ -239,20 +241,6 @@ class DtChannel {
         }
     }
 
-    public ByteBuffer getWriteBuffer() {
-        if (writeBuffer == null || !writeBuffer.hasRemaining()) {
-            writeBuffer = subQueue.poll();
-        }
-        return writeBuffer;
-    }
-
-    void enqueue(ByteBuffer buf) {
-        subQueue.add(buf);
-        if (subQueue.size() == 1) {
-            selectionKey.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
-        }
-    }
-
     // invoke by other threads
     private void writeResp(Frame frame) {
         WriteObj data = new WriteObj(this, frame, null, null);
@@ -261,7 +249,7 @@ class DtChannel {
     }
 
     // invoke by other threads
-    void writeReq(Frame frame, DtTime timeout, CompletableFuture<Frame> future) {
+    public void writeReq(Frame frame, DtTime timeout, CompletableFuture<Frame> future) {
         Objects.requireNonNull(timeout);
         Objects.requireNonNull(future);
 
@@ -274,7 +262,11 @@ class DtChannel {
         this.selectionKey = selectionKey;
     }
 
-    int getAndIncSeq() {
+    public int getAndIncSeq() {
         return seq++;
+    }
+
+    public IoSubQueue getSubQueue() {
+        return subQueue;
     }
 }

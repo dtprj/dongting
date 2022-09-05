@@ -52,7 +52,7 @@ class IoQueue {
                     continue;
                 }
             }
-            wo.getDtc().enqueue(req.toByteBuffer());
+            wo.getDtc().getSubQueue().enqueue(req.toByteBuffer());
         }
     }
 }

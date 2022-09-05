@@ -166,11 +166,14 @@ public class NioWorker implements LifeCircle, Runnable {
                 dtc.afterRead();
             }
             if (key.isWritable()) {
-                ByteBuffer buf = dtc.getWriteBuffer();
+                IoSubQueue subQueue = dtc.getSubQueue();
+                ByteBuffer buf = subQueue.getWriteBuffer();
                 if (buf != null) {
+                    subQueue.setWriting(true);
                     sc.write(buf);
                 } else {
                     // no data to write
+                    subQueue.setWriting(false);
                     key.interestOps(SelectionKey.OP_READ);
                 }
             }
