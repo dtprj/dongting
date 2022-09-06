@@ -27,6 +27,7 @@ public class WorkerParams {
     private IoQueue ioQueue;
     private Runnable wakeupRunnable;
     private HashMap<Integer, WriteObj> pendingRequests;
+    private ByteBufferPool pool;
 
     public RpcPbCallback getCallback() {
         return callback;
@@ -66,5 +67,13 @@ public class WorkerParams {
 
     public void setPendingRequests(HashMap<Integer, WriteObj> pendingRequests) {
         this.pendingRequests = pendingRequests;
+    }
+
+    public ByteBufferPool getPool() {
+        return pool;
+    }
+
+    public void setPool(ByteBufferPool pool) {
+        this.pool = pool;
     }
 }

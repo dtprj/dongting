@@ -64,6 +64,8 @@ public class NioWorker implements LifeCircle, Runnable {
 
     private final Semaphore requestSemaphore;
 
+    private ByteBufferPool pool = new ByteBufferPool(true);
+
     public NioWorker(NioStatus nioStatus, String workerName, NioConfig config) {
         this.nioStatus = nioStatus;
         this.config = config;
@@ -264,6 +266,7 @@ public class NioWorker implements LifeCircle, Runnable {
         workerParams.setIoQueue(ioQueue);
         workerParams.setPendingRequests(pendingRequests);
         workerParams.setWakeupRunnable(this::wakeup);
+        workerParams.setPool(pool);
         DtChannel dtc = new DtChannel(nioStatus, workerParams);
         SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
         dtc.setSelectionKey(selectionKey);

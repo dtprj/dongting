@@ -23,14 +23,16 @@ import java.util.ArrayList;
  */
 class IoSubQueue {
     private final Runnable registerForWrite;
+    private final ByteBufferPool pool;
     private ByteBuffer writeBuffer;
 
     private final ArrayList<ByteBuffer> subQueue = new ArrayList<>();
     private int subQueueBytes;
     private boolean writing;
 
-    public IoSubQueue(Runnable registerForWrite) {
+    public IoSubQueue(Runnable registerForWrite, ByteBufferPool pool) {
         this.registerForWrite = registerForWrite;
+        this.pool = pool;
     }
 
     public void enqueue(ByteBuffer buf) {
@@ -42,13 +44,17 @@ class IoSubQueue {
         }
     }
 
-    //TODO need optimise
     public ByteBuffer getWriteBuffer() {
         ByteBuffer writeBuffer = this.writeBuffer;
-        if (writeBuffer != null && writeBuffer.remaining() > 0) {
-            return writeBuffer;
+        if (writeBuffer != null) {
+            if (writeBuffer.remaining() > 0) {
+                return writeBuffer;
+            } else {
+                //TODO need optimise
+                pool.release(writeBuffer, System.nanoTime());
+            }
         }
-        ByteBuffer buf = ByteBuffer.allocate(subQueueBytes);
+        ByteBuffer buf = pool.borrow(subQueueBytes);
         ArrayList<ByteBuffer> subQueue = this.subQueue;
         int size = subQueue.size();
         for (int i = 0; i < size; i++) {

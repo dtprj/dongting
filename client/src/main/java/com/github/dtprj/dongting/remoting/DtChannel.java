@@ -53,7 +53,7 @@ class DtChannel {
     private final HashMap<Integer, WriteObj> pendingRequests;
     private int seq = 1;
 
-    private IoSubQueue subQueue = new IoSubQueue(this::registerForWrite);
+    private final IoSubQueue subQueue;
 
     public DtChannel(NioStatus nioStatus, WorkerParams workerParams) {
         this.nioStatus = nioStatus;
@@ -62,6 +62,7 @@ class DtChannel {
         this.ioQueue = workerParams.getIoQueue();
         this.wakeupRunnable = workerParams.getWakeupRunnable();
         this.pendingRequests = workerParams.getPendingRequests();
+        this.subQueue = new IoSubQueue(this::registerForWrite, workerParams.getPool());
     }
 
     public SocketChannel getChannel() {
