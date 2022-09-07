@@ -42,9 +42,9 @@ class IoQueue {
         while ((wo = writeQueue.poll()) != null) {
             Frame req = wo.getData();
             DtChannel dtc = wo.getDtc();
-            int seq = dtc.getAndIncSeq();
-            req.setSeq(seq);
             if (req.getFrameType() == CmdType.TYPE_REQ) {
+                int seq = dtc.getAndIncSeq();
+                req.setSeq(seq);
                 WriteObj old = pendingRequests.put(seq, wo);
                 if (old != null) {
                     String errMsg = "dup seq: old=" + old.getData() + ", new=" + req;
