@@ -146,17 +146,20 @@ public class NioWorker implements LifeCircle, Runnable {
         SelectionKey key = iterator.next();
         iterator.remove();
         SocketChannel sc = (SocketChannel) key.channel();
+        int stage = 0;
         try {
             if (!key.isValid()) {
                 log.info("socket may closed, remove it: {}", key.channel());
                 closeChannel(key);
                 return;
             }
+            stage = 1;
             if (key.isConnectable()) {
                 processConnect(key);
                 return;
             }
 
+            stage = 2;
             DtChannel dtc = (DtChannel) key.attachment();
             if (key.isReadable()) {
                 ByteBuffer buf = dtc.getOrCreateReadBuffer();
@@ -168,6 +171,7 @@ public class NioWorker implements LifeCircle, Runnable {
                 }
                 dtc.afterRead();
             }
+            stage = 3;
             if (key.isWritable()) {
                 IoSubQueue subQueue = dtc.getSubQueue();
                 ByteBuffer buf = subQueue.getWriteBuffer();
@@ -181,7 +185,19 @@ public class NioWorker implements LifeCircle, Runnable {
                 }
             }
         } catch (Exception e) {
-            log.warn("socket error: {}", e.toString());
+            switch (stage) {
+                case 1:
+                    log.warn("process socket connect error: {}", e.toString());
+                    break;
+                case 2:
+                    log.warn("process socket read error: {}", e.toString());
+                    break;
+                case 3:
+                    log.warn("process socket write error: {}", e.toString());
+                    break;
+                default:
+                    log.warn("socket error: {}", e.toString());
+            }
             closeChannel(key);
         }
     }
