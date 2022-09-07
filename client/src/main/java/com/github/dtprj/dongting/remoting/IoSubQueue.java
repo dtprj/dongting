@@ -52,7 +52,11 @@ class IoSubQueue {
             } else {
                 //TODO need optimise
                 pool.release(writeBuffer, System.nanoTime());
+                this.writeBuffer = null;
             }
+        }
+        if (subQueueBytes == 0) {
+            return null;
         }
         ByteBuffer buf = pool.borrow(subQueueBytes);
         ArrayList<ByteBuffer> subQueue = this.subQueue;
