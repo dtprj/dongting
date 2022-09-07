@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.remoting;
 
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.ThreadUtils;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -122,19 +123,23 @@ public class NioServer extends NioRemoting implements Runnable {
         if (selector != null) {
             selector.wakeup();
         }
-        boolean interrupted = false;
+        for (NioWorker worker : workers) {
+            worker.waitPendingRequests(timeout);
+        }
         for (NioWorker worker : workers) {
             worker.stop();
+        }
+        for (NioWorker worker : workers) {
             long rest = timeout.rest(TimeUnit.MILLISECONDS);
-            if (rest > 0 && !interrupted) {
+            if (rest > 0) {
                 try {
                     worker.getThread().join();
                 } catch (InterruptedException e) {
-                    interrupted = true;
+                    ThreadUtils.restoreInterruptStatus();
                 }
             }
         }
-        shutdownBizExecutor(timeout, interrupted);
+        shutdownBizExecutor(timeout);
     }
 
 }

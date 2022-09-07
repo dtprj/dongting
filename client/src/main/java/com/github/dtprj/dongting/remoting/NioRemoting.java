@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.remoting;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtThreadFactory;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.ThreadUtils;
 
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
@@ -82,15 +83,18 @@ public abstract class NioRemoting extends AbstractLifeCircle {
         }
     }
 
-    protected void shutdownBizExecutor(DtTime timeout, boolean interrupted) {
+    protected void shutdownBizExecutor(DtTime timeout) {
         if (bizExecutor != null) {
             bizExecutor.shutdown();
+            if (Thread.currentThread().isInterrupted()) {
+                return;
+            }
             long rest = timeout.rest(TimeUnit.MILLISECONDS);
-            if (!interrupted && rest > 0) {
+            if (rest > 0) {
                 try {
                     bizExecutor.awaitTermination(rest, TimeUnit.MILLISECONDS);
                 } catch (InterruptedException e) {
-                    // ignore
+                    ThreadUtils.restoreInterruptStatus();
                 }
             }
         }

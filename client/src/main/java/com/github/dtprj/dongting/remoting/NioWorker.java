@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.remoting;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.LifeCircle;
+import com.github.dtprj.dongting.common.ThreadUtils;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -355,6 +356,26 @@ public class NioWorker implements LifeCircle, Runnable {
     public synchronized void stop() throws Exception {
         stop = true;
         wakeup();
+    }
+
+    public void waitPendingRequests(DtTime timeout) {
+        if (Thread.currentThread().isInterrupted()) {
+            return;
+        }
+        for (WriteObj wo : pendingRequests.values()) {
+            long rest = timeout.rest(TimeUnit.MILLISECONDS);
+            if (rest <= 0) {
+                return;
+            }
+            try {
+                wo.getFuture().get(rest, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                ThreadUtils.restoreInterruptStatus();
+                return;
+            } catch (Exception e) {
+                // ignore
+            }
+        }
     }
 
     public List<DtChannel> getChannels() {
