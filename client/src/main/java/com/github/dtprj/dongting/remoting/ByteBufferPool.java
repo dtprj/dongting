@@ -92,20 +92,15 @@ class ByteBufferPool {
         return this.direct ? ByteBuffer.allocateDirect(size) : ByteBuffer.allocate(size);
     }
 
-    private static int stackIndex(int size, int[] bufSizes, long stackCount) {
-        int index = 0;
-        for (; index < stackCount; index++) {
-            if (bufSizes[index] >= size) {
-                break;
-            }
-        }
-        return index;
-    }
-
     public ByteBuffer borrow(int requestSize) {
         int[] bufSizes = this.bufSizes;
         int stackCount = bufSizes.length;
-        int stackIndex = stackIndex(requestSize, bufSizes, stackCount);
+        int stackIndex = 0;
+        for (; stackIndex < stackCount; stackIndex++) {
+            if (bufSizes[stackIndex] >= requestSize) {
+                break;
+            }
+        }
 
         if (stackIndex >= stackCount) {
             // request buffer too large, allocate without pool
@@ -133,7 +128,12 @@ class ByteBufferPool {
     public void release(ByteBuffer buf, long nanos) {
         int[] bufSizes = this.bufSizes;
         int stackCount = bufSizes.length;
-        int stackIndex = stackIndex(buf.capacity(), bufSizes, stackCount);
+        int stackIndex = 0;
+        for (; stackIndex < stackCount; stackIndex++) {
+            if (bufSizes[stackIndex] == buf.capacity()) {
+                break;
+            }
+        }
         if (stackIndex >= stackCount) {
             // buffer too large, release it without pool
             return;
