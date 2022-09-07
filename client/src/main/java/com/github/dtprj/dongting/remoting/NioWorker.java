@@ -359,6 +359,7 @@ public class NioWorker implements LifeCircle, Runnable {
     }
 
     public void waitPendingRequests(DtTime timeout) {
+        // TODO hashmap not threadsafe, use worker thread
         if (Thread.currentThread().isInterrupted()) {
             return;
         }

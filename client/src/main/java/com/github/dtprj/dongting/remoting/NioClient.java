@@ -113,8 +113,8 @@ public class NioClient extends NioRemoting {
     @Override
     protected void doStop() throws Exception {
         DtTime timeout = new DtTime(config.getCloseTimeoutMillis(), TimeUnit.MILLISECONDS);
-        worker.stop();
         worker.waitPendingRequests(timeout);
+        worker.stop();
         try {
             long rest = timeout.rest(TimeUnit.MILLISECONDS);
             if (rest > 0) {
