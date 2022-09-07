@@ -26,6 +26,7 @@ public abstract class NioConfig {
     private int requestTimeoutMillis = 2000;
     private int selectTimeoutMillis = 50;
     private int cleanIntervalMills = 100;
+    private int closeTimeoutMillis = 1000;
 
     public int getBizThreads() {
         return bizThreads;
@@ -81,5 +82,13 @@ public abstract class NioConfig {
 
     public void setCleanIntervalMills(int cleanIntervalMills) {
         this.cleanIntervalMills = cleanIntervalMills;
+    }
+
+    public int getCloseTimeoutMillis() {
+        return closeTimeoutMillis;
+    }
+
+    public void setCloseTimeoutMillis(int closeTimeoutMillis) {
+        this.closeTimeoutMillis = closeTimeoutMillis;
     }
 }

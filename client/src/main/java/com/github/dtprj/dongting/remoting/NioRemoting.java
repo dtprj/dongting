@@ -82,9 +82,17 @@ public abstract class NioRemoting extends AbstractLifeCircle {
         }
     }
 
-    protected void shutdownBizExecutor() {
+    protected void shutdownBizExecutor(DtTime timeout, boolean interrupted) {
         if (bizExecutor != null) {
-            bizExecutor.shutdownNow();
+            bizExecutor.shutdown();
+            long rest = timeout.rest(TimeUnit.MILLISECONDS);
+            if (!interrupted && rest > 0) {
+                try {
+                    bizExecutor.awaitTermination(rest, TimeUnit.MILLISECONDS);
+                } catch (InterruptedException e) {
+                    // ignore
+                }
+            }
         }
     }
 }

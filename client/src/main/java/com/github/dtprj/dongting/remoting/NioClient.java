@@ -111,8 +111,18 @@ public class NioClient extends NioRemoting {
 
     @Override
     protected void doStop() throws Exception {
-        shutdownBizExecutor();
+        DtTime timeout = new DtTime(config.getCloseTimeoutMillis(), TimeUnit.MILLISECONDS);
         worker.stop();
+        boolean interrupted = false;
+        try {
+            long rest = timeout.rest(TimeUnit.MILLISECONDS);
+            if (rest > 0) {
+                worker.getThread().join(rest);
+            }
+        } catch (InterruptedException e) {
+            interrupted = true;
+        }
+        shutdownBizExecutor(timeout, interrupted);
     }
 
 }

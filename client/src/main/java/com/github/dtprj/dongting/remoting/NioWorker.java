@@ -345,4 +345,7 @@ public class NioWorker implements LifeCircle, Runnable {
         return channels;
     }
 
+    public Thread getThread() {
+        return thread;
+    }
 }

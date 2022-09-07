@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.remoting;
 
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -27,6 +28,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.util.Iterator;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author huangli
@@ -115,14 +117,24 @@ public class NioServer extends NioRemoting implements Runnable {
 
     @Override
     public void doStop() throws Exception {
+        DtTime timeout = new DtTime(config.getCloseTimeoutMillis(), TimeUnit.MILLISECONDS);
         stop = true;
         if (selector != null) {
             selector.wakeup();
         }
+        boolean interrupted = false;
         for (NioWorker worker : workers) {
             worker.stop();
+            long rest = timeout.rest(TimeUnit.MILLISECONDS);
+            if (rest > 0 && !interrupted) {
+                try {
+                    worker.getThread().join();
+                } catch (InterruptedException e) {
+                    interrupted = true;
+                }
+            }
         }
-        shutdownBizExecutor();
+        shutdownBizExecutor(timeout, interrupted);
     }
 
 }
