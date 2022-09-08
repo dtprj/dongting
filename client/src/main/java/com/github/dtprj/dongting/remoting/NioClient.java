@@ -81,8 +81,8 @@ public class NioClient extends NioRemoting {
             }
         }
         if (successCount == 0) {
-            // TODO error message
-            throw new RemotingException();
+            throw new RemotingException("init NioClient fail:timeout=" + config.getConnectTimeoutMillis()
+                    + "ms, timeoutConnectionCount=" + timeoutCount + ", failConnectionCount=" + failCount);
         }
         initBizExecutor();
     }
