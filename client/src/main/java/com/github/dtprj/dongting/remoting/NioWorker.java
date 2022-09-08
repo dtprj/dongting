@@ -176,7 +176,7 @@ public class NioWorker extends AbstractLifeCircle implements Runnable {
                 ByteBuffer buf = dtc.getOrCreateReadBuffer();
                 int readCount = sc.read(buf);
                 if (readCount == -1) {
-                    log.info("socket closed, remove it: {}", key.channel());
+                    log.info("socket read to end, remove it: {}", key.channel());
                     closeChannel(key);
                     return false;
                 }
@@ -237,8 +237,8 @@ public class NioWorker extends AbstractLifeCircle implements Runnable {
     private void closeChannel0(SocketChannel sc, CompletableFuture<Void> f) {
         try {
             if (sc.isOpen()) {
+                log.info("closing channel: {}", sc);
                 sc.close();
-                log.info("channel closed: {}", sc);
             }
             if (f != null) {
                 f.complete(null);
