@@ -110,7 +110,7 @@ public class NioWorker extends AbstractLifeCircle implements Runnable {
 
     @Override
     public void run() {
-        long cleanIntervalNanos = config.getCleanIntervalMills() * 1000 * 1000;
+        long cleanIntervalNanos = (long) config.getCleanIntervalMills() * 1000 * 1000;
         long lastCleanNano = System.nanoTime();
         int selectTimeoutMillis = config.getSelectTimeoutMillis();
         Selector selector = this.selector;
