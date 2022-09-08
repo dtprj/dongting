@@ -341,8 +341,7 @@ public class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     private void cleanTimeoutReq() {
-        HashMap<Integer, WriteObj> pendingRequests = this.pendingOutgoingRequests;
-        Iterator<Map.Entry<Integer, WriteObj>> it = pendingRequests.entrySet().iterator();
+        Iterator<Map.Entry<Integer, WriteObj>> it = this.pendingOutgoingRequests.entrySet().iterator();
         while (it.hasNext()) {
             Map.Entry<Integer, WriteObj> en = it.next();
             DtTime t = en.getValue().getTimeout();
