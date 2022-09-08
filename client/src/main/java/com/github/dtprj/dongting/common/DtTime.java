@@ -41,9 +41,6 @@ public class DtTime {
     }
 
     public long getTimeout(TimeUnit unit) {
-        if (deadline == 0) {
-            return 0;
-        }
         return unit.convert(deadline - createTime, TimeUnit.NANOSECONDS);
     }
 }
