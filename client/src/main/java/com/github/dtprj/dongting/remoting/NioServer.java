@@ -135,7 +135,7 @@ public class NioServer extends NioRemoting implements Runnable {
                 } catch (InterruptedException e) {
                     ThreadUtils.restoreInterruptStatus();
                 } catch (TimeoutException e){
-                    // ignore
+                    break;
                 }
             }
         }
