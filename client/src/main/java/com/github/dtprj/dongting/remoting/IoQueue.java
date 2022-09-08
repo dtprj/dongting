@@ -36,9 +36,10 @@ class IoQueue {
         writeQueue.add(data);
     }
 
-    public void dispatchWriteQueue(HashMap<Integer, WriteObj> pendingRequests) {
+    public boolean dispatchWriteQueue(HashMap<Integer, WriteObj> pendingRequests) {
         ConcurrentLinkedQueue<WriteObj> writeQueue = this.writeQueue;
         WriteObj wo;
+        boolean result = false;
         while ((wo = writeQueue.poll()) != null) {
             Frame req = wo.getData();
             DtChannel dtc = wo.getDtc();
@@ -55,6 +56,8 @@ class IoQueue {
                 }
             }
             dtc.getSubQueue().enqueue(req.toByteBuffer());
+            result = true;
         }
+        return result;
     }
 }

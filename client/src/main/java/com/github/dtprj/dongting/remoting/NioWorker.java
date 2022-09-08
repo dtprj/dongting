@@ -15,9 +15,8 @@
  */
 package com.github.dtprj.dongting.remoting;
 
+import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.LifeCircle;
-import com.github.dtprj.dongting.common.ThreadUtils;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -45,8 +44,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * @author huangli
  */
-public class NioWorker implements LifeCircle, Runnable {
+public class NioWorker extends AbstractLifeCircle implements Runnable {
     private static final DtLog log = DtLogs.getLogger(NioWorker.class);
+    private static final int SS_RUNNING = 0;
+    private static final int SS_PRE_STOP = 1;
+    private static final int SS_STOP = 2;
 
     private final String workerName;
     private final Thread thread;
@@ -54,7 +56,7 @@ public class NioWorker implements LifeCircle, Runnable {
     private final IoQueue ioQueue = new IoQueue();
     private final NioStatus nioStatus;
     private final NioConfig config;
-    private volatile boolean stop;
+    private volatile int stopStatus = SS_RUNNING;
     private Selector selector;
     private final AtomicBoolean notified = new AtomicBoolean(false);
 
@@ -62,10 +64,11 @@ public class NioWorker implements LifeCircle, Runnable {
 
     private final CopyOnWriteArrayList<DtChannel> channels = new CopyOnWriteArrayList<>();
     private final HashMap<Integer, WriteObj> pendingRequests = new HashMap<>();
+    private final CompletableFuture<Void> preCloseFuture = new CompletableFuture<>();
 
     private final Semaphore requestSemaphore;
 
-    private ByteBufferPool pool = new ByteBufferPool(true);
+    private final ByteBufferPool pool = new ByteBufferPool(true);
 
     public NioWorker(NioStatus nioStatus, String workerName, NioConfig config) {
         this.nioStatus = nioStatus;
@@ -111,10 +114,11 @@ public class NioWorker implements LifeCircle, Runnable {
         long lastCleanNano = System.nanoTime();
         int selectTimeoutMillis = config.getSelectTimeoutMillis();
         Selector selector = this.selector;
-        while (!stop) {
+        int stopStatus;
+        while ((stopStatus = this.stopStatus) <= SS_PRE_STOP) {
             try {
                 long roundStartTime = System.nanoTime();
-                run0(selector, selectTimeoutMillis);
+                run0(selector, selectTimeoutMillis, stopStatus);
                 lastCleanNano = cleanTimeoutReq(cleanIntervalNanos, lastCleanNano, roundStartTime);
             } catch (Throwable e) {
                 log.error("", e);
@@ -131,33 +135,39 @@ public class NioWorker implements LifeCircle, Runnable {
         }
     }
 
-    private void run0(Selector selector, int selectTimeoutMillis) {
+    private void run0(Selector selector, int selectTimeoutMillis, int stopStatus) {
         if (!select(selector, selectTimeoutMillis)) {
             return;
         }
         performActions();
-        ioQueue.dispatchWriteQueue(pendingRequests);
+        boolean hasDataToWrite = ioQueue.dispatchWriteQueue(pendingRequests);
         Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
         while (iterator.hasNext()) {
-            processOneSelectionKey(iterator);
+            hasDataToWrite |= processOneSelectionKey(iterator, stopStatus);
+        }
+        if (stopStatus == SS_PRE_STOP) {
+            if (!hasDataToWrite && pendingRequests.size() == 0) {
+                preCloseFuture.complete(null);
+            }
         }
     }
 
-    private void processOneSelectionKey(Iterator<SelectionKey> iterator) {
+    private boolean processOneSelectionKey(Iterator<SelectionKey> iterator, int stopStatus) {
         SelectionKey key = iterator.next();
         iterator.remove();
         SocketChannel sc = (SocketChannel) key.channel();
         int stage = 0;
+        boolean hasDataToWrite = false;
         try {
             if (!key.isValid()) {
                 log.info("socket may closed, remove it: {}", key.channel());
                 closeChannel(key);
-                return;
+                return false;
             }
             stage = 1;
             if (key.isConnectable()) {
                 processConnect(key);
-                return;
+                return false;
             }
 
             stage = 2;
@@ -168,15 +178,16 @@ public class NioWorker implements LifeCircle, Runnable {
                 if (readCount == -1) {
                     log.info("socket closed, remove it: {}", key.channel());
                     closeChannel(key);
-                    return;
+                    return false;
                 }
-                dtc.afterRead();
+                dtc.afterRead(stopStatus == SS_RUNNING);
             }
             stage = 3;
             if (key.isWritable()) {
                 IoSubQueue subQueue = dtc.getSubQueue();
                 ByteBuffer buf = subQueue.getWriteBuffer();
                 if (buf != null) {
+                    hasDataToWrite = true;
                     subQueue.setWriting(true);
                     sc.write(buf);
                 } else {
@@ -201,6 +212,7 @@ public class NioWorker implements LifeCircle, Runnable {
             }
             closeChannel(key);
         }
+        return hasDataToWrite;
     }
 
     private void closeChannel(SelectionKey key) {
@@ -347,36 +359,20 @@ public class NioWorker implements LifeCircle, Runnable {
     }
 
     @Override
-    public synchronized void start() throws Exception {
+    public void doStart() throws Exception {
         selector = SelectorProvider.provider().openSelector();
         thread.start();
     }
 
-    @Override
-    public synchronized void stop() throws Exception {
-        stop = true;
+    public void preStop() {
+        stopStatus = SS_PRE_STOP;
         wakeup();
     }
 
-    public void waitPendingRequests(DtTime timeout) {
-        // TODO hashmap not threadsafe, use worker thread
-        if (Thread.currentThread().isInterrupted()) {
-            return;
-        }
-        for (WriteObj wo : pendingRequests.values()) {
-            long rest = timeout.rest(TimeUnit.MILLISECONDS);
-            if (rest <= 0) {
-                return;
-            }
-            try {
-                wo.getFuture().get(rest, TimeUnit.MILLISECONDS);
-            } catch (InterruptedException e) {
-                ThreadUtils.restoreInterruptStatus();
-                return;
-            } catch (Exception e) {
-                // ignore
-            }
-        }
+    @Override
+    public void doStop() {
+        stopStatus = SS_STOP;
+        wakeup();
     }
 
     public List<DtChannel> getChannels() {
@@ -385,5 +381,9 @@ public class NioWorker implements LifeCircle, Runnable {
 
     public Thread getThread() {
         return thread;
+    }
+
+    public CompletableFuture<Void> getPreCloseFuture() {
+        return preCloseFuture;
     }
 }

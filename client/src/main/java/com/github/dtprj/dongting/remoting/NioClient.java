@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * @author huangli
@@ -113,7 +114,17 @@ public class NioClient extends NioRemoting {
     @Override
     protected void doStop() throws Exception {
         DtTime timeout = new DtTime(config.getCloseTimeoutMillis(), TimeUnit.MILLISECONDS);
-        worker.waitPendingRequests(timeout);
+        worker.preStop();
+        try {
+            long rest = timeout.rest(TimeUnit.MILLISECONDS);
+            if (rest > 0) {
+                worker.getPreCloseFuture().get(rest, TimeUnit.MILLISECONDS);
+            }
+        } catch (InterruptedException e) {
+            ThreadUtils.restoreInterruptStatus();
+        } catch (TimeoutException e){
+            // ignore
+        }
         worker.stop();
         try {
             long rest = timeout.rest(TimeUnit.MILLISECONDS);

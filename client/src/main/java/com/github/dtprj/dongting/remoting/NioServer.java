@@ -30,6 +30,7 @@ import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * @author huangli
@@ -124,7 +125,19 @@ public class NioServer extends NioRemoting implements Runnable {
             selector.wakeup();
         }
         for (NioWorker worker : workers) {
-            worker.waitPendingRequests(timeout);
+            worker.preStop();
+        }
+        for (NioWorker worker : workers) {
+            long rest = timeout.rest(TimeUnit.MILLISECONDS);
+            if (rest > 0) {
+                try {
+                    worker.getPreCloseFuture().get(rest, TimeUnit.MILLISECONDS);
+                } catch (InterruptedException e) {
+                    ThreadUtils.restoreInterruptStatus();
+                } catch (TimeoutException e){
+                    // ignore
+                }
+            }
         }
         for (NioWorker worker : workers) {
             worker.stop();

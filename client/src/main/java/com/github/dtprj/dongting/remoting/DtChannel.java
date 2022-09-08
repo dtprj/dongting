@@ -94,7 +94,7 @@ class DtChannel {
     }
 
 
-    public void afterRead() {
+    public void afterRead(boolean running) {
         ByteBuffer buf = this.readBuffer;
         // switch to read mode, but the start position may not 0, so we can't use flip()
         buf.limit(buf.position());
@@ -115,14 +115,14 @@ class DtChannel {
                 }
             }
             if (currentReadFrameSize > 0) {
-                readFrame(buf);
+                readFrame(buf, running);
             }
         }
 
         prepareForNextRead();
     }
 
-    private void readFrame(ByteBuffer buf) {
+    private void readFrame(ByteBuffer buf, boolean running) {
         if (buf.remaining() < this.currentReadFrameSize) {
             return;
         }
@@ -136,15 +136,15 @@ class DtChannel {
         this.currentReadFrameSize = -1;
         int type = f.getFrameType();
         if (type == CmdType.TYPE_REQ) {
-            processRequest(f);
+            processIncomeRequest(f, running);
         } else if (type == CmdType.TYPE_RESP) {
-            processResponse(f);
+            processIncomeResponse(f);
         } else {
             log.warn("bad frame type: {}, {}", type, channel);
         }
     }
 
-    private void processResponse(Frame resp) {
+    private void processIncomeResponse(Frame resp) {
         WriteObj wo = pendingRequests.remove(resp.getSeq());
         if (wo == null) {
             log.debug("pending request not found. channel={}, resp={}", channel, resp);
@@ -159,15 +159,14 @@ class DtChannel {
         wo.getFuture().complete(resp);
     }
 
-    private void processRequest(Frame req) {
+    private void processIncomeRequest(Frame req, boolean running) {
+        if (!running) {
+            writeErrorInWorkerThread(req, CmdCodes.STOPPING);
+            return;
+        }
         CmdProcessor p = nioStatus.getProcessor(req.getCommand());
         if (p == null) {
-            Frame resp = new Frame();
-            resp.setCommand(req.getCommand());
-            resp.setFrameType(CmdType.TYPE_RESP);
-            resp.setSeq(req.getSeq());
-            resp.setRespCode(CmdCodes.COMMAND_NOT_SUPPORT);
-            subQueue.enqueue(resp.toByteBuffer());
+            writeErrorInWorkerThread(req, CmdCodes.COMMAND_NOT_SUPPORT);
         } else {
             if (nioStatus.getBizExecutor() == null) {
                 Frame resp = p.process(req, this);
@@ -185,6 +184,15 @@ class DtChannel {
                 });
             }
         }
+    }
+
+    private void writeErrorInWorkerThread(Frame req, int code) {
+        Frame resp = new Frame();
+        resp.setCommand(req.getCommand());
+        resp.setFrameType(CmdType.TYPE_RESP);
+        resp.setSeq(req.getSeq());
+        resp.setRespCode(code);
+        subQueue.enqueue(resp.toByteBuffer());
     }
 
     private void prepareForNextRead() {
