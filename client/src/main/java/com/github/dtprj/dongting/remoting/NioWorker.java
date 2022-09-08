@@ -119,7 +119,11 @@ public class NioWorker extends AbstractLifeCircle implements Runnable {
             try {
                 long roundStartTime = System.nanoTime();
                 run0(selector, selectTimeoutMillis, stopStatus);
-                lastCleanNano = cleanTimeoutReq(cleanIntervalNanos, lastCleanNano, roundStartTime);
+                if (roundStartTime - lastCleanNano > cleanIntervalNanos) {
+                    cleanTimeoutReq();
+                    pool.clean(roundStartTime);
+                    lastCleanNano = roundStartTime;
+                }
             } catch (Throwable e) {
                 log.error("", e);
             }
@@ -336,10 +340,7 @@ public class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    private long cleanTimeoutReq(long cleanIntervalNanos, long lastCleanNano, long roundStartTime) {
-        if (roundStartTime - lastCleanNano < cleanIntervalNanos) {
-            return lastCleanNano;
-        }
+    private void cleanTimeoutReq() {
         HashMap<Integer, WriteObj> pendingRequests = this.pendingOutgoingRequests;
         Iterator<Map.Entry<Integer, WriteObj>> it = pendingRequests.entrySet().iterator();
         while (it.hasNext()) {
@@ -355,7 +356,6 @@ public class NioWorker extends AbstractLifeCircle implements Runnable {
                 requestSemaphore.release();
             }
         }
-        return roundStartTime;
     }
 
     @Override

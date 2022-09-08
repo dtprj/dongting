@@ -34,7 +34,7 @@ class ByteBufferPool {
     private final boolean direct;
 
     private static final int[] DEFAULT_BUF_SIZE = new int[]{1024, 2048, 4096, 8192, 16 * 1024,
-            32 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 512 * 1024, 1 * 1024 * 1024, 2 * 1024 * 1024,
+            32 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 512 * 1024, 1024 * 1024, 2 * 1024 * 1024,
             4 * 1024 * 1024};
 
     private static final int[] DEFAULT_MAX_COUNT = new int[]{128, 128, 128, 128, 128,
@@ -158,7 +158,6 @@ class ByteBufferPool {
         stackSizes[stackIndex]++;
     }
 
-    // TODO invoke clean
     public void clean(long nanos) {
         ByteBuffer[][] bufferStacks = this.bufferStacks;
         long[][] returnTimes = this.returnTimes;
