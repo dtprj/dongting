@@ -63,7 +63,7 @@ public class NioWorker extends AbstractLifeCircle implements Runnable {
     private final ConcurrentLinkedQueue<Runnable> actions = new ConcurrentLinkedQueue<>();
 
     private final CopyOnWriteArrayList<DtChannel> channels = new CopyOnWriteArrayList<>();
-    private final HashMap<Integer, WriteObj> pendingRequests = new HashMap<>();
+    private final HashMap<Integer, WriteObj> pendingOutgoingRequests = new HashMap<>();
     private final CompletableFuture<Void> preCloseFuture = new CompletableFuture<>();
 
     private final Semaphore requestSemaphore;
@@ -140,13 +140,13 @@ public class NioWorker extends AbstractLifeCircle implements Runnable {
             return;
         }
         performActions();
-        boolean hasDataToWrite = ioQueue.dispatchWriteQueue(pendingRequests);
+        boolean hasDataToWrite = ioQueue.dispatchWriteQueue(pendingOutgoingRequests);
         Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
         while (iterator.hasNext()) {
             hasDataToWrite |= processOneSelectionKey(iterator, stopStatus);
         }
         if (stopStatus == SS_PRE_STOP) {
-            if (!hasDataToWrite && pendingRequests.size() == 0) {
+            if (!hasDataToWrite && pendingOutgoingRequests.size() == 0) {
                 preCloseFuture.complete(null);
             }
         }
@@ -293,7 +293,7 @@ public class NioWorker extends AbstractLifeCircle implements Runnable {
         workerParams.setChannel(sc);
         workerParams.setCallback(pbCallback);
         workerParams.setIoQueue(ioQueue);
-        workerParams.setPendingRequests(pendingRequests);
+        workerParams.setPendingRequests(pendingOutgoingRequests);
         workerParams.setWakeupRunnable(this::wakeup);
         workerParams.setPool(pool);
         DtChannel dtc = new DtChannel(nioStatus, workerParams);
@@ -340,7 +340,7 @@ public class NioWorker extends AbstractLifeCircle implements Runnable {
         if (roundStartTime - lastCleanNano < cleanIntervalNanos) {
             return lastCleanNano;
         }
-        HashMap<Integer, WriteObj> pendingRequests = this.pendingRequests;
+        HashMap<Integer, WriteObj> pendingRequests = this.pendingOutgoingRequests;
         Iterator<Map.Entry<Integer, WriteObj>> it = pendingRequests.entrySet().iterator();
         while (it.hasNext()) {
             Map.Entry<Integer, WriteObj> en = it.next();

@@ -136,15 +136,15 @@ class DtChannel {
         this.currentReadFrameSize = -1;
         int type = f.getFrameType();
         if (type == CmdType.TYPE_REQ) {
-            processIncomeRequest(f, running);
+            processIncomingRequest(f, running);
         } else if (type == CmdType.TYPE_RESP) {
-            processIncomeResponse(f);
+            processIncomingResponse(f);
         } else {
             log.warn("bad frame type: {}, {}", type, channel);
         }
     }
 
-    private void processIncomeResponse(Frame resp) {
+    private void processIncomingResponse(Frame resp) {
         WriteObj wo = pendingRequests.remove(resp.getSeq());
         if (wo == null) {
             log.debug("pending request not found. channel={}, resp={}", channel, resp);
@@ -159,7 +159,7 @@ class DtChannel {
         wo.getFuture().complete(resp);
     }
 
-    private void processIncomeRequest(Frame req, boolean running) {
+    private void processIncomingRequest(Frame req, boolean running) {
         if (!running) {
             writeErrorInWorkerThread(req, CmdCodes.STOPPING);
             return;
