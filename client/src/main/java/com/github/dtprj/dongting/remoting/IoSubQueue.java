@@ -44,14 +44,13 @@ class IoSubQueue {
         }
     }
 
-    public ByteBuffer getWriteBuffer() {
+    public ByteBuffer getWriteBuffer(long nanoTime) {
         ByteBuffer writeBuffer = this.writeBuffer;
         if (writeBuffer != null) {
             if (writeBuffer.remaining() > 0) {
                 return writeBuffer;
             } else {
-                //TODO need optimise
-                pool.release(writeBuffer, System.nanoTime());
+                pool.release(writeBuffer, nanoTime);
                 this.writeBuffer = null;
             }
         }

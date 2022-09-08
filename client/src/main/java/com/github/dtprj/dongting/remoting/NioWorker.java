@@ -118,7 +118,7 @@ public class NioWorker extends AbstractLifeCircle implements Runnable {
         while ((stopStatus = this.stopStatus) <= SS_PRE_STOP) {
             try {
                 long roundStartTime = System.nanoTime();
-                run0(selector, selectTimeoutMillis, stopStatus);
+                run0(selector, selectTimeoutMillis, stopStatus, roundStartTime);
                 if (roundStartTime - lastCleanNano > cleanIntervalNanos) {
                     cleanTimeoutReq();
                     pool.clean(roundStartTime);
@@ -139,7 +139,7 @@ public class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    private void run0(Selector selector, int selectTimeoutMillis, int stopStatus) {
+    private void run0(Selector selector, int selectTimeoutMillis, int stopStatus, long roundTime) {
         if (!select(selector, selectTimeoutMillis)) {
             return;
         }
@@ -147,7 +147,7 @@ public class NioWorker extends AbstractLifeCircle implements Runnable {
         boolean hasDataToWrite = ioQueue.dispatchWriteQueue(pendingOutgoingRequests);
         Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
         while (iterator.hasNext()) {
-            hasDataToWrite |= processOneSelectionKey(iterator, stopStatus);
+            hasDataToWrite |= processOneSelectionKey(iterator, stopStatus, roundTime);
         }
         if (stopStatus == SS_PRE_STOP) {
             if (!hasDataToWrite && pendingOutgoingRequests.size() == 0) {
@@ -156,7 +156,7 @@ public class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    private boolean processOneSelectionKey(Iterator<SelectionKey> iterator, int stopStatus) {
+    private boolean processOneSelectionKey(Iterator<SelectionKey> iterator, int stopStatus, long roundTime) {
         SelectionKey key = iterator.next();
         iterator.remove();
         SocketChannel sc = (SocketChannel) key.channel();
@@ -189,7 +189,7 @@ public class NioWorker extends AbstractLifeCircle implements Runnable {
             stage = 3;
             if (key.isWritable()) {
                 IoSubQueue subQueue = dtc.getSubQueue();
-                ByteBuffer buf = subQueue.getWriteBuffer();
+                ByteBuffer buf = subQueue.getWriteBuffer(roundTime);
                 if (buf != null) {
                     hasDataToWrite = true;
                     subQueue.setWriting(true);
