@@ -41,21 +41,21 @@ class IoQueue {
         WriteObj wo;
         boolean result = false;
         while ((wo = writeQueue.poll()) != null) {
-            WriteFrame req = wo.getData();
+            WriteFrame frame = wo.getData();
             DtChannel dtc = wo.getDtc();
-            if (req.getFrameType() == CmdType.TYPE_REQ) {
+            if (frame.getFrameType() == CmdType.TYPE_REQ) {
                 int seq = dtc.getAndIncSeq();
-                req.setSeq(seq);
+                frame.setSeq(seq);
                 WriteObj old = pendingRequests.put(seq, wo);
                 if (old != null) {
-                    String errMsg = "dup seq: old=" + old.getData() + ", new=" + req;
+                    String errMsg = "dup seq: old=" + old.getData() + ", new=" + frame;
                     log.error(errMsg);
                     wo.getFuture().completeExceptionally(new RemotingException(errMsg));
-                    pendingRequests.put(req.getSeq(), old);
+                    pendingRequests.put(frame.getSeq(), old);
                     continue;
                 }
             }
-            dtc.getSubQueue().enqueue(req.toByteBuffer());
+            dtc.getSubQueue().enqueue(frame);
             result = true;
         }
         return result;

@@ -173,7 +173,7 @@ class DtChannel {
                 resp.setCommand(req.getCommand());
                 resp.setFrameType(CmdType.TYPE_RESP);
                 resp.setSeq(req.getSeq());
-                subQueue.enqueue(resp.toByteBuffer());
+                subQueue.enqueue(resp);
             } else {
                 nioStatus.getBizExecutor().submit(() -> {
                     WriteFrame resp = p.process(req, this);
@@ -192,7 +192,7 @@ class DtChannel {
         resp.setFrameType(CmdType.TYPE_RESP);
         resp.setSeq(req.getSeq());
         resp.setRespCode(code);
-        subQueue.enqueue(resp.toByteBuffer());
+        subQueue.enqueue(resp);
     }
 
     private void prepareForNextRead() {

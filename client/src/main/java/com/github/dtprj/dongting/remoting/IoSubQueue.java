@@ -26,7 +26,7 @@ class IoSubQueue {
     private final ByteBufferPool pool;
     private ByteBuffer writeBuffer;
 
-    private final ArrayList<ByteBuffer> subQueue = new ArrayList<>();
+    private final ArrayList<WriteFrame> subQueue = new ArrayList<>();
     private int subQueueBytes;
     private boolean writing;
 
@@ -35,10 +35,10 @@ class IoSubQueue {
         this.pool = pool;
     }
 
-    public void enqueue(ByteBuffer buf) {
-        ArrayList<ByteBuffer> subQueue = this.subQueue;
-        subQueue.add(buf);
-        subQueueBytes += buf.remaining();
+    public void enqueue(WriteFrame frame) {
+        ArrayList<WriteFrame> subQueue = this.subQueue;
+        subQueue.add(frame);
+        subQueueBytes += frame.estimateSize();
         if (subQueue.size() == 1 && !writing) {
             registerForWrite.run();
         }
@@ -58,10 +58,10 @@ class IoSubQueue {
             return null;
         }
         ByteBuffer buf = pool.borrow(subQueueBytes);
-        ArrayList<ByteBuffer> subQueue = this.subQueue;
+        ArrayList<WriteFrame> subQueue = this.subQueue;
         int size = subQueue.size();
         for (int i = 0; i < size; i++) {
-            buf.put(subQueue.get(i));
+            subQueue.get(i).dump(buf);
         }
         subQueue.clear();
         buf.flip();

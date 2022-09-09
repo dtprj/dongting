@@ -27,32 +27,27 @@ public class WriteFrame extends Frame {
 
     private ByteBuffer body;
 
-    private int pbSize;
-
-    public ByteBuffer getBody() {
-        return body;
-    }
+    private int dumpSize;
 
     public void setBody(ByteBuffer body) {
         this.body = body;
     }
 
-    public int pbSize() {
-        if (pbSize == 0) {
+    public int estimateSize() {
+        if (dumpSize == 0) {
             int msgBytes = msg == null ? 0 : msg.length() * 3 + (1 + 5);
             int bodyBytes = body == null ? 0 : body.remaining() + (1 + 5);
-            pbSize = (1 + 5) * 4 // first int32 field * 4
+            dumpSize = 4 // length
+                    + (1 + 5) * 4 // first int32 field * 4
                     + msgBytes //msg
                     + bodyBytes; // body
         }
-        return pbSize;
+        return dumpSize;
     }
 
-    public ByteBuffer toByteBuffer() {
-        // TODO need optimise
-        int s = pbSize();
-        ByteBuffer buf = ByteBuffer.allocate(s + 4);
-        buf.position(4);
+    public void dump(ByteBuffer buf) {
+        int startPos = buf.position();
+        buf.position(startPos + 4);
         if (frameType != 0) {
             PbUtil.writeTag(buf, PbUtil.TYPE_VAR_INT, Frame.IDX_TYPE);
             PbUtil.writeVarUnsignedInt32(buf, frameType);
@@ -82,8 +77,6 @@ public class WriteFrame extends Frame {
             buf.put(body);
             body.reset();
         }
-        buf.putInt(0, buf.position() - 4);
-        buf.flip();
-        return buf;
+        buf.putInt(startPos, buf.position() - startPos - 4);
     }
 }
