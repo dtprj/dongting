@@ -23,15 +23,15 @@ import java.util.concurrent.Semaphore;
  * @author huangli
  */
 class NioStatus {
-    private final ConcurrentHashMap<Integer, CmdProcessor> processors = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Integer, ReqProcessor> processors = new ConcurrentHashMap<>();
     private ExecutorService bizExecutor;
     private Semaphore requestSemaphore;
 
-    public void setProcessor(int cmd, CmdProcessor processor) {
+    public void setProcessor(int cmd, ReqProcessor processor) {
         processors.put(cmd, processor);
     }
 
-    public CmdProcessor getProcessor(int command) {
+    public ReqProcessor getProcessor(int command) {
         return processors.get(command);
     }
 

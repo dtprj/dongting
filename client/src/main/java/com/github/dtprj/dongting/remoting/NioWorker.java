@@ -52,7 +52,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private final String workerName;
     private final Thread thread;
-    private final RpcPbCallback pbCallback = new RpcPbCallback();
+    private final RpcPbCallback pbCallback;
     private final IoQueue ioQueue = new IoQueue();
     private final NioStatus nioStatus;
     private final NioConfig config;
@@ -77,6 +77,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.workerName = workerName;
         this.thread.setName(workerName);
         this.requestSemaphore = nioStatus.getRequestSemaphore();
+        this.pbCallback = new RpcPbCallback(nioStatus);
     }
 
     // invoke by NioServer accept thead

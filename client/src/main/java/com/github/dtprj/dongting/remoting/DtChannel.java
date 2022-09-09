@@ -129,14 +129,16 @@ class DtChannel {
         int limit = buf.limit();
         buf.limit(buf.position() + this.currentReadFrameSize);
         ReadFrame f = new ReadFrame();
+        RpcPbCallback pbCallback = this.pbCallback;
         pbCallback.setFrame(f);
+        pbCallback.setProcessor(null);
         PbUtil.parse(buf, pbCallback);
         buf.limit(limit);
         this.readBufferMark = buf.position();
         this.currentReadFrameSize = -1;
         int type = f.getFrameType();
         if (type == CmdType.TYPE_REQ) {
-            processIncomingRequest(f, running);
+            processIncomingRequest(pbCallback, f, running);
         } else if (type == CmdType.TYPE_RESP) {
             processIncomingResponse(f);
         } else {
@@ -159,16 +161,20 @@ class DtChannel {
         wo.getFuture().complete(resp);
     }
 
-    private void processIncomingRequest(ReadFrame req, boolean running) {
+    private void processIncomingRequest(RpcPbCallback pbCallback, ReadFrame req, boolean running) {
         if (!running) {
             writeErrorInWorkerThread(req, CmdCodes.STOPPING);
             return;
         }
-        CmdProcessor p = nioStatus.getProcessor(req.getCommand());
+        ReqProcessor p = pbCallback.getProcessor();
+        if (p == null) {
+            // if field in proto buffer out of order, the processor will be null
+            nioStatus.getProcessor(req.getCommand());
+        }
         if (p == null) {
             writeErrorInWorkerThread(req, CmdCodes.COMMAND_NOT_SUPPORT);
         } else {
-            if (nioStatus.getBizExecutor() == null) {
+            if (nioStatus.getBizExecutor() == null || p.runInIoThread()) {
                 WriteFrame resp = p.process(req, this);
                 resp.setCommand(req.getCommand());
                 resp.setFrameType(CmdType.TYPE_RESP);

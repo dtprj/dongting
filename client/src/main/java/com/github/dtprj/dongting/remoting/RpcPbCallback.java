@@ -26,7 +26,13 @@ import java.nio.charset.StandardCharsets;
  */
 class RpcPbCallback implements PbCallback {
 
+    private final NioStatus nioStatus;
     private ReadFrame frame;
+    private ReqProcessor processor;
+
+    public RpcPbCallback(NioStatus nioStatus) {
+        this.nioStatus = nioStatus;
+    }
 
     public void setFrame(ReadFrame frame) {
         this.frame = frame;
@@ -67,8 +73,14 @@ class RpcPbCallback implements PbCallback {
                 break;
             }
             case Frame.IDX_BODY: {
+                if (frame.getFrameType() == CmdType.TYPE_REQ) {
+                    processor = nioStatus.getProcessor(frame.getCommand());
+                    if(processor.runInIoThread()){
+                        frame.setBody(buf.slice());
+                        break;
+                    }
+                }
                 byte[] bs = new byte[buf.remaining()];
-                // TODO need optimise
                 buf.get(bs);
                 frame.setBody(ByteBuffer.wrap(bs));
                 break;
@@ -76,5 +88,13 @@ class RpcPbCallback implements PbCallback {
             default:
                 throw new PbException("readInt " + index);
         }
+    }
+
+    public ReqProcessor getProcessor() {
+        return processor;
+    }
+
+    public void setProcessor(ReqProcessor processor) {
+        this.processor = processor;
     }
 }

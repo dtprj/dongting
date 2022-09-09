@@ -33,14 +33,17 @@ public class WriteFrame extends Frame {
         this.body = body;
     }
 
+    protected int estimateBodySize() {
+        return body == null ? 0 : body.remaining() + (1 + 5);
+    }
+
     public int estimateSize() {
         if (dumpSize == 0) {
             int msgBytes = msg == null ? 0 : msg.length() * 3 + (1 + 5);
-            int bodyBytes = body == null ? 0 : body.remaining() + (1 + 5);
             dumpSize = 4 // length
                     + (1 + 5) * 4 // first int32 field * 4
                     + msgBytes //msg
-                    + bodyBytes; // body
+                    + estimateBodySize(); // body
         }
         return dumpSize;
     }

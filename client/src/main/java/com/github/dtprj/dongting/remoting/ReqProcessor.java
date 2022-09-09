@@ -18,6 +18,10 @@ package com.github.dtprj.dongting.remoting;
 /**
  * @author huangli
  */
-public interface CmdProcessor {
+public interface ReqProcessor {
     WriteFrame process(ReadFrame frame, DtChannel channel);
+
+    default boolean runInIoThread() {
+        return false;
+    }
 }

@@ -42,7 +42,7 @@ public abstract class NioRemoting extends AbstractLifeCircle {
         nioStatus.setRequestSemaphore(semaphore);
     }
 
-    public void register(int cmd, CmdProcessor processor) {
+    public void register(int cmd, ReqProcessor processor) {
         nioStatus.setProcessor(cmd, processor);
     }
 
