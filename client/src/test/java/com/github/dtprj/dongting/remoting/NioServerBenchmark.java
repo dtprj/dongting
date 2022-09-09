@@ -44,12 +44,6 @@ public class NioServerBenchmark extends BenchBase {
         serverConfig.setIoThreads(1);
         serverConfig.setPort(9000);
         server = new NioServer(serverConfig);
-        server.register(Commands.CMD_PING, (frame, channel) -> {
-            WriteFrame resp = new WriteFrame();
-            resp.setBody(frame.getBody());
-            resp.setRespCode(CmdCodes.SUCCESS);
-            return resp;
-        });
         server.start();
 
         NioClientConfig clientConfig = new NioClientConfig();

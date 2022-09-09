@@ -45,6 +45,8 @@ public class NioServer extends NioRemoting implements Runnable {
     private final Thread acceptThread;
     private final NioWorker[] workers;
 
+    private static final PingProcessor PING_PROCESSOR = new PingProcessor();
+
     public NioServer(NioServerConfig config) {
         super(config);
         this.config = config;
@@ -57,6 +59,7 @@ public class NioServer extends NioRemoting implements Runnable {
         for (int i = 0; i < workers.length; i++) {
             workers[i] = new NioWorker(nioStatus, config.getName() + "IoWorker" + i, config);
         }
+        register(Commands.CMD_PING, PING_PROCESSOR);
     }
 
     @Override
@@ -155,4 +158,13 @@ public class NioServer extends NioRemoting implements Runnable {
         shutdownBizExecutor(timeout);
     }
 
+    public static final class PingProcessor implements ReqProcessor {
+        @Override
+        public WriteFrame process(ReadFrame frame, DtChannel channel) {
+            WriteFrame resp = new WriteFrame();
+            resp.setBody(frame.getBody());
+            resp.setRespCode(CmdCodes.SUCCESS);
+            return resp;
+        }
+    }
 }

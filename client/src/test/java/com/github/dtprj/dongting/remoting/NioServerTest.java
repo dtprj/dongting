@@ -34,13 +34,6 @@ public class NioServerTest {
         c.setIoThreads(1);
         c.setPort(9000);
         NioServer server = new NioServer(c);
-        server.register(Commands.CMD_PING, (frame, channel) -> {
-            System.out.println("server get " + frame.getBody().remaining());
-            WriteFrame resp = new WriteFrame();
-            resp.setBody(frame.getBody());
-            resp.setRespCode(CmdCodes.SUCCESS);
-            return resp;
-        });
 
         server.start();
 
