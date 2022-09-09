@@ -21,7 +21,7 @@ import java.util.HashMap;
 /**
  * @author huangli
  */
-public class WorkerParams {
+class WorkerParams {
     private RpcPbCallback callback;
     private SocketChannel channel;
     private IoQueue ioQueue;

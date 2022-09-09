@@ -44,7 +44,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * @author huangli
  */
-public class NioWorker extends AbstractLifeCircle implements Runnable {
+class NioWorker extends AbstractLifeCircle implements Runnable {
     private static final DtLog log = DtLogs.getLogger(NioWorker.class);
     private static final int SS_RUNNING = 0;
     private static final int SS_PRE_STOP = 1;
