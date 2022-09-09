@@ -35,12 +35,11 @@ public class NioServerTest {
         c.setPort(9000);
         NioServer server = new NioServer(c);
         server.register(Commands.CMD_PING, (frame, channel) -> {
-            byte[] bs = new byte[frame.getBody().remaining()];
-            frame.getBody().mark();
-            frame.getBody().get(bs);
-            frame.getBody().reset();
-            System.out.println("server get " + bs.length);
-            return frame;
+            System.out.println("server get " + frame.getBody().remaining());
+            WriteFrame resp = new WriteFrame();
+            resp.setBody(frame.getBody());
+            resp.setRespCode(CmdCodes.SUCCESS);
+            return resp;
         });
 
         server.start();
@@ -52,11 +51,11 @@ public class NioServerTest {
         client.start();
 
         for (int i = 0; i < LOOP; i++) {
-            Frame req = new Frame();
+            WriteFrame req = new WriteFrame();
             req.setFrameType(CmdType.TYPE_REQ);
             req.setCommand(Commands.CMD_PING);
             req.setBody(ByteBuffer.wrap(new byte[SIZE]));
-            CompletableFuture<Frame> future = client.sendRequest(req, new DtTime(1, TimeUnit.SECONDS));
+            CompletableFuture<ReadFrame> future = client.sendRequest(req, new DtTime(1, TimeUnit.SECONDS));
 
             ByteBuffer buf = future.get().getBody();
             System.out.println("client get " + buf.remaining());

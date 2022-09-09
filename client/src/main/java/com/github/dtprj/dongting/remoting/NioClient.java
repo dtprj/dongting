@@ -88,7 +88,7 @@ public class NioClient extends NioRemoting {
         initBizExecutor();
     }
 
-    public CompletableFuture<Frame> sendRequest(Frame request, DtTime timeout) {
+    public CompletableFuture<ReadFrame> sendRequest(WriteFrame request, DtTime timeout) {
         if (status != LifeStatus.running) {
             return errorFuture(new IllegalStateException("error state: " + status));
         }

@@ -15,15 +15,10 @@
  */
 package com.github.dtprj.dongting.remoting;
 
-import com.github.dtprj.dongting.pb.PbUtil;
-
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-
 /**
  * @author huangli
  */
-public class Frame {
+public abstract class Frame {
     public static final int IDX_TYPE = 1;
     public static final int IDX_COMMAND = 2;
     public static final int IDX_SEQ = 3;
@@ -31,64 +26,11 @@ public class Frame {
     public static final int IDX_MSG = 5;
     public static final int IDX_BODY = 15;
 
-    private int frameType;
-    private int command;
-    private int seq;
-    private int respCode;
-    private String msg;
-    private ByteBuffer body;
-
-    private int pbSize;
-
-    public int pbSize() {
-        if (pbSize == 0) {
-            int msgBytes = msg == null ? 0 : msg.length() * 3 + (1 + 5);
-            int bodyBytes = body == null ? 0 : body.remaining() + (1 + 5);
-            pbSize = (1 + 5) * 4 // first int32 field * 4
-                    + msgBytes //msg
-                    + bodyBytes; // body
-        }
-        return pbSize;
-    }
-
-    public ByteBuffer toByteBuffer() {
-        // TODO need optimise
-        int s = pbSize();
-        ByteBuffer buf = ByteBuffer.allocate(s + 4);
-        buf.position(4);
-        if (frameType != 0) {
-            PbUtil.writeTag(buf, PbUtil.TYPE_VAR_INT, Frame.IDX_TYPE);
-            PbUtil.writeVarUnsignedInt32(buf, frameType);
-        }
-        if (command != 0) {
-            PbUtil.writeTag(buf, PbUtil.TYPE_VAR_INT, Frame.IDX_COMMAND);
-            PbUtil.writeVarUnsignedInt32(buf, command);
-        }
-        if (seq != 0) {
-            PbUtil.writeTag(buf, PbUtil.TYPE_VAR_INT, Frame.IDX_SEQ);
-            PbUtil.writeVarUnsignedInt32(buf, seq);
-        }
-        if (respCode != 0) {
-            PbUtil.writeTag(buf, PbUtil.TYPE_VAR_INT, Frame.IDX_RESP_CODE);
-            PbUtil.writeVarUnsignedInt32(buf, respCode);
-        }
-        if (msg != null && msg.length() > 0) {
-            PbUtil.writeTag(buf, PbUtil.TYPE_LENGTH_DELIMITED, Frame.IDX_MSG);
-            byte[] bs = msg.getBytes(StandardCharsets.UTF_8);
-            PbUtil.writeVarUnsignedInt32(buf, bs.length);
-            buf.put(bs);
-        }
-        if (body != null && body.remaining() > 0) {
-            PbUtil.writeTag(buf, PbUtil.TYPE_LENGTH_DELIMITED, Frame.IDX_BODY);
-            PbUtil.writeVarUnsignedInt32(buf, body.remaining());
-            body.mark();
-            buf.put(body);
-            body.reset();
-        }
-        buf.putInt(0, buf.position() - 4);
-        buf.flip();
-        return buf;
-    }
+    protected int frameType;
+    protected int command;
+    protected int seq;
+    protected int respCode;
+    protected String msg;
 
     @Override
     public String toString() {
@@ -142,11 +84,4 @@ public class Frame {
         this.msg = msg;
     }
 
-    public ByteBuffer getBody() {
-        return body;
-    }
-
-    public void setBody(ByteBuffer body) {
-        this.body = body;
-    }
 }

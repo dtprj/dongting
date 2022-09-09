@@ -46,7 +46,7 @@ public abstract class NioRemoting extends AbstractLifeCircle {
         nioStatus.setProcessor(cmd, processor);
     }
 
-    protected CompletableFuture<Frame> sendRequest(DtChannel dtc, Frame request, DtTime timeout) {
+    protected CompletableFuture<ReadFrame> sendRequest(DtChannel dtc, WriteFrame request, DtTime timeout) {
         try {
             if (status != LifeStatus.running) {
                 return errorFuture(new IllegalStateException("error state: " + status));
@@ -54,7 +54,7 @@ public abstract class NioRemoting extends AbstractLifeCircle {
 
             boolean acquire = this.semaphore.tryAcquire(timeout.rest(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
             if (acquire) {
-                CompletableFuture<Frame> future = new CompletableFuture<>();
+                CompletableFuture<ReadFrame> future = new CompletableFuture<>();
                 dtc.writeReq(request, timeout, future);
                 return future;
             } else {

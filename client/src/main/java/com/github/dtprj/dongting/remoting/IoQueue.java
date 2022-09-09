@@ -41,7 +41,7 @@ class IoQueue {
         WriteObj wo;
         boolean result = false;
         while ((wo = writeQueue.poll()) != null) {
-            Frame req = wo.getData();
+            WriteFrame req = wo.getData();
             DtChannel dtc = wo.getDtc();
             if (req.getFrameType() == CmdType.TYPE_REQ) {
                 int seq = dtc.getAndIncSeq();

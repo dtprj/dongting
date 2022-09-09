@@ -26,9 +26,9 @@ import java.nio.charset.StandardCharsets;
  */
 class RpcPbCallback implements PbCallback {
 
-    private Frame frame;
+    private ReadFrame frame;
 
-    public void setFrame(Frame frame) {
+    public void setFrame(ReadFrame frame) {
         this.frame = frame;
     }
 

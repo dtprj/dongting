@@ -45,8 +45,10 @@ public class NioServerBenchmark extends BenchBase {
         serverConfig.setPort(9000);
         server = new NioServer(serverConfig);
         server.register(Commands.CMD_PING, (frame, channel) -> {
-            Frame resp = new Frame();
-            return frame;
+            WriteFrame resp = new WriteFrame();
+            resp.setBody(frame.getBody());
+            resp.setRespCode(CmdCodes.SUCCESS);
+            return resp;
         });
         server.start();
 
@@ -69,11 +71,11 @@ public class NioServerBenchmark extends BenchBase {
     public void test(int threadIndex) {
         try {
             final DtTime timeout = new DtTime(1, TimeUnit.SECONDS);
-            Frame req = new Frame();
+            WriteFrame req = new WriteFrame();
             req.setFrameType(CmdType.TYPE_REQ);
             req.setCommand(Commands.CMD_PING);
             req.setBody(ByteBuffer.wrap(data));
-            CompletableFuture<Frame> f = client.sendRequest(req, timeout);
+            CompletableFuture<ReadFrame> f = client.sendRequest(req, timeout);
 
 //            f.get();
 //            successCount.increment();

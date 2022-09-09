@@ -128,7 +128,7 @@ class DtChannel {
         }
         int limit = buf.limit();
         buf.limit(buf.position() + this.currentReadFrameSize);
-        Frame f = new Frame();
+        ReadFrame f = new ReadFrame();
         pbCallback.setFrame(f);
         PbUtil.parse(buf, pbCallback);
         buf.limit(limit);
@@ -144,7 +144,7 @@ class DtChannel {
         }
     }
 
-    private void processIncomingResponse(Frame resp) {
+    private void processIncomingResponse(ReadFrame resp) {
         WriteObj wo = pendingRequests.remove(resp.getSeq());
         if (wo == null) {
             log.debug("pending request not found. channel={}, resp={}", channel, resp);
@@ -159,7 +159,7 @@ class DtChannel {
         wo.getFuture().complete(resp);
     }
 
-    private void processIncomingRequest(Frame req, boolean running) {
+    private void processIncomingRequest(ReadFrame req, boolean running) {
         if (!running) {
             writeErrorInWorkerThread(req, CmdCodes.STOPPING);
             return;
@@ -169,14 +169,14 @@ class DtChannel {
             writeErrorInWorkerThread(req, CmdCodes.COMMAND_NOT_SUPPORT);
         } else {
             if (nioStatus.getBizExecutor() == null) {
-                Frame resp = p.process(req, this);
+                WriteFrame resp = p.process(req, this);
                 resp.setCommand(req.getCommand());
                 resp.setFrameType(CmdType.TYPE_RESP);
                 resp.setSeq(req.getSeq());
                 subQueue.enqueue(resp.toByteBuffer());
             } else {
                 nioStatus.getBizExecutor().submit(() -> {
-                    Frame resp = p.process(req, this);
+                    WriteFrame resp = p.process(req, this);
                     resp.setCommand(req.getCommand());
                     resp.setFrameType(CmdType.TYPE_RESP);
                     resp.setSeq(req.getSeq());
@@ -187,7 +187,7 @@ class DtChannel {
     }
 
     private void writeErrorInWorkerThread(Frame req, int code) {
-        Frame resp = new Frame();
+        WriteFrame resp = new WriteFrame();
         resp.setCommand(req.getCommand());
         resp.setFrameType(CmdType.TYPE_RESP);
         resp.setSeq(req.getSeq());
@@ -251,14 +251,14 @@ class DtChannel {
     }
 
     // invoke by other threads
-    private void writeResp(Frame frame) {
+    private void writeResp(WriteFrame frame) {
         WriteObj data = new WriteObj(this, frame, null, null);
         this.ioQueue.write(data);
         this.wakeupRunnable.run();
     }
 
     // invoke by other threads
-    public void writeReq(Frame frame, DtTime timeout, CompletableFuture<Frame> future) {
+    public void writeReq(WriteFrame frame, DtTime timeout, CompletableFuture<ReadFrame> future) {
         Objects.requireNonNull(timeout);
         Objects.requireNonNull(future);
 

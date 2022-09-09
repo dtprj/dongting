@@ -15,9 +15,19 @@
  */
 package com.github.dtprj.dongting.remoting;
 
+import java.nio.ByteBuffer;
+
 /**
  * @author huangli
  */
-public interface CmdProcessor {
-    WriteFrame process(ReadFrame frame, DtChannel channel);
+public class ReadFrame extends Frame {
+    private ByteBuffer body;
+
+    public ByteBuffer getBody() {
+        return body;
+    }
+
+    public void setBody(ByteBuffer body) {
+        this.body = body;
+    }
 }
