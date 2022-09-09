@@ -22,14 +22,14 @@ import java.util.concurrent.CompletableFuture;
 /**
  * @author huangli
  */
-class WriteObj {
+class WriteRequest {
     private final DtChannel dtc;
 
     private final WriteFrame data;
     private final DtTime timeout;
     private final CompletableFuture<ReadFrame> future;
 
-    public WriteObj(DtChannel dtc, WriteFrame data, DtTime timeout, CompletableFuture<ReadFrame> future) {
+    public WriteRequest(DtChannel dtc, WriteFrame data, DtTime timeout, CompletableFuture<ReadFrame> future) {
         this.dtc = dtc;
         this.data = data;
         this.timeout = timeout;

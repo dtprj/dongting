@@ -27,18 +27,18 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 // TODO currently just work, optimize performance
 class IoQueue {
     private static final DtLog log = DtLogs.getLogger(IoQueue.class);
-    private final ConcurrentLinkedQueue<WriteObj> writeQueue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<WriteRequest> writeQueue = new ConcurrentLinkedQueue<>();
 
     public IoQueue() {
     }
 
-    public void write(WriteObj data) {
+    public void write(WriteRequest data) {
         writeQueue.add(data);
     }
 
-    public boolean dispatchWriteQueue(HashMap<Integer, WriteObj> pendingRequests) {
-        ConcurrentLinkedQueue<WriteObj> writeQueue = this.writeQueue;
-        WriteObj wo;
+    public boolean dispatchWriteQueue(HashMap<Integer, WriteRequest> pendingRequests) {
+        ConcurrentLinkedQueue<WriteRequest> writeQueue = this.writeQueue;
+        WriteRequest wo;
         boolean result = false;
         while ((wo = writeQueue.poll()) != null) {
             WriteFrame frame = wo.getData();
@@ -46,7 +46,7 @@ class IoQueue {
             if (frame.getFrameType() == CmdType.TYPE_REQ) {
                 int seq = dtc.getAndIncSeq();
                 frame.setSeq(seq);
-                WriteObj old = pendingRequests.put(seq, wo);
+                WriteRequest old = pendingRequests.put(seq, wo);
                 if (old != null) {
                     String errMsg = "dup seq: old=" + old.getData() + ", new=" + frame;
                     log.error(errMsg);
