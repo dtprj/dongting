@@ -161,7 +161,7 @@ public class NioServer extends NioRemoting implements Runnable {
     public static final class PingProcessor implements ReqProcessor {
         @Override
         public WriteFrame process(ReadFrame frame, DtChannel channel) {
-            WriteFrame resp = new WriteFrame();
+            ByteBufferWriteFrame resp = new ByteBufferWriteFrame();
             resp.setBody(frame.getBody());
             resp.setRespCode(CmdCodes.SUCCESS);
             return resp;

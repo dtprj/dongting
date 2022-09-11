@@ -65,7 +65,7 @@ public class NioServerBenchmark extends BenchBase {
     public void test(int threadIndex) {
         try {
             final DtTime timeout = new DtTime(1, TimeUnit.SECONDS);
-            WriteFrame req = new WriteFrame();
+            ByteBufferWriteFrame req = new ByteBufferWriteFrame();
             req.setFrameType(CmdType.TYPE_REQ);
             req.setCommand(Commands.CMD_PING);
             req.setBody(ByteBuffer.wrap(data));

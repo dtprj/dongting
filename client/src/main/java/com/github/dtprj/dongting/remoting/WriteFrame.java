@@ -23,19 +23,13 @@ import java.nio.charset.StandardCharsets;
 /**
  * @author huangli
  */
-public class WriteFrame extends Frame {
-
-    private ByteBuffer body;
+public abstract class WriteFrame extends Frame {
 
     private int dumpSize;
 
-    public void setBody(ByteBuffer body) {
-        this.body = body;
-    }
+    protected abstract int bodySize();
 
-    protected int estimateBodySize() {
-        return body == null ? 0 : body.remaining() + (1 + 5);
-    }
+    protected abstract void encodeBody(ByteBuffer buf);
 
     public int estimateSize() {
         if (dumpSize == 0) {
@@ -43,12 +37,12 @@ public class WriteFrame extends Frame {
             dumpSize = 4 // length
                     + (1 + 5) * 4 // first int32 field * 4
                     + msgBytes //msg
-                    + estimateBodySize(); // body
+                    + bodySize() + (1 + 5); // body
         }
         return dumpSize;
     }
 
-    public void dump(ByteBuffer buf) {
+    public void encode(ByteBuffer buf) {
         int startPos = buf.position();
         buf.position(startPos + 4);
         if (frameType != 0) {
@@ -73,13 +67,7 @@ public class WriteFrame extends Frame {
             PbUtil.writeVarUnsignedInt32(buf, bs.length);
             buf.put(bs);
         }
-        if (body != null && body.remaining() > 0) {
-            PbUtil.writeTag(buf, PbUtil.TYPE_LENGTH_DELIMITED, Frame.IDX_BODY);
-            PbUtil.writeVarUnsignedInt32(buf, body.remaining());
-            body.mark();
-            buf.put(body);
-            body.reset();
-        }
+        encodeBody(buf);
         buf.putInt(startPos, buf.position() - startPos - 4);
     }
 }

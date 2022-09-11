@@ -61,7 +61,7 @@ class IoSubQueue {
         ArrayList<WriteFrame> subQueue = this.subQueue;
         int size = subQueue.size();
         for (int i = 0; i < size; i++) {
-            subQueue.get(i).dump(buf);
+            subQueue.get(i).encode(buf);
         }
         subQueue.clear();
         buf.flip();

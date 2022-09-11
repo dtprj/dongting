@@ -44,7 +44,7 @@ public class NioServerTest {
         client.start();
 
         for (int i = 0; i < LOOP; i++) {
-            WriteFrame req = new WriteFrame();
+            ByteBufferWriteFrame req = new ByteBufferWriteFrame();
             req.setFrameType(CmdType.TYPE_REQ);
             req.setCommand(Commands.CMD_PING);
             req.setBody(ByteBuffer.wrap(new byte[SIZE]));

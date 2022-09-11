@@ -193,7 +193,7 @@ class DtChannel {
     }
 
     private void writeErrorInWorkerThread(Frame req, int code) {
-        WriteFrame resp = new WriteFrame();
+        ByteBufferWriteFrame resp = new ByteBufferWriteFrame();
         resp.setCommand(req.getCommand());
         resp.setFrameType(CmdType.TYPE_RESP);
         resp.setSeq(req.getSeq());
