@@ -166,8 +166,8 @@ class DtChannel {
             try {
                 Object body = decoder.decode(buf);
                 resp.setBody(body);
-                buf.position(pos);
                 buf.limit(limit);
+                buf.position(pos);
                 wo.getFuture().complete(resp);
             } catch (Throwable e) {
                 if (log.isDebugEnabled()) {
@@ -213,7 +213,7 @@ class DtChannel {
             }
         } else {
             if (decoder.decodeInIoThread()) {
-                if(fillBody(pbCallback, buf, req, decoder)){
+                if(!fillBody(pbCallback, buf, req, decoder)){
                     return;
                 }
             } else {
@@ -226,8 +226,8 @@ class DtChannel {
                 body.put(buf);
                 body.flip();
 
-                buf.position(pos);
                 buf.limit(limit);
+                buf.position(pos);
                 req.setBody(body);
             }
             nioStatus.getBizExecutor().submit(() -> {
@@ -266,8 +266,8 @@ class DtChannel {
         try {
             Object body = decoder.decode(buf);
             req.setBody(body);
-            buf.position(pos);
             buf.limit(limit);
+            buf.position(pos);
             return true;
         } catch (Throwable e) {
             if (log.isDebugEnabled()) {

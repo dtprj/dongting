@@ -30,6 +30,7 @@ public class ByteBufferDecoder extends Decoder {
     public Object decode(ByteBuffer buffer) {
         ByteBuffer buf = ByteBuffer.allocate(buffer.remaining());
         buf.put(buffer);
+        buf.flip();
         return buf;
     }
 }

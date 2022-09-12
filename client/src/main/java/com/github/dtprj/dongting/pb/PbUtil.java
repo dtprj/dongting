@@ -106,8 +106,8 @@ public class PbUtil {
                     int newLimit = buf.position() + length;
                     buf.limit(newLimit);
                     callback.readBytes(index, buf);
-                    buf.position(newLimit);
                     buf.limit(limit);
+                    buf.position(newLimit);
                     break;
                 case TYPE_START_GROUP:
                 case TYPE_END_GROUP:
