@@ -336,6 +336,7 @@ class DtChannel {
             } else {
                 buf.limit(endIndex);
                 buf.position(mark);
+                // TODO array copy
                 if (frameSize > capacity) {
                     // allocate bigger buffer
                     ByteBuffer newBuffer = ByteBuffer.allocateDirect(frameSize);
