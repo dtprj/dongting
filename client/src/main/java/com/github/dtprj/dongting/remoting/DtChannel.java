@@ -230,9 +230,7 @@ class DtChannel {
                 buf.position(pos);
                 req.setBody(body);
             }
-            nioStatus.getBizExecutor().submit(() -> {
-                processIncomingRequestInBizThreadPool(req, p, decoder);
-            });
+            nioStatus.getBizExecutor().submit(() -> processIncomingRequestInBizThreadPool(req, p, decoder));
         }
     }
 
