@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 
 import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
+import java.nio.ByteBuffer;
 import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -158,13 +159,18 @@ public class NioServer extends NioRemoting implements Runnable {
         shutdownBizExecutor(timeout);
     }
 
-    public static final class PingProcessor implements ReqProcessor {
+    public static final class PingProcessor extends ReqProcessor {
         @Override
         public WriteFrame process(ReadFrame frame, DtChannel channel) {
             ByteBufferWriteFrame resp = new ByteBufferWriteFrame();
-            resp.setBody(frame.getBody());
+            resp.setBody((ByteBuffer) frame.getBody());
             resp.setRespCode(CmdCodes.SUCCESS);
             return resp;
+        }
+
+        @Override
+        public Decoder getDecoder() {
+            return ByteBufferDecoder.INSTANCE;
         }
     }
 }

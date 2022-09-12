@@ -77,7 +77,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.workerName = workerName;
         this.thread.setName(workerName);
         this.requestSemaphore = nioStatus.getRequestSemaphore();
-        this.pbCallback = new RpcPbCallback(nioStatus);
+        this.pbCallback = new RpcPbCallback();
     }
 
     // invoke by NioServer accept thead

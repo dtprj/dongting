@@ -88,12 +88,12 @@ public class NioClient extends NioRemoting {
         initBizExecutor();
     }
 
-    public CompletableFuture<ReadFrame> sendRequest(WriteFrame request, DtTime timeout) {
+    public CompletableFuture<ReadFrame> sendRequest(WriteFrame request, Decoder decoder, DtTime timeout) {
         if (status != LifeStatus.running) {
             return errorFuture(new IllegalStateException("error state: " + status));
         }
         List<DtChannel> channels = worker.getChannels();
-        DtChannel dtc = null;
+        DtChannel dtc;
         try {
             int size = channels.size();
             if (size > 0) {
@@ -108,7 +108,7 @@ public class NioClient extends NioRemoting {
                 return errorFuture(new RemotingException("no available servers"));
             }
         }
-        return sendRequest(dtc, request, timeout);
+        return sendRequest(dtc, request, decoder, timeout);
     }
 
     @Override

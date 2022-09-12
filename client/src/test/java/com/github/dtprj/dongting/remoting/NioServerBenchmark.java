@@ -69,7 +69,7 @@ public class NioServerBenchmark extends BenchBase {
             req.setFrameType(CmdType.TYPE_REQ);
             req.setCommand(Commands.CMD_PING);
             req.setBody(ByteBuffer.wrap(data));
-            CompletableFuture<ReadFrame> f = client.sendRequest(req, timeout);
+            CompletableFuture<ReadFrame> f = client.sendRequest(req, ByteBufferDecoder.INSTANCE, timeout);
 
 //            f.get();
 //            successCount.increment();

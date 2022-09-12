@@ -20,7 +20,8 @@ package com.github.dtprj.dongting.remoting;
  */
 public interface CmdCodes {
     int SUCCESS = 0;
-    int UNKNOWN_ERROR = 1;
+    int SYS_ERROR = 1;
     int COMMAND_NOT_SUPPORT = 2;
     int STOPPING = 3;
+    int BIZ_ERROR = 4;
 }

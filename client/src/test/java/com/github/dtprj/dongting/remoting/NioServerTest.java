@@ -48,9 +48,10 @@ public class NioServerTest {
             req.setFrameType(CmdType.TYPE_REQ);
             req.setCommand(Commands.CMD_PING);
             req.setBody(ByteBuffer.wrap(new byte[SIZE]));
-            CompletableFuture<ReadFrame> future = client.sendRequest(req, new DtTime(1, TimeUnit.SECONDS));
+            CompletableFuture<ReadFrame> future = client.sendRequest(req,
+                    ByteBufferDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS));
 
-            ByteBuffer buf = future.get().getBody();
+            ByteBuffer buf = (ByteBuffer) future.get().getBody();
             System.out.println("client get " + buf.remaining());
         }
 

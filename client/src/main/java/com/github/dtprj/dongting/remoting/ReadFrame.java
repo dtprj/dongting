@@ -15,19 +15,20 @@
  */
 package com.github.dtprj.dongting.remoting;
 
-import java.nio.ByteBuffer;
-
 /**
  * @author huangli
  */
 public class ReadFrame extends Frame {
-    private ByteBuffer body;
+    private Object body;
 
-    public ByteBuffer getBody() {
+    public ReadFrame() {
+    }
+
+    public Object getBody() {
         return body;
     }
 
-    public void setBody(ByteBuffer body) {
+    public void setBody(Object body) {
         this.body = body;
     }
 }

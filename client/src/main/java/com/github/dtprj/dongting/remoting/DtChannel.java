@@ -131,74 +131,171 @@ class DtChannel {
         ReadFrame f = new ReadFrame();
         RpcPbCallback pbCallback = this.pbCallback;
         pbCallback.setFrame(f);
-        pbCallback.setProcessor(null);
         PbUtil.parse(buf, pbCallback);
         buf.limit(limit);
         this.readBufferMark = buf.position();
         this.currentReadFrameSize = -1;
         int type = f.getFrameType();
         if (type == CmdType.TYPE_REQ) {
-            processIncomingRequest(pbCallback, f, running);
+            processIncomingRequest(pbCallback, buf, f, running);
         } else if (type == CmdType.TYPE_RESP) {
-            processIncomingResponse(f);
+            processIncomingResponse(pbCallback, buf, f);
         } else {
             log.warn("bad frame type: {}, {}", type, channel);
         }
     }
 
-    private void processIncomingResponse(ReadFrame resp) {
+    private void processIncomingResponse(RpcPbCallback pbCallback, ByteBuffer buf, ReadFrame resp) {
         WriteRequest wo = pendingRequests.remove(resp.getSeq());
         if (wo == null) {
             log.debug("pending request not found. channel={}, resp={}", channel, resp);
             return;
         }
         nioStatus.getRequestSemaphore().release();
-        Frame req = wo.getData();
+        WriteFrame req = wo.getData();
         if (resp.getCommand() != req.getCommand()) {
             wo.getFuture().completeExceptionally(new RemotingException("command not match"));
             return;
         }
-        wo.getFuture().complete(resp);
+        Decoder decoder = wo.getDecoder();
+        if (decoder.decodeInIoThread()) {
+            int pos = buf.position();
+            int limit = buf.limit();
+            buf.position(pbCallback.getBodyStart());
+            buf.limit(pbCallback.getBodyLimit());
+            try {
+                Object body = decoder.decode(buf);
+                resp.setBody(body);
+                buf.position(pos);
+                buf.limit(limit);
+                wo.getFuture().complete(resp);
+            } catch (Throwable e) {
+                if (log.isDebugEnabled()) {
+                    log.debug("decode fail. {} {}", channel, e.toString());
+                }
+                wo.getFuture().completeExceptionally(new RemotingException(e));
+            }
+        } else {
+            // TODO not finish
+            throw new RuntimeException();
+        }
     }
 
-    private void processIncomingRequest(RpcPbCallback pbCallback, ReadFrame req, boolean running) {
+    private void processIncomingRequest(RpcPbCallback pbCallback, ByteBuffer buf, ReadFrame req, boolean running) {
         if (!running) {
-            writeErrorInWorkerThread(req, CmdCodes.STOPPING);
+            writeErrorInIoThread(req, CmdCodes.STOPPING, null);
             return;
         }
-        ReqProcessor p = pbCallback.getProcessor();
+        ReqProcessor p = nioStatus.getProcessor(req.getCommand());
         if (p == null) {
-            // if field in proto buffer out of order, the processor will be null
-            nioStatus.getProcessor(req.getCommand());
+            writeErrorInIoThread(req, CmdCodes.COMMAND_NOT_SUPPORT, null);
+            return;
         }
-        if (p == null) {
-            writeErrorInWorkerThread(req, CmdCodes.COMMAND_NOT_SUPPORT);
-        } else {
-            if (nioStatus.getBizExecutor() == null || p.runInIoThread()) {
-                WriteFrame resp = p.process(req, this);
+        Decoder decoder = p.getDecoder();
+        if (nioStatus.getBizExecutor() == null || p.runInIoThread()) {
+            if (!fillBody(pbCallback, buf, req, decoder)) {
+                return;
+            }
+            WriteFrame resp;
+            try {
+                resp = p.process(req, this);
+            } catch (Throwable e) {
+                writeErrorInIoThread(req, CmdCodes.BIZ_ERROR, e.toString());
+                return;
+            }
+            if (resp != null) {
                 resp.setCommand(req.getCommand());
                 resp.setFrameType(CmdType.TYPE_RESP);
                 resp.setSeq(req.getSeq());
                 subQueue.enqueue(resp);
             } else {
-                nioStatus.getBizExecutor().submit(() -> {
-                    WriteFrame resp = p.process(req, this);
-                    resp.setCommand(req.getCommand());
-                    resp.setFrameType(CmdType.TYPE_RESP);
-                    resp.setSeq(req.getSeq());
-                    writeResp(resp);
-                });
+                writeErrorInIoThread(req, CmdCodes.BIZ_ERROR, "processor return null response");
             }
+        } else {
+            if (decoder.decodeInIoThread()) {
+                if(fillBody(pbCallback, buf, req, decoder)){
+                    return;
+                }
+            } else {
+                int pos = buf.position();
+                int limit = buf.limit();
+                buf.position(pbCallback.getBodyStart());
+                buf.limit(pbCallback.getBodyLimit());
+
+                ByteBuffer body = ByteBuffer.allocate(buf.remaining());
+                body.put(buf);
+                body.flip();
+
+                buf.position(pos);
+                buf.limit(limit);
+                req.setBody(body);
+            }
+            nioStatus.getBizExecutor().submit(() -> {
+                processIncomingRequestInBizThreadPool(req, p, decoder);
+            });
         }
     }
 
-    private void writeErrorInWorkerThread(Frame req, int code) {
+    private void processIncomingRequestInBizThreadPool(ReadFrame req, ReqProcessor p, Decoder decoder) {
+        WriteFrame resp;
+        try {
+            if (!decoder.decodeInIoThread()) {
+                ByteBuffer bodyBuffer = (ByteBuffer) req.getBody();
+                req.setBody(decoder.decode(bodyBuffer));
+            }
+            resp = p.process(req, this);
+        } catch (Throwable e) {
+            writeErrorInBizThread(req, CmdCodes.BIZ_ERROR, e.toString());
+            return;
+        }
+        if (resp != null) {
+            resp.setCommand(req.getCommand());
+            resp.setFrameType(CmdType.TYPE_RESP);
+            resp.setSeq(req.getSeq());
+            writeRespInBizThreads(resp);
+        } else {
+            writeErrorInBizThread(req, CmdCodes.BIZ_ERROR, "processor return null response");
+        }
+    }
+
+    private boolean fillBody(RpcPbCallback pbCallback, ByteBuffer buf, ReadFrame req, Decoder decoder) {
+        int pos = buf.position();
+        int limit = buf.limit();
+        buf.position(pbCallback.getBodyStart());
+        buf.limit(pbCallback.getBodyLimit());
+        try {
+            Object body = decoder.decode(buf);
+            req.setBody(body);
+            buf.position(pos);
+            buf.limit(limit);
+            return true;
+        } catch (Throwable e) {
+            if (log.isDebugEnabled()) {
+                log.debug("decode fail. {} {}", channel, e.toString());
+            }
+            writeErrorInIoThread(req, CmdCodes.BIZ_ERROR, e.toString());
+            return false;
+        }
+    }
+
+    private void writeErrorInIoThread(Frame req, int code, String msg) {
         ByteBufferWriteFrame resp = new ByteBufferWriteFrame();
         resp.setCommand(req.getCommand());
         resp.setFrameType(CmdType.TYPE_RESP);
         resp.setSeq(req.getSeq());
         resp.setRespCode(code);
+        resp.setMsg(msg);
         subQueue.enqueue(resp);
+    }
+
+    private void writeErrorInBizThread(Frame req, int code, String msg) {
+        ByteBufferWriteFrame resp = new ByteBufferWriteFrame();
+        resp.setCommand(req.getCommand());
+        resp.setFrameType(CmdType.TYPE_RESP);
+        resp.setSeq(req.getSeq());
+        resp.setRespCode(code);
+        resp.setMsg(msg);
+        writeRespInBizThreads(resp);
     }
 
     private void prepareForNextRead() {
@@ -257,18 +354,18 @@ class DtChannel {
     }
 
     // invoke by other threads
-    private void writeResp(WriteFrame frame) {
-        WriteRequest data = new WriteRequest(this, frame, null, null);
+    private void writeRespInBizThreads(WriteFrame frame) {
+        WriteRequest data = new WriteRequest(this, frame, null, null, null);
         this.ioQueue.write(data);
         this.wakeupRunnable.run();
     }
 
     // invoke by other threads
-    public void writeReq(WriteFrame frame, DtTime timeout, CompletableFuture<ReadFrame> future) {
+    public void writeReqInBizThreads(WriteFrame frame, Decoder decoder, DtTime timeout, CompletableFuture<ReadFrame> future) {
         Objects.requireNonNull(timeout);
         Objects.requireNonNull(future);
 
-        WriteRequest data = new WriteRequest(this, frame, timeout, future);
+        WriteRequest data = new WriteRequest(this, frame, timeout, future, decoder);
         this.ioQueue.write(data);
         this.wakeupRunnable.run();
     }

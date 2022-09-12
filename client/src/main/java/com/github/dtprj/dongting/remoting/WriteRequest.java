@@ -28,12 +28,15 @@ class WriteRequest {
     private final WriteFrame data;
     private final DtTime timeout;
     private final CompletableFuture<ReadFrame> future;
+    private final Decoder decoder;
 
-    public WriteRequest(DtChannel dtc, WriteFrame data, DtTime timeout, CompletableFuture<ReadFrame> future) {
+    public WriteRequest(DtChannel dtc, WriteFrame data, DtTime timeout,
+                        CompletableFuture<ReadFrame> future, Decoder decoder) {
         this.dtc = dtc;
         this.data = data;
         this.timeout = timeout;
         this.future = future;
+        this.decoder = decoder;
     }
 
     public DtChannel getDtc() {
@@ -50,5 +53,9 @@ class WriteRequest {
 
     public CompletableFuture<ReadFrame> getFuture() {
         return future;
+    }
+
+    public Decoder getDecoder() {
+        return decoder;
     }
 }

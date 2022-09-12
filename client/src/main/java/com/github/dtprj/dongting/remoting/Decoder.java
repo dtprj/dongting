@@ -15,16 +15,15 @@
  */
 package com.github.dtprj.dongting.remoting;
 
+import java.nio.ByteBuffer;
+
 /**
  * @author huangli
  */
-public abstract class ReqProcessor {
-    public abstract WriteFrame process(ReadFrame frame, DtChannel channel);
-
-    public abstract Decoder getDecoder();
-
-    public boolean runInIoThread() {
-        return false;
+public abstract class Decoder {
+    public boolean decodeInIoThread() {
+        return true;
     }
 
+    public abstract Object decode(ByteBuffer buffer);
 }
