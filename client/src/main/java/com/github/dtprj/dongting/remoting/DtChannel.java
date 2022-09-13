@@ -50,7 +50,7 @@ class DtChannel {
     private int currentReadFrameSize = -1;
     private int readBufferMark = 0;
 
-    private final HashMap<Integer, WriteRequest> pendingRequests;
+    private final HashMap<Integer, WriteData> pendingRequests;
     private int seq = 1;
 
     private final IoSubQueue subQueue;
@@ -146,7 +146,7 @@ class DtChannel {
     }
 
     private void processIncomingResponse(RpcPbCallback pbCallback, ByteBuffer buf, ReadFrame resp) {
-        WriteRequest wo = pendingRequests.remove(resp.getSeq());
+        WriteData wo = pendingRequests.remove(resp.getSeq());
         if (wo == null) {
             log.debug("pending request not found. channel={}, resp={}", channel, resp);
             return;
@@ -354,7 +354,7 @@ class DtChannel {
 
     // invoke by other threads
     private void writeRespInBizThreads(WriteFrame frame) {
-        WriteRequest data = new WriteRequest(this, frame, null, null, null);
+        WriteData data = new WriteData(this, frame, null, null, null);
         this.ioQueue.write(data);
         this.wakeupRunnable.run();
     }
@@ -364,7 +364,7 @@ class DtChannel {
         Objects.requireNonNull(timeout);
         Objects.requireNonNull(future);
 
-        WriteRequest data = new WriteRequest(this, frame, timeout, future, decoder);
+        WriteData data = new WriteData(this, frame, timeout, future, decoder);
         this.ioQueue.write(data);
         this.wakeupRunnable.run();
     }

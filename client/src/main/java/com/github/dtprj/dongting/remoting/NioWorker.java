@@ -63,7 +63,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private final ConcurrentLinkedQueue<Runnable> actions = new ConcurrentLinkedQueue<>();
 
     private final CopyOnWriteArrayList<DtChannel> channels = new CopyOnWriteArrayList<>();
-    private final HashMap<Integer, WriteRequest> pendingOutgoingRequests = new HashMap<>();
+    private final HashMap<Integer, WriteData> pendingOutgoingRequests = new HashMap<>();
     private final CompletableFuture<Void> preCloseFuture = new CompletableFuture<>();
 
     private final Semaphore requestSemaphore;
@@ -342,9 +342,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     private void cleanTimeoutReq() {
-        Iterator<Map.Entry<Integer, WriteRequest>> it = this.pendingOutgoingRequests.entrySet().iterator();
+        Iterator<Map.Entry<Integer, WriteData>> it = this.pendingOutgoingRequests.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<Integer, WriteRequest> en = it.next();
+            Map.Entry<Integer, WriteData> en = it.next();
             DtTime t = en.getValue().getTimeout();
             if (t.rest(TimeUnit.MILLISECONDS) <= 0) {
                 it.remove();
