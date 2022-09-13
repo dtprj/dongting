@@ -158,17 +158,14 @@ class DtChannel {
             return;
         }
         Decoder decoder = wo.getDecoder();
+        int pos = buf.position();
+        int limit = buf.limit();
+        buf.position(pbCallback.getBodyStart());
+        buf.limit(pbCallback.getBodyLimit());
         if (decoder.decodeInIoThread()) {
-            int pos = buf.position();
-            int limit = buf.limit();
-            buf.position(pbCallback.getBodyStart());
-            buf.limit(pbCallback.getBodyLimit());
             try {
                 Object body = decoder.decode(buf);
                 resp.setBody(body);
-                buf.limit(limit);
-                buf.position(pos);
-                wo.getFuture().complete(resp);
             } catch (Throwable e) {
                 if (log.isDebugEnabled()) {
                     log.debug("decode fail. {} {}", channel, e.toString());
@@ -176,9 +173,14 @@ class DtChannel {
                 wo.getFuture().completeExceptionally(new RemotingException(e));
             }
         } else {
-            // TODO not finish
-            throw new RuntimeException();
+            ByteBuffer bodyBuffer = ByteBuffer.allocate(limit - pos);
+            bodyBuffer.put(buf);
+            bodyBuffer.flip();
+            resp.setBody(bodyBuffer);
         }
+        buf.limit(limit);
+        buf.position(pos);
+        wo.getFuture().complete(resp);
     }
 
     private void processIncomingRequest(RpcPbCallback pbCallback, ByteBuffer buf, ReadFrame req, boolean running) {

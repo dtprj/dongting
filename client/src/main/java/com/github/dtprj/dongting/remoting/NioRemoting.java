@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.common.DtThreadFactory;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.ThreadUtils;
 
+import java.nio.ByteBuffer;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -56,7 +57,16 @@ public abstract class NioRemoting extends AbstractLifeCircle {
             if (acquire) {
                 CompletableFuture<ReadFrame> future = new CompletableFuture<>();
                 dtc.writeReqInBizThreads(request, decoder, timeout, future);
-                return future;
+                if (decoder.decodeInIoThread()) {
+                    return future;
+                } else {
+                    return future.thenApply(frame -> {
+                        ByteBuffer buf = (ByteBuffer) frame.getBody();
+                        Object body = decoder.decode(buf);
+                        frame.setBody(body);
+                        return frame;
+                    });
+                }
             } else {
                 return errorFuture(new RemotingException("too many pending requests"));
             }
