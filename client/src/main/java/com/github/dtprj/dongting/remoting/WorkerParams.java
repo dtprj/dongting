@@ -29,6 +29,9 @@ class WorkerParams {
     private HashMap<Integer, WriteData> pendingRequests;
     private ByteBufferPool pool;
 
+    public WorkerParams() {
+    }
+
     public RpcPbCallback getCallback() {
         return callback;
     }

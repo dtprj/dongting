@@ -24,4 +24,5 @@ public interface CmdCodes {
     int COMMAND_NOT_SUPPORT = 2;
     int STOPPING = 3;
     int BIZ_ERROR = 4;
+    int FLOW_CONTROL = 5;
 }

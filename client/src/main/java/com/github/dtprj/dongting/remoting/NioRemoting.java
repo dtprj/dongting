@@ -84,7 +84,6 @@ public abstract class NioRemoting extends AbstractLifeCircle {
     }
 
     protected void initBizExecutor() {
-        // TODO back pressure
         if (config.getBizThreads() > 0) {
             bizExecutor = new ThreadPoolExecutor(config.getBizThreads(), config.getBizQueueSize(),
                     1, TimeUnit.MINUTES, new ArrayBlockingQueue<>(config.getBizQueueSize()),

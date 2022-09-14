@@ -301,7 +301,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         workerParams.setPendingRequests(pendingOutgoingRequests);
         workerParams.setWakeupRunnable(this::wakeup);
         workerParams.setPool(pool);
-        DtChannel dtc = new DtChannel(nioStatus, workerParams);
+        DtChannel dtc = new DtChannel(nioStatus, workerParams, config);
         SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
         dtc.setSelectionKey(selectionKey);
 
