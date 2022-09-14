@@ -25,13 +25,8 @@ public abstract class NioConfig {
 
     // back pressure config
     private int maxOutRequests;
-    private int maxOutRequestsPerChannel;
     private int maxInRequests;
-    private int maxInRequestsPerChannel;
-    private long maxOutBytes;
-    private long maxOutBytesPerChannel;
     private long maxInBytes;
-    private long maxInBytesPerChannel;
 
     private int requestTimeoutMillis = 2000;
     private int selectTimeoutMillis = 50;
@@ -102,44 +97,12 @@ public abstract class NioConfig {
         this.closeTimeoutMillis = closeTimeoutMillis;
     }
 
-    public int getMaxOutRequestsPerChannel() {
-        return maxOutRequestsPerChannel;
-    }
-
-    public void setMaxOutRequestsPerChannel(int maxOutRequestsPerChannel) {
-        this.maxOutRequestsPerChannel = maxOutRequestsPerChannel;
-    }
-
     public int getMaxInRequests() {
         return maxInRequests;
     }
 
     public void setMaxInRequests(int maxInRequests) {
         this.maxInRequests = maxInRequests;
-    }
-
-    public int getMaxInRequestsPerChannel() {
-        return maxInRequestsPerChannel;
-    }
-
-    public void setMaxInRequestsPerChannel(int maxInRequestsPerChannel) {
-        this.maxInRequestsPerChannel = maxInRequestsPerChannel;
-    }
-
-    public long getMaxOutBytes() {
-        return maxOutBytes;
-    }
-
-    public void setMaxOutBytes(long maxOutBytes) {
-        this.maxOutBytes = maxOutBytes;
-    }
-
-    public long getMaxOutBytesPerChannel() {
-        return maxOutBytesPerChannel;
-    }
-
-    public void setMaxOutBytesPerChannel(long maxOutBytesPerChannel) {
-        this.maxOutBytesPerChannel = maxOutBytesPerChannel;
     }
 
     public long getMaxInBytes() {
@@ -150,11 +113,4 @@ public abstract class NioConfig {
         this.maxInBytes = maxInBytes;
     }
 
-    public long getMaxInBytesPerChannel() {
-        return maxInBytesPerChannel;
-    }
-
-    public void setMaxInBytesPerChannel(long maxInBytesPerChannel) {
-        this.maxInBytesPerChannel = maxInBytesPerChannel;
-    }
 }

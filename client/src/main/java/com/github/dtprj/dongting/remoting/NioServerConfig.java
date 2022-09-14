@@ -32,10 +32,8 @@ public class NioServerConfig extends NioConfig {
 
         // back pressure config
         setMaxOutRequests(10000);
-        setMaxOutRequestsPerChannel(100);
-        setMaxInRequests(10000);
-        setMaxInRequestsPerChannel(1000);
-        setMaxBufferPerConnection(10 * 1024 * 1024);
+        setMaxInRequests(200_000);
+        setMaxInBytes(512 * 1024 * 1024);
     }
 
     public static int computeIoThreads(int processorCount) {

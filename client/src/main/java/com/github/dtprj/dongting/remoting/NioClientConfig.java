@@ -31,10 +31,8 @@ public class NioClientConfig extends NioConfig {
 
         // TODO negotiate with server
         setMaxOutRequests(2000);
-        setMaxOutRequestsPerChannel(1000);
         setMaxInRequests(100);
-        setMaxInRequestsPerChannel(30);
-        setMaxBufferPerConnection(10 * 1024 * 1024);
+        setMaxInBytes(32 * 1024 * 1024);
     }
 
     public List<HostPort> getHostPorts() {
