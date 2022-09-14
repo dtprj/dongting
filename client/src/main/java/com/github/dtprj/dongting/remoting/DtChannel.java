@@ -123,25 +123,34 @@ class DtChannel {
     }
 
     private void readFrame(ByteBuffer buf, boolean running) {
-        if (buf.remaining() < this.currentReadFrameSize) {
+        int currentReadFrameSize = this.currentReadFrameSize;
+        if (buf.remaining() < currentReadFrameSize) {
             return;
         }
         int limit = buf.limit();
-        buf.limit(buf.position() + this.currentReadFrameSize);
+        buf.limit(buf.position() + currentReadFrameSize);
         ReadFrame f = new ReadFrame();
         RpcPbCallback pbCallback = this.pbCallback;
         pbCallback.setFrame(f);
         PbUtil.parse(buf, pbCallback);
-        buf.limit(limit);
-        this.readBufferMark = buf.position();
-        this.currentReadFrameSize = -1;
+        int pos = buf.position();
+
         int type = f.getFrameType();
-        if (type == CmdType.TYPE_REQ) {
-            processIncomingRequest(pbCallback, buf, f, running);
-        } else if (type == CmdType.TYPE_RESP) {
-            processIncomingResponse(pbCallback, buf, f);
-        } else {
-            log.warn("bad frame type: {}, {}", type, channel);
+        buf.position(pbCallback.getBodyStart());
+        buf.limit(pbCallback.getBodyLimit());
+        try {
+            if (type == CmdType.TYPE_REQ) {
+                processIncomingRequest(buf, f, running);
+            } else if (type == CmdType.TYPE_RESP) {
+                processIncomingResponse(pbCallback, buf, f);
+            } else {
+                log.warn("bad frame type: {}, {}", type, channel);
+            }
+        } finally {
+            this.readBufferMark = pos;
+            this.currentReadFrameSize = -1;
+            buf.limit(limit);
+            buf.position(pos);
         }
     }
 
@@ -158,10 +167,6 @@ class DtChannel {
             return;
         }
         Decoder decoder = wo.getDecoder();
-        int pos = buf.position();
-        int limit = buf.limit();
-        buf.position(pbCallback.getBodyStart());
-        buf.limit(pbCallback.getBodyLimit());
         if (decoder.decodeInIoThread()) {
             try {
                 Object body = decoder.decode(buf);
@@ -173,17 +178,15 @@ class DtChannel {
                 wo.getFuture().completeExceptionally(new RemotingException(e));
             }
         } else {
-            ByteBuffer bodyBuffer = ByteBuffer.allocate(limit - pos);
+            ByteBuffer bodyBuffer = ByteBuffer.allocate(buf.remaining());
             bodyBuffer.put(buf);
             bodyBuffer.flip();
             resp.setBody(bodyBuffer);
         }
-        buf.limit(limit);
-        buf.position(pos);
         wo.getFuture().complete(resp);
     }
 
-    private void processIncomingRequest(RpcPbCallback pbCallback, ByteBuffer buf, ReadFrame req, boolean running) {
+    private void processIncomingRequest(ByteBuffer buf, ReadFrame req, boolean running) {
         if (!running) {
             writeErrorInIoThread(req, CmdCodes.STOPPING, null);
             return;
@@ -195,7 +198,7 @@ class DtChannel {
         }
         Decoder decoder = p.getDecoder();
         if (nioStatus.getBizExecutor() == null || p.runInIoThread()) {
-            if (!fillBody(pbCallback, buf, req, decoder)) {
+            if (!fillBody(buf, req, decoder)) {
                 return;
             }
             WriteFrame resp;
@@ -215,21 +218,13 @@ class DtChannel {
             }
         } else {
             if (decoder.decodeInIoThread()) {
-                if(!fillBody(pbCallback, buf, req, decoder)){
+                if(!fillBody(buf, req, decoder)){
                     return;
                 }
             } else {
-                int pos = buf.position();
-                int limit = buf.limit();
-                buf.position(pbCallback.getBodyStart());
-                buf.limit(pbCallback.getBodyLimit());
-
                 ByteBuffer body = ByteBuffer.allocate(buf.remaining());
                 body.put(buf);
                 body.flip();
-
-                buf.limit(limit);
-                buf.position(pos);
                 req.setBody(body);
             }
             nioStatus.getBizExecutor().submit(() -> processIncomingRequestInBizThreadPool(req, p, decoder));
@@ -258,16 +253,10 @@ class DtChannel {
         }
     }
 
-    private boolean fillBody(RpcPbCallback pbCallback, ByteBuffer buf, ReadFrame req, Decoder decoder) {
-        int pos = buf.position();
-        int limit = buf.limit();
-        buf.position(pbCallback.getBodyStart());
-        buf.limit(pbCallback.getBodyLimit());
+    private boolean fillBody(ByteBuffer buf, ReadFrame req, Decoder decoder) {
         try {
             Object body = decoder.decode(buf);
             req.setBody(body);
-            buf.limit(limit);
-            buf.position(pos);
             return true;
         } catch (Throwable e) {
             if (log.isDebugEnabled()) {
