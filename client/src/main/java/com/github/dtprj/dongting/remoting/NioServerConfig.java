@@ -23,8 +23,7 @@ public class NioServerConfig extends NioConfig {
     private int ioThreads;
 
     public NioServerConfig() {
-        int ioThreads = computeIoThreads(Runtime.getRuntime().availableProcessors());
-        setIoThreads(ioThreads);
+        setIoThreads(calcIoThreads());
         int bizThreads = Runtime.getRuntime().availableProcessors() * 4;
         setBizThreads(bizThreads);
         setBizQueueSize(5000);
@@ -36,13 +35,27 @@ public class NioServerConfig extends NioConfig {
         setMaxInBytes(512 * 1024 * 1024);
     }
 
-    public static int computeIoThreads(int processorCount) {
-        return computeThreads(processorCount, 0, 0.4);
+    private int calcIoThreads() {
+        int p = Runtime.getRuntime().availableProcessors();
+        if (p <= 3) {
+            return 1;
+        } else if (p <= 6) {
+            return 2;
+        } else if (p <= 12) {
+            return 3;
+        } else if (p <= 24) {
+            return 4;
+        } else if (p <= 40) {
+            return 5;
+        } else if (p <= 64) {
+            return 6;
+        } else if (p <= 100) {
+            return 7;
+        } else {
+            return 8;
+        }
     }
 
-    private static int computeThreads(int processorCount, int delta, double pow) {
-        return Math.min(((int) Math.pow(processorCount + delta, pow)) + 1, processorCount);
-    }
 
     public int getPort() {
         return port;
