@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @author huangli
@@ -46,7 +47,7 @@ class DtChannel {
     private final SocketChannel channel;
     private final Runnable wakeupRunnable;
     private final IoQueue ioQueue;
-    private final long maxInBytes;
+
     private SelectionKey selectionKey;
 
     private WeakReference<ByteBuffer> readBufferCache;
@@ -68,7 +69,6 @@ class DtChannel {
         this.wakeupRunnable = workerParams.getWakeupRunnable();
         this.pendingRequests = workerParams.getPendingRequests();
         this.subQueue = new IoSubQueue(this::registerForWrite, workerParams.getPool());
-        this.maxInBytes = nioConfig.getMaxInBytes();
         this.nioConfig = nioConfig;
     }
 
@@ -198,7 +198,8 @@ class DtChannel {
             writeErrorInIoThread(req, CmdCodes.STOPPING, null);
             return;
         }
-        ReqProcessor p = nioStatus.getProcessor(req.getCommand());
+        NioStatus nioStatus = this.nioStatus;
+        ReqProcessor p = nioStatus.getProcessors().get(req.getCommand());
         if (p == null) {
             writeErrorInIoThread(req, CmdCodes.COMMAND_NOT_SUPPORT, null);
             return;
@@ -234,24 +235,26 @@ class DtChannel {
                 body.flip();
                 req.setBody(body);
             }
-            long bytes = nioStatus.getInReqBytes().addAndGet(currentReadFrameSize);
-            if (bytes < this.maxInBytes) {
+            AtomicLong bytes = nioStatus.getInReqBytes();
+            long bytesAfterAdd = bytes.addAndGet(currentReadFrameSize);
+            if (bytesAfterAdd < nioConfig.getMaxInBytes()) {
                 try {
                     nioStatus.getBizExecutor().submit(() -> {
                         try {
                             processIncomingRequestInBizThreadPool(req, p, decoder);
                         } finally {
-                            nioStatus.getInReqBytes().addAndGet(-currentReadFrameSize);
+                            bytes.addAndGet(-currentReadFrameSize);
                         }
                     });
                 } catch (RejectedExecutionException e) {
                     writeErrorInIoThread(req, CmdCodes.FLOW_CONTROL,
                             "max incoming request: " + nioConfig.getMaxInRequests());
-                    nioStatus.getInReqBytes().addAndGet(-currentReadFrameSize);
+                    bytes.addAndGet(-currentReadFrameSize);
                 }
             } else {
-                writeErrorInIoThread(req, CmdCodes.FLOW_CONTROL, "max incoming request bytes: " + maxInBytes);
-                nioStatus.getInReqBytes().addAndGet(-currentReadFrameSize);
+                writeErrorInIoThread(req, CmdCodes.FLOW_CONTROL,
+                        "max incoming request bytes: " + nioConfig.getMaxInBytes());
+                bytes.addAndGet(-currentReadFrameSize);
             }
         }
     }

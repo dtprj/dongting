@@ -25,16 +25,16 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 class NioStatus {
     private final ConcurrentHashMap<Integer, ReqProcessor> processors = new ConcurrentHashMap<>();
+    private final AtomicLong inReqBytes = new AtomicLong();
     private ExecutorService bizExecutor;
     private Semaphore requestSemaphore;
-    private final AtomicLong inReqBytes = new AtomicLong();
 
-    public void setProcessor(int cmd, ReqProcessor processor) {
-        processors.put(cmd, processor);
+    public ConcurrentHashMap<Integer, ReqProcessor> getProcessors() {
+        return processors;
     }
 
-    public ReqProcessor getProcessor(int command) {
-        return processors.get(command);
+    public AtomicLong getInReqBytes() {
+        return inReqBytes;
     }
 
     public ExecutorService getBizExecutor() {
@@ -53,7 +53,4 @@ class NioStatus {
         this.requestSemaphore = requestSemaphore;
     }
 
-    public AtomicLong getInReqBytes() {
-        return inReqBytes;
-    }
 }

@@ -44,7 +44,7 @@ public abstract class NioRemoting extends AbstractLifeCircle {
     }
 
     public void register(int cmd, ReqProcessor processor) {
-        nioStatus.setProcessor(cmd, processor);
+        nioStatus.getProcessors().put(cmd, processor);
     }
 
     protected CompletableFuture<ReadFrame> sendRequest(DtChannel dtc, WriteFrame request, Decoder decoder, DtTime timeout) {
