@@ -27,7 +27,15 @@ public class NioServerConfig extends NioConfig {
         setIoThreads(ioThreads);
         int bizThreads = Runtime.getRuntime().availableProcessors() * 4;
         setBizThreads(bizThreads);
+        setBizQueueSize(5000);
         setName("DtNioServer");
+
+        // back pressure config
+        setMaxOutRequests(10000);
+        setMaxOutRequestsPerChannel(100);
+        setMaxInRequests(10000);
+        setMaxInRequestsPerChannel(1000);
+        setMaxBufferPerConnection(10 * 1024 * 1024);
     }
 
     public static int computeIoThreads(int processorCount) {

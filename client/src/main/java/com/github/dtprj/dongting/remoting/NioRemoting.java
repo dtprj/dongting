@@ -39,7 +39,7 @@ public abstract class NioRemoting extends AbstractLifeCircle {
 
     public NioRemoting(NioConfig config) {
         this.config = config;
-        this.semaphore = new Semaphore(config.getMaxRequestPending());
+        this.semaphore = new Semaphore(config.getMaxOutRequests());
         nioStatus.setRequestSemaphore(semaphore);
     }
 

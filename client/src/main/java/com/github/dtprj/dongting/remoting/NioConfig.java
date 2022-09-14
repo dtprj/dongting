@@ -20,9 +20,19 @@ package com.github.dtprj.dongting.remoting;
  */
 public abstract class NioConfig {
     private int bizThreads;
-    private int bizQueueSize = 5000;
+    private int bizQueueSize;
     private String name;
-    private int maxRequestPending = 2000;
+
+    // back pressure config
+    private int maxOutRequests;
+    private int maxOutRequestsPerChannel;
+    private int maxInRequests;
+    private int maxInRequestsPerChannel;
+    private long maxOutBytes;
+    private long maxOutBytesPerChannel;
+    private long maxInBytes;
+    private long maxInBytesPerChannel;
+
     private int requestTimeoutMillis = 2000;
     private int selectTimeoutMillis = 50;
     private int cleanIntervalMills = 100;
@@ -52,12 +62,12 @@ public abstract class NioConfig {
         this.name = name;
     }
 
-    public int getMaxRequestPending() {
-        return maxRequestPending;
+    public int getMaxOutRequests() {
+        return maxOutRequests;
     }
 
-    public void setMaxRequestPending(int maxRequestPending) {
-        this.maxRequestPending = maxRequestPending;
+    public void setMaxOutRequests(int maxOutRequests) {
+        this.maxOutRequests = maxOutRequests;
     }
 
     public int getRequestTimeoutMillis() {
@@ -90,5 +100,61 @@ public abstract class NioConfig {
 
     public void setCloseTimeoutMillis(int closeTimeoutMillis) {
         this.closeTimeoutMillis = closeTimeoutMillis;
+    }
+
+    public int getMaxOutRequestsPerChannel() {
+        return maxOutRequestsPerChannel;
+    }
+
+    public void setMaxOutRequestsPerChannel(int maxOutRequestsPerChannel) {
+        this.maxOutRequestsPerChannel = maxOutRequestsPerChannel;
+    }
+
+    public int getMaxInRequests() {
+        return maxInRequests;
+    }
+
+    public void setMaxInRequests(int maxInRequests) {
+        this.maxInRequests = maxInRequests;
+    }
+
+    public int getMaxInRequestsPerChannel() {
+        return maxInRequestsPerChannel;
+    }
+
+    public void setMaxInRequestsPerChannel(int maxInRequestsPerChannel) {
+        this.maxInRequestsPerChannel = maxInRequestsPerChannel;
+    }
+
+    public long getMaxOutBytes() {
+        return maxOutBytes;
+    }
+
+    public void setMaxOutBytes(long maxOutBytes) {
+        this.maxOutBytes = maxOutBytes;
+    }
+
+    public long getMaxOutBytesPerChannel() {
+        return maxOutBytesPerChannel;
+    }
+
+    public void setMaxOutBytesPerChannel(long maxOutBytesPerChannel) {
+        this.maxOutBytesPerChannel = maxOutBytesPerChannel;
+    }
+
+    public long getMaxInBytes() {
+        return maxInBytes;
+    }
+
+    public void setMaxInBytes(long maxInBytes) {
+        this.maxInBytes = maxInBytes;
+    }
+
+    public long getMaxInBytesPerChannel() {
+        return maxInBytesPerChannel;
+    }
+
+    public void setMaxInBytesPerChannel(long maxInBytesPerChannel) {
+        this.maxInBytesPerChannel = maxInBytesPerChannel;
     }
 }

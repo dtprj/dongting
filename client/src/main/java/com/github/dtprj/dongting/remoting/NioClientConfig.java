@@ -25,8 +25,16 @@ public class NioClientConfig extends NioConfig {
     private int connectTimeoutMillis = 2000;
 
     public NioClientConfig() {
-        setBizThreads(0);
         setName("DtNioClient");
+        setBizThreads(0);
+        setBizQueueSize(500);
+
+        // TODO negotiate with server
+        setMaxOutRequests(2000);
+        setMaxOutRequestsPerChannel(1000);
+        setMaxInRequests(100);
+        setMaxInRequestsPerChannel(30);
+        setMaxBufferPerConnection(10 * 1024 * 1024);
     }
 
     public List<HostPort> getHostPorts() {
