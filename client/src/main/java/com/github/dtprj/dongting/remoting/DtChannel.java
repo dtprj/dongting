@@ -236,9 +236,11 @@ class DtChannel {
                 req.setBody(body);
             }
             AtomicLong bytes = nioStatus.getInReqBytes();
+            // TODO can we eliminate this CAS operation?
             long bytesAfterAdd = bytes.addAndGet(currentReadFrameSize);
             if (bytesAfterAdd < nioConfig.getMaxInBytes()) {
                 try {
+                    // TODO use custom thread pool?
                     nioStatus.getBizExecutor().submit(() -> {
                         try {
                             processIncomingRequestInBizThreadPool(req, p, decoder);
