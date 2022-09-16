@@ -87,7 +87,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 initNewChannel(sc);
             } catch (Exception e) {
                 log.warn("accept channel fail: {}, {}", sc, e.toString());
-                closeChannel(sc, null);
+                closeChannel(sc);
             }
         });
         wakeup();
@@ -97,14 +97,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     public CompletableFuture<DtChannel> connect(SocketAddress socketAddress) {
         CompletableFuture<DtChannel> f = new CompletableFuture<>();
         actions.add(() -> doConnect(socketAddress, f));
-        wakeup();
-        return f;
-    }
-
-    // invoke by other threads
-    public CompletableFuture<Void> close(SocketChannel channel) {
-        CompletableFuture<Void> f = new CompletableFuture<>();
-        actions.add(() -> closeChannel(channel, f));
         wakeup();
         return f;
     }
@@ -223,36 +215,30 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private void closeChannel(SelectionKey key) {
         Object att = key.attachment();
         if (att instanceof DtChannel) {
-            closeChannel((DtChannel) att, null);
+            closeChannel((DtChannel) att);
         } else {
-            closeChannel((SocketChannel) att, null);
+            closeChannel((SocketChannel) att);
         }
     }
 
-    private void closeChannel(SocketChannel sc, CompletableFuture<Void> f) {
+    private void closeChannel(SocketChannel sc) {
         channels.removeIf(dtc -> dtc.getChannel() == sc);
-        closeChannel0(sc, f);
+        closeChannel0(sc);
     }
 
-    private void closeChannel(DtChannel dtc, CompletableFuture<Void> f) {
+    private void closeChannel(DtChannel dtc) {
         channels.remove(dtc);
-        closeChannel0(dtc.getChannel(), f);
+        closeChannel0(dtc.getChannel());
     }
 
-    private void closeChannel0(SocketChannel sc, CompletableFuture<Void> f) {
+    private void closeChannel0(SocketChannel sc) {
         try {
             if (sc.isOpen()) {
                 log.info("closing channel: {}", sc);
                 sc.close();
             }
-            if (f != null) {
-                f.complete(null);
-            }
         } catch (Exception e) {
             log.warn("close channel fail: {}, {}", sc, e.getMessage());
-            if (f != null) {
-                f.completeExceptionally(new NetException(e));
-            }
         }
     }
 
@@ -321,7 +307,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             sc.connect(socketAddress);
         } catch (Throwable e) {
             if (sc != null) {
-                closeChannel(sc, null);
+                closeChannel(sc);
             }
             f.completeExceptionally(new NetException(e));
         }
