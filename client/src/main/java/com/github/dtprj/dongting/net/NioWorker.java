@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
@@ -32,6 +33,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -62,7 +64,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private final ConcurrentLinkedQueue<Runnable> actions = new ConcurrentLinkedQueue<>();
 
-    private final CopyOnWriteArrayList<DtChannel> channels = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<Peer> channels = new CopyOnWriteArrayList<>();
     private final HashMap<Integer, WriteData> pendingOutgoingRequests = new HashMap<>();
     private final CompletableFuture<Void> preCloseFuture = new CompletableFuture<>();
 
@@ -84,7 +86,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     public void newChannelAccept(SocketChannel sc) {
         actions.add(() -> {
             try {
-                initNewChannel(sc);
+                initNewChannel(sc, null);
             } catch (Exception e) {
                 log.warn("accept channel fail: {}, {}", sc, e.toString());
                 closeChannel(sc);
@@ -94,9 +96,10 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     // invoke by other threads
-    public CompletableFuture<DtChannel> connect(SocketAddress socketAddress) {
+    public CompletableFuture<DtChannel> connect(HostPort hp) {
+        InetSocketAddress addr = new InetSocketAddress(hp.getHost(), hp.getPort());
         CompletableFuture<DtChannel> f = new CompletableFuture<>();
-        actions.add(() -> doConnect(socketAddress, f));
+        actions.add(() -> doConnect(addr, f, hp));
         wakeup();
         return f;
     }
@@ -123,7 +126,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
         try {
             selector.close();
-            for (DtChannel c : channels) {
+            for (Peer c : channels) {
                 c.getChannel().close();
             }
             log.info("worker thread finished: {}", workerName);
@@ -158,7 +161,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         try {
             if (!key.isValid()) {
                 log.info("socket may closed, remove it: {}", key.channel());
-                closeChannel(key);
+                closeChannel((SocketChannel) key.channel());
                 return false;
             }
             stage = 1;
@@ -174,7 +177,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 int readCount = sc.read(buf);
                 if (readCount == -1) {
                     log.info("socket read to end, remove it: {}", key.channel());
-                    closeChannel(key);
+                    closeChannel((SocketChannel) key.channel());
                     return false;
                 }
                 dtc.afterRead(stopStatus == SS_RUNNING);
@@ -207,18 +210,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 default:
                     log.warn("socket error: {}", e.toString());
             }
-            closeChannel(key);
+            closeChannel((SocketChannel) key.channel());
         }
         return hasDataToWrite;
-    }
-
-    private void closeChannel(SelectionKey key) {
-        Object att = key.attachment();
-        if (att instanceof DtChannel) {
-            closeChannel((DtChannel) att);
-        } else {
-            closeChannel((SocketChannel) att);
-        }
     }
 
     private void closeChannel(SocketChannel sc) {
@@ -226,9 +220,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         closeChannel0(sc);
     }
 
-    private void closeChannel(DtChannel dtc) {
-        channels.remove(dtc);
-        closeChannel0(dtc.getChannel());
+    private void closeChannel(Peer peer) {
+        channels.remove(peer);
+        closeChannel0(peer.getChannel());
     }
 
     private void closeChannel0(SocketChannel sc) {
@@ -275,7 +269,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    private DtChannel initNewChannel(SocketChannel sc) throws IOException {
+    private DtChannel initNewChannel(SocketChannel sc, HostPort hostPort) throws IOException {
         sc.configureBlocking(false);
         sc.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
         sc.setOption(StandardSocketOptions.TCP_NODELAY, true);
@@ -291,19 +285,24 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
         dtc.setSelectionKey(selectionKey);
 
-        channels.add(dtc);
+        Peer peer = hostPort == null ? new Peer(sc.getRemoteAddress(), true) : new Peer(hostPort, false);
+        peer.setChannel(sc);
+        peer.setDtChannel(dtc);
+        peer.setWorker(this);
+
+        channels.add(peer);
         log.info("new DtChannel init: {}", sc);
         return dtc;
     }
 
-    private void doConnect(SocketAddress socketAddress, CompletableFuture<DtChannel> f) {
+    private void doConnect(SocketAddress socketAddress, CompletableFuture<DtChannel> f, HostPort hp) {
         SocketChannel sc = null;
         try {
             sc = SocketChannel.open();
             sc.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
             sc.setOption(StandardSocketOptions.TCP_NODELAY, true);
             sc.configureBlocking(false);
-            sc.register(selector, SelectionKey.OP_CONNECT, f);
+            sc.register(selector, SelectionKey.OP_CONNECT, new Object[]{f, hp});
             sc.connect(socketAddress);
         } catch (Throwable e) {
             if (sc != null) {
@@ -314,15 +313,17 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     private void processConnect(SelectionKey key) {
-        CompletableFuture<DtChannel> f = (CompletableFuture<DtChannel>) key.attachment();
+        Object[] att = (Object[]) key.attachment();
+        CompletableFuture<DtChannel> f = (CompletableFuture<DtChannel>) att[0];
+        HostPort hp = (HostPort) att[1];
         SocketChannel channel = (SocketChannel) key.channel();
         try {
             channel.finishConnect();
-            DtChannel dtc = initNewChannel(channel);
+            DtChannel dtc = initNewChannel(channel, hp);
             f.complete(dtc);
         } catch (Exception e) {
             log.warn("init channel fail: {}, {}", channel, e.toString());
-            closeChannel(key);
+            closeChannel((SocketChannel) key.channel());
             f.completeExceptionally(new NetException(e));
         }
     }
@@ -336,12 +337,23 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 it.remove();
                 log.debug("drop timeout request: {}ms, seq={}, {}",
                         t.getTimeout(TimeUnit.MILLISECONDS), en.getValue().getData().getSeq(),
-                        en.getValue().getDtc().getChannel());
+                        en.getValue().getEndPoint());
                 String msg = "timeout: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
                 en.getValue().getFuture().completeExceptionally(new NetTimeoutException(msg));
                 requestSemaphore.release();
             }
         }
+    }
+
+    // invoke by other threads
+    public void writeReqInBizThreads(Peer peer, WriteFrame frame, Decoder decoder,
+                                      DtTime timeout, CompletableFuture<ReadFrame> future) {
+        Objects.requireNonNull(timeout);
+        Objects.requireNonNull(future);
+
+        WriteData data = new WriteData(peer, frame, timeout, future, decoder);
+        this.ioQueue.write(data);
+        wakeup();
     }
 
     @Override
@@ -361,7 +373,11 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         wakeup();
     }
 
-    public List<DtChannel> getChannels() {
+    public String getWorkerName() {
+        return workerName;
+    }
+
+    public List<Peer> getChannels() {
         return channels;
     }
 

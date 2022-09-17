@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.common.DtException;
-import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.pb.PbUtil;
@@ -26,8 +25,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.util.HashMap;
-import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -70,10 +67,6 @@ class DtChannel {
         this.pendingRequests = workerParams.getPendingRequests();
         this.subQueue = new IoSubQueue(this::registerForWrite, workerParams.getPool());
         this.nioConfig = nioConfig;
-    }
-
-    public SocketChannel getChannel() {
-        return channel;
     }
 
     private void registerForWrite() {
@@ -375,17 +368,7 @@ class DtChannel {
 
     // invoke by other threads
     private void writeRespInBizThreads(WriteFrame frame) {
-        WriteData data = new WriteData(this, frame, null, null, null);
-        this.ioQueue.write(data);
-        this.wakeupRunnable.run();
-    }
-
-    // invoke by other threads
-    public void writeReqInBizThreads(WriteFrame frame, Decoder decoder, DtTime timeout, CompletableFuture<ReadFrame> future) {
-        Objects.requireNonNull(timeout);
-        Objects.requireNonNull(future);
-
-        WriteData data = new WriteData(this, frame, timeout, future, decoder);
+        WriteData data = new WriteData(this, frame);
         this.ioQueue.write(data);
         this.wakeupRunnable.run();
     }

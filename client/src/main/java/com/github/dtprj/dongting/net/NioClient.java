@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.common.ThreadUtils;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
-import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -53,8 +52,7 @@ public class NioClient extends NioNet {
         final DtTime t = new DtTime(config.getConnectTimeoutMillis(), TimeUnit.MILLISECONDS);
         final ArrayList<CompletableFuture<DtChannel>> futures = new ArrayList<>();
         for (HostPort hp : config.getHostPorts()) {
-            InetSocketAddress addr = new InetSocketAddress(hp.getHost(), hp.getPort());
-            CompletableFuture<DtChannel> f = worker.connect(addr);
+            CompletableFuture<DtChannel> f = worker.connect(hp);
             futures.add(f);
         }
         for (CompletableFuture<DtChannel> f : futures) {
@@ -92,23 +90,23 @@ public class NioClient extends NioNet {
         if (status != LifeStatus.running) {
             return errorFuture(new IllegalStateException("error state: " + status));
         }
-        List<DtChannel> channels = worker.getChannels();
-        DtChannel dtc;
+        List<Peer> channels = worker.getChannels();
+        Peer peer;
         try {
             int size = channels.size();
             if (size > 0) {
-                dtc = channels.get(invokeIndex++ % size);
+                peer = channels.get(invokeIndex++ % size);
             } else {
                 return errorFuture(new NetException("no available servers"));
             }
         } catch (ArrayIndexOutOfBoundsException e) {
             try {
-                dtc = channels.get(0);
+                peer = channels.get(0);
             } catch (ArrayIndexOutOfBoundsException e2) {
                 return errorFuture(new NetException("no available servers"));
             }
         }
-        return sendRequest(dtc, request, decoder, timeout);
+        return sendRequest(peer, request, decoder, timeout);
     }
 
     @Override

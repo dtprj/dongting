@@ -21,10 +21,19 @@ package com.github.dtprj.dongting.net;
 public class HostPort {
     private final String host;
     private final int port;
+    private String toStr;
 
     public HostPort(String host, int port) {
         this.host = host;
         this.port = port;
+    }
+
+    @Override
+    public String toString() {
+        if (toStr == null) {
+            toStr = "[" + host + "," + port + "]";
+        }
+        return toStr;
     }
 
     public int getPort() {

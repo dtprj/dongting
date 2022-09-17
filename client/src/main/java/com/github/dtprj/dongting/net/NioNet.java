@@ -47,7 +47,7 @@ public abstract class NioNet extends AbstractLifeCircle {
         nioStatus.getProcessors().put(cmd, processor);
     }
 
-    protected CompletableFuture<ReadFrame> sendRequest(DtChannel dtc, WriteFrame request, Decoder decoder, DtTime timeout) {
+    protected CompletableFuture<ReadFrame> sendRequest(Peer peer, WriteFrame request, Decoder decoder, DtTime timeout) {
         try {
             if (status != LifeStatus.running) {
                 return errorFuture(new IllegalStateException("error state: " + status));
@@ -56,7 +56,7 @@ public abstract class NioNet extends AbstractLifeCircle {
             boolean acquire = this.semaphore.tryAcquire(timeout.rest(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
             if (acquire) {
                 CompletableFuture<ReadFrame> future = new CompletableFuture<>();
-                dtc.writeReqInBizThreads(request, decoder, timeout, future);
+                peer.getWorker().writeReqInBizThreads(peer, request, decoder, timeout, future);
                 if (decoder.decodeInIoThread()) {
                     return future;
                 } else {
