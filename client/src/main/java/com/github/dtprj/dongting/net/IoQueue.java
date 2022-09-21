@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -28,8 +29,13 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 class IoQueue {
     private static final DtLog log = DtLogs.getLogger(IoQueue.class);
     private final ConcurrentLinkedQueue<WriteData> writeQueue = new ConcurrentLinkedQueue<>();
+    private final ArrayList<DtChannel> channels;
+    private final boolean server;
+    private int invokeIndex;
 
-    public IoQueue() {
+    public IoQueue(ArrayList<DtChannel> channels) {
+        this.channels = channels;
+        this.server = channels == null;
     }
 
     public void write(WriteData data) {
@@ -41,27 +47,78 @@ class IoQueue {
         WriteData wo;
         boolean result = false;
         while ((wo = writeQueue.poll()) != null) {
-            WriteFrame frame = wo.getData();
-            DtChannel dtc = wo.getDtc();
-            if (dtc == null) {
-                // dtc may update
-                dtc = wo.getEndPoint().getDtChannel();
-            }
-            if (frame.getFrameType() == CmdType.TYPE_REQ) {
-                int seq = dtc.getAndIncSeq();
-                frame.setSeq(seq);
-                WriteData old = pendingRequests.put(seq, wo);
-                if (old != null) {
-                    String errMsg = "dup seq: old=" + old.getData() + ", new=" + frame;
-                    log.error(errMsg);
-                    wo.getFuture().completeExceptionally(new NetException(errMsg));
-                    pendingRequests.put(frame.getSeq(), old);
-                    continue;
-                }
-            }
-            dtc.getSubQueue().enqueue(frame);
-            result = true;
+            result |= enqueue(pendingRequests, wo);
         }
         return result;
+    }
+
+    private boolean enqueue(HashMap<Integer, WriteData> pendingRequests, WriteData wo) {
+        WriteFrame frame = wo.getData();
+        DtChannel dtc = wo.getDtc();
+        if (dtc == null) {
+            Peer peer = wo.getPeer();
+            if (peer == null) {
+                if (!server) {
+                    dtc = selectChannel();
+                    if (dtc == null) {
+                        if (frame.getFrameType() == CmdType.TYPE_REQ) {
+                            wo.getFuture().completeExceptionally(new NetException("no available channel"));
+                        }
+                        return false;
+                    }
+                } else {
+                    log.error("no peer set");
+                    if (frame.getFrameType() == CmdType.TYPE_REQ) {
+                        wo.getFuture().completeExceptionally(new NetException("no peer set"));
+                    }
+                    return false;
+                }
+            } else {
+                dtc = peer.getDtChannel();
+                if (dtc == null) {
+                    if (frame.getFrameType() == CmdType.TYPE_REQ) {
+                        wo.getFuture().completeExceptionally(new NetException("not connected"));
+                    }
+                    return false;
+                }
+            }
+        }
+
+        if (dtc.isClosed()) {
+            if (frame.getFrameType() == CmdType.TYPE_REQ) {
+                wo.getFuture().completeExceptionally(new NetException("channel closed"));
+            }
+            return false;
+        }
+        if (frame.getFrameType() == CmdType.TYPE_REQ) {
+            int seq = dtc.getAndIncSeq();
+            frame.setSeq(seq);
+            WriteData old = pendingRequests.put(seq, wo);
+            if (old != null) {
+                String errMsg = "dup seq: old=" + old.getData() + ", new=" + frame;
+                log.error(errMsg);
+                wo.getFuture().completeExceptionally(new NetException(errMsg));
+                pendingRequests.put(frame.getSeq(), old);
+                return false;
+            }
+        }
+        dtc.getSubQueue().enqueue(frame);
+        return true;
+    }
+
+    private DtChannel selectChannel() {
+        ArrayList<DtChannel> list = this.channels;
+        int size = list.size();
+        if (size == 0) {
+            return null;
+        }
+        int idx = invokeIndex;
+        if (idx < size) {
+            invokeIndex = idx + 1;
+            return list.get(idx);
+        } else {
+            invokeIndex = 0;
+            return list.get(0);
+        }
     }
 }

@@ -42,6 +42,7 @@ public class NioServerTest {
         clientConfig.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
         NioClient client = new NioClient(clientConfig);
         client.start();
+        client.waitStart();
 
         for (int i = 0; i < LOOP; i++) {
             ByteBufferWriteFrame req = new ByteBufferWriteFrame();

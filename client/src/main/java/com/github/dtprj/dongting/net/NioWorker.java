@@ -29,14 +29,15 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -55,7 +56,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private final String workerName;
     private final Thread thread;
     private final RpcPbCallback pbCallback;
-    private final IoQueue ioQueue = new IoQueue();
     private final NioStatus nioStatus;
     private final NioConfig config;
     private volatile int stopStatus = SS_RUNNING;
@@ -64,7 +64,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private final ConcurrentLinkedQueue<Runnable> actions = new ConcurrentLinkedQueue<>();
 
-    private final CopyOnWriteArrayList<Peer> channels = new CopyOnWriteArrayList<>();
+    private final Collection<DtChannel> channels;
+    private final IoQueue ioQueue;
+
     private final HashMap<Integer, WriteData> pendingOutgoingRequests = new HashMap<>();
     private final CompletableFuture<Void> preCloseFuture = new CompletableFuture<>();
 
@@ -80,25 +82,34 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.thread.setName(workerName);
         this.requestSemaphore = nioStatus.getRequestSemaphore();
         this.pbCallback = new RpcPbCallback();
+        if (config instanceof NioServerConfig) {
+            this.channels = new LinkedList<>();
+            this.ioQueue = new IoQueue(null);
+        } else {
+            this.channels = new ArrayList<>();
+            this.ioQueue = new IoQueue((ArrayList<DtChannel>) channels);
+        }
     }
 
     // invoke by NioServer accept thead
     public void newChannelAccept(SocketChannel sc) {
         actions.add(() -> {
             try {
-                initNewChannel(sc, null);
+                DtChannel dtc = initNewChannel(sc, null);
+                channels.add(dtc);
             } catch (Exception e) {
                 log.warn("accept channel fail: {}, {}", sc, e.toString());
-                closeChannel(sc);
+                closeChannel0(sc);
             }
         });
         wakeup();
     }
 
     // invoke by other threads
-    public CompletableFuture<DtChannel> connect(HostPort hp) {
+    public CompletableFuture<Void> connect(Peer peer) {
+        HostPort hp = (HostPort) peer.getEndPoint();
         InetSocketAddress addr = new InetSocketAddress(hp.getHost(), hp.getPort());
-        CompletableFuture<DtChannel> f = new CompletableFuture<>();
+        CompletableFuture<Void> f = new CompletableFuture<>();
         actions.add(() -> doConnect(addr, f, hp));
         wakeup();
         return f;
@@ -126,8 +137,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
         try {
             selector.close();
-            for (Peer c : channels) {
-                c.getChannel().close();
+            for (DtChannel dtc : channels) {
+                closeChannel0(dtc.getChannel());
             }
             log.info("worker thread finished: {}", workerName);
         } catch (Exception e) {
@@ -161,7 +172,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         try {
             if (!key.isValid()) {
                 log.info("socket may closed, remove it: {}", key.channel());
-                closeChannel((SocketChannel) key.channel());
+                closeChannel(key);
                 return false;
             }
             stage = 1;
@@ -177,7 +188,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 int readCount = sc.read(buf);
                 if (readCount == -1) {
                     log.info("socket read to end, remove it: {}", key.channel());
-                    closeChannel((SocketChannel) key.channel());
+                    closeChannel(key);
                     return false;
                 }
                 dtc.afterRead(stopStatus == SS_RUNNING);
@@ -210,19 +221,29 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 default:
                     log.warn("socket error: {}", e.toString());
             }
-            closeChannel((SocketChannel) key.channel());
+            closeChannel(key);
         }
         return hasDataToWrite;
     }
 
-    private void closeChannel(SocketChannel sc) {
-        channels.removeIf(dtc -> dtc.getChannel() == sc);
+    private void closeChannel(SelectionKey key) {
+        Object obj = key.attachment();
+        SocketChannel sc = (SocketChannel) key.channel();
+        if (obj instanceof DtChannel) {
+            DtChannel dtc = (DtChannel) obj;
+            dtc.setClosed(true);
+            channels.remove(dtc);
+        } else {
+            channels.removeIf(d -> {
+                if (d.getChannel() == sc) {
+                    d.setClosed(true);
+                    return true;
+                } else {
+                    return false;
+                }
+            });
+        }
         closeChannel0(sc);
-    }
-
-    private void closeChannel(Peer peer) {
-        channels.remove(peer);
-        closeChannel0(peer.getChannel());
     }
 
     private void closeChannel0(SocketChannel sc) {
@@ -274,6 +295,18 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         sc.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
         sc.setOption(StandardSocketOptions.TCP_NODELAY, true);
 
+        DtChannel dtc = createDtChannel(sc);
+        SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
+        dtc.setSelectionKey(selectionKey);
+
+        Peer peer = hostPort == null ? new Peer(sc.getRemoteAddress(), true) : new Peer(hostPort, false);
+        peer.setDtChannel(dtc);
+
+        log.info("new DtChannel init: {}", sc);
+        return dtc;
+    }
+
+    private DtChannel createDtChannel(SocketChannel sc) {
         WorkerParams workerParams = new WorkerParams();
         workerParams.setChannel(sc);
         workerParams.setCallback(pbCallback);
@@ -281,21 +314,11 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         workerParams.setPendingRequests(pendingOutgoingRequests);
         workerParams.setWakeupRunnable(this::wakeup);
         workerParams.setPool(pool);
-        DtChannel dtc = new DtChannel(nioStatus, workerParams, config);
-        SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
-        dtc.setSelectionKey(selectionKey);
-
-        Peer peer = hostPort == null ? new Peer(sc.getRemoteAddress(), true) : new Peer(hostPort, false);
-        peer.setChannel(sc);
-        peer.setDtChannel(dtc);
-        peer.setWorker(this);
-
-        channels.add(peer);
-        log.info("new DtChannel init: {}", sc);
-        return dtc;
+        workerParams.setWorker(this);
+        return new DtChannel(nioStatus, workerParams, config);
     }
 
-    private void doConnect(SocketAddress socketAddress, CompletableFuture<DtChannel> f, HostPort hp) {
+    private void doConnect(SocketAddress socketAddress, CompletableFuture<Void> f, HostPort hp) {
         SocketChannel sc = null;
         try {
             sc = SocketChannel.open();
@@ -306,7 +329,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             sc.connect(socketAddress);
         } catch (Throwable e) {
             if (sc != null) {
-                closeChannel(sc);
+                closeChannel0(sc);
             }
             f.completeExceptionally(new NetException(e));
         }
@@ -314,16 +337,17 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private void processConnect(SelectionKey key) {
         Object[] att = (Object[]) key.attachment();
-        CompletableFuture<DtChannel> f = (CompletableFuture<DtChannel>) att[0];
+        CompletableFuture<Void> f = (CompletableFuture<Void>) att[0];
         HostPort hp = (HostPort) att[1];
         SocketChannel channel = (SocketChannel) key.channel();
         try {
             channel.finishConnect();
             DtChannel dtc = initNewChannel(channel, hp);
-            f.complete(dtc);
+            channels.add(dtc);
+            f.complete(null);
         } catch (Exception e) {
             log.warn("init channel fail: {}, {}", channel, e.toString());
-            closeChannel((SocketChannel) key.channel());
+            closeChannel0((SocketChannel) key.channel());
             f.completeExceptionally(new NetException(e));
         }
     }
@@ -337,7 +361,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 it.remove();
                 log.debug("drop timeout request: {}ms, seq={}, {}",
                         t.getTimeout(TimeUnit.MILLISECONDS), en.getValue().getData().getSeq(),
-                        en.getValue().getEndPoint());
+                        en.getValue().getDtc()); // TODO DtChannel.toString()
                 String msg = "timeout: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
                 en.getValue().getFuture().completeExceptionally(new NetTimeoutException(msg));
                 requestSemaphore.release();
@@ -375,10 +399,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     public String getWorkerName() {
         return workerName;
-    }
-
-    public List<Peer> getChannels() {
-        return channels;
     }
 
     public Thread getThread() {

@@ -70,7 +70,7 @@ class WriteData {
         return decoder;
     }
 
-    public Peer getEndPoint() {
+    public Peer getPeer() {
         return peer;
     }
 }

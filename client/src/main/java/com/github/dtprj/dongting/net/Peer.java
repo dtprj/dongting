@@ -15,17 +15,13 @@
  */
 package com.github.dtprj.dongting.net;
 
-import java.nio.channels.SocketChannel;
-
 /**
  * @author huangli
  */
 class Peer {
     private final Object endPoint;
     private final boolean incoming;
-    private SocketChannel channel;
-    private DtChannel dtChannel;
-    private NioWorker worker;
+    private volatile DtChannel dtChannel;
 
     public Peer(Object endPoint, boolean incoming) {
         this.endPoint = endPoint;
@@ -34,7 +30,15 @@ class Peer {
 
     @Override
     public String toString() {
-        return endPoint + ", incoming=" + incoming + ",worker=" + worker.getWorkerName();
+        StringBuilder sb = new StringBuilder();
+        sb.append(endPoint).append(", incoming=").append(incoming).append(",worker=");
+        DtChannel dtc = this.dtChannel;
+        if (dtc == null) {
+            sb.append("null");
+        } else {
+            sb.append(dtc.getWorker().getWorkerName());
+        }
+        return sb.toString();
     }
 
     public Object getEndPoint() {
@@ -51,21 +55,5 @@ class Peer {
 
     public void setDtChannel(DtChannel dtChannel) {
         this.dtChannel = dtChannel;
-    }
-
-    public SocketChannel getChannel() {
-        return channel;
-    }
-
-    public void setChannel(SocketChannel channel) {
-        this.channel = channel;
-    }
-
-    public NioWorker getWorker() {
-        return worker;
-    }
-
-    public void setWorker(NioWorker worker) {
-        this.worker = worker;
     }
 }

@@ -50,6 +50,7 @@ public class NioServerBenchmark extends BenchBase {
         clientConfig.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
         client = new NioClient(clientConfig);
         client.start();
+        client.waitStart();
 
         data = new byte[DATA_LEN];
         new Random().nextBytes(data);

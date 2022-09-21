@@ -28,6 +28,7 @@ class WorkerParams {
     private Runnable wakeupRunnable;
     private HashMap<Integer, WriteData> pendingRequests;
     private ByteBufferPool pool;
+    private NioWorker worker;
 
     public WorkerParams() {
     }
@@ -78,5 +79,13 @@ class WorkerParams {
 
     public void setPool(ByteBufferPool pool) {
         this.pool = pool;
+    }
+
+    public NioWorker getWorker() {
+        return worker;
+    }
+
+    public void setWorker(NioWorker worker) {
+        this.worker = worker;
     }
 }
