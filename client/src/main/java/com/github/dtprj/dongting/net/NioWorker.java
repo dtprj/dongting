@@ -312,6 +312,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
         if (peer != null) {
             peer.setDtChannel(dtc);
+            dtc.setPeer(peer);
         }
 
         log.info("new DtChannel init: {}", sc);
