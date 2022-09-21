@@ -39,6 +39,7 @@ class DtChannel {
     private final NioConfig nioConfig;
     private final WorkerParams workerParams;
     private final SocketChannel channel;
+    private Peer peer;
 
     private WeakReference<ByteBuffer> readBufferCache;
     private ByteBuffer readBuffer;
@@ -378,7 +379,17 @@ class DtChannel {
     }
 
     public void close() {
+        if (closed) {
+            return;
+        }
         this.closed = true;
+        if (peer != null && peer.getDtChannel() == this) {
+            peer.setDtChannel(null);
+        }
+    }
+
+    public void setPeer(Peer peer) {
+        this.peer = peer;
     }
 
     public String getWorkerName() {
