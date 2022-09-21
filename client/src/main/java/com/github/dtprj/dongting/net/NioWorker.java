@@ -74,6 +74,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private final ByteBufferPool pool = new ByteBufferPool(true);
 
+    private final WorkerParams workerParams;
+
     public NioWorker(NioStatus nioStatus, String workerName, NioConfig config) {
         this.nioStatus = nioStatus;
         this.config = config;
@@ -89,6 +91,14 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             this.channels = new ArrayList<>();
             this.ioQueue = new IoQueue((ArrayList<DtChannel>) channels);
         }
+
+        workerParams = new WorkerParams();
+        workerParams.setCallback(pbCallback);
+        workerParams.setIoQueue(ioQueue);
+        workerParams.setPendingRequests(pendingOutgoingRequests);
+        workerParams.setWakeupRunnable(this::wakeup);
+        workerParams.setPool(pool);
+        workerParams.setWorkerName(workerName);
     }
 
     // invoke by NioServer accept thead
@@ -295,7 +305,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         sc.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
         sc.setOption(StandardSocketOptions.TCP_NODELAY, true);
 
-        DtChannel dtc = createDtChannel(sc);
+        DtChannel dtc = new DtChannel(nioStatus, workerParams, config, sc);
         SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
         dtc.setSelectionKey(selectionKey);
 
@@ -304,18 +314,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
         log.info("new DtChannel init: {}", sc);
         return dtc;
-    }
-
-    private DtChannel createDtChannel(SocketChannel sc) {
-        WorkerParams workerParams = new WorkerParams();
-        workerParams.setChannel(sc);
-        workerParams.setCallback(pbCallback);
-        workerParams.setIoQueue(ioQueue);
-        workerParams.setPendingRequests(pendingOutgoingRequests);
-        workerParams.setWakeupRunnable(this::wakeup);
-        workerParams.setPool(pool);
-        workerParams.setWorker(this);
-        return new DtChannel(nioStatus, workerParams, config);
     }
 
     private void doConnect(SocketAddress socketAddress, CompletableFuture<Void> f, HostPort hp) {

@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.net;
 
-import java.nio.channels.SocketChannel;
 import java.util.HashMap;
 
 /**
@@ -23,12 +22,11 @@ import java.util.HashMap;
  */
 class WorkerParams {
     private RpcPbCallback callback;
-    private SocketChannel channel;
     private IoQueue ioQueue;
     private Runnable wakeupRunnable;
     private HashMap<Integer, WriteData> pendingRequests;
     private ByteBufferPool pool;
-    private NioWorker worker;
+    private String workerName;
 
     public WorkerParams() {
     }
@@ -39,14 +37,6 @@ class WorkerParams {
 
     public void setCallback(RpcPbCallback callback) {
         this.callback = callback;
-    }
-
-    public SocketChannel getChannel() {
-        return channel;
-    }
-
-    public void setChannel(SocketChannel channel) {
-        this.channel = channel;
     }
 
     public IoQueue getIoQueue() {
@@ -81,11 +71,11 @@ class WorkerParams {
         this.pool = pool;
     }
 
-    public NioWorker getWorker() {
-        return worker;
+    public String getWorkerName() {
+        return workerName;
     }
 
-    public void setWorker(NioWorker worker) {
-        this.worker = worker;
+    public void setWorkerName(String workerName) {
+        this.workerName = workerName;
     }
 }

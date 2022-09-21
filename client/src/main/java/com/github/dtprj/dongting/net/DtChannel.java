@@ -41,7 +41,7 @@ class DtChannel {
     private final NioConfig nioConfig;
 
     private final SocketChannel channel;
-    private final NioWorker worker;
+    private final String workerName;
 
     private final RpcPbCallback pbCallback;
     private final Runnable wakeupRunnable;
@@ -62,16 +62,16 @@ class DtChannel {
 
     private boolean closed;
 
-    public DtChannel(NioStatus nioStatus, WorkerParams workerParams, NioConfig nioConfig) {
+    public DtChannel(NioStatus nioStatus, WorkerParams workerParams, NioConfig nioConfig, SocketChannel socketChannel) {
         this.nioStatus = nioStatus;
         this.pbCallback = workerParams.getCallback();
-        this.channel = workerParams.getChannel();
+        this.channel = socketChannel;
         this.ioQueue = workerParams.getIoQueue();
         this.wakeupRunnable = workerParams.getWakeupRunnable();
         this.pendingRequests = workerParams.getPendingRequests();
         this.subQueue = new IoSubQueue(this::registerForWrite, workerParams.getPool());
         this.nioConfig = nioConfig;
-        this.worker = workerParams.getWorker();
+        this.workerName = workerParams.getWorkerName();
     }
 
     private void registerForWrite() {
@@ -402,7 +402,7 @@ class DtChannel {
         this.closed = closed;
     }
 
-    public NioWorker getWorker() {
-        return worker;
+    public String getWorkerName() {
+        return workerName;
     }
 }

@@ -36,7 +36,7 @@ class Peer {
         if (dtc == null) {
             sb.append("null");
         } else {
-            sb.append(dtc.getWorker().getWorkerName());
+            sb.append(dtc.getWorkerName());
         }
         return sb.toString();
     }
