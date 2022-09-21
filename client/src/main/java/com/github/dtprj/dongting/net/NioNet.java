@@ -58,16 +58,17 @@ public abstract class NioNet extends AbstractLifeCircle {
             if (acquire) {
                 CompletableFuture<ReadFrame> future = new CompletableFuture<>();
                 worker.writeReqInBizThreads(peer, request, decoder, timeout, future);
-                if (decoder.decodeInIoThread()) {
-                    return future;
-                } else {
-                    return future.thenApply(frame -> {
+                return future.thenApply(frame -> {
+                    if (frame.getRespCode() != CmdCodes.SUCCESS) {
+                        throw new NetCodeException(frame.getRespCode());
+                    }
+                    if (!decoder.decodeInIoThread()) {
                         ByteBuffer buf = (ByteBuffer) frame.getBody();
                         Object body = decoder.decode(buf);
                         frame.setBody(body);
-                        return frame;
-                    });
-                }
+                    }
+                    return frame;
+                });
             } else {
                 return errorFuture(new NetException("too many pending requests"));
             }
