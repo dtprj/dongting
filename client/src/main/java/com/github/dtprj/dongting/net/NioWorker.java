@@ -307,14 +307,25 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
         DtChannel dtc = new DtChannel(nioStatus, workerParams, config, sc);
         SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
-        Runnable r = () -> selectionKey.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
-        dtc.getSubQueue().setRegisterForWrite(r);
+        dtc.getSubQueue().setRegisterForWrite(new RegWriteRunner(selectionKey));
 
         Peer peer = hostPort == null ? new Peer(sc.getRemoteAddress(), true) : new Peer(hostPort, false);
         peer.setDtChannel(dtc);
 
         log.info("new DtChannel init: {}", sc);
         return dtc;
+    }
+
+    private static class RegWriteRunner implements Runnable {
+        SelectionKey key;
+        RegWriteRunner(SelectionKey key) {
+            this.key = key;
+        }
+
+        @Override
+        public void run() {
+            key.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+        }
     }
 
     private void doConnect(SocketAddress socketAddress, CompletableFuture<Void> f, HostPort hp) {
