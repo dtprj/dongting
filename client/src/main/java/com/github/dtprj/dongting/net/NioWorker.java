@@ -55,7 +55,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private final String workerName;
     private final Thread thread;
-    private final RpcPbCallback pbCallback;
     private final NioStatus nioStatus;
     private final NioConfig config;
     private volatile int stopStatus = SS_RUNNING;
@@ -83,7 +82,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.workerName = workerName;
         this.thread.setName(workerName);
         this.requestSemaphore = nioStatus.getRequestSemaphore();
-        this.pbCallback = new RpcPbCallback();
+
         if (config instanceof NioServerConfig) {
             this.channels = new LinkedList<>();
             this.ioQueue = new IoQueue(null);
@@ -92,6 +91,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             this.ioQueue = new IoQueue((ArrayList<DtChannel>) channels);
         }
 
+        RpcPbCallback pbCallback = new RpcPbCallback();
         workerParams = new WorkerParams();
         workerParams.setCallback(pbCallback);
         workerParams.setIoQueue(ioQueue);
