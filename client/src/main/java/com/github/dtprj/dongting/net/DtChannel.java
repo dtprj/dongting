@@ -395,4 +395,9 @@ class DtChannel {
     public String getWorkerName() {
         return this.workerParams.getWorkerName();
     }
+
+    @Override
+    public String toString() {
+        return "DTC[" + channel + "]";
+    }
 }
