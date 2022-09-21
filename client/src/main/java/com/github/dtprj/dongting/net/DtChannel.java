@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.pb.PbUtil;
 
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
-import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -41,8 +40,6 @@ class DtChannel {
     private final WorkerParams workerParams;
     private final SocketChannel channel;
 
-    private SelectionKey selectionKey;
-
     private WeakReference<ByteBuffer> readBufferCache;
     private ByteBuffer readBuffer;
     // read status
@@ -58,13 +55,9 @@ class DtChannel {
     public DtChannel(NioStatus nioStatus, WorkerParams workerParams, NioConfig nioConfig, SocketChannel socketChannel) {
         this.nioStatus = nioStatus;
         this.channel = socketChannel;
-        this.subQueue = new IoSubQueue(this::registerForWrite, workerParams.getPool());
+        this.subQueue = new IoSubQueue(workerParams.getPool());
         this.nioConfig = nioConfig;
         this.workerParams = workerParams;
-    }
-
-    private void registerForWrite() {
-        selectionKey.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
     }
 
     public ByteBuffer getOrCreateReadBuffer() {
@@ -366,10 +359,6 @@ class DtChannel {
         WorkerParams wp = this.workerParams;
         wp.getIoQueue().write(data);
         wp.getWakeupRunnable().run();
-    }
-
-    public void setSelectionKey(SelectionKey selectionKey) {
-        this.selectionKey = selectionKey;
     }
 
     public int getAndIncSeq() {

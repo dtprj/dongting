@@ -22,17 +22,20 @@ import java.util.ArrayList;
  * @author huangli
  */
 class IoSubQueue {
-    private final Runnable registerForWrite;
     private final ByteBufferPool pool;
+    private Runnable registerForWrite;
     private ByteBuffer writeBuffer;
 
     private final ArrayList<WriteFrame> subQueue = new ArrayList<>();
     private int subQueueBytes;
     private boolean writing;
 
-    public IoSubQueue(Runnable registerForWrite, ByteBufferPool pool) {
-        this.registerForWrite = registerForWrite;
+    public IoSubQueue(ByteBufferPool pool) {
         this.pool = pool;
+    }
+
+    public void setRegisterForWrite(Runnable registerForWrite) {
+        this.registerForWrite = registerForWrite;
     }
 
     public void enqueue(WriteFrame frame) {

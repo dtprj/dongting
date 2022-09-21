@@ -307,7 +307,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
         DtChannel dtc = new DtChannel(nioStatus, workerParams, config, sc);
         SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
-        dtc.setSelectionKey(selectionKey);
+        Runnable r = () -> selectionKey.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+        dtc.getSubQueue().setRegisterForWrite(r);
 
         Peer peer = hostPort == null ? new Peer(sc.getRemoteAddress(), true) : new Peer(hostPort, false);
         peer.setDtChannel(dtc);
