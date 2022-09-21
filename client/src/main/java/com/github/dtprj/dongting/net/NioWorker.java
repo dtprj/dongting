@@ -32,8 +32,8 @@ import java.nio.channels.spi.SelectorProvider;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -84,7 +84,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.requestSemaphore = nioStatus.getRequestSemaphore();
 
         if (config instanceof NioServerConfig) {
-            this.channels = new LinkedList<>();
+            this.channels = new HashSet<>();
             this.ioQueue = new IoQueue(null);
         } else {
             this.channels = new ArrayList<>();
