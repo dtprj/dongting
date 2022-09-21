@@ -388,8 +388,8 @@ class DtChannel {
         return closed;
     }
 
-    public void setClosed(boolean closed) {
-        this.closed = closed;
+    public void close() {
+        this.closed = true;
     }
 
     public String getWorkerName() {

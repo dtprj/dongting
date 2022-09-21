@@ -241,12 +241,12 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         SocketChannel sc = (SocketChannel) key.channel();
         if (obj instanceof DtChannel) {
             DtChannel dtc = (DtChannel) obj;
-            dtc.setClosed(true);
+            dtc.close();
             channels.remove(dtc);
         } else {
             channels.removeIf(d -> {
                 if (d.getChannel() == sc) {
-                    d.setClosed(true);
+                    d.close();
                     return true;
                 } else {
                     return false;
