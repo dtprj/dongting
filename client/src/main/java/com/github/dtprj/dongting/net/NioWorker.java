@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.log.DtLogs;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
@@ -117,10 +116,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     // invoke by other threads
     public CompletableFuture<Void> connect(Peer peer) {
-        HostPort hp = (HostPort) peer.getEndPoint();
-        InetSocketAddress addr = new InetSocketAddress(hp.getHost(), hp.getPort());
         CompletableFuture<Void> f = new CompletableFuture<>();
-        actions.add(() -> doConnect(addr, f, hp));
+        actions.add(() -> doConnect(f, peer));
         wakeup();
         return f;
     }
@@ -328,15 +325,17 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    private void doConnect(SocketAddress socketAddress, CompletableFuture<Void> f, HostPort hp) {
+    private void doConnect(CompletableFuture<Void> f, Peer peer) {
         SocketChannel sc = null;
         try {
+            HostPort hp = (HostPort) peer.getEndPoint();
+            InetSocketAddress addr = new InetSocketAddress(hp.getHost(), hp.getPort());
             sc = SocketChannel.open();
             sc.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
             sc.setOption(StandardSocketOptions.TCP_NODELAY, true);
             sc.configureBlocking(false);
             sc.register(selector, SelectionKey.OP_CONNECT, new Object[]{f, hp});
-            sc.connect(socketAddress);
+            sc.connect(addr);
         } catch (Throwable e) {
             if (sc != null) {
                 closeChannel0(sc);
