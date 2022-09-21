@@ -24,7 +24,6 @@ import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
-import java.util.HashMap;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -39,13 +38,8 @@ class DtChannel {
 
     private final NioStatus nioStatus;
     private final NioConfig nioConfig;
-
+    private final WorkerParams workerParams;
     private final SocketChannel channel;
-    private final String workerName;
-
-    private final RpcPbCallback pbCallback;
-    private final Runnable wakeupRunnable;
-    private final IoQueue ioQueue;
 
     private SelectionKey selectionKey;
 
@@ -55,7 +49,6 @@ class DtChannel {
     private int currentReadFrameSize = -1;
     private int readBufferMark = 0;
 
-    private final HashMap<Integer, WriteData> pendingRequests;
     private int seq = 1;
 
     private final IoSubQueue subQueue;
@@ -64,14 +57,10 @@ class DtChannel {
 
     public DtChannel(NioStatus nioStatus, WorkerParams workerParams, NioConfig nioConfig, SocketChannel socketChannel) {
         this.nioStatus = nioStatus;
-        this.pbCallback = workerParams.getCallback();
         this.channel = socketChannel;
-        this.ioQueue = workerParams.getIoQueue();
-        this.wakeupRunnable = workerParams.getWakeupRunnable();
-        this.pendingRequests = workerParams.getPendingRequests();
         this.subQueue = new IoSubQueue(this::registerForWrite, workerParams.getPool());
         this.nioConfig = nioConfig;
-        this.workerName = workerParams.getWorkerName();
+        this.workerParams = workerParams;
     }
 
     private void registerForWrite() {
@@ -135,7 +124,7 @@ class DtChannel {
         int limit = buf.limit();
         buf.limit(buf.position() + currentReadFrameSize);
         ReadFrame f = new ReadFrame();
-        RpcPbCallback pbCallback = this.pbCallback;
+        RpcPbCallback pbCallback = this.workerParams.getCallback();
         pbCallback.setFrame(f);
         PbUtil.parse(buf, pbCallback);
         int pos = buf.position();
@@ -160,7 +149,7 @@ class DtChannel {
     }
 
     private void processIncomingResponse(ByteBuffer buf, ReadFrame resp) {
-        WriteData wo = pendingRequests.remove(resp.getSeq());
+        WriteData wo = this.workerParams.getPendingRequests().remove(resp.getSeq());
         if (wo == null) {
             log.debug("pending request not found. channel={}, resp={}", channel, resp);
             return;
@@ -374,8 +363,9 @@ class DtChannel {
     // invoke by other threads
     private void writeRespInBizThreads(WriteFrame frame) {
         WriteData data = new WriteData(this, frame);
-        this.ioQueue.write(data);
-        this.wakeupRunnable.run();
+        WorkerParams wp = this.workerParams;
+        wp.getIoQueue().write(data);
+        wp.getWakeupRunnable().run();
     }
 
     public void setSelectionKey(SelectionKey selectionKey) {
@@ -403,6 +393,6 @@ class DtChannel {
     }
 
     public String getWorkerName() {
-        return workerName;
+        return this.workerParams.getWorkerName();
     }
 }
