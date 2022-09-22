@@ -16,6 +16,8 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.common.DtTime;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -26,10 +28,8 @@ import java.util.concurrent.TimeUnit;
  * @author huangli
  */
 public class NioServerTest {
-    private static final int LOOP = 100;
-    private static final int SIZE = 5;
-
-    public static void main(String[] args) throws Exception {
+    @Test
+    public void test() throws Exception {
         NioServerConfig c = new NioServerConfig();
         c.setIoThreads(1);
         c.setPort(9000);
@@ -44,16 +44,16 @@ public class NioServerTest {
         client.start();
         client.waitStart();
 
-        for (int i = 0; i < LOOP; i++) {
+        for (int i = 0; i < 10; i++) {
             ByteBufferWriteFrame req = new ByteBufferWriteFrame();
             req.setFrameType(CmdType.TYPE_REQ);
             req.setCommand(Commands.CMD_PING);
-            req.setBody(ByteBuffer.wrap(new byte[SIZE]));
+            req.setBody(ByteBuffer.wrap(new byte[5]));
             CompletableFuture<ReadFrame> future = client.sendRequest(req,
                     ByteBufferDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS));
 
             ByteBuffer buf = (ByteBuffer) future.get().getBody();
-            System.out.println("client get " + buf.remaining());
+            Assertions.assertEquals(5, buf.remaining());
         }
 
         client.stop();
