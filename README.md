@@ -1,3 +1,5 @@
+[![Java CI with Maven](https://github.com/dtprj/dongting/actions/workflows/maven.yml/badge.svg)](https://github.com/dtprj/dongting/actions/workflows/maven.yml)
+
 # dongting
 a raft/mq/config/rpc engine in single jar with excellent performance
 
