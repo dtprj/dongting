@@ -33,6 +33,7 @@ class ByteBufferPool {
     private final int[] stackSizes;
     private final long timeoutNanos;
     private final boolean direct;
+    private final int[] minCount;
 
     private static final int[] DEFAULT_BUF_SIZE = new int[]{1024, 2048, 4096, 8192, 16 * 1024,
             32 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 512 * 1024, 1024 * 1024, 2 * 1024 * 1024,
@@ -58,21 +59,24 @@ class ByteBufferPool {
             throw new IllegalArgumentException();
         }
         if (timeoutMillis <= 0) {
-            throw new IllegalArgumentException("timeout: " + timeoutMillis);
+            throw new IllegalArgumentException("timeout<=0. timeout=" + timeoutMillis);
         }
         for (int i : bufSizes) {
             if (i <= 0) {
-                throw new IllegalArgumentException();
+                throw new IllegalArgumentException("bufSize<0");
             }
         }
         for (int i : minCount) {
             if (i < 0) {
-                throw new IllegalArgumentException();
+                throw new IllegalArgumentException("minCount<0");
             }
         }
-        for (int i : maxCount) {
-            if (i <= 0) {
-                throw new IllegalArgumentException();
+        for (int i = 0; i < maxCount.length; i++) {
+            if (maxCount[i] <= 0) {
+                throw new IllegalArgumentException("maxCount<0");
+            }
+            if (maxCount[i] < minCount[i]) {
+                throw new IllegalArgumentException("maxCount<minCount");
             }
         }
         this.direct = direct;
@@ -81,12 +85,13 @@ class ByteBufferPool {
         bufferStacks = new ByteBuffer[bufSizes.length][];
         returnTimes = new long[bufSizes.length][];
         for (int i = 0; i < bufSizes.length; i++) {
-            bufferStacks[i] = new ByteBuffer[maxCount.length];
-            returnTimes[i] = new long[maxCount.length];
+            bufferStacks[i] = new ByteBuffer[maxCount[i]];
+            returnTimes[i] = new long[maxCount[i]];
         }
         bottomIndices = new int[bufSizes.length];
         topIndices = new int[bufSizes.length];
         stackSizes = new int[bufSizes.length];
+        this.minCount = minCount;
     }
 
     private ByteBuffer allocate(int size) {
@@ -172,7 +177,8 @@ class ByteBufferPool {
             int size = stackSizes[stackIndex];
             int bottom = bottomIndices[stackIndex];
             int capacity = stack.length;
-            while (size > 0) {
+            int min = this.minCount[stackIndex];
+            while (size > min) {
                 if (stackReturnTime[bottom] - expireNanos > 0) {
                     break;
                 } else {
