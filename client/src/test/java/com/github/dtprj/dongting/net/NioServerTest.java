@@ -16,48 +16,94 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.common.DtTime;
-import org.junit.jupiter.api.Assertions;
+import com.github.dtprj.dongting.pb.DtFrame;
+import com.google.protobuf.ByteString;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.concurrent.CompletableFuture;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.net.Socket;
+import java.util.HashMap;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * @author huangli
  */
 public class NioServerTest {
-    @Test
-    public void test() throws Exception {
+    private static final int CMD_IO_PING = 3000;
+    private static final int CMD_BIZ_PING = 3001;
+
+    private static final int PORT = 9000;
+
+    private NioServer server;
+
+    private void setupServer(Consumer<NioServerConfig> consumer) throws Exception {
         NioServerConfig c = new NioServerConfig();
-        c.setIoThreads(1);
-        c.setPort(9000);
-        NioServer server = new NioServer(c);
-
-        server.start();
-
-        Thread.sleep(100);
-        NioClientConfig clientConfig = new NioClientConfig();
-        clientConfig.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
-        NioClient client = new NioClient(clientConfig);
-        client.start();
-        client.waitStart();
-
-        for (int i = 0; i < 10; i++) {
-            ByteBufferWriteFrame req = new ByteBufferWriteFrame();
-            req.setFrameType(CmdType.TYPE_REQ);
-            req.setCommand(Commands.CMD_PING);
-            req.setBody(ByteBuffer.wrap(new byte[5]));
-            CompletableFuture<ReadFrame> future = client.sendRequest(req,
-                    ByteBufferDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS));
-
-            ByteBuffer buf = (ByteBuffer) future.get().getBody();
-            Assertions.assertEquals(5, buf.remaining());
+        c.setPort(PORT);
+        if (consumer != null) {
+            consumer.accept(c);
         }
+        server = new NioServer(c);
+        server.register(CMD_IO_PING, new NioServer.PingProcessor(true));
+        server.register(CMD_BIZ_PING, new NioServer.PingProcessor(false));
+        server.start();
+    }
 
-        client.stop();
-
+    @AfterEach
+    public void teardown() throws Exception {
         server.stop();
+    }
+
+    @Test
+    public void simpleTest() throws Exception {
+        setupServer(null);
+        Socket s = new Socket("127.0.0.1", PORT);
+        DataInputStream in = new DataInputStream(s.getInputStream());
+        DataOutputStream out = new DataOutputStream(s.getOutputStream());
+        Random r = new Random();
+        DtTime t = new DtTime();
+        int seq = 0;
+        while (t.elapse(TimeUnit.MILLISECONDS) < 1000) {
+            int count = r.nextInt(10) + 1;
+            HashMap<Integer, byte[]> map = new HashMap<>();
+            for (int i = 0; i < count; i++) {
+                if (r.nextDouble() < 0.05) {
+                    //empty test
+                    map.put(seq + i, new byte[]{});
+                } else {
+                    byte[] bs = new byte[r.nextInt(5000)];
+                    r.nextBytes(bs);
+                    map.put(seq + i, bs);
+                }
+            }
+            for (int i = 0; i < count; i++) {
+                DtFrame.Frame frame = DtFrame.Frame.newBuilder().setFrameType(CmdType.TYPE_REQ)
+                        .setSeq(seq + i)
+                        .setCommand(r.nextBoolean() ? CMD_IO_PING : CMD_BIZ_PING)
+                        .setBody(ByteString.copyFrom(map.get(seq + i)))
+                        .build();
+                byte[] bs = frame.toByteArray();
+                out.writeInt(bs.length);
+                out.write(bs);
+            }
+            seq += count;
+            out.flush();
+            for (int i = 0; i < count; i++) {
+                int len = in.readInt();
+                byte[] resp = new byte[len];
+                in.readFully(resp);
+                DtFrame.Frame frame = DtFrame.Frame.parseFrom(resp);
+                assertEquals(CmdType.TYPE_RESP, frame.getFrameType());
+                assertEquals(CmdCodes.SUCCESS, frame.getRespCode());
+                assertArrayEquals(map.get(frame.getSeq()), frame.getBody().toByteArray());
+            }
+        }
+        s.close();
     }
 }
