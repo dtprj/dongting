@@ -33,7 +33,6 @@ class DtChannel {
     private static final DtLog log = DtLogs.getLogger(DtChannel.class);
 
     private static final int INIT_BUF_SIZE = 2048;
-    private static final int MAX_FRAME_SIZE = 8 * 1024 * 1024;
 
     private final NioStatus nioStatus;
     private final NioConfig nioConfig;
@@ -93,7 +92,7 @@ class DtChannel {
                 // read frame length
                 if (rest >= 4) {
                     currentReadFrameSize = buf.getInt();
-                    if (currentReadFrameSize <= 0 || currentReadFrameSize > MAX_FRAME_SIZE) {
+                    if (currentReadFrameSize <= 0 || currentReadFrameSize > nioConfig.getMaxFrameSize()) {
                         throw new DtException("frame too large: " + currentReadFrameSize);
                     }
                     readBufferMark = buf.position();

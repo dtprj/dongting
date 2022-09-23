@@ -33,6 +33,8 @@ public abstract class NioConfig {
     private int cleanIntervalMills = 100;
     private int closeTimeoutMillis = 1000;
 
+    private int maxFrameSize = 8 * 1024 * 1024;
+
     private int[] bufPoolSize = ByteBufferPool.DEFAULT_BUF_SIZE;
     private int[] bufPoolMinCount = ByteBufferPool.DEFAULT_MIN_COUNT;
     private int[] bufPoolMaxCount = ByteBufferPool.DEFAULT_MAX_COUNT;
@@ -149,5 +151,13 @@ public abstract class NioConfig {
 
     public void setBufPoolTimeout(long bufPoolTimeout) {
         this.bufPoolTimeout = bufPoolTimeout;
+    }
+
+    public int getMaxFrameSize() {
+        return maxFrameSize;
+    }
+
+    public void setMaxFrameSize(int maxFrameSize) {
+        this.maxFrameSize = maxFrameSize;
     }
 }
