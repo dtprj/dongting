@@ -35,17 +35,19 @@ class ByteBufferPool {
     private final boolean direct;
     private final int[] minCount;
 
-    private static final int[] DEFAULT_BUF_SIZE = new int[]{1024, 2048, 4096, 8192, 16 * 1024,
+    public static final int[] DEFAULT_BUF_SIZE = new int[]{1024, 2048, 4096, 8192, 16 * 1024,
             32 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 512 * 1024, 1024 * 1024, 2 * 1024 * 1024,
             4 * 1024 * 1024};
 
-    private static final int[] DEFAULT_MAX_COUNT = new int[]{128, 128, 128, 128, 128,
+    public static final int[] DEFAULT_MAX_COUNT = new int[]{128, 128, 128, 128, 128,
             128, 128, 64, 64, 32, 16, 8,
             4};
 
-    private static final int[] DEFAULT_MIN_COUNT = new int[]{16, 16, 16, 16, 16,
+    public static final int[] DEFAULT_MIN_COUNT = new int[]{16, 16, 16, 16, 16,
             16, 8, 4, 2, 1, 0, 0,
             0};
+
+    public static final long DEFAULT_TIME_OUT_MILLIS = 10 * 1000;
 
     public ByteBufferPool(boolean direct) {
         this(direct, DEFAULT_BUF_SIZE, DEFAULT_MIN_COUNT, DEFAULT_MAX_COUNT, 10 * 1000);

@@ -70,7 +70,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private final Semaphore requestSemaphore;
 
-    private final ByteBufferPool pool = new ByteBufferPool(true);
+    private final ByteBufferPool pool;
 
     private final WorkerParams workerParams;
 
@@ -89,6 +89,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             this.channels = new ArrayList<>();
             this.ioQueue = new IoQueue((ArrayList<DtChannel>) channels);
         }
+
+        this.pool = new ByteBufferPool(true, config.getBufPoolSize(), config.getBufPoolMinCount(),
+                config.getBufPoolMaxCount(), config.getBufPoolTimeout());
 
         RpcPbCallback pbCallback = new RpcPbCallback();
         workerParams = new WorkerParams();

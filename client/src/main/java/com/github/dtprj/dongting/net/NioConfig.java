@@ -33,6 +33,12 @@ public abstract class NioConfig {
     private int cleanIntervalMills = 100;
     private int closeTimeoutMillis = 1000;
 
+    private int[] bufPoolSize = ByteBufferPool.DEFAULT_BUF_SIZE;
+    private int[] bufPoolMinCount = ByteBufferPool.DEFAULT_MIN_COUNT;
+    private int[] bufPoolMaxCount = ByteBufferPool.DEFAULT_MAX_COUNT;
+    private long bufPoolTimeout = ByteBufferPool.DEFAULT_TIME_OUT_MILLIS;
+
+
     public int getBizThreads() {
         return bizThreads;
     }
@@ -113,4 +119,35 @@ public abstract class NioConfig {
         this.maxInBytes = maxInBytes;
     }
 
+    public int[] getBufPoolSize() {
+        return bufPoolSize;
+    }
+
+    public void setBufPoolSize(int[] bufPoolSize) {
+        this.bufPoolSize = bufPoolSize;
+    }
+
+    public int[] getBufPoolMinCount() {
+        return bufPoolMinCount;
+    }
+
+    public void setBufPoolMinCount(int[] bufPoolMinCount) {
+        this.bufPoolMinCount = bufPoolMinCount;
+    }
+
+    public int[] getBufPoolMaxCount() {
+        return bufPoolMaxCount;
+    }
+
+    public void setBufPoolMaxCount(int[] bufPoolMaxCount) {
+        this.bufPoolMaxCount = bufPoolMaxCount;
+    }
+
+    public long getBufPoolTimeout() {
+        return bufPoolTimeout;
+    }
+
+    public void setBufPoolTimeout(long bufPoolTimeout) {
+        this.bufPoolTimeout = bufPoolTimeout;
+    }
 }
