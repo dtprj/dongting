@@ -308,13 +308,13 @@ class DtChannel {
         int frameSize = this.currentReadFrameSize;
         int mark = this.readBufferMark;
         if (frameSize == -1) {
-            if (mark == capacity) {
-                // read complete and buffer exhausted
+            if (mark == endIndex) {
+                // read complete
                 buf.clear();
                 this.readBufferMark = 0;
             } else {
                 int c = endIndex - mark;
-                assert c >= 0 && c < 4;
+                assert c > 0 && c < 4;
                 if (capacity - endIndex < 4 - c) {
                     // move length bytes to start
                     for (int i = 0; i < c; i++) {
