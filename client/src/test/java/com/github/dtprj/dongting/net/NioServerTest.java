@@ -27,10 +27,13 @@ import java.net.Socket;
 import java.util.HashMap;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * @author huangli
@@ -63,21 +66,26 @@ public class NioServerTest {
     @Test
     public void simpleTest() throws Exception {
         setupServer(null);
+        simpleTest(1000, 0, 5000, null);
+    }
+
+    private void simpleTest(long millis, int innerLoop, int maxBodySize,
+                            BiConsumer<DataOutputStream, byte[]> writer) throws Exception {
         Socket s = new Socket("127.0.0.1", PORT);
         DataInputStream in = new DataInputStream(s.getInputStream());
         DataOutputStream out = new DataOutputStream(s.getOutputStream());
         Random r = new Random();
         DtTime t = new DtTime();
         int seq = 0;
-        while (t.elapse(TimeUnit.MILLISECONDS) < 1000) {
-            int count = r.nextInt(10) + 1;
+        while (t.elapse(TimeUnit.MILLISECONDS) < millis) {
+            int count = innerLoop <= 0 ? r.nextInt(10) + 1 : innerLoop;
             HashMap<Integer, byte[]> map = new HashMap<>();
             for (int i = 0; i < count; i++) {
                 if (r.nextDouble() < 0.05) {
                     //empty test
                     map.put(seq + i, new byte[]{});
                 } else {
-                    byte[] bs = new byte[r.nextInt(5000)];
+                    byte[] bs = new byte[r.nextInt(maxBodySize)];
                     r.nextBytes(bs);
                     map.put(seq + i, bs);
                 }
@@ -89,8 +97,12 @@ public class NioServerTest {
                         .setBody(ByteString.copyFrom(map.get(seq + i)))
                         .build();
                 byte[] bs = frame.toByteArray();
-                out.writeInt(bs.length);
-                out.write(bs);
+                if (writer == null) {
+                    out.writeInt(bs.length);
+                    out.write(bs);
+                } else {
+                    writer.accept(out, bs);
+                }
             }
             seq += count;
             out.flush();
@@ -105,5 +117,68 @@ public class NioServerTest {
             }
         }
         s.close();
+    }
+
+    @Test
+    public void multiClientTest() throws Exception {
+        setupServer(null);
+        final int threads = 200;
+        AtomicBoolean fail = new AtomicBoolean(false);
+        Thread[] ts = new Thread[threads];
+        for (int i = 0; i < threads; i++) {
+            Runnable r = () -> {
+                try {
+                    simpleTest(1000, 0, 5000, null);
+                } catch (Throwable e) {
+                    e.printStackTrace();
+                    fail.set(true);
+                }
+            };
+            ts[i] = new Thread(r);
+            ts[i].start();
+        }
+        for (int i = 0; i < threads; i++) {
+            ts[i].join();
+        }
+        assertFalse(fail.get());
+    }
+
+    @Test
+    public void clientReadBlockTest() throws Exception {
+        setupServer(null);
+        simpleTest(10, 1000, 1 * 1024 * 1024, null);
+    }
+
+    @Test
+    public void clientSlowWriteTest() throws Exception {
+        setupServer(null);
+        Random r = new Random();
+        simpleTest(100, 2, 4096, (out, data) -> {
+            try {
+                int len = data.length;
+                out.write(len >>> 24);
+                out.flush();
+                Thread.sleep(1);
+                out.write((len >>> 16) & 0xFF);
+                out.flush();
+                Thread.sleep(1);
+                out.write((len >>> 8) & 0xFF);
+                out.flush();
+                Thread.sleep(1);
+                out.write(len & 0xFF);
+                out.flush();
+                Thread.sleep(1);
+
+                for (int i = 0; i < data.length; i++) {
+                    out.write(data[i]);
+                    if (r.nextDouble() < 0.1) {
+                        out.flush();
+                        Thread.sleep(1);
+                    }
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 }
