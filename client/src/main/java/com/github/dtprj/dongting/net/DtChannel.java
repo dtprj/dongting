@@ -123,13 +123,16 @@ class DtChannel {
         int pos = buf.position();
 
         int type = f.getFrameType();
-        buf.position(pbCallback.getBodyStart());
-        buf.limit(pbCallback.getBodyLimit());
+        boolean hasBody = pbCallback.getBodyStart() != -1;
+        if (hasBody) {
+            buf.position(pbCallback.getBodyStart());
+            buf.limit(pbCallback.getBodyLimit());
+        }
         try {
             if (type == CmdType.TYPE_REQ) {
-                processIncomingRequest(buf, f, running, currentReadFrameSize);
+                processIncomingRequest(hasBody ? buf : ByteBufferPool.EMPTY_BUFFER, f, running, currentReadFrameSize);
             } else if (type == CmdType.TYPE_RESP) {
-                processIncomingResponse(buf, f);
+                processIncomingResponse(hasBody ? buf : ByteBufferPool.EMPTY_BUFFER, f);
             } else {
                 log.warn("bad frame type: {}, {}", type, channel);
             }

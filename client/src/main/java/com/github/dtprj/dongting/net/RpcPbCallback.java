@@ -35,6 +35,8 @@ class RpcPbCallback implements PbCallback {
 
     public void setFrame(ReadFrame frame) {
         this.frame = frame;
+        this.bodyStart = -1;
+        this.bodyLimit = -1;
     }
 
     @Override

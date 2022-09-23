@@ -25,6 +25,8 @@ import java.util.Objects;
  */
 // TODO byte buffer pool need optimise
 class ByteBufferPool {
+    public static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0).asReadOnlyBuffer();
+
     private final int[] bufSizes;
     private final ByteBuffer[][] bufferStacks;
     private final long[][] returnTimes;
