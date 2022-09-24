@@ -15,29 +15,19 @@
  */
 package com.github.dtprj.dongting.log;
 
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+
 /**
  * @author huangli
  */
-public class DtLogs {
-    private static DtLogFactory instance;
-
-    static {
-        if (Slf4jFactory.slf4jExists()) {
-            instance = Slf4jFactory.INSTANCE;
-        } else {
-            instance = JdkFactory.INSTANCE;
-        }
-    }
-
-    public static DtLog getLogger(String name) {
-        return instance.getLogger(name);
-    }
-
-    public static DtLog getLogger(Class<?> clazz) {
-        return instance.getLogger(clazz);
-    }
-
-    public static void setInstance(DtLogFactory instance) {
-        DtLogs.instance = instance;
+public class DtLogsTest {
+    @Test
+    public void test() {
+        Assertions.assertEquals(Slf4jLog.class, DtLogs.getLogger("test").getClass());
+        DtLogs.setInstance(JdkFactory.INSTANCE);
+        Assertions.assertEquals(JdkLog.class, DtLogs.getLogger("test").getClass());
+        DtLogs.setInstance(Slf4jFactory.INSTANCE);
+        Assertions.assertEquals(Slf4jLog.class, DtLogs.getLogger("test").getClass());
     }
 }

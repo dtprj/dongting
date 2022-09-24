@@ -22,6 +22,11 @@ import java.util.logging.Logger;
  * @author huangli
  */
 public class JdkFactory implements DtLogFactory {
+    public static final JdkFactory INSTANCE = new JdkFactory();
+
+    private JdkFactory() {
+    }
+
     @Override
     public DtLog getLogger(String name) {
         return new JdkLog(Logger.getLogger(name));

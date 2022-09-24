@@ -23,6 +23,11 @@ import org.slf4j.LoggerFactory;
  */
 public class Slf4jFactory implements DtLogFactory {
 
+    public static final Slf4jFactory INSTANCE = new Slf4jFactory();
+
+    private Slf4jFactory() {
+    }
+
     public static boolean slf4jExists() {
         try {
             Class.forName("org.slf4j.Logger");
