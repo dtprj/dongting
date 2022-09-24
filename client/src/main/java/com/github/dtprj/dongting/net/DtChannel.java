@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -46,18 +47,21 @@ class DtChannel {
     private int currentReadFrameSize = -1;
     private int readBufferMark = 0;
 
+    private final int channelIndexInWorker;
     private int seq = 1;
 
     private final IoSubQueue subQueue;
 
     private boolean closed;
 
-    public DtChannel(NioStatus nioStatus, WorkerParams workerParams, NioConfig nioConfig, SocketChannel socketChannel) {
+    public DtChannel(NioStatus nioStatus, WorkerParams workerParams, NioConfig nioConfig,
+                     SocketChannel socketChannel, int channelIndexInWorker) {
         this.nioStatus = nioStatus;
         this.channel = socketChannel;
         this.subQueue = new IoSubQueue(workerParams.getPool());
         this.nioConfig = nioConfig;
         this.workerParams = workerParams;
+        this.channelIndexInWorker = channelIndexInWorker;
     }
 
     public ByteBuffer getOrCreateReadBuffer() {
@@ -145,7 +149,7 @@ class DtChannel {
     }
 
     private void processIncomingResponse(ByteBuffer buf, ReadFrame resp) {
-        WriteData wo = this.workerParams.getPendingRequests().remove(resp.getSeq());
+        WriteData wo = this.workerParams.getPendingRequests().remove(BitUtil.toLong(channelIndexInWorker, resp.getSeq()));
         if (wo == null) {
             log.debug("pending request not found. channel={}, resp={}", channel, resp);
             return;
@@ -366,6 +370,10 @@ class DtChannel {
 
     public int getAndIncSeq() {
         return seq++;
+    }
+
+    public int getChannelIndexInWorker() {
+        return channelIndexInWorker;
     }
 
     public IoSubQueue getSubQueue() {

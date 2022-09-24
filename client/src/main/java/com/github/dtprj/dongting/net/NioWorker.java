@@ -62,10 +62,11 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private final ConcurrentLinkedQueue<Runnable> actions = new ConcurrentLinkedQueue<>();
 
+    private int channelIndex;
     private final Collection<DtChannel> channels;
     private final IoQueue ioQueue;
 
-    private final HashMap<Integer, WriteData> pendingOutgoingRequests = new HashMap<>();
+    private final HashMap<Long, WriteData> pendingOutgoingRequests = new HashMap<>();
     private final CompletableFuture<Void> preCloseFuture = new CompletableFuture<>();
 
     private final Semaphore requestSemaphore;
@@ -309,7 +310,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         sc.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
         sc.setOption(StandardSocketOptions.TCP_NODELAY, true);
 
-        DtChannel dtc = new DtChannel(nioStatus, workerParams, config, sc);
+        DtChannel dtc = new DtChannel(nioStatus, workerParams, config, sc, channelIndex++);
         SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
         dtc.getSubQueue().setRegisterForWrite(new RegWriteRunner(selectionKey));
 
@@ -371,15 +372,16 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     private void cleanTimeoutReq() {
-        Iterator<Map.Entry<Integer, WriteData>> it = this.pendingOutgoingRequests.entrySet().iterator();
+        Iterator<Map.Entry<Long, WriteData>> it = this.pendingOutgoingRequests.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<Integer, WriteData> en = it.next();
-            DtTime t = en.getValue().getTimeout();
+            Map.Entry<Long, WriteData> en = it.next();
+            WriteData d = en.getValue();
+            DtTime t = d.getTimeout();
             if (t.rest(TimeUnit.MILLISECONDS) <= 0) {
                 it.remove();
                 log.debug("drop timeout request: {}ms, seq={}, {}",
-                        t.getTimeout(TimeUnit.MILLISECONDS), en.getValue().getData().getSeq(),
-                        en.getValue().getDtc());
+                        t.getTimeout(TimeUnit.MILLISECONDS), d.getData().getSeq(),
+                        d.getDtc());
                 String msg = "timeout: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
                 en.getValue().getFuture().completeExceptionally(new NetTimeoutException(msg));
                 requestSemaphore.release();

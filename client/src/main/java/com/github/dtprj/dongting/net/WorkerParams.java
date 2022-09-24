@@ -24,7 +24,7 @@ class WorkerParams {
     private RpcPbCallback callback;
     private IoQueue ioQueue;
     private Runnable wakeupRunnable;
-    private HashMap<Integer, WriteData> pendingRequests;
+    private HashMap<Long, WriteData> pendingRequests;
     private ByteBufferPool pool;
     private String workerName;
 
@@ -55,11 +55,11 @@ class WorkerParams {
         this.wakeupRunnable = wakeupRunnable;
     }
 
-    public HashMap<Integer, WriteData> getPendingRequests() {
+    public HashMap<Long, WriteData> getPendingRequests() {
         return pendingRequests;
     }
 
-    public void setPendingRequests(HashMap<Integer, WriteData> pendingRequests) {
+    public void setPendingRequests(HashMap<Long, WriteData> pendingRequests) {
         this.pendingRequests = pendingRequests;
     }
 

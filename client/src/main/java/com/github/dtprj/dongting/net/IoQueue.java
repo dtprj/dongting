@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -42,7 +43,7 @@ class IoQueue {
         writeQueue.add(data);
     }
 
-    public boolean dispatchWriteQueue(HashMap<Integer, WriteData> pendingRequests) {
+    public boolean dispatchWriteQueue(HashMap<Long, WriteData> pendingRequests) {
         ConcurrentLinkedQueue<WriteData> writeQueue = this.writeQueue;
         WriteData wo;
         boolean result = false;
@@ -52,7 +53,7 @@ class IoQueue {
         return result;
     }
 
-    private boolean enqueue(HashMap<Integer, WriteData> pendingRequests, WriteData wo) {
+    private boolean enqueue(HashMap<Long, WriteData> pendingRequests, WriteData wo) {
         WriteFrame frame = wo.getData();
         DtChannel dtc = wo.getDtc();
         if (dtc == null) {
@@ -93,12 +94,13 @@ class IoQueue {
         if (frame.getFrameType() == CmdType.TYPE_REQ) {
             int seq = dtc.getAndIncSeq();
             frame.setSeq(seq);
-            WriteData old = pendingRequests.put(seq, wo);
+            long key = BitUtil.toLong(dtc.getChannelIndexInWorker(), seq);
+            WriteData old = pendingRequests.put(key, wo);
             if (old != null) {
                 String errMsg = "dup seq: old=" + old.getData() + ", new=" + frame;
                 log.error(errMsg);
                 wo.getFuture().completeExceptionally(new NetException(errMsg));
-                pendingRequests.put(frame.getSeq(), old);
+                pendingRequests.put(key, old);
                 return false;
             }
         }
