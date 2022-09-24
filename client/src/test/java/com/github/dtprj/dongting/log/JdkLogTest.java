@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.log;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -26,30 +27,39 @@ import java.util.logging.Logger;
 public class JdkLogTest {
     @Test
     public void test() {
-        DtLog log = new JdkLog(Logger.getLogger(JdkLogTest.class.getName()));
+        Logger jdkLogger = Logger.getLogger(JdkLogTest.class.getName());
+        jdkLogger.setLevel(Level.ALL);
+        DtLog log = new JdkLog(jdkLogger);
 
-        Assertions.assertFalse(log.isDebugEnabled());
+        Assertions.assertTrue(log.isDebugEnabled());
         log.debug("msg");
         log.debug("msg {}", 1);
         log.debug("msg {} {}", 1, 2);
+        log.debug("msg {} {} {}", 1, 2, 3);
         log.debug("msg {} {}", new Exception());
 
         Assertions.assertTrue(log.isInfoEnabled());
         log.info("msg");
         log.info("msg {}", 1);
         log.info("msg {} {}", 1, 2);
+        log.info("msg {} {} {}", 1, 2, 3);
         log.info("msg {} {}", new Exception());
 
         Assertions.assertTrue(log.isWarnEnabled());
         log.warn("msg");
         log.warn("msg {}", 1);
         log.warn("msg {} {}", 1, 2);
+        log.warn("msg {} {} {}", 1, 2, 3);
         log.warn("msg {} {}", new Exception());
 
         Assertions.assertTrue(log.isErrorEnabled());
         log.error("msg");
         log.error("msg {}", 1);
-        log.error("msg {} {}", 1, 2);
+        log.error("msg {} {} {}", 1, 2, 3);
         log.error("msg {} {}", new Exception());
+
+        // bad params
+        log.info("{} {}", 1);
+        log.info("{}", 1, 2);
     }
 }
