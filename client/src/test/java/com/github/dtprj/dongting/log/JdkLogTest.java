@@ -31,6 +31,10 @@ public class JdkLogTest {
         jdkLogger.setLevel(Level.ALL);
         DtLog log = new JdkLog(jdkLogger);
 
+        testLog(log);
+    }
+
+    static void testLog(DtLog log) {
         Assertions.assertTrue(log.isDebugEnabled());
         log.debug("msg");
         log.debug("msg {}", 1);

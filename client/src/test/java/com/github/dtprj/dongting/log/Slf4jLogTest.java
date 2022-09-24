@@ -15,22 +15,16 @@
  */
 package com.github.dtprj.dongting.log;
 
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 /**
  * @author huangli
  */
-public class DtLogsTest {
+public class Slf4jLogTest {
     @Test
     public void test() {
-        Assertions.assertEquals(Slf4jLog.class, DtLogs.getLogger(DtLogsTest.class.getName()).getClass());
-        Assertions.assertEquals(Slf4jLog.class, DtLogs.getLogger(DtLogsTest.class).getClass());
-        DtLogs.setInstance(JdkFactory.INSTANCE);
-        Assertions.assertEquals(JdkLog.class, DtLogs.getLogger(DtLogsTest.class.getName()).getClass());
-        Assertions.assertEquals(JdkLog.class, DtLogs.getLogger(DtLogsTest.class).getClass());
-        DtLogs.setInstance(Slf4jFactory.INSTANCE);
-        Assertions.assertEquals(Slf4jLog.class, DtLogs.getLogger(DtLogsTest.class.getName()).getClass());
-        Assertions.assertEquals(Slf4jLog.class, DtLogs.getLogger(DtLogsTest.class).getClass());
+        DtLog log = new Slf4jLog(LoggerFactory.getLogger(Slf4jLogTest.class));
+        JdkLogTest.testLog(log);
     }
 }
