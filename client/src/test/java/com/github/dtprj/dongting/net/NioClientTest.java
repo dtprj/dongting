@@ -118,9 +118,9 @@ public class NioClientTest {
         public void close() throws Exception {
             stop = true;
             readThread.interrupt();
-            readThread.join();
+            readThread.join(1000);
             writeThread.interrupt();
-            writeThread.join();
+            writeThread.join(1000);
             ss.close();
         }
     }
