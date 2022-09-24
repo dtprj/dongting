@@ -72,6 +72,7 @@ public class NioServerTest {
     private void simpleTest(long millis, int innerLoop, int maxBodySize,
                             BiConsumer<DataOutputStream, byte[]> writer) throws Exception {
         Socket s = new Socket("127.0.0.1", PORT);
+        s.setSoTimeout(1000);
         DataInputStream in = new DataInputStream(s.getInputStream());
         DataOutputStream out = new DataOutputStream(s.getOutputStream());
         Random r = new Random();
@@ -138,7 +139,7 @@ public class NioServerTest {
             ts[i].start();
         }
         for (int i = 0; i < threads; i++) {
-            ts[i].join();
+            ts[i].join(10000);
         }
         assertFalse(fail.get());
     }
