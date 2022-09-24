@@ -59,6 +59,7 @@ public class JdkLogTest {
         Assertions.assertTrue(log.isErrorEnabled());
         log.error("msg");
         log.error("msg {}", 1);
+        log.error("msg {} {}", 1, 2);
         log.error("msg {} {} {}", 1, 2, 3);
         log.error("msg {} {}", new Exception());
 
