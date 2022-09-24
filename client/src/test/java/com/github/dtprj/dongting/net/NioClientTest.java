@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.pb.DtFrame;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.io.DataInputStream;
@@ -154,6 +155,17 @@ public class NioClientTest {
             assertArrayEquals(bs, ((ByteBuffer) rf.getBody()).array());
         }
         server.close();
+        client.stop();
+    }
+
+    @Test
+    public void connectFailTest() throws Exception {
+        NioClientConfig c = new NioClientConfig();
+        c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 23245)));
+        c.setConnectTimeoutMillis(10);
+        NioClient client = new NioClient(c);
+        client.start();
+        Assertions.assertThrows(NetException.class, () -> client.waitStart());
         client.stop();
     }
 }
