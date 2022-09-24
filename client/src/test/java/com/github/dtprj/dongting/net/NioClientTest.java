@@ -21,10 +21,12 @@ import org.junit.jupiter.api.Test;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -85,18 +87,31 @@ public class NioClientTest {
             try {
                 DataOutputStream out = new DataOutputStream(s.getOutputStream());
                 while (!stop) {
-                    DtFrame.Frame frame = queue.take();
-                    frame = DtFrame.Frame.newBuilder().mergeFrom(frame)
-                            .setFrameType(CmdType.TYPE_RESP)
-                            .build();
-                    byte[] bs = frame.toByteArray();
-                    out.writeInt(bs.length);
-                    out.write(bs);
+                    if (queue.size() > 1) {
+                        ArrayList<DtFrame.Frame> list = new ArrayList<>();
+                        queue.drainTo(list);
+                        // shuffle
+                        for (int i = list.size() - 1; i >= 0; i--) {
+                            writeFrame(out, list.get(i));
+                        }
+                    } else {
+                        DtFrame.Frame frame = queue.take();
+                        writeFrame(out, frame);
+                    }
                 }
             } catch (InterruptedException e) {
             } catch (Exception e) {
                 e.printStackTrace();
             }
+        }
+
+        private static void writeFrame(DataOutputStream out, DtFrame.Frame frame) throws IOException {
+            frame = DtFrame.Frame.newBuilder().mergeFrom(frame)
+                    .setFrameType(CmdType.TYPE_RESP)
+                    .build();
+            byte[] bs = frame.toByteArray();
+            out.writeInt(bs.length);
+            out.write(bs);
         }
 
         public void close() throws Exception {
