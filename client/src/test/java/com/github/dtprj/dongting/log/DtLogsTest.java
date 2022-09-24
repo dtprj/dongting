@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 public class DtLogsTest {
     @Test
     public void test() {
+        Assertions.assertEquals(Slf4jLog.class, BugLog.getLog().getClass());
         Assertions.assertEquals(Slf4jLog.class, DtLogs.getLogger(DtLogsTest.class.getName()).getClass());
         Assertions.assertEquals(Slf4jLog.class, DtLogs.getLogger(DtLogsTest.class).getClass());
         DtLogs.setInstance(JdkFactory.INSTANCE);

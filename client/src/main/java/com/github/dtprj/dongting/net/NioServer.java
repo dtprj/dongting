@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.ThreadUtils;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -147,8 +148,7 @@ public class NioServer extends NioNet implements Runnable {
                 } catch (TimeoutException e) {
                     break;
                 } catch (ExecutionException e) {
-                    // TODO log bug
-                    log.error("assert false", e);
+                    BugLog.log(e);
                 }
             }
         }
