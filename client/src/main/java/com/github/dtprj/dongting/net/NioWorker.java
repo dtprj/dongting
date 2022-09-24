@@ -399,9 +399,13 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     @Override
-    public void doStart() throws Exception {
-        selector = SelectorProvider.provider().openSelector();
-        thread.start();
+    public void doStart() {
+        try {
+            selector = SelectorProvider.provider().openSelector();
+            thread.start();
+        } catch (Exception e) {
+            throw new NetException(e);
+        }
     }
 
     public void preStop() {

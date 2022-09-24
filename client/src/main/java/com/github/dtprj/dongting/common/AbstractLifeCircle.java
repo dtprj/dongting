@@ -28,7 +28,7 @@ public class AbstractLifeCircle implements LifeCircle {
     protected volatile LifeStatus status = LifeStatus.not_start;
 
     @Override
-    public final synchronized void start() throws Exception {
+    public final synchronized void start() {
         if (status == LifeStatus.not_start) {
             status = LifeStatus.starting;
             doStart();
@@ -38,11 +38,11 @@ public class AbstractLifeCircle implements LifeCircle {
         }
     }
 
-    protected void doStart() throws Exception {
+    protected void doStart() {
     }
 
     @Override
-    public final synchronized void stop() throws Exception {
+    public final synchronized void stop() {
         if (status == LifeStatus.running) {
             status = LifeStatus.stopping;
             doStop();
@@ -52,6 +52,6 @@ public class AbstractLifeCircle implements LifeCircle {
         }
     }
 
-    protected void doStop() throws Exception {
+    protected void doStop() {
     }
 }

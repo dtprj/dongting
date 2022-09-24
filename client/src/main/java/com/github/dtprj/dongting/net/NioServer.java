@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.common.ThreadUtils;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
@@ -30,6 +31,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.util.Iterator;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -64,20 +66,24 @@ public class NioServer extends NioNet implements Runnable {
     }
 
     @Override
-    public void doStart() throws Exception {
-        ssc = ServerSocketChannel.open();
-        ssc.configureBlocking(false);
-        ssc.setOption(StandardSocketOptions.SO_REUSEADDR, true);
-        ssc.bind(new InetSocketAddress(config.getPort()));
-        selector = SelectorProvider.provider().openSelector();
-        ssc.register(selector, SelectionKey.OP_ACCEPT);
+    public void doStart() {
+        try {
+            ssc = ServerSocketChannel.open();
+            ssc.configureBlocking(false);
+            ssc.setOption(StandardSocketOptions.SO_REUSEADDR, true);
+            ssc.bind(new InetSocketAddress(config.getPort()));
+            selector = SelectorProvider.provider().openSelector();
+            ssc.register(selector, SelectionKey.OP_ACCEPT);
 
-        log.info("{} listen at port {}", config.getName(), config.getPort());
+            log.info("{} listen at port {}", config.getName(), config.getPort());
 
-        initBizExecutor();
-        acceptThread.start();
-        for (NioWorker worker : workers) {
-            worker.start();
+            initBizExecutor();
+            acceptThread.start();
+            for (NioWorker worker : workers) {
+                worker.start();
+            }
+        } catch (IOException e) {
+            throw new NetException(e);
         }
     }
 
@@ -122,7 +128,7 @@ public class NioServer extends NioNet implements Runnable {
     }
 
     @Override
-    public void doStop() throws Exception {
+    public void doStop() {
         DtTime timeout = new DtTime(config.getCloseTimeoutMillis(), TimeUnit.MILLISECONDS);
         stop = true;
         if (selector != null) {
@@ -138,8 +144,11 @@ public class NioServer extends NioNet implements Runnable {
                     worker.getPreCloseFuture().get(rest, TimeUnit.MILLISECONDS);
                 } catch (InterruptedException e) {
                     ThreadUtils.restoreInterruptStatus();
-                } catch (TimeoutException e){
+                } catch (TimeoutException e) {
                     break;
+                } catch (ExecutionException e) {
+                    // TODO log bug
+                    log.error("assert false", e);
                 }
             }
         }

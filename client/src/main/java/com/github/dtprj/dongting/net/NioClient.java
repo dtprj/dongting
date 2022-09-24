@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -55,7 +56,7 @@ public class NioClient extends NioNet {
     }
 
     @Override
-    protected void doStart() throws Exception {
+    protected void doStart() {
         if (peers.size() == 0) {
             throw new IllegalArgumentException("no servers");
         }
@@ -114,7 +115,7 @@ public class NioClient extends NioNet {
     }
 
     @Override
-    protected void doStop() throws Exception {
+    protected void doStop() {
         DtTime timeout = new DtTime(config.getCloseTimeoutMillis(), TimeUnit.MILLISECONDS);
         worker.preStop();
         try {
@@ -124,8 +125,11 @@ public class NioClient extends NioNet {
             }
         } catch (InterruptedException e) {
             ThreadUtils.restoreInterruptStatus();
-        } catch (TimeoutException e){
+        } catch (TimeoutException e) {
             // ignore
+        } catch (ExecutionException e) {
+            // TODO log bug
+            log.error("assert false", e);
         }
         worker.stop();
         try {

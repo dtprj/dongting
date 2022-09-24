@@ -20,8 +20,8 @@ package com.github.dtprj.dongting.common;
  */
 public interface LifeCircle {
 
-    public void start() throws Exception;
+    void start();
 
-    public void stop() throws Exception;
+    void stop();
 
 }
