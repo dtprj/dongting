@@ -181,4 +181,17 @@ public class ByteBufferPoolTest {
             pool.release(buf2, time);
         }
     }
+
+    public static void main(String[] args) {
+        int[] bufSize = ByteBufferPool.DEFAULT_BUF_SIZE;
+        int[] maxCount = ByteBufferPool.DEFAULT_MAX_COUNT;
+        int[] minCount = ByteBufferPool.DEFAULT_MIN_COUNT;
+        long totalMax = 0;
+        long totalMin = 0;
+        for (int i = 0; i < bufSize.length; i++) {
+            totalMax += bufSize[i] * maxCount[i];
+            totalMin += bufSize[i] * minCount[i];
+        }
+        System.out.printf("max:%,d\nmin:%,d", totalMax, totalMin);
+    }
 }
