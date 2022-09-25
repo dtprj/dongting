@@ -198,7 +198,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 ByteBuffer buf = dtc.getOrCreateReadBuffer();
                 int readCount = sc.read(buf);
                 if (readCount == -1) {
-                    log.info("socket read to end, remove it: {}", key.channel());
+                    // log.info("socket read to end, remove it: {}", key.channel());
                     closeChannel(key);
                     return false;
                 }

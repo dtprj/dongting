@@ -27,7 +27,7 @@ import java.net.Socket;
 import java.util.HashMap;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -124,7 +124,7 @@ public class NioServerTest {
     public void multiClientTest() throws Exception {
         setupServer(null);
         final int threads = 200;
-        AtomicBoolean fail = new AtomicBoolean(false);
+        AtomicInteger fail = new AtomicInteger(0);
         Thread[] ts = new Thread[threads];
         for (int i = 0; i < threads; i++) {
             Runnable r = () -> {
@@ -132,7 +132,7 @@ public class NioServerTest {
                     simpleTest(1000, 0, 5000, null);
                 } catch (Throwable e) {
                     e.printStackTrace();
-                    fail.set(true);
+                    fail.incrementAndGet();
                 }
             };
             ts[i] = new Thread(r);
@@ -141,7 +141,7 @@ public class NioServerTest {
         for (int i = 0; i < threads; i++) {
             ts[i].join(10000);
         }
-        assertFalse(fail.get());
+        assertEquals(0, fail.get());
     }
 
     @Test
