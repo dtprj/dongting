@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.common.BitUtil;
-import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.pb.PbUtil;
@@ -97,7 +96,7 @@ class DtChannel {
                 if (rest >= 4) {
                     currentReadFrameSize = buf.getInt();
                     if (currentReadFrameSize <= 0 || currentReadFrameSize > nioConfig.getMaxFrameSize()) {
-                        throw new DtException("frame too large: " + currentReadFrameSize);
+                        throw new NetException("frame too large: " + currentReadFrameSize);
                     }
                     readBufferMark = buf.position();
                 } else {
@@ -119,12 +118,12 @@ class DtChannel {
             return;
         }
         int limit = buf.limit();
-        buf.limit(buf.position() + currentReadFrameSize);
+        int frameEnd = buf.position() + currentReadFrameSize;
+        buf.limit(frameEnd);
         ReadFrame f = new ReadFrame();
         RpcPbCallback pbCallback = this.workerParams.getCallback();
         pbCallback.setFrame(f);
         PbUtil.parse(buf, pbCallback);
-        int pos = buf.position();
 
         int type = f.getFrameType();
         boolean hasBody = pbCallback.getBodyStart() != -1;
@@ -141,10 +140,10 @@ class DtChannel {
                 log.warn("bad frame type: {}, {}", type, channel);
             }
         } finally {
-            this.readBufferMark = pos;
+            this.readBufferMark = frameEnd;
             this.currentReadFrameSize = -1;
             buf.limit(limit);
-            buf.position(pos);
+            buf.position(frameEnd);
         }
     }
 
