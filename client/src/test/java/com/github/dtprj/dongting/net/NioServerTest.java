@@ -15,7 +15,9 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.common.CloseUtil;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.pb.DtFrame;
 import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.AfterEach;
@@ -33,7 +35,6 @@ import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * @author huangli
@@ -72,52 +73,56 @@ public class NioServerTest {
     private void simpleTest(long millis, int innerLoop, int maxBodySize,
                             BiConsumer<DataOutputStream, byte[]> writer) throws Exception {
         Socket s = new Socket("127.0.0.1", PORT);
-        s.setSoTimeout(1000);
-        DataInputStream in = new DataInputStream(s.getInputStream());
-        DataOutputStream out = new DataOutputStream(s.getOutputStream());
-        Random r = new Random();
-        DtTime t = new DtTime();
-        int seq = 0;
-        while (t.elapse(TimeUnit.MILLISECONDS) < millis) {
-            int count = innerLoop <= 0 ? r.nextInt(10) + 1 : innerLoop;
-            HashMap<Integer, byte[]> map = new HashMap<>();
-            for (int i = 0; i < count; i++) {
-                if (r.nextDouble() < 0.05) {
-                    //empty test
-                    map.put(seq + i, new byte[]{});
-                } else {
-                    byte[] bs = new byte[r.nextInt(maxBodySize)];
-                    r.nextBytes(bs);
-                    map.put(seq + i, bs);
+        try {
+            s.setSoTimeout(1000);
+            DataInputStream in = new DataInputStream(s.getInputStream());
+            DataOutputStream out = new DataOutputStream(s.getOutputStream());
+            Random r = new Random();
+            DtTime t = new DtTime();
+            int seq = 0;
+            while (t.elapse(TimeUnit.MILLISECONDS) < millis) {
+                int count = innerLoop <= 0 ? r.nextInt(10) + 1 : innerLoop;
+                HashMap<Integer, byte[]> map = new HashMap<>();
+                for (int i = 0; i < count; i++) {
+                    if (r.nextDouble() < 0.05) {
+                        //empty test
+                        map.put(seq + i, new byte[]{});
+                    } else {
+                        byte[] bs = new byte[r.nextInt(maxBodySize)];
+                        r.nextBytes(bs);
+                        map.put(seq + i, bs);
+                    }
+                }
+                for (int i = 0; i < count; i++) {
+                    DtFrame.Frame frame = DtFrame.Frame.newBuilder().setFrameType(CmdType.TYPE_REQ)
+                            .setSeq(seq + i)
+                            .setCommand(r.nextBoolean() ? CMD_IO_PING : CMD_BIZ_PING)
+                            .setBody(ByteString.copyFrom(map.get(seq + i)))
+                            .build();
+                    byte[] bs = frame.toByteArray();
+                    if (writer == null) {
+                        out.writeInt(bs.length);
+                        out.write(bs);
+                    } else {
+                        writer.accept(out, bs);
+                    }
+                }
+                seq += count;
+                out.flush();
+                for (int i = 0; i < count; i++) {
+                    int len = in.readInt();
+                    byte[] resp = new byte[len];
+                    in.readFully(resp);
+                    DtFrame.Frame frame = DtFrame.Frame.parseFrom(resp);
+                    assertEquals(CmdType.TYPE_RESP, frame.getFrameType());
+                    assertEquals(CmdCodes.SUCCESS, frame.getRespCode());
+                    assertArrayEquals(map.get(frame.getSeq()), frame.getBody().toByteArray());
                 }
             }
-            for (int i = 0; i < count; i++) {
-                DtFrame.Frame frame = DtFrame.Frame.newBuilder().setFrameType(CmdType.TYPE_REQ)
-                        .setSeq(seq + i)
-                        .setCommand(r.nextBoolean() ? CMD_IO_PING : CMD_BIZ_PING)
-                        .setBody(ByteString.copyFrom(map.get(seq + i)))
-                        .build();
-                byte[] bs = frame.toByteArray();
-                if (writer == null) {
-                    out.writeInt(bs.length);
-                    out.write(bs);
-                } else {
-                    writer.accept(out, bs);
-                }
-            }
-            seq += count;
-            out.flush();
-            for (int i = 0; i < count; i++) {
-                int len = in.readInt();
-                byte[] resp = new byte[len];
-                in.readFully(resp);
-                DtFrame.Frame frame = DtFrame.Frame.parseFrom(resp);
-                assertEquals(CmdType.TYPE_RESP, frame.getFrameType());
-                assertEquals(CmdCodes.SUCCESS, frame.getRespCode());
-                assertArrayEquals(map.get(frame.getSeq()), frame.getBody().toByteArray());
-            }
+            s.close();
+        } finally {
+            CloseUtil.close(s);
         }
-        s.close();
     }
 
     @Test
@@ -131,7 +136,7 @@ public class NioServerTest {
                 try {
                     simpleTest(1000, 0, 5000, null);
                 } catch (Throwable e) {
-                    e.printStackTrace();
+                    BugLog.log(e);
                     fail.incrementAndGet();
                 }
             };
