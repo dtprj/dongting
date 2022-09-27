@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.log;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -66,5 +67,26 @@ public class JdkLogTest {
         // bad params
         log.info("{} {}", 1);
         log.info("{}", 1, 2);
+
+        // primitive types
+        log.info("{} {}", new byte[]{1, 2});
+        log.info("{} {}", new short[]{1, 2});
+        log.info("{} {}", new char[]{1, 2});
+        log.info("{} {}", new int[]{1, 2});
+        log.info("{} {}", new long[]{1, 2});
+        log.info("{} {}", new double[]{1, 2});
+        log.info("{} {}", new float[]{1, 2});
+        log.info("{} {}", new boolean[]{true, false});
+
+        log.info("{} {}", new Byte[]{1, 2});
+        log.info("{} {}", new Short[]{1, 2});
+        log.info("{} {}", new Character[]{1, 2});
+        log.info("{} {}", new Integer[]{1, 2});
+        log.info("{} {}", new Long[]{1L, 2L});
+        log.info("{} {}", new Double[]{1d, 2d});
+        log.info("{} {}", new Float[]{1f, 2f});
+        log.info("{} {}", new Boolean[]{true, false});
+
+        log.info("{} {}", new BigDecimal[]{new BigDecimal(1), new BigDecimal(2)});
     }
 }
