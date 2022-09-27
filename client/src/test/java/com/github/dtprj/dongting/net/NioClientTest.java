@@ -288,7 +288,7 @@ public class NioClientTest {
     public void connectFailTest() {
         NioClientConfig c = new NioClientConfig();
         c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 23245)));
-        c.setConnectTimeoutMillis(5);
+        c.setWaitStartTimeoutMillis(5);
         NioClient client = new NioClient(c);
         client.start();
         Assertions.assertThrows(NetException.class, () -> client.waitStart());
@@ -304,7 +304,7 @@ public class NioClientTest {
             server1 = new BioServer(9000);
             server2 = new BioServer(9001);
             NioClientConfig c = new NioClientConfig();
-            c.setConnectTimeoutMillis(50);
+            c.setWaitStartTimeoutMillis(50);
             HostPort hp1 = new HostPort("127.0.0.1", 9000);
             HostPort hp2 = new HostPort("127.0.0.1", 9001);
             c.setHostPorts(Arrays.asList(hp1, hp2));

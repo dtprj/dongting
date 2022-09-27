@@ -70,7 +70,7 @@ public class NioClient extends NioNet {
     }
 
     public void waitStart() {
-        final DtTime t = new DtTime(config.getConnectTimeoutMillis(), TimeUnit.MILLISECONDS);
+        final DtTime t = new DtTime(config.getWaitStartTimeoutMillis(), TimeUnit.MILLISECONDS);
         for (CompletableFuture<Void> f : startFutures) {
             long restMillis = t.rest(TimeUnit.MILLISECONDS);
             if (restMillis > 0 && !Thread.currentThread().isInterrupted()) {
@@ -99,7 +99,7 @@ public class NioClient extends NioNet {
 
         if (successCount == 0) {
             log.error("NioClient [{}] start fail: timeoutPeerCount={},failPeerCount={}", config.getName(), timeoutCount, failCount);
-            throw new NetException("init NioClient fail:timeout=" + config.getConnectTimeoutMillis()
+            throw new NetException("init NioClient fail:timeout=" + config.getWaitStartTimeoutMillis()
                     + "ms, timeoutConnectionCount=" + timeoutCount + ", failConnectionCount=" + failCount);
         } else {
             log.info("NioClient [{}] started: connectPeerCount={}, timeoutPeerCount={}, failPeerCount={}",
