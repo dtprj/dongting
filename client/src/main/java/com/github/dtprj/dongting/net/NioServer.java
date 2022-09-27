@@ -72,7 +72,7 @@ public class NioServer extends NioNet implements Runnable {
             ssc = ServerSocketChannel.open();
             ssc.configureBlocking(false);
             ssc.setOption(StandardSocketOptions.SO_REUSEADDR, true);
-            ssc.bind(new InetSocketAddress(config.getPort()), 4096);
+            ssc.bind(new InetSocketAddress(config.getPort()), config.getBacklog());
             selector = SelectorProvider.provider().openSelector();
             ssc.register(selector, SelectionKey.OP_ACCEPT);
 

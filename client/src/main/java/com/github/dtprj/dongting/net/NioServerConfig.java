@@ -21,6 +21,7 @@ package com.github.dtprj.dongting.net;
 public class NioServerConfig extends NioConfig {
     private int port;
     private int ioThreads;
+    private int backlog = 4096;
 
     public NioServerConfig() {
         setIoThreads(calcIoThreads());
@@ -71,5 +72,13 @@ public class NioServerConfig extends NioConfig {
 
     public void setIoThreads(int ioThreads) {
         this.ioThreads = ioThreads;
+    }
+
+    public int getBacklog() {
+        return backlog;
+    }
+
+    public void setBacklog(int backlog) {
+        this.backlog = backlog;
     }
 }
