@@ -147,6 +147,21 @@ public class NioClientTest {
         }
     }
 
+    public static class ByteBufferDecoderInBizThread extends Decoder {
+        @Override
+        public boolean decodeInIoThread() {
+            return false;
+        }
+
+        @Override
+        public Object decode(ByteBuffer buffer) {
+            ByteBuffer buf = ByteBuffer.allocate(buffer.remaining());
+            buf.put(buffer);
+            buf.flip();
+            return buf;
+        }
+    }
+
     @Test
     public void simpleTest() throws Exception {
         BioServer server = null;
@@ -228,11 +243,20 @@ public class NioClientTest {
         wf.setCommand(Commands.CMD_PING);
         wf.setFrameType(CmdType.TYPE_REQ);
         wf.setSeq(seq);
-        byte[] bs = new byte[ThreadLocalRandom.current().nextInt(maxBodySize)];
-        ThreadLocalRandom.current().nextBytes(bs);
+        ThreadLocalRandom r = ThreadLocalRandom.current();
+        byte[] bs = new byte[r.nextInt(maxBodySize)];
+        r.nextBytes(bs);
         wf.setBody(ByteBuffer.wrap(bs));
+
+        Decoder decoder;
+        if (r.nextBoolean()) {
+            decoder = ByteBufferDecoder.INSTANCE;
+        } else {
+            decoder = new ByteBufferDecoderInBizThread();
+        }
         CompletableFuture<ReadFrame> f = client.sendRequest(wf,
-                ByteBufferDecoder.INSTANCE, new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
+                decoder, new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
+
         ReadFrame rf = f.get(5000, TimeUnit.MILLISECONDS);
         assertEquals(wf.getSeq(), rf.getSeq());
         assertEquals(CmdType.TYPE_RESP, rf.getFrameType());
