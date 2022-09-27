@@ -64,6 +64,7 @@ public class NioClientTest {
         private Thread writeThread;
         private ArrayBlockingQueue<DtFrame.Frame> queue = new ArrayBlockingQueue<>(100);
         private long sleep;
+        private int resultCode = CmdCodes.SUCCESS;
 
         public BioServer(int port) throws Exception {
             ss = new ServerSocket();
@@ -126,6 +127,7 @@ public class NioClientTest {
         private void writeFrame(DataOutputStream out, DtFrame.Frame frame) throws Exception {
             frame = DtFrame.Frame.newBuilder().mergeFrom(frame)
                     .setFrameType(CmdType.TYPE_RESP)
+                    .setRespCode(resultCode)
                     .build();
             byte[] bs = frame.toByteArray();
             if (sleep > 0) {
@@ -458,6 +460,30 @@ public class NioClientTest {
                 fail();
             } catch (ExecutionException e) {
                 assertEquals(IllegalStateException.class, e.getCause().getClass());
+            }
+        } finally {
+            CloseUtil.close(client, server);
+        }
+    }
+
+    @Test
+    public void errorCodeTest() throws Exception {
+        BioServer server = null;
+        NioClient client = null;
+        try {
+            server = new BioServer(9000);
+            NioClientConfig c = new NioClientConfig();
+            c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+            client = new NioClient(c);
+            client.start();
+            client.waitStart();
+            server.resultCode = 100;
+            try {
+                sendSync(1, 5000, client, 1000);
+                fail();
+            } catch (ExecutionException e) {
+                assertEquals(NetCodeException.class, e.getCause().getClass());
+                assertEquals(100, ((NetCodeException) e.getCause()).getCode());
             }
         } finally {
             CloseUtil.close(client, server);
