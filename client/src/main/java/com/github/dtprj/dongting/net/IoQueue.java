@@ -59,12 +59,10 @@ class IoQueue {
         if (dtc == null) {
             Peer peer = wo.getPeer();
             if (peer == null) {
-                if (!server) {
+                if (!server && frame.getFrameType() == CmdType.TYPE_REQ) {
                     dtc = selectChannel();
                     if (dtc == null) {
-                        if (frame.getFrameType() == CmdType.TYPE_REQ) {
-                            wo.getFuture().completeExceptionally(new NetException("no available channel"));
-                        }
+                        wo.getFuture().completeExceptionally(new NetException("no available channel"));
                         return false;
                     }
                 } else {
