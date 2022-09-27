@@ -19,19 +19,7 @@ package com.github.dtprj.dongting.net;
  * @author huangli
  */
 public class NetTimeoutException extends NetException {
-    public NetTimeoutException() {
-        super();
-    }
-
     public NetTimeoutException(String message) {
         super(message);
-    }
-
-    public NetTimeoutException(String message, Throwable cause) {
-        super(message, cause);
-    }
-
-    public NetTimeoutException(Throwable cause) {
-        super(cause);
     }
 }

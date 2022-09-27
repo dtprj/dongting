@@ -128,7 +128,9 @@ public class NioClientTest {
                     .setFrameType(CmdType.TYPE_RESP)
                     .build();
             byte[] bs = frame.toByteArray();
-            Thread.sleep(sleep);
+            if (sleep > 0) {
+                Thread.sleep(sleep);
+            }
             out.writeInt(bs.length);
             out.write(bs);
         }
@@ -335,6 +337,29 @@ public class NioClientTest {
             }
         } finally {
             CloseUtil.close(client, server1, server2);
+        }
+    }
+
+    @Test
+    public void timeoutTest() throws Exception {
+        BioServer server = null;
+        NioClient client = null;
+        try {
+            server = new BioServer(9000);
+            server.sleep = 100;
+            NioClientConfig c = new NioClientConfig();
+            c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+            c.setCleanIntervalMills(1);
+            c.setSelectTimeoutMillis(1);
+            client = new NioClient(c);
+            client.start();
+            client.waitStart();
+            sendSync(1, 5000, client, 10);
+            fail();
+        } catch (ExecutionException e) {
+            assertEquals(NetTimeoutException.class, e.getCause().getClass());
+        } finally {
+            CloseUtil.close(client, server);
         }
     }
 }
