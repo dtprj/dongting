@@ -65,6 +65,7 @@ public class NioClientTest {
         private ArrayBlockingQueue<DtFrame.Frame> queue = new ArrayBlockingQueue<>(100);
         private long sleep;
         private int resultCode = CmdCodes.SUCCESS;
+        private String msg = "msg";
 
         public BioServer(int port) throws Exception {
             ss = new ServerSocket();
@@ -128,6 +129,7 @@ public class NioClientTest {
             frame = DtFrame.Frame.newBuilder().mergeFrom(frame)
                     .setFrameType(CmdType.TYPE_RESP)
                     .setRespCode(resultCode)
+                    .setRespMsg(msg)
                     .build();
             byte[] bs = frame.toByteArray();
             if (sleep > 0) {
@@ -245,6 +247,7 @@ public class NioClientTest {
         assertEquals(wf.getSeq(), rf.getSeq());
         assertEquals(CmdType.TYPE_RESP, rf.getFrameType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
+        assertEquals("msg", rf.getMsg());
         assertArrayEquals(bs, ((ByteBuffer) rf.getBody()).array());
     }
 
