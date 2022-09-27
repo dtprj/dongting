@@ -27,7 +27,6 @@ public abstract class NioConfig {
     private int maxInRequests;
     private long maxInBytes;
 
-    private int requestTimeoutMillis = 2000;
     private int selectTimeoutMillis = 50;
     private int cleanIntervalMills = 100;
     private int closeTimeoutMillis = 1000;
@@ -62,14 +61,6 @@ public abstract class NioConfig {
 
     public void setMaxOutRequests(int maxOutRequests) {
         this.maxOutRequests = maxOutRequests;
-    }
-
-    public int getRequestTimeoutMillis() {
-        return requestTimeoutMillis;
-    }
-
-    public void setRequestTimeoutMillis(int requestTimeoutMillis) {
-        this.requestTimeoutMillis = requestTimeoutMillis;
     }
 
     public int getSelectTimeoutMillis() {
