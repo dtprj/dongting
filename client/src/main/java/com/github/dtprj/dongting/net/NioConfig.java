@@ -20,7 +20,6 @@ package com.github.dtprj.dongting.net;
  */
 public abstract class NioConfig {
     private int bizThreads;
-    private int bizQueueSize;
     private String name;
 
     // back pressure config
@@ -47,14 +46,6 @@ public abstract class NioConfig {
 
     public void setBizThreads(int bizThreads) {
         this.bizThreads = bizThreads;
-    }
-
-    public int getBizQueueSize() {
-        return bizQueueSize;
-    }
-
-    public void setBizQueueSize(int bizQueueSize) {
-        this.bizQueueSize = bizQueueSize;
     }
 
     public String getName() {

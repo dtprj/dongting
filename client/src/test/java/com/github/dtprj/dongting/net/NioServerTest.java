@@ -28,6 +28,7 @@ import java.io.DataOutputStream;
 import java.net.Socket;
 import java.util.HashMap;
 import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -46,6 +47,28 @@ public class NioServerTest {
     private static final int PORT = 9000;
 
     private NioServer server;
+
+    static class SleepPingProcessor extends NioServer.PingProcessor {
+
+        private int sleep;
+
+        public SleepPingProcessor(boolean runInIoThread, int sleep) {
+            super(runInIoThread);
+            this.sleep = sleep;
+        }
+
+        @Override
+        public WriteFrame process(ReadFrame frame, DtChannel channel) {
+            if (sleep > 0) {
+                try {
+                    Thread.sleep(sleep);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            return super.process(frame, channel);
+        }
+    }
 
     private void setupServer(Consumer<NioServerConfig> consumer) throws Exception {
         NioServerConfig c = new NioServerConfig();
@@ -186,5 +209,97 @@ public class NioServerTest {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    private static int invoke(int seq, int command, int bodySize, DataInputStream in, DataOutputStream out) throws Exception {
+        byte[] bs = new byte[bodySize];
+        ThreadLocalRandom.current().nextBytes(bs);
+        DtFrame.Frame frame = DtFrame.Frame.newBuilder().setFrameType(CmdType.TYPE_REQ)
+                .setSeq(seq)
+                .setCommand(command)
+                .setBody(ByteString.copyFrom(bs))
+                .build();
+        byte[] frameBytes = frame.toByteArray();
+        out.writeInt(frameBytes.length);
+        out.write(frameBytes);
+        out.flush();
+
+        int len = in.readInt();
+        byte[] resp = new byte[len];
+        in.readFully(resp);
+        frame = DtFrame.Frame.parseFrom(resp);
+        assertEquals(CmdType.TYPE_RESP, frame.getFrameType());
+        if (frame.getRespCode() == CmdCodes.SUCCESS) {
+            assertArrayEquals(bs, frame.getBody().toByteArray());
+        }
+        return frame.getRespCode();
+    }
+
+    @Test
+    public void badCommandTest() throws Exception {
+        setupServer(null);
+        Socket s = new Socket("127.0.0.1", PORT);
+        try {
+            s.setSoTimeout(1000);
+            DataInputStream in = new DataInputStream(s.getInputStream());
+            DataOutputStream out = new DataOutputStream(s.getOutputStream());
+            int code = invoke(1, 12323434, 5000, in, out);
+            assertEquals(CmdCodes.COMMAND_NOT_SUPPORT, code);
+        } finally {
+            CloseUtil.close(s);
+        }
+    }
+
+    private static class InvokeThread extends Thread {
+        private final int bodySize;
+        AtomicInteger result = new AtomicInteger(-1);
+
+        public InvokeThread(int bodySize) {
+            this.bodySize = bodySize;
+        }
+
+        @Override
+        public void run() {
+            try (Socket s = new Socket("127.0.0.1", PORT)) {
+                s.setSoTimeout(1000);
+                DataInputStream in = new DataInputStream(s.getInputStream());
+                DataOutputStream out = new DataOutputStream(s.getOutputStream());
+                int code = invoke(1, 50000, bodySize, in, out);
+                result.set(code);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    @Test
+    public void flowControlTest() throws Exception {
+        setupServer(c -> {
+            c.setMaxInRequests(1);
+            c.setBizThreads(1);
+            c.setMaxInBytes(10000);
+        });
+        server.register(50000, new SleepPingProcessor(false, 50));
+        {
+            InvokeThread t1 = new InvokeThread(100);
+            InvokeThread t2 = new InvokeThread(100);
+            InvokeThread t3 = new InvokeThread(100);
+            t1.start();
+            t2.start();
+            t3.start();
+            t1.join(1000);
+            t2.join(1000);
+            t3.join(1000);
+            assertEquals(CmdCodes.FLOW_CONTROL, t1.result.get() + t2.result.get() + t3.result.get());
+        }
+        {
+            InvokeThread t1 = new InvokeThread(6000);
+            InvokeThread t2 = new InvokeThread(6000);
+            t1.start();
+            t2.start();
+            t1.join(1000);
+            t2.join(1000);
+            assertEquals(CmdCodes.FLOW_CONTROL, t1.result.get() + t2.result.get());
+        }
     }
 }

@@ -96,8 +96,8 @@ public abstract class NioNet extends AbstractLifeCircle {
 
     protected void initBizExecutor() {
         if (config.getBizThreads() > 0) {
-            bizExecutor = new ThreadPoolExecutor(config.getBizThreads(), config.getBizQueueSize(),
-                    1, TimeUnit.MINUTES, new ArrayBlockingQueue<>(config.getBizQueueSize()),
+            bizExecutor = new ThreadPoolExecutor(config.getBizThreads(), config.getBizThreads(),
+                    1, TimeUnit.MINUTES, new ArrayBlockingQueue<>(config.getMaxInRequests()),
                     new DtThreadFactory(config.getName() + "Biz", false));
             nioStatus.setBizExecutor(bizExecutor);
         }

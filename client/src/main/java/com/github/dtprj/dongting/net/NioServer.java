@@ -168,7 +168,7 @@ public class NioServer extends NioNet implements Runnable {
         shutdownBizExecutor(timeout);
     }
 
-    public static final class PingProcessor extends ReqProcessor {
+    public static class PingProcessor extends ReqProcessor {
         private final boolean runInIoThread;
 
         public PingProcessor(boolean runInIoThread) {
