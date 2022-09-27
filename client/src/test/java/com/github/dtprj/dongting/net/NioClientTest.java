@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.common.CloseUtil;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.TestUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.pb.DtFrame;
@@ -304,16 +305,16 @@ public class NioClientTest {
     public void reconnectTest() throws Exception {
         BioServer server1 = null;
         BioServer server2 = null;
-        NioClient client = null;
+        NioClientConfig c = new NioClientConfig();
+        c.setWaitStartTimeoutMillis(50);
+        HostPort hp1 = new HostPort("127.0.0.1", 9000);
+        HostPort hp2 = new HostPort("127.0.0.1", 9001);
+        c.setHostPorts(Arrays.asList(hp1, hp2));
+        NioClient client = new NioClient(c);
         try {
             server1 = new BioServer(9000);
             server2 = new BioServer(9001);
-            NioClientConfig c = new NioClientConfig();
-            c.setWaitStartTimeoutMillis(50);
-            HostPort hp1 = new HostPort("127.0.0.1", 9000);
-            HostPort hp2 = new HostPort("127.0.0.1", 9001);
-            c.setHostPorts(Arrays.asList(hp1, hp2));
-            client = new NioClient(c);
+
             client.start();
             client.waitStart();
             int seq = 0;
@@ -372,6 +373,16 @@ public class NioClientTest {
                 fail();
             } catch (IllegalArgumentException e) {
             }
+
+            server1.close();
+            server2.close();
+            TestUtil.waitUtil(() -> client.getPeers().stream().allMatch(peer -> peer.getDtChannel() == null));
+            try {
+                sendSync(seq++, 5000, client, 500);
+            } catch (ExecutionException e) {
+                assertEquals(NetException.class, e.getCause().getClass());
+            }
+
         } finally {
             CloseUtil.close(client, server1, server2);
         }
