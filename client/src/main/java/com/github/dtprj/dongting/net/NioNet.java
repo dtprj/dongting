@@ -49,12 +49,13 @@ public abstract class NioNet extends AbstractLifeCircle {
 
     protected CompletableFuture<ReadFrame> sendRequest(NioWorker worker, Peer peer, WriteFrame request,
                                                        Decoder decoder, DtTime timeout) {
+        boolean acquire = false;
         try {
             if (status != LifeStatus.running) {
                 return errorFuture(new IllegalStateException("error state: " + status));
             }
 
-            boolean acquire = this.semaphore.tryAcquire(timeout.rest(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+            acquire = this.semaphore.tryAcquire(timeout.rest(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
             if (acquire) {
                 CompletableFuture<ReadFrame> future = new CompletableFuture<>();
                 worker.writeReqInBizThreads(peer, request, decoder, timeout, future);
@@ -70,11 +71,19 @@ public abstract class NioNet extends AbstractLifeCircle {
                     return frame;
                 });
             } else {
-                return errorFuture(new NetException("too many pending requests"));
+                return errorFuture(new NetTimeoutException(
+                        "too many pending requests, client wait permit timeout in "
+                                + timeout.getTimeout(TimeUnit.MILLISECONDS) + " ms"));
             }
         } catch (InterruptedException e) {
+            if (acquire) {
+                this.semaphore.release();
+            }
             return errorFuture(e);
         } catch (Throwable e) {
+            if (acquire) {
+                this.semaphore.release();
+            }
             return errorFuture(new NetException("submit task error", e));
         }
     }

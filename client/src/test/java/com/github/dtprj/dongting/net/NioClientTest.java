@@ -211,27 +211,9 @@ public class NioClientTest {
         successCount.complete(0);
         int expectCount = 0;
         do {
-            ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
-            wf.setCommand(Commands.CMD_PING);
-            wf.setFrameType(CmdType.TYPE_REQ);
-            wf.setSeq(seq++);
-            byte[] bs = new byte[r.nextInt(maxBodySize)];
-            r.nextBytes(bs);
-            wf.setBody(ByteBuffer.wrap(bs));
-            CompletableFuture<ReadFrame> f = client.sendRequest(wf,
-                    ByteBufferDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS));
+            CompletableFuture<Void> f = sendAsync(seq++, maxBodySize, client, 500);
+            successCount = successCount.thenCombine(f, (value, NULL) -> value + 1);
             expectCount++;
-            successCount = successCount.thenCombine(f, (currentCount, rf) -> {
-                try {
-                    assertEquals(wf.getSeq(), rf.getSeq());
-                    assertEquals(CmdType.TYPE_RESP, rf.getFrameType());
-                    assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
-                    assertArrayEquals(bs, ((ByteBuffer) rf.getBody()).array());
-                    return currentCount + 1;
-                } catch (Throwable e) {
-                    throw new RuntimeException(e);
-                }
-            });
         } while (time.elapse(TimeUnit.MILLISECONDS) < timeMillis);
         int v = successCount.get(1, TimeUnit.SECONDS);
         assertTrue(v > 0);
@@ -280,6 +262,26 @@ public class NioClientTest {
         assertEquals(CmdType.TYPE_RESP, rf.getFrameType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
         assertArrayEquals(bs, ((ByteBuffer) rf.getBody()).array());
+    }
+
+    private static CompletableFuture<Void> sendAsync(int seq, int maxBodySize, NioClient client, long timeoutMillis) {
+        ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
+        wf.setCommand(Commands.CMD_PING);
+        wf.setFrameType(CmdType.TYPE_REQ);
+        wf.setSeq(seq);
+        ThreadLocalRandom r = ThreadLocalRandom.current();
+        byte[] bs = new byte[r.nextInt(maxBodySize)];
+        r.nextBytes(bs);
+        wf.setBody(ByteBuffer.wrap(bs));
+        CompletableFuture<ReadFrame> f = client.sendRequest(wf,
+                ByteBufferDecoder.INSTANCE, new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
+        return f.thenApply(rf -> {
+            assertEquals(wf.getSeq(), rf.getSeq());
+            assertEquals(CmdType.TYPE_RESP, rf.getFrameType());
+            assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
+            assertArrayEquals(bs, ((ByteBuffer) rf.getBody()).array());
+            return null;
+        });
     }
 
     @Test
@@ -371,7 +373,7 @@ public class NioClientTest {
     }
 
     @Test
-    public void timeoutTest() throws Exception {
+    public void serverTimeoutTest() throws Exception {
         BioServer server = null;
         NioClient client = null;
         try {
@@ -388,6 +390,36 @@ public class NioClientTest {
             fail();
         } catch (ExecutionException e) {
             assertEquals(NetTimeoutException.class, e.getCause().getClass());
+        } finally {
+            CloseUtil.close(client, server);
+        }
+    }
+
+    @Test
+    public void clientSemaphoreTimeoutTest() throws Exception {
+        BioServer server = null;
+        NioClient client = null;
+        try {
+            server = new BioServer(9000);
+            server.sleep = 30;
+            NioClientConfig c = new NioClientConfig();
+            c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+            c.setCleanIntervalMills(1);
+            c.setSelectTimeoutMillis(1);
+            c.setMaxOutRequests(1);
+            client = new NioClient(c);
+            client.start();
+            client.waitStart();
+            CompletableFuture<Void> f1 = sendAsync(1, 5000, client, 1000);
+            CompletableFuture<Void> f2 = sendAsync(1, 5000, client, 15);
+            CompletableFuture<Void> f3 = sendAsync(1, 5000, client, 1000);
+            f1.get(1, TimeUnit.SECONDS);
+            try {
+                f2.get(1, TimeUnit.SECONDS);
+            } catch (ExecutionException e) {
+                assertEquals(NetTimeoutException.class, e.getCause().getClass());
+            }
+            f3.get(1, TimeUnit.SECONDS);
         } finally {
             CloseUtil.close(client, server);
         }
