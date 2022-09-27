@@ -461,6 +461,12 @@ public class NioClientTest {
             } catch (ExecutionException e) {
                 assertEquals(IllegalStateException.class, e.getCause().getClass());
             }
+
+            try {
+                client.start();
+                fail();
+            } catch (IllegalStateException e) {
+            }
         } finally {
             CloseUtil.close(client, server);
         }
@@ -484,6 +490,54 @@ public class NioClientTest {
             } catch (ExecutionException e) {
                 assertEquals(NetCodeException.class, e.getCause().getClass());
                 assertEquals(100, ((NetCodeException) e.getCause()).getCode());
+            }
+        } finally {
+            CloseUtil.close(client, server);
+        }
+    }
+
+    @Test
+    public void closeTest1() throws Exception {
+        BioServer server = null;
+        NioClient client = null;
+        try {
+            server = new BioServer(9000);
+            NioClientConfig c = new NioClientConfig();
+            c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+            c.setCleanIntervalMills(1);
+            c.setSelectTimeoutMillis(1);
+            client = new NioClient(c);
+            client.start();
+            client.waitStart();
+            server.sleep = 50;
+            CompletableFuture<Void> f = sendAsync(1, 3000, client, 1000);
+            client.stop();
+            f.get(1, TimeUnit.SECONDS);
+        } finally {
+            CloseUtil.close(client, server);
+        }
+    }
+
+    @Test
+    public void closeTest2() throws Exception {
+        BioServer server = null;
+        NioClient client = null;
+        try {
+            server = new BioServer(9000);
+            NioClientConfig c = new NioClientConfig();
+            c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+            c.setCleanIntervalMills(1);
+            c.setSelectTimeoutMillis(0);
+            c.setCloseTimeoutMillis(30);
+            client = new NioClient(c);
+            client.start();
+            client.waitStart();
+            server.sleep = 50;
+            CompletableFuture<Void> f = sendAsync(1, 3000, client, 1000);
+            client.stop();
+            try {
+                f.get(1, TimeUnit.SECONDS);
+            } catch (TimeoutException e) {
             }
         } finally {
             CloseUtil.close(client, server);
