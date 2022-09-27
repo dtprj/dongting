@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.net;
 
+import java.util.Objects;
+
 /**
  * @author huangli
  */
@@ -42,5 +44,19 @@ public class HostPort {
 
     public String getHost() {
         return host;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(host, port);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof HostPort) {
+            HostPort o = (HostPort) obj;
+            return Objects.equals(o.host, this.host) && o.port == this.port;
+        }
+        return false;
     }
 }

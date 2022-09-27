@@ -336,6 +336,10 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     private void doConnect(CompletableFuture<Void> f, Peer peer) {
+        if (peer.getDtChannel() != null) {
+            f.completeExceptionally(new NetException("peer connected"));
+            return;
+        }
         SocketChannel sc = null;
         try {
             HostPort hp = (HostPort) peer.getEndPoint();
@@ -365,7 +369,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             channels.add(dtc);
             f.complete(null);
         } catch (Exception e) {
-            log.warn("init channel fail: {}, {}", channel, e.toString());
+            log.warn("connect channel fail: {}, {}", channel, e.toString());
             closeChannel0((SocketChannel) key.channel());
             f.completeExceptionally(new NetException(e));
         }

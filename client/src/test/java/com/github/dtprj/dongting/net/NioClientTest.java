@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
-import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
@@ -36,11 +36,17 @@ import java.util.Collections;
 import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * @author huangli
@@ -51,13 +57,18 @@ public class NioClientTest {
     private static class BioServer implements AutoCloseable {
         private ServerSocket ss;
         private Socket s;
+        private DataInputStream in;
+        private DataOutputStream out;
         private volatile boolean stop;
         private Thread readThread;
         private Thread writeThread;
         private ArrayBlockingQueue<DtFrame.Frame> queue = new ArrayBlockingQueue<>(100);
+        private long sleep;
 
         public BioServer(int port) throws Exception {
-            ss = new ServerSocket(port);
+            ss = new ServerSocket();
+            ss.setReuseAddress(true);
+            ss.bind(new InetSocketAddress(port));
             new Thread(this::runAcceptThread).start();
         }
 
@@ -76,7 +87,7 @@ public class NioClientTest {
 
         public void runReadThread() {
             try {
-                DataInputStream in = new DataInputStream(s.getInputStream());
+                in = new DataInputStream(s.getInputStream());
                 while (!stop) {
                     int len = in.readInt();
                     byte[] data = new byte[len];
@@ -92,7 +103,7 @@ public class NioClientTest {
 
         public void runWriteThread() {
             try {
-                DataOutputStream out = new DataOutputStream(s.getOutputStream());
+                out = new DataOutputStream(s.getOutputStream());
                 while (!stop) {
                     if (queue.size() > 1) {
                         ArrayList<DtFrame.Frame> list = new ArrayList<>();
@@ -112,22 +123,24 @@ public class NioClientTest {
             }
         }
 
-        private static void writeFrame(DataOutputStream out, DtFrame.Frame frame) throws IOException {
+        private void writeFrame(DataOutputStream out, DtFrame.Frame frame) throws Exception {
             frame = DtFrame.Frame.newBuilder().mergeFrom(frame)
                     .setFrameType(CmdType.TYPE_RESP)
                     .build();
             byte[] bs = frame.toByteArray();
+            Thread.sleep(sleep);
             out.writeInt(bs.length);
             out.write(bs);
         }
 
         @Override
         public void close() throws Exception {
+            if (stop) {
+                return;
+            }
             stop = true;
-            readThread.interrupt();
-            readThread.join(1000);
-            writeThread.interrupt();
-            writeThread.join(1000);
+            in.close();
+            out.close();
             ss.close();
         }
     }
@@ -143,7 +156,7 @@ public class NioClientTest {
             client = new NioClient(c);
             client.start();
             client.waitStart();
-            simpleTest(client);
+            simpleTest(client, 100);
         } finally {
             CloseUtil.close(client, server);
         }
@@ -162,38 +175,25 @@ public class NioClientTest {
             client = new NioClient(c);
             client.start();
             client.waitStart();
-            simpleTest(client);
+            simpleTest(client, 100);
         } finally {
             CloseUtil.close(client, server1, server2);
         }
     }
 
-    private static void simpleTest(NioClient client) throws Exception {
+    private static void simpleTest(NioClient client, long timeMillis) throws Exception {
         int seq = 0;
         final int maxBodySize = 5000;
         Random r = new Random();
         DtTime time = new DtTime();
-        while (time.elapse(TimeUnit.MILLISECONDS) < 100) {
-            ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
-            wf.setCommand(Commands.CMD_PING);
-            wf.setFrameType(CmdType.TYPE_REQ);
-            wf.setSeq(seq++);
-            byte[] bs = new byte[r.nextInt(maxBodySize)];
-            r.nextBytes(bs);
-            wf.setBody(ByteBuffer.wrap(bs));
-            CompletableFuture<ReadFrame> f = client.sendRequest(wf,
-                    ByteBufferDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS));
-            ReadFrame rf = f.get(1000, TimeUnit.MILLISECONDS);
-            assertEquals(wf.getSeq(), rf.getSeq());
-            assertEquals(CmdType.TYPE_RESP, rf.getFrameType());
-            assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
-            assertArrayEquals(bs, ((ByteBuffer) rf.getBody()).array());
-        }
+        do {
+            sendSync(seq++, maxBodySize, client, 500);
+        } while (time.elapse(TimeUnit.MILLISECONDS) < timeMillis);
         time = new DtTime();
         CompletableFuture<Integer> successCount = new CompletableFuture<>();
         successCount.complete(0);
         int expectCount = 0;
-        while (time.elapse(TimeUnit.MILLISECONDS) < 100) {
+        do {
             ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
             wf.setCommand(Commands.CMD_PING);
             wf.setFrameType(CmdType.TYPE_REQ);
@@ -215,20 +215,126 @@ public class NioClientTest {
                     throw new RuntimeException(e);
                 }
             });
-        }
+        } while (time.elapse(TimeUnit.MILLISECONDS) < timeMillis);
         int v = successCount.get(1, TimeUnit.SECONDS);
         assertTrue(v > 0);
         assertEquals(expectCount, v);
+    }
+
+    private static void sendSync(int seq, int maxBodySize, NioClient client, long timeoutMillis) throws Exception {
+        ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
+        wf.setCommand(Commands.CMD_PING);
+        wf.setFrameType(CmdType.TYPE_REQ);
+        wf.setSeq(seq);
+        byte[] bs = new byte[ThreadLocalRandom.current().nextInt(maxBodySize)];
+        ThreadLocalRandom.current().nextBytes(bs);
+        wf.setBody(ByteBuffer.wrap(bs));
+        CompletableFuture<ReadFrame> f = client.sendRequest(wf,
+                ByteBufferDecoder.INSTANCE, new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
+        ReadFrame rf = f.get(5000, TimeUnit.MILLISECONDS);
+        assertEquals(wf.getSeq(), rf.getSeq());
+        assertEquals(CmdType.TYPE_RESP, rf.getFrameType());
+        assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
+        assertArrayEquals(bs, ((ByteBuffer) rf.getBody()).array());
+    }
+
+    private static void sendSyncByPeer(int seq, int maxBodySize, NioClient client,
+                                       Peer peer, long timeoutMillis) throws Exception {
+        ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
+        wf.setCommand(Commands.CMD_PING);
+        wf.setFrameType(CmdType.TYPE_REQ);
+        wf.setSeq(seq);
+        byte[] bs = new byte[ThreadLocalRandom.current().nextInt(maxBodySize)];
+        ThreadLocalRandom.current().nextBytes(bs);
+        wf.setBody(ByteBuffer.wrap(bs));
+        CompletableFuture<ReadFrame> f = client.sendRequest(peer, wf,
+                ByteBufferDecoder.INSTANCE, new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
+        ReadFrame rf = f.get(5000, TimeUnit.MILLISECONDS);
+        assertEquals(wf.getSeq(), rf.getSeq());
+        assertEquals(CmdType.TYPE_RESP, rf.getFrameType());
+        assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
+        assertArrayEquals(bs, ((ByteBuffer) rf.getBody()).array());
     }
 
     @Test
     public void connectFailTest() {
         NioClientConfig c = new NioClientConfig();
         c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 23245)));
-        c.setConnectTimeoutMillis(10);
+        c.setConnectTimeoutMillis(5);
         NioClient client = new NioClient(c);
         client.start();
         Assertions.assertThrows(NetException.class, () -> client.waitStart());
         client.stop();
+    }
+
+    @Test
+    public void reconnectTest() throws Exception {
+        BioServer server1 = null;
+        BioServer server2 = null;
+        NioClient client = null;
+        try {
+            server1 = new BioServer(9000);
+            server2 = new BioServer(9001);
+            NioClientConfig c = new NioClientConfig();
+            c.setConnectTimeoutMillis(50);
+            HostPort hp1 = new HostPort("127.0.0.1", 9000);
+            HostPort hp2 = new HostPort("127.0.0.1", 9001);
+            c.setHostPorts(Arrays.asList(hp1, hp2));
+            client = new NioClient(c);
+            client.start();
+            client.waitStart();
+            int seq = 0;
+            for (int i = 0; i < 10; i++) {
+                sendSync(seq++, 5000, client, 500);
+            }
+            server1.close();
+            for (int i = 0; i < 10; i++) {
+                sendSync(seq++, 5000, client, 500);
+            }
+
+            Peer p1 = null;
+            Peer p2 = null;
+            for (Peer peer : client.getPeers()) {
+                if (hp1.equals(peer.getEndPoint())) {
+                    assertNull(peer.getDtChannel());
+                    p1 = peer;
+                } else {
+                    assertNotNull(peer.getDtChannel());
+                    p2 = peer;
+                }
+            }
+
+            try {
+                sendSyncByPeer(seq++, 5000, client, p1, 500);
+            } catch (ExecutionException e) {
+                assertEquals(NetException.class, e.getCause().getClass());
+            }
+            sendSyncByPeer(seq++, 5000, client, p2, 500);
+
+            try {
+                client.reconnect(p1).get(20, TimeUnit.MILLISECONDS);
+                fail();
+            } catch (TimeoutException | ExecutionException e) {
+            }
+            server1 = new BioServer(9000);
+            client.reconnect(p1).get(200, TimeUnit.MILLISECONDS);
+            sendSyncByPeer(seq++, 5000, client, p1, 500);
+
+            try {
+                client.reconnect(p1).get(20, TimeUnit.MILLISECONDS);
+                fail();
+            } catch (ExecutionException e) {
+                assertEquals(NetException.class, e.getCause().getClass());
+            }
+
+            Peer p = new Peer(null, null);
+            try {
+                client.reconnect(p);
+                fail();
+            } catch (IllegalArgumentException e) {
+            }
+        } finally {
+            CloseUtil.close(client, server1, server2);
+        }
     }
 }

@@ -48,7 +48,7 @@ public class NioClient extends NioNet {
         ArrayList<Peer> list = new ArrayList<>();
         if (config.getHostPorts() != null) {
             for (HostPort hp : config.getHostPorts()) {
-                Peer p = new Peer(hp, false);
+                Peer p = new Peer(hp, this);
                 list.add(p);
             }
         }
@@ -64,7 +64,7 @@ public class NioClient extends NioNet {
         startFutures = new ArrayList<>();
         initBizExecutor();
         worker.start();
-        for (Peer peer: peers) {
+        for (Peer peer : peers) {
             startFutures.add(worker.connect(peer));
         }
     }
@@ -143,4 +143,14 @@ public class NioClient extends NioNet {
         shutdownBizExecutor(timeout);
     }
 
+    public CopyOnWriteArrayList<Peer> getPeers() {
+        return peers;
+    }
+
+    public CompletableFuture<Void> reconnect(Peer peer) {
+        if (peer.getOwner() != this) {
+            throw new IllegalArgumentException("the peer is not owned by this client");
+        }
+        return worker.connect(peer);
+    }
 }

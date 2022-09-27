@@ -20,33 +20,20 @@ package com.github.dtprj.dongting.net;
  */
 class Peer {
     private final Object endPoint;
-    private final boolean incoming;
+    private final NioNet owner;
     private volatile DtChannel dtChannel;
 
-    public Peer(Object endPoint, boolean incoming) {
+    public Peer(Object endPoint, NioNet owner) {
         this.endPoint = endPoint;
-        this.incoming = incoming;
-    }
-
-    @Override
-    public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(endPoint).append(", incoming=").append(incoming).append(",worker=");
-        DtChannel dtc = this.dtChannel;
-        if (dtc == null) {
-            sb.append("null");
-        } else {
-            sb.append(dtc.getWorkerName());
-        }
-        return sb.toString();
+        this.owner = owner;
     }
 
     public Object getEndPoint() {
         return endPoint;
     }
 
-    public boolean isIncoming() {
-        return incoming;
+    public NioNet getOwner() {
+        return owner;
     }
 
     public DtChannel getDtChannel() {
