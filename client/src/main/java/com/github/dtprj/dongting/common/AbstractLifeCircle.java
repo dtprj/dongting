@@ -43,6 +43,9 @@ public class AbstractLifeCircle implements LifeCircle {
 
     @Override
     public final synchronized void stop() {
+        if (status == LifeStatus.stopped) {
+            return;
+        }
         if (status == LifeStatus.running) {
             status = LifeStatus.stopping;
             doStop();

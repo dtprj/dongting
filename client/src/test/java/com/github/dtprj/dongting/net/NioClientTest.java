@@ -424,4 +424,43 @@ public class NioClientTest {
             CloseUtil.close(client, server);
         }
     }
+
+    @Test
+    public void clientStatusTest() throws Exception {
+        BioServer server = null;
+        NioClient client = null;
+        try {
+            server = new BioServer(9000);
+            NioClientConfig c = new NioClientConfig();
+            c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+            client = new NioClient(c);
+            try {
+                client.stop();
+                fail();
+            } catch (IllegalStateException e) {
+            }
+
+            try {
+                sendSync(0, 5000, client, 1000);
+                fail();
+            } catch (ExecutionException e) {
+                assertEquals(IllegalStateException.class, e.getCause().getClass());
+            }
+
+            client.start();
+            client.waitStart();
+            sendSync(1, 5000, client, 1000);
+
+            client.stop();
+
+            try {
+                sendSync(0, 5000, client, 1000);
+                fail();
+            } catch (ExecutionException e) {
+                assertEquals(IllegalStateException.class, e.getCause().getClass());
+            }
+        } finally {
+            CloseUtil.close(client, server);
+        }
+    }
 }
