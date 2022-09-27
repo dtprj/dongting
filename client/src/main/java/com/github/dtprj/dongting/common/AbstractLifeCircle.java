@@ -18,7 +18,7 @@ package com.github.dtprj.dongting.common;
 /**
  * @author huangli
  */
-public class AbstractLifeCircle implements LifeCircle {
+public abstract class AbstractLifeCircle implements LifeCircle {
 
     protected enum LifeStatus {
         not_start, starting, running, stopping, stopped
@@ -38,8 +38,7 @@ public class AbstractLifeCircle implements LifeCircle {
         }
     }
 
-    protected void doStart() {
-    }
+    protected abstract void doStart();
 
     @Override
     public final synchronized void stop() {
@@ -55,6 +54,5 @@ public class AbstractLifeCircle implements LifeCircle {
         }
     }
 
-    protected void doStop() {
-    }
+    protected abstract void doStop();
 }
