@@ -290,9 +290,15 @@ public class NioClientTest {
                 sendSync(seq++, 5000, client, 500);
             }
             server1.close();
+            int success = 0;
             for (int i = 0; i < 10; i++) {
-                sendSync(seq++, 5000, client, 500);
+                try {
+                    sendSync(seq++, 5000, client, 100);
+                    success++;
+                } catch (Exception e) {
+                }
             }
+            assertTrue(success >= 9);
 
             Peer p1 = null;
             Peer p2 = null;
