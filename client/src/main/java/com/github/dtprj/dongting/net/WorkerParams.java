@@ -26,7 +26,6 @@ class WorkerParams {
     private Runnable wakeupRunnable;
     private HashMap<Long, WriteData> pendingRequests;
     private ByteBufferPool pool;
-    private String workerName;
 
     public WorkerParams() {
     }
@@ -71,11 +70,4 @@ class WorkerParams {
         this.pool = pool;
     }
 
-    public String getWorkerName() {
-        return workerName;
-    }
-
-    public void setWorkerName(String workerName) {
-        this.workerName = workerName;
-    }
 }

@@ -101,7 +101,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         workerParams.setPendingRequests(pendingOutgoingRequests);
         workerParams.setWakeupRunnable(this::wakeup);
         workerParams.setPool(pool);
-        workerParams.setWorkerName(workerName);
     }
 
     // invoke by NioServer accept thead
@@ -360,6 +359,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private void processConnect(SelectionKey key) {
         Object[] att = (Object[]) key.attachment();
+        @SuppressWarnings("unchecked")
         CompletableFuture<Void> f = (CompletableFuture<Void>) att[0];
         Peer peer = (Peer) att[1];
         SocketChannel channel = (SocketChannel) key.channel();
@@ -423,10 +423,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     public void doStop() {
         stopStatus = SS_STOP;
         wakeup();
-    }
-
-    public String getWorkerName() {
-        return workerName;
     }
 
     public Thread getThread() {
