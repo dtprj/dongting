@@ -59,7 +59,7 @@ class IoQueue {
         if (dtc == null) {
             Peer peer = wo.getPeer();
             if (peer == null) {
-                if (!server && frame.getFrameType() == CmdType.TYPE_REQ) {
+                if (!server && frame.getFrameType() == FrameType.TYPE_REQ) {
                     dtc = selectChannel();
                     if (dtc == null) {
                         wo.getFuture().completeExceptionally(new NetException("no available channel"));
@@ -67,7 +67,7 @@ class IoQueue {
                     }
                 } else {
                     log.error("no peer set");
-                    if (frame.getFrameType() == CmdType.TYPE_REQ) {
+                    if (frame.getFrameType() == FrameType.TYPE_REQ) {
                         wo.getFuture().completeExceptionally(new NetException("no peer set"));
                     }
                     return false;
@@ -75,7 +75,7 @@ class IoQueue {
             } else {
                 dtc = peer.getDtChannel();
                 if (dtc == null) {
-                    if (frame.getFrameType() == CmdType.TYPE_REQ) {
+                    if (frame.getFrameType() == FrameType.TYPE_REQ) {
                         wo.getFuture().completeExceptionally(new NetException("not connected"));
                     }
                     return false;
@@ -84,12 +84,12 @@ class IoQueue {
         }
 
         if (dtc.isClosed()) {
-            if (frame.getFrameType() == CmdType.TYPE_REQ) {
+            if (frame.getFrameType() == FrameType.TYPE_REQ) {
                 wo.getFuture().completeExceptionally(new NetException("channel closed"));
             }
             return false;
         }
-        if (frame.getFrameType() == CmdType.TYPE_REQ) {
+        if (frame.getFrameType() == FrameType.TYPE_REQ) {
             int seq = dtc.getAndIncSeq();
             frame.setSeq(seq);
             long key = BitUtil.toLong(dtc.getChannelIndexInWorker(), seq);

@@ -59,12 +59,12 @@ public class NioServerClientTest {
         ByteBuffer buf = ByteBuffer.allocate(3000);
         new Random().nextBytes(buf.array());
         wf.setCommand(Commands.CMD_PING);
-        wf.setFrameType(CmdType.TYPE_REQ);
+        wf.setFrameType(FrameType.TYPE_REQ);
         wf.setBody(buf);
         CompletableFuture<ReadFrame> f = client.sendRequest(wf, ByteBufferDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS));
         ReadFrame rf = f.get(1, TimeUnit.SECONDS);
         assertEquals(wf.getSeq(), rf.getSeq());
-        assertEquals(CmdType.TYPE_RESP, rf.getFrameType());
+        assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
         assertArrayEquals(buf.array(), ((ByteBuffer) rf.getBody()).array());
     }
@@ -107,12 +107,12 @@ public class NioServerClientTest {
             // dup seq test
             ByteBufferWriteFrame wf1 = new ByteBufferWriteFrame();
             wf1.setCommand(12345);
-            wf1.setFrameType(CmdType.TYPE_REQ);
+            wf1.setFrameType(FrameType.TYPE_REQ);
             wf1.setBody(ByteBufferPool.EMPTY_BUFFER);
 
             ByteBufferWriteFrame wf2 = new ByteBufferWriteFrame();
             wf2.setCommand(12345);
-            wf2.setFrameType(CmdType.TYPE_REQ);
+            wf2.setFrameType(FrameType.TYPE_REQ);
             wf2.setBody(ByteBufferPool.EMPTY_BUFFER);
 
             CompletableFuture<ReadFrame> f1 = client.sendRequest(wf1, ByteBufferDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS));

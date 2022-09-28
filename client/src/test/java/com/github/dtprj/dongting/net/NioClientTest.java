@@ -127,7 +127,7 @@ public class NioClientTest {
 
         private void writeFrame(DataOutputStream out, DtFrame.Frame frame) throws Exception {
             frame = DtFrame.Frame.newBuilder().mergeFrom(frame)
-                    .setFrameType(CmdType.TYPE_RESP)
+                    .setFrameType(FrameType.TYPE_RESP)
                     .setRespCode(resultCode)
                     .setRespMsg(msg)
                     .build();
@@ -210,7 +210,7 @@ public class NioClientTest {
     private static void sendSync(int maxBodySize, NioClient client, long timeoutMillis) throws Exception {
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
         wf.setCommand(Commands.CMD_PING);
-        wf.setFrameType(CmdType.TYPE_REQ);
+        wf.setFrameType(FrameType.TYPE_REQ);
         ThreadLocalRandom r = ThreadLocalRandom.current();
         byte[] bs = new byte[r.nextInt(maxBodySize)];
         r.nextBytes(bs);
@@ -227,7 +227,7 @@ public class NioClientTest {
 
         ReadFrame rf = f.get(5000, TimeUnit.MILLISECONDS);
         assertEquals(wf.getSeq(), rf.getSeq());
-        assertEquals(CmdType.TYPE_RESP, rf.getFrameType());
+        assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
         assertEquals("msg", rf.getMsg());
         assertArrayEquals(bs, ((ByteBuffer) rf.getBody()).array());
@@ -237,7 +237,7 @@ public class NioClientTest {
                                        Peer peer, long timeoutMillis) throws Exception {
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
         wf.setCommand(Commands.CMD_PING);
-        wf.setFrameType(CmdType.TYPE_REQ);
+        wf.setFrameType(FrameType.TYPE_REQ);
         byte[] bs = new byte[ThreadLocalRandom.current().nextInt(maxBodySize)];
         ThreadLocalRandom.current().nextBytes(bs);
         wf.setBody(ByteBuffer.wrap(bs));
@@ -245,7 +245,7 @@ public class NioClientTest {
                 ByteBufferDecoder.INSTANCE, new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
         ReadFrame rf = f.get(5000, TimeUnit.MILLISECONDS);
         assertEquals(wf.getSeq(), rf.getSeq());
-        assertEquals(CmdType.TYPE_RESP, rf.getFrameType());
+        assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
         assertArrayEquals(bs, ((ByteBuffer) rf.getBody()).array());
     }
@@ -253,7 +253,7 @@ public class NioClientTest {
     private static CompletableFuture<Void> sendAsync(int maxBodySize, NioClient client, long timeoutMillis) {
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
         wf.setCommand(Commands.CMD_PING);
-        wf.setFrameType(CmdType.TYPE_REQ);
+        wf.setFrameType(FrameType.TYPE_REQ);
         ThreadLocalRandom r = ThreadLocalRandom.current();
         byte[] bs = new byte[r.nextInt(maxBodySize)];
         r.nextBytes(bs);
@@ -262,7 +262,7 @@ public class NioClientTest {
                 ByteBufferDecoder.INSTANCE, new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
         return f.thenApply(rf -> {
             assertEquals(wf.getSeq(), rf.getSeq());
-            assertEquals(CmdType.TYPE_RESP, rf.getFrameType());
+            assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
             assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
             assertArrayEquals(bs, ((ByteBuffer) rf.getBody()).array());
             return null;
@@ -530,7 +530,7 @@ public class NioClientTest {
                 // decoder fail in biz thread
                 ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
                 wf.setCommand(Commands.CMD_PING);
-                wf.setFrameType(CmdType.TYPE_REQ);
+                wf.setFrameType(FrameType.TYPE_REQ);
                 wf.setBody(ByteBufferPool.EMPTY_BUFFER);
 
                 Decoder decoder = new Decoder() {
@@ -556,7 +556,7 @@ public class NioClientTest {
                 // decoder fail in io thread
                 ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
                 wf.setCommand(Commands.CMD_PING);
-                wf.setFrameType(CmdType.TYPE_REQ);
+                wf.setFrameType(FrameType.TYPE_REQ);
                 wf.setBody(ByteBufferPool.EMPTY_BUFFER);
                 Decoder decoder = new Decoder() {
                     @Override

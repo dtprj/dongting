@@ -118,7 +118,7 @@ public class NioServerTest {
                     }
                 }
                 for (int i = 0; i < count; i++) {
-                    DtFrame.Frame frame = DtFrame.Frame.newBuilder().setFrameType(CmdType.TYPE_REQ)
+                    DtFrame.Frame frame = DtFrame.Frame.newBuilder().setFrameType(FrameType.TYPE_REQ)
                             .setSeq(seq + i)
                             .setCommand(r.nextBoolean() ? CMD_IO_PING : CMD_BIZ_PING)
                             .setBody(ByteString.copyFrom(map.get(seq + i)))
@@ -138,7 +138,7 @@ public class NioServerTest {
                     byte[] resp = new byte[len];
                     in.readFully(resp);
                     DtFrame.Frame frame = DtFrame.Frame.parseFrom(resp);
-                    assertEquals(CmdType.TYPE_RESP, frame.getFrameType());
+                    assertEquals(FrameType.TYPE_RESP, frame.getFrameType());
                     assertEquals(CmdCodes.SUCCESS, frame.getRespCode());
                     assertArrayEquals(map.get(frame.getSeq()), frame.getBody().toByteArray());
                 }
@@ -215,7 +215,7 @@ public class NioServerTest {
     private static int invoke(int seq, int command, int bodySize, DataInputStream in, DataOutputStream out) throws Exception {
         byte[] bs = new byte[bodySize];
         ThreadLocalRandom.current().nextBytes(bs);
-        DtFrame.Frame frame = DtFrame.Frame.newBuilder().setFrameType(CmdType.TYPE_REQ)
+        DtFrame.Frame frame = DtFrame.Frame.newBuilder().setFrameType(FrameType.TYPE_REQ)
                 .setSeq(seq)
                 .setCommand(command)
                 .setBody(ByteString.copyFrom(bs))
@@ -229,7 +229,7 @@ public class NioServerTest {
         byte[] resp = new byte[len];
         in.readFully(resp);
         frame = DtFrame.Frame.parseFrom(resp);
-        assertEquals(CmdType.TYPE_RESP, frame.getFrameType());
+        assertEquals(FrameType.TYPE_RESP, frame.getFrameType());
         if (frame.getRespCode() == CmdCodes.SUCCESS) {
             assertArrayEquals(bs, frame.getBody().toByteArray());
         }

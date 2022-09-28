@@ -133,9 +133,9 @@ class DtChannel {
             buf.limit(pbCallback.getBodyLimit());
         }
         try {
-            if (type == CmdType.TYPE_REQ) {
+            if (type == FrameType.TYPE_REQ) {
                 processIncomingRequest(hasBody ? buf : ByteBufferPool.EMPTY_BUFFER, f, running, currentReadFrameSize);
-            } else if (type == CmdType.TYPE_RESP) {
+            } else if (type == FrameType.TYPE_RESP) {
                 processIncomingResponse(hasBody ? buf : ByteBufferPool.EMPTY_BUFFER, f);
             } else {
                 log.warn("bad frame type: {}, {}", type, channel);
@@ -205,7 +205,7 @@ class DtChannel {
             }
             if (resp != null) {
                 resp.setCommand(req.getCommand());
-                resp.setFrameType(CmdType.TYPE_RESP);
+                resp.setFrameType(FrameType.TYPE_RESP);
                 resp.setSeq(req.getSeq());
                 subQueue.enqueue(resp);
             } else {
@@ -262,7 +262,7 @@ class DtChannel {
         }
         if (resp != null) {
             resp.setCommand(req.getCommand());
-            resp.setFrameType(CmdType.TYPE_RESP);
+            resp.setFrameType(FrameType.TYPE_RESP);
             resp.setSeq(req.getSeq());
             writeRespInBizThreads(resp);
         } else {
@@ -287,7 +287,7 @@ class DtChannel {
     private void writeErrorInIoThread(Frame req, int code, String msg) {
         ByteBufferWriteFrame resp = new ByteBufferWriteFrame();
         resp.setCommand(req.getCommand());
-        resp.setFrameType(CmdType.TYPE_RESP);
+        resp.setFrameType(FrameType.TYPE_RESP);
         resp.setSeq(req.getSeq());
         resp.setRespCode(code);
         resp.setMsg(msg);
@@ -297,7 +297,7 @@ class DtChannel {
     private void writeErrorInBizThread(Frame req, int code, String msg) {
         ByteBufferWriteFrame resp = new ByteBufferWriteFrame();
         resp.setCommand(req.getCommand());
-        resp.setFrameType(CmdType.TYPE_RESP);
+        resp.setFrameType(FrameType.TYPE_RESP);
         resp.setSeq(req.getSeq());
         resp.setRespCode(code);
         resp.setMsg(msg);
