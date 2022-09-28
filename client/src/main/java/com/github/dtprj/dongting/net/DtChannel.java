@@ -47,7 +47,7 @@ class DtChannel {
     private int readBufferMark = 0;
 
     private final int channelIndexInWorker;
-    private int seq = 1;
+    int seq = 1;
 
     private final IoSubQueue subQueue;
 
