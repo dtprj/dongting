@@ -366,6 +366,92 @@ public class NioServerTest {
         } finally {
             CloseUtil.close(s);
         }
+    }
 
+    @Test
+    public void badProcessorTest() throws Exception {
+        setupServer(null);
+        server.register(10001, new ReqProcessor() {
+            @Override
+            public boolean runInIoThread() {
+                return true;
+            }
+
+            @Override
+            public WriteFrame process(ReadFrame frame, DtChannel channel) {
+                throw new ArrayIndexOutOfBoundsException();
+            }
+
+            @Override
+            public Decoder getDecoder() {
+                return ByteBufferDecoder.INSTANCE;
+            }
+        });
+        server.register(10002, new ReqProcessor() {
+            @Override
+            public boolean runInIoThread() {
+                return false;
+            }
+
+            @Override
+            public WriteFrame process(ReadFrame frame, DtChannel channel) {
+                throw new ArrayIndexOutOfBoundsException();
+            }
+
+            @Override
+            public Decoder getDecoder() {
+                return ByteBufferDecoder.INSTANCE;
+            }
+        });
+        server.register(10003, new ReqProcessor() {
+            @Override
+            public boolean runInIoThread() {
+                return true;
+            }
+
+            @Override
+            public WriteFrame process(ReadFrame frame, DtChannel channel) {
+                return null;
+            }
+
+            @Override
+            public Decoder getDecoder() {
+                return ByteBufferDecoder.INSTANCE;
+            }
+        });
+        server.register(10004, new ReqProcessor() {
+            @Override
+            public boolean runInIoThread() {
+                return false;
+            }
+
+            @Override
+            public WriteFrame process(ReadFrame frame, DtChannel channel) {
+                return null;
+            }
+
+            @Override
+            public Decoder getDecoder() {
+                return ByteBufferDecoder.INSTANCE;
+            }
+        });
+        Socket s = new Socket("127.0.0.1", PORT);
+        try {
+            s.setSoTimeout(1000);
+            DataInputStream in = new DataInputStream(s.getInputStream());
+            DataOutputStream out = new DataOutputStream(s.getOutputStream());
+            assertEquals(CmdCodes.SUCCESS, invoke(1, CMD_IO_PING, 5000, in, out));
+            assertEquals(CmdCodes.SUCCESS, invoke(2, CMD_BIZ_PING, 5000, in, out));
+
+            assertEquals(CmdCodes.BIZ_ERROR, invoke(3, 10001, 5000, in, out));
+            assertEquals(CmdCodes.BIZ_ERROR, invoke(4, 10002, 5000, in, out));
+            assertEquals(CmdCodes.BIZ_ERROR, invoke(5, 10003, 5000, in, out));
+            assertEquals(CmdCodes.BIZ_ERROR, invoke(6, 10004, 5000, in, out));
+
+            assertEquals(CmdCodes.SUCCESS, invoke(7, CMD_IO_PING, 5000, in, out));
+            assertEquals(CmdCodes.SUCCESS, invoke(8, CMD_BIZ_PING, 5000, in, out));
+        } finally {
+            CloseUtil.close(s);
+        }
     }
 }
