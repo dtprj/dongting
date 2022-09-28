@@ -151,21 +151,6 @@ public class NioClientTest {
         }
     }
 
-    public static class ByteBufferDecoderInBizThread extends Decoder {
-        @Override
-        public boolean decodeInIoThread() {
-            return false;
-        }
-
-        @Override
-        public Object decode(ByteBuffer buffer) {
-            ByteBuffer buf = ByteBuffer.allocate(buffer.remaining());
-            buf.put(buffer);
-            buf.flip();
-            return buf;
-        }
-    }
-
     @Test
     public void simpleTest() throws Exception {
         BioServer server = null;
@@ -235,7 +220,7 @@ public class NioClientTest {
         if (r.nextBoolean()) {
             decoder = ByteBufferDecoder.INSTANCE;
         } else {
-            decoder = new ByteBufferDecoderInBizThread();
+            decoder = new ByteBufferDecoder(false);
         }
         CompletableFuture<ReadFrame> f = client.sendRequest(wf,
                 decoder, new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));

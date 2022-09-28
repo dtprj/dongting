@@ -21,9 +21,16 @@ import java.nio.ByteBuffer;
  * @author huangli
  */
 public class ByteBufferDecoder extends Decoder {
-    public static final ByteBufferDecoder INSTANCE = new ByteBufferDecoder();
+    public static final ByteBufferDecoder INSTANCE = new ByteBufferDecoder(true);
+    private final boolean decodeInIoThread;
 
-    private ByteBufferDecoder() {
+    ByteBufferDecoder(boolean decodeInIoThread) {
+        this.decodeInIoThread = decodeInIoThread;
+    }
+
+    @Override
+    public boolean decodeInIoThread() {
+        return decodeInIoThread;
     }
 
     @Override
