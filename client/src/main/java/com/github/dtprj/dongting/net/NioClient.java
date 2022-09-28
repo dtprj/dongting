@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -71,40 +72,60 @@ public class NioClient extends NioNet {
 
     public void waitStart() {
         final DtTime t = new DtTime(config.getWaitStartTimeoutMillis(), TimeUnit.MILLISECONDS);
-        for (CompletableFuture<Void> f : startFutures) {
-            long restMillis = t.rest(TimeUnit.MILLISECONDS);
-            if (restMillis > 0 && !Thread.currentThread().isInterrupted()) {
-                try {
-                    f.get(restMillis, TimeUnit.MILLISECONDS);
-                } catch (Exception e) {
-                    // ignore
-                }
-            }
-        }
         int successCount = 0;
         int timeoutCount = 0;
         int failCount = 0;
-        for (CompletableFuture<Void> f : startFutures) {
-            if (f.isDone()) {
-                if (f.isCompletedExceptionally() || f.isCancelled()) {
-                    failCount++;
+        List<Peer> peers = this.peers;
+        StringBuilder sb = new StringBuilder(startFutures.size() * 32);
+        sb.append("peer status:\n");
+        for (int i = 0; i < peers.size(); i++) {
+            Peer peer = peers.get(i);
+            sb.append(peer.getEndPoint()).append(' ');
+            CompletableFuture<Void> f = startFutures.get(i);
+            if (!f.isDone()) {
+                long restMillis = t.rest(TimeUnit.MILLISECONDS);
+                if (restMillis > 0) {
+                    try {
+                        f.get(restMillis, TimeUnit.MILLISECONDS);
+                        sb.append("connected\n");
+                        successCount++;
+                    } catch (InterruptedException e) {
+                        ThreadUtils.restoreInterruptStatus();
+                        sb.append("interrupted\n");
+                        failCount++;
+                    }  catch (ExecutionException e) {
+                        sb.append("connect fail: ").append(e).append('\n');
+                        failCount++;
+                    } catch (TimeoutException e) {
+                        sb.append("timeout\n");
+                        timeoutCount++;
+                    }
                 } else {
-                    successCount++;
+                    sb.append("timeout\n");
+                    timeoutCount++;
                 }
             } else {
-                timeoutCount++;
+                try {
+                    f.getNow(null);
+                    sb.append("connected\n");
+                    successCount++;
+                } catch (CompletionException e) {
+                    sb.append("connect fail: ").append(e).append('\n');
+                    failCount++;
+                }
             }
         }
-        this.startFutures = null;
 
         if (successCount == 0) {
-            log.error("NioClient [{}] start fail: timeoutPeerCount={},failPeerCount={}", config.getName(), timeoutCount, failCount);
+            log.error("[{}] start fail: timeoutPeerCount={},failPeerCount={}\n{}",
+                    config.getName(), timeoutCount, failCount, sb);
             throw new NetException("init NioClient fail:timeout=" + config.getWaitStartTimeoutMillis()
                     + "ms, timeoutConnectionCount=" + timeoutCount + ", failConnectionCount=" + failCount);
         } else {
-            log.info("NioClient [{}] started: connectPeerCount={}, timeoutPeerCount={}, failPeerCount={}",
-                    config.getName(), successCount, timeoutCount, failCount);
+            log.info("[{}] started: connectPeerCount={}, timeoutPeerCount={}, failPeerCount={}\n{}",
+                    config.getName(), successCount, timeoutCount, failCount, sb);
         }
+        this.startFutures = null;
     }
 
     public CompletableFuture<ReadFrame> sendRequest(WriteFrame request, Decoder decoder, DtTime timeout) {
