@@ -16,17 +16,18 @@
 package com.github.dtprj.dongting.net;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
+import java.util.ArrayDeque;
 
 /**
  * @author huangli
  */
 class IoSubQueue {
+    private static final int MAX_BUFFER_SIZE = 512 * 1024;
     private final ByteBufferPool pool;
     private Runnable registerForWrite;
     private ByteBuffer writeBuffer;
 
-    private final ArrayList<WriteFrame> subQueue = new ArrayList<>();
+    private final ArrayDeque<WriteFrame> subQueue = new ArrayDeque();
     private int subQueueBytes;
     private boolean writing;
 
@@ -39,8 +40,8 @@ class IoSubQueue {
     }
 
     public void enqueue(WriteFrame frame) {
-        ArrayList<WriteFrame> subQueue = this.subQueue;
-        subQueue.add(frame);
+        ArrayDeque<WriteFrame> subQueue = this.subQueue;
+        subQueue.addLast(frame);
         subQueueBytes += frame.estimateSize();
         if (subQueue.size() == 1 && !writing) {
             registerForWrite.run();
@@ -57,18 +58,44 @@ class IoSubQueue {
                 this.writeBuffer = null;
             }
         }
+        int subQueueBytes = this.subQueueBytes;
         if (subQueueBytes == 0) {
             return null;
         }
-        ByteBuffer buf = pool.borrow(subQueueBytes);
-        ArrayList<WriteFrame> subQueue = this.subQueue;
-        int size = subQueue.size();
-        for (int i = 0; i < size; i++) {
-            subQueue.get(i).encode(buf);
+        ArrayDeque<WriteFrame> subQueue = this.subQueue;
+        ByteBuffer buf = null;
+        if (subQueueBytes <= MAX_BUFFER_SIZE) {
+            buf = pool.borrow(subQueueBytes);
+            WriteFrame f;
+            while ((f = subQueue.pollFirst()) != null) {
+                f.encode(buf);
+            }
+            this.subQueueBytes = 0;
+        } else {
+            WriteFrame f;
+            while ((f = subQueue.pollFirst()) != null) {
+                int size = f.estimateSize();
+                if (buf == null) {
+                    if (size > MAX_BUFFER_SIZE) {
+                        buf = pool.borrow(size);
+                        f.encode(buf);
+                        subQueueBytes -= size;
+                        break;
+                    } else {
+                        buf = pool.borrow(MAX_BUFFER_SIZE);
+                    }
+                }
+                if (size > buf.remaining()) {
+                    subQueue.addFirst(f);
+                    break;
+                } else {
+                    f.encode(buf);
+                    subQueueBytes -= size;
+                }
+            }
+            this.subQueueBytes = subQueueBytes;
         }
-        subQueue.clear();
         buf.flip();
-        subQueueBytes = 0;
         this.writeBuffer = buf;
         return buf;
     }
