@@ -168,7 +168,7 @@ class DtChannel {
                 if (log.isDebugEnabled()) {
                     log.debug("decode fail. {} {}", channel, e.toString());
                 }
-                wo.getFuture().completeExceptionally(new NetException(e));
+                wo.getFuture().completeExceptionally(e);
             }
         } else {
             ByteBuffer bodyBuffer = ByteBuffer.allocate(buf.remaining());

@@ -512,4 +512,78 @@ public class NioClientTest {
             CloseUtil.close(client, server);
         }
     }
+
+    @Test
+    public void badDecoderTest() throws Exception {
+        BioServer server = null;
+        NioClientConfig c = new NioClientConfig();
+        c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+        NioClient client = new NioClient(c);
+        try {
+            server = new BioServer(9000);
+            client.start();
+            client.waitStart();
+
+            sendSync(5000, client, 1000);
+
+            {
+                // decoder fail in biz thread
+                ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
+                wf.setCommand(Commands.CMD_PING);
+                wf.setFrameType(CmdType.TYPE_REQ);
+                wf.setBody(ByteBufferPool.EMPTY_BUFFER);
+
+                Decoder decoder = new Decoder() {
+                    @Override
+                    public boolean decodeInIoThread() {
+                        return false;
+                    }
+                    @Override
+                    public Object decode(ByteBuffer buffer) {
+                        throw new ArrayIndexOutOfBoundsException();
+                    }
+                };
+                CompletableFuture<ReadFrame> f = client.sendRequest(wf,
+                        decoder, new DtTime(1, TimeUnit.SECONDS));
+
+                try {
+                    f.get(5000, TimeUnit.MILLISECONDS);
+                } catch (ExecutionException e) {
+                    assertEquals(ArrayIndexOutOfBoundsException.class, e.getCause().getClass());
+                }
+            }
+            {
+                // decoder fail in io thread
+                ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
+                wf.setCommand(Commands.CMD_PING);
+                wf.setFrameType(CmdType.TYPE_REQ);
+                wf.setBody(ByteBufferPool.EMPTY_BUFFER);
+                Decoder decoder = new Decoder() {
+                    @Override
+                    public boolean decodeInIoThread() {
+                        return true;
+                    }
+                    @Override
+                    public Object decode(ByteBuffer buffer) {
+                        throw new ArrayIndexOutOfBoundsException();
+                    }
+                };
+                CompletableFuture<ReadFrame> f = client.sendRequest(wf,
+                        decoder, new DtTime(1, TimeUnit.SECONDS));
+
+                try {
+                    f.get(5000, TimeUnit.MILLISECONDS);
+                } catch (ExecutionException e) {
+                    assertEquals(ArrayIndexOutOfBoundsException.class, e.getCause().getClass());
+                }
+            }
+
+            // not affect the following requests
+            for (int i = 0; i < 10; i++) {
+                sendSync(5000, client, 1000);
+            }
+        } finally {
+            CloseUtil.close(client, server);
+        }
+    }
 }

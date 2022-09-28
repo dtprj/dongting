@@ -26,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.net.Socket;
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
@@ -301,5 +302,70 @@ public class NioServerTest {
             t2.join(1000);
             assertEquals(CmdCodes.FLOW_CONTROL, t1.result.get() + t2.result.get());
         }
+    }
+
+    @Test
+    public void badDecoderTest() throws Exception {
+        setupServer(null);
+        server.register(10001, new ReqProcessor() {
+            @Override
+            public WriteFrame process(ReadFrame frame, DtChannel channel) {
+                return null;
+            }
+
+            @Override
+            public Decoder getDecoder() {
+                return new Decoder() {
+                    @Override
+                    public boolean decodeInIoThread() {
+                        return true;
+                    }
+
+                    @Override
+                    public Object decode(ByteBuffer buffer) {
+                        throw new ArrayIndexOutOfBoundsException();
+                    }
+                };
+            }
+        });
+
+        server.register(10002, new ReqProcessor() {
+            @Override
+            public WriteFrame process(ReadFrame frame, DtChannel channel) {
+                return null;
+            }
+
+            @Override
+            public Decoder getDecoder() {
+                return new Decoder() {
+                    @Override
+                    public boolean decodeInIoThread() {
+                        return false;
+                    }
+
+                    @Override
+                    public Object decode(ByteBuffer buffer) {
+                        throw new ArrayIndexOutOfBoundsException();
+                    }
+                };
+            }
+        });
+        Socket s = new Socket("127.0.0.1", PORT);
+        try {
+            s.setSoTimeout(1000);
+            DataInputStream in = new DataInputStream(s.getInputStream());
+            DataOutputStream out = new DataOutputStream(s.getOutputStream());
+            assertEquals(CmdCodes.SUCCESS, invoke(1, CMD_IO_PING, 5000, in, out));
+            assertEquals(CmdCodes.SUCCESS, invoke(2, CMD_BIZ_PING, 5000, in, out));
+
+            assertEquals(CmdCodes.BIZ_ERROR, invoke(3, 10001, 5000, in, out));
+            assertEquals(CmdCodes.BIZ_ERROR, invoke(4, 10002, 5000, in, out));
+
+            assertEquals(CmdCodes.SUCCESS, invoke(5, CMD_IO_PING, 5000, in, out));
+            assertEquals(CmdCodes.SUCCESS, invoke(6, CMD_BIZ_PING, 5000, in, out));
+        } finally {
+            CloseUtil.close(s);
+        }
+
     }
 }
