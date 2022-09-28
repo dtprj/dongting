@@ -40,6 +40,7 @@ class DtChannel {
     private final SocketChannel channel;
     private Peer peer;
 
+    // TODO use buffer pool
     private WeakReference<ByteBuffer> readBufferCache;
     private ByteBuffer readBuffer;
     // read status
