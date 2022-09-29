@@ -53,6 +53,7 @@ public class ByteBufferWriteFrame extends WriteFrame {
             body.mark();
             buf.put(body);
             body.reset();
+            body = null;
         }
     }
 }
