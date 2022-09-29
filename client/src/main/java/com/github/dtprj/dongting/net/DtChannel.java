@@ -228,13 +228,8 @@ class DtChannel {
             if (bytesAfterAdd < nioConfig.getMaxInBytes()) {
                 try {
                     // TODO use custom thread pool?
-                    nioStatus.getBizExecutor().submit(() -> {
-                        try {
-                            processIncomingRequestInBizThreadPool(req, p, decoder);
-                        } finally {
-                            bytes.addAndGet(-currentReadFrameSize);
-                        }
-                    });
+                    nioStatus.getBizExecutor().submit(new ProcessInBizThreadTask(
+                            req, p, currentReadFrameSize, this, bytes));
                 } catch (RejectedExecutionException e) {
                     writeErrorInIoThread(req, CmdCodes.FLOW_CONTROL,
                             "max incoming request: " + nioConfig.getMaxInRequests());
@@ -248,25 +243,46 @@ class DtChannel {
         }
     }
 
-    private void processIncomingRequestInBizThreadPool(ReadFrame req, ReqProcessor p, Decoder decoder) {
-        WriteFrame resp;
-        try {
-            if (!decoder.decodeInIoThread()) {
-                ByteBuffer bodyBuffer = (ByteBuffer) req.getBody();
-                req.setBody(decoder.decode(bodyBuffer));
-            }
-            resp = p.process(req, this);
-        } catch (Throwable e) {
-            writeErrorInBizThread(req, CmdCodes.BIZ_ERROR, e.toString());
-            return;
+    private static class ProcessInBizThreadTask implements Runnable {
+        private final ReadFrame req;
+        private final ReqProcessor processor;
+        private final int frameSize;
+        private final DtChannel dtc;
+        private final AtomicLong inBytes;
+
+        ProcessInBizThreadTask(ReadFrame req, ReqProcessor processor, int frameSize, DtChannel dtc, AtomicLong inBytes) {
+            this.req = req;
+            this.processor = processor;
+            this.frameSize = frameSize;
+            this.dtc = dtc;
+            this.inBytes = inBytes;
         }
-        if (resp != null) {
-            resp.setCommand(req.getCommand());
-            resp.setFrameType(FrameType.TYPE_RESP);
-            resp.setSeq(req.getSeq());
-            writeRespInBizThreads(resp);
-        } else {
-            writeErrorInBizThread(req, CmdCodes.BIZ_ERROR, "processor return null response");
+        @Override
+        public void run() {
+            try {
+                WriteFrame resp;
+                Decoder decoder = processor.getDecoder();
+                try {
+                    if (!decoder.decodeInIoThread()) {
+                        ByteBuffer bodyBuffer = (ByteBuffer) req.getBody();
+                        req.setBody(decoder.decode(bodyBuffer));
+                    }
+                    resp = processor.process(req, dtc);
+                } catch (Throwable e) {
+                    dtc.writeErrorInBizThread(req, CmdCodes.BIZ_ERROR, e.toString());
+                    return;
+                }
+                if (resp != null) {
+                    resp.setCommand(req.getCommand());
+                    resp.setFrameType(FrameType.TYPE_RESP);
+                    resp.setSeq(req.getSeq());
+                    dtc.writeRespInBizThreads(resp);
+                } else {
+                    dtc.writeErrorInBizThread(req, CmdCodes.BIZ_ERROR, "processor return null response");
+                }
+            } finally {
+                inBytes.addAndGet(-frameSize);
+            }
         }
     }
 
