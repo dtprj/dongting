@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 /**
  * @author huangli
@@ -59,17 +60,7 @@ public abstract class NioNet extends AbstractLifeCircle {
             if (acquire) {
                 CompletableFuture<ReadFrame> future = new CompletableFuture<>();
                 worker.writeReqInBizThreads(peer, request, decoder, timeout, future);
-                return future.thenApply(frame -> {
-                    if (frame.getRespCode() != CmdCodes.SUCCESS) {
-                        throw new NetCodeException(frame.getRespCode());
-                    }
-                    if (!decoder.decodeInIoThread()) {
-                        ByteBuffer buf = (ByteBuffer) frame.getBody();
-                        Object body = decoder.decode(buf);
-                        frame.setBody(body);
-                    }
-                    return frame;
-                });
+                return future.thenApply(new RespConvertor(decoder));
             } else {
                 return errorFuture(new NetTimeoutException(
                         "too many pending requests, client wait permit timeout in "
@@ -85,6 +76,25 @@ public abstract class NioNet extends AbstractLifeCircle {
                 this.semaphore.release();
             }
             return errorFuture(new NetException("submit task error", e));
+        }
+    }
+
+    private static class RespConvertor implements Function<ReadFrame, ReadFrame> {
+        private Decoder decoder;
+        RespConvertor(Decoder decoder) {
+            this.decoder = decoder;
+        }
+        @Override
+        public ReadFrame apply(ReadFrame frame) {
+            if (frame.getRespCode() != CmdCodes.SUCCESS) {
+                throw new NetCodeException(frame.getRespCode());
+            }
+            if (!decoder.decodeInIoThread()) {
+                ByteBuffer buf = (ByteBuffer) frame.getBody();
+                Object body = decoder.decode(buf);
+                frame.setBody(body);
+            }
+            return frame;
         }
     }
 
