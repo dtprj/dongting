@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.pb;
 
-import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -227,39 +226,4 @@ public class PbUtilTest {
         assertEquals(v, v2);
     }
 
-    @Test
-    public void testParse() {
-        DtFrame.Frame h = DtFrame.Frame.newBuilder()
-                .setFrameType(100)
-                .setCommand(200)
-                .setSeq(300)
-                .setRespCode(400)
-                .setRespMsg("msg")
-                .setBody(ByteString.copyFrom("body".getBytes()))
-                .build();
-        h.toByteArray();
-        PbUtil.parse(ByteBuffer.wrap(h.toByteArray()), new PbCallback() {
-            @Override
-            public void readInt(int index, int value) {
-                assertEquals(index * 100, value);
-            }
-
-            @Override
-            public void readLong(int index, long value) {
-                throw new AssertionError();
-            }
-
-            @Override
-            public void readBytes(int index, ByteBuffer buf) {
-                byte[] bs = new byte[buf.remaining()];
-                buf.get(bs);
-                String s = new String(bs);
-                if (index == 5) {
-                    assertEquals("msg", s);
-                } else {
-                    assertEquals("body", s);
-                }
-            }
-        });
-    }
 }

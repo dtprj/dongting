@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.pb;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 
 /**
  * encode/decode util for proto buffer 3.
@@ -77,45 +76,6 @@ public class PbUtil {
                 return;
             }
         }
-    }
-
-    public static void parse(ByteBuffer buf, PbCallback callback) {
-        ByteOrder old = buf.order();
-        buf.order(ByteOrder.LITTLE_ENDIAN);
-        int limit = buf.limit();
-        while (buf.hasRemaining()) {
-            int index = readVarUnsignedInt32(buf);
-            int type = index & 0x07; // 0000 0111
-            index >>>= 3;
-            switch (type) {
-                case TYPE_VAR_INT:
-                    // TODO only support uint32 now
-                    callback.readInt(index, readVarUnsignedInt32(buf));
-                    break;
-                case TYPE_FIX32:
-                    callback.readInt(index, buf.getInt());
-                    break;
-                case TYPE_FIX64:
-                    callback.readLong(index, buf.getLong());
-                    break;
-                case TYPE_LENGTH_DELIMITED:
-                    int length = readVarUnsignedInt32(buf);
-                    if (length > buf.remaining() || length < 0) {
-                        throw new PbException("bad protobuf length: " + length);
-                    }
-                    int newLimit = buf.position() + length;
-                    buf.limit(newLimit);
-                    callback.readBytes(index, buf);
-                    buf.limit(limit);
-                    buf.position(newLimit);
-                    break;
-                case TYPE_START_GROUP:
-                case TYPE_END_GROUP:
-                default:
-                    throw new PbException("protobuf type not support: " + type);
-            }
-        }
-        buf.order(old);
     }
 
     public static int readVarUnsignedInt32(ByteBuffer buf) {

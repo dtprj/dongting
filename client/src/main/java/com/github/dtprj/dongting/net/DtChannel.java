@@ -18,7 +18,7 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.pb.PbUtil;
+import com.github.dtprj.dongting.pb.PbParser;
 
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
@@ -124,7 +124,7 @@ class DtChannel {
         ReadFrame f = new ReadFrame();
         RpcPbCallback pbCallback = this.workerParams.getCallback();
         pbCallback.setFrame(f);
-        PbUtil.parse(buf, pbCallback);
+        new PbParser().parse(buf, pbCallback);
 
         int type = f.getFrameType();
         boolean hasBody = pbCallback.getBodyStart() != -1;
