@@ -16,49 +16,239 @@
 package com.github.dtprj.dongting.pb;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 
 /**
  * @author huangli
  */
 public class PbParser {
 
+
+    private static final int STATUS_PARSE_PB_LEN = 1;
+    private static final int STATUS_PARSE_TAG = 2;
+    private static final int STATUS_PARSE_FILED_LEN = 3;
+    private static final int STATUS_PARSE_FILED_BODY = 4;
+    private final int maxFrame;
+
+    private int status = STATUS_PARSE_PB_LEN;
+
+    private int frameLen;
+    // not include first 4 bytes of protobuf len
+    private int parsedBytes;
+
+    private int pendingBytes;
+    private int fieldType;
+    private int fieldIndex;
+    private int fieldLen;
+    private long tempValue;
+
+    public PbParser(int maxFrame) {
+        this.maxFrame = maxFrame;
+    }
+
     public void parse(ByteBuffer buf, PbCallback callback) {
-        ByteOrder old = buf.order();
-        buf.order(ByteOrder.LITTLE_ENDIAN);
-        int limit = buf.limit();
-        while (buf.hasRemaining()) {
-            int index = PbUtil.readVarUnsignedInt32(buf);
-            int type = index & 0x07; // 0000 0111
-            index >>>= 3;
-            switch (type) {
-                case PbUtil.TYPE_VAR_INT:
-                    // TODO only support uint32 now
-                    callback.readInt(index, PbUtil.readVarUnsignedInt32(buf));
+        int remain = buf.remaining();
+        while (remain > 0) {
+            switch (status) {
+                case STATUS_PARSE_PB_LEN:
+                    remain = onStatusParsePbLen(buf, callback, remain);
                     break;
-                case PbUtil.TYPE_FIX32:
-                    callback.readInt(index, buf.getInt());
+                case STATUS_PARSE_TAG:
+                case STATUS_PARSE_FILED_LEN:
+                    remain = parseVarInt(buf, remain);
                     break;
-                case PbUtil.TYPE_FIX64:
-                    callback.readLong(index, buf.getLong());
+                case STATUS_PARSE_FILED_BODY:
+                    remain = onStatusParseFieldBody(buf, callback, remain);
                     break;
-                case PbUtil.TYPE_LENGTH_DELIMITED:
-                    int length = PbUtil.readVarUnsignedInt32(buf);
-                    if (length > buf.remaining() || length < 0) {
-                        throw new PbException("bad protobuf length: " + length);
-                    }
-                    int newLimit = buf.position() + length;
-                    buf.limit(newLimit);
-                    callback.readBytes(index, buf);
-                    buf.limit(limit);
-                    buf.position(newLimit);
-                    break;
-                case PbUtil.TYPE_START_GROUP:
-                case PbUtil.TYPE_END_GROUP:
-                default:
-                    throw new PbException("protobuf type not support: " + type);
             }
         }
-        buf.order(old);
     }
+
+    private int onStatusParsePbLen(ByteBuffer buf, PbCallback callback, int remain) {
+        if (pendingBytes == 0) {
+            callback.begin();
+            if (remain >= 4) {
+                int len = buf.getInt();
+                if (len <= 0 || len > maxFrame) {
+                    throw new PbException("maxFrameSize exceed: max=" + maxFrame + ", actual=" + len);
+                }
+                status = STATUS_PARSE_TAG;
+                frameLen = len;
+                pendingBytes = 0;
+                return remain - 4;
+            } else {
+                parsedBytes = 0;
+                frameLen = 0;
+            }
+        }
+        int restLen = 4 - pendingBytes;
+        if (remain >= restLen) {
+            for (int i = 0; i < restLen; i++) {
+                frameLen = (frameLen << 8) | (0xFF & buf.get());
+            }
+            if (frameLen <= 0 || frameLen > maxFrame) {
+                throw new PbException("maxFrameSize exceed: max=" + maxFrame + ", actual=" + frameLen);
+            }
+            pendingBytes = 0;
+            status = STATUS_PARSE_TAG;
+            return remain - restLen;
+        } else {
+            for (int i = 0; i < remain; i++) {
+                frameLen = (frameLen << 8) | (0xFF & buf.get());
+            }
+            pendingBytes += remain;
+            return 0;
+        }
+    }
+
+    private int parseVarInt(ByteBuffer buf, int remain) {
+        int value = 0;
+        int bitIndex = 0;
+        if (pendingBytes > 0) {
+            value = (int) this.tempValue;
+            bitIndex = pendingBytes * 7;
+        }
+
+        // max 5 bytes for 32bit number in proto buffer
+        final int MAX_BYTES = 5;
+        int i = 1;
+        for (; i <= remain; i++) {
+            int x = buf.get();
+            value |= (x & 0x7F) << bitIndex;
+            if (x >= 0) {
+                // first bit is 0, read complete
+                if (pendingBytes + i > MAX_BYTES) {
+                    throw new PbException("var int too long: " + (pendingBytes + i + 1));
+                }
+                this.pendingBytes = 0;
+                this.parsedBytes += i;
+                if (parsedBytes > frameLen) {
+                    throw new PbException("frame exceed " + frameLen);
+                }
+
+                /////////////////////////////////////
+                if (status == STATUS_PARSE_TAG) {
+                    int type = value & 0x07;
+                    this.fieldType = type;
+                    value = value >>> 3;
+                    if (value == 0) {
+                        throw new PbException("bad index:" + fieldIndex);
+                    }
+                    this.fieldIndex = value;
+
+                    switch (type) {
+                        case PbUtil.TYPE_VAR_INT:
+                        case PbUtil.TYPE_FIX64:
+                        case PbUtil.TYPE_FIX32:
+                            this.status = STATUS_PARSE_FILED_BODY;
+                            break;
+                        case PbUtil.TYPE_LENGTH_DELIMITED:
+                            this.status = STATUS_PARSE_FILED_LEN;
+                            break;
+                        default:
+                            throw new PbException("type not support:" + type);
+                    }
+                } else if (status == STATUS_PARSE_FILED_LEN) {
+                    if (value <= 0) {
+                        throw new PbException("bad field len: " + fieldLen);
+                    }
+                    if (parsedBytes + value > frameLen) {
+                        throw new PbException("field length overflow frame length:" + value);
+                    }
+                    this.fieldLen = value;
+                    this.status = STATUS_PARSE_FILED_BODY;
+                }
+                /////////////////////////////////////
+                return remain - i;
+            } else {
+                bitIndex += 7;
+            }
+        }
+        pendingBytes += remain;
+        parsedBytes += remain;
+        if (pendingBytes >= MAX_BYTES) {
+            throw new PbException("var int too long, at least " + pendingBytes);
+        }
+        if (parsedBytes >= frameLen) {
+            throw new PbException("frame exceed, at least " + frameLen);
+        }
+        this.tempValue = value;
+        return 0;
+    }
+
+    private int parseVarLong(ByteBuffer buf, PbCallback callback, int remain) {
+        long value = 0;
+        int bitIndex = 0;
+        if (pendingBytes > 0) {
+            value = this.tempValue;
+            bitIndex = pendingBytes * 7;
+        }
+
+        // max 10 bytes for 64bit number in proto buffer
+        final int MAX_BYTES = 10;
+        int i = 1;
+        for (; i <= remain; i++) {
+            int x = buf.get();
+            value |= (x & 0x7FL) << bitIndex;
+            if (x >= 0) {
+                // first bit is 0, read complete
+                if (pendingBytes + i > MAX_BYTES) {
+                    throw new PbException("var long too long: " + (pendingBytes + i + 1));
+                }
+                this.pendingBytes = 0;
+                this.parsedBytes += i;
+                if (parsedBytes > frameLen) {
+                    throw new PbException("frame exceed " + frameLen);
+                }
+
+                callback.readVarInt(this.fieldIndex, value);
+
+                return remain - i;
+            } else {
+                bitIndex += 7;
+            }
+        }
+        pendingBytes += remain;
+        parsedBytes += remain;
+        if (pendingBytes >= MAX_BYTES) {
+            throw new PbException("var long too long, at least " + pendingBytes);
+        }
+        if (parsedBytes >= frameLen) {
+            throw new PbException("frame exceed, at least " + frameLen);
+        }
+        this.tempValue = value;
+        return 0;
+    }
+
+    private int onStatusParseFieldBody(ByteBuffer buf, PbCallback callback, int remain) {
+        switch (this.fieldType) {
+            case PbUtil.TYPE_VAR_INT:
+                remain = parseVarLong(buf, callback, remain);
+                break;
+            case PbUtil.TYPE_FIX64:
+                // TODO finish it
+                break;
+            case PbUtil.TYPE_FIX32:
+                // TODO finish it
+                break;
+            case PbUtil.TYPE_LENGTH_DELIMITED:
+                int needRead = fieldLen - pendingBytes;
+                int actualRead = Math.min(needRead, remain);
+                callback.readBytes(this.fieldIndex, buf, fieldLen, pendingBytes == 0, needRead == actualRead);
+                parsedBytes += actualRead;
+                if (needRead == actualRead) {
+                    pendingBytes = 0;
+                    status = STATUS_PARSE_TAG;
+                } else {
+                    pendingBytes += actualRead;
+                }
+                break;
+            default:
+                throw new PbException("type not support:" + this.fieldType);
+        }
+        if (frameLen == parsedBytes && status == STATUS_PARSE_TAG) {
+            callback.end();
+        }
+        return remain;
+    }
+
 }

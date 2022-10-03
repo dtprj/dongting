@@ -22,10 +22,13 @@ import java.nio.ByteBuffer;
  */
 public interface PbCallback {
 
-    void readInt(int index, int value);
+    void readVarInt(int index, long value);
 
-    void readLong(int index, long value);
+    void readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end);
 
-    void readBytes(int index, ByteBuffer buf);
+    default void begin() {
+    }
 
+    default void end() {
+    }
 }

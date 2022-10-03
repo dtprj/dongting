@@ -124,7 +124,7 @@ class DtChannel {
         ReadFrame f = new ReadFrame();
         RpcPbCallback pbCallback = this.workerParams.getCallback();
         pbCallback.setFrame(f);
-        new PbParser().parse(buf, pbCallback);
+        new PbParser(nioConfig.getMaxFrameSize()).parse(buf, pbCallback);
 
         int type = f.getFrameType();
         boolean hasBody = pbCallback.getBodyStart() != -1;

@@ -37,7 +37,7 @@ public class PbParserTest {
                 .setBody(ByteString.copyFrom("body".getBytes()))
                 .build();
         h.toByteArray();
-        new PbParser().parse(ByteBuffer.wrap(h.toByteArray()), new PbCallback() {
+        new PbParser(50000).parse(ByteBuffer.wrap(h.toByteArray()), new PbCallback() {
             @Override
             public void readInt(int index, int value) {
                 assertEquals(index * 100, value);

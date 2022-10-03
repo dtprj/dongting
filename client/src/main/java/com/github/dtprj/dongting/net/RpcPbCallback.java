@@ -40,19 +40,19 @@ class RpcPbCallback implements PbCallback {
     }
 
     @Override
-    public void readInt(int index, int value) {
+    public void readVarInt(int index, long value) {
         switch (index) {
             case Frame.IDX_TYPE:
-                frame.setFrameType(value);
+                frame.setFrameType((int) value);
                 break;
             case Frame.IDX_COMMAND:
-                frame.setCommand(value);
+                frame.setCommand((int) value);
                 break;
             case Frame.IDX_SEQ:
-                frame.setSeq(value);
+                frame.setSeq((int) value);
                 break;
             case Frame.IDX_RESP_CODE:
-                frame.setRespCode(value);
+                frame.setRespCode((int) value);
                 break;
             default:
                 throw new PbException("readInt " + index);
@@ -60,12 +60,7 @@ class RpcPbCallback implements PbCallback {
     }
 
     @Override
-    public void readLong(int index, long value) {
-        throw new PbException("readLong " + index);
-    }
-
-    @Override
-    public void readBytes(int index, ByteBuffer buf) {
+    public void readBytes(int index, ByteBuffer buf, int len, boolean start, boolean end) {
         switch (index) {
             case Frame.IDX_MSG: {
                 byte[] bs = new byte[buf.remaining()];
