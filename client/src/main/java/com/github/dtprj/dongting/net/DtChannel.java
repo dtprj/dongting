@@ -18,21 +18,21 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.pb.PbCallback;
+import com.github.dtprj.dongting.pb.PbException;
 import com.github.dtprj.dongting.pb.PbParser;
 
-import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @author huangli
  */
-class DtChannel {
+class DtChannel implements PbCallback {
     private static final DtLog log = DtLogs.getLogger(DtChannel.class);
-
-    private static final int INIT_BUF_SIZE = 2048;
 
     private final NioStatus nioStatus;
     private final NioConfig nioConfig;
@@ -40,19 +40,30 @@ class DtChannel {
     private final SocketChannel channel;
     private Peer peer;
 
-    // TODO use buffer pool
-    private WeakReference<ByteBuffer> readBufferCache;
-    private ByteBuffer readBuffer;
-    // read status
-    private int currentReadFrameSize = -1;
-    private int readBufferMark = 0;
-
     private final int channelIndexInWorker;
     int seq = 1;
+
+    // read status
+    private ArrayList<ReadFrameInfo> frames = new ArrayList<>();
+    private ReadFrame frame;
+    private WriteData writeDataForResp;
+    private ReqProcessor processorForRequest;
+    private int currentReadFrameSize;
+    private Object decodeStatus;
+    private PbParser parser;
+    private boolean drop;
+
+    private boolean running;
 
     private final IoSubQueue subQueue;
 
     private boolean closed;
+
+    private static class ReadFrameInfo {
+        ReadFrame frame;
+        WriteData writeDataForResp;
+        ReqProcessor processorForRequest;
+    }
 
     public DtChannel(NioStatus nioStatus, WorkerParams workerParams, NioConfig nioConfig,
                      SocketChannel socketChannel, int channelIndexInWorker) {
@@ -62,140 +73,191 @@ class DtChannel {
         this.nioConfig = nioConfig;
         this.workerParams = workerParams;
         this.channelIndexInWorker = channelIndexInWorker;
+        this.parser = new PbParser(nioConfig.getMaxFrameSize());
     }
 
-    public ByteBuffer getOrCreateReadBuffer() {
-        if (readBuffer != null) {
-            return readBuffer;
+    public void afterRead(boolean running, ByteBuffer buf) {
+        if (!running) {
+            this.running = false;
         }
-        if (readBufferCache == null) {
-            readBuffer = ByteBuffer.allocateDirect(INIT_BUF_SIZE);
-            readBufferCache = new WeakReference<>(readBuffer);
-            return readBuffer;
-        } else {
-            ByteBuffer cached = readBufferCache.get();
-            if (cached != null) {
-                return cached;
+        parser.parse(buf, this);
+        for (ReadFrameInfo rfi : frames) {
+            ReadFrame f = rfi.frame;
+            if (f.getFrameType() == FrameType.TYPE_RESP) {
+                processIncomingResponse(frame, rfi.writeDataForResp);
             } else {
-                readBuffer = ByteBuffer.allocateDirect(INIT_BUF_SIZE);
-                readBufferCache = new WeakReference<>(readBuffer);
-                return readBuffer;
+                processIncomingRequest(frame, rfi.processorForRequest);
             }
         }
     }
 
+    @Override
+    public void begin(int len) {
+        this.currentReadFrameSize = len;
+        frame = new ReadFrame();
+        drop = false;
+        writeDataForResp = null;
+        processorForRequest = null;
+        decodeStatus = null;
+    }
 
-    public void afterRead(boolean running) {
-        ByteBuffer buf = this.readBuffer;
-        // switch to read mode, but the start position may not 0, so we can't use flip()
-        buf.limit(buf.position());
-        buf.position(this.readBufferMark);
+    @Override
+    public void end() {
+        ReadFrameInfo fi = new ReadFrameInfo();
+        fi.frame = frame;
+        fi.writeDataForResp = writeDataForResp;
+        fi.processorForRequest = processorForRequest;
+        frames.add(fi);
+    }
 
-        for (int rest = buf.remaining(); rest >= this.currentReadFrameSize; rest = buf.remaining()) {
-            if (currentReadFrameSize == -1) {
-                // read frame length
-                if (rest >= 4) {
-                    currentReadFrameSize = buf.getInt();
-                    if (currentReadFrameSize <= 0 || currentReadFrameSize > nioConfig.getMaxFrameSize()) {
-                        throw new NetException("frame too large: " + currentReadFrameSize);
+    @Override
+    public void readVarInt(int index, long value) {
+        switch (index) {
+            case Frame.IDX_TYPE:
+                frame.setFrameType((int) value);
+                break;
+            case Frame.IDX_COMMAND:
+                frame.setCommand((int) value);
+                break;
+            case Frame.IDX_SEQ:
+                frame.setSeq((int) value);
+                break;
+            case Frame.IDX_RESP_CODE:
+                frame.setRespCode((int) value);
+                break;
+            default:
+                throw new PbException("readInt " + index);
+        }
+    }
+
+    @Override
+    public void readBytes(int index, ByteBuffer buf, int len, boolean start, boolean end) {
+        switch (index) {
+            case Frame.IDX_MSG: {
+                // TODO finish it
+                break;
+            }
+            case Frame.IDX_BODY: {
+                readBody(buf, len, start, end);
+                break;
+            }
+            default:
+                throw new PbException("readInt " + index);
+        }
+    }
+
+    private void readBody(ByteBuffer buf, int len, boolean start, boolean end) {
+        if (frame.getCommand() <= 0) {
+            throw new NetException("command invalid :" + frame.getCommand());
+        }
+        int type = frame.getFrameType();
+        if (drop) {
+            // TODO abort parse
+            return;
+        }
+        // the body field should encode as last field
+        Decoder decoder;
+        if (type == FrameType.TYPE_RESP) {
+            if (writeDataForResp == null) {
+                writeDataForResp = this.workerParams.getPendingRequests().remove(BitUtil.toLong(channelIndexInWorker, frame.getSeq()));
+            }
+            if (writeDataForResp == null) {
+                drop = true;
+                log.debug("pending request not found. channel={}, resp={}", channel, frame);
+                return;
+            }
+            decoder = writeDataForResp.getDecoder();
+        } else {
+            if (!running) {
+                drop = true;
+                writeErrorInIoThread(frame, CmdCodes.STOPPING, null);
+                return;
+            }
+            if (processorForRequest == null) {
+                processorForRequest = nioStatus.getProcessors().get(frame.getCommand());
+            }
+            if (processorForRequest == null) {
+                drop = true;
+                writeErrorInIoThread(frame, CmdCodes.COMMAND_NOT_SUPPORT, null);
+                return;
+            }
+            decoder = processorForRequest.getDecoder();
+        }
+
+        if (!decoder.decodeInIoThread() && nioStatus.getBizExecutor() != null) {
+            copyBuffer(buf, len, start, end);
+        } else {
+            if (start && end) {
+                try {
+                    frame.setBody(decoder.decode(buf));
+                } catch (Throwable e) {
+                    processIoDecodeFail(e);
+                }
+            } else {
+                if (!decoder.supportHalfPacket()) {
+                    copyBuffer(buf, len, start, end);
+                    if (end) {
+                        try {
+                            frame.setBody(decoder.decode(buf));
+                        } catch (Throwable e) {
+                            processIoDecodeFail(e);
+                        }
                     }
-                    readBufferMark = buf.position();
                 } else {
-                    break;
-                    // wait next read
+                    try {
+                        decodeStatus = decoder.decode(decodeStatus, buf, currentReadFrameSize, start, end);
+                        if (end) {
+                            frame.setBody(decodeStatus);
+                        }
+                    } catch (Throwable e) {
+                        processIoDecodeFail(e);
+                    }
                 }
             }
-            if (currentReadFrameSize > 0) {
-                readFrame(buf, running);
-            }
         }
 
-        prepareForNextRead();
-    }
-
-    private void readFrame(ByteBuffer buf, boolean running) {
-        int currentReadFrameSize = this.currentReadFrameSize;
-        if (buf.remaining() < currentReadFrameSize) {
-            return;
-        }
-        int limit = buf.limit();
-        int frameEnd = buf.position() + currentReadFrameSize;
-        buf.limit(frameEnd);
-        ReadFrame f = new ReadFrame();
-        RpcPbCallback pbCallback = this.workerParams.getCallback();
-        pbCallback.setFrame(f);
-        new PbParser(nioConfig.getMaxFrameSize()).parse(buf, pbCallback);
-
-        int type = f.getFrameType();
-        boolean hasBody = pbCallback.getBodyStart() != -1;
-        if (hasBody) {
-            buf.position(pbCallback.getBodyStart());
-            buf.limit(pbCallback.getBodyLimit());
-        }
-        try {
-            if (type == FrameType.TYPE_REQ) {
-                processIncomingRequest(hasBody ? buf : ByteBufferPool.EMPTY_BUFFER, f, running, currentReadFrameSize);
-            } else if (type == FrameType.TYPE_RESP) {
-                processIncomingResponse(hasBody ? buf : ByteBufferPool.EMPTY_BUFFER, f);
-            } else {
-                log.warn("bad frame type: {}, {}", type, channel);
-            }
-        } finally {
-            this.readBufferMark = frameEnd;
-            this.currentReadFrameSize = -1;
-            buf.limit(limit);
-            buf.position(frameEnd);
+        if (end) {
+            // so if the body is not last field, exception throws
+            this.frame = null;
         }
     }
 
-    private void processIncomingResponse(ByteBuffer buf, ReadFrame resp) {
-        WriteData wo = this.workerParams.getPendingRequests().remove(BitUtil.toLong(channelIndexInWorker, resp.getSeq()));
-        if (wo == null) {
-            log.debug("pending request not found. channel={}, resp={}", channel, resp);
-            return;
+    private void copyBuffer(ByteBuffer buf, int len, boolean start, boolean end) {
+        ByteBuffer body;
+        if (start) {
+            body = ByteBuffer.allocate(len);
+            frame.setBody(body);
+        } else {
+            body = (ByteBuffer) frame.getBody();
         }
+        body.put(buf);
+        if (end) {
+            body.flip();
+        }
+    }
+
+    private void processIoDecodeFail(Throwable e) {
+        if (log.isDebugEnabled()) {
+            log.debug("decode fail. {} {}", channel, e.toString());
+        }
+        if (writeDataForResp != null) {
+            writeDataForResp.getFuture().completeExceptionally(e);
+        }
+        drop = true;
+    }
+
+    private void processIncomingResponse(ReadFrame resp, WriteData wo) {
         nioStatus.getRequestSemaphore().release();
         WriteFrame req = wo.getData();
         if (resp.getCommand() != req.getCommand()) {
             wo.getFuture().completeExceptionally(new NetException("command not match"));
             return;
         }
-        Decoder decoder = wo.getDecoder();
-        if (decoder.decodeInIoThread()) {
-            try {
-                Object body = decoder.decode(buf);
-                resp.setBody(body);
-            } catch (Throwable e) {
-                if (log.isDebugEnabled()) {
-                    log.debug("decode fail. {} {}", channel, e.toString());
-                }
-                wo.getFuture().completeExceptionally(e);
-            }
-        } else {
-            ByteBuffer bodyBuffer = ByteBuffer.allocate(buf.remaining());
-            bodyBuffer.put(buf);
-            bodyBuffer.flip();
-            resp.setBody(bodyBuffer);
-        }
         wo.getFuture().complete(resp);
     }
 
-    private void processIncomingRequest(ByteBuffer buf, ReadFrame req, boolean running, int currentReadFrameSize) {
-        if (!running) {
-            writeErrorInIoThread(req, CmdCodes.STOPPING, null);
-            return;
-        }
-        NioStatus nioStatus = this.nioStatus;
-        ReqProcessor p = nioStatus.getProcessors().get(req.getCommand());
-        if (p == null) {
-            writeErrorInIoThread(req, CmdCodes.COMMAND_NOT_SUPPORT, null);
-            return;
-        }
-        Decoder decoder = p.getDecoder();
+    private void processIncomingRequest(ReadFrame req, ReqProcessor p) {
         if (nioStatus.getBizExecutor() == null || p.runInIoThread()) {
-            if (!fillBody(buf, req, decoder)) {
-                return;
-            }
             WriteFrame resp;
             try {
                 resp = p.process(req, this);
@@ -212,16 +274,6 @@ class DtChannel {
                 writeErrorInIoThread(req, CmdCodes.BIZ_ERROR, "processor return null response");
             }
         } else {
-            if (decoder.decodeInIoThread()) {
-                if (!fillBody(buf, req, decoder)) {
-                    return;
-                }
-            } else {
-                ByteBuffer body = ByteBuffer.allocate(buf.remaining());
-                body.put(buf);
-                body.flip();
-                req.setBody(body);
-            }
             AtomicLong bytes = nioStatus.getInReqBytes();
             // TODO can we eliminate this CAS operation?
             long bytesAfterAdd = bytes.addAndGet(currentReadFrameSize);
@@ -257,6 +309,7 @@ class DtChannel {
             this.dtc = dtc;
             this.inBytes = inBytes;
         }
+
         @Override
         public void run() {
             try {
@@ -286,20 +339,6 @@ class DtChannel {
         }
     }
 
-    private boolean fillBody(ByteBuffer buf, ReadFrame req, Decoder decoder) {
-        try {
-            Object body = decoder.decode(buf);
-            req.setBody(body);
-            return true;
-        } catch (Throwable e) {
-            if (log.isDebugEnabled()) {
-                log.debug("decode fail. {} {}", channel, e.toString());
-            }
-            writeErrorInIoThread(req, CmdCodes.BIZ_ERROR, e.toString());
-            return false;
-        }
-    }
-
     private void writeErrorInIoThread(Frame req, int code, String msg) {
         ByteBufferWriteFrame resp = new ByteBufferWriteFrame();
         resp.setCommand(req.getCommand());
@@ -318,62 +357,6 @@ class DtChannel {
         resp.setRespCode(code);
         resp.setMsg(msg);
         writeRespInBizThreads(resp);
-    }
-
-    private void prepareForNextRead() {
-        ByteBuffer buf = readBuffer;
-        int endIndex = buf.limit();
-        int capacity = buf.capacity();
-
-        int frameSize = this.currentReadFrameSize;
-        int mark = this.readBufferMark;
-        if (frameSize == -1) {
-            if (mark == endIndex) {
-                // read complete
-                buf.clear();
-                this.readBufferMark = 0;
-            } else {
-                int c = endIndex - mark;
-                assert c > 0 && c < 4;
-                if (capacity - endIndex < 4 - c) {
-                    // move length bytes to start
-                    for (int i = 0; i < c; i++) {
-                        buf.put(i, buf.get(mark + i));
-                    }
-                    buf.position(c);
-                    buf.limit(capacity);
-                    this.readBufferMark = 0;
-                } else {
-                    // continue read
-                    buf.position(endIndex);
-                    buf.limit(capacity);
-                }
-            }
-        } else {
-            int c = endIndex - mark;
-            if (capacity - endIndex >= frameSize - c) {
-                // there is enough space for this frame, return, continue read
-                buf.position(endIndex);
-                buf.limit(capacity);
-            } else {
-                buf.limit(endIndex);
-                buf.position(mark);
-                // TODO array copy
-                if (frameSize > capacity) {
-                    // allocate bigger buffer
-                    ByteBuffer newBuffer = ByteBuffer.allocateDirect(frameSize);
-                    newBuffer.put(buf);
-                    this.readBuffer = newBuffer;
-                    this.readBufferCache = new WeakReference<>(newBuffer);
-                } else {
-                    // copy bytes to start
-                    ByteBuffer newBuffer = buf.slice();
-                    buf.clear();
-                    buf.put(newBuffer);
-                }
-                this.readBufferMark = 0;
-            }
-        }
     }
 
     // invoke by other threads

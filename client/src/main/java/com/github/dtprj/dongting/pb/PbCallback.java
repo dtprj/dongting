@@ -26,7 +26,7 @@ public interface PbCallback {
 
     void readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end);
 
-    default void begin() {
+    default void begin(int len) {
     }
 
     default void end() {

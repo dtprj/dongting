@@ -25,5 +25,13 @@ public abstract class Decoder {
         return true;
     }
 
+    public boolean supportHalfPacket() {
+        return false;
+    }
+
     public abstract Object decode(ByteBuffer buffer);
+
+    public Object decode(Object status, ByteBuffer buffer, int frameLen, boolean start, boolean end) {
+        throw new UnsupportedOperationException();
+    }
 }

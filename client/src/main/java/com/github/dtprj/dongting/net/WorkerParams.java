@@ -21,21 +21,12 @@ import java.util.HashMap;
  * @author huangli
  */
 class WorkerParams {
-    private RpcPbCallback callback;
     private IoQueue ioQueue;
     private Runnable wakeupRunnable;
     private HashMap<Long, WriteData> pendingRequests;
     private ByteBufferPool pool;
 
     public WorkerParams() {
-    }
-
-    public RpcPbCallback getCallback() {
-        return callback;
-    }
-
-    public void setCallback(RpcPbCallback callback) {
-        this.callback = callback;
     }
 
     public IoQueue getIoQueue() {

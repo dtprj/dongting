@@ -81,9 +81,11 @@ public abstract class NioNet extends AbstractLifeCircle {
 
     private static class RespConvertor implements Function<ReadFrame, ReadFrame> {
         private Decoder decoder;
+
         RespConvertor(Decoder decoder) {
             this.decoder = decoder;
         }
+
         @Override
         public ReadFrame apply(ReadFrame frame) {
             if (frame.getRespCode() != CmdCodes.SUCCESS) {

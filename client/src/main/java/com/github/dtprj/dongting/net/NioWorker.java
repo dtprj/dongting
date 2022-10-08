@@ -94,9 +94,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.pool = new ByteBufferPool(true, config.getBufPoolSize(), config.getBufPoolMinCount(),
                 config.getBufPoolMaxCount(), config.getBufPoolTimeout());
 
-        RpcPbCallback pbCallback = new RpcPbCallback();
         workerParams = new WorkerParams();
-        workerParams.setCallback(pbCallback);
         workerParams.setIoQueue(ioQueue);
         workerParams.setPendingRequests(pendingOutgoingRequests);
         workerParams.setWakeupRunnable(this::wakeup);
@@ -194,14 +192,14 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             stage = 2;
             DtChannel dtc = (DtChannel) key.attachment();
             if (key.isReadable()) {
-                ByteBuffer buf = dtc.getOrCreateReadBuffer();
+                ByteBuffer buf = pool.borrow(64 * 1024);
                 int readCount = sc.read(buf);
                 if (readCount == -1) {
                     // log.info("socket read to end, remove it: {}", key.channel());
                     closeChannel(key);
                     return false;
                 }
-                dtc.afterRead(stopStatus == SS_RUNNING);
+                dtc.afterRead(stopStatus == SS_RUNNING, buf);
             }
             stage = 3;
             if (key.isWritable()) {

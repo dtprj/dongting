@@ -20,31 +20,14 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class ByteBufferDecoder extends Decoder {
-    public static final ByteBufferDecoder INSTANCE = new ByteBufferDecoder();
-
+public class BizByteBufferDecoder extends Decoder {
     @Override
-    public boolean supportHalfPacket() {
-        return true;
+    public boolean decodeInIoThread() {
+        return false;
     }
 
     @Override
     public Object decode(ByteBuffer buffer) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Object decode(Object status, ByteBuffer buffer, int frameLen, boolean start, boolean end) {
-        ByteBuffer result;
-        if (start) {
-            result = ByteBuffer.allocate(frameLen);
-        } else {
-            result = (ByteBuffer) status;
-        }
-        result.put(buffer);
-        if (end) {
-            result.flip();
-        }
-        return result;
+        return buffer;
     }
 }

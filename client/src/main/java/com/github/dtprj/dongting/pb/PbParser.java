@@ -65,12 +65,12 @@ public class PbParser {
 
     private int onStatusParsePbLen(ByteBuffer buf, PbCallback callback, int remain) {
         if (pendingBytes == 0) {
-            callback.begin();
             if (remain >= 4) {
                 int len = buf.getInt();
                 if (len <= 0 || len > maxFrame) {
                     throw new PbException("maxFrameSize exceed: max=" + maxFrame + ", actual=" + len);
                 }
+                callback.begin(len);
                 status = STATUS_PARSE_TAG;
                 frameLen = len;
                 pendingBytes = 0;
@@ -88,6 +88,7 @@ public class PbParser {
             if (frameLen <= 0 || frameLen > maxFrame) {
                 throw new PbException("maxFrameSize exceed: max=" + maxFrame + ", actual=" + frameLen);
             }
+            callback.begin(frameLen);
             pendingBytes = 0;
             status = STATUS_PARSE_TAG;
             return remain - restLen;
@@ -233,7 +234,13 @@ public class PbParser {
             case PbUtil.TYPE_LENGTH_DELIMITED:
                 int needRead = fieldLen - pendingBytes;
                 int actualRead = Math.min(needRead, remain);
+                int start = buf.position();
+                int end = start + actualRead;
+                int limit = buf.limit();
+                buf.limit(end);
                 callback.readBytes(this.fieldIndex, buf, fieldLen, pendingBytes == 0, needRead == actualRead);
+                buf.limit(limit);
+                buf.position(end);
                 parsedBytes += actualRead;
                 if (needRead == actualRead) {
                     pendingBytes = 0;

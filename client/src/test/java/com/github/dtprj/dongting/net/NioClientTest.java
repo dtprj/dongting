@@ -220,7 +220,7 @@ public class NioClientTest {
         if (r.nextBoolean()) {
             decoder = ByteBufferDecoder.INSTANCE;
         } else {
-            decoder = new ByteBufferDecoder(false);
+            decoder = new BizByteBufferDecoder();
         }
         CompletableFuture<ReadFrame> f = client.sendRequest(wf,
                 decoder, new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
