@@ -16,41 +16,137 @@
 package com.github.dtprj.dongting.pb;
 
 import com.google.protobuf.ByteString;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+
+import java.nio.ByteBuffer;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * @author huangli
  */
 public class PbParserTest {
+
+    static class Callback implements PbCallback {
+
+        private int beginCount;
+        private int endCount;
+
+        private String msg = "";
+        private String body = "";
+
+        private int f1;
+        private long f2;
+        private String f3;
+        private String f4;
+        private int expectLen;
+
+        Callback(int f1, long f2, String f3, String f4) {
+            this.f1 = f1;
+            this.f2 = f2;
+            this.f3 = f3;
+            this.f4 = f4;
+        }
+
+        public ByteBuffer buildFrame() {
+            byte[] bs = DtPbTest.PbParserTestMsg.newBuilder()
+                    .setInt32Field(f1)
+                    .setInt64Field(f2)
+                    .setStringField(f3)
+                    .setBytesField(ByteString.copyFrom(f4.getBytes()))
+                    .build()
+                    .toByteArray();
+            ByteBuffer buf = ByteBuffer.allocate(bs.length + 4);
+            buf.putInt(bs.length);
+            buf.put(bs);
+            buf.flip();
+            this.expectLen = bs.length;
+            return buf;
+        }
+
+        @Override
+        public void begin(int len) {
+            assertEquals(expectLen, len);
+            beginCount++;
+        }
+
+        @Override
+        public void end() {
+            endCount++;
+        }
+
+        @Override
+        public void readVarInt(int index, long value) {
+            if (index == 1) {
+                assertEquals(f1, value);
+            } else if (index == 2) {
+                assertEquals(f2, value);
+            } else {
+                fail();
+            }
+        }
+
+        @Override
+        public void readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
+            byte[] bs = new byte[buf.remaining()];
+            buf.get(bs);
+            String s = new String(bs);
+            if (index == 3) {
+                msg += s;
+                if (end) {
+                    assertEquals(f3, msg);
+                }
+            } else if (index == 4000) {
+                body += s;
+                if (end) {
+                    assertEquals(f4, body);
+                }
+            } else {
+                fail();
+            }
+        }
+    }
+
+
     @Test
     public void testParse() {
-        DtFrame.Frame h = DtFrame.Frame.newBuilder()
-                .setFrameType(100)
-                .setCommand(200)
-                .setSeq(300)
-                .setRespCode(400)
-                .setRespMsg("msg")
-                .setBody(ByteString.copyFrom("body".getBytes()))
-                .build();
-        h.toByteArray();
-        //TODO finish test
-//        new PbParser(50000).parse(ByteBuffer.wrap(h.toByteArray()), new PbCallback() {
-//            @Override
-//            public void readVarInt(int index, long value) {
-//                assertEquals(index * 100, value);
-//            }
-//
-//            @Override
-//            public void readBytes(int index, ByteBuffer buf) {
-//                byte[] bs = new byte[buf.remaining()];
-//                buf.get(bs);
-//                String s = new String(bs);
-//                if (index == 5) {
-//                    assertEquals("msg", s);
-//                } else {
-//                    assertEquals("body", s);
-//                }
-//            }
-//        });
+        PbParser parser = new PbParser(500);
+        Callback callback = new Callback(100, 200, "msg", "body");
+        parser.parse(callback.buildFrame(), callback);
+        assertEquals(1, callback.beginCount);
+        assertEquals(1, callback.endCount);
+
+        callback = new Callback(Integer.MAX_VALUE, Long.MAX_VALUE, "msg", "body");
+        parser.parse(callback.buildFrame(), callback);
+        assertEquals(1, callback.beginCount);
+        assertEquals(1, callback.endCount);
+
+        try {
+            callback = new Callback(1, 2, "msg", "body");
+            new PbParser(5).parse(callback.buildFrame(), callback);
+            fail();
+        } catch (PbException e) {
+        }
+        assertEquals(0, callback.beginCount);
+        assertEquals(0, callback.endCount);
+    }
+
+    @Test
+    public void testHalfParse() {
+        PbParser parser = new PbParser(500);
+        for (int i = 0; i < 2; i++) {
+            Callback callback = new Callback(10000, 20000, "msg", "body");
+            ByteBuffer fullBuffer = callback.buildFrame();
+            for (int j = 0; j < fullBuffer.remaining(); j++) {
+                ByteBuffer buf = ByteBuffer.allocate(1);
+                buf.put(fullBuffer.get(j));
+                buf.flip();
+                parser.parse(buf, callback);
+            }
+            assertEquals(1, callback.beginCount);
+            assertEquals(1, callback.endCount);
+        }
     }
 }

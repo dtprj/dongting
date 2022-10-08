@@ -74,6 +74,7 @@ public class PbParser {
                 status = STATUS_PARSE_TAG;
                 frameLen = len;
                 pendingBytes = 0;
+                parsedBytes = 0;
                 return remain - 4;
             } else {
                 parsedBytes = 0;
@@ -127,36 +128,22 @@ public class PbParser {
                 }
 
                 /////////////////////////////////////
-                if (status == STATUS_PARSE_TAG) {
-                    int type = value & 0x07;
-                    this.fieldType = type;
-                    value = value >>> 3;
-                    if (value == 0) {
-                        throw new PbException("bad index:" + fieldIndex);
-                    }
-                    this.fieldIndex = value;
-
-                    switch (type) {
-                        case PbUtil.TYPE_VAR_INT:
-                        case PbUtil.TYPE_FIX64:
-                        case PbUtil.TYPE_FIX32:
-                            this.status = STATUS_PARSE_FILED_BODY;
-                            break;
-                        case PbUtil.TYPE_LENGTH_DELIMITED:
-                            this.status = STATUS_PARSE_FILED_LEN;
-                            break;
-                        default:
-                            throw new PbException("type not support:" + type);
-                    }
-                } else if (status == STATUS_PARSE_FILED_LEN) {
-                    if (value <= 0) {
-                        throw new PbException("bad field len: " + fieldLen);
-                    }
-                    if (parsedBytes + value > frameLen) {
-                        throw new PbException("field length overflow frame length:" + value);
-                    }
-                    this.fieldLen = value;
-                    this.status = STATUS_PARSE_FILED_BODY;
+                switch (status) {
+                    case STATUS_PARSE_TAG:
+                        afterTagParsed(value);
+                        break;
+                    case STATUS_PARSE_FILED_LEN:
+                        if (value <= 0) {
+                            throw new PbException("bad field len: " + fieldLen);
+                        }
+                        if (parsedBytes + value > frameLen) {
+                            throw new PbException("field length overflow frame length:" + value);
+                        }
+                        this.fieldLen = value;
+                        this.status = STATUS_PARSE_FILED_BODY;
+                        break;
+                    default:
+                        throw new PbException("invalid status: " + status);
                 }
                 /////////////////////////////////////
                 return remain - i;
@@ -174,6 +161,29 @@ public class PbParser {
         }
         this.tempValue = value;
         return 0;
+    }
+
+    private void afterTagParsed(int value) {
+        int type = value & 0x07;
+        this.fieldType = type;
+        value = value >>> 3;
+        if (value == 0) {
+            throw new PbException("bad index:" + fieldIndex);
+        }
+        this.fieldIndex = value;
+
+        switch (type) {
+            case PbUtil.TYPE_VAR_INT:
+            case PbUtil.TYPE_FIX64:
+            case PbUtil.TYPE_FIX32:
+                this.status = STATUS_PARSE_FILED_BODY;
+                break;
+            case PbUtil.TYPE_LENGTH_DELIMITED:
+                this.status = STATUS_PARSE_FILED_LEN;
+                break;
+            default:
+                throw new PbException("type not support:" + type);
+        }
     }
 
     private int parseVarLong(ByteBuffer buf, PbCallback callback, int remain) {
@@ -202,6 +212,7 @@ public class PbParser {
                 }
 
                 callback.readVarInt(this.fieldIndex, value);
+                this.status = STATUS_PARSE_TAG;
 
                 return remain - i;
             } else {
@@ -248,12 +259,14 @@ public class PbParser {
                 } else {
                     pendingBytes += actualRead;
                 }
+                remain -= actualRead;
                 break;
             default:
                 throw new PbException("type not support:" + this.fieldType);
         }
         if (frameLen == parsedBytes && status == STATUS_PARSE_TAG) {
             callback.end();
+            status = STATUS_PARSE_PB_LEN;
         }
         return remain;
     }
