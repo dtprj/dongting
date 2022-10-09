@@ -44,13 +44,13 @@ class DtChannel implements PbCallback {
     int seq = 1;
 
     // read status
-    private ArrayList<ReadFrameInfo> frames = new ArrayList<>();
+    private final ArrayList<ReadFrameInfo> frames = new ArrayList<>();
     private ReadFrame frame;
     private WriteData writeDataForResp;
     private ReqProcessor processorForRequest;
     private int currentReadFrameSize;
     private Object decodeStatus;
-    private PbParser parser;
+    private final PbParser parser;
     private boolean drop;
 
     private boolean running;
@@ -184,35 +184,37 @@ class DtChannel implements PbCallback {
             decoder = processorForRequest.getDecoder();
         }
 
+        boolean copy;
+        boolean decode;
         if (!decoder.decodeInIoThread() && nioStatus.getBizExecutor() != null) {
-            copyBuffer(buf, len, start, end);
+            copy = true;
+            decode = false;
         } else {
-            if (start && end) {
-                try {
-                    frame.setBody(decoder.decode(buf));
-                } catch (Throwable e) {
-                    processIoDecodeFail(e);
-                }
+            decode = true;
+            if (!start || !end) {
+                // the frame is not complete
+                copy = !decoder.supportHalfPacket();
             } else {
-                if (!decoder.supportHalfPacket()) {
-                    copyBuffer(buf, len, start, end);
+                copy = false;
+            }
+        }
+        if (copy) {
+            copyBuffer(buf, len, start, end);
+        }
+        if (decode) {
+            try {
+                if (copy && end) {
+                    Object result = decoder.decode(null, (ByteBuffer) frame.getBody(),
+                            currentReadFrameSize, true, true);
+                    frame.setBody(result);
+                } else if (decoder.supportHalfPacket()) {
+                    decodeStatus = decoder.decode(decodeStatus, buf, currentReadFrameSize, start, end);
                     if (end) {
-                        try {
-                            frame.setBody(decoder.decode(buf));
-                        } catch (Throwable e) {
-                            processIoDecodeFail(e);
-                        }
-                    }
-                } else {
-                    try {
-                        decodeStatus = decoder.decode(decodeStatus, buf, currentReadFrameSize, start, end);
-                        if (end) {
-                            frame.setBody(decodeStatus);
-                        }
-                    } catch (Throwable e) {
-                        processIoDecodeFail(e);
+                        frame.setBody(decodeStatus);
                     }
                 }
+            } catch (Throwable e) {
+                processIoDecodeFail(e);
             }
         }
 
@@ -318,7 +320,7 @@ class DtChannel implements PbCallback {
                 try {
                     if (!decoder.decodeInIoThread()) {
                         ByteBuffer bodyBuffer = (ByteBuffer) req.getBody();
-                        req.setBody(decoder.decode(bodyBuffer));
+                        req.setBody(decoder.decode(null, bodyBuffer, frameSize, true, true));
                     }
                     resp = processor.process(req, dtc);
                 } catch (Throwable e) {

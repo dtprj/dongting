@@ -199,6 +199,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     closeChannel(key);
                     return false;
                 }
+                buf.flip();
                 dtc.afterRead(stopStatus == SS_RUNNING, buf);
             }
             stage = 3;

@@ -322,7 +322,7 @@ public class NioServerTest {
                     }
 
                     @Override
-                    public Object decode(ByteBuffer buffer) {
+                    public Object decode(Object status, ByteBuffer buffer, int frameLen, boolean start, boolean end) {
                         throw new ArrayIndexOutOfBoundsException();
                     }
                 };
@@ -344,7 +344,7 @@ public class NioServerTest {
                     }
 
                     @Override
-                    public Object decode(ByteBuffer buffer) {
+                    public Object decode(Object status, ByteBuffer buffer, int frameLen, boolean start, boolean end) {
                         throw new ArrayIndexOutOfBoundsException();
                     }
                 };

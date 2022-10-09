@@ -29,11 +29,6 @@ public class ByteBufferDecoder extends Decoder {
     }
 
     @Override
-    public Object decode(ByteBuffer buffer) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public Object decode(Object status, ByteBuffer buffer, int frameLen, boolean start, boolean end) {
         ByteBuffer result;
         if (start) {

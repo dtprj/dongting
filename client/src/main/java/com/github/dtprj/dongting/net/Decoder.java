@@ -29,9 +29,5 @@ public abstract class Decoder {
         return false;
     }
 
-    public abstract Object decode(ByteBuffer buffer);
-
-    public Object decode(Object status, ByteBuffer buffer, int frameLen, boolean start, boolean end) {
-        throw new UnsupportedOperationException();
-    }
+    public abstract Object decode(Object status, ByteBuffer buffer, int frameLen, boolean start, boolean end);
 }

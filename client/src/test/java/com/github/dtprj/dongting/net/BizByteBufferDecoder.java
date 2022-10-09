@@ -27,7 +27,7 @@ public class BizByteBufferDecoder extends Decoder {
     }
 
     @Override
-    public Object decode(ByteBuffer buffer) {
+    public Object decode(Object status, ByteBuffer buffer, int frameLen, boolean start, boolean end) {
         return buffer;
     }
 }
