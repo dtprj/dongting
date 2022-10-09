@@ -222,7 +222,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     log.warn("process socket connect error: {}", e.toString());
                     break;
                 case 2:
-                    log.warn("process socket read error: {}", e.toString());
+                    log.warn("process socket read error: {}", e);
                     break;
                 case 3:
                     log.warn("process socket write error: {}", e.toString(), e);

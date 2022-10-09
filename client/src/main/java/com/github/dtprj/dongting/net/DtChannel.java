@@ -46,6 +46,7 @@ class DtChannel implements PbCallback {
     // read status
     private final ArrayList<ReadFrameInfo> frames = new ArrayList<>();
     private ReadFrame frame;
+    private ReadFrameInfo readFrameInfo;
     private WriteData writeDataForResp;
     private ReqProcessor processorForRequest;
     private int currentReadFrameSize;
@@ -84,17 +85,20 @@ class DtChannel implements PbCallback {
         for (ReadFrameInfo rfi : frames) {
             ReadFrame f = rfi.frame;
             if (f.getFrameType() == FrameType.TYPE_RESP) {
-                processIncomingResponse(frame, rfi.writeDataForResp);
+                processIncomingResponse(f, rfi.writeDataForResp);
             } else {
-                processIncomingRequest(frame, rfi.processorForRequest);
+                processIncomingRequest(f, rfi.processorForRequest);
             }
         }
+        frames.clear();
     }
 
     @Override
     public void begin(int len) {
         this.currentReadFrameSize = len;
         frame = new ReadFrame();
+        readFrameInfo = new ReadFrameInfo();
+        readFrameInfo.frame = frame;
         drop = false;
         writeDataForResp = null;
         processorForRequest = null;
@@ -103,11 +107,9 @@ class DtChannel implements PbCallback {
 
     @Override
     public void end() {
-        ReadFrameInfo fi = new ReadFrameInfo();
-        fi.frame = frame;
-        fi.writeDataForResp = writeDataForResp;
-        fi.processorForRequest = processorForRequest;
-        frames.add(fi);
+        readFrameInfo.writeDataForResp = writeDataForResp;
+        readFrameInfo.processorForRequest = processorForRequest;
+        frames.add(readFrameInfo);
     }
 
     @Override
@@ -185,37 +187,41 @@ class DtChannel implements PbCallback {
         }
 
         boolean copy;
-        boolean decode;
+        int decode;//0 not decode, 1 use io buffer decode, 2 use copy buffer decode
         if (!decoder.decodeInIoThread() && nioStatus.getBizExecutor() != null) {
             copy = true;
-            decode = false;
+            decode = 0;
         } else {
-            decode = true;
-            if (!start || !end) {
-                // the frame is not complete
-                copy = !decoder.supportHalfPacket();
-            } else {
+            if (decoder.supportHalfPacket()) {
                 copy = false;
+                decode = 1;
+            } else {
+                if (start && end) {
+                    // full frame
+                    copy = false;
+                    decode = 1;
+                } else {
+                    copy = true;
+                    decode = 2;
+                }
             }
         }
         if (copy) {
             copyBuffer(buf, len, start, end);
         }
-        if (decode) {
-            try {
-                if (copy && end) {
-                    Object result = decoder.decode(null, (ByteBuffer) frame.getBody(),
-                            currentReadFrameSize, true, true);
-                    frame.setBody(result);
-                } else if (decoder.supportHalfPacket()) {
-                    decodeStatus = decoder.decode(decodeStatus, buf, currentReadFrameSize, start, end);
-                    if (end) {
-                        frame.setBody(decodeStatus);
-                    }
+        try {
+            if (decode == 1) {
+                decodeStatus = decoder.decode(decodeStatus, buf, currentReadFrameSize, start, end);
+                if (end) {
+                    frame.setBody(decodeStatus);
                 }
-            } catch (Throwable e) {
-                processIoDecodeFail(e);
+            } else if (decode == 2) {
+                Object result = decoder.decode(null, (ByteBuffer) frame.getBody(),
+                        currentReadFrameSize, true, true);
+                frame.setBody(result);
             }
+        } catch (Throwable e) {
+            processIoDecodeFail(e);
         }
 
         if (end) {
