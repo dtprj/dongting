@@ -231,9 +231,11 @@ public class NioClientTest {
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
         assertEquals("msg", rf.getMsg());
         ByteBuffer buf = (ByteBuffer) rf.getBody();
-        byte[] respBody = new byte[buf.remaining()];
-        buf.get(respBody);
-        assertArrayEquals(bs, respBody);
+        if (bs.length != 0) {
+            assertEquals(ByteBuffer.wrap(bs), buf);
+        } else {
+            assertNull(buf);
+        }
     }
 
     private static void sendSyncByPeer(int maxBodySize, NioClient client,
@@ -250,7 +252,11 @@ public class NioClientTest {
         assertEquals(wf.getSeq(), rf.getSeq());
         assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
-        assertArrayEquals(bs, ((ByteBuffer) rf.getBody()).array());
+        if (bs.length != 0) {
+            assertEquals(ByteBuffer.wrap(bs), rf.getBody());
+        } else {
+            assertNull(rf.getBody());
+        }
     }
 
     private static CompletableFuture<Void> sendAsync(int maxBodySize, NioClient client, long timeoutMillis) {
@@ -267,8 +273,11 @@ public class NioClientTest {
             assertEquals(wf.getSeq(), rf.getSeq());
             assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
             assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
-            assertNotNull(rf.getBody());
-            assertArrayEquals(bs, ((ByteBuffer) rf.getBody()).array());
+            if (bs.length != 0) {
+                assertEquals(ByteBuffer.wrap(bs), rf.getBody());
+            } else {
+                assertNull(rf.getBody());
+            }
             return null;
         });
     }

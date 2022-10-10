@@ -349,9 +349,9 @@ class DtChannel implements PbCallback {
                     if (!decoder.decodeInIoThread()) {
                         ByteBuffer bodyBuffer = (ByteBuffer) req.getBody();
                         if (bodyBuffer != null) {
-                            bodyBuffer = ByteBufferPool.EMPTY_BUFFER;
+                            Object o = decoder.decode(null, bodyBuffer, bodyBuffer.remaining(), true, true);
+                            req.setBody(o);
                         }
-                        req.setBody(decoder.decode(null, bodyBuffer, bodyBuffer.remaining(), true, true));
                     }
                     resp = processor.process(req, dtc);
                 } catch (Throwable e) {

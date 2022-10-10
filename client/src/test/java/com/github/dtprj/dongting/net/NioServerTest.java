@@ -35,8 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -140,7 +139,12 @@ public class NioServerTest {
                     DtFrame.Frame frame = DtFrame.Frame.parseFrom(resp);
                     assertEquals(FrameType.TYPE_RESP, frame.getFrameType());
                     assertEquals(CmdCodes.SUCCESS, frame.getRespCode());
-                    assertArrayEquals(map.get(frame.getSeq()), frame.getBody().toByteArray());
+                    byte[] expect = map.get(frame.getSeq());
+                    if (expect.length != 0) {
+                        assertArrayEquals(expect, frame.getBody().toByteArray());
+                    } else {
+                        assertNotNull(frame.getBody());
+                    }
                 }
             }
             s.close();
