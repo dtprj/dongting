@@ -107,10 +107,17 @@ class DtChannel implements PbCallback {
         processorForRequest = null;
         decodeStatus = null;
         msg = null;
+        msgIndex = 0;
     }
 
     @Override
     public void end() {
+        if (writeDataForResp == null && processorForRequest == null) {
+            // empty body
+            if (getDecoder() == null) {
+                return;
+            }
+        }
         readFrameInfo.writeDataForResp = writeDataForResp;
         readFrameInfo.processorForRequest = processorForRequest;
         frames.add(readFrameInfo);
@@ -163,39 +170,13 @@ class DtChannel implements PbCallback {
         if (frame.getCommand() <= 0) {
             throw new NetException("command invalid :" + frame.getCommand());
         }
-        int type = frame.getFrameType();
         if (drop) {
             // TODO abort parse
             return;
         }
         // the body field should encode as last field
-        Decoder decoder;
-        if (type == FrameType.TYPE_RESP) {
-            if (writeDataForResp == null) {
-                writeDataForResp = this.workerParams.getPendingRequests().remove(BitUtil.toLong(channelIndexInWorker, frame.getSeq()));
-            }
-            if (writeDataForResp == null) {
-                drop = true;
-                log.debug("pending request not found. channel={}, resp={}", channel, frame);
-                return;
-            }
-            decoder = writeDataForResp.getDecoder();
-        } else {
-            if (!running) {
-                drop = true;
-                writeErrorInIoThread(frame, CmdCodes.STOPPING, null);
-                return;
-            }
-            if (processorForRequest == null) {
-                processorForRequest = nioStatus.getProcessors().get(frame.getCommand());
-            }
-            if (processorForRequest == null) {
-                drop = true;
-                writeErrorInIoThread(frame, CmdCodes.COMMAND_NOT_SUPPORT, null);
-                return;
-            }
-            decoder = processorForRequest.getDecoder();
-        }
+        Decoder decoder = getDecoder();
+        if (decoder == null) return;
 
         boolean copy;
         int decode;//0 not decode, 1 use io buffer decode, 2 use copy buffer decode
@@ -238,6 +219,35 @@ class DtChannel implements PbCallback {
         if (end) {
             // so if the body is not last field, exception throws
             this.frame = null;
+        }
+    }
+
+    private Decoder getDecoder() {
+        if (frame.getFrameType() == FrameType.TYPE_RESP) {
+            if (writeDataForResp == null) {
+                writeDataForResp = this.workerParams.getPendingRequests().remove(BitUtil.toLong(channelIndexInWorker, frame.getSeq()));
+            }
+            if (writeDataForResp == null) {
+                drop = true;
+                log.debug("pending request not found. channel={}, resp={}", channel, frame);
+                return null;
+            }
+            return writeDataForResp.getDecoder();
+        } else {
+            if (!running) {
+                drop = true;
+                writeErrorInIoThread(frame, CmdCodes.STOPPING, null);
+                return null;
+            }
+            if (processorForRequest == null) {
+                processorForRequest = nioStatus.getProcessors().get(frame.getCommand());
+            }
+            if (processorForRequest == null) {
+                drop = true;
+                writeErrorInIoThread(frame, CmdCodes.COMMAND_NOT_SUPPORT, null);
+                return null;
+            }
+            return processorForRequest.getDecoder();
         }
     }
 
@@ -338,7 +348,9 @@ class DtChannel implements PbCallback {
                 try {
                     if (!decoder.decodeInIoThread()) {
                         ByteBuffer bodyBuffer = (ByteBuffer) req.getBody();
-                        req.setBody(decoder.decode(null, bodyBuffer, bodyBuffer.remaining(), true, true));
+                        if (bodyBuffer != null) {
+                            req.setBody(decoder.decode(null, bodyBuffer, bodyBuffer.remaining(), true, true));
+                        }
                     }
                     resp = processor.process(req, dtc);
                 } catch (Throwable e) {
