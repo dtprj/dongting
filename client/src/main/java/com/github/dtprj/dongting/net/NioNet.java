@@ -93,10 +93,11 @@ public abstract class NioNet extends AbstractLifeCircle {
             }
             if (!decoder.decodeInIoThread()) {
                 ByteBuffer buf = (ByteBuffer) frame.getBody();
-                if (buf != null) {
-                    Object body = decoder.decode(null, buf, buf.remaining(), true, true);
-                    frame.setBody(body);
+                if (buf == null) {
+                    buf = ByteBufferPool.EMPTY_BUFFER;
                 }
+                Object body = decoder.decode(null, buf, buf.remaining(), true, true);
+                frame.setBody(body);
             }
             return frame;
         }

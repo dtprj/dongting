@@ -57,7 +57,7 @@ class DtChannel implements PbCallback {
     private byte[] msg;
     private int msgIndex;
 
-    private boolean running;
+    private boolean running = true;
 
     private final IoSubQueue subQueue;
 
@@ -349,8 +349,9 @@ class DtChannel implements PbCallback {
                     if (!decoder.decodeInIoThread()) {
                         ByteBuffer bodyBuffer = (ByteBuffer) req.getBody();
                         if (bodyBuffer != null) {
-                            req.setBody(decoder.decode(null, bodyBuffer, bodyBuffer.remaining(), true, true));
+                            bodyBuffer = ByteBufferPool.EMPTY_BUFFER;
                         }
+                        req.setBody(decoder.decode(null, bodyBuffer, bodyBuffer.remaining(), true, true));
                     }
                     resp = processor.process(req, dtc);
                 } catch (Throwable e) {

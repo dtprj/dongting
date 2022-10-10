@@ -267,6 +267,7 @@ public class NioClientTest {
             assertEquals(wf.getSeq(), rf.getSeq());
             assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
             assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
+            assertNotNull(rf.getBody());
             assertArrayEquals(bs, ((ByteBuffer) rf.getBody()).array());
             return null;
         });
