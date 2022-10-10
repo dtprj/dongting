@@ -27,7 +27,10 @@ public class BizByteBufferDecoder extends Decoder {
     }
 
     @Override
-    public Object decode(Object status, ByteBuffer buffer, int frameLen, boolean start, boolean end) {
-        return buffer;
+    public Object decode(Object status, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+        ByteBuffer buf = ByteBuffer.allocate(bodyLen);
+        buf.put(buffer);
+        buf.flip();
+        return buf;
     }
 }

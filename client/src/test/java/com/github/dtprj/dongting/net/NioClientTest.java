@@ -230,7 +230,10 @@ public class NioClientTest {
         assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
         assertEquals("msg", rf.getMsg());
-        assertArrayEquals(bs, ((ByteBuffer) rf.getBody()).array());
+        ByteBuffer buf = (ByteBuffer) rf.getBody();
+        byte[] respBody = new byte[buf.remaining()];
+        buf.get(respBody);
+        assertArrayEquals(bs, respBody);
     }
 
     private static void sendSyncByPeer(int maxBodySize, NioClient client,
@@ -540,7 +543,7 @@ public class NioClientTest {
                     }
 
                     @Override
-                    public Object decode(Object status, ByteBuffer buffer, int frameLen, boolean start, boolean end) {
+                    public Object decode(Object status, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
                         throw new ArrayIndexOutOfBoundsException();
                     }
                 };
@@ -566,7 +569,7 @@ public class NioClientTest {
                     }
 
                     @Override
-                    public Object decode(Object status, ByteBuffer buffer, int frameLen, boolean start, boolean end) {
+                    public Object decode(Object status, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
                         throw new ArrayIndexOutOfBoundsException();
                     }
                 };

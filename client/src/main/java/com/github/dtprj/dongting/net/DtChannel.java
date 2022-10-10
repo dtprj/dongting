@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.pb.PbParser;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -53,6 +54,8 @@ class DtChannel implements PbCallback {
     private Object decodeStatus;
     private final PbParser parser;
     private boolean drop;
+    private byte[] msg;
+    private int msgIndex;
 
     private boolean running;
 
@@ -103,6 +106,7 @@ class DtChannel implements PbCallback {
         writeDataForResp = null;
         processorForRequest = null;
         decodeStatus = null;
+        msg = null;
     }
 
     @Override
@@ -133,14 +137,21 @@ class DtChannel implements PbCallback {
     }
 
     @Override
-    public void readBytes(int index, ByteBuffer buf, int len, boolean start, boolean end) {
+    public void readBytes(int index, ByteBuffer buf, int fieldLen, boolean start, boolean end) {
         switch (index) {
             case Frame.IDX_MSG: {
-                // TODO finish it
+                if (start) {
+                    msg = new byte[fieldLen];
+                    msgIndex = 0;
+                }
+                buf.get(msg, msgIndex, buf.remaining());
+                if (end) {
+                    frame.setMsg(new String(msg, StandardCharsets.UTF_8));
+                }
                 break;
             }
             case Frame.IDX_BODY: {
-                readBody(buf, len, start, end);
+                readBody(buf, fieldLen, start, end);
                 break;
             }
             default:
@@ -148,7 +159,7 @@ class DtChannel implements PbCallback {
         }
     }
 
-    private void readBody(ByteBuffer buf, int len, boolean start, boolean end) {
+    private void readBody(ByteBuffer buf, int fieldLen, boolean start, boolean end) {
         if (frame.getCommand() <= 0) {
             throw new NetException("command invalid :" + frame.getCommand());
         }
@@ -207,17 +218,17 @@ class DtChannel implements PbCallback {
             }
         }
         if (copy) {
-            copyBuffer(buf, len, start, end);
+            copyBuffer(buf, fieldLen, start, end);
         }
         try {
             if (decode == 1) {
-                decodeStatus = decoder.decode(decodeStatus, buf, currentReadFrameSize, start, end);
+                decodeStatus = decoder.decode(decodeStatus, buf, fieldLen, start, end);
                 if (end) {
                     frame.setBody(decodeStatus);
                 }
             } else if (decode == 2) {
                 Object result = decoder.decode(null, (ByteBuffer) frame.getBody(),
-                        currentReadFrameSize, true, true);
+                        fieldLen, true, true);
                 frame.setBody(result);
             }
         } catch (Throwable e) {
@@ -230,10 +241,10 @@ class DtChannel implements PbCallback {
         }
     }
 
-    private void copyBuffer(ByteBuffer buf, int len, boolean start, boolean end) {
+    private void copyBuffer(ByteBuffer buf, int fieldLen, boolean start, boolean end) {
         ByteBuffer body;
         if (start) {
-            body = ByteBuffer.allocate(len);
+            body = ByteBuffer.allocate(fieldLen);
             frame.setBody(body);
         } else {
             body = (ByteBuffer) frame.getBody();
@@ -310,7 +321,8 @@ class DtChannel implements PbCallback {
         private final DtChannel dtc;
         private final AtomicLong inBytes;
 
-        ProcessInBizThreadTask(ReadFrame req, ReqProcessor processor, int frameSize, DtChannel dtc, AtomicLong inBytes) {
+        ProcessInBizThreadTask(ReadFrame req, ReqProcessor processor,
+                               int frameSize, DtChannel dtc, AtomicLong inBytes) {
             this.req = req;
             this.processor = processor;
             this.frameSize = frameSize;
@@ -326,7 +338,7 @@ class DtChannel implements PbCallback {
                 try {
                     if (!decoder.decodeInIoThread()) {
                         ByteBuffer bodyBuffer = (ByteBuffer) req.getBody();
-                        req.setBody(decoder.decode(null, bodyBuffer, frameSize, true, true));
+                        req.setBody(decoder.decode(null, bodyBuffer, bodyBuffer.remaining(), true, true));
                     }
                     resp = processor.process(req, dtc);
                 } catch (Throwable e) {
