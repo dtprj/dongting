@@ -192,15 +192,22 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             stage = 2;
             DtChannel dtc = (DtChannel) key.attachment();
             if (key.isReadable()) {
-                ByteBuffer buf = pool.borrow(64 * 1024);
-                int readCount = sc.read(buf);
-                if (readCount == -1) {
-                    // log.info("socket read to end, remove it: {}", key.channel());
-                    closeChannel(key);
-                    return false;
+                ByteBuffer buf = null;
+                try {
+                    buf = pool.borrow(64 * 1024);
+                    int readCount = sc.read(buf);
+                    if (readCount == -1) {
+                        // log.info("socket read to end, remove it: {}", key.channel());
+                        closeChannel(key);
+                        return false;
+                    }
+                    buf.flip();
+                    dtc.afterRead(stopStatus == SS_RUNNING, buf);
+                } finally {
+                    if (buf != null) {
+                        pool.release(buf, roundTime);
+                    }
                 }
-                buf.flip();
-                dtc.afterRead(stopStatus == SS_RUNNING, buf);
             }
             stage = 3;
             if (key.isWritable()) {
@@ -222,10 +229,10 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     log.warn("process socket connect error: {}", e.toString());
                     break;
                 case 2:
-                    log.warn("process socket read error: {}", e);
+                    log.warn("process socket read error: {}", e.toString());
                     break;
                 case 3:
-                    log.warn("process socket write error: {}", e.toString(), e);
+                    log.warn("process socket write error: {}", e.toString());
                     break;
                 default:
                     log.warn("socket error: {}", e.toString());
