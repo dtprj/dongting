@@ -551,7 +551,7 @@ public class NioClientTest {
                 ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
                 wf.setCommand(Commands.CMD_PING);
                 wf.setFrameType(FrameType.TYPE_REQ);
-                wf.setBody(ByteBufferPool.EMPTY_BUFFER);
+                wf.setBody(ByteBuffer.allocate(1));
 
                 Decoder decoder = new Decoder() {
                     @Override
@@ -578,7 +578,7 @@ public class NioClientTest {
                 ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
                 wf.setCommand(Commands.CMD_PING);
                 wf.setFrameType(FrameType.TYPE_REQ);
-                wf.setBody(ByteBufferPool.EMPTY_BUFFER);
+                wf.setBody(ByteBuffer.allocate(1));
                 Decoder decoder = new Decoder() {
                     @Override
                     public boolean decodeInIoThread() {

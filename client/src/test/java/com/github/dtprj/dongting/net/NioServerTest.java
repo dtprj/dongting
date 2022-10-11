@@ -42,7 +42,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class NioServerTest {
     private static final int CMD_IO_PING = 3000;
-    private static final int CMD_BIZ_PING = 3001;
+    private static final int CMD_BIZ_PING1 = 3001;
+    private static final int CMD_BIZ_PING2 = 3002;
 
     private static final int PORT = 9000;
 
@@ -78,7 +79,13 @@ public class NioServerTest {
         }
         server = new NioServer(c);
         server.register(CMD_IO_PING, new NioServer.PingProcessor(true));
-        server.register(CMD_BIZ_PING, new NioServer.PingProcessor(false));
+        server.register(CMD_BIZ_PING1, new NioServer.PingProcessor(false));
+        server.register(CMD_BIZ_PING2, new NioServer.PingProcessor(false){
+            @Override
+            public Decoder getDecoder() {
+                return new BizByteBufferDecoder();
+            }
+        });
         server.start();
     }
 
@@ -119,7 +126,7 @@ public class NioServerTest {
                 for (int i = 0; i < count; i++) {
                     DtFrame.Frame frame = DtFrame.Frame.newBuilder().setFrameType(FrameType.TYPE_REQ)
                             .setSeq(seq + i)
-                            .setCommand(r.nextBoolean() ? CMD_IO_PING : CMD_BIZ_PING)
+                            .setCommand(CMD_IO_PING + (i % 3))
                             .setBody(ByteString.copyFrom(map.get(seq + i)))
                             .build();
                     byte[] bs = frame.toByteArray();
@@ -360,13 +367,15 @@ public class NioServerTest {
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
             assertEquals(CmdCodes.SUCCESS, invoke(1, CMD_IO_PING, 5000, in, out));
-            assertEquals(CmdCodes.SUCCESS, invoke(2, CMD_BIZ_PING, 5000, in, out));
+            assertEquals(CmdCodes.SUCCESS, invoke(2, CMD_BIZ_PING1, 5000, in, out));
+            assertEquals(CmdCodes.SUCCESS, invoke(2, CMD_BIZ_PING2, 5000, in, out));
 
             assertEquals(CmdCodes.BIZ_ERROR, invoke(3, 10001, 5000, in, out));
             assertEquals(CmdCodes.BIZ_ERROR, invoke(4, 10002, 5000, in, out));
 
             assertEquals(CmdCodes.SUCCESS, invoke(5, CMD_IO_PING, 5000, in, out));
-            assertEquals(CmdCodes.SUCCESS, invoke(6, CMD_BIZ_PING, 5000, in, out));
+            assertEquals(CmdCodes.SUCCESS, invoke(6, CMD_BIZ_PING1, 5000, in, out));
+            assertEquals(CmdCodes.SUCCESS, invoke(6, CMD_BIZ_PING2, 5000, in, out));
         } finally {
             CloseUtil.close(s);
         }
@@ -445,7 +454,8 @@ public class NioServerTest {
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
             assertEquals(CmdCodes.SUCCESS, invoke(1, CMD_IO_PING, 5000, in, out));
-            assertEquals(CmdCodes.SUCCESS, invoke(2, CMD_BIZ_PING, 5000, in, out));
+            assertEquals(CmdCodes.SUCCESS, invoke(2, CMD_BIZ_PING1, 5000, in, out));
+            assertEquals(CmdCodes.SUCCESS, invoke(2, CMD_BIZ_PING2, 5000, in, out));
 
             assertEquals(CmdCodes.BIZ_ERROR, invoke(3, 10001, 5000, in, out));
             assertEquals(CmdCodes.BIZ_ERROR, invoke(4, 10002, 5000, in, out));
@@ -453,7 +463,8 @@ public class NioServerTest {
             assertEquals(CmdCodes.BIZ_ERROR, invoke(6, 10004, 5000, in, out));
 
             assertEquals(CmdCodes.SUCCESS, invoke(7, CMD_IO_PING, 5000, in, out));
-            assertEquals(CmdCodes.SUCCESS, invoke(8, CMD_BIZ_PING, 5000, in, out));
+            assertEquals(CmdCodes.SUCCESS, invoke(8, CMD_BIZ_PING1, 5000, in, out));
+            assertEquals(CmdCodes.SUCCESS, invoke(8, CMD_BIZ_PING2, 5000, in, out));
         } finally {
             CloseUtil.close(s);
         }
