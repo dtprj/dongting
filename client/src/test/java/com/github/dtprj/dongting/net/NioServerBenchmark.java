@@ -33,6 +33,10 @@ public class NioServerBenchmark extends BenchBase {
 
     private byte[] data;
     private final int DATA_LEN = 5;
+    private static final boolean SYNC = true;
+    private static final int THREAD_COUNT = 128;
+    private static final long TIME = 1 * 1000;
+    private static final long WARMUP_TIME = 1000;
 
     public NioServerBenchmark(int threadCount, long testTime, long warmupTime) {
         super(threadCount, testTime, warmupTime);
@@ -72,23 +76,25 @@ public class NioServerBenchmark extends BenchBase {
             req.setBody(ByteBuffer.wrap(data));
             CompletableFuture<ReadFrame> f = client.sendRequest(req, ByteBufferDecoder.INSTANCE, timeout);
 
-//            f.get();
-//            successCount.increment();
-
-            f.handle((result, ex) -> {
-                if (ex != null) {
-                    failCount.increment();
-                } else {
-                    successCount.increment();
-                }
-                return null;
-            });
+            if (SYNC) {
+                f.get();
+                successCount.increment();
+            } else {
+                f.handle((result, ex) -> {
+                    if (ex != null) {
+                        failCount.increment();
+                    } else {
+                        successCount.increment();
+                    }
+                    return null;
+                });
+            }
         } catch (Exception e) {
             failCount.increment();
         }
     }
 
     public static void main(String[] args) throws Exception {
-        new NioServerBenchmark(128, 10000, 1000).start();
+        new NioServerBenchmark(THREAD_COUNT, TIME, WARMUP_TIME).start();
     }
 }
