@@ -42,6 +42,7 @@ class DtChannel implements PbCallback {
     private Peer peer;
 
     private final int channelIndexInWorker;
+    private final boolean decodeInIoThread;
     int seq = 1;
 
     // read status
@@ -78,6 +79,7 @@ class DtChannel implements PbCallback {
         this.workerParams = workerParams;
         this.channelIndexInWorker = channelIndexInWorker;
         this.parser = new PbParser(nioConfig.getMaxFrameSize());
+        this.decodeInIoThread = nioStatus.getBizExecutor() == null && (nioConfig instanceof NioServerConfig);
     }
 
     public void afterRead(boolean running, ByteBuffer buf) {
@@ -180,10 +182,7 @@ class DtChannel implements PbCallback {
 
         boolean copy;
         int decode;//0 not decode, 1 use io buffer decode, 2 use copy buffer decode
-        if (!decoder.decodeInIoThread() && nioStatus.getBizExecutor() != null) {
-            copy = true;
-            decode = 0;
-        } else {
+        if (decoder.decodeInIoThread() || decodeInIoThread) {
             if (decoder.supportHalfPacket()) {
                 copy = false;
                 decode = 1;
@@ -194,9 +193,12 @@ class DtChannel implements PbCallback {
                     decode = 1;
                 } else {
                     copy = true;
-                    decode = 2;
+                    decode = end ? 2 : 0;
                 }
             }
+        } else {
+            copy = true;
+            decode = 0;
         }
         if (copy) {
             copyBuffer(buf, fieldLen, start, end);
@@ -434,8 +436,4 @@ class DtChannel implements PbCallback {
         this.peer = peer;
     }
 
-    @Override
-    public String toString() {
-        return "DTC[" + channel + "]";
-    }
 }

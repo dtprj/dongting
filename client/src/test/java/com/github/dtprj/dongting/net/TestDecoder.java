@@ -20,12 +20,22 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class BizByteBufferDecoder extends Decoder {
+class BizByteBufferDecoder extends Decoder {
     @Override
     public boolean decodeInIoThread() {
         return false;
     }
 
+    @Override
+    public Object decode(Object status, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+        ByteBuffer buf = ByteBuffer.allocate(bodyLen);
+        buf.put(buffer);
+        buf.flip();
+        return buf;
+    }
+}
+
+class IoFullPackByteBufferDecoder extends Decoder {
     @Override
     public Object decode(Object status, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
         ByteBuffer buf = ByteBuffer.allocate(bodyLen);

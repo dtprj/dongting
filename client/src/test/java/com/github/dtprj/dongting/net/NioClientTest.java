@@ -158,11 +158,12 @@ public class NioClientTest {
         try {
             server = new BioServer(9000);
             NioClientConfig c = new NioClientConfig();
+            c.setReadBufferSize(2048);
             c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
             client = new NioClient(c);
             client.start();
             client.waitStart();
-            simpleTest(client, 100);
+            simpleTest(client, 100, 5000);
         } finally {
             CloseUtil.close(client, server);
         }
@@ -177,18 +178,18 @@ public class NioClientTest {
             server1 = new BioServer(9000);
             server2 = new BioServer(9001);
             NioClientConfig c = new NioClientConfig();
+            c.setReadBufferSize(2048);
             c.setHostPorts(Arrays.asList(new HostPort("127.0.0.1", 9000), new HostPort("127.0.0.1", 9001)));
             client = new NioClient(c);
             client.start();
             client.waitStart();
-            simpleTest(client, 100);
+            simpleTest(client, 100, 5000);
         } finally {
             CloseUtil.close(client, server1, server2);
         }
     }
 
-    private static void simpleTest(NioClient client, long timeMillis) throws Exception {
-        final int maxBodySize = 5000;
+    private static void simpleTest(NioClient client, long timeMillis, int maxBodySize) throws Exception {
         DtTime time = new DtTime();
         do {
             sendSync(maxBodySize, client, 500);
@@ -216,11 +217,17 @@ public class NioClientTest {
         r.nextBytes(bs);
         wf.setBody(ByteBuffer.wrap(bs));
 
-        Decoder decoder;
-        if (r.nextBoolean()) {
-            decoder = ByteBufferDecoder.INSTANCE;
-        } else {
-            decoder = new BizByteBufferDecoder();
+        Decoder decoder = null;
+        switch (r.nextInt(3)) {
+            case 0:
+                decoder = ByteBufferDecoder.INSTANCE;
+                break;
+            case 1:
+                decoder = new BizByteBufferDecoder();
+                break;
+            case 2:
+                decoder = new IoFullPackByteBufferDecoder();
+                break;
         }
         CompletableFuture<ReadFrame> f = client.sendRequest(wf,
                 decoder, new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
