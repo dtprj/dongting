@@ -31,6 +31,10 @@ public abstract class BenchBase {
     protected LongAdder successCount = new LongAdder();
     protected LongAdder failCount = new LongAdder();
 
+    private static final boolean LOG_RT = false;
+    private long nanos;
+    private long maxNanos;
+
     public BenchBase(int threadCount, long testTime) {
         this(threadCount, testTime, 5000);
     }
@@ -72,14 +76,30 @@ public abstract class BenchBase {
 
         ops = fc * 1.0 / testTime * 1000;
         System.out.println("fail sc:" + fc + ", ops=" + new DecimalFormat(",###").format(ops));
+
+        if (LOG_RT) {
+            System.out.println("Max time: " + maxNanos + "ns");
+            System.out.println("Avg time: " + nanos / (sc + fc) + "ns");
+        }
+
     }
 
     public void run(int threadIndex) {
         while (!stop) {
+            long start = 0;
+            if (LOG_RT) {
+                start = System.nanoTime();
+            }
             try {
                 test(threadIndex);
             } catch (Throwable e) {
                 failCount.increment();
+            } finally {
+                if (LOG_RT) {
+                    long x = System.nanoTime() - start;
+                    maxNanos = Math.max(x, maxNanos);
+                    nanos += x;
+                }
             }
         }
     }

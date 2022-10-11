@@ -35,8 +35,9 @@ public class NioServerBenchmark extends BenchBase {
     private final int DATA_LEN = 5;
     private static final boolean SYNC = true;
     private static final int THREAD_COUNT = 128;
-    private static final long TIME = 1 * 1000;
-    private static final long WARMUP_TIME = 1000;
+    private static final long TIME = 10 * 1000;
+    private static final long WARMUP_TIME = 2000;
+    private static final long TIMEOUT = 5000;
 
     public NioServerBenchmark(int threadCount, long testTime, long warmupTime) {
         super(threadCount, testTime, warmupTime);
@@ -69,7 +70,7 @@ public class NioServerBenchmark extends BenchBase {
     @Override
     public void test(int threadIndex) {
         try {
-            final DtTime timeout = new DtTime(1, TimeUnit.SECONDS);
+            final DtTime timeout = new DtTime(TIMEOUT, TimeUnit.MILLISECONDS);
             ByteBufferWriteFrame req = new ByteBufferWriteFrame();
             req.setFrameType(FrameType.TYPE_REQ);
             req.setCommand(Commands.CMD_PING);
