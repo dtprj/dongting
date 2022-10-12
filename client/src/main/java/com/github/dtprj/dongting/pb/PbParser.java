@@ -27,6 +27,7 @@ public class PbParser {
     private static final int STATUS_PARSE_TAG = 2;
     private static final int STATUS_PARSE_FILED_LEN = 3;
     private static final int STATUS_PARSE_FILED_BODY = 4;
+    private static final int STATUS_SKIP_REST = 5;
     private final int maxFrame;
 
     private int status = STATUS_PARSE_PB_LEN;
@@ -58,6 +59,15 @@ public class PbParser {
                     break;
                 case STATUS_PARSE_FILED_BODY:
                     remain = onStatusParseFieldBody(buf, callback, remain);
+                    break;
+                case STATUS_SKIP_REST:
+                    int skipCount = Math.min(frameLen - parsedBytes, buf.remaining());
+                    assert skipCount >= 0;
+                    buf.position(buf.position() + skipCount);
+                    if (parsedBytes + skipCount == frameLen) {
+                        status = STATUS_PARSE_PB_LEN;
+                    }
+                    remain -= skipCount;
                     break;
             }
         }
@@ -211,8 +221,15 @@ public class PbParser {
                     throw new PbException("frame exceed " + frameLen);
                 }
 
-                callback.readVarInt(this.fieldIndex, value);
-                this.status = STATUS_PARSE_TAG;
+                try {
+                    if (callback.readVarInt(this.fieldIndex, value)) {
+                        this.status = STATUS_PARSE_TAG;
+                    } else {
+                        this.status = STATUS_SKIP_REST;
+                    }
+                } catch (Throwable e) {
+                    this.status = STATUS_SKIP_REST;
+                }
 
                 return remain - i;
             } else {
@@ -249,17 +266,27 @@ public class PbParser {
                 int end = start + actualRead;
                 int limit = buf.limit();
                 buf.limit(end);
-                callback.readBytes(this.fieldIndex, buf, fieldLen, pendingBytes == 0, needRead == actualRead);
-                buf.limit(limit);
-                buf.position(end);
-                parsedBytes += actualRead;
-                if (needRead == actualRead) {
-                    pendingBytes = 0;
-                    status = STATUS_PARSE_TAG;
-                } else {
-                    pendingBytes += actualRead;
+                boolean result = false;
+                try {
+                    result = callback.readBytes(this.fieldIndex, buf, fieldLen,
+                            pendingBytes == 0, needRead == actualRead);
+                } finally {
+                    buf.limit(limit);
+                    buf.position(end);
+                    parsedBytes += actualRead;
+                    remain -= actualRead;
+                    if (result) {
+                        if (needRead == actualRead) {
+                            pendingBytes = 0;
+                            status = STATUS_PARSE_TAG;
+                        } else {
+                            pendingBytes += actualRead;
+                        }
+                    } else {
+                        pendingBytes = 0;
+                        status = STATUS_SKIP_REST;
+                    }
                 }
-                remain -= actualRead;
                 break;
             default:
                 throw new PbException("type not support:" + this.fieldType);

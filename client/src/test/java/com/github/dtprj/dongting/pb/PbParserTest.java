@@ -78,7 +78,7 @@ public class PbParserTest {
         }
 
         @Override
-        public void readVarInt(int index, long value) {
+        public boolean readVarInt(int index, long value) {
             if (index == 1) {
                 assertEquals(f1, value);
             } else if (index == 2) {
@@ -86,10 +86,11 @@ public class PbParserTest {
             } else {
                 fail();
             }
+            return true;
         }
 
         @Override
-        public void readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
+        public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
             byte[] bs = new byte[buf.remaining()];
             buf.get(bs);
             String s = new String(bs);
@@ -106,6 +107,7 @@ public class PbParserTest {
             } else {
                 fail();
             }
+            return true;
         }
     }
 

@@ -47,14 +47,13 @@ class DtChannel implements PbCallback {
 
     // read status
     private final ArrayList<ReadFrameInfo> frames = new ArrayList<>();
+    private final PbParser parser;
     private ReadFrame frame;
     private ReadFrameInfo readFrameInfo;
     private WriteData writeDataForResp;
     private ReqProcessor processorForRequest;
     private int currentReadFrameSize;
     private Object decodeStatus;
-    private final PbParser parser;
-    private boolean drop;
     private byte[] msg;
     private int msgIndex;
 
@@ -104,7 +103,6 @@ class DtChannel implements PbCallback {
         frame = new ReadFrame();
         readFrameInfo = new ReadFrameInfo();
         readFrameInfo.frame = frame;
-        drop = false;
         writeDataForResp = null;
         processorForRequest = null;
         decodeStatus = null;
@@ -126,7 +124,7 @@ class DtChannel implements PbCallback {
     }
 
     @Override
-    public void readVarInt(int index, long value) {
+    public boolean readVarInt(int index, long value) {
         switch (index) {
             case Frame.IDX_TYPE:
                 frame.setFrameType((int) value);
@@ -143,10 +141,11 @@ class DtChannel implements PbCallback {
             default:
                 throw new PbException("readInt " + index);
         }
+        return true;
     }
 
     @Override
-    public void readBytes(int index, ByteBuffer buf, int fieldLen, boolean start, boolean end) {
+    public boolean readBytes(int index, ByteBuffer buf, int fieldLen, boolean start, boolean end) {
         switch (index) {
             case Frame.IDX_MSG: {
                 if (start) {
@@ -157,28 +156,25 @@ class DtChannel implements PbCallback {
                 if (end) {
                     frame.setMsg(new String(msg, StandardCharsets.UTF_8));
                 }
-                break;
+                return true;
             }
             case Frame.IDX_BODY: {
-                readBody(buf, fieldLen, start, end);
-                break;
+                return readBody(buf, fieldLen, start, end);
             }
             default:
                 throw new PbException("readInt " + index);
         }
     }
 
-    private void readBody(ByteBuffer buf, int fieldLen, boolean start, boolean end) {
+    private boolean readBody(ByteBuffer buf, int fieldLen, boolean start, boolean end) {
         if (frame.getCommand() <= 0) {
             throw new NetException("command invalid :" + frame.getCommand());
         }
-        if (drop) {
-            // TODO abort parse
-            return;
-        }
         // the body field should encode as last field
         Decoder decoder = getDecoder();
-        if (decoder == null) return;
+        if (decoder == null) {
+            return false;
+        }
 
         boolean copy;
         int decode;//0 not decode, 1 use io buffer decode, 2 use copy buffer decode
@@ -216,12 +212,14 @@ class DtChannel implements PbCallback {
             }
         } catch (Throwable e) {
             processIoDecodeFail(e);
+            return false;
         }
 
         if (end) {
             // so if the body is not last field, exception throws
             this.frame = null;
         }
+        return true;
     }
 
     private Decoder getDecoder() {
@@ -230,14 +228,12 @@ class DtChannel implements PbCallback {
                 writeDataForResp = this.workerParams.getPendingRequests().remove(BitUtil.toLong(channelIndexInWorker, frame.getSeq()));
             }
             if (writeDataForResp == null) {
-                drop = true;
                 log.debug("pending request not found. channel={}, resp={}", channel, frame);
                 return null;
             }
             return writeDataForResp.getDecoder();
         } else {
             if (!running) {
-                drop = true;
                 writeErrorInIoThread(frame, CmdCodes.STOPPING, null);
                 return null;
             }
@@ -245,7 +241,6 @@ class DtChannel implements PbCallback {
                 processorForRequest = nioStatus.getProcessors().get(frame.getCommand());
             }
             if (processorForRequest == null) {
-                drop = true;
                 writeErrorInIoThread(frame, CmdCodes.COMMAND_NOT_SUPPORT, null);
                 return null;
             }
@@ -271,10 +266,13 @@ class DtChannel implements PbCallback {
         if (log.isDebugEnabled()) {
             log.debug("decode fail. {} {}", channel, e.toString());
         }
-        if (writeDataForResp != null) {
-            writeDataForResp.getFuture().completeExceptionally(e);
+        if (frame.getFrameType() == FrameType.TYPE_RESP) {
+            if (writeDataForResp != null) {
+                writeDataForResp.getFuture().completeExceptionally(e);
+            }
+        } else {
+            writeErrorInIoThread(frame, CmdCodes.BIZ_ERROR, "decode fail: " + e.toString());
         }
-        drop = true;
     }
 
     private void processIncomingResponse(ReadFrame resp, WriteData wo) {
