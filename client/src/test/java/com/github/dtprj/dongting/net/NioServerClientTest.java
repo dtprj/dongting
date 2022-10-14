@@ -28,8 +28,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -54,7 +53,7 @@ public class NioServerClientTest {
         }
     }
 
-    private static void invoke(NioClient client) throws InterruptedException, ExecutionException, TimeoutException {
+    private static void invoke(NioClient client) throws Exception {
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
         ByteBuffer buf = ByteBuffer.allocate(3000);
         new Random().nextBytes(buf.array());
@@ -128,6 +127,49 @@ public class NioServerClientTest {
                 assertEquals(NetException.class, e.getCause().getClass());
             }
 
+        } finally {
+            CloseUtil.close(client, server);
+        }
+    }
+
+    @Test
+    public void timeoutTest() throws Exception {
+        NioServerConfig serverConfig = new NioServerConfig();
+        serverConfig.setPort(9000);
+        serverConfig.setSelectTimeoutMillis(1);
+        NioServer server = new NioServer(serverConfig);
+        NioClientConfig clientConfig = new NioClientConfig();
+        clientConfig.setCleanIntervalMills(1);
+        clientConfig.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+        server.register(2000, new NioServer.PingProcessor(false){
+            @Override
+            public WriteFrame process(ReadFrame frame, DtChannel channel) {
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                return super.process(frame, channel);
+            }
+        });
+        NioClient client = new NioClient(clientConfig);
+        try {
+            server.start();
+            client.start();
+            client.waitStart();
+
+            ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
+            wf.setCommand(2000);
+            wf.setFrameType(FrameType.TYPE_REQ);
+            wf.setBody(ByteBufferPool.EMPTY_BUFFER);
+            CompletableFuture<ReadFrame> f = client.sendRequest(wf,
+                    ByteBufferDecoder.INSTANCE, new DtTime(1, TimeUnit.MILLISECONDS));
+            f.get(1, TimeUnit.SECONDS);
+            fail();
+        } catch (ExecutionException e) {
+            assertEquals(NetTimeoutException.class, e.getCause().getClass());
+            //ensure connection status is correct after timeout
+            invoke(client);
         } finally {
             CloseUtil.close(client, server);
         }
