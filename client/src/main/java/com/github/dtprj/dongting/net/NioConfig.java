@@ -38,7 +38,7 @@ public abstract class NioConfig {
     private int[] bufPoolMaxCount = ByteBufferPool.DEFAULT_MAX_COUNT;
     private long bufPoolTimeout = ByteBufferPool.DEFAULT_TIME_OUT_MILLIS;
 
-    private int readBufferSize = 64 * 1024;
+    private int readBufferSize = 128 * 1024;
 
     public int getBizThreads() {
         return bizThreads;

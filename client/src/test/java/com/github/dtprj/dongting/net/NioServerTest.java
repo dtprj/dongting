@@ -187,7 +187,7 @@ public class NioServerTest {
     @Test
     public void clientReadBlockTest() throws Exception {
         setupServer(null);
-        simpleTest(10, 500, 1 * 1024 * 1024, null);
+        simpleTest(10, 100, 1 * 1024 * 1024, null);
     }
 
     @Test

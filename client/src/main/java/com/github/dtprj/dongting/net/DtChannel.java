@@ -241,6 +241,7 @@ class DtChannel implements PbCallback {
             return writeDataForResp.getDecoder();
         } else {
             if (!running) {
+                log.debug("the channel is closing...");
                 writeErrorInIoThread(frame, CmdCodes.STOPPING, null);
                 return null;
             }
@@ -248,6 +249,7 @@ class DtChannel implements PbCallback {
                 processorForRequest = nioStatus.getProcessors().get(frame.getCommand());
             }
             if (processorForRequest == null) {
+                log.warn("command {} is not support", frame.getCommand());
                 writeErrorInIoThread(frame, CmdCodes.COMMAND_NOT_SUPPORT, null);
                 return null;
             }
@@ -278,6 +280,7 @@ class DtChannel implements PbCallback {
                 writeDataForResp.getFuture().completeExceptionally(e);
             }
         } else {
+            log.warn("decode fail in io thread", e);
             writeErrorInIoThread(frame, CmdCodes.BIZ_ERROR, "decode fail: " + e.toString());
         }
     }
@@ -298,6 +301,7 @@ class DtChannel implements PbCallback {
             try {
                 resp = p.process(req, this);
             } catch (Throwable e) {
+                log.warn("ReqProcessor.process fail", e);
                 writeErrorInIoThread(req, CmdCodes.BIZ_ERROR, e.toString());
                 return;
             }
@@ -307,6 +311,7 @@ class DtChannel implements PbCallback {
                 resp.setSeq(req.getSeq());
                 subQueue.enqueue(resp);
             } else {
+                log.warn("ReqProcessor.process return null");
                 writeErrorInIoThread(req, CmdCodes.BIZ_ERROR, "processor return null response");
             }
         } else {
@@ -319,11 +324,15 @@ class DtChannel implements PbCallback {
                     nioStatus.getBizExecutor().submit(new ProcessInBizThreadTask(
                             req, p, currentReadFrameSize, this, bytes));
                 } catch (RejectedExecutionException e) {
+                    log.debug("catch RejectedExecutionException, write response code FLOW_CONTROL to client, maxInRequests={}",
+                            nioConfig.getMaxInRequests());
                     writeErrorInIoThread(req, CmdCodes.FLOW_CONTROL,
                             "max incoming request: " + nioConfig.getMaxInRequests());
                     bytes.addAndGet(-currentReadFrameSize);
                 }
             } else {
+                log.debug("pendingBytes({})>maxInBytes({}), write response code FLOW_CONTROL to client",
+                        bytesAfterAdd, nioConfig.getMaxInBytes());
                 writeErrorInIoThread(req, CmdCodes.FLOW_CONTROL,
                         "max incoming request bytes: " + nioConfig.getMaxInBytes());
                 bytes.addAndGet(-currentReadFrameSize);
@@ -362,7 +371,8 @@ class DtChannel implements PbCallback {
                     }
                     resp = processor.process(req, dtc);
                 } catch (Throwable e) {
-                    dtc.writeErrorInBizThread(req, CmdCodes.BIZ_ERROR, e.toString());
+                    log.warn("ReqProcessor.process fail, command={}", req.getCommand(), e);
+                    dtc.writeBizErrorInBizThread(req, e.toString());
                     return;
                 }
                 if (resp != null) {
@@ -371,7 +381,8 @@ class DtChannel implements PbCallback {
                     resp.setSeq(req.getSeq());
                     dtc.writeRespInBizThreads(resp);
                 } else {
-                    dtc.writeErrorInBizThread(req, CmdCodes.BIZ_ERROR, "processor return null response");
+                    log.warn("ReqProcessor.process return null, command={}", req.getCommand());
+                    dtc.writeBizErrorInBizThread(req, "processor return null response");
                 }
             } finally {
                 inBytes.addAndGet(-frameSize);
@@ -389,12 +400,12 @@ class DtChannel implements PbCallback {
         subQueue.enqueue(resp);
     }
 
-    private void writeErrorInBizThread(Frame req, int code, String msg) {
+    private void writeBizErrorInBizThread(Frame req, String msg) {
         ByteBufferWriteFrame resp = new ByteBufferWriteFrame();
         resp.setCommand(req.getCommand());
         resp.setFrameType(FrameType.TYPE_RESP);
         resp.setSeq(req.getSeq());
-        resp.setRespCode(code);
+        resp.setRespCode(CmdCodes.BIZ_ERROR);
         resp.setMsg(msg);
         writeRespInBizThreads(resp);
     }
