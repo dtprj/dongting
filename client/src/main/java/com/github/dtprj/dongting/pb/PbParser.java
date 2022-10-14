@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.pb;
 
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
+
 import java.nio.ByteBuffer;
 
 /**
@@ -22,6 +25,7 @@ import java.nio.ByteBuffer;
  */
 public class PbParser {
 
+    private static DtLog log = DtLogs.getLogger(PbParser.class);
 
     private static final int STATUS_PARSE_PB_LEN = 1;
     private static final int STATUS_PARSE_TAG = 2;
@@ -228,6 +232,7 @@ public class PbParser {
                         this.status = STATUS_SKIP_REST;
                     }
                 } catch (Throwable e) {
+                    log.warn("proto buffer parse callback fail: {}", e.toString());
                     this.status = STATUS_SKIP_REST;
                 }
 
@@ -270,6 +275,8 @@ public class PbParser {
                 try {
                     result = callback.readBytes(this.fieldIndex, buf, fieldLen,
                             pendingBytes == 0, needRead == actualRead);
+                } catch (Throwable e) {
+                    log.warn("proto buffer parse callback fail: {}", e.toString());
                 } finally {
                     buf.limit(limit);
                     buf.position(end);
