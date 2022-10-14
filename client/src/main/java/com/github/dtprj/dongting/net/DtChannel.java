@@ -49,7 +49,7 @@ class DtChannel implements PbCallback {
     private final ArrayList<ReadFrameInfo> frames = new ArrayList<>();
     private final PbParser parser;
     private ReadFrame frame;
-    private ReadFrameInfo readFrameInfo;
+    private boolean readBody;
     private WriteData writeDataForResp;
     private ReqProcessor processorForRequest;
     private int currentReadFrameSize;
@@ -101,8 +101,7 @@ class DtChannel implements PbCallback {
     public void begin(int len) {
         this.currentReadFrameSize = len;
         frame = new ReadFrame();
-        readFrameInfo = new ReadFrameInfo();
-        readFrameInfo.frame = frame;
+        readBody = false;
         writeDataForResp = null;
         processorForRequest = null;
         decodeStatus = null;
@@ -118,6 +117,8 @@ class DtChannel implements PbCallback {
                 return;
             }
         }
+        ReadFrameInfo readFrameInfo = new ReadFrameInfo();
+        readFrameInfo.frame = frame;
         readFrameInfo.writeDataForResp = writeDataForResp;
         readFrameInfo.processorForRequest = processorForRequest;
         frames.add(readFrameInfo);
@@ -125,6 +126,9 @@ class DtChannel implements PbCallback {
 
     @Override
     public boolean readVarInt(int index, long value) {
+        if (readBody) {
+            throw new PbException("body has read");
+        }
         switch (index) {
             case Frame.IDX_TYPE:
                 frame.setFrameType((int) value);
@@ -146,6 +150,9 @@ class DtChannel implements PbCallback {
 
     @Override
     public boolean readBytes(int index, ByteBuffer buf, int fieldLen, boolean start, boolean end) {
+        if (readBody) {
+            throw new PbException("body has read");
+        }
         switch (index) {
             case Frame.IDX_MSG: {
                 if (start) {
@@ -217,7 +224,7 @@ class DtChannel implements PbCallback {
 
         if (end) {
             // so if the body is not last field, exception throws
-            this.frame = null;
+            readBody = true;
         }
         return true;
     }
