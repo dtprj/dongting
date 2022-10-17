@@ -6,7 +6,7 @@ a raft/mq/config/rpc engine in single jar with excellent performance
 
 This project is under development.
 
-dongting项目是一个高性能raft/消息队列/配置/分布式rpc（low level）四合一引擎，项目开发中，目前还不可用。项目目标如下：
+dongting项目是一个高性能raft/消息队列/配置/分布式rpc四合一引擎，项目开发中，目前还不可用。项目目标如下：
 
 ## 10倍性能
 相比传统项目，目标是要提供2~10倍的tps。
@@ -24,8 +24,10 @@ dongting项目是0依赖，会用最高标准从新打造每一个轮子，目�
 * 高性能、安装包小、启动快、内存占用低，助力开发短周期运行的函数，以及在容器环境中实现快速扩缩容，也适合嵌入在各种系统和软件中。
 * 提供适合其它语言调用的API，比如用C++调用Java非常少见，但由于dongting的项目特性，用C++直接使用dongting的API，可以在没有原生C++实现的情况下，提供一个堪用的实现。
 
-## 公众号
-还没有头像，但这不重要：
+## 联系我
+微博：
+https://weibo.com/dtprj
 
+公众号还没有头像，但这不重要：
 
 ![公众号](devlogs/imgs/gzh.jpg)
