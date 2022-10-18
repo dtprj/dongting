@@ -28,13 +28,7 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
@@ -74,6 +68,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private final ByteBufferPool pool;
 
     private final WorkerParams workerParams;
+
+    private ByteBuffer readBuffer;
 
     public NioWorker(NioStatus nioStatus, String workerName, NioConfig config) {
         this.nioStatus = nioStatus;
@@ -161,8 +157,22 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         performActions();
         boolean hasDataToWrite = ioQueue.dispatchWriteQueue(pendingOutgoingRequests);
         Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
+        boolean hasDataToRead = false;
         while (iterator.hasNext()) {
-            hasDataToWrite |= processOneSelectionKey(iterator, stopStatus, roundTime);
+            SelectionKey key = iterator.next();
+            if (key.isReadable()) {
+                hasDataToRead = true;
+                if(readBuffer == null) {
+                    readBuffer = pool.borrow(config.getReadBufferSize());
+                }
+                readBuffer.clear();
+            }
+            hasDataToWrite |= processOneSelectionKey(key, stopStatus, roundTime);
+            iterator.remove();
+        }
+        if (!hasDataToRead && readBuffer != null) {
+            pool.release(readBuffer, roundTime);
+            readBuffer = null;
         }
         if (stopStatus == SS_PRE_STOP) {
             if (!hasDataToWrite && pendingOutgoingRequests.size() == 0) {
@@ -171,9 +181,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    private boolean processOneSelectionKey(Iterator<SelectionKey> iterator, int stopStatus, long roundTime) {
-        SelectionKey key = iterator.next();
-        iterator.remove();
+    private boolean processOneSelectionKey(SelectionKey key, int stopStatus, long roundTime) {
         SocketChannel sc = (SocketChannel) key.channel();
         int stage = 0;
         boolean hasDataToWrite = false;
@@ -192,22 +200,14 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             stage = 2;
             DtChannel dtc = (DtChannel) key.attachment();
             if (key.isReadable()) {
-                ByteBuffer buf = null;
-                try {
-                    buf = pool.borrow(config.getReadBufferSize());
-                    int readCount = sc.read(buf);
-                    if (readCount == -1) {
-                        // log.info("socket read to end, remove it: {}", key.channel());
-                        closeChannel(key);
-                        return false;
-                    }
-                    buf.flip();
-                    dtc.afterRead(stopStatus == SS_RUNNING, buf);
-                } finally {
-                    if (buf != null) {
-                        pool.release(buf, roundTime);
-                    }
+                int readCount = sc.read(readBuffer);
+                if (readCount == -1) {
+                    // log.info("socket read to end, remove it: {}", key.channel());
+                    closeChannel(key);
+                    return false;
                 }
+                readBuffer.flip();
+                dtc.afterRead(stopStatus == SS_RUNNING, readBuffer);
             }
             stage = 3;
             if (key.isWritable()) {
