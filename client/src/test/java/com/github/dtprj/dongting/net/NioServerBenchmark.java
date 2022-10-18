@@ -32,10 +32,10 @@ public class NioServerBenchmark extends BenchBase {
     private NioClient client;
 
     private byte[] data;
-    private final int DATA_LEN = 5;
-    private static final boolean SYNC = true;
-    private static final int THREAD_COUNT = 128;
-    private static final long TIME = 10 * 1000;
+    private final int DATA_LEN = 128;
+    private static final boolean SYNC = false;
+    private static final int THREAD_COUNT = 1;
+    private static final long TIME = 30 * 1000;
     private static final long WARMUP_TIME = 2000;
     private static final long TIMEOUT = 5000;
 
