@@ -27,9 +27,9 @@ public abstract class NioConfig {
     private int maxInRequests;
     private long maxInBytes;
 
-    private int selectTimeoutMillis = 50;
-    private int cleanIntervalMills = 100;
-    private int closeTimeoutMillis = 1000;
+    private long selectTimeoutMillis = 50;
+    private long cleanIntervalMills = 100;
+    private long closeTimeoutMillis = 1000;
 
     private int maxFrameSize = 8 * 1024 * 1024;
 
@@ -39,7 +39,7 @@ public abstract class NioConfig {
     private long bufPoolTimeout = ByteBufferPool.DEFAULT_TIME_OUT_MILLIS;
 
     private int readBufferSize = 128 * 1024;
-    private long readBufferTimeoutMillis = 1000;
+    private long readBufferTimeoutMillis = 200;
 
     public int getBizThreads() {
         return bizThreads;
@@ -65,27 +65,27 @@ public abstract class NioConfig {
         this.maxOutRequests = maxOutRequests;
     }
 
-    public int getSelectTimeoutMillis() {
+    public long getSelectTimeoutMillis() {
         return selectTimeoutMillis;
     }
 
-    public void setSelectTimeoutMillis(int selectTimeoutMillis) {
+    public void setSelectTimeoutMillis(long selectTimeoutMillis) {
         this.selectTimeoutMillis = selectTimeoutMillis;
     }
 
-    public int getCleanIntervalMills() {
+    public long getCleanIntervalMills() {
         return cleanIntervalMills;
     }
 
-    public void setCleanIntervalMills(int cleanIntervalMills) {
+    public void setCleanIntervalMills(long cleanIntervalMills) {
         this.cleanIntervalMills = cleanIntervalMills;
     }
 
-    public int getCloseTimeoutMillis() {
+    public long getCloseTimeoutMillis() {
         return closeTimeoutMillis;
     }
 
-    public void setCloseTimeoutMillis(int closeTimeoutMillis) {
+    public void setCloseTimeoutMillis(long closeTimeoutMillis) {
         this.closeTimeoutMillis = closeTimeoutMillis;
     }
 
