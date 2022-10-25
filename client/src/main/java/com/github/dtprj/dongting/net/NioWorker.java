@@ -70,6 +70,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private final WorkerParams workerParams;
 
     private ByteBuffer readBuffer;
+    private long readBufferUseTime;
+    private long readBufferTimeoutNanos;
 
     public NioWorker(NioStatus nioStatus, String workerName, NioConfig config) {
         this.nioStatus = nioStatus;
@@ -78,6 +80,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.workerName = workerName;
         this.thread.setName(workerName);
         this.requestSemaphore = nioStatus.getRequestSemaphore();
+        this.readBufferTimeoutNanos = config.getReadBufferTimeoutMillis() * 1000 * 1000;
 
         if (config instanceof NioServerConfig) {
             this.channels = new HashSet<>();
@@ -128,8 +131,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         int stopStatus;
         while ((stopStatus = this.stopStatus) <= SS_PRE_STOP) {
             try {
-                long roundStartTime = System.nanoTime();
-                run0(selector, selectTimeoutMillis, stopStatus, roundStartTime);
+                long roundStartTime = run0(selector, selectTimeoutMillis, stopStatus);
                 if (roundStartTime - lastCleanNano > cleanIntervalNanos) {
                     cleanTimeoutReq();
                     pool.clean(roundStartTime);
@@ -150,34 +152,41 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    private void run0(Selector selector, int selectTimeoutMillis, int stopStatus, long roundTime) {
+    private long run0(Selector selector, int selectTimeoutMillis, int stopStatus) {
         if (!select(selector, selectTimeoutMillis)) {
-            return;
+            return System.nanoTime();
         }
+        long roundTime = System.nanoTime();
         performActions();
         boolean hasDataToWrite = ioQueue.dispatchWriteQueue(pendingOutgoingRequests);
         Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
-        boolean hasDataToRead = false;
         while (iterator.hasNext()) {
             SelectionKey key = iterator.next();
-            if (key.isReadable()) {
-                hasDataToRead = true;
-                if(readBuffer == null) {
-                    readBuffer = pool.borrow(config.getReadBufferSize());
-                }
-                readBuffer.clear();
-            }
             hasDataToWrite |= processOneSelectionKey(key, stopStatus, roundTime);
             iterator.remove();
         }
-        if (!hasDataToRead && readBuffer != null) {
-            pool.release(readBuffer, roundTime);
-            readBuffer = null;
-        }
+        cleanReadBuffer(roundTime);
         if (stopStatus == SS_PRE_STOP) {
             if (!hasDataToWrite && pendingOutgoingRequests.size() == 0) {
                 preCloseFuture.complete(null);
             }
+        }
+        return roundTime;
+    }
+
+    private void prepareReadBuffer(long roundTime) {
+        if (readBuffer == null) {
+            readBuffer = pool.borrow(config.getReadBufferSize());
+        }
+        readBuffer.clear();
+        readBufferUseTime = roundTime;
+    }
+
+    private void cleanReadBuffer(long roundTime) {
+        if (readBuffer != null && roundTime - readBufferUseTime > readBufferTimeoutNanos) {
+            pool.release(readBuffer, roundTime);
+            readBuffer = null;
+            readBufferUseTime = 0;
         }
     }
 
@@ -200,6 +209,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             stage = 2;
             DtChannel dtc = (DtChannel) key.attachment();
             if (key.isReadable()) {
+                prepareReadBuffer(roundTime);
                 int readCount = sc.read(readBuffer);
                 if (readCount == -1) {
                     // log.info("socket read to end, remove it: {}", key.channel());
