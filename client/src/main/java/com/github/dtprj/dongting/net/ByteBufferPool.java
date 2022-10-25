@@ -36,6 +36,7 @@ class ByteBufferPool {
     private final long timeoutNanos;
     private final boolean direct;
     private final int[] minCount;
+    private final int findIndex;
 
     public static final int[] DEFAULT_BUF_SIZE = new int[]{1024, 2048, 4096, 8192, 16 * 1024,
             32 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 512 * 1024, 1024 * 1024, 2 * 1024 * 1024,
@@ -96,6 +97,8 @@ class ByteBufferPool {
         topIndices = new int[bufSizes.length];
         stackSizes = new int[bufSizes.length];
         this.minCount = minCount;
+
+        this.findIndex = bufSizes.length / 2;
     }
 
     private ByteBuffer allocate(int size) {
@@ -139,8 +142,8 @@ class ByteBufferPool {
         int[] bufSizes = this.bufSizes;
         int stackCount = bufSizes.length;
         int stackIndex = 0;
-        for (; stackIndex < stackCount; stackIndex++) {
-            if (bufSizes[stackIndex] == buf.capacity()) {
+        for (int capacity = buf.capacity(); stackIndex < stackCount; stackIndex++) {
+            if (bufSizes[stackIndex] == capacity) {
                 break;
             }
         }
