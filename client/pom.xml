@@ -31,6 +31,11 @@
             <artifactId>jctools-core</artifactId>
             <version>4.0.1</version>
         </dependency>
+        <dependency>
+            <groupId>com.carrotsearch</groupId>
+            <artifactId>hppc</artifactId>
+            <version>0.9.1</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -57,12 +62,17 @@
                             <artifactSet>
                                 <includes>
                                     <include>org.jctools</include>
+                                    <include>com.carrotsearch</include>
                                 </includes>
                             </artifactSet>
                             <relocations>
                                 <relocation>
                                     <pattern>org.jctools.</pattern>
                                     <shadedPattern>com.github.dtprj.dongting.jctools.</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>com.carrotsearch.hppc</pattern>
+                                    <shadedPattern>com.github.dtprj.dongting.hppc</shadedPattern>
                                 </relocation>
                             </relocations>
                             <minimizeJar>true</minimizeJar>

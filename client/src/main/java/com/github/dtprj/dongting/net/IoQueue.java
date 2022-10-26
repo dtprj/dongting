@@ -15,13 +15,13 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.carrotsearch.hppc.LongObjectHashMap;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import org.jctools.queues.MpscLinkedQueue;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 
 /**
  * @author huangli
@@ -42,7 +42,7 @@ class IoQueue {
         writeQueue.add(data);
     }
 
-    public boolean dispatchWriteQueue(HashMap<Long, WriteData> pendingRequests) {
+    public boolean dispatchWriteQueue(LongObjectHashMap<WriteData> pendingRequests) {
         MpscLinkedQueue<WriteData> writeQueue = this.writeQueue;
         WriteData wo;
         boolean result = false;
@@ -52,7 +52,7 @@ class IoQueue {
         return result;
     }
 
-    private boolean enqueue(HashMap<Long, WriteData> pendingRequests, WriteData wo) {
+    private boolean enqueue(LongObjectHashMap<WriteData> pendingRequests, WriteData wo) {
         WriteFrame frame = wo.getData();
         DtChannel dtc = wo.getDtc();
         if (dtc == null) {

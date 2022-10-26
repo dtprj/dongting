@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
-import java.util.HashMap;
+import com.carrotsearch.hppc.LongObjectHashMap;
 
 /**
  * @author huangli
@@ -23,7 +23,7 @@ import java.util.HashMap;
 class WorkerParams {
     private IoQueue ioQueue;
     private Runnable wakeupRunnable;
-    private HashMap<Long, WriteData> pendingRequests;
+    private LongObjectHashMap<WriteData> pendingRequests;
     private ByteBufferPool pool;
 
     public WorkerParams() {
@@ -45,11 +45,11 @@ class WorkerParams {
         this.wakeupRunnable = wakeupRunnable;
     }
 
-    public HashMap<Long, WriteData> getPendingRequests() {
+    public  LongObjectHashMap<WriteData> getPendingRequests() {
         return pendingRequests;
     }
 
-    public void setPendingRequests(HashMap<Long, WriteData> pendingRequests) {
+    public void setPendingRequests( LongObjectHashMap<WriteData> pendingRequests) {
         this.pendingRequests = pendingRequests;
     }
 

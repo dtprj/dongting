@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.carrotsearch.hppc.LongObjectHashMap;
+import com.carrotsearch.hppc.cursors.LongObjectCursor;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.log.DtLog;
@@ -60,7 +62,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private final Collection<DtChannel> channels;
     private final IoQueue ioQueue;
 
-    private final HashMap<Long, WriteData> pendingOutgoingRequests = new HashMap<>();
+    private final LongObjectHashMap<WriteData> pendingOutgoingRequests = new LongObjectHashMap<>();
     private final CompletableFuture<Void> preCloseFuture = new CompletableFuture<>();
 
     private final Semaphore requestSemaphore;
@@ -392,20 +394,32 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     private void cleanTimeoutReq() {
-        Iterator<Map.Entry<Long, WriteData>> it = this.pendingOutgoingRequests.entrySet().iterator();
+        LongObjectHashMap<WriteData> map = this.pendingOutgoingRequests;
+        Iterator<LongObjectCursor<WriteData>> it = map.iterator();
+        LinkedList<Long> expireList = null;
         while (it.hasNext()) {
-            Map.Entry<Long, WriteData> en = it.next();
-            WriteData d = en.getValue();
+            LongObjectCursor<WriteData> en = it.next();
+            WriteData d = en.value;
             DtTime t = d.getTimeout();
             if (t.rest(TimeUnit.MILLISECONDS) <= 0) {
-                it.remove();
-                log.debug("drop timeout request: {}ms, seq={}, {}",
-                        t.getTimeout(TimeUnit.MILLISECONDS), d.getData().getSeq(),
-                        d.getDtc());
-                String msg = "timeout: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
-                en.getValue().getFuture().completeExceptionally(new NetTimeoutException(msg));
-                requestSemaphore.release();
+                if (expireList == null) {
+                    expireList = new LinkedList<>();
+                }
+                expireList.add(en.key);
             }
+        }
+        if (expireList == null) {
+            return;
+        }
+        for(Long key: expireList) {
+            WriteData d = map.get(key);
+            DtTime t = d.getTimeout();
+            log.debug("drop timeout request: {}ms, seq={}, {}",
+                    t.getTimeout(TimeUnit.MILLISECONDS), d.getData().getSeq(),
+                    d.getDtc());
+            String msg = "timeout: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
+            d.getFuture().completeExceptionally(new NetTimeoutException(msg));
+            requestSemaphore.release();
         }
     }
 

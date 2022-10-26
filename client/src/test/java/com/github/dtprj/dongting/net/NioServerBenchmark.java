@@ -36,7 +36,7 @@ public class NioServerBenchmark extends BenchBase {
     private static final boolean SYNC = false;
     private static final int THREAD_COUNT = 1;
     private static final long TIME = 30 * 1000;
-    private static final long WARMUP_TIME = 2000;
+    private static final long WARMUP_TIME = 5000;
     private static final long TIMEOUT = 5000;
 
     public NioServerBenchmark(int threadCount, long testTime, long warmupTime) {
