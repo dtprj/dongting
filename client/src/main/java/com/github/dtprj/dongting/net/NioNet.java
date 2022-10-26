@@ -21,12 +21,7 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.ThreadUtils;
 
 import java.nio.ByteBuffer;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.function.Function;
 
 /**
@@ -111,7 +106,7 @@ public abstract class NioNet extends AbstractLifeCircle {
     protected void initBizExecutor() {
         if (config.getBizThreads() > 0) {
             bizExecutor = new ThreadPoolExecutor(config.getBizThreads(), config.getBizThreads(),
-                    1, TimeUnit.MINUTES, new ArrayBlockingQueue<>(config.getMaxInRequests()),
+                    1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(config.getMaxInRequests()),
                     new DtThreadFactory(config.getName() + "Biz", false));
             nioStatus.setBizExecutor(bizExecutor);
         }
