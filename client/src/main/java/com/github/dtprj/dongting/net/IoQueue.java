@@ -18,18 +18,17 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import org.jctools.queues.MpscLinkedQueue;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * @author huangli
  */
-// TODO currently just work, optimize performance
 class IoQueue {
     private static final DtLog log = DtLogs.getLogger(IoQueue.class);
-    private final ConcurrentLinkedQueue<WriteData> writeQueue = new ConcurrentLinkedQueue<>();
+    private final MpscLinkedQueue<WriteData> writeQueue = new MpscLinkedQueue<>();
     private final ArrayList<DtChannel> channels;
     private final boolean server;
     private int invokeIndex;
@@ -44,7 +43,7 @@ class IoQueue {
     }
 
     public boolean dispatchWriteQueue(HashMap<Long, WriteData> pendingRequests) {
-        ConcurrentLinkedQueue<WriteData> writeQueue = this.writeQueue;
+        MpscLinkedQueue<WriteData> writeQueue = this.writeQueue;
         WriteData wo;
         boolean result = false;
         while ((wo = writeQueue.poll()) != null) {
