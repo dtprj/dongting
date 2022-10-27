@@ -119,6 +119,7 @@ public class PbParser {
     private int parseVarInt(ByteBuffer buf, int remain) {
         int value = 0;
         int bitIndex = 0;
+        int pendingBytes = this.pendingBytes;
         if (pendingBytes > 0) {
             value = (int) this.tempValue;
             bitIndex = pendingBytes * 7;
@@ -127,6 +128,8 @@ public class PbParser {
         // max 5 bytes for 32bit number in proto buffer
         final int MAX_BYTES = 5;
         int i = 1;
+        int frameLen = this.frameLen;
+        int parsedBytes = this.parsedBytes;
         for (; i <= remain; i++) {
             int x = buf.get();
             value |= (x & 0x7F) << bitIndex;
@@ -135,8 +138,7 @@ public class PbParser {
                 if (pendingBytes + i > MAX_BYTES) {
                     throw new PbException("var int too long: " + (pendingBytes + i + 1));
                 }
-                this.pendingBytes = 0;
-                this.parsedBytes += i;
+                parsedBytes += i;
                 if (parsedBytes > frameLen) {
                     throw new PbException("frame exceed " + frameLen);
                 }
@@ -159,6 +161,8 @@ public class PbParser {
                     default:
                         throw new PbException("invalid status: " + status);
                 }
+                this.parsedBytes = parsedBytes;
+                this.pendingBytes = 0;
                 /////////////////////////////////////
                 return remain - i;
             } else {
@@ -174,6 +178,8 @@ public class PbParser {
             throw new PbException("frame exceed, at least " + frameLen);
         }
         this.tempValue = value;
+        this.pendingBytes = pendingBytes;
+        this.parsedBytes = parsedBytes;
         return 0;
     }
 
@@ -203,6 +209,7 @@ public class PbParser {
     private int parseVarLong(ByteBuffer buf, PbCallback callback, int remain) {
         long value = 0;
         int bitIndex = 0;
+        int pendingBytes = this.pendingBytes;
         if (pendingBytes > 0) {
             value = this.tempValue;
             bitIndex = pendingBytes * 7;
@@ -211,6 +218,8 @@ public class PbParser {
         // max 10 bytes for 64bit number in proto buffer
         final int MAX_BYTES = 10;
         int i = 1;
+        int frameLen = this.frameLen;
+        int parsedBytes = this.parsedBytes;
         for (; i <= remain; i++) {
             int x = buf.get();
             value |= (x & 0x7FL) << bitIndex;
@@ -219,8 +228,7 @@ public class PbParser {
                 if (pendingBytes + i > MAX_BYTES) {
                     throw new PbException("var long too long: " + (pendingBytes + i + 1));
                 }
-                this.pendingBytes = 0;
-                this.parsedBytes += i;
+                parsedBytes += i;
                 if (parsedBytes > frameLen) {
                     throw new PbException("frame exceed " + frameLen);
                 }
@@ -236,6 +244,8 @@ public class PbParser {
                     this.status = STATUS_SKIP_REST;
                 }
 
+                this.pendingBytes = 0;
+                this.parsedBytes = parsedBytes;
                 return remain - i;
             } else {
                 bitIndex += 7;
@@ -250,6 +260,8 @@ public class PbParser {
             throw new PbException("frame exceed, at least " + frameLen);
         }
         this.tempValue = value;
+        this.pendingBytes = pendingBytes;
+        this.parsedBytes = parsedBytes;
         return 0;
     }
 
@@ -265,6 +277,8 @@ public class PbParser {
                 // TODO finish it
                 break;
             case PbUtil.TYPE_LENGTH_DELIMITED:
+                int fieldLen = this.fieldLen;
+                int pendingBytes = this.pendingBytes;
                 int needRead = fieldLen - pendingBytes;
                 int actualRead = Math.min(needRead, remain);
                 int start = buf.position();
@@ -293,6 +307,7 @@ public class PbParser {
                         pendingBytes = 0;
                         status = STATUS_SKIP_REST;
                     }
+                    this.pendingBytes = pendingBytes;
                 }
                 break;
             default:
