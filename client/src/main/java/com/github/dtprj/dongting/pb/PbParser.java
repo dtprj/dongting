@@ -25,7 +25,7 @@ import java.nio.ByteBuffer;
  */
 public class PbParser {
 
-    private static DtLog log = DtLogs.getLogger(PbParser.class);
+    private static final DtLog log = DtLogs.getLogger(PbParser.class);
 
     private static final int STATUS_PARSE_PB_LEN = 1;
     private static final int STATUS_PARSE_TAG = 2;
