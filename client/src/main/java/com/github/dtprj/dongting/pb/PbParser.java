@@ -280,38 +280,7 @@ public class PbParser {
                 // TODO finish it
                 break;
             case PbUtil.TYPE_LENGTH_DELIMITED:
-                int fieldLen = this.fieldLen;
-                int pendingBytes = this.pendingBytes;
-                int needRead = fieldLen - pendingBytes;
-                int actualRead = Math.min(needRead, remain);
-                int start = buf.position();
-                int end = start + actualRead;
-                int limit = buf.limit();
-                buf.limit(end);
-                boolean result = false;
-                try {
-                    result = callback.readBytes(this.fieldIndex, buf, fieldLen,
-                            pendingBytes == 0, needRead == actualRead);
-                } catch (Throwable e) {
-                    log.warn("proto buffer parse callback fail: {}", e.toString());
-                } finally {
-                    buf.limit(limit);
-                    buf.position(end);
-                    parsedBytes += actualRead;
-                    remain -= actualRead;
-                    if (result) {
-                        if (needRead == actualRead) {
-                            pendingBytes = 0;
-                            status = STATUS_PARSE_TAG;
-                        } else {
-                            pendingBytes += actualRead;
-                        }
-                    } else {
-                        pendingBytes = 0;
-                        status = STATUS_SKIP_REST;
-                    }
-                    this.pendingBytes = pendingBytes;
-                }
+                remain = parseBodyLenDelimited(buf, callback, remain);
                 break;
             default:
                 throw new PbException("type not support:" + this.fieldType);
@@ -319,6 +288,42 @@ public class PbParser {
         if (frameLen == parsedBytes && status == STATUS_PARSE_TAG) {
             callback.end();
             status = STATUS_PARSE_PB_LEN;
+        }
+        return remain;
+    }
+
+    private int parseBodyLenDelimited(ByteBuffer buf, PbCallback callback, int remain) {
+        int fieldLen = this.fieldLen;
+        int pendingBytes = this.pendingBytes;
+        int needRead = fieldLen - pendingBytes;
+        int actualRead = Math.min(needRead, remain);
+        int start = buf.position();
+        int end = start + actualRead;
+        int limit = buf.limit();
+        buf.limit(end);
+        boolean result = false;
+        try {
+            result = callback.readBytes(this.fieldIndex, buf, fieldLen,
+                    pendingBytes == 0, needRead == actualRead);
+        } catch (Throwable e) {
+            log.warn("proto buffer parse callback fail: {}", e.toString());
+        } finally {
+            buf.limit(limit);
+            buf.position(end);
+            parsedBytes += actualRead;
+            remain -= actualRead;
+            if (result) {
+                if (needRead == actualRead) {
+                    pendingBytes = 0;
+                    status = STATUS_PARSE_TAG;
+                } else {
+                    pendingBytes += actualRead;
+                }
+            } else {
+                pendingBytes = 0;
+                status = STATUS_SKIP_REST;
+            }
+            this.pendingBytes = pendingBytes;
         }
         return remain;
     }
