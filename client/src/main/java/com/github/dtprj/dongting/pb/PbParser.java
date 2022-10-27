@@ -78,9 +78,12 @@ public class PbParser {
     }
 
     private int onStatusParsePbLen(ByteBuffer buf, PbCallback callback, int remain) {
+        // read buffer is little endian.
+        // however the length field is out of proto buffer data, and it's big endian
         if (pendingBytes == 0) {
             if (remain >= 4) {
                 int len = buf.getInt();
+                len = Integer.reverseBytes(len);
                 if (len <= 0 || len > maxFrame) {
                     throw new PbException("maxFrameSize exceed: max=" + maxFrame + ", actual=" + len);
                 }

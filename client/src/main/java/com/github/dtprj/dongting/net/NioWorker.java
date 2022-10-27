@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
@@ -179,6 +180,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private void prepareReadBuffer(long roundTime) {
         if (readBuffer == null) {
             readBuffer = pool.borrow(config.getReadBufferSize());
+            // change to little endian since protobuf is little endian
+            readBuffer.order(ByteOrder.LITTLE_ENDIAN);
         }
         readBuffer.clear();
         readBufferUseTime = roundTime;
@@ -186,6 +189,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private void cleanReadBuffer(long roundTime) {
         if (readBuffer != null && roundTime - readBufferUseTime > readBufferTimeoutNanos) {
+            // recover to big endian
+            readBuffer.order(ByteOrder.BIG_ENDIAN);
             pool.release(readBuffer, roundTime);
             readBuffer = null;
             readBufferUseTime = 0;

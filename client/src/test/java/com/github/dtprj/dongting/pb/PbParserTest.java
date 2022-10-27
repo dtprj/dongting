@@ -19,6 +19,7 @@ import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -62,6 +63,7 @@ public class PbParserTest {
             buf.put(bs);
             buf.flip();
             this.expectLen = bs.length;
+            buf.order(ByteOrder.LITTLE_ENDIAN);
             return buf;
         }
 
