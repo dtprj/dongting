@@ -24,6 +24,10 @@ public interface PbCallback {
 
     boolean readVarInt(int index, long value);
 
+    boolean readFixedInt(int index, int value);
+
+    boolean readFixedLong(int index, long value);
+
     boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end);
 
     default void begin(int len) {

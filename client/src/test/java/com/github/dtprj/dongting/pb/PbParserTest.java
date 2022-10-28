@@ -21,8 +21,7 @@ import org.junit.jupiter.api.Test;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -34,20 +33,28 @@ public class PbParserTest {
         private int beginCount;
         private int endCount;
 
-        private String msg = "";
-        private String body = "";
-
         private int f1;
         private long f2;
         private String f3;
         private String f4;
+        private int f5;
+        private long f6;
         private int expectLen;
 
-        Callback(int f1, long f2, String f3, String f4) {
+        private int read_f1;
+        private long read_f2;
+        private String read_f3;
+        private String read_f4;
+        private int read_f5;
+        private long read_f6;
+
+        Callback(int f1, long f2, String f3, String f4, int f5, long f6) {
             this.f1 = f1;
             this.f2 = f2;
             this.f3 = f3;
             this.f4 = f4;
+            this.f5 = f5;
+            this.f6 = f6;
         }
 
         public ByteBuffer buildFrame() {
@@ -56,6 +63,8 @@ public class PbParserTest {
                     .setInt64Field(f2)
                     .setStringField(f3)
                     .setBytesField(ByteString.copyFrom(f4.getBytes()))
+                    .setInt32Fix(f5)
+                    .setInt64Fix(f6)
                     .build()
                     .toByteArray();
             ByteBuffer buf = ByteBuffer.allocate(bs.length + 4);
@@ -76,14 +85,20 @@ public class PbParserTest {
         @Override
         public void end() {
             endCount++;
+            assertEquals(f1, read_f1);
+            assertEquals(f2, read_f2);
+            assertEquals(f3, read_f3);
+            assertEquals(f4, read_f4);
+            assertEquals(f5, read_f5);
+            assertEquals(f6, read_f6);
         }
 
         @Override
         public boolean readVarInt(int index, long value) {
             if (index == 1) {
-                assertEquals(f1, (int) value);
+                read_f1 = (int) value;
             } else if (index == 2) {
-                assertEquals(f2, value);
+                read_f2 = value;
             } else {
                 fail();
             }
@@ -96,18 +111,42 @@ public class PbParserTest {
             buf.get(bs);
             String s = new String(bs);
             if (index == 3) {
-                msg += s;
+                if (read_f3 == null) {
+                    read_f3 = "";
+                }
+                read_f3 += s;
                 if (end) {
-                    assertEquals(f3, msg);
+                    assertEquals(f3, read_f3);
+                } else {
+                    assertNotEquals(f3, read_f3);
                 }
             } else if (index == 4000) {
-                body += s;
+                if (read_f4 == null) {
+                    read_f4 = "";
+                }
+                read_f4 += s;
                 if (end) {
-                    assertEquals(f4, body);
+                    assertEquals(f4, read_f4);
+                } else {
+                    assertNotEquals(f4, read_f4);
                 }
             } else {
                 fail();
             }
+            return true;
+        }
+
+        @Override
+        public boolean readFixedInt(int index, int value) {
+            assertEquals(5, index);
+            read_f5 = value;
+            return true;
+        }
+
+        @Override
+        public boolean readFixedLong(int index, long value) {
+            assertEquals(6, index);
+            read_f6 = value;
             return true;
         }
     }
@@ -116,28 +155,33 @@ public class PbParserTest {
     @Test
     public void testParse() {
         PbParser parser = new PbParser(500);
-        Callback callback = new Callback(100, 200, "msg", "body");
+        Callback callback = new Callback(100, 200, "msg", "body", 100, 200);
         parser.parse(callback.buildFrame(), callback);
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endCount);
 
-        callback = new Callback(Integer.MAX_VALUE, Long.MAX_VALUE, "msg", "body");
+        callback = new Callback(Integer.MAX_VALUE, Long.MAX_VALUE, "msg", "body", Integer.MAX_VALUE, Long.MAX_VALUE);
         parser.parse(callback.buildFrame(), callback);
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endCount);
 
-        callback = new Callback(-1, -1, "msg", "body");
+        callback = new Callback(-1, -1, "msg", "body", -1, -1);
         parser.parse(callback.buildFrame(), callback);
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endCount);
 
-        callback = new Callback(Integer.MAX_VALUE, Long.MAX_VALUE, "msg", "body");
+        callback = new Callback(-1000, -2000, "msg", "body", -1000, -2000);
+        parser.parse(callback.buildFrame(), callback);
+        assertEquals(1, callback.beginCount);
+        assertEquals(1, callback.endCount);
+
+        callback = new Callback(Integer.MAX_VALUE, Long.MAX_VALUE, "msg", "body", Integer.MAX_VALUE, Long.MAX_VALUE);
         parser.parse(callback.buildFrame(), callback);
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endCount);
 
         try {
-            callback = new Callback(1, 2, "msg", "body");
+            callback = new Callback(1, 2, "msg", "body", 1, 2);
             new PbParser(5).parse(callback.buildFrame(), callback);
             fail();
         } catch (PbException e) {
@@ -150,7 +194,7 @@ public class PbParserTest {
     public void testHalfParse() {
         PbParser parser = new PbParser(500);
         for (int i = 0; i < 2; i++) {
-            Callback callback = new Callback(10000, 20000, "msg", "body");
+            Callback callback = new Callback(10000, 20000, "msg", "body", 10000, 20000);
             ByteBuffer fullBuffer = callback.buildFrame();
             for (int j = 0; j < fullBuffer.remaining(); j++) {
                 ByteBuffer buf = ByteBuffer.allocate(1);
@@ -167,7 +211,7 @@ public class PbParserTest {
     public void testCallbackFail() {
         PbParser parser = new PbParser(500);
 
-        Callback callback = new Callback(10000, 20000, "msg", "body") {
+        Callback callback = new Callback(10000, 20000, "msg", "body", 10000, 20000) {
             @Override
             public boolean readVarInt(int index, long value) {
                 if (index == 2) {
@@ -180,7 +224,7 @@ public class PbParserTest {
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endCount);
 
-        callback = new Callback(10000, 20000, "msg", "body") {
+        callback = new Callback(10000, 20000, "msg", "body", 10000, 20000) {
             @Override
             public boolean readVarInt(int index, long value) {
                 if (index == 2) {
@@ -193,7 +237,7 @@ public class PbParserTest {
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endCount);
 
-        callback = new Callback(10000, 20000, "msg", "body") {
+        callback = new Callback(10000, 20000, "msg", "body", 10000, 20000) {
             @Override
             public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
                 if (index == 3) {
@@ -206,7 +250,7 @@ public class PbParserTest {
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endCount);
 
-        callback = new Callback(10000, 20000, "msg", "body") {
+        callback = new Callback(10000, 20000, "msg", "body", 10000, 20000) {
             @Override
             public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
                 if (index == 3) {
@@ -219,7 +263,27 @@ public class PbParserTest {
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endCount);
 
-        callback = new Callback(100, 200, "msg", "body");
+        callback = new Callback(10000, 20000, "msg", "body", 10000, 20000) {
+            @Override
+            public boolean readFixedInt(int index, int value) {
+                return false;
+            }
+        };
+        parser.parse(callback.buildFrame(), callback);
+        assertEquals(1, callback.beginCount);
+        assertEquals(0, callback.endCount);
+
+        callback = new Callback(10000, 20000, "msg", "body", 10000, 20000) {
+            @Override
+            public boolean readFixedInt(int index, int value) {
+                throw new ArrayIndexOutOfBoundsException();
+            }
+        };
+        parser.parse(callback.buildFrame(), callback);
+        assertEquals(1, callback.beginCount);
+        assertEquals(0, callback.endCount);
+
+        callback = new Callback(100, 200, "msg", "body", 100, 200);
         parser.parse(callback.buildFrame(), callback);
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endCount);

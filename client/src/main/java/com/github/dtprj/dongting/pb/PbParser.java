@@ -69,7 +69,8 @@ public class PbParser {
                     assert skipCount >= 0;
                     buf.position(buf.position() + skipCount);
                     if (parsedBytes + skipCount == frameLen) {
-                        status = STATUS_PARSE_PB_LEN;
+                        this.status = STATUS_PARSE_PB_LEN;
+                        this.pendingBytes = 0;
                     }
                     remain -= skipCount;
                     break;
@@ -90,7 +91,6 @@ public class PbParser {
                 callback.begin(len);
                 status = STATUS_PARSE_TAG;
                 frameLen = len;
-                pendingBytes = 0;
                 parsedBytes = 0;
                 return remain - 4;
             } else {
@@ -274,10 +274,10 @@ public class PbParser {
                 remain = parseVarLong(buf, callback, remain);
                 break;
             case PbUtil.TYPE_FIX64:
-                // TODO finish it
+                remain = parseBodyFixedNumber(buf, callback, remain, 8);
                 break;
             case PbUtil.TYPE_FIX32:
-                // TODO finish it
+                remain = parseBodyFixedNumber(buf, callback, remain, 4);
                 break;
             case PbUtil.TYPE_LENGTH_DELIMITED:
                 remain = parseBodyLenDelimited(buf, callback, remain);
@@ -326,6 +326,63 @@ public class PbParser {
             this.pendingBytes = pendingBytes;
         }
         return remain;
+    }
+
+    private int parseBodyFixedNumber(ByteBuffer buf, PbCallback callback, int remain, int len) {
+        int pendingBytes = this.pendingBytes;
+        if (pendingBytes == 0 && remain > len) {
+            long value;
+            if (len == 4) {
+                value = buf.getInt();
+            } else {
+                value = buf.getLong();
+            }
+            callbackOnReadFixNumber(callback, len, value);
+            this.pendingBytes = 0;
+            this.parsedBytes += len;
+            return remain - len;
+        }
+        long value = 0;
+        if (pendingBytes > 0) {
+            value = this.tempValue;
+        }
+        int restLen = len - pendingBytes;
+        int bitIndex = pendingBytes << 3; // multiply 8
+        if (remain >= restLen) {
+            for (int i = 0; i < restLen; i++) {
+                value |= (buf.get() & 0xFFL) << bitIndex;
+            }
+            callbackOnReadFixNumber(callback, len, value);
+            this.pendingBytes = 0;
+            this.parsedBytes += restLen;
+        } else {
+            for (int i = 0; i < remain; i++) {
+                value |= (buf.get() & 0xFFL) << bitIndex;
+            }
+            this.pendingBytes = pendingBytes + remain;
+            this.parsedBytes = this.parsedBytes + remain;
+            this.tempValue = value;
+        }
+        return 0;
+    }
+
+    private void callbackOnReadFixNumber(PbCallback callback, int len, long value) {
+        boolean r;
+        try {
+            if (len == 4) {
+                r = callback.readFixedInt(this.fieldIndex, (int) value);
+            } else {
+                r = callback.readFixedLong(this.fieldIndex, value);
+            }
+        } catch (Throwable e) {
+            log.warn("proto buffer parse callback fail: {}", e.toString());
+            r = false;
+        }
+        if (r) {
+            this.status = STATUS_PARSE_TAG;
+        } else {
+            this.status = STATUS_SKIP_REST;
+        }
     }
 
 }

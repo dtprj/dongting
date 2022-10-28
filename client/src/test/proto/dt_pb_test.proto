@@ -40,4 +40,6 @@ message PbParserTestMsg {
   uint64 int64Field = 2;
   string stringField = 3;
   bytes bytesField = 4000;
+  fixed32 int32Fix = 5;
+  fixed64 int64Fix = 6;
 }

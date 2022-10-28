@@ -149,6 +149,16 @@ class DtChannel implements PbCallback {
     }
 
     @Override
+    public boolean readFixedInt(int index, int value) {
+        return false;
+    }
+
+    @Override
+    public boolean readFixedLong(int index, long value) {
+        return false;
+    }
+
+    @Override
     public boolean readBytes(int index, ByteBuffer buf, int fieldLen, boolean start, boolean end) {
         if (readBody) {
             throw new PbException("body has read");
