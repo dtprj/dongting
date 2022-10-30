@@ -31,7 +31,12 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
@@ -417,7 +422,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             return;
         }
         for(Long key: expireList) {
-            WriteData d = map.get(key);
+            WriteData d = map.remove(key);
             DtTime t = d.getTimeout();
             log.debug("drop timeout request: {}ms, seq={}, {}",
                     t.getTimeout(TimeUnit.MILLISECONDS), d.getData().getSeq(),
