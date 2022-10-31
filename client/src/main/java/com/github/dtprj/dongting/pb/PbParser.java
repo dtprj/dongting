@@ -86,7 +86,7 @@ public class PbParser {
         try {
             callback.end(success);
         } catch (Throwable e) {
-            log.warn("proto buffer parse callback end() fail: {}", e.toString());
+            log.error("proto buffer parse callback end() fail: {}", e.toString());
         }
         this.status = STATUS_PARSE_PB_LEN;
         this.pendingBytes = 0;
@@ -257,7 +257,7 @@ public class PbParser {
                         this.status = STATUS_SKIP_REST;
                     }
                 } catch (Throwable e) {
-                    log.warn("proto buffer parse callback readVarInt() fail. fieldIndex={}, error={}", this.fieldIndex, e.toString());
+                    log.error("proto buffer parse callback readVarInt() fail. fieldIndex={}, error={}", this.fieldIndex, e.toString());
                     this.status = STATUS_SKIP_REST;
                 }
 
@@ -319,7 +319,7 @@ public class PbParser {
             result = callback.readBytes(this.fieldIndex, buf, fieldLen,
                     pendingBytes == 0, needRead == actualRead);
         } catch (Throwable e) {
-            log.warn("proto buffer parse callback readBytes() fail. fieldIndex={}, error={}", this.fieldIndex, e.toString());
+            log.error("proto buffer parse callback readBytes() fail. fieldIndex={}, error={}", this.fieldIndex, e.toString());
         } finally {
             buf.limit(limit);
             buf.position(end);
@@ -390,7 +390,7 @@ public class PbParser {
                 r = callback.readFixedLong(this.fieldIndex, value);
             }
         } catch (Throwable e) {
-            log.warn("proto buffer parse callback readFixInt()/readFixLong() fail. fieldIndex={}, error={}", this.fieldIndex, e.toString());
+            log.error("proto buffer parse callback readFixInt()/readFixLong() fail. fieldIndex={}, error={}", this.fieldIndex, e.toString());
             r = false;
         }
         if (r) {

@@ -375,6 +375,7 @@ class DtChannel implements PbCallback {
             try {
                 WriteFrame resp;
                 Decoder decoder = processor.getDecoder();
+                boolean decodeSuccess = false;
                 try {
                     if (!decoder.decodeInIoThread()) {
                         ByteBuffer bodyBuffer = (ByteBuffer) req.getBody();
@@ -383,9 +384,14 @@ class DtChannel implements PbCallback {
                             req.setBody(o);
                         }
                     }
+                    decodeSuccess = true;
                     resp = processor.process(req, dtc);
                 } catch (Throwable e) {
-                    log.warn("ReqProcessor.process fail, command={}", req.getCommand(), e);
+                    if (decodeSuccess) {
+                        log.warn("ReqProcessor.process fail, command={}", req.getCommand(), e);
+                    } else {
+                        log.warn("ReqProcessor decode fail, command={}", req.getCommand(), e);
+                    }
                     dtc.writeBizErrorInBizThread(req, e.toString());
                     return;
                 }
