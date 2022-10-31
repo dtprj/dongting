@@ -33,6 +33,6 @@ public interface PbCallback {
     default void begin(int len) {
     }
 
-    default void end() {
+    default void end(boolean success) {
     }
 }

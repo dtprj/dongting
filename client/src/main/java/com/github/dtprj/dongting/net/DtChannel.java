@@ -110,7 +110,10 @@ class DtChannel implements PbCallback {
     }
 
     @Override
-    public void end() {
+    public void end(boolean success) {
+        if (!success) {
+            return;
+        }
         if (writeDataForResp == null && processorForRequest == null) {
             // empty body
             if (getDecoder() == null) {

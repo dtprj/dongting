@@ -53,7 +53,7 @@ public class PbParser {
     public void parse(ByteBuffer buf, PbCallback callback) {
         int remain = buf.remaining();
         while (remain > 0) {
-            switch (status) {
+            switch (this.status) {
                 case STATUS_PARSE_PB_LEN:
                     remain = onStatusParsePbLen(buf, callback, remain);
                     break;
@@ -65,17 +65,31 @@ public class PbParser {
                     remain = onStatusParseFieldBody(buf, callback, remain);
                     break;
                 case STATUS_SKIP_REST:
-                    int skipCount = Math.min(frameLen - parsedBytes, buf.remaining());
+                    int skipCount = Math.min(this.frameLen - this.parsedBytes, buf.remaining());
                     assert skipCount >= 0;
                     buf.position(buf.position() + skipCount);
-                    if (parsedBytes + skipCount == frameLen) {
-                        this.status = STATUS_PARSE_PB_LEN;
-                        this.pendingBytes = 0;
+                    if (this.parsedBytes + skipCount == this.frameLen) {
+                        callEnd(callback, false);
+                    } else {
+                        this.parsedBytes += skipCount;
                     }
                     remain -= skipCount;
                     break;
             }
         }
+        if (this.status == STATUS_SKIP_REST && this.parsedBytes == this.frameLen) {
+            callEnd(callback, false);
+        }
+    }
+
+    private void callEnd(PbCallback callback, boolean success) {
+        try {
+            callback.end(success);
+        } catch (Throwable e) {
+            log.warn("proto buffer parse callback end() fail: {}", e.toString());
+        }
+        this.status = STATUS_PARSE_PB_LEN;
+        this.pendingBytes = 0;
     }
 
     private int onStatusParsePbLen(ByteBuffer buf, PbCallback callback, int remain) {
@@ -243,7 +257,7 @@ public class PbParser {
                         this.status = STATUS_SKIP_REST;
                     }
                 } catch (Throwable e) {
-                    log.warn("proto buffer parse callback fail: {}", e.toString());
+                    log.warn("proto buffer parse callback readVarInt() fail. fieldIndex={}, error={}", this.fieldIndex, e.toString());
                     this.status = STATUS_SKIP_REST;
                 }
 
@@ -286,8 +300,7 @@ public class PbParser {
                 throw new PbException("type not support:" + this.fieldType);
         }
         if (frameLen == parsedBytes && status == STATUS_PARSE_TAG) {
-            callback.end();
-            status = STATUS_PARSE_PB_LEN;
+            callEnd(callback, true);
         }
         return remain;
     }
@@ -306,7 +319,7 @@ public class PbParser {
             result = callback.readBytes(this.fieldIndex, buf, fieldLen,
                     pendingBytes == 0, needRead == actualRead);
         } catch (Throwable e) {
-            log.warn("proto buffer parse callback fail: {}", e.toString());
+            log.warn("proto buffer parse callback readBytes() fail. fieldIndex={}, error={}", this.fieldIndex, e.toString());
         } finally {
             buf.limit(limit);
             buf.position(end);
@@ -377,7 +390,7 @@ public class PbParser {
                 r = callback.readFixedLong(this.fieldIndex, value);
             }
         } catch (Throwable e) {
-            log.warn("proto buffer parse callback fail: {}", e.toString());
+            log.warn("proto buffer parse callback readFixInt()/readFixLong() fail. fieldIndex={}, error={}", this.fieldIndex, e.toString());
             r = false;
         }
         if (r) {

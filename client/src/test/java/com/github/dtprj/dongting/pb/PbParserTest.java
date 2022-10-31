@@ -24,7 +24,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Random;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * @author huangli
@@ -34,7 +36,8 @@ public class PbParserTest {
     static class Callback implements PbCallback {
 
         private int beginCount;
-        private int endCount;
+        private int endSuccessCount;
+        private int endFailCount;
 
         private int f1;
         private long f2;
@@ -86,8 +89,12 @@ public class PbParserTest {
         }
 
         @Override
-        public void end() {
-            endCount++;
+        public void end(boolean success) {
+            if (success) {
+                endSuccessCount++;
+            } else {
+                endFailCount++;
+            }
             assertEquals(f1, read_f1);
             assertEquals(f2, read_f2);
             assertEquals(f3, read_f3);
@@ -161,27 +168,32 @@ public class PbParserTest {
         Callback callback = new Callback(100, 200, "msg", "body", 100, 200);
         parser.parse(callback.buildFrame(), callback);
         assertEquals(1, callback.beginCount);
-        assertEquals(1, callback.endCount);
+        assertEquals(1, callback.endSuccessCount);
+        assertEquals(0, callback.endFailCount);
 
         callback = new Callback(Integer.MAX_VALUE, Long.MAX_VALUE, "msg", "body", Integer.MAX_VALUE, Long.MAX_VALUE);
         parser.parse(callback.buildFrame(), callback);
         assertEquals(1, callback.beginCount);
-        assertEquals(1, callback.endCount);
+        assertEquals(1, callback.endSuccessCount);
+        assertEquals(0, callback.endFailCount);
 
         callback = new Callback(-1, -1, "msg", "body", -1, -1);
         parser.parse(callback.buildFrame(), callback);
         assertEquals(1, callback.beginCount);
-        assertEquals(1, callback.endCount);
+        assertEquals(1, callback.endSuccessCount);
+        assertEquals(0, callback.endFailCount);
 
         callback = new Callback(-1000, -2000, "msg", "body", -1000, -2000);
         parser.parse(callback.buildFrame(), callback);
         assertEquals(1, callback.beginCount);
-        assertEquals(1, callback.endCount);
+        assertEquals(1, callback.endSuccessCount);
+        assertEquals(0, callback.endFailCount);
 
         callback = new Callback(Integer.MAX_VALUE, Long.MAX_VALUE, "msg", "body", Integer.MAX_VALUE, Long.MAX_VALUE);
         parser.parse(callback.buildFrame(), callback);
         assertEquals(1, callback.beginCount);
-        assertEquals(1, callback.endCount);
+        assertEquals(1, callback.endSuccessCount);
+        assertEquals(0, callback.endFailCount);
 
         try {
             callback = new Callback(1, 2, "msg", "body", 1, 2);
@@ -190,7 +202,8 @@ public class PbParserTest {
         } catch (PbException e) {
         }
         assertEquals(0, callback.beginCount);
-        assertEquals(0, callback.endCount);
+        assertEquals(0, callback.endSuccessCount);
+        assertEquals(0, callback.endFailCount);
     }
 
     @Test
@@ -236,7 +249,8 @@ public class PbParserTest {
                     j += readCount;
                 }
                 assertEquals(1, callback.beginCount);
-                assertEquals(1, callback.endCount);
+                assertEquals(1, callback.endSuccessCount);
+                assertEquals(0, callback.endFailCount);
             } catch (Throwable e) {
                 System.out.println("fail. i=" + i + ",steps=" + steps);
                 throw e;
@@ -259,7 +273,8 @@ public class PbParserTest {
         };
         parser.parse(callback.buildFrame(), callback);
         assertEquals(1, callback.beginCount);
-        assertEquals(0, callback.endCount);
+        assertEquals(0, callback.endSuccessCount);
+        assertEquals(1, callback.endFailCount);
 
         callback = new Callback(10000, 20000, "msg", "body", 10000, 20000) {
             @Override
@@ -272,7 +287,8 @@ public class PbParserTest {
         };
         parser.parse(callback.buildFrame(), callback);
         assertEquals(1, callback.beginCount);
-        assertEquals(0, callback.endCount);
+        assertEquals(0, callback.endSuccessCount);
+        assertEquals(1, callback.endFailCount);
 
         callback = new Callback(10000, 20000, "msg", "body", 10000, 20000) {
             @Override
@@ -285,7 +301,8 @@ public class PbParserTest {
         };
         parser.parse(callback.buildFrame(), callback);
         assertEquals(1, callback.beginCount);
-        assertEquals(0, callback.endCount);
+        assertEquals(0, callback.endSuccessCount);
+        assertEquals(1, callback.endFailCount);
 
         callback = new Callback(10000, 20000, "msg", "body", 10000, 20000) {
             @Override
@@ -298,7 +315,8 @@ public class PbParserTest {
         };
         parser.parse(callback.buildFrame(), callback);
         assertEquals(1, callback.beginCount);
-        assertEquals(0, callback.endCount);
+        assertEquals(0, callback.endSuccessCount);
+        assertEquals(1, callback.endFailCount);
 
         callback = new Callback(10000, 20000, "msg", "body", 10000, 20000) {
             @Override
@@ -308,7 +326,8 @@ public class PbParserTest {
         };
         parser.parse(callback.buildFrame(), callback);
         assertEquals(1, callback.beginCount);
-        assertEquals(0, callback.endCount);
+        assertEquals(0, callback.endSuccessCount);
+        assertEquals(1, callback.endFailCount);
 
         callback = new Callback(10000, 20000, "msg", "body", 10000, 20000) {
             @Override
@@ -318,11 +337,13 @@ public class PbParserTest {
         };
         parser.parse(callback.buildFrame(), callback);
         assertEquals(1, callback.beginCount);
-        assertEquals(0, callback.endCount);
+        assertEquals(0, callback.endSuccessCount);
+        assertEquals(1, callback.endFailCount);
 
         callback = new Callback(100, 200, "msg", "body", 100, 200);
         parser.parse(callback.buildFrame(), callback);
         assertEquals(1, callback.beginCount);
-        assertEquals(1, callback.endCount);
+        assertEquals(1, callback.endSuccessCount);
+        assertEquals(0, callback.endFailCount);
     }
 }

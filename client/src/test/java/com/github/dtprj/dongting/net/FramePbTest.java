@@ -83,7 +83,7 @@ public class FramePbTest {
         DtChannel dtc = new DtChannel(new NioStatus(), new WorkerParams(),
                 new NioClientConfig(), null, 0){
             @Override
-            public void end() {
+            public void end(boolean success) {
             }
 
             @Override
