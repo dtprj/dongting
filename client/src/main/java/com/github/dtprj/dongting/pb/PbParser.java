@@ -330,7 +330,7 @@ public class PbParser {
 
     private int parseBodyFixedNumber(ByteBuffer buf, PbCallback callback, int remain, int len) {
         int pendingBytes = this.pendingBytes;
-        if (pendingBytes == 0 && remain > len) {
+        if (pendingBytes == 0 && remain >= len) {
             long value;
             if (len == 4) {
                 value = buf.getInt();
@@ -351,6 +351,7 @@ public class PbParser {
         if (remain >= restLen) {
             for (int i = 0; i < restLen; i++) {
                 value |= (buf.get() & 0xFFL) << bitIndex;
+                bitIndex += 8;
             }
             callbackOnReadFixNumber(callback, len, value);
             this.pendingBytes = 0;
@@ -358,12 +359,13 @@ public class PbParser {
         } else {
             for (int i = 0; i < remain; i++) {
                 value |= (buf.get() & 0xFFL) << bitIndex;
+                bitIndex += 8;
             }
             this.pendingBytes = pendingBytes + remain;
             this.parsedBytes = this.parsedBytes + remain;
             this.tempValue = value;
         }
-        return 0;
+        return remain - restLen;
     }
 
     private void callbackOnReadFixNumber(PbCallback callback, int len, long value) {

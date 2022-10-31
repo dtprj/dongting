@@ -20,6 +20,9 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -192,18 +195,52 @@ public class PbParserTest {
 
     @Test
     public void testHalfParse() {
-        PbParser parser = new PbParser(500);
-        for (int i = 0; i < 2; i++) {
-            Callback callback = new Callback(10000, 20000, "msg", "body", 10000, 20000);
-            ByteBuffer fullBuffer = callback.buildFrame();
-            for (int j = 0; j < fullBuffer.remaining(); j++) {
-                ByteBuffer buf = ByteBuffer.allocate(1);
-                buf.put(fullBuffer.get(j));
-                buf.flip();
-                parser.parse(buf, callback);
+        int steps[] = new int[]{1, 2, 5, 9};
+        for(int step: steps) {
+            testHalfParse0(5, step, 0, 0, "1", "2", 0, 0);
+            testHalfParse0(5, step, 1, 1, "1", "2", 1, 1);
+            testHalfParse0(5, step, -1, -1, "1", "2", -1, -1);
+            testHalfParse0(5, step, 1000, 2000, "1", "2", 1000, 2000);
+            testHalfParse0(5, step, -1000, -2000, "1", "2", -1000, -2000);
+
+            testHalfParse0(5, step, Integer.MAX_VALUE, Long.MAX_VALUE, "123", "234",
+                    Integer.MAX_VALUE, Long.MAX_VALUE);
+
+            testHalfParse0(5, step, Integer.MIN_VALUE, Long.MIN_VALUE, "123", "234",
+                    Integer.MIN_VALUE, Long.MIN_VALUE);
+
+            char[] msg = new char[257];
+            Arrays.fill(msg, 'a');
+            testHalfParse0(5, 20,1000, 2000, new String(msg), "2000", -1000, -2000);
+        }
+    }
+
+    private void testHalfParse0(int loop, int maxStep, int f1, long f2, String f3, String f4, int f5, long f6) {
+        PbParser parser = new PbParser(f3.length() + f4.length() + 100);
+        Random r = new Random();
+        for (int i = 0; i < loop; i++) {
+            ArrayList<Integer> steps = new ArrayList<>();
+            Callback callback = new Callback(f1, f2, f3, f4, f5, f6);
+            byte[] fullBuffer = callback.buildFrame().array();
+            try {
+                int len = fullBuffer.length;
+                for (int j = 0; j < len; ) {
+                    int c = r.nextInt(maxStep) + 1;
+                    ByteBuffer buf = ByteBuffer.allocate(c);
+                    buf.order(ByteOrder.LITTLE_ENDIAN);
+                    int readCount = Math.min(c, len - j);
+                    steps.add(readCount);
+                    buf.put(fullBuffer, j, readCount);
+                    buf.flip();
+                    parser.parse(buf, callback);
+                    j += readCount;
+                }
+                assertEquals(1, callback.beginCount);
+                assertEquals(1, callback.endCount);
+            } catch (Throwable e) {
+                System.out.println("fail. i=" + i + ",steps=" + steps);
+                throw e;
             }
-            assertEquals(1, callback.beginCount);
-            assertEquals(1, callback.endCount);
         }
     }
 
