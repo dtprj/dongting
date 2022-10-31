@@ -333,6 +333,14 @@ public class PbParserTest {
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000) {
             @Override
+            public void begin(int len) {
+                throw new ArrayIndexOutOfBoundsException();
+            }
+        };
+        testCallbackFail0(supplier, 0, 0, 1);
+
+        supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000) {
+            @Override
             public void end(boolean success) {
                 throw new ArrayIndexOutOfBoundsException();
             }

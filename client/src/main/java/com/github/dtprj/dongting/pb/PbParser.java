@@ -90,27 +90,32 @@ public class PbParser {
         }
         this.status = STATUS_PARSE_PB_LEN;
         this.pendingBytes = 0;
+        this.frameLen = 0;
+        this.parsedBytes = 0;
+    }
+
+    private void callBegin(PbCallback callback, int len) {
+        try {
+            callback.begin(len);
+            this.status = STATUS_PARSE_TAG;
+        } catch (Throwable e) {
+            log.error("proto buffer parse callback begin() fail: {}", e.toString());
+            this.status = STATUS_SKIP_REST;
+        }
     }
 
     private int onStatusParsePbLen(ByteBuffer buf, PbCallback callback, int remain) {
         // read buffer is little endian.
         // however the length field is out of proto buffer data, and it's big endian
-        if (pendingBytes == 0) {
-            if (remain >= 4) {
-                int len = buf.getInt();
-                len = Integer.reverseBytes(len);
-                if (len <= 0 || len > maxFrame) {
-                    throw new PbException("maxFrameSize exceed: max=" + maxFrame + ", actual=" + len);
-                }
-                callback.begin(len);
-                status = STATUS_PARSE_TAG;
-                frameLen = len;
-                parsedBytes = 0;
-                return remain - 4;
-            } else {
-                parsedBytes = 0;
-                frameLen = 0;
+        if (pendingBytes == 0 && remain >= 4) {
+            int len = buf.getInt();
+            len = Integer.reverseBytes(len);
+            if (len <= 0 || len > maxFrame) {
+                throw new PbException("maxFrameSize exceed: max=" + maxFrame + ", actual=" + len);
             }
+            frameLen = len;
+            callBegin(callback, len);
+            return remain - 4;
         }
         int restLen = 4 - pendingBytes;
         if (remain >= restLen) {
@@ -120,9 +125,8 @@ public class PbParser {
             if (frameLen <= 0 || frameLen > maxFrame) {
                 throw new PbException("maxFrameSize exceed: max=" + maxFrame + ", actual=" + frameLen);
             }
-            callback.begin(frameLen);
             pendingBytes = 0;
-            status = STATUS_PARSE_TAG;
+            callBegin(callback, frameLen);
             return remain - restLen;
         } else {
             for (int i = 0; i < remain; i++) {
