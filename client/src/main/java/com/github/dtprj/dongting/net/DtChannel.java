@@ -136,9 +136,6 @@ class DtChannel implements PbCallback {
             case Frame.IDX_COMMAND:
                 frame.setCommand((int) value);
                 break;
-            case Frame.IDX_SEQ:
-                frame.setSeq((int) value);
-                break;
             case Frame.IDX_RESP_CODE:
                 frame.setRespCode((int) value);
                 break;
@@ -150,7 +147,11 @@ class DtChannel implements PbCallback {
 
     @Override
     public boolean readFixedInt(int index, int value) {
-        return false;
+        if (index != Frame.IDX_SEQ) {
+            throw new PbException("bad seq index: " + index);
+        }
+        frame.setSeq(value);
+        return true;
     }
 
     @Override
@@ -462,4 +463,9 @@ class DtChannel implements PbCallback {
         this.peer = peer;
     }
 
+
+    // for unit test
+    ReadFrame getFrame() {
+        return frame;
+    }
 }

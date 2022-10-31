@@ -35,7 +35,8 @@ public abstract class WriteFrame extends Frame {
         if (dumpSize == 0) {
             int msgBytes = msg == null ? 0 : msg.length() * 3 + (1 + 5);
             dumpSize = 4 // length
-                    + (1 + 5) * 4 // first int32 field * 4
+                    + (1 + 5) * 3 // first int32 field * 3
+                    + 4 //seq
                     + msgBytes //msg
                     + bodySize() + (1 + 5); // body
         }
@@ -54,8 +55,8 @@ public abstract class WriteFrame extends Frame {
             PbUtil.writeVarUnsignedInt32(buf, command);
         }
         if (seq != 0) {
-            PbUtil.writeTag(buf, PbUtil.TYPE_VAR_INT, Frame.IDX_SEQ);
-            PbUtil.writeVarUnsignedInt32(buf, seq);
+            PbUtil.writeTag(buf, PbUtil.TYPE_FIX32, Frame.IDX_SEQ);
+            buf.putInt(Integer.reverseBytes(seq));
         }
         if (respCode != 0) {
             PbUtil.writeTag(buf, PbUtil.TYPE_VAR_INT, Frame.IDX_RESP_CODE);
