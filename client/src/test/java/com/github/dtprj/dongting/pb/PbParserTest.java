@@ -23,6 +23,7 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Random;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -85,22 +86,33 @@ public class PbParserTest {
         @Override
         public void begin(int len) {
             assertEquals(expectLen, len);
+            read_f1 = 0;
+            read_f2 = 0;
+            read_f3 = "";
+            read_f4 = "";
+            read_f5 = 0;
+            read_f6 = 0;
             beginCount++;
         }
 
         @Override
         public void end(boolean success) {
             if (success) {
-                endSuccessCount++;
+                try {
+                    assertEquals(f1, read_f1);
+                    assertEquals(f2, read_f2);
+                    assertEquals(f3, read_f3);
+                    assertEquals(f4, read_f4);
+                    assertEquals(f5, read_f5);
+                    assertEquals(f6, read_f6);
+                    endSuccessCount++;
+                } catch (Throwable e) {
+                    e.printStackTrace();
+                    endFailCount++;
+                }
             } else {
                 endFailCount++;
             }
-            assertEquals(f1, read_f1);
-            assertEquals(f2, read_f2);
-            assertEquals(f3, read_f3);
-            assertEquals(f4, read_f4);
-            assertEquals(f5, read_f5);
-            assertEquals(f6, read_f6);
         }
 
         @Override
@@ -121,9 +133,6 @@ public class PbParserTest {
             buf.get(bs);
             String s = new String(bs);
             if (index == 3) {
-                if (read_f3 == null) {
-                    read_f3 = "";
-                }
                 read_f3 += s;
                 if (end) {
                     assertEquals(f3, read_f3);
@@ -131,9 +140,6 @@ public class PbParserTest {
                     assertNotEquals(f3, read_f3);
                 }
             } else if (index == 4000) {
-                if (read_f4 == null) {
-                    read_f4 = "";
-                }
                 read_f4 += s;
                 if (end) {
                     assertEquals(f4, read_f4);
@@ -230,31 +236,34 @@ public class PbParserTest {
 
     private void testHalfParse0(int loop, int maxStep, int f1, long f2, String f3, String f4, int f5, long f6) {
         PbParser parser = new PbParser(f3.length() + f4.length() + 100);
-        Random r = new Random();
+        Callback callback = new Callback(f1, f2, f3, f4, f5, f6);
+        byte[] fullBuffer = callback.buildFrame().array();
+        ByteBuffer tempBuf = ByteBuffer.allocate(fullBuffer.length * loop);
         for (int i = 0; i < loop; i++) {
-            ArrayList<Integer> steps = new ArrayList<>();
-            Callback callback = new Callback(f1, f2, f3, f4, f5, f6);
-            byte[] fullBuffer = callback.buildFrame().array();
-            try {
-                int len = fullBuffer.length;
-                for (int j = 0; j < len; ) {
-                    int c = r.nextInt(maxStep) + 1;
-                    ByteBuffer buf = ByteBuffer.allocate(c);
-                    buf.order(ByteOrder.LITTLE_ENDIAN);
-                    int readCount = Math.min(c, len - j);
-                    steps.add(readCount);
-                    buf.put(fullBuffer, j, readCount);
-                    buf.flip();
-                    parser.parse(buf, callback);
-                    j += readCount;
-                }
-                assertEquals(1, callback.beginCount);
-                assertEquals(1, callback.endSuccessCount);
-                assertEquals(0, callback.endFailCount);
-            } catch (Throwable e) {
-                System.out.println("fail. i=" + i + ",steps=" + steps);
-                throw e;
-            }
+            tempBuf.put(fullBuffer);
+        }
+        fullBuffer = tempBuf.array();
+        halfParse(maxStep, parser, callback, fullBuffer);
+
+        assertEquals(loop, callback.beginCount);
+        assertEquals(loop, callback.endSuccessCount);
+        assertEquals(0, callback.endFailCount);
+    }
+
+    private static void halfParse(int maxStep, PbParser parser, Callback callback, byte[] fullBuffer) {
+        ArrayList<Integer> steps = new ArrayList<>();
+        Random r = new Random();
+        int len = fullBuffer.length;
+        for (int j = 0; j < len; ) {
+            int c = r.nextInt(maxStep) + 1;
+            ByteBuffer buf = ByteBuffer.allocate(c);
+            buf.order(ByteOrder.LITTLE_ENDIAN);
+            int readCount = Math.min(c, len - j);
+            steps.add(readCount);
+            buf.put(fullBuffer, j, readCount);
+            buf.flip();
+            parser.parse(buf, callback);
+            j += readCount;
         }
     }
 
@@ -262,7 +271,7 @@ public class PbParserTest {
     public void testCallbackFail() {
         PbParser parser = new PbParser(500);
 
-        Callback callback = new Callback(10000, 20000, "msg", "body", 10000, 20000) {
+        Supplier<Callback> supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000) {
             @Override
             public boolean readVarInt(int index, long value) {
                 if (index == 2) {
@@ -271,12 +280,9 @@ public class PbParserTest {
                 return super.readVarInt(index, value);
             }
         };
-        parser.parse(callback.buildFrame(), callback);
-        assertEquals(1, callback.beginCount);
-        assertEquals(0, callback.endSuccessCount);
-        assertEquals(1, callback.endFailCount);
+        testCallbackFail0(supplier, 1, 0, 1);
 
-        callback = new Callback(10000, 20000, "msg", "body", 10000, 20000) {
+        supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000) {
             @Override
             public boolean readVarInt(int index, long value) {
                 if (index == 2) {
@@ -285,12 +291,9 @@ public class PbParserTest {
                 return super.readVarInt(index, value);
             }
         };
-        parser.parse(callback.buildFrame(), callback);
-        assertEquals(1, callback.beginCount);
-        assertEquals(0, callback.endSuccessCount);
-        assertEquals(1, callback.endFailCount);
+        testCallbackFail0(supplier, 1, 0, 1);
 
-        callback = new Callback(10000, 20000, "msg", "body", 10000, 20000) {
+        supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000) {
             @Override
             public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
                 if (index == 3) {
@@ -299,51 +302,70 @@ public class PbParserTest {
                 return super.readBytes(index, buf, len, begin, end);
             }
         };
-        parser.parse(callback.buildFrame(), callback);
-        assertEquals(1, callback.beginCount);
-        assertEquals(0, callback.endSuccessCount);
-        assertEquals(1, callback.endFailCount);
+        testCallbackFail0(supplier, 1, 0, 1);
 
-        callback = new Callback(10000, 20000, "msg", "body", 10000, 20000) {
+        supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000) {
             @Override
             public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
-                if (index == 3) {
+                if (index == 4000) {
                     throw new ArrayIndexOutOfBoundsException();
                 }
                 return super.readBytes(index, buf, len, begin, end);
             }
         };
-        parser.parse(callback.buildFrame(), callback);
-        assertEquals(1, callback.beginCount);
-        assertEquals(0, callback.endSuccessCount);
-        assertEquals(1, callback.endFailCount);
+        testCallbackFail0(supplier, 1, 0, 1);
 
-        callback = new Callback(10000, 20000, "msg", "body", 10000, 20000) {
+        supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000) {
             @Override
             public boolean readFixedInt(int index, int value) {
                 return false;
             }
         };
-        parser.parse(callback.buildFrame(), callback);
-        assertEquals(1, callback.beginCount);
-        assertEquals(0, callback.endSuccessCount);
-        assertEquals(1, callback.endFailCount);
+        testCallbackFail0(supplier, 1, 0, 1);
 
-        callback = new Callback(10000, 20000, "msg", "body", 10000, 20000) {
+        supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000) {
             @Override
             public boolean readFixedInt(int index, int value) {
                 throw new ArrayIndexOutOfBoundsException();
             }
         };
-        parser.parse(callback.buildFrame(), callback);
-        assertEquals(1, callback.beginCount);
-        assertEquals(0, callback.endSuccessCount);
-        assertEquals(1, callback.endFailCount);
+        testCallbackFail0(supplier, 1, 0, 1);
 
-        callback = new Callback(100, 200, "msg", "body", 100, 200);
+        supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000) {
+            @Override
+            public void end(boolean success) {
+                throw new ArrayIndexOutOfBoundsException();
+            }
+        };
+        // since we override end(), the endFailCount not set
+        testCallbackFail0(supplier, 1, 0, 0);
+
+        supplier = () -> new Callback(100, 200, "msg", "body", 100, 200);
+        testCallbackFail0(supplier, 1, 1, 0);
+    }
+
+    private void testCallbackFail0(Supplier<Callback> callbackBuilder, int expectBegin,
+                                   int expectEndSuccess, int expectEndFail) {
+        PbParser parser = new PbParser(500);
+
+        Callback callback = callbackBuilder.get();
         parser.parse(callback.buildFrame(), callback);
-        assertEquals(1, callback.beginCount);
-        assertEquals(1, callback.endSuccessCount);
-        assertEquals(0, callback.endFailCount);
+        assertEquals(expectBegin, callback.beginCount);
+        assertEquals(expectEndSuccess, callback.endSuccessCount);
+        assertEquals(expectEndFail, callback.endFailCount);
+
+        callback = callbackBuilder.get();
+        halfParse(2, parser, callback, callback.buildFrame().array());
+        halfParse(3, parser, callback, callback.buildFrame().array());
+        halfParse(4, parser, callback, callback.buildFrame().array());
+        halfParse(5, parser, callback, callback.buildFrame().array());
+        halfParse(6, parser, callback, callback.buildFrame().array());
+        halfParse(7, parser, callback, callback.buildFrame().array());
+        halfParse(8, parser, callback, callback.buildFrame().array());
+        halfParse(9, parser, callback, callback.buildFrame().array());
+
+        assertEquals(expectBegin * 8, callback.beginCount);
+        assertEquals(expectEndSuccess * 8, callback.endSuccessCount);
+        assertEquals(expectEndFail * 8, callback.endFailCount);
     }
 }
