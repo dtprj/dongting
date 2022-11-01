@@ -26,9 +26,10 @@ import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * @author huangli
@@ -136,10 +137,10 @@ public class NioServerClientTest {
     public void timeoutTest() throws Exception {
         NioServerConfig serverConfig = new NioServerConfig();
         serverConfig.setPort(9000);
-        serverConfig.setSelectTimeoutMillis(1);
         NioServer server = new NioServer(serverConfig);
         NioClientConfig clientConfig = new NioClientConfig();
         clientConfig.setCleanIntervalMills(1);
+        clientConfig.setSelectTimeoutMillis(1);
         clientConfig.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
         server.register(2000, new NioServer.PingProcessor(false){
             @Override
