@@ -164,18 +164,19 @@ class DtChannel implements PbCallback {
 
     @Override
     public boolean readBytes(int index, ByteBuffer buf, int fieldLen, boolean start, boolean end) {
-        if (readBody) {
+        if (this.readBody) {
             throw new PbException("body has read");
         }
         switch (index) {
             case Frame.IDX_MSG: {
                 if (start) {
-                    msg = new byte[fieldLen];
-                    msgIndex = 0;
+                    this.msg = new byte[fieldLen];
+                    this.msgIndex = 0;
                 }
+                byte[] msg = this.msg;
                 buf.get(msg, msgIndex, buf.remaining());
                 if (end) {
-                    frame.setMsg(new String(msg, StandardCharsets.UTF_8));
+                    this.frame.setMsg(new String(msg, StandardCharsets.UTF_8));
                 }
                 return true;
             }
@@ -188,6 +189,7 @@ class DtChannel implements PbCallback {
     }
 
     private boolean readBody(ByteBuffer buf, int fieldLen, boolean start, boolean end) {
+        ReadFrame frame = this.frame;
         if (frame.getCommand() <= 0) {
             throw new NetException("command invalid :" + frame.getCommand());
         }
@@ -244,13 +246,17 @@ class DtChannel implements PbCallback {
     }
 
     private Decoder getDecoder() {
+        ReadFrame frame = this.frame;
         if (frame.getFrameType() == FrameType.TYPE_RESP) {
+            WriteData writeDataForResp = this.writeDataForResp;
             if (writeDataForResp == null) {
                 writeDataForResp = this.workerParams.getPendingRequests().remove(BitUtil.toLong(channelIndexInWorker, frame.getSeq()));
-            }
-            if (writeDataForResp == null) {
-                log.debug("pending request not found. channel={}, resp={}", channel, frame);
-                return null;
+                if (writeDataForResp == null) {
+                    log.debug("pending request not found. channel={}, resp={}", channel, frame);
+                    return null;
+                } else {
+                    this.writeDataForResp = writeDataForResp;
+                }
             }
             return writeDataForResp.getDecoder();
         } else {
@@ -259,13 +265,16 @@ class DtChannel implements PbCallback {
                 writeErrorInIoThread(frame, CmdCodes.STOPPING, null);
                 return null;
             }
+            ReqProcessor processorForRequest = this.processorForRequest;
             if (processorForRequest == null) {
                 processorForRequest = nioStatus.getProcessors().get(frame.getCommand());
-            }
-            if (processorForRequest == null) {
-                log.warn("command {} is not support", frame.getCommand());
-                writeErrorInIoThread(frame, CmdCodes.COMMAND_NOT_SUPPORT, null);
-                return null;
+                if (processorForRequest == null) {
+                    log.warn("command {} is not support", frame.getCommand());
+                    writeErrorInIoThread(frame, CmdCodes.COMMAND_NOT_SUPPORT, null);
+                    return null;
+                } else {
+                    this.processorForRequest = processorForRequest;
+                }
             }
             return processorForRequest.getDecoder();
         }
@@ -273,6 +282,7 @@ class DtChannel implements PbCallback {
 
     private void copyBuffer(ByteBuffer buf, int fieldLen, boolean start, boolean end) {
         ByteBuffer body;
+        ReadFrame frame = this.frame;
         if (start) {
             body = ByteBuffer.allocate(fieldLen);
             frame.setBody(body);
@@ -310,6 +320,7 @@ class DtChannel implements PbCallback {
     }
 
     private void processIncomingRequest(ReadFrame req, ReqProcessor p) {
+        NioStatus nioStatus = this.nioStatus;
         if (nioStatus.getBizExecutor() == null || p.runInIoThread()) {
             WriteFrame resp;
             try {
@@ -330,6 +341,7 @@ class DtChannel implements PbCallback {
             }
         } else {
             AtomicLong bytes = nioStatus.getInReqBytes();
+            int currentReadFrameSize = this.currentReadFrameSize;
             // TODO can we eliminate this CAS operation?
             long bytesAfterAdd = bytes.addAndGet(currentReadFrameSize);
             if (bytesAfterAdd < nioConfig.getMaxInBytes()) {
@@ -374,9 +386,12 @@ class DtChannel implements PbCallback {
         public void run() {
             try {
                 WriteFrame resp;
-                Decoder decoder = processor.getDecoder();
+                ReadFrame req = this.req;
+                DtChannel dtc = this.dtc;
                 boolean decodeSuccess = false;
                 try {
+                    ReqProcessor processor = this.processor;
+                    Decoder decoder = processor.getDecoder();
                     if (!decoder.decodeInIoThread()) {
                         ByteBuffer bodyBuffer = (ByteBuffer) req.getBody();
                         if (bodyBuffer != null) {
