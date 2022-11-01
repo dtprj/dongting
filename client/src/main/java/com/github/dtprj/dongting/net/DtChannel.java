@@ -114,9 +114,14 @@ class DtChannel implements PbCallback {
         if (!success) {
             return;
         }
+        WriteData writeDataForResp = this.writeDataForResp;
+        ReqProcessor processorForRequest = this.processorForRequest;
         if (writeDataForResp == null && processorForRequest == null) {
             // empty body
-            if (getDecoder() == null) {
+            initRelatedDataForFrame(false);
+            writeDataForResp = this.writeDataForResp;
+            processorForRequest = this.processorForRequest;
+            if (writeDataForResp == null && processorForRequest == null) {
                 return;
             }
         }
@@ -194,7 +199,7 @@ class DtChannel implements PbCallback {
             throw new NetException("command invalid :" + frame.getCommand());
         }
         // the body field should encode as last field
-        Decoder decoder = getDecoder();
+        Decoder decoder = initRelatedDataForFrame(true);
         if (decoder == null) {
             return false;
         }
@@ -245,20 +250,24 @@ class DtChannel implements PbCallback {
         return true;
     }
 
-    private Decoder getDecoder() {
+    private Decoder initRelatedDataForFrame(boolean returnDecoder) {
         ReadFrame frame = this.frame;
         if (frame.getFrameType() == FrameType.TYPE_RESP) {
             WriteData writeDataForResp = this.writeDataForResp;
             if (writeDataForResp == null) {
                 writeDataForResp = this.workerParams.getPendingRequests().remove(BitUtil.toLong(channelIndexInWorker, frame.getSeq()));
                 if (writeDataForResp == null) {
-                    log.debug("pending request not found. channel={}, resp={}", channel, frame);
+                    log.info("pending request not found. channel={}, resp={}", channel, frame);
                     return null;
                 } else {
                     this.writeDataForResp = writeDataForResp;
                 }
             }
-            return writeDataForResp.getDecoder();
+            if (returnDecoder) {
+                return writeDataForResp.getDecoder();
+            } else {
+                return null;
+            }
         } else {
             if (!running) {
                 log.debug("the channel is closing...");
@@ -276,7 +285,11 @@ class DtChannel implements PbCallback {
                     this.processorForRequest = processorForRequest;
                 }
             }
-            return processorForRequest.getDecoder();
+            if (returnDecoder) {
+                return processorForRequest.getDecoder();
+            } else {
+                return null;
+            }
         }
     }
 
