@@ -32,12 +32,12 @@
     <dependencies>
         <dependency>
             <groupId>com.github.dtprj.dongting</groupId>
-            <artifactId>client</artifactId>
+            <artifactId>dongting-client</artifactId>
             <version>0.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>com.github.dtprj.dongting</groupId>
-            <artifactId>server</artifactId>
+            <artifactId>dongting-server</artifactId>
             <version>0.1-SNAPSHOT</version>
         </dependency>
     </dependencies>
