@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.pb.PbException;
 import com.github.dtprj.dongting.pb.PbParser;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
@@ -39,6 +40,7 @@ class DtChannel implements PbCallback {
     private final NioConfig nioConfig;
     private final WorkerParams workerParams;
     private final SocketChannel channel;
+    private final ProcessContext processContext;
     private Peer peer;
 
     private final int channelIndexInWorker;
@@ -69,7 +71,7 @@ class DtChannel implements PbCallback {
     }
 
     public DtChannel(NioStatus nioStatus, WorkerParams workerParams, NioConfig nioConfig,
-                     SocketChannel socketChannel, int channelIndexInWorker) {
+                     SocketChannel socketChannel, int channelIndexInWorker) throws IOException {
         this.nioStatus = nioStatus;
         this.channel = socketChannel;
         this.subQueue = new IoSubQueue(workerParams.getPool());
@@ -77,6 +79,10 @@ class DtChannel implements PbCallback {
         this.workerParams = workerParams;
         this.channelIndexInWorker = channelIndexInWorker;
         this.parser = new PbParser(nioConfig.getMaxFrameSize());
+        this.processContext = new ProcessContext();
+        processContext.setChannel(socketChannel);
+        processContext.setRemoteAddr(socketChannel.getRemoteAddress());
+        processContext.setLocalAddr(socketChannel.getLocalAddress());
     }
 
     public void afterRead(boolean running, ByteBuffer buf) {
@@ -335,7 +341,7 @@ class DtChannel implements PbCallback {
         if (p.getExecutor() == null) {
             WriteFrame resp;
             try {
-                resp = p.process(req, this);
+                resp = p.process(req, processContext);
             } catch (Throwable e) {
                 log.warn("ReqProcessor.process fail", e);
                 writeErrorInIoThread(req, CmdCodes.BIZ_ERROR, e.toString());
@@ -411,7 +417,7 @@ class DtChannel implements PbCallback {
                         }
                     }
                     decodeSuccess = true;
-                    resp = processor.process(req, dtc);
+                    resp = processor.process(req, dtc.processContext);
                 } catch (Throwable e) {
                     if (decodeSuccess) {
                         log.warn("ReqProcessor.process fail, command={}", req.getCommand(), e);

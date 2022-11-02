@@ -15,33 +15,38 @@
  */
 package com.github.dtprj.dongting.net;
 
-import java.util.concurrent.ExecutorService;
+import java.net.SocketAddress;
+import java.nio.channels.SocketChannel;
 
 /**
  * @author huangli
  */
-public abstract class ReqProcessor {
+public class ProcessContext {
+    private SocketChannel channel;
+    private SocketAddress remoteAddr;
+    private SocketAddress localAddr;
 
-    private ExecutorService executor;
-    private boolean useDefaultExecutor;
-
-    public abstract WriteFrame process(ReadFrame frame, ProcessContext context);
-
-    public abstract Decoder getDecoder();
-
-    ExecutorService getExecutor() {
-        return executor;
+    public SocketChannel getChannel() {
+        return channel;
     }
 
-    void setExecutor(ExecutorService executor) {
-        this.executor = executor;
+    protected void setChannel(SocketChannel channel) {
+        this.channel = channel;
     }
 
-    boolean isUseDefaultExecutor() {
-        return useDefaultExecutor;
+    public SocketAddress getRemoteAddr() {
+        return remoteAddr;
     }
 
-    void setUseDefaultExecutor(boolean useDefaultExecutor) {
-        this.useDefaultExecutor = useDefaultExecutor;
+    protected void setRemoteAddr(SocketAddress remoteAddr) {
+        this.remoteAddr = remoteAddr;
+    }
+
+    public SocketAddress getLocalAddr() {
+        return localAddr;
+    }
+
+    protected void setLocalAddr(SocketAddress localAddr) {
+        this.localAddr = localAddr;
     }
 }

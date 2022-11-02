@@ -8,8 +8,10 @@ import com.github.dtprj.dongting.pb.PbParser;
 import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.SocketChannel;
 import java.util.Arrays;
 import java.util.Random;
 
@@ -63,7 +65,7 @@ public class FramePbTest {
         assertArrayEquals(bs, pbf.getBody().toByteArray());
     }
 
-    private void testDecode0(int frameType, int command, int seq, int respCode,String msg, int bodySize) {
+    private void testDecode0(int frameType, int command, int seq, int respCode,String msg, int bodySize) throws IOException {
         byte[] bs = new byte[bodySize];
         new Random().nextBytes(bs);
         DtFrame.Frame pbf = DtFrame.Frame.newBuilder()
@@ -81,7 +83,7 @@ public class FramePbTest {
         buf.flip();
 
         DtChannel dtc = new DtChannel(new NioStatus(), new WorkerParams(),
-                new NioClientConfig(), null, 0){
+                new NioClientConfig(), SocketChannel.open(), 0) {
             @Override
             public void end(boolean success) {
             }

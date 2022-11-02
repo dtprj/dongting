@@ -76,13 +76,13 @@ public class NioServerClientTest {
         NioServer server = new NioServer(serverConfig);
         server.register(12345, new NioServer.PingProcessor() {
             @Override
-            public WriteFrame process(ReadFrame frame, DtChannel channel) {
+            public WriteFrame process(ReadFrame frame, ProcessContext context) {
                 try {
                     Thread.sleep(30);
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
-                return super.process(frame, channel);
+                return super.process(frame, context);
             }
         });
 
@@ -144,13 +144,13 @@ public class NioServerClientTest {
         clientConfig.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
         server.register(2000, new NioServer.PingProcessor(){
             @Override
-            public WriteFrame process(ReadFrame frame, DtChannel channel) {
+            public WriteFrame process(ReadFrame frame, ProcessContext context) {
                 try {
                     Thread.sleep(10);
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
-                return super.process(frame, channel);
+                return super.process(frame, context);
             }
         });
         NioClient client = new NioClient(clientConfig);

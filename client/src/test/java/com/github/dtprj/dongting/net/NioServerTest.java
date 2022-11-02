@@ -60,7 +60,7 @@ public class NioServerTest {
         }
 
         @Override
-        public WriteFrame process(ReadFrame frame, DtChannel channel) {
+        public WriteFrame process(ReadFrame frame, ProcessContext context) {
             if (sleep > 0) {
                 try {
                     Thread.sleep(sleep);
@@ -68,7 +68,7 @@ public class NioServerTest {
                     throw new RuntimeException(e);
                 }
             }
-            return super.process(frame, channel);
+            return super.process(frame, context);
         }
     }
 
@@ -321,7 +321,7 @@ public class NioServerTest {
         setupServer(null);
         server.register(10001, new ReqProcessor() {
             @Override
-            public WriteFrame process(ReadFrame frame, DtChannel channel) {
+            public WriteFrame process(ReadFrame frame, ProcessContext context) {
                 return null;
             }
 
@@ -343,7 +343,7 @@ public class NioServerTest {
 
         server.register(10002, new ReqProcessor() {
             @Override
-            public WriteFrame process(ReadFrame frame, DtChannel channel) {
+            public WriteFrame process(ReadFrame frame, ProcessContext context) {
                 return null;
             }
 
@@ -387,7 +387,7 @@ public class NioServerTest {
         setupServer(null);
         server.register(10001, new ReqProcessor() {
             @Override
-            public WriteFrame process(ReadFrame frame, DtChannel channel) {
+            public WriteFrame process(ReadFrame frame, ProcessContext context) {
                 throw new ArrayIndexOutOfBoundsException();
             }
 
@@ -398,7 +398,7 @@ public class NioServerTest {
         }, null);
         server.register(10002, new ReqProcessor() {
             @Override
-            public WriteFrame process(ReadFrame frame, DtChannel channel) {
+            public WriteFrame process(ReadFrame frame, ProcessContext context) {
                 throw new ArrayIndexOutOfBoundsException();
             }
 
@@ -409,7 +409,7 @@ public class NioServerTest {
         });
         server.register(10003, new ReqProcessor() {
             @Override
-            public WriteFrame process(ReadFrame frame, DtChannel channel) {
+            public WriteFrame process(ReadFrame frame, ProcessContext context) {
                 return null;
             }
 
@@ -420,7 +420,7 @@ public class NioServerTest {
         }, null);
         server.register(10004, new ReqProcessor() {
             @Override
-            public WriteFrame process(ReadFrame frame, DtChannel channel) {
+            public WriteFrame process(ReadFrame frame, ProcessContext context) {
                 return null;
             }
 
