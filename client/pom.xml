@@ -23,7 +23,7 @@
         <groupId>com.github.dtprj.dongting</groupId>
         <version>0.1-SNAPSHOT</version>
     </parent>
-    <artifactId>client</artifactId>
+    <artifactId>dongting-client</artifactId>
 
     <dependencies>
         <dependency>
