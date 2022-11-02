@@ -21,7 +21,12 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.ThreadUtils;
 
 import java.nio.ByteBuffer;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 /**
@@ -31,7 +36,7 @@ public abstract class NioNet extends AbstractLifeCircle {
     private final NioConfig config;
     private final Semaphore semaphore;
     protected final NioStatus nioStatus = new NioStatus();
-    protected ExecutorService bizExecutor;
+    protected volatile ExecutorService bizExecutor;
 
     public NioNet(NioConfig config) {
         this.config = config;
@@ -39,7 +44,19 @@ public abstract class NioNet extends AbstractLifeCircle {
         nioStatus.setRequestSemaphore(semaphore);
     }
 
+    /**
+     * register processor use default executor.
+     */
     public void register(int cmd, ReqProcessor processor) {
+        processor.setUseDefaultExecutor(true);
+        if (bizExecutor != null) {
+            processor.setExecutor(bizExecutor);
+        }
+        nioStatus.getProcessors().put(cmd, processor);
+    }
+
+    public void register(int cmd, ReqProcessor processor, ExecutorService executorService) {
+        processor.setExecutor(executorService);
         nioStatus.getProcessors().put(cmd, processor);
     }
 
@@ -108,7 +125,11 @@ public abstract class NioNet extends AbstractLifeCircle {
             bizExecutor = new ThreadPoolExecutor(config.getBizThreads(), config.getBizThreads(),
                     1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(config.getMaxInRequests()),
                     new DtThreadFactory(config.getName() + "Biz", false));
-            nioStatus.setBizExecutor(bizExecutor);
+            for (ReqProcessor p : nioStatus.getProcessors().values()) {
+                if (p.isUseDefaultExecutor()) {
+                    p.setExecutor(bizExecutor);
+                }
+            }
         }
     }
 

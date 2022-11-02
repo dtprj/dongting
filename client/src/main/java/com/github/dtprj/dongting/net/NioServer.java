@@ -49,7 +49,7 @@ public class NioServer extends NioNet implements Runnable {
     private final Thread acceptThread;
     private final NioWorker[] workers;
 
-    private static final PingProcessor PING_PROCESSOR = new PingProcessor(false);
+    private static final PingProcessor PING_PROCESSOR = new PingProcessor();
 
     public NioServer(NioServerConfig config) {
         super(config);
@@ -169,10 +169,8 @@ public class NioServer extends NioNet implements Runnable {
     }
 
     public static class PingProcessor extends ReqProcessor {
-        private final boolean runInIoThread;
 
-        public PingProcessor(boolean runInIoThread) {
-            this.runInIoThread = runInIoThread;
+        public PingProcessor() {
         }
 
         @Override
@@ -188,9 +186,5 @@ public class NioServer extends NioNet implements Runnable {
             return ByteBufferDecoder.INSTANCE;
         }
 
-        @Override
-        public boolean runInIoThread() {
-            return runInIoThread;
-        }
     }
 }

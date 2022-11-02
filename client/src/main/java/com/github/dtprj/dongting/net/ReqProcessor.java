@@ -15,16 +15,33 @@
  */
 package com.github.dtprj.dongting.net;
 
+import java.util.concurrent.ExecutorService;
+
 /**
  * @author huangli
  */
 public abstract class ReqProcessor {
+
+    private ExecutorService executor;
+    private boolean useDefaultExecutor;
+
     public abstract WriteFrame process(ReadFrame frame, DtChannel channel);
 
     public abstract Decoder getDecoder();
 
-    public boolean runInIoThread() {
-        return false;
+    ExecutorService getExecutor() {
+        return executor;
     }
 
+    void setExecutor(ExecutorService executor) {
+        this.executor = executor;
+    }
+
+    boolean isUseDefaultExecutor() {
+        return useDefaultExecutor;
+    }
+
+    void setUseDefaultExecutor(boolean useDefaultExecutor) {
+        this.useDefaultExecutor = useDefaultExecutor;
+    }
 }

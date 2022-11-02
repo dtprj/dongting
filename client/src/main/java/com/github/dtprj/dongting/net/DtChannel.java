@@ -42,7 +42,6 @@ class DtChannel implements PbCallback {
     private Peer peer;
 
     private final int channelIndexInWorker;
-    private final boolean decodeInIoThread;
     int seq = 1;
 
     // read status
@@ -78,7 +77,6 @@ class DtChannel implements PbCallback {
         this.workerParams = workerParams;
         this.channelIndexInWorker = channelIndexInWorker;
         this.parser = new PbParser(nioConfig.getMaxFrameSize());
-        this.decodeInIoThread = nioStatus.getBizExecutor() == null && (nioConfig instanceof NioServerConfig);
     }
 
     public void afterRead(boolean running, ByteBuffer buf) {
@@ -206,7 +204,7 @@ class DtChannel implements PbCallback {
 
         boolean copy;
         int decode;//0 not decode, 1 use io buffer decode, 2 use copy buffer decode
-        if (decoder.decodeInIoThread() || decodeInIoThread) {
+        if (decoder.decodeInIoThread()) {
             if (decoder.supportHalfPacket()) {
                 copy = false;
                 decode = 1;
@@ -334,7 +332,7 @@ class DtChannel implements PbCallback {
 
     private void processIncomingRequest(ReadFrame req, ReqProcessor p) {
         NioStatus nioStatus = this.nioStatus;
-        if (nioStatus.getBizExecutor() == null || p.runInIoThread()) {
+        if (p.getExecutor() == null) {
             WriteFrame resp;
             try {
                 resp = p.process(req, this);
@@ -360,7 +358,7 @@ class DtChannel implements PbCallback {
             if (bytesAfterAdd < nioConfig.getMaxInBytes()) {
                 try {
                     // TODO use custom thread pool?
-                    nioStatus.getBizExecutor().submit(new ProcessInBizThreadTask(
+                    p.getExecutor().submit(new ProcessInBizThreadTask(
                             req, p, currentReadFrameSize, this, bytes));
                 } catch (RejectedExecutionException e) {
                     log.debug("catch RejectedExecutionException, write response code FLOW_CONTROL to client, maxInRequests={}",

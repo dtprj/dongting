@@ -74,7 +74,7 @@ public class NioServerClientTest {
         NioServerConfig serverConfig = new NioServerConfig();
         serverConfig.setPort(9000);
         NioServer server = new NioServer(serverConfig);
-        server.register(12345, new NioServer.PingProcessor(false) {
+        server.register(12345, new NioServer.PingProcessor() {
             @Override
             public WriteFrame process(ReadFrame frame, DtChannel channel) {
                 try {
@@ -142,7 +142,7 @@ public class NioServerClientTest {
         clientConfig.setCleanIntervalMills(1);
         clientConfig.setSelectTimeoutMillis(1);
         clientConfig.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
-        server.register(2000, new NioServer.PingProcessor(false){
+        server.register(2000, new NioServer.PingProcessor(){
             @Override
             public WriteFrame process(ReadFrame frame, DtChannel channel) {
                 try {

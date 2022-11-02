@@ -55,8 +55,7 @@ public class NioServerTest {
 
         private int sleep;
 
-        public SleepPingProcessor(boolean runInIoThread, int sleep) {
-            super(runInIoThread);
+        public SleepPingProcessor(int sleep) {
             this.sleep = sleep;
         }
 
@@ -80,9 +79,9 @@ public class NioServerTest {
             consumer.accept(c);
         }
         server = new NioServer(c);
-        server.register(CMD_IO_PING, new NioServer.PingProcessor(true));
-        server.register(CMD_BIZ_PING1, new NioServer.PingProcessor(false));
-        server.register(CMD_BIZ_PING2, new NioServer.PingProcessor(false){
+        server.register(CMD_IO_PING, new NioServer.PingProcessor(), null);
+        server.register(CMD_BIZ_PING1, new NioServer.PingProcessor());
+        server.register(CMD_BIZ_PING2, new NioServer.PingProcessor(){
             @Override
             public Decoder getDecoder() {
                 return new BizByteBufferDecoder();
@@ -293,7 +292,7 @@ public class NioServerTest {
             c.setBizThreads(1);
             c.setMaxInBytes(10000);
         });
-        server.register(50000, new SleepPingProcessor(false, 50));
+        server.register(50000, new SleepPingProcessor(50));
         {
             InvokeThread t1 = new InvokeThread(100);
             InvokeThread t2 = new InvokeThread(100);
@@ -388,11 +387,6 @@ public class NioServerTest {
         setupServer(null);
         server.register(10001, new ReqProcessor() {
             @Override
-            public boolean runInIoThread() {
-                return true;
-            }
-
-            @Override
             public WriteFrame process(ReadFrame frame, DtChannel channel) {
                 throw new ArrayIndexOutOfBoundsException();
             }
@@ -401,13 +395,8 @@ public class NioServerTest {
             public Decoder getDecoder() {
                 return ByteBufferDecoder.INSTANCE;
             }
-        });
+        }, null);
         server.register(10002, new ReqProcessor() {
-            @Override
-            public boolean runInIoThread() {
-                return false;
-            }
-
             @Override
             public WriteFrame process(ReadFrame frame, DtChannel channel) {
                 throw new ArrayIndexOutOfBoundsException();
@@ -420,11 +409,6 @@ public class NioServerTest {
         });
         server.register(10003, new ReqProcessor() {
             @Override
-            public boolean runInIoThread() {
-                return true;
-            }
-
-            @Override
             public WriteFrame process(ReadFrame frame, DtChannel channel) {
                 return null;
             }
@@ -433,13 +417,8 @@ public class NioServerTest {
             public Decoder getDecoder() {
                 return ByteBufferDecoder.INSTANCE;
             }
-        });
+        }, null);
         server.register(10004, new ReqProcessor() {
-            @Override
-            public boolean runInIoThread() {
-                return false;
-            }
-
             @Override
             public WriteFrame process(ReadFrame frame, DtChannel channel) {
                 return null;

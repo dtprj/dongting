@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.net;
 
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -26,7 +25,6 @@ import java.util.concurrent.atomic.AtomicLong;
 class NioStatus {
     private final ConcurrentHashMap<Integer, ReqProcessor> processors = new ConcurrentHashMap<>();
     private final AtomicLong inReqBytes = new AtomicLong();
-    private ExecutorService bizExecutor;
     private Semaphore requestSemaphore;
 
     public ConcurrentHashMap<Integer, ReqProcessor> getProcessors() {
@@ -35,14 +33,6 @@ class NioStatus {
 
     public AtomicLong getInReqBytes() {
         return inReqBytes;
-    }
-
-    public ExecutorService getBizExecutor() {
-        return bizExecutor;
-    }
-
-    public void setBizExecutor(ExecutorService bizExecutor) {
-        this.bizExecutor = bizExecutor;
     }
 
     public Semaphore getRequestSemaphore() {
