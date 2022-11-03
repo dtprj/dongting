@@ -24,7 +24,8 @@ class WorkerStatus {
     private IoQueue ioQueue;
     private Runnable wakeupRunnable;
     private LongObjectHashMap<WriteData> pendingRequests;
-    private ByteBufferPool pool;
+    private ByteBufferPool directPool;
+    private ByteBufferPool heapPool;
 
     public WorkerStatus() {
     }
@@ -53,12 +54,19 @@ class WorkerStatus {
         this.pendingRequests = pendingRequests;
     }
 
-    public ByteBufferPool getPool() {
-        return pool;
+    public ByteBufferPool getDirectPool() {
+        return directPool;
     }
 
-    public void setPool(ByteBufferPool pool) {
-        this.pool = pool;
+    public void setDirectPool(ByteBufferPool directPool) {
+        this.directPool = directPool;
     }
 
+    public ByteBufferPool getHeapPool() {
+        return heapPool;
+    }
+
+    public void setHeapPool(ByteBufferPool heapPool) {
+        this.heapPool = heapPool;
+    }
 }

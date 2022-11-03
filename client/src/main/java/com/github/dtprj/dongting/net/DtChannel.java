@@ -25,7 +25,6 @@ import com.github.dtprj.dongting.pb.PbParser;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -49,14 +48,13 @@ class DtChannel implements PbCallback {
     // read status
     private final ArrayList<ReadFrameInfo> frames = new ArrayList<>();
     private final PbParser parser;
+    private StringFieldDecoder strDecoder;
     private ReadFrame frame;
     private boolean readBody;
     private WriteData writeDataForResp;
     private ReqProcessor processorForRequest;
     private int currentReadFrameSize;
     private Object decodeStatus;
-    private byte[] msg;
-    private int msgIndex;
 
     private boolean running = true;
 
@@ -74,11 +72,13 @@ class DtChannel implements PbCallback {
                      SocketChannel socketChannel, int channelIndexInWorker) throws IOException {
         this.nioStatus = nioStatus;
         this.channel = socketChannel;
-        this.subQueue = new IoSubQueue(workerStatus.getPool());
+        this.subQueue = new IoSubQueue(workerStatus.getDirectPool());
         this.nioConfig = nioConfig;
         this.workerStatus = workerStatus;
         this.channelIndexInWorker = channelIndexInWorker;
         this.parser = new PbParser(nioConfig.getMaxFrameSize());
+        this.strDecoder = new StringFieldDecoder(workerStatus.getHeapPool());
+
         this.processContext = new ProcessContext();
         processContext.setChannel(socketChannel);
         processContext.setRemoteAddr(socketChannel.getRemoteAddress());
@@ -109,8 +109,6 @@ class DtChannel implements PbCallback {
         writeDataForResp = null;
         processorForRequest = null;
         decodeStatus = null;
-        msg = null;
-        msgIndex = 0;
     }
 
     @Override
@@ -178,14 +176,9 @@ class DtChannel implements PbCallback {
         }
         switch (index) {
             case Frame.IDX_MSG: {
-                if (start) {
-                    this.msg = new byte[fieldLen];
-                    this.msgIndex = 0;
-                }
-                byte[] msg = this.msg;
-                buf.get(msg, msgIndex, buf.remaining());
-                if (end) {
-                    this.frame.setMsg(new String(msg, StandardCharsets.UTF_8));
+                String msg = strDecoder.decodeUTF8(buf, fieldLen, start, end);
+                if (msg != null) {
+                    this.frame.setMsg(msg);
                 }
                 return true;
             }

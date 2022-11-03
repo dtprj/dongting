@@ -73,7 +73,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private final Semaphore requestSemaphore;
 
-    private final ByteBufferPool pool;
+    private final ByteBufferPool directPool;
 
     private final WorkerStatus workerStatus;
 
@@ -98,14 +98,18 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             this.ioQueue = new IoQueue((ArrayList<DtChannel>) channels);
         }
 
-        this.pool = new ByteBufferPool(true, config.getBufPoolSize(), config.getBufPoolMinCount(),
+        this.directPool = new ByteBufferPool(true, config.getBufPoolSize(), config.getBufPoolMinCount(),
+                config.getBufPoolMaxCount(), config.getBufPoolTimeout());
+
+        ByteBufferPool heapPool = new ByteBufferPool(false, config.getBufPoolSize(), config.getBufPoolMinCount(),
                 config.getBufPoolMaxCount(), config.getBufPoolTimeout());
 
         workerStatus = new WorkerStatus();
         workerStatus.setIoQueue(ioQueue);
         workerStatus.setPendingRequests(pendingOutgoingRequests);
         workerStatus.setWakeupRunnable(this::wakeup);
-        workerStatus.setPool(pool);
+        workerStatus.setDirectPool(directPool);
+        workerStatus.setHeapPool(heapPool);
     }
 
     // invoke by NioServer accept thead
@@ -142,7 +146,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 long roundStartTime = run0(selector, selectTimeoutMillis, stopStatus);
                 if (roundStartTime - lastCleanNano > cleanIntervalNanos) {
                     cleanTimeoutReq();
-                    pool.clean(roundStartTime);
+                    directPool.clean(roundStartTime);
                     lastCleanNano = roundStartTime;
                 }
             } catch (Throwable e) {
@@ -184,7 +188,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private void prepareReadBuffer(long roundTime) {
         if (readBuffer == null) {
-            readBuffer = pool.borrow(config.getReadBufferSize());
+            readBuffer = directPool.borrow(config.getReadBufferSize());
             // change to little endian since protobuf is little endian
             readBuffer.order(ByteOrder.LITTLE_ENDIAN);
         }
@@ -196,7 +200,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         if (readBuffer != null && roundTime - readBufferUseTime > readBufferTimeoutNanos) {
             // recover to big endian
             readBuffer.order(ByteOrder.BIG_ENDIAN);
-            pool.release(readBuffer, roundTime);
+            directPool.release(readBuffer, roundTime);
             readBuffer = null;
             readBufferUseTime = 0;
         }
