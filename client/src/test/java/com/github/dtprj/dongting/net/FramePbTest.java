@@ -82,7 +82,7 @@ public class FramePbTest {
         buf.put(encodeBytes);
         buf.flip();
 
-        DtChannel dtc = new DtChannel(new NioStatus(), new WorkerParams(),
+        DtChannel dtc = new DtChannel(new NioStatus(), new WorkerStatus(),
                 new NioClientConfig(), SocketChannel.open(), 0) {
             @Override
             public void end(boolean success) {

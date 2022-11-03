@@ -75,7 +75,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private final ByteBufferPool pool;
 
-    private final WorkerParams workerParams;
+    private final WorkerStatus workerStatus;
 
     private ByteBuffer readBuffer;
     private long readBufferUseTime;
@@ -101,11 +101,11 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.pool = new ByteBufferPool(true, config.getBufPoolSize(), config.getBufPoolMinCount(),
                 config.getBufPoolMaxCount(), config.getBufPoolTimeout());
 
-        workerParams = new WorkerParams();
-        workerParams.setIoQueue(ioQueue);
-        workerParams.setPendingRequests(pendingOutgoingRequests);
-        workerParams.setWakeupRunnable(this::wakeup);
-        workerParams.setPool(pool);
+        workerStatus = new WorkerStatus();
+        workerStatus.setIoQueue(ioQueue);
+        workerStatus.setPendingRequests(pendingOutgoingRequests);
+        workerStatus.setWakeupRunnable(this::wakeup);
+        workerStatus.setPool(pool);
     }
 
     // invoke by NioServer accept thead
@@ -337,7 +337,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         sc.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
         sc.setOption(StandardSocketOptions.TCP_NODELAY, true);
 
-        DtChannel dtc = new DtChannel(nioStatus, workerParams, config, sc, channelIndex++);
+        DtChannel dtc = new DtChannel(nioStatus, workerStatus, config, sc, channelIndex++);
         SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
         dtc.getSubQueue().setRegisterForWrite(new RegWriteRunner(selectionKey));
 

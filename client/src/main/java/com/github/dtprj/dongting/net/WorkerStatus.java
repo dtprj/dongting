@@ -20,13 +20,13 @@ import com.carrotsearch.hppc.LongObjectHashMap;
 /**
  * @author huangli
  */
-class WorkerParams {
+class WorkerStatus {
     private IoQueue ioQueue;
     private Runnable wakeupRunnable;
     private LongObjectHashMap<WriteData> pendingRequests;
     private ByteBufferPool pool;
 
-    public WorkerParams() {
+    public WorkerStatus() {
     }
 
     public IoQueue getIoQueue() {

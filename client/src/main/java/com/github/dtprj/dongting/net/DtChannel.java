@@ -38,7 +38,7 @@ class DtChannel implements PbCallback {
 
     private final NioStatus nioStatus;
     private final NioConfig nioConfig;
-    private final WorkerParams workerParams;
+    private final WorkerStatus workerStatus;
     private final SocketChannel channel;
     private final ProcessContext processContext;
     private Peer peer;
@@ -70,13 +70,13 @@ class DtChannel implements PbCallback {
         ReqProcessor processorForRequest;
     }
 
-    public DtChannel(NioStatus nioStatus, WorkerParams workerParams, NioConfig nioConfig,
+    public DtChannel(NioStatus nioStatus, WorkerStatus workerStatus, NioConfig nioConfig,
                      SocketChannel socketChannel, int channelIndexInWorker) throws IOException {
         this.nioStatus = nioStatus;
         this.channel = socketChannel;
-        this.subQueue = new IoSubQueue(workerParams.getPool());
+        this.subQueue = new IoSubQueue(workerStatus.getPool());
         this.nioConfig = nioConfig;
-        this.workerParams = workerParams;
+        this.workerStatus = workerStatus;
         this.channelIndexInWorker = channelIndexInWorker;
         this.parser = new PbParser(nioConfig.getMaxFrameSize());
         this.processContext = new ProcessContext();
@@ -259,7 +259,7 @@ class DtChannel implements PbCallback {
         if (frame.getFrameType() == FrameType.TYPE_RESP) {
             WriteData writeDataForResp = this.writeDataForResp;
             if (writeDataForResp == null) {
-                writeDataForResp = this.workerParams.getPendingRequests().remove(BitUtil.toLong(channelIndexInWorker, frame.getSeq()));
+                writeDataForResp = this.workerStatus.getPendingRequests().remove(BitUtil.toLong(channelIndexInWorker, frame.getSeq()));
                 if (writeDataForResp == null) {
                     log.info("pending request not found. channel={}, resp={}", channel, frame);
                     return null;
@@ -465,7 +465,7 @@ class DtChannel implements PbCallback {
     // invoke by other threads
     private void writeRespInBizThreads(WriteFrame frame) {
         WriteData data = new WriteData(this, frame);
-        WorkerParams wp = this.workerParams;
+        WorkerStatus wp = this.workerStatus;
         wp.getIoQueue().write(data);
         wp.getWakeupRunnable().run();
     }
