@@ -41,7 +41,6 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -560,7 +559,7 @@ public class NioClientTest {
                     }
 
                     @Override
-                    public Object decode(Object status, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+                    public Object decode(ProcessContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
                         throw new ArrayIndexOutOfBoundsException();
                     }
                 };
@@ -586,7 +585,7 @@ public class NioClientTest {
                     }
 
                     @Override
-                    public Object decode(Object status, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+                    public Object decode(ProcessContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
                         throw new ArrayIndexOutOfBoundsException();
                     }
                 };

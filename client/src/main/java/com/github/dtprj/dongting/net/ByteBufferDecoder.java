@@ -29,17 +29,21 @@ public class ByteBufferDecoder extends Decoder {
     }
 
     @Override
-    public Object decode(Object status, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+    public Object decode(ProcessContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
         ByteBuffer result;
         if (start) {
             result = ByteBuffer.allocate(bodyLen);
         } else {
-            result = (ByteBuffer) status;
+            result = (ByteBuffer) context.getIoDecodeStatus();
         }
         result.put(buffer);
         if (end) {
             result.flip();
+            context.setIoDecodeStatus(null);
+            return result;
+        } else {
+            context.setIoDecodeStatus(result);
+            return null;
         }
-        return result;
     }
 }

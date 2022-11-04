@@ -54,7 +54,6 @@ class DtChannel implements PbCallback {
     private WriteData writeDataForResp;
     private ReqProcessor processorForRequest;
     private int currentReadFrameSize;
-    private Object decodeStatus;
 
     private boolean running = true;
 
@@ -79,10 +78,12 @@ class DtChannel implements PbCallback {
         this.parser = new PbParser(nioConfig.getMaxFrameSize());
         this.strDecoder = new StringFieldDecoder(workerStatus.getHeapPool());
 
-        this.processContext = new ProcessContext();
+        ProcessContext processContext = new ProcessContext();
         processContext.setChannel(socketChannel);
         processContext.setRemoteAddr(socketChannel.getRemoteAddress());
         processContext.setLocalAddr(socketChannel.getLocalAddress());
+        processContext.setIoThreadStrDecoder(strDecoder);
+        this.processContext = processContext;
     }
 
     public void afterRead(boolean running, ByteBuffer buf) {
@@ -108,7 +109,6 @@ class DtChannel implements PbCallback {
         readBody = false;
         writeDataForResp = null;
         processorForRequest = null;
-        decodeStatus = null;
     }
 
     @Override
@@ -226,9 +226,9 @@ class DtChannel implements PbCallback {
         }
         try {
             if (decode == 1) {
-                decodeStatus = decoder.decode(decodeStatus, buf, fieldLen, start, end);
+                Object o = decoder.decode(processContext, buf, fieldLen, start, end);
                 if (end) {
-                    frame.setBody(decodeStatus);
+                    frame.setBody(o);
                 }
             } else if (decode == 2) {
                 Object result = decoder.decode(null, (ByteBuffer) frame.getBody(),

@@ -25,6 +25,9 @@ public class ProcessContext {
     private SocketChannel channel;
     private SocketAddress remoteAddr;
     private SocketAddress localAddr;
+    // this decoder can only be used in io thread
+    private StringFieldDecoder ioThreadStrDecoder;
+    private Object ioDecodeStatus;
 
     public SocketChannel getChannel() {
         return channel;
@@ -48,5 +51,24 @@ public class ProcessContext {
 
     protected void setLocalAddr(SocketAddress localAddr) {
         this.localAddr = localAddr;
+    }
+
+    /**
+     * this decoder can only be used in io thread
+     */
+    public StringFieldDecoder getIoThreadStrDecoder() {
+        return ioThreadStrDecoder;
+    }
+
+    public void setIoThreadStrDecoder(StringFieldDecoder ioThreadStrDecoder) {
+        this.ioThreadStrDecoder = ioThreadStrDecoder;
+    }
+
+    public Object getIoDecodeStatus() {
+        return ioDecodeStatus;
+    }
+
+    public void setIoDecodeStatus(Object ioDecodeStatus) {
+        this.ioDecodeStatus = ioDecodeStatus;
     }
 }

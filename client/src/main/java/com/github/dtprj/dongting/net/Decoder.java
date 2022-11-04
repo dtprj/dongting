@@ -29,5 +29,5 @@ public abstract class Decoder {
         return false;
     }
 
-    public abstract Object decode(Object status, ByteBuffer buffer, int bodyLen, boolean start, boolean end);
+    public abstract Object decode(ProcessContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end);
 }
