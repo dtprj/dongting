@@ -19,6 +19,7 @@ import com.carrotsearch.hppc.LongObjectHashMap;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import org.jctools.queues.MessagePassingQueue;
 import org.jctools.queues.MpscLinkedQueue;
 
 import java.util.ArrayList;
@@ -26,33 +27,33 @@ import java.util.ArrayList;
 /**
  * @author huangli
  */
-class IoQueue {
+class IoQueue implements MessagePassingQueue.Consumer<WriteData> {
     private static final DtLog log = DtLogs.getLogger(IoQueue.class);
     private final MpscLinkedQueue<WriteData> writeQueue = new MpscLinkedQueue<>();
     private final ArrayList<DtChannel> channels;
     private final boolean server;
+    private final LongObjectHashMap<WriteData> pendingOutgoingRequests;
     private int invokeIndex;
+    private boolean hasDataToWrite;
 
-    public IoQueue(ArrayList<DtChannel> channels) {
+    public IoQueue(ArrayList<DtChannel> channels, LongObjectHashMap<WriteData> pendingOutgoingRequests) {
         this.channels = channels;
         this.server = channels == null;
+        this.pendingOutgoingRequests = pendingOutgoingRequests;
     }
 
     public void write(WriteData data) {
         writeQueue.add(data);
     }
 
-    public boolean dispatchWriteQueue(LongObjectHashMap<WriteData> pendingRequests) {
-        MpscLinkedQueue<WriteData> writeQueue = this.writeQueue;
-        WriteData wo;
-        boolean result = false;
-        while ((wo = writeQueue.poll()) != null) {
-            result |= enqueue(pendingRequests, wo);
-        }
-        return result;
+    public boolean dispatchWriteQueue() {
+        hasDataToWrite = false;
+        writeQueue.drain(this);
+        return hasDataToWrite;
     }
 
-    private boolean enqueue(LongObjectHashMap<WriteData> pendingRequests, WriteData wo) {
+    @Override
+    public void accept(WriteData wo) {
         WriteFrame frame = wo.getData();
         DtChannel dtc = wo.getDtc();
         if (dtc == null) {
@@ -62,14 +63,14 @@ class IoQueue {
                     dtc = selectChannel();
                     if (dtc == null) {
                         wo.getFuture().completeExceptionally(new NetException("no available channel"));
-                        return false;
+                        return;
                     }
                 } else {
                     log.error("no peer set");
                     if (frame.getFrameType() == FrameType.TYPE_REQ) {
                         wo.getFuture().completeExceptionally(new NetException("no peer set"));
                     }
-                    return false;
+                    return;
                 }
             } else {
                 dtc = peer.getDtChannel();
@@ -77,7 +78,7 @@ class IoQueue {
                     if (frame.getFrameType() == FrameType.TYPE_REQ) {
                         wo.getFuture().completeExceptionally(new NetException("not connected"));
                     }
-                    return false;
+                    return;
                 }
             }
         }
@@ -86,23 +87,23 @@ class IoQueue {
             if (frame.getFrameType() == FrameType.TYPE_REQ) {
                 wo.getFuture().completeExceptionally(new NetException("channel closed"));
             }
-            return false;
+            return;
         }
         if (frame.getFrameType() == FrameType.TYPE_REQ) {
             int seq = dtc.getAndIncSeq();
             frame.setSeq(seq);
             long key = BitUtil.toLong(dtc.getChannelIndexInWorker(), seq);
-            WriteData old = pendingRequests.put(key, wo);
+            WriteData old = pendingOutgoingRequests.put(key, wo);
             if (old != null) {
                 String errMsg = "dup seq: old=" + old.getData() + ", new=" + frame;
                 log.error(errMsg);
                 wo.getFuture().completeExceptionally(new NetException(errMsg));
-                pendingRequests.put(key, old);
-                return false;
+                pendingOutgoingRequests.put(key, old);
+                return;
             }
         }
         dtc.getSubQueue().enqueue(frame);
-        return true;
+        this.hasDataToWrite = true;
     }
 
     private DtChannel selectChannel() {

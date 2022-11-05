@@ -92,10 +92,10 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
         if (config instanceof NioServerConfig) {
             this.channels = new HashSet<>();
-            this.ioQueue = new IoQueue(null);
+            this.ioQueue = new IoQueue(null, pendingOutgoingRequests);
         } else {
             this.channels = new ArrayList<>();
-            this.ioQueue = new IoQueue((ArrayList<DtChannel>) channels);
+            this.ioQueue = new IoQueue((ArrayList<DtChannel>) channels, pendingOutgoingRequests);
         }
 
         this.directPool = new ByteBufferPool(true, config.getBufPoolSize(), config.getBufPoolMinCount(),
@@ -170,7 +170,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
         long roundTime = System.nanoTime();
         performActions();
-        boolean hasDataToWrite = ioQueue.dispatchWriteQueue(pendingOutgoingRequests);
+        boolean hasDataToWrite = ioQueue.dispatchWriteQueue();
         Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
         while (iterator.hasNext()) {
             SelectionKey key = iterator.next();
