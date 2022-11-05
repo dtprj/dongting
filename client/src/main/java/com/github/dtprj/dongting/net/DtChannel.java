@@ -48,7 +48,7 @@ class DtChannel implements PbCallback {
     // read status
     private final ArrayList<ReadFrameInfo> frames = new ArrayList<>();
     private final PbParser parser;
-    private StringFieldDecoder strDecoder;
+    private final StringFieldDecoder strDecoder;
     private ReadFrame frame;
     private boolean readBody;
     private WriteData writeDataForResp;
