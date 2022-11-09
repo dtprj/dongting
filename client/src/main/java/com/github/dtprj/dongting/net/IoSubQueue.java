@@ -29,7 +29,7 @@ class IoSubQueue {
     private Runnable registerForWrite;
     private ByteBuffer writeBuffer;
 
-    private final ArrayDeque<WriteFrame> subQueue = new ArrayDeque();
+    private final ArrayDeque<WriteFrame> subQueue = new ArrayDeque<>();
     private int subQueueBytes;
     private boolean writing;
 
@@ -50,13 +50,13 @@ class IoSubQueue {
         }
     }
 
-    public ByteBuffer getWriteBuffer(long nanoTime) {
+    public ByteBuffer getWriteBuffer() {
         ByteBuffer writeBuffer = this.writeBuffer;
         if (writeBuffer != null) {
             if (writeBuffer.remaining() > 0) {
                 return writeBuffer;
             } else {
-                pool.release(writeBuffer, nanoTime);
+                pool.release(writeBuffer);
                 this.writeBuffer = null;
             }
         }
@@ -97,6 +97,7 @@ class IoSubQueue {
             }
             this.subQueueBytes = subQueueBytes;
         }
+        assert buf != null;
         buf.flip();
         this.writeBuffer = buf;
         return buf;

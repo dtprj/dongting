@@ -75,6 +75,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private final Semaphore requestSemaphore;
 
     private final ByteBufferPool directPool;
+    private final ByteBufferPool heapPool;
 
     private final WorkerStatus workerStatus;
 
@@ -102,7 +103,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.directPool = new ByteBufferPool(true, config.getBufPoolSize(), config.getBufPoolMinCount(),
                 config.getBufPoolMaxCount(), config.getBufPoolTimeout());
 
-        ByteBufferPool heapPool = new ByteBufferPool(false, config.getBufPoolSize(), config.getBufPoolMinCount(),
+        this.heapPool = new ByteBufferPool(false, config.getBufPoolSize(), config.getBufPoolMinCount(),
                 config.getBufPoolMaxCount(), config.getBufPoolTimeout());
 
         workerStatus = new WorkerStatus();
@@ -147,7 +148,10 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 long roundStartTime = run0(selector, selectTimeoutMillis, stopStatus);
                 if (roundStartTime - lastCleanNano > cleanIntervalNanos) {
                     cleanTimeoutReq();
+                    directPool.refreshCurrentNanos(roundStartTime);
+                    heapPool.refreshCurrentNanos(roundStartTime);
                     directPool.clean(roundStartTime);
+                    heapPool.clean(roundStartTime);
                     lastCleanNano = roundStartTime;
                 }
             } catch (Throwable e) {
@@ -201,7 +205,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         if (readBuffer != null && roundTime - readBufferUseTime > readBufferTimeoutNanos) {
             // recover to big endian
             readBuffer.order(ByteOrder.BIG_ENDIAN);
-            directPool.release(readBuffer, roundTime);
+            directPool.release(readBuffer);
             readBuffer = null;
             readBufferUseTime = 0;
         }
@@ -239,7 +243,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             stage = 3;
             if (key.isWritable()) {
                 IoSubQueue subQueue = dtc.getSubQueue();
-                ByteBuffer buf = subQueue.getWriteBuffer(roundTime);
+                ByteBuffer buf = subQueue.getWriteBuffer();
                 if (buf != null) {
                     hasDataToWrite = true;
                     subQueue.setWriting(true);

@@ -47,8 +47,8 @@ public class ByteBufferPoolTest {
         assertEquals(1024, buf1.capacity());
         assertEquals(1024, buf2.capacity());
         assertNotSame(buf1, buf2);
-        pool.release(buf1, System.nanoTime());
-        pool.release(buf2, System.nanoTime());
+        pool.release(buf1);
+        pool.release(buf2);
         ByteBuffer buf3 = pool.borrow(1024);
         assertSame(buf3, buf2);
     }
@@ -67,7 +67,7 @@ public class ByteBufferPoolTest {
         ByteBufferPool pool = new ByteBufferPool(false, new int[]{1024, 2048},
                 new int[]{10, 10}, new int[]{10, 10}, 1000);
         ByteBuffer buf1 = pool.borrow(4000);
-        pool.release(buf1, System.nanoTime());
+        pool.release(buf1);
         assertNotSame(buf1, pool.borrow(4000));
     }
 
@@ -78,9 +78,9 @@ public class ByteBufferPoolTest {
         ByteBuffer buf1 = pool.borrow(1024);
         ByteBuffer buf2 = pool.borrow(1024);
         ByteBuffer buf3 = pool.borrow(1024);
-        pool.release(buf1, System.nanoTime());
-        pool.release(buf2, System.nanoTime());
-        pool.release(buf3, System.nanoTime());
+        pool.release(buf1);
+        pool.release(buf2);
+        pool.release(buf3);
         assertSame(buf2, pool.borrow(1024));
         assertSame(buf1, pool.borrow(1024));
     }
@@ -89,11 +89,12 @@ public class ByteBufferPoolTest {
     public void testClean1() {
         ByteBufferPool pool = new ByteBufferPool(false, new int[]{1024, 2048},
                 new int[]{1, 1}, new int[]{2, 2}, 1000);
+        long time = System.nanoTime();
+        pool.refreshCurrentNanos(time);
         ByteBuffer buf1 = pool.borrow(1024);
         ByteBuffer buf2 = pool.borrow(1024);
-        long time = System.nanoTime();
-        pool.release(buf1, time);
-        pool.release(buf2, time);
+        pool.release(buf1);
+        pool.release(buf2);
 
         // not clean
         pool.clean(time + 500L * 1000 * 1000);
@@ -101,21 +102,22 @@ public class ByteBufferPoolTest {
         ByteBuffer buf4 = pool.borrow(1024);
         assertSame(buf2, buf3);
         assertSame(buf1, buf4);
-        pool.release(buf1, time);
-        pool.release(buf2, time);
+        pool.release(buf1);
+        pool.release(buf2);
     }
 
     @Test
     public void testClean2() {
         ByteBufferPool pool = new ByteBufferPool(false, new int[]{1024, 2048},
                 new int[]{1, 1}, new int[]{3, 3}, 1000);
+        long time = System.nanoTime();
+        pool.refreshCurrentNanos(time);
         ByteBuffer buf1 = pool.borrow(1024);
         ByteBuffer buf2 = pool.borrow(1024);
         ByteBuffer buf3 = pool.borrow(1024);
-        long time = System.nanoTime();
-        pool.release(buf1, time);
-        pool.release(buf2, time);
-        pool.release(buf3, time);
+        pool.release(buf1);
+        pool.release(buf2);
+        pool.release(buf3);
 
         //clean 2 buffer
         for (int i = 0; i < 5; i++) {
@@ -129,9 +131,9 @@ public class ByteBufferPoolTest {
             buf1 = buf4;
             buf2 = buf5;
             buf3 = buf6;
-            pool.release(buf1, time);
-            pool.release(buf2, time);
-            pool.release(buf3, time);
+            pool.release(buf1);
+            pool.release(buf2);
+            pool.release(buf3);
         }
     }
 
@@ -139,13 +141,14 @@ public class ByteBufferPoolTest {
     public void testClean3() {
         ByteBufferPool pool = new ByteBufferPool(false, new int[]{1024, 2048},
                 new int[]{1, 1}, new int[]{2, 2}, 1000);
+        long time = System.nanoTime();
+        pool.refreshCurrentNanos(time);
         ByteBuffer buf1 = pool.borrow(2048);
         ByteBuffer buf2 = pool.borrow(2048);
-        long time = System.nanoTime();
-        pool.release(buf1, time);
-        pool.release(buf2, time);
+        pool.release(buf1);
+        pool.release(buf2);
 
-        //clean 2 buffer
+        //clean 1 buffer
         for (int i = 0; i < 5; i++) {
             pool.clean(time + 1001L * 1000 * 1000);
             ByteBuffer buf3 = pool.borrow(2048);
@@ -154,8 +157,8 @@ public class ByteBufferPoolTest {
             assertTrue(buf4 != buf1 && buf4 != buf2);
             buf1 = buf3;
             buf2 = buf4;
-            pool.release(buf1, time);
-            pool.release(buf2, time);
+            pool.release(buf1);
+            pool.release(buf2);
         }
     }
 
@@ -163,11 +166,12 @@ public class ByteBufferPoolTest {
     public void testClean4() {
         ByteBufferPool pool = new ByteBufferPool(false, new int[]{1024, 2048},
                 new int[]{0, 0}, new int[]{2, 2}, 1000);
+        long time = System.nanoTime();
+        pool.refreshCurrentNanos(time);
         ByteBuffer buf1 = pool.borrow(2048);
         ByteBuffer buf2 = pool.borrow(2048);
-        long time = System.nanoTime();
-        pool.release(buf1, time);
-        pool.release(buf2, time);
+        pool.release(buf1);
+        pool.release(buf2);
 
         //clean 2 buffer
         for (int i = 0; i < 5; i++) {
@@ -178,8 +182,8 @@ public class ByteBufferPoolTest {
             assertTrue(buf4 != buf1 && buf4 != buf2);
             buf1 = buf3;
             buf2 = buf4;
-            pool.release(buf1, time);
-            pool.release(buf2, time);
+            pool.release(buf1);
+            pool.release(buf2);
         }
     }
 
@@ -190,8 +194,8 @@ public class ByteBufferPoolTest {
         long totalMax = 0;
         long totalMin = 0;
         for (int i = 0; i < bufSize.length; i++) {
-            totalMax += bufSize[i] * maxCount[i];
-            totalMin += bufSize[i] * minCount[i];
+            totalMax += (long) bufSize[i] * maxCount[i];
+            totalMin += (long) bufSize[i] * minCount[i];
         }
         System.out.printf("max:%,d\nmin:%,d", totalMax, totalMin);
     }

@@ -28,7 +28,7 @@ import java.nio.charset.StandardCharsets;
 public class StringFieldDecoder {
 
     private static final int THREAD_LOCAL_BUFFER_SIZE = 32 * 1024;
-    private static ThreadLocal<byte[]> THREAD_LOCAL_BUFFER = ThreadLocal.withInitial(() -> new byte[THREAD_LOCAL_BUFFER_SIZE]);
+    private static final ThreadLocal<byte[]> THREAD_LOCAL_BUFFER = ThreadLocal.withInitial(() -> new byte[THREAD_LOCAL_BUFFER_SIZE]);
     private final byte[] threadLocalBuffer;
     private final ByteBufferPool pool;
 
@@ -73,8 +73,8 @@ public class StringFieldDecoder {
 
         if (end) {
             String s = new String(buffer, 0, index, StandardCharsets.UTF_8);
-            if (buffer.length > THREAD_LOCAL_BUFFER_SIZE) {
-                pool.release(bufferFromPool, System.nanoTime());
+            if (bufferFromPool != null) {
+                pool.release(bufferFromPool);
                 this.bufferFromPool = null;
             }
             this.index = 0;

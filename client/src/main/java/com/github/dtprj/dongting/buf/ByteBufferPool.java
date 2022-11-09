@@ -36,7 +36,8 @@ public class ByteBufferPool {
     private final long timeoutNanos;
     private final boolean direct;
     private final int[] minCount;
-    private final int findIndex;
+
+    private long currentNanos = System.nanoTime();
 
     public static final int[] DEFAULT_BUF_SIZE = new int[]{1024, 2048, 4096, 8192, 16 * 1024,
             32 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 512 * 1024, 1024 * 1024, 2 * 1024 * 1024,
@@ -97,8 +98,6 @@ public class ByteBufferPool {
         topIndices = new int[bufSizes.length];
         stackSizes = new int[bufSizes.length];
         this.minCount = minCount;
-
-        this.findIndex = bufSizes.length / 2;
     }
 
     private ByteBuffer allocate(int size) {
@@ -138,7 +137,7 @@ public class ByteBufferPool {
         return buf;
     }
 
-    public void release(ByteBuffer buf, long nanos) {
+    public void release(ByteBuffer buf) {
         int[] bufSizes = this.bufSizes;
         int stackCount = bufSizes.length;
         int stackIndex = 0;
@@ -164,7 +163,7 @@ public class ByteBufferPool {
         // return it to pool
         buf.clear();
         bufferStack[topIndex] = buf;
-        this.returnTimes[stackIndex][topIndex] = nanos;
+        this.returnTimes[stackIndex][topIndex] = currentNanos;
 
         topIndex = topIndex + 1 >= stackCapacity ? 0 : topIndex + 1;
         topIndices[stackIndex] = topIndex;
@@ -201,5 +200,9 @@ public class ByteBufferPool {
             bottomIndices[stackIndex] = bottom;
             stackSizes[stackIndex] = size;
         }
+    }
+
+    public void refreshCurrentNanos(long nanos) {
+        this.currentNanos = nanos;
     }
 }
