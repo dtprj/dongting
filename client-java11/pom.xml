@@ -23,16 +23,16 @@
         <groupId>com.github.dtprj.dongting</groupId>
         <version>0.1-SNAPSHOT</version>
     </parent>
-    <artifactId>dongting-server</artifactId>
+    <artifactId>dongting-client-java11</artifactId>
     <dependencies>
         <dependency>
             <groupId>com.github.dtprj.dongting</groupId>
-            <artifactId>dongting-client-java11</artifactId>
+            <artifactId>dongting-client</artifactId>
             <version>0.1-SNAPSHOT</version>
         </dependency>
     </dependencies>
     <build>
-        <finalName>dongting-server-${project.version}</finalName>
+        <finalName>dongting-client-${project.version}</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

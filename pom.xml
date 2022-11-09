@@ -55,6 +55,7 @@
 
     <modules>
         <module>client</module>
+        <module>client-java11</module>
         <module>server</module>
         <module>report</module>
     </modules>
