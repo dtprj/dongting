@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.net;
+package com.github.dtprj.dongting.buf;
 
 import java.nio.ByteBuffer;
 import java.util.Objects;
@@ -24,7 +24,7 @@ import java.util.Objects;
  * @author huangli
  */
 // TODO byte buffer pool need optimise
-class ByteBufferPool {
+public class ByteBufferPool {
     public static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0).asReadOnlyBuffer();
 
     private final int[] bufSizes;
