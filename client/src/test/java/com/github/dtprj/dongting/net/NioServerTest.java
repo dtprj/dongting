@@ -53,7 +53,7 @@ public class NioServerTest {
 
     static class SleepPingProcessor extends NioServer.PingProcessor {
 
-        private int sleep;
+        private final int sleep;
 
         public SleepPingProcessor(int sleep) {
             this.sleep = sleep;
@@ -72,7 +72,7 @@ public class NioServerTest {
         }
     }
 
-    private void setupServer(Consumer<NioServerConfig> consumer) throws Exception {
+    private void setupServer(Consumer<NioServerConfig> consumer) {
         NioServerConfig c = new NioServerConfig();
         c.setPort(PORT);
         if (consumer != null) {
@@ -91,7 +91,7 @@ public class NioServerTest {
     }
 
     @AfterEach
-    public void teardown() throws Exception {
+    public void teardown() {
         server.stop();
     }
 
@@ -188,7 +188,7 @@ public class NioServerTest {
     @Test
     public void clientReadBlockTest() throws Exception {
         setupServer(null);
-        simpleTest(10, 100, 1 * 1024 * 1024, null);
+        simpleTest(10, 100, 1024 * 1024, null);
     }
 
     @Test
@@ -211,8 +211,8 @@ public class NioServerTest {
                 out.flush();
                 Thread.sleep(1);
 
-                for (int i = 0; i < data.length; i++) {
-                    out.write(data[i]);
+                for (byte datum : data) {
+                    out.write(datum);
                     if (r.nextDouble() < 0.1) {
                         out.flush();
                         Thread.sleep(1);
@@ -429,23 +429,39 @@ public class NioServerTest {
                 return ByteBufferDecoder.INSTANCE;
             }
         });
+
+        // processor run in io thread, but decoder.decodeInIoThread() == false
+        server.register(10005, new NioServer.PingProcessor() {
+            @Override
+            public Decoder getDecoder() {
+                return new ByteBufferDecoder() {
+                    @Override
+                    public boolean decodeInIoThread() {
+                        return false;
+                    }
+                };
+            }
+        }, null);
+
         Socket s = new Socket("127.0.0.1", PORT);
         try {
             s.setSoTimeout(1000);
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
-            assertEquals(CmdCodes.SUCCESS, invoke(1, CMD_IO_PING, 5000, in, out));
-            assertEquals(CmdCodes.SUCCESS, invoke(2, CMD_BIZ_PING1, 5000, in, out));
-            assertEquals(CmdCodes.SUCCESS, invoke(2, CMD_BIZ_PING2, 5000, in, out));
+            int seq = 0;
+            assertEquals(CmdCodes.SUCCESS, invoke(++seq, CMD_IO_PING, 5000, in, out));
+            assertEquals(CmdCodes.SUCCESS, invoke(++seq, CMD_BIZ_PING1, 5000, in, out));
+            assertEquals(CmdCodes.SUCCESS, invoke(++seq, CMD_BIZ_PING2, 5000, in, out));
 
-            assertEquals(CmdCodes.BIZ_ERROR, invoke(3, 10001, 5000, in, out));
-            assertEquals(CmdCodes.BIZ_ERROR, invoke(4, 10002, 5000, in, out));
-            assertEquals(CmdCodes.BIZ_ERROR, invoke(5, 10003, 5000, in, out));
-            assertEquals(CmdCodes.BIZ_ERROR, invoke(6, 10004, 5000, in, out));
+            assertEquals(CmdCodes.BIZ_ERROR, invoke(++seq, 10001, 5000, in, out));
+            assertEquals(CmdCodes.BIZ_ERROR, invoke(++seq, 10002, 5000, in, out));
+            assertEquals(CmdCodes.BIZ_ERROR, invoke(++seq, 10003, 5000, in, out));
+            assertEquals(CmdCodes.BIZ_ERROR, invoke(++seq, 10004, 5000, in, out));
+            assertEquals(CmdCodes.SUCCESS, invoke(++seq, 10005, 5000, in, out));
 
-            assertEquals(CmdCodes.SUCCESS, invoke(7, CMD_IO_PING, 5000, in, out));
-            assertEquals(CmdCodes.SUCCESS, invoke(8, CMD_BIZ_PING1, 5000, in, out));
-            assertEquals(CmdCodes.SUCCESS, invoke(8, CMD_BIZ_PING2, 5000, in, out));
+            assertEquals(CmdCodes.SUCCESS, invoke(++seq, CMD_IO_PING, 5000, in, out));
+            assertEquals(CmdCodes.SUCCESS, invoke(++seq, CMD_BIZ_PING1, 5000, in, out));
+            assertEquals(CmdCodes.SUCCESS, invoke(++seq, CMD_BIZ_PING2, 5000, in, out));
         } finally {
             CloseUtil.close(s);
         }

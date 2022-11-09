@@ -229,11 +229,13 @@ class DtChannel implements PbCallback {
                 Object o = decoder.decode(processContext, buf, fieldLen, start, end);
                 if (end) {
                     frame.setBody(o);
+                    frame.setDecoded(true);
                 }
             } else if (decode == 2) {
-                Object result = decoder.decode(null, (ByteBuffer) frame.getBody(),
+                Object result = decoder.decode(processContext, (ByteBuffer) frame.getBody(),
                         fieldLen, true, true);
                 frame.setBody(result);
+                frame.setDecoded(true);
             }
         } catch (Throwable e) {
             processIoDecodeFail(e);
@@ -334,6 +336,11 @@ class DtChannel implements PbCallback {
         if (p.getExecutor() == null) {
             WriteFrame resp;
             try {
+                if (!req.isDecoded() && req.getBody() != null) {
+                    log.warn("not decode, check the processor. {}", req);
+                    ByteBuffer buffer= (ByteBuffer) req.getBody();
+                    req.setBody(p.getDecoder().decode(processContext, buffer, buffer.remaining(), true, true));
+                }
                 resp = p.process(req, processContext);
             } catch (Throwable e) {
                 log.warn("ReqProcessor.process fail", e);
@@ -402,7 +409,7 @@ class DtChannel implements PbCallback {
                 try {
                     ReqProcessor processor = this.processor;
                     Decoder decoder = processor.getDecoder();
-                    if (!decoder.decodeInIoThread()) {
+                    if (!req.isDecoded()) {
                         ByteBuffer bodyBuffer = (ByteBuffer) req.getBody();
                         if (bodyBuffer != null) {
                             Object o = decoder.decode(null, bodyBuffer, bodyBuffer.remaining(), true, true);
