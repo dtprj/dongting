@@ -38,7 +38,7 @@ public abstract class RefCount<T> {
             RefCountFactory f = null;
             try {
                 Class<?> clz = Class.forName("com.github.dtprj.dongting.common.VarHandleRefCountFactory");
-                f = (RefCountFactory) clz.getConstructor().newInstance();
+                f = (RefCountFactory) clz.getDeclaredConstructor().newInstance();
             } catch (Exception e) {
                 log.error("", e);
             }
@@ -238,6 +238,6 @@ class Java8RefCountFactory extends RefCountFactory {
 
     @Override
     public <T> RefCount<T> newInstance(T data) {
-        return new Java8RefCount(data);
+        return new Java8RefCount<>(data);
     }
 }

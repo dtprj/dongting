@@ -27,7 +27,7 @@ class VarHandleRefCount<T> extends AbstractRefCount<T> {
     static {
         try {
             REF_CNT = MethodHandles.lookup()
-                    .findVarHandle(AbstractRefCount.class, "refCount", int.class);
+                    .findVarHandle(RefCount.class, "refCnt", int.class);
         } catch (Exception e) {
             throw new DtException(e);
         }
@@ -36,7 +36,7 @@ class VarHandleRefCount<T> extends AbstractRefCount<T> {
 
     public VarHandleRefCount(T data) {
         super(data);
-        REF_CNT.set(2);
+        REF_CNT.set(this, 2);
         VarHandle.releaseFence();
     }
 
