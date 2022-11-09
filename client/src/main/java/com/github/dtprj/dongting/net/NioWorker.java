@@ -147,7 +147,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             try {
                 long roundStartTime = run0(selector, selectTimeoutMillis, stopStatus);
                 if (roundStartTime - lastCleanNano > cleanIntervalNanos) {
-                    cleanTimeoutReq();
+                    cleanTimeoutReq(roundStartTime);
                     directPool.refreshCurrentNanos(roundStartTime);
                     heapPool.refreshCurrentNanos(roundStartTime);
                     directPool.clean(roundStartTime);
@@ -412,7 +412,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    private void cleanTimeoutReq() {
+    private void cleanTimeoutReq(long roundStartTime) {
         LongObjectHashMap<WriteData> map = this.pendingOutgoingRequests;
         Iterator<LongObjectCursor<WriteData>> it = map.iterator();
         LinkedList<Long> expireList = null;
@@ -420,7 +420,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             LongObjectCursor<WriteData> en = it.next();
             WriteData d = en.value;
             DtTime t = d.getTimeout();
-            if (t.rest(TimeUnit.MILLISECONDS) <= 0) {
+            if (t.rest(TimeUnit.MILLISECONDS, roundStartTime) <= 0) {
                 if (expireList == null) {
                     expireList = new LinkedList<>();
                 }

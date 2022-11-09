@@ -19,6 +19,8 @@ import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtThreadFactory;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.ThreadUtils;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
@@ -33,6 +35,7 @@ import java.util.function.Function;
  * @author huangli
  */
 public abstract class NioNet extends AbstractLifeCircle {
+    private static final DtLog log = DtLogs.getLogger(NioNet.class);
     private final NioConfig config;
     private final Semaphore semaphore;
     protected final NioStatus nioStatus = new NioStatus();
@@ -68,7 +71,7 @@ public abstract class NioNet extends AbstractLifeCircle {
                 return errorFuture(new IllegalStateException("error state: " + status));
             }
 
-            acquire = this.semaphore.tryAcquire(timeout.rest(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+            acquire = this.semaphore.tryAcquire(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
             if (acquire) {
                 CompletableFuture<ReadFrame> future = new CompletableFuture<>();
                 worker.writeReqInBizThreads(peer, request, decoder, timeout, future);
@@ -78,21 +81,16 @@ public abstract class NioNet extends AbstractLifeCircle {
                         "too many pending requests, client wait permit timeout in "
                                 + timeout.getTimeout(TimeUnit.MILLISECONDS) + " ms"));
             }
-        } catch (InterruptedException e) {
-            if (acquire) {
-                this.semaphore.release();
-            }
-            return errorFuture(e);
         } catch (Throwable e) {
             if (acquire) {
                 this.semaphore.release();
             }
-            return errorFuture(new NetException("submit task error", e));
+            return errorFuture(new NetException("sendRequest error", e));
         }
     }
 
     private static class RespConvertor implements Function<ReadFrame, ReadFrame> {
-        private Decoder decoder;
+        private final Decoder decoder;
 
         RespConvertor(Decoder decoder) {
             this.decoder = decoder;
@@ -142,7 +140,9 @@ public abstract class NioNet extends AbstractLifeCircle {
             long rest = timeout.rest(TimeUnit.MILLISECONDS);
             if (rest > 0) {
                 try {
-                    bizExecutor.awaitTermination(rest, TimeUnit.MILLISECONDS);
+                    if (!bizExecutor.awaitTermination(rest, TimeUnit.MILLISECONDS)) {
+                        log.warn("bizExecutor not terminated in {} ms", rest);
+                    }
                 } catch (InterruptedException e) {
                     ThreadUtils.restoreInterruptStatus();
                 }

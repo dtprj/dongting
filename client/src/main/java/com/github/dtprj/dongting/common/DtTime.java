@@ -40,6 +40,10 @@ public class DtTime {
         return unit.convert(deadline - System.nanoTime(), TimeUnit.NANOSECONDS);
     }
 
+    public long rest(TimeUnit unit, long nowNanos) {
+        return unit.convert(deadline - nowNanos, TimeUnit.NANOSECONDS);
+    }
+
     public long getTimeout(TimeUnit unit) {
         return unit.convert(deadline - createTime, TimeUnit.NANOSECONDS);
     }
