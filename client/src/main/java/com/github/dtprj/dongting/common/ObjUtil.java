@@ -15,20 +15,19 @@
  */
 package com.github.dtprj.dongting.common;
 
-import org.junit.jupiter.api.Test;
-
 /**
  * @author huangli
  */
-public class Java8RefCountTest extends AbstractMultiThreadRefCountTest {
+public class ObjUtil {
 
-    @Override
-    protected RefCount<Object> createInstance() {
-        return new Java8RefCountFactory().newInstance(this);
+    /**
+     * Checks that the given argument is strictly positive. If it is not, throws {@link IllegalArgumentException}.
+     * Otherwise, returns the argument.
+     */
+    public static void checkPositive(int i, String name) {
+        if (i <= 0) {
+            throw new IllegalArgumentException(name + " : " + i + " (expected: > 0)");
+        }
     }
 
-    @Test
-    public void overflowTest(){
-        super.doOverflowTest();
-    }
 }

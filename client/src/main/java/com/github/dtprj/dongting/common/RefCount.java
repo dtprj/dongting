@@ -46,20 +46,6 @@ public abstract class RefCount<T> {
         }
     }
 
-    /*
-     * Implementation notes:
-     *
-     * For the updated int field:
-     *   Even => "real" refcount is (refCnt >>> 1)
-     *   Odd  => "real" refcount is 0
-     *
-     * (x & y) appears to be surprisingly expensive relative to (x == y). Thus this class uses
-     * a fast-path in some places for most common low values when checking for live (even) refcounts,
-     * for example: if (rawCnt == 2 || rawCnt == 4 || (rawCnt & 1) == 0) { ...
-     */
-    @SuppressWarnings({"unused", "FieldMayBeFinal"})
-    protected volatile int refCnt;
-
     private final T data;
 
     protected RefCount(T data) {
@@ -68,6 +54,13 @@ public abstract class RefCount<T> {
 
     public static <T> RefCount<T> newInstance(T data) {
         return FACTORY.newInstance(data);
+    }
+
+    /**
+     * return RefCount instance that is not threadSafe
+     */
+    public static <T> RefCount<T> newPlainInstance(T data) {
+        return new PlainRefCount<>(data);
     }
 
     public abstract void retain();
@@ -84,6 +77,21 @@ public abstract class RefCount<T> {
 }
 
 abstract class AbstractRefCount<T> extends RefCount<T> {
+
+    /*
+     * Implementation notes:
+     *
+     * For the updated int field:
+     *   Even => "real" refcount is (refCnt >>> 1)
+     *   Odd  => "real" refcount is 0
+     *
+     * (x & y) appears to be surprisingly expensive relative to (x == y). Thus this class uses
+     * a fast-path in some places for most common low values when checking for live (even) refcounts,
+     * for example: if (rawCnt == 2 || rawCnt == 4 || (rawCnt & 1) == 0) { ...
+     */
+    @SuppressWarnings({"unused", "FieldMayBeFinal"})
+    protected volatile int refCnt;
+
     protected AbstractRefCount(T data) {
         super(data);
     }
@@ -120,9 +128,7 @@ abstract class AbstractRefCount<T> extends RefCount<T> {
 
     @Override
     public void retain(int increment) {
-        if (increment <= 0) {
-            throw new IllegalArgumentException(String.valueOf(increment));
-        }
+        ObjUtil.checkPositive(increment, "increment");
         retain0(increment, increment << 1);
     }
 
@@ -140,16 +146,12 @@ abstract class AbstractRefCount<T> extends RefCount<T> {
 
     @Override
     public boolean release() {
-        int rawCnt = getPlain();
-        return rawCnt == 2 ? tryFinalRelease0(2) || retryRelease0(1)
-                : nonFinalRelease0(1, rawCnt, toLiveRealRefCnt(rawCnt));
+        return release(1);
     }
 
     @Override
     public boolean release(int decrement) {
-        if (decrement <= 0) {
-            throw new IllegalArgumentException(String.valueOf(decrement));
-        }
+        ObjUtil.checkPositive(decrement, "decrement");
         int rawCnt = getPlain();
         int realCnt = toLiveRealRefCnt(rawCnt);
         return decrement == realCnt ? tryFinalRelease0(rawCnt) || retryRelease0(decrement)
@@ -194,8 +196,8 @@ abstract class AbstractRefCount<T> extends RefCount<T> {
 class Java8RefCount<T> extends AbstractRefCount<T> {
 
     @SuppressWarnings("rawtypes")
-    private static final AtomicIntegerFieldUpdater<RefCount> UPDATER =
-            AtomicIntegerFieldUpdater.newUpdater(RefCount.class, "refCnt");
+    private static final AtomicIntegerFieldUpdater<AbstractRefCount> UPDATER =
+            AtomicIntegerFieldUpdater.newUpdater(AbstractRefCount.class, "refCnt");
 
     public Java8RefCount(T data) {
         super(data);

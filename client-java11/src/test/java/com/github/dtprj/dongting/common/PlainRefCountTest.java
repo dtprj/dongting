@@ -15,20 +15,12 @@
  */
 package com.github.dtprj.dongting.common;
 
-import org.junit.jupiter.api.Test;
-
 /**
  * @author huangli
  */
-public class Java8RefCountTest extends AbstractMultiThreadRefCountTest {
-
+public class PlainRefCountTest extends AbstractRefCountTest{
     @Override
     protected RefCount<Object> createInstance() {
-        return new Java8RefCountFactory().newInstance(this);
-    }
-
-    @Test
-    public void overflowTest(){
-        super.doOverflowTest();
+        return RefCount.newPlainInstance(this);
     }
 }
