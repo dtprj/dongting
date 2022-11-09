@@ -66,7 +66,7 @@ public abstract class RefCount<T> {
         this.data = data;
     }
 
-    public RefCount<T> newInstance(T data) {
+    public static <T> RefCount<T> newInstance(T data) {
         return FACTORY.newInstance(data);
     }
 
