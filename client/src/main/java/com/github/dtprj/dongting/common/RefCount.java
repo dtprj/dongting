@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
  * <p>
  * see netty ReferenceCountUpdater.
  */
-public abstract class RefCount<T> {
+public abstract class RefCount {
 
     private static final DtLog log = DtLogs.getLogger(RefCount.class);
 
@@ -46,21 +46,18 @@ public abstract class RefCount<T> {
         }
     }
 
-    private final T data;
-
-    protected RefCount(T data) {
-        this.data = data;
+    protected RefCount() {
     }
 
-    public static <T> RefCount<T> newInstance(T data) {
-        return FACTORY.newInstance(data);
+    public static RefCount newInstance() {
+        return FACTORY.newInstance();
     }
 
     /**
      * return RefCount instance that is not threadSafe
      */
-    public static <T> RefCount<T> newPlainInstance(T data) {
-        return new PlainRefCount<>(data);
+    public static RefCount newPlainInstance() {
+        return new PlainRefCount();
     }
 
     public abstract void retain();
@@ -71,12 +68,9 @@ public abstract class RefCount<T> {
 
     public abstract boolean release(int decrement);
 
-    public T getData() {
-        return data;
-    }
 }
 
-abstract class AbstractRefCount<T> extends RefCount<T> {
+abstract class AbstractRefCount extends RefCount {
 
     /*
      * Implementation notes:
@@ -92,8 +86,7 @@ abstract class AbstractRefCount<T> extends RefCount<T> {
     @SuppressWarnings({"unused", "FieldMayBeFinal"})
     protected volatile int refCnt;
 
-    protected AbstractRefCount(T data) {
-        super(data);
+    protected AbstractRefCount() {
     }
 
     protected abstract int getAndAdd(int rawIncrement);
@@ -193,14 +186,13 @@ abstract class AbstractRefCount<T> extends RefCount<T> {
 
 }
 
-class Java8RefCount<T> extends AbstractRefCount<T> {
+class Java8RefCount extends AbstractRefCount {
 
-    @SuppressWarnings("rawtypes")
     private static final AtomicIntegerFieldUpdater<AbstractRefCount> UPDATER =
             AtomicIntegerFieldUpdater.newUpdater(AbstractRefCount.class, "refCnt");
 
-    public Java8RefCount(T data) {
-        super(data);
+    public Java8RefCount() {
+        super();
         UPDATER.set(this, 2); //TODO can we use lazySet?
     }
 
@@ -233,13 +225,13 @@ class Java8RefCount<T> extends AbstractRefCount<T> {
 }
 
 abstract class RefCountFactory {
-    public abstract <T> RefCount<T> newInstance(T data);
+    public abstract RefCount newInstance();
 }
 
 class Java8RefCountFactory extends RefCountFactory {
 
     @Override
-    public <T> RefCount<T> newInstance(T data) {
-        return new Java8RefCount<>(data);
+    public RefCount newInstance() {
+        return new Java8RefCount();
     }
 }

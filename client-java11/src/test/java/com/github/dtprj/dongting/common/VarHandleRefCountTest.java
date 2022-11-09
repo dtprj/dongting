@@ -22,8 +22,8 @@ import org.junit.jupiter.api.Test;
  */
 public class VarHandleRefCountTest extends AbstractMultiThreadRefCountTest {
     @Override
-    protected RefCount<Object> createInstance() {
-        return RefCount.newInstance(this);
+    protected RefCount createInstance() {
+        return RefCount.newInstance();
     }
 
     @Test

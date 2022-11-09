@@ -20,7 +20,7 @@ package com.github.dtprj.dongting.common;
  */
 public class PlainRefCountTest extends AbstractRefCountTest{
     @Override
-    protected RefCount<Object> createInstance() {
-        return RefCount.newPlainInstance(this);
+    protected RefCount createInstance() {
+        return RefCount.newPlainInstance();
     }
 }

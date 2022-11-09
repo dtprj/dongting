@@ -27,14 +27,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 public abstract class AbstractRefCountTest {
 
-    private RefCount<Object> rf;
+    private RefCount rf;
 
     @BeforeEach
     public void setup() {
         rf = createInstance();
     }
 
-    protected abstract RefCount<Object> createInstance();
+    protected abstract RefCount createInstance();
 
     @Test
     public void simpleTest() {

@@ -21,7 +21,7 @@ import java.lang.invoke.VarHandle;
 /**
  * @author huangli
  */
-class VarHandleRefCount<T> extends AbstractRefCount<T> {
+class VarHandleRefCount extends AbstractRefCount {
     private static final VarHandle REF_CNT;
 
     static {
@@ -34,8 +34,7 @@ class VarHandleRefCount<T> extends AbstractRefCount<T> {
     }
 
 
-    public VarHandleRefCount(T data) {
-        super(data);
+    public VarHandleRefCount() {
         REF_CNT.set(this, 2);
         VarHandle.releaseFence();
     }
@@ -74,7 +73,7 @@ class VarHandleRefCount<T> extends AbstractRefCount<T> {
 class VarHandleRefCountFactory extends RefCountFactory {
 
     @Override
-    public <T> RefCount<T> newInstance(T data) {
-        return new VarHandleRefCount<>(data);
+    public RefCount newInstance() {
+        return new VarHandleRefCount();
     }
 }

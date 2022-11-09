@@ -18,12 +18,11 @@ package com.github.dtprj.dongting.common;
 /**
  * @author huangli
  */
-public class PlainRefCount<T> extends RefCount<T> {
+public class PlainRefCount extends RefCount {
 
     private int refCnt;
 
-    protected PlainRefCount(T data) {
-        super(data);
+    protected PlainRefCount() {
         this.refCnt = 1;
     }
 

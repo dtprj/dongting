@@ -23,8 +23,8 @@ import org.junit.jupiter.api.Test;
 public class Java8RefCountTest extends AbstractMultiThreadRefCountTest {
 
     @Override
-    protected RefCount<Object> createInstance() {
-        return new Java8RefCountFactory().newInstance(this);
+    protected RefCount createInstance() {
+        return new Java8RefCountFactory().newInstance();
     }
 
     @Test
