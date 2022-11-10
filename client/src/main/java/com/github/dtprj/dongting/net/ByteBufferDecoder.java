@@ -33,17 +33,17 @@ public class ByteBufferDecoder extends Decoder {
         ByteBuffer result;
         if (start) {
             result = ByteBuffer.allocate(bodyLen);
+            if (!end) {
+                context.setIoDecodeStatus(result);
+            }
         } else {
             result = (ByteBuffer) context.getIoDecodeStatus();
         }
         result.put(buffer);
         if (end) {
             result.flip();
-            context.setIoDecodeStatus(null);
             return result;
-        } else {
-            context.setIoDecodeStatus(result);
-            return null;
         }
+        return null;
     }
 }

@@ -243,6 +243,7 @@ class DtChannel implements PbCallback {
         }
 
         if (end) {
+            processContext.setIoDecodeStatus(null);
             // so if the body is not last field, exception throws
             readBody = true;
         }
