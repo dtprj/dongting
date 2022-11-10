@@ -24,7 +24,7 @@ import java.util.Objects;
  * @author huangli
  */
 // TODO byte buffer pool need optimise
-public class SimpleByteBufferPool {
+public class SimpleByteBufferPool extends ByteBufferPool {
     public static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0).asReadOnlyBuffer();
 
     private final int[] bufSizes;
@@ -104,6 +104,7 @@ public class SimpleByteBufferPool {
         return this.direct ? ByteBuffer.allocateDirect(size) : ByteBuffer.allocate(size);
     }
 
+    @Override
     public ByteBuffer borrow(int requestSize) {
         int[] bufSizes = this.bufSizes;
         int stackCount = bufSizes.length;
@@ -137,6 +138,7 @@ public class SimpleByteBufferPool {
         return buf;
     }
 
+    @Override
     public void release(ByteBuffer buf) {
         int[] bufSizes = this.bufSizes;
         int stackCount = bufSizes.length;
