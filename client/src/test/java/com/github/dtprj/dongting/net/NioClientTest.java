@@ -208,6 +208,12 @@ public class NioClientTest {
     }
 
     private static void sendSync(int maxBodySize, NioClient client, long timeoutMillis) throws Exception {
+        sendSync(maxBodySize, client, timeoutMillis, ByteBufferDecoder.INSTANCE);
+        sendSync(maxBodySize, client, timeoutMillis, new BizByteBufferDecoder());
+        sendSync(maxBodySize, client, timeoutMillis, new IoFullPackByteBufferDecoder());
+    }
+
+    private static void sendSync(int maxBodySize, NioClient client, long timeoutMillis, Decoder decoder) throws Exception {
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
         wf.setCommand(Commands.CMD_PING);
         wf.setFrameType(FrameType.TYPE_REQ);
@@ -216,18 +222,6 @@ public class NioClientTest {
         r.nextBytes(bs);
         wf.setBody(ByteBuffer.wrap(bs));
 
-        Decoder decoder = null;
-        switch (r.nextInt(3)) {
-            case 0:
-                decoder = ByteBufferDecoder.INSTANCE;
-                break;
-            case 1:
-                decoder = new BizByteBufferDecoder();
-                break;
-            case 2:
-                decoder = new IoFullPackByteBufferDecoder();
-                break;
-        }
         CompletableFuture<ReadFrame> f = client.sendRequest(wf,
                 decoder, new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
 
