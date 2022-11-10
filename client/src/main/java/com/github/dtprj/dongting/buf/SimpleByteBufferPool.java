@@ -24,7 +24,7 @@ import java.util.Objects;
  * @author huangli
  */
 // TODO byte buffer pool need optimise
-public class ByteBufferPool {
+public class SimpleByteBufferPool {
     public static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0).asReadOnlyBuffer();
 
     private final int[] bufSizes;
@@ -53,11 +53,11 @@ public class ByteBufferPool {
 
     public static final long DEFAULT_TIME_OUT_MILLIS = 10 * 1000;
 
-    public ByteBufferPool(boolean direct) {
+    public SimpleByteBufferPool(boolean direct) {
         this(direct, DEFAULT_BUF_SIZE, DEFAULT_MIN_COUNT, DEFAULT_MAX_COUNT, 10 * 1000);
     }
 
-    public ByteBufferPool(boolean direct, int[] bufSizes, int[] minCount, int[] maxCount, long timeoutMillis) {
+    public SimpleByteBufferPool(boolean direct, int[] bufSizes, int[] minCount, int[] maxCount, long timeoutMillis) {
         Objects.requireNonNull(bufSizes);
         Objects.requireNonNull(minCount);
         Objects.requireNonNull(maxCount);

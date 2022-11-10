@@ -3,7 +3,7 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -17,31 +17,31 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * @author <a href="mailto:areyouok@gmail.com">huangli</a>
  */
-public class ByteBufferPoolTest {
+public class SimpleByteBufferPoolTest {
 
     @Test
     public void testConstructor() {
-        assertThrows(NullPointerException.class, () -> new ByteBufferPool(false, new int[]{1024, 2048},
+        assertThrows(NullPointerException.class, () -> new SimpleByteBufferPool(false, new int[]{1024, 2048},
                 new int[]{10, 10}, null, 1000));
-        assertThrows(IllegalArgumentException.class, () -> new ByteBufferPool(false, new int[]{1024, 2048},
+        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(false, new int[]{1024, 2048},
                 new int[]{10, 10}, new int[]{10}, 1000));
 
-        assertThrows(IllegalArgumentException.class, () -> new ByteBufferPool(false, new int[]{-1},
+        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(false, new int[]{-1},
                 new int[]{10}, new int[]{10}, 1000));
-        assertThrows(IllegalArgumentException.class, () -> new ByteBufferPool(false, new int[]{1024},
+        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(false, new int[]{1024},
                 new int[]{-1}, new int[]{10}, 1000));
-        assertThrows(IllegalArgumentException.class, () -> new ByteBufferPool(false, new int[]{1024},
+        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(false, new int[]{1024},
                 new int[]{10}, new int[]{-1}, 1000));
-        assertThrows(IllegalArgumentException.class, () -> new ByteBufferPool(false, new int[]{1024},
+        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(false, new int[]{1024},
                 new int[]{10}, new int[]{10}, -1));
 
-        assertThrows(IllegalArgumentException.class, () -> new ByteBufferPool(false, new int[]{1024, 2048},
+        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(false, new int[]{1024, 2048},
                 new int[]{10, 10}, new int[]{9, 9}, 1000));
     }
 
     @Test
     public void testBorrow1() {
-        ByteBufferPool pool = new ByteBufferPool(false);
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(false);
         ByteBuffer buf1 = pool.borrow(1);
         ByteBuffer buf2 = pool.borrow(2);
         assertEquals(1024, buf1.capacity());
@@ -55,7 +55,7 @@ public class ByteBufferPoolTest {
 
     @Test
     public void testBorrow2() {
-        ByteBufferPool pool = new ByteBufferPool(false);
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(false);
         ByteBuffer buf1 = pool.borrow(1024);
         ByteBuffer buf2 = pool.borrow(1025);
         assertEquals(1024, buf1.capacity());
@@ -64,7 +64,7 @@ public class ByteBufferPoolTest {
 
     @Test
     public void testBorrow3() {
-        ByteBufferPool pool = new ByteBufferPool(false, new int[]{1024, 2048},
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(false, new int[]{1024, 2048},
                 new int[]{10, 10}, new int[]{10, 10}, 1000);
         ByteBuffer buf1 = pool.borrow(4000);
         pool.release(buf1);
@@ -73,7 +73,7 @@ public class ByteBufferPoolTest {
 
     @Test
     public void testRelease() {
-        ByteBufferPool pool = new ByteBufferPool(false, new int[]{1024, 2048},
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(false, new int[]{1024, 2048},
                 new int[]{1, 1}, new int[]{2, 2}, 1000);
         ByteBuffer buf1 = pool.borrow(1024);
         ByteBuffer buf2 = pool.borrow(1024);
@@ -87,7 +87,7 @@ public class ByteBufferPoolTest {
 
     @Test
     public void testClean1() {
-        ByteBufferPool pool = new ByteBufferPool(false, new int[]{1024, 2048},
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(false, new int[]{1024, 2048},
                 new int[]{1, 1}, new int[]{2, 2}, 1000);
         long time = System.nanoTime();
         pool.refreshCurrentNanos(time);
@@ -108,7 +108,7 @@ public class ByteBufferPoolTest {
 
     @Test
     public void testClean2() {
-        ByteBufferPool pool = new ByteBufferPool(false, new int[]{1024, 2048},
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(false, new int[]{1024, 2048},
                 new int[]{1, 1}, new int[]{3, 3}, 1000);
         long time = System.nanoTime();
         pool.refreshCurrentNanos(time);
@@ -139,7 +139,7 @@ public class ByteBufferPoolTest {
 
     @Test
     public void testClean3() {
-        ByteBufferPool pool = new ByteBufferPool(false, new int[]{1024, 2048},
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(false, new int[]{1024, 2048},
                 new int[]{1, 1}, new int[]{2, 2}, 1000);
         long time = System.nanoTime();
         pool.refreshCurrentNanos(time);
@@ -164,7 +164,7 @@ public class ByteBufferPoolTest {
 
     @Test
     public void testClean4() {
-        ByteBufferPool pool = new ByteBufferPool(false, new int[]{1024, 2048},
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(false, new int[]{1024, 2048},
                 new int[]{0, 0}, new int[]{2, 2}, 1000);
         long time = System.nanoTime();
         pool.refreshCurrentNanos(time);
@@ -188,9 +188,9 @@ public class ByteBufferPoolTest {
     }
 
     public static void main(String[] args) {
-        int[] bufSize = ByteBufferPool.DEFAULT_BUF_SIZE;
-        int[] maxCount = ByteBufferPool.DEFAULT_MAX_COUNT;
-        int[] minCount = ByteBufferPool.DEFAULT_MIN_COUNT;
+        int[] bufSize = SimpleByteBufferPool.DEFAULT_BUF_SIZE;
+        int[] maxCount = SimpleByteBufferPool.DEFAULT_MAX_COUNT;
+        int[] minCount = SimpleByteBufferPool.DEFAULT_MIN_COUNT;
         long totalMax = 0;
         long totalMin = 0;
         for (int i = 0; i < bufSize.length; i++) {

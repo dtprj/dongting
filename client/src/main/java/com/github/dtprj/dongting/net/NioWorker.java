@@ -17,7 +17,7 @@ package com.github.dtprj.dongting.net;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
 import com.carrotsearch.hppc.cursors.LongObjectCursor;
-import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.log.DtLog;
@@ -74,8 +74,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private final Semaphore requestSemaphore;
 
-    private final ByteBufferPool directPool;
-    private final ByteBufferPool heapPool;
+    private final SimpleByteBufferPool directPool;
+    private final SimpleByteBufferPool heapPool;
 
     private final WorkerStatus workerStatus;
 
@@ -100,10 +100,10 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             this.ioQueue = new IoQueue((ArrayList<DtChannel>) channels, pendingOutgoingRequests);
         }
 
-        this.directPool = new ByteBufferPool(true, config.getBufPoolSize(), config.getBufPoolMinCount(),
+        this.directPool = new SimpleByteBufferPool(true, config.getBufPoolSize(), config.getBufPoolMinCount(),
                 config.getBufPoolMaxCount(), config.getBufPoolTimeout());
 
-        this.heapPool = new ByteBufferPool(false, config.getBufPoolSize(), config.getBufPoolMinCount(),
+        this.heapPool = new SimpleByteBufferPool(false, config.getBufPoolSize(), config.getBufPoolMinCount(),
                 config.getBufPoolMaxCount(), config.getBufPoolTimeout());
 
         workerStatus = new WorkerStatus();

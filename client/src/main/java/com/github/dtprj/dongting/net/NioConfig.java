@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 
 /**
  * @author huangli
@@ -35,10 +35,10 @@ public abstract class NioConfig {
 
     private int maxFrameSize = 8 * 1024 * 1024;
 
-    private int[] bufPoolSize = ByteBufferPool.DEFAULT_BUF_SIZE;
-    private int[] bufPoolMinCount = ByteBufferPool.DEFAULT_MIN_COUNT;
-    private int[] bufPoolMaxCount = ByteBufferPool.DEFAULT_MAX_COUNT;
-    private long bufPoolTimeout = ByteBufferPool.DEFAULT_TIME_OUT_MILLIS;
+    private int[] bufPoolSize = SimpleByteBufferPool.DEFAULT_BUF_SIZE;
+    private int[] bufPoolMinCount = SimpleByteBufferPool.DEFAULT_MIN_COUNT;
+    private int[] bufPoolMaxCount = SimpleByteBufferPool.DEFAULT_MAX_COUNT;
+    private long bufPoolTimeout = SimpleByteBufferPool.DEFAULT_TIME_OUT_MILLIS;
 
     private int readBufferSize = 128 * 1024;
     private long readBufferTimeoutMillis = 200;

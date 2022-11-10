@@ -26,7 +26,7 @@ public class RefCountByteBufferTest {
 
     @Test
     public void testCreate1() {
-        ByteBufferPool pool = new ByteBufferPool(false);
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(false);
         RefCountByteBuffer refCountByteBuffer = RefCountByteBuffer.create(pool, 127, 128);
         refCountByteBuffer.retain();
         refCountByteBuffer.release();
@@ -37,7 +37,7 @@ public class RefCountByteBufferTest {
 
     @Test
     public void testCreate2() {
-        ByteBufferPool pool = new ByteBufferPool(false);
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(false);
         RefCountByteBuffer refCountByteBuffer = RefCountByteBuffer.create(pool, 128, 128);
         refCountByteBuffer.retain();
         refCountByteBuffer.release();
@@ -47,7 +47,7 @@ public class RefCountByteBufferTest {
 
     @Test
     public void testCreatePlain1() {
-        ByteBufferPool pool = new ByteBufferPool(false);
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(false);
         RefCountByteBuffer refCountByteBuffer = RefCountByteBuffer.createPlain(pool, 127, 128);
         refCountByteBuffer.retain();
         refCountByteBuffer.release();
@@ -58,7 +58,7 @@ public class RefCountByteBufferTest {
 
     @Test
     public void testCreatePlain2() {
-        ByteBufferPool pool = new ByteBufferPool(false);
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(false);
         RefCountByteBuffer refCountByteBuffer = RefCountByteBuffer.createPlain(pool, 128, 128);
         refCountByteBuffer.retain();
         refCountByteBuffer.release();

@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
@@ -25,7 +25,7 @@ import java.util.ArrayDeque;
  */
 class IoSubQueue {
     private static final int MAX_BUFFER_SIZE = 512 * 1024;
-    private final ByteBufferPool pool;
+    private final SimpleByteBufferPool pool;
     private Runnable registerForWrite;
     private ByteBuffer writeBuffer;
 
@@ -33,7 +33,7 @@ class IoSubQueue {
     private int subQueueBytes;
     private boolean writing;
 
-    public IoSubQueue(ByteBufferPool pool) {
+    public IoSubQueue(SimpleByteBufferPool pool) {
         this.pool = pool;
     }
 
