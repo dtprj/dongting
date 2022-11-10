@@ -25,13 +25,13 @@ import java.nio.ByteBuffer;
 public class RefCountByteBuffer {
 
     private ByteBuffer buffer;
-    private SimpleByteBufferPool pool;
+    private ByteBufferPool pool;
     private RefCount refCount;
 
     protected RefCountByteBuffer() {
     }
 
-    public static RefCountByteBuffer create(SimpleByteBufferPool pool, int requestSize, int threshold) {
+    public static RefCountByteBuffer create(ByteBufferPool pool, int requestSize, int threshold) {
         RefCountByteBuffer value = new RefCountByteBuffer();
         if (requestSize < threshold) {
             value.buffer = ByteBuffer.allocate(requestSize);
@@ -43,7 +43,7 @@ public class RefCountByteBuffer {
         return value;
     }
 
-    public static RefCountByteBuffer createPlain(SimpleByteBufferPool pool, int requestSize, int threshold) {
+    public static RefCountByteBuffer createPlain(ByteBufferPool pool, int requestSize, int threshold) {
         RefCountByteBuffer value = new RefCountByteBuffer();
         if (requestSize < threshold) {
             value.buffer = ByteBuffer.allocate(requestSize);
