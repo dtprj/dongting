@@ -27,9 +27,9 @@ import java.util.ArrayList;
 /**
  * @author huangli
  */
-class IoQueue implements MessagePassingQueue.Consumer<WriteData> {
+class IoQueue implements MessagePassingQueue.Consumer<Object> {
     private static final DtLog log = DtLogs.getLogger(IoQueue.class);
-    private final MpscLinkedQueue<WriteData> writeQueue = new MpscLinkedQueue<>();
+    private final MpscLinkedQueue<Object> queue = new MpscLinkedQueue<>();
     private final ArrayList<DtChannel> channels;
     private final boolean server;
     private final LongObjectHashMap<WriteData> pendingOutgoingRequests;
@@ -42,18 +42,30 @@ class IoQueue implements MessagePassingQueue.Consumer<WriteData> {
         this.pendingOutgoingRequests = pendingOutgoingRequests;
     }
 
-    public void write(WriteData data) {
-        writeQueue.add(data);
+    public void writeFromBizThread(WriteData data) {
+        queue.add(data);
+    }
+
+    public void scheduleFromBizThread(Runnable runnable) {
+        queue.add(runnable);
     }
 
     public boolean dispatchWriteQueue() {
         hasDataToWrite = false;
-        writeQueue.drain(this);
+        queue.drain(this);
         return hasDataToWrite;
     }
 
     @Override
-    public void accept(WriteData wo) {
+    public void accept(Object data) {
+        if (data instanceof Runnable) {
+            ((Runnable) data).run();
+        } else {
+            processWriteData((WriteData) data);
+        }
+    }
+
+    private void processWriteData(WriteData wo) {
         WriteFrame frame = wo.getData();
         DtChannel dtc = wo.getDtc();
         if (dtc == null) {

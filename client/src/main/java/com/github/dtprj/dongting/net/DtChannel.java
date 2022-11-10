@@ -467,7 +467,7 @@ class DtChannel implements PbCallback {
     private void writeRespInBizThreads(WriteFrame frame) {
         WriteData data = new WriteData(this, frame);
         WorkerStatus wp = this.workerStatus;
-        wp.getIoQueue().write(data);
+        wp.getIoQueue().writeFromBizThread(data);
         wp.getWakeupRunnable().run();
     }
 

@@ -39,7 +39,6 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -62,8 +61,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private volatile int stopStatus = SS_RUNNING;
     private Selector selector;
     private final AtomicBoolean notified = new AtomicBoolean(false);
-
-    private final ConcurrentLinkedQueue<Runnable> actions = new ConcurrentLinkedQueue<>();
 
     private int channelIndex;
     private final Collection<DtChannel> channels;
@@ -116,7 +113,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     // invoke by NioServer accept thead
     public void newChannelAccept(SocketChannel sc) {
-        actions.add(() -> {
+        ioQueue.scheduleFromBizThread(() -> {
             try {
                 DtChannel dtc = initNewChannel(sc, null);
                 channels.add(dtc);
@@ -131,7 +128,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     // invoke by other threads
     public CompletableFuture<Void> connect(Peer peer) {
         CompletableFuture<Void> f = new CompletableFuture<>();
-        actions.add(() -> doConnect(f, peer));
+        ioQueue.scheduleFromBizThread(() -> doConnect(f, peer));
         wakeup();
         return f;
     }
@@ -174,7 +171,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             return System.nanoTime();
         }
         long roundTime = System.nanoTime();
-        performActions();
         boolean hasDataToWrite = ioQueue.dispatchWriteQueue();
         Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
         while (iterator.hasNext()) {
@@ -334,13 +330,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    private void performActions() {
-        Runnable r;
-        while ((r = actions.poll()) != null) {
-            r.run();
-        }
-    }
-
     private DtChannel initNewChannel(SocketChannel sc, Peer peer) throws IOException {
         sc.configureBlocking(false);
         sc.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
@@ -449,7 +438,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         Objects.requireNonNull(future);
 
         WriteData data = new WriteData(peer, frame, timeout, future, decoder);
-        this.ioQueue.write(data);
+        this.ioQueue.writeFromBizThread(data);
         wakeup();
     }
 
