@@ -385,71 +385,6 @@ class DtChannel implements PbCallback {
         }
     }
 
-    private static class ProcessInBizThreadTask implements Runnable {
-        private final ReadFrame req;
-        private final ReqProcessor processor;
-        private final int frameSize;
-        private final DtChannel dtc;
-        private final AtomicLong inBytes;
-
-        ProcessInBizThreadTask(ReadFrame req, ReqProcessor processor,
-                               int frameSize, DtChannel dtc, AtomicLong inBytes) {
-            this.req = req;
-            this.processor = processor;
-            this.frameSize = frameSize;
-            this.dtc = dtc;
-            this.inBytes = inBytes;
-        }
-
-        @Override
-        public void run() {
-            try {
-                WriteFrame resp;
-                ReadFrame req = this.req;
-                DtChannel dtc = this.dtc;
-                boolean decodeSuccess = false;
-                try {
-                    ReqProcessor processor = this.processor;
-                    Decoder decoder = processor.getDecoder();
-                    if (!processor.getDecoder().decodeInIoThread()) {
-                        ByteBuffer bodyBuffer = (ByteBuffer) req.getBody();
-                        if (bodyBuffer != null) {
-                            try {
-                                Object o = decoder.decode(null, bodyBuffer, bodyBuffer.remaining(), true, true);
-                                req.setBody(o);
-                            } finally {
-                                WorkerStatus ws = dtc.getWorkerStatus();
-                                ReleaseBufferTask t = new ReleaseBufferTask(ws.getHeapPool(), bodyBuffer);
-                                ws.getIoQueue().scheduleFromBizThread(t);
-                            }
-                        }
-                    }
-                    decodeSuccess = true;
-                    resp = processor.process(req, dtc.processContext);
-                } catch (Throwable e) {
-                    if (decodeSuccess) {
-                        log.warn("ReqProcessor.process fail, command={}", req.getCommand(), e);
-                    } else {
-                        log.warn("ReqProcessor decode fail, command={}", req.getCommand(), e);
-                    }
-                    dtc.writeBizErrorInBizThread(req, e.toString());
-                    return;
-                }
-                if (resp != null) {
-                    resp.setCommand(req.getCommand());
-                    resp.setFrameType(FrameType.TYPE_RESP);
-                    resp.setSeq(req.getSeq());
-                    dtc.writeRespInBizThreads(resp);
-                } else {
-                    log.warn("ReqProcessor.process return null, command={}", req.getCommand());
-                    dtc.writeBizErrorInBizThread(req, "processor return null response");
-                }
-            } finally {
-                inBytes.addAndGet(-frameSize);
-            }
-        }
-    }
-
     private void writeErrorInIoThread(Frame req, int code, String msg) {
         ByteBufferWriteFrame resp = new ByteBufferWriteFrame();
         resp.setCommand(req.getCommand());
@@ -460,7 +395,7 @@ class DtChannel implements PbCallback {
         subQueue.enqueue(resp);
     }
 
-    private void writeBizErrorInBizThread(Frame req, String msg) {
+    public void writeBizErrorInBizThread(Frame req, String msg) {
         ByteBufferWriteFrame resp = new ByteBufferWriteFrame();
         resp.setCommand(req.getCommand());
         resp.setFrameType(FrameType.TYPE_RESP);
@@ -471,7 +406,7 @@ class DtChannel implements PbCallback {
     }
 
     // invoke by other threads
-    private void writeRespInBizThreads(WriteFrame frame) {
+    public void writeRespInBizThreads(WriteFrame frame) {
         WriteData data = new WriteData(this, frame);
         WorkerStatus wp = this.workerStatus;
         wp.getIoQueue().writeFromBizThread(data);
@@ -502,6 +437,10 @@ class DtChannel implements PbCallback {
         return workerStatus;
     }
 
+    public ProcessContext getProcessContext() {
+        return processContext;
+    }
+
     public void close() {
         if (closed) {
             return;
@@ -523,6 +462,71 @@ class DtChannel implements PbCallback {
     }
 }
 
+class ProcessInBizThreadTask implements Runnable {
+    private static final DtLog log = DtLogs.getLogger(ProcessInBizThreadTask.class);
+    private final ReadFrame req;
+    private final ReqProcessor processor;
+    private final int frameSize;
+    private final DtChannel dtc;
+    private final AtomicLong inBytes;
+
+    ProcessInBizThreadTask(ReadFrame req, ReqProcessor processor,
+                           int frameSize, DtChannel dtc, AtomicLong inBytes) {
+        this.req = req;
+        this.processor = processor;
+        this.frameSize = frameSize;
+        this.dtc = dtc;
+        this.inBytes = inBytes;
+    }
+
+    @Override
+    public void run() {
+        try {
+            WriteFrame resp;
+            ReadFrame req = this.req;
+            DtChannel dtc = this.dtc;
+            boolean decodeSuccess = false;
+            try {
+                ReqProcessor processor = this.processor;
+                Decoder decoder = processor.getDecoder();
+                if (!processor.getDecoder().decodeInIoThread()) {
+                    ByteBuffer bodyBuffer = (ByteBuffer) req.getBody();
+                    if (bodyBuffer != null) {
+                        try {
+                            Object o = decoder.decode(null, bodyBuffer, bodyBuffer.remaining(), true, true);
+                            req.setBody(o);
+                        } finally {
+                            WorkerStatus ws = dtc.getWorkerStatus();
+                            ReleaseBufferTask t = new ReleaseBufferTask(ws.getHeapPool(), bodyBuffer);
+                            ws.getIoQueue().scheduleFromBizThread(t);
+                        }
+                    }
+                }
+                decodeSuccess = true;
+                resp = processor.process(req, dtc.getProcessContext());
+            } catch (Throwable e) {
+                if (decodeSuccess) {
+                    log.warn("ReqProcessor.process fail, command={}", req.getCommand(), e);
+                } else {
+                    log.warn("ReqProcessor decode fail, command={}", req.getCommand(), e);
+                }
+                dtc.writeBizErrorInBizThread(req, e.toString());
+                return;
+            }
+            if (resp != null) {
+                resp.setCommand(req.getCommand());
+                resp.setFrameType(FrameType.TYPE_RESP);
+                resp.setSeq(req.getSeq());
+                dtc.writeRespInBizThreads(resp);
+            } else {
+                log.warn("ReqProcessor.process return null, command={}", req.getCommand());
+                dtc.writeBizErrorInBizThread(req, "processor return null response");
+            }
+        } finally {
+            inBytes.addAndGet(-frameSize);
+        }
+    }
+}
 
 @SuppressWarnings("FieldMayBeFinal")
 class ReleaseBufferTask implements Runnable {
