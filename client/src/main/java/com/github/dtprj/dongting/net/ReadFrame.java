@@ -20,7 +20,6 @@ package com.github.dtprj.dongting.net;
  */
 public class ReadFrame extends Frame {
     private Object body;
-    private boolean decoded;
 
     public ReadFrame() {
     }
@@ -33,11 +32,4 @@ public class ReadFrame extends Frame {
         this.body = body;
     }
 
-    public boolean isDecoded() {
-        return decoded;
-    }
-
-    public void setDecoded(boolean decoded) {
-        this.decoded = decoded;
-    }
 }

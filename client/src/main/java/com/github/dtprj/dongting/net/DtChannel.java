@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -201,41 +202,34 @@ class DtChannel implements PbCallback {
             return false;
         }
 
-        boolean copy;
-        int decode;//0 not decode, 1 use io buffer decode, 2 use copy buffer decode
-        if (decoder.decodeInIoThread()) {
-            if (decoder.supportHalfPacket()) {
-                copy = false;
-                decode = 1;
-            } else {
-                if (start && end) {
-                    // full frame
-                    copy = false;
-                    decode = 1;
-                } else {
-                    copy = true;
-                    decode = end ? 2 : 0;
-                }
-            }
-        } else {
-            copy = true;
-            decode = 0;
-        }
-        if (copy) {
-            copyBuffer(buf, fieldLen, start, end);
-        }
+        boolean decodeInIoThread = decoder.decodeInIoThread();
+        boolean useIoBufferDecode = decodeInIoThread && decoder.supportHalfPacket();
         try {
-            if (decode == 1) {
+            if (useIoBufferDecode) {
                 Object o = decoder.decode(processContext, buf, fieldLen, start, end);
                 if (end) {
                     frame.setBody(o);
-                    frame.setDecoded(true);
                 }
-            } else if (decode == 2) {
-                Object result = decoder.decode(processContext, (ByteBuffer) frame.getBody(),
-                        fieldLen, true, true);
-                frame.setBody(result);
-                frame.setDecoded(true);
+            } else {
+                if (decodeInIoThread) {
+                    if (start && end) {
+                        Object o = decoder.decode(processContext, buf, fieldLen, true, true);
+                        frame.setBody(o);
+                    } else {
+                        ByteBuffer copyBuffer = copyBuffer(buf, fieldLen, start, end);
+                        if (end) {
+                            try {
+                                Object result = decoder.decode(processContext, copyBuffer,
+                                        fieldLen, false, true);
+                                frame.setBody(result);
+                            } finally {
+                                workerStatus.getHeapPool().release(copyBuffer);
+                            }
+                        }
+                    }
+                } else {
+                    copyBuffer(buf, fieldLen, start, end);
+                }
             }
         } catch (Throwable e) {
             processIoDecodeFail(e);
@@ -293,11 +287,11 @@ class DtChannel implements PbCallback {
         }
     }
 
-    private void copyBuffer(ByteBuffer buf, int fieldLen, boolean start, boolean end) {
+    private ByteBuffer copyBuffer(ByteBuffer buf, int fieldLen, boolean start, boolean end) {
         ByteBuffer body;
         ReadFrame frame = this.frame;
         if (start) {
-            body = ByteBuffer.allocate(fieldLen);
+            body = workerStatus.getHeapPool().borrow(fieldLen);
             frame.setBody(body);
         } else {
             body = (ByteBuffer) frame.getBody();
@@ -306,6 +300,7 @@ class DtChannel implements PbCallback {
         if (end) {
             body.flip();
         }
+        return body;
     }
 
     private void processIoDecodeFail(Throwable e) {
@@ -357,8 +352,13 @@ class DtChannel implements PbCallback {
             int currentReadFrameSize = this.currentReadFrameSize;
             // TODO can we eliminate this CAS operation?
             long bytesAfterAdd = bytes.addAndGet(currentReadFrameSize);
+            ByteBuffer bufferNeedRelease = null;
+            if (!p.getDecoder().decodeInIoThread()) {
+                bufferNeedRelease = (ByteBuffer) req.getBody();
+            }
             if (bytesAfterAdd < nioConfig.getMaxInBytes()) {
                 try {
+
                     // TODO use custom thread pool?
                     p.getExecutor().submit(new ProcessInBizThreadTask(
                             req, p, currentReadFrameSize, this, bytes));
@@ -368,6 +368,9 @@ class DtChannel implements PbCallback {
                     writeErrorInIoThread(req, CmdCodes.FLOW_CONTROL,
                             "max incoming request: " + nioConfig.getMaxInRequests());
                     bytes.addAndGet(-currentReadFrameSize);
+                    if (bufferNeedRelease != null) {
+                        workerStatus.getHeapPool().release(bufferNeedRelease);
+                    }
                 }
             } else {
                 log.debug("pendingBytes({})>maxInBytes({}), write response code FLOW_CONTROL to client",
@@ -375,6 +378,9 @@ class DtChannel implements PbCallback {
                 writeErrorInIoThread(req, CmdCodes.FLOW_CONTROL,
                         "max incoming request bytes: " + nioConfig.getMaxInBytes());
                 bytes.addAndGet(-currentReadFrameSize);
+                if (bufferNeedRelease != null) {
+                    workerStatus.getHeapPool().release(bufferNeedRelease);
+                }
             }
         }
     }
@@ -405,11 +411,17 @@ class DtChannel implements PbCallback {
                 try {
                     ReqProcessor processor = this.processor;
                     Decoder decoder = processor.getDecoder();
-                    if (!req.isDecoded()) {
+                    if (!processor.getDecoder().decodeInIoThread()) {
                         ByteBuffer bodyBuffer = (ByteBuffer) req.getBody();
                         if (bodyBuffer != null) {
-                            Object o = decoder.decode(null, bodyBuffer, bodyBuffer.remaining(), true, true);
-                            req.setBody(o);
+                            try {
+                                Object o = decoder.decode(null, bodyBuffer, bodyBuffer.remaining(), true, true);
+                                req.setBody(o);
+                            } finally {
+                                WorkerStatus ws = dtc.getWorkerStatus();
+                                ReleaseBufferTask t = new ReleaseBufferTask(ws.getHeapPool(), bodyBuffer);
+                                ws.getIoQueue().scheduleFromBizThread(t);
+                            }
                         }
                     }
                     decodeSuccess = true;
@@ -486,6 +498,10 @@ class DtChannel implements PbCallback {
         return closed;
     }
 
+    public WorkerStatus getWorkerStatus() {
+        return workerStatus;
+    }
+
     public void close() {
         if (closed) {
             return;
@@ -504,5 +520,22 @@ class DtChannel implements PbCallback {
     // for unit test
     ReadFrame getFrame() {
         return frame;
+    }
+}
+
+
+@SuppressWarnings("FieldMayBeFinal")
+class ReleaseBufferTask implements Runnable {
+    private SimpleByteBufferPool pool;
+    private ByteBuffer buffer;
+
+    public ReleaseBufferTask(SimpleByteBufferPool pool, ByteBuffer buffer) {
+        this.pool = pool;
+        this.buffer = buffer;
+    }
+
+    @Override
+    public void run() {
+        pool.release(buffer);
     }
 }
