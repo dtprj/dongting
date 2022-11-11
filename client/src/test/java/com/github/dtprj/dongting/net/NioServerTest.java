@@ -94,11 +94,7 @@ public class NioServerTest {
 
     @AfterEach
     public void teardown() {
-        try {
-            server.stop();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        server.stop();
     }
 
     @Test

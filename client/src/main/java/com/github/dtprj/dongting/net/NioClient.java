@@ -164,6 +164,14 @@ public class NioClient extends NioNet {
         shutdownBizExecutor(timeout);
     }
 
+    @Override
+    protected void forceStop() {
+        log.warn("force stop begin");
+        forceStopWorker(worker);
+        shutdownBizExecutor(new DtTime());
+        log.warn("force stop done");
+    }
+
     public CopyOnWriteArrayList<Peer> getPeers() {
         return peers;
     }

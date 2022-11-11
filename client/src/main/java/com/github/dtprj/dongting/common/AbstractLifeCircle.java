@@ -44,15 +44,20 @@ public abstract class AbstractLifeCircle implements LifeCircle {
     public final synchronized void stop() {
         if (status == LifeStatus.stopped) {
             return;
-        }
-        if (status == LifeStatus.running) {
+        } else if (status == LifeStatus.running) {
             status = LifeStatus.stopping;
             doStop();
             status = LifeStatus.stopped;
+        } else if (status == LifeStatus.starting) {
+            forceStop();
         } else {
             throw new IllegalStateException("error state: " + status);
         }
     }
 
     protected abstract void doStop();
+
+    protected void forceStop() {
+        throw new IllegalStateException("error state: " + status);
+    }
 }

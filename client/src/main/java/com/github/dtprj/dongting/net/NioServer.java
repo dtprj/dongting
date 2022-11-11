@@ -131,7 +131,7 @@ public class NioServer extends NioNet implements Runnable {
     @Override
     public void doStop() {
         DtTime timeout = new DtTime(config.getCloseTimeoutMillis(), TimeUnit.MILLISECONDS);
-        stop = true;
+        stopAcceptThread();
         if (selector != null) {
             selector.wakeup();
         }
@@ -166,6 +166,39 @@ public class NioServer extends NioNet implements Runnable {
             }
         }
         shutdownBizExecutor(timeout);
+    }
+
+    private void stopAcceptThread() {
+        stop = true;
+        try {
+            acceptThread.join(100);
+        } catch (InterruptedException e) {
+            ThreadUtils.restoreInterruptStatus();
+        }
+    }
+
+    @Override
+    protected void forceStop() {
+        log.warn("force stop begin");
+        if (acceptThread.isAlive()) {
+            stopAcceptThread();
+            for (NioWorker worker : workers) {
+                forceStopWorker(worker);
+            }
+        } else {
+            if (ssc != null && ssc.isOpen()) {
+                try {
+                    if (selector != null) {
+                        selector.close();
+                    }
+                    ssc.close();
+                } catch (IOException e) {
+                    log.error("", e);
+                }
+            }
+        }
+        shutdownBizExecutor(new DtTime());
+        log.warn("force stop done");
     }
 
     public static class PingProcessor extends ReqProcessor {
