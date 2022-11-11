@@ -89,7 +89,6 @@ public class NioServerTest {
                 return new BizByteBufferDecoder();
             }
         });
-        server.start();
     }
 
     @AfterEach
@@ -100,6 +99,7 @@ public class NioServerTest {
     @Test
     public void simpleTest() throws Exception {
         setupServer(null);
+        server.start();
         simpleTest(1000, 0, 5000, null);
     }
 
@@ -166,6 +166,7 @@ public class NioServerTest {
     @Test
     public void multiClientTest() throws Exception {
         setupServer(null);
+        server.start();
         final int threads = 200;
         AtomicInteger fail = new AtomicInteger(0);
         Thread[] ts = new Thread[threads];
@@ -190,12 +191,14 @@ public class NioServerTest {
     @Test
     public void clientReadBlockTest() throws Exception {
         setupServer(null);
+        server.start();
         simpleTest(10, 100, 1024 * 1024, null);
     }
 
     @Test
     public void clientSlowWriteTest() throws Exception {
         setupServer(null);
+        server.start();
         Random r = new Random();
         simpleTest(100, 2, 4096, (out, data) -> {
             try {
@@ -253,6 +256,7 @@ public class NioServerTest {
     @Test
     public void badCommandTest() throws Exception {
         setupServer(null);
+        server.start();
         Socket s = new Socket("127.0.0.1", PORT);
         try {
             s.setSoTimeout(1000);
@@ -295,6 +299,7 @@ public class NioServerTest {
             c.setMaxInBytes(10000);
         });
         server.register(50000, new SleepPingProcessor(50));
+        server.start();
         {
             InvokeThread t1 = new InvokeThread(100);
             InvokeThread t2 = new InvokeThread(100);
@@ -364,6 +369,7 @@ public class NioServerTest {
                 };
             }
         });
+        server.start();
         Socket s = new Socket("127.0.0.1", PORT);
         try {
             s.setSoTimeout(1000);
@@ -431,6 +437,7 @@ public class NioServerTest {
                 return ByteBufferDecoder.INSTANCE;
             }
         });
+        server.start();
 
         Socket s = new Socket("127.0.0.1", PORT);
         try {
@@ -472,36 +479,19 @@ public class NioServerTest {
     @Test
     public void testThreadNotMatch(){
         // processor run in io thread, but decoder.decodeInIoThread() == false
-        NioServerConfig c = new NioServerConfig();
-        c.setPort(PORT);
-        server = new NioServer(c);
+        setupServer(null);
         ReqProcessor badProcessor =  threadNotMatchProcessor();
         assertThrows(DtException.class, () -> server.register(10005, badProcessor, null));
         server.start();
-        assertThrows(DtException.class, () -> server.register(10005, badProcessor, null));
     }
 
     @Test
     public void testThreadNotMatch2() {
         // processor run in io thread, but decoder.decodeInIoThread() == false
-        NioServerConfig c = new NioServerConfig();
-        c.setPort(PORT);
-        c.setBizThreads(0);
-        server = new NioServer(c);
+        setupServer(c -> c.setBizThreads(0));
         ReqProcessor badProcessor = threadNotMatchProcessor();
         server.register(10005, badProcessor);
         assertThrows(DtException.class, () -> server.start());
     }
 
-    @Test
-    public void testThreadNotMatch3() {
-        // processor run in io thread, but decoder.decodeInIoThread() == false
-        NioServerConfig c = new NioServerConfig();
-        c.setPort(PORT);
-        c.setBizThreads(0);
-        server = new NioServer(c);
-        ReqProcessor badProcessor = threadNotMatchProcessor();
-        server.start();
-        assertThrows(DtException.class, () -> server.register(10005, badProcessor));
-    }
 }

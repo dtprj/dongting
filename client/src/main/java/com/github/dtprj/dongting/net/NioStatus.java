@@ -15,7 +15,8 @@
  */
 package com.github.dtprj.dongting.net;
 
-import java.util.concurrent.ConcurrentHashMap;
+import com.carrotsearch.hppc.IntObjectHashMap;
+
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -23,11 +24,19 @@ import java.util.concurrent.atomic.AtomicLong;
  * @author huangli
  */
 class NioStatus {
-    private final ConcurrentHashMap<Integer, ReqProcessor> processors = new ConcurrentHashMap<>();
+    private final IntObjectHashMap<ReqProcessor> processors = new IntObjectHashMap<>();
     private final AtomicLong inReqBytes = new AtomicLong();
     private Semaphore requestSemaphore;
 
-    public ConcurrentHashMap<Integer, ReqProcessor> getProcessors() {
+    public ReqProcessor getProcessor(int cmd) {
+        return processors.get(cmd);
+    }
+
+    public void registerProcessor(int cmd, ReqProcessor processor) {
+        processors.put(cmd, processor);
+    }
+
+    public IntObjectHashMap<ReqProcessor> getProcessors() {
         return processors;
     }
 

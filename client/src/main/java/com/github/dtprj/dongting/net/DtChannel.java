@@ -270,7 +270,7 @@ class DtChannel implements PbCallback {
             }
             ReqProcessor processorForRequest = this.processorForRequest;
             if (processorForRequest == null) {
-                processorForRequest = nioStatus.getProcessors().get(frame.getCommand());
+                processorForRequest = nioStatus.getProcessor(frame.getCommand());
                 if (processorForRequest == null) {
                     log.warn("command {} is not support", frame.getCommand());
                     writeErrorInIoThread(frame, CmdCodes.COMMAND_NOT_SUPPORT, null);

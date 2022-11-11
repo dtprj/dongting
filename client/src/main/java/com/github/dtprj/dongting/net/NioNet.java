@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtThreadFactory;
@@ -24,7 +25,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.nio.ByteBuffer;
-import java.util.Map;
+import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -54,13 +55,7 @@ public abstract class NioNet extends AbstractLifeCircle {
      */
     public void register(int cmd, ReqProcessor processor) {
         processor.setUseDefaultExecutor(true);
-        if (status == LifeStatus.running) {
-            if (bizExecutor == null && !processor.getDecoder().decodeInIoThread()) {
-                throwThreadNotMatch(cmd);
-            }
-            processor.setExecutor(bizExecutor);
-        }
-        nioStatus.getProcessors().put(cmd, processor);
+        nioStatus.registerProcessor(cmd, processor);
     }
 
     /**
@@ -71,7 +66,7 @@ public abstract class NioNet extends AbstractLifeCircle {
             throwThreadNotMatch(cmd);
         }
         processor.setExecutor(executorService);
-        nioStatus.getProcessors().put(cmd, processor);
+        nioStatus.registerProcessor(cmd, processor);
     }
 
     private void throwThreadNotMatch(int cmd) {
@@ -141,14 +136,16 @@ public abstract class NioNet extends AbstractLifeCircle {
                     new DtThreadFactory(config.getName() + "Biz", false));
         }
         // so register method can be invoked before or after start
-        for (Map.Entry<Integer, ReqProcessor> en : nioStatus.getProcessors().entrySet()) {
-            ReqProcessor p = en.getValue();
+        Iterator<IntObjectCursor<ReqProcessor>> it = nioStatus.getProcessors().iterator();
+        while (it.hasNext()) {
+            IntObjectCursor<ReqProcessor> en = it.next();
+            ReqProcessor p = en.value;
             if (p.isUseDefaultExecutor()) {
                 if (bizExecutor != null) {
                     p.setExecutor(bizExecutor);
                 } else {
                     if (!p.getDecoder().decodeInIoThread()) {
-                        throwThreadNotMatch(en.getKey());
+                        throwThreadNotMatch(en.key);
                     }
                 }
             }
