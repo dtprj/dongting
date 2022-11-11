@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
+import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtThreadFactory;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.ThreadUtils;
@@ -23,6 +24,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.nio.ByteBuffer;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -52,15 +54,29 @@ public abstract class NioNet extends AbstractLifeCircle {
      */
     public void register(int cmd, ReqProcessor processor) {
         processor.setUseDefaultExecutor(true);
-        if (bizExecutor != null) {
+        if (status == LifeStatus.running) {
+            if (bizExecutor == null && !processor.getDecoder().decodeInIoThread()) {
+                throwThreadNotMatch(cmd);
+            }
             processor.setExecutor(bizExecutor);
         }
         nioStatus.getProcessors().put(cmd, processor);
     }
 
+    /**
+     * register processor use specific executor, if executorService is null, run in io thread.
+     */
     public void register(int cmd, ReqProcessor processor, ExecutorService executorService) {
+        if (executorService == null && !processor.getDecoder().decodeInIoThread()) {
+            throwThreadNotMatch(cmd);
+        }
         processor.setExecutor(executorService);
         nioStatus.getProcessors().put(cmd, processor);
+    }
+
+    private void throwThreadNotMatch(int cmd) {
+        throw new DtException("the processor should run in io thread," +
+                " but decoder.decodeInIoThread==false. command=" + cmd);
     }
 
     protected CompletableFuture<ReadFrame> sendRequest(NioWorker worker, Peer peer, WriteFrame request,
@@ -123,9 +139,17 @@ public abstract class NioNet extends AbstractLifeCircle {
             bizExecutor = new ThreadPoolExecutor(config.getBizThreads(), config.getBizThreads(),
                     1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(config.getMaxInRequests()),
                     new DtThreadFactory(config.getName() + "Biz", false));
-            for (ReqProcessor p : nioStatus.getProcessors().values()) {
-                if (p.isUseDefaultExecutor()) {
+        }
+        // so register method can be invoked before or after start
+        for (Map.Entry<Integer, ReqProcessor> en : nioStatus.getProcessors().entrySet()) {
+            ReqProcessor p = en.getValue();
+            if (p.isUseDefaultExecutor()) {
+                if (bizExecutor != null) {
                     p.setExecutor(bizExecutor);
+                } else {
+                    if (!p.getDecoder().decodeInIoThread()) {
+                        throwThreadNotMatch(en.getKey());
+                    }
                 }
             }
         }

@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.common.CloseUtil;
+import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.pb.DtFrame;
@@ -38,6 +39,7 @@ import java.util.function.Consumer;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * @author huangli
@@ -81,7 +83,7 @@ public class NioServerTest {
         server = new NioServer(c);
         server.register(CMD_IO_PING, new NioServer.PingProcessor(), null);
         server.register(CMD_BIZ_PING1, new NioServer.PingProcessor());
-        server.register(CMD_BIZ_PING2, new NioServer.PingProcessor(){
+        server.register(CMD_BIZ_PING2, new NioServer.PingProcessor() {
             @Override
             public Decoder getDecoder() {
                 return new BizByteBufferDecoder();
@@ -92,7 +94,11 @@ public class NioServerTest {
 
     @AfterEach
     public void teardown() {
-        server.stop();
+        try {
+            server.stop();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     @Test
@@ -430,19 +436,6 @@ public class NioServerTest {
             }
         });
 
-        // processor run in io thread, but decoder.decodeInIoThread() == false
-        server.register(10005, new NioServer.PingProcessor() {
-            @Override
-            public Decoder getDecoder() {
-                return new ByteBufferDecoder() {
-                    @Override
-                    public boolean decodeInIoThread() {
-                        return false;
-                    }
-                };
-            }
-        }, null);
-
         Socket s = new Socket("127.0.0.1", PORT);
         try {
             s.setSoTimeout(1000);
@@ -457,7 +450,6 @@ public class NioServerTest {
             assertEquals(CmdCodes.BIZ_ERROR, invoke(++seq, 10002, 5000, in, out));
             assertEquals(CmdCodes.BIZ_ERROR, invoke(++seq, 10003, 5000, in, out));
             assertEquals(CmdCodes.BIZ_ERROR, invoke(++seq, 10004, 5000, in, out));
-            assertEquals(CmdCodes.SUCCESS, invoke(++seq, 10005, 5000, in, out));
 
             assertEquals(CmdCodes.SUCCESS, invoke(++seq, CMD_IO_PING, 5000, in, out));
             assertEquals(CmdCodes.SUCCESS, invoke(++seq, CMD_BIZ_PING1, 5000, in, out));
@@ -465,5 +457,55 @@ public class NioServerTest {
         } finally {
             CloseUtil.close(s);
         }
+    }
+
+    private ReqProcessor threadNotMatchProcessor() {
+        return new NioServer.PingProcessor() {
+            @Override
+            public Decoder getDecoder() {
+                return new ByteBufferDecoder() {
+                    @Override
+                    public boolean decodeInIoThread() {
+                        return false;
+                    }
+                };
+            }
+        };
+    }
+
+    @Test
+    public void testThreadNotMatch(){
+        // processor run in io thread, but decoder.decodeInIoThread() == false
+        NioServerConfig c = new NioServerConfig();
+        c.setPort(PORT);
+        server = new NioServer(c);
+        ReqProcessor badProcessor =  threadNotMatchProcessor();
+        assertThrows(DtException.class, () -> server.register(10005, badProcessor, null));
+        server.start();
+        assertThrows(DtException.class, () -> server.register(10005, badProcessor, null));
+    }
+
+    @Test
+    public void testThreadNotMatch2() {
+        // processor run in io thread, but decoder.decodeInIoThread() == false
+        NioServerConfig c = new NioServerConfig();
+        c.setPort(PORT);
+        c.setBizThreads(0);
+        server = new NioServer(c);
+        ReqProcessor badProcessor = threadNotMatchProcessor();
+        server.register(10005, badProcessor);
+        assertThrows(DtException.class, () -> server.start());
+    }
+
+    @Test
+    public void testThreadNotMatch3() {
+        // processor run in io thread, but decoder.decodeInIoThread() == false
+        NioServerConfig c = new NioServerConfig();
+        c.setPort(PORT);
+        c.setBizThreads(0);
+        server = new NioServer(c);
+        ReqProcessor badProcessor = threadNotMatchProcessor();
+        server.start();
+        assertThrows(DtException.class, () -> server.register(10005, badProcessor));
     }
 }

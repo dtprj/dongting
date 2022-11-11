@@ -337,11 +337,6 @@ class DtChannel implements PbCallback {
         if (p.getExecutor() == null) {
             WriteFrame resp;
             try {
-                if (!req.isDecoded() && req.getBody() != null) {
-                    log.warn("not decode, check the processor. {}", req);
-                    ByteBuffer buffer= (ByteBuffer) req.getBody();
-                    req.setBody(p.getDecoder().decode(processContext, buffer, buffer.remaining(), true, true));
-                }
                 resp = p.process(req, processContext);
             } catch (Throwable e) {
                 log.warn("ReqProcessor.process fail", e);
