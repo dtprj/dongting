@@ -26,7 +26,9 @@ import java.util.Objects;
 // TODO byte buffer pool need optimise
 public class SimpleByteBufferPool extends ByteBufferPool {
     public static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0).asReadOnlyBuffer();
+    public static final int DEFAULT_THRESHOLD = 128;
 
+    private final int threshold;
     private final int[] bufSizes;
     private final ByteBuffer[][] bufferStacks;
     private final long[][] returnTimes;
@@ -53,11 +55,15 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
     public static final long DEFAULT_TIME_OUT_MILLIS = 10 * 1000;
 
-    public SimpleByteBufferPool(boolean direct) {
-        this(direct, DEFAULT_BUF_SIZE, DEFAULT_MIN_COUNT, DEFAULT_MAX_COUNT, 10 * 1000);
+    public SimpleByteBufferPool(boolean direct, int threshold) {
+        this(direct, threshold, DEFAULT_BUF_SIZE, DEFAULT_MIN_COUNT, DEFAULT_MAX_COUNT, 10 * 1000);
     }
 
-    public SimpleByteBufferPool(boolean direct, int[] bufSizes, int[] minCount, int[] maxCount, long timeoutMillis) {
+    public SimpleByteBufferPool(boolean direct) {
+        this(direct, DEFAULT_THRESHOLD, DEFAULT_BUF_SIZE, DEFAULT_MIN_COUNT, DEFAULT_MAX_COUNT, 10 * 1000);
+    }
+
+    public SimpleByteBufferPool(boolean direct, int threshold, int[] bufSizes, int[] minCount, int[] maxCount, long timeoutMillis) {
         Objects.requireNonNull(bufSizes);
         Objects.requireNonNull(minCount);
         Objects.requireNonNull(maxCount);
@@ -86,6 +92,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
             }
         }
         this.direct = direct;
+        this.threshold = threshold;
         this.bufSizes = bufSizes;
         this.timeoutNanos = timeoutMillis * 1000 * 1000;
         bufferStacks = new ByteBuffer[bufSizes.length][];
@@ -106,6 +113,9 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
     @Override
     public ByteBuffer borrow(int requestSize) {
+        if (requestSize < threshold) {
+            return allocate(requestSize);
+        }
         int[] bufSizes = this.bufSizes;
         int stackCount = bufSizes.length;
         int stackIndex = 0;
@@ -140,10 +150,14 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
     @Override
     public void release(ByteBuffer buf) {
+        int capacity = buf.capacity();
+        if (capacity < threshold) {
+            return;
+        }
         int[] bufSizes = this.bufSizes;
         int stackCount = bufSizes.length;
         int stackIndex = 0;
-        for (int capacity = buf.capacity(); stackIndex < stackCount; stackIndex++) {
+        for (; stackIndex < stackCount; stackIndex++) {
             if (bufSizes[stackIndex] == capacity) {
                 break;
             }

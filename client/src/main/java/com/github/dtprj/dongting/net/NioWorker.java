@@ -97,10 +97,12 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             this.ioQueue = new IoQueue((ArrayList<DtChannel>) channels, pendingOutgoingRequests);
         }
 
-        this.directPool = new SimpleByteBufferPool(true, config.getBufPoolSize(), config.getBufPoolMinCount(),
+        this.directPool = new SimpleByteBufferPool(true, SimpleByteBufferPool.DEFAULT_THRESHOLD,
+                config.getBufPoolSize(), config.getBufPoolMinCount(),
                 config.getBufPoolMaxCount(), config.getBufPoolTimeout());
 
-        this.heapPool = new SimpleByteBufferPool(false, config.getBufPoolSize(), config.getBufPoolMinCount(),
+        this.heapPool = new SimpleByteBufferPool(false, SimpleByteBufferPool.DEFAULT_THRESHOLD,
+                config.getBufPoolSize(), config.getBufPoolMinCount(),
                 config.getBufPoolMaxCount(), config.getBufPoolTimeout());
 
         workerStatus = new WorkerStatus();

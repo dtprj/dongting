@@ -21,21 +21,21 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testConstructor() {
-        assertThrows(NullPointerException.class, () -> new SimpleByteBufferPool(false, new int[]{1024, 2048},
+        assertThrows(NullPointerException.class, () -> new SimpleByteBufferPool(false, 0, new int[]{1024, 2048},
                 new int[]{10, 10}, null, 1000));
-        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(false, new int[]{1024, 2048},
+        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(false, 0, new int[]{1024, 2048},
                 new int[]{10, 10}, new int[]{10}, 1000));
 
-        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(false, new int[]{-1},
+        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(false, 0, new int[]{-1},
                 new int[]{10}, new int[]{10}, 1000));
-        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(false, new int[]{1024},
+        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(false, 0, new int[]{1024},
                 new int[]{-1}, new int[]{10}, 1000));
-        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(false, new int[]{1024},
+        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(false, 0, new int[]{1024},
                 new int[]{10}, new int[]{-1}, 1000));
-        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(false, new int[]{1024},
+        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(false, 0, new int[]{1024},
                 new int[]{10}, new int[]{10}, -1));
 
-        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(false, new int[]{1024, 2048},
+        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(false, 0, new int[]{1024, 2048},
                 new int[]{10, 10}, new int[]{9, 9}, 1000));
     }
 
@@ -43,8 +43,8 @@ public class SimpleByteBufferPoolTest {
     public void testBorrow1() {
         SimpleByteBufferPool pool = new SimpleByteBufferPool(false);
         ByteBuffer buf1 = pool.borrow(1);
-        ByteBuffer buf2 = pool.borrow(2);
-        assertEquals(1024, buf1.capacity());
+        ByteBuffer buf2 = pool.borrow(1024);
+        assertEquals(1, buf1.capacity());
         assertEquals(1024, buf2.capacity());
         assertNotSame(buf1, buf2);
         pool.release(buf1);
@@ -64,7 +64,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testBorrow3() {
-        SimpleByteBufferPool pool = new SimpleByteBufferPool(false, new int[]{1024, 2048},
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(false, 0, new int[]{1024, 2048},
                 new int[]{10, 10}, new int[]{10, 10}, 1000);
         ByteBuffer buf1 = pool.borrow(4000);
         pool.release(buf1);
@@ -73,7 +73,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testRelease() {
-        SimpleByteBufferPool pool = new SimpleByteBufferPool(false, new int[]{1024, 2048},
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(false, 0, new int[]{1024, 2048},
                 new int[]{1, 1}, new int[]{2, 2}, 1000);
         ByteBuffer buf1 = pool.borrow(1024);
         ByteBuffer buf2 = pool.borrow(1024);
@@ -87,7 +87,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testClean1() {
-        SimpleByteBufferPool pool = new SimpleByteBufferPool(false, new int[]{1024, 2048},
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(false, 0, new int[]{1024, 2048},
                 new int[]{1, 1}, new int[]{2, 2}, 1000);
         long time = System.nanoTime();
         pool.refreshCurrentNanos(time);
@@ -107,8 +107,27 @@ public class SimpleByteBufferPoolTest {
     }
 
     @Test
+    public void testThreshold() {
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(false, 2048);
+        ByteBuffer buf = pool.borrow(2047);
+        assertEquals(2047, buf.capacity());
+        pool.release(buf);
+        assertNotSame(buf, pool.borrow(2047));
+
+        buf = pool.borrow(2048);
+        assertEquals(2048, buf.capacity());
+        pool.release(buf);
+        assertSame(buf, pool.borrow(2048));
+
+        buf = pool.borrow(2049);
+        assertEquals(4096, buf.capacity());
+        pool.release(buf);
+        assertSame(buf, pool.borrow(4096));
+    }
+
+    @Test
     public void testClean2() {
-        SimpleByteBufferPool pool = new SimpleByteBufferPool(false, new int[]{1024, 2048},
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(false, 0, new int[]{1024, 2048},
                 new int[]{1, 1}, new int[]{3, 3}, 1000);
         long time = System.nanoTime();
         pool.refreshCurrentNanos(time);
@@ -139,7 +158,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testClean3() {
-        SimpleByteBufferPool pool = new SimpleByteBufferPool(false, new int[]{1024, 2048},
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(false, 0, new int[]{1024, 2048},
                 new int[]{1, 1}, new int[]{2, 2}, 1000);
         long time = System.nanoTime();
         pool.refreshCurrentNanos(time);
@@ -164,7 +183,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testClean4() {
-        SimpleByteBufferPool pool = new SimpleByteBufferPool(false, new int[]{1024, 2048},
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(false, 0, new int[]{1024, 2048},
                 new int[]{0, 0}, new int[]{2, 2}, 1000);
         long time = System.nanoTime();
         pool.refreshCurrentNanos(time);
