@@ -54,6 +54,9 @@ public abstract class NioNet extends AbstractLifeCircle {
      * register processor use default executor.
      */
     public void register(int cmd, ReqProcessor processor) {
+        if (status != LifeStatus.not_start) {
+            throw new DtException("processor should register before start");
+        }
         processor.setUseDefaultExecutor(true);
         nioStatus.registerProcessor(cmd, processor);
     }
@@ -62,6 +65,9 @@ public abstract class NioNet extends AbstractLifeCircle {
      * register processor use specific executor, if executorService is null, run in io thread.
      */
     public void register(int cmd, ReqProcessor processor, ExecutorService executorService) {
+        if (status != LifeStatus.not_start) {
+            throw new DtException("processor should register before start");
+        }
         if (executorService == null && !processor.getDecoder().decodeInIoThread()) {
             throwThreadNotMatch(cmd);
         }

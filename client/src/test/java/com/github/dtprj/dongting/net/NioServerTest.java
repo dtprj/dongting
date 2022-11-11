@@ -494,4 +494,11 @@ public class NioServerTest {
         assertThrows(DtException.class, () -> server.start());
     }
 
+    @Test
+    public void testRegisterAfterStart() {
+        setupServer(null);
+        server.start();
+        assertThrows(DtException.class, () -> server.register(12345, new NioServer.PingProcessor()));
+        assertThrows(DtException.class, () -> server.register(12345, new NioServer.PingProcessor(), null));
+    }
 }
