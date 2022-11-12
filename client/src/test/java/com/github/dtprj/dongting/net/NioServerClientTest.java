@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.buf.RefCountByteBuffer;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.CloseUtil;
 import com.github.dtprj.dongting.common.DtTime;
@@ -28,7 +29,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -56,18 +56,20 @@ public class NioServerClientTest {
     }
 
     private static void invoke(NioClient client) throws Exception {
-        ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
         ByteBuffer buf = ByteBuffer.allocate(3000);
         new Random().nextBytes(buf.array());
+        ByteBufferWriteFrame wf = new ByteBufferWriteFrame(buf);
         wf.setCommand(Commands.CMD_PING);
         wf.setFrameType(FrameType.TYPE_REQ);
-        wf.setBody(buf);
-        CompletableFuture<ReadFrame> f = client.sendRequest(wf, ByteBufferDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS));
+
+        CompletableFuture<ReadFrame> f = client.sendRequest(wf, new ByteBufferDecoder(0), new DtTime(1, TimeUnit.SECONDS));
         ReadFrame rf = f.get(1, TimeUnit.SECONDS);
         assertEquals(wf.getSeq(), rf.getSeq());
         assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
-        assertArrayEquals(buf.array(), ((ByteBuffer) rf.getBody()).array());
+        RefCountByteBuffer rc = (RefCountByteBuffer) rf.getBody();
+        assertEquals(buf, rc.getBuffer());
+        rc.release();
     }
 
     @Test
@@ -106,20 +108,18 @@ public class NioServerClientTest {
             }
 
             // dup seq test
-            ByteBufferWriteFrame wf1 = new ByteBufferWriteFrame();
+            ByteBufferWriteFrame wf1 = new ByteBufferWriteFrame(SimpleByteBufferPool.EMPTY_BUFFER);
             wf1.setCommand(12345);
             wf1.setFrameType(FrameType.TYPE_REQ);
-            wf1.setBody(SimpleByteBufferPool.EMPTY_BUFFER);
 
-            ByteBufferWriteFrame wf2 = new ByteBufferWriteFrame();
+            ByteBufferWriteFrame wf2 = new ByteBufferWriteFrame(SimpleByteBufferPool.EMPTY_BUFFER);
             wf2.setCommand(12345);
             wf2.setFrameType(FrameType.TYPE_REQ);
-            wf2.setBody(SimpleByteBufferPool.EMPTY_BUFFER);
 
-            CompletableFuture<ReadFrame> f1 = client.sendRequest(wf1, ByteBufferDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS));
+            CompletableFuture<ReadFrame> f1 = client.sendRequest(wf1, new ByteBufferDecoder(0), new DtTime(1, TimeUnit.SECONDS));
             Thread.sleep(10);// wait dispatch thread
             dtc.seq = dtc.seq - 1;
-            CompletableFuture<ReadFrame> f2 = client.sendRequest(wf2, ByteBufferDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS));
+            CompletableFuture<ReadFrame> f2 = client.sendRequest(wf2, new ByteBufferDecoder(0), new DtTime(1, TimeUnit.SECONDS));
             ReadFrame rf1 = f1.get(1, TimeUnit.SECONDS);
             Assertions.assertEquals(CmdCodes.SUCCESS, rf1.getRespCode());
 
@@ -160,12 +160,11 @@ public class NioServerClientTest {
             client.start();
             client.waitStart();
 
-            ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
+            ByteBufferWriteFrame wf = new ByteBufferWriteFrame(SimpleByteBufferPool.EMPTY_BUFFER);
             wf.setCommand(2000);
             wf.setFrameType(FrameType.TYPE_REQ);
-            wf.setBody(SimpleByteBufferPool.EMPTY_BUFFER);
             CompletableFuture<ReadFrame> f = client.sendRequest(wf,
-                    ByteBufferDecoder.INSTANCE, new DtTime(1, TimeUnit.MILLISECONDS));
+                    new ByteBufferDecoder(0), new DtTime(1, TimeUnit.MILLISECONDS));
             f.get(1, TimeUnit.SECONDS);
             fail();
         } catch (ExecutionException e) {

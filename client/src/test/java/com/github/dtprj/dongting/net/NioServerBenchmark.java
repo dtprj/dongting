@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.bench.BenchBase;
+import com.github.dtprj.dongting.buf.RefCountByteBuffer;
 import com.github.dtprj.dongting.common.DtTime;
 
 import java.nio.ByteBuffer;
@@ -71,20 +72,23 @@ public class NioServerBenchmark extends BenchBase {
     public void test(int threadIndex) {
         try {
             final DtTime timeout = new DtTime(TIMEOUT, TimeUnit.MILLISECONDS);
-            ByteBufferWriteFrame req = new ByteBufferWriteFrame();
+            ByteBufferWriteFrame req = new ByteBufferWriteFrame(ByteBuffer.wrap(data));
             req.setFrameType(FrameType.TYPE_REQ);
             req.setCommand(Commands.CMD_PING);
-            req.setBody(ByteBuffer.wrap(data));
-            CompletableFuture<ReadFrame> f = client.sendRequest(req, ByteBufferDecoder.INSTANCE, timeout);
+            CompletableFuture<ReadFrame> f = client.sendRequest(req, new ByteBufferDecoder(128), timeout);
 
             if (SYNC) {
-                f.get();
+                ReadFrame rf = f.get();
                 successCount.increment();
+                RefCountByteBuffer rc = (RefCountByteBuffer) rf.getBody();
+                rc.release();
             } else {
                 f.handle((result, ex) -> {
                     if (ex != null) {
                         failCount.increment();
                     } else {
+                        RefCountByteBuffer rc = (RefCountByteBuffer) result.getBody();
+                        rc.release();
                         successCount.increment();
                     }
                     return null;

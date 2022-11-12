@@ -71,4 +71,7 @@ public class RefCountByteBuffer {
         }
     }
 
+    public ByteBuffer getBuffer() {
+        return buffer;
+    }
 }

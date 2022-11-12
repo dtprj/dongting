@@ -15,13 +15,20 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.buf.RefCountByteBuffer;
+
 import java.nio.ByteBuffer;
 
 /**
  * @author huangli
  */
 public class ByteBufferDecoder extends Decoder {
-    public static final ByteBufferDecoder INSTANCE = new ByteBufferDecoder();
+
+    private final int usePoolThreshold;
+
+    public ByteBufferDecoder(int usePoolThreshold) {
+        this.usePoolThreshold = usePoolThreshold;
+    }
 
     @Override
     public boolean supportHalfPacket() {
@@ -30,18 +37,19 @@ public class ByteBufferDecoder extends Decoder {
 
     @Override
     public Object decode(ProcessContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
-        ByteBuffer result;
+        RefCountByteBuffer result;
         if (start) {
-            result = ByteBuffer.allocate(bodyLen);
+            result = RefCountByteBuffer.createPlain(context.getIoHeapBufferPool(), bodyLen, usePoolThreshold);
             if (!end) {
                 context.setIoDecodeStatus(result);
             }
         } else {
-            result = (ByteBuffer) context.getIoDecodeStatus();
+            result = (RefCountByteBuffer) context.getIoDecodeStatus();
         }
-        result.put(buffer);
+        ByteBuffer bb = result.getBuffer();
+        bb.put(buffer);
         if (end) {
-            result.flip();
+            bb.flip();
             return result;
         }
         return null;

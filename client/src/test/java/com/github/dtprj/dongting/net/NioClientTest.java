@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.buf.RefCountByteBuffer;
 import com.github.dtprj.dongting.common.CloseUtil;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.TestUtil;
@@ -208,19 +209,18 @@ public class NioClientTest {
     }
 
     private static void sendSync(int maxBodySize, NioClient client, long timeoutMillis) throws Exception {
-        sendSync(maxBodySize, client, timeoutMillis, ByteBufferDecoder.INSTANCE);
+        sendSync(maxBodySize, client, timeoutMillis, new ByteBufferDecoder(maxBodySize / 2));
         sendSync(maxBodySize, client, timeoutMillis, new BizByteBufferDecoder());
         sendSync(maxBodySize, client, timeoutMillis, new IoFullPackByteBufferDecoder());
     }
 
     private static void sendSync(int maxBodySize, NioClient client, long timeoutMillis, Decoder decoder) throws Exception {
-        ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
-        wf.setCommand(Commands.CMD_PING);
-        wf.setFrameType(FrameType.TYPE_REQ);
         ThreadLocalRandom r = ThreadLocalRandom.current();
         byte[] bs = new byte[r.nextInt(maxBodySize)];
         r.nextBytes(bs);
-        wf.setBody(ByteBuffer.wrap(bs));
+        ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.wrap(bs));
+        wf.setCommand(Commands.CMD_PING);
+        wf.setFrameType(FrameType.TYPE_REQ);
 
         CompletableFuture<ReadFrame> f = client.sendRequest(wf,
                 decoder, new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
@@ -230,51 +230,62 @@ public class NioClientTest {
         assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
         assertEquals("msg", rf.getMsg());
-        ByteBuffer buf = (ByteBuffer) rf.getBody();
         if (bs.length != 0) {
-            assertEquals(ByteBuffer.wrap(bs), buf);
+            if (rf.getBody() instanceof RefCountByteBuffer) {
+                RefCountByteBuffer rc = (RefCountByteBuffer) rf.getBody();
+                ByteBuffer buf = rc == null ? null : rc.getBuffer();
+                assertEquals(ByteBuffer.wrap(bs), buf);
+                rc.release();
+            } else {
+                ByteBuffer buf = (ByteBuffer) rf.getBody();
+                assertEquals(ByteBuffer.wrap(bs), buf);
+            }
         } else {
-            assertNull(buf);
+            assertNull(rf.getBody());
         }
     }
 
     private static void sendSyncByPeer(int maxBodySize, NioClient client,
                                        Peer peer, long timeoutMillis) throws Exception {
-        ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
-        wf.setCommand(Commands.CMD_PING);
-        wf.setFrameType(FrameType.TYPE_REQ);
         byte[] bs = new byte[ThreadLocalRandom.current().nextInt(maxBodySize)];
         ThreadLocalRandom.current().nextBytes(bs);
-        wf.setBody(ByteBuffer.wrap(bs));
+        ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.wrap(bs));
+        wf.setCommand(Commands.CMD_PING);
+        wf.setFrameType(FrameType.TYPE_REQ);
+
         CompletableFuture<ReadFrame> f = client.sendRequest(peer, wf,
-                ByteBufferDecoder.INSTANCE, new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
+                new ByteBufferDecoder(maxBodySize / 2), new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
         ReadFrame rf = f.get(5000, TimeUnit.MILLISECONDS);
         assertEquals(wf.getSeq(), rf.getSeq());
         assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
         if (bs.length != 0) {
-            assertEquals(ByteBuffer.wrap(bs), rf.getBody());
+            RefCountByteBuffer rc = (RefCountByteBuffer) rf.getBody();
+            assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
+            rc.release();
         } else {
             assertNull(rf.getBody());
         }
     }
 
     private static CompletableFuture<Void> sendAsync(int maxBodySize, NioClient client, long timeoutMillis) {
-        ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
-        wf.setCommand(Commands.CMD_PING);
-        wf.setFrameType(FrameType.TYPE_REQ);
         ThreadLocalRandom r = ThreadLocalRandom.current();
         byte[] bs = new byte[r.nextInt(maxBodySize)];
         r.nextBytes(bs);
-        wf.setBody(ByteBuffer.wrap(bs));
+        ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.wrap(bs));
+        wf.setCommand(Commands.CMD_PING);
+        wf.setFrameType(FrameType.TYPE_REQ);
+
         CompletableFuture<ReadFrame> f = client.sendRequest(wf,
-                ByteBufferDecoder.INSTANCE, new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
+                new ByteBufferDecoder(maxBodySize / 2), new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
         return f.thenApply(rf -> {
             assertEquals(wf.getSeq(), rf.getSeq());
             assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
             assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
             if (bs.length != 0) {
-                assertEquals(ByteBuffer.wrap(bs), rf.getBody());
+                RefCountByteBuffer rc = (RefCountByteBuffer) rf.getBody();
+                assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
+                rc.release();
             } else {
                 assertNull(rf.getBody());
             }
@@ -541,10 +552,9 @@ public class NioClientTest {
 
             {
                 // decoder fail in biz thread
-                ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
+                ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(1));
                 wf.setCommand(Commands.CMD_PING);
                 wf.setFrameType(FrameType.TYPE_REQ);
-                wf.setBody(ByteBuffer.allocate(1));
 
                 Decoder decoder = new Decoder() {
                     @Override
@@ -568,10 +578,9 @@ public class NioClientTest {
             }
             {
                 // decoder fail in io thread
-                ByteBufferWriteFrame wf = new ByteBufferWriteFrame();
+                ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(1));
                 wf.setCommand(Commands.CMD_PING);
                 wf.setFrameType(FrameType.TYPE_REQ);
-                wf.setBody(ByteBuffer.allocate(1));
                 Decoder decoder = new Decoder() {
                     @Override
                     public boolean decodeInIoThread() {

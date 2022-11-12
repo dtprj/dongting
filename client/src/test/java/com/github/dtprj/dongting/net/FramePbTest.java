@@ -45,13 +45,12 @@ public class FramePbTest {
     private void testEncode0(int frameType, int command, int seq, int respCode,String msg, int bodySize) throws Exception {
         byte[] bs = new byte[bodySize];
         new Random().nextBytes(bs);
-        ByteBufferWriteFrame f = new ByteBufferWriteFrame();
+        ByteBufferWriteFrame f = new ByteBufferWriteFrame(ByteBuffer.wrap(bs));
         f.setFrameType(frameType);
         f.setCommand(command);
         f.setSeq(seq);
         f.setRespCode(respCode);
         f.setMsg(msg);
-        f.setBody(ByteBuffer.wrap(bs));
         ByteBuffer buf = ByteBuffer.allocate(f.estimateSize());
         f.encode(buf);
         buf.flip();

@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.buf.ByteBufferPool;
+
 import java.net.SocketAddress;
 import java.nio.channels.SocketChannel;
 
@@ -28,6 +30,7 @@ public class ProcessContext {
     // this decoder can only be used in io thread
     private StringFieldDecoder ioThreadStrDecoder;
     private Object ioDecodeStatus;
+    private ByteBufferPool ioHeapBufferPool;
 
     public SocketChannel getChannel() {
         return channel;
@@ -70,5 +73,13 @@ public class ProcessContext {
 
     public void setIoDecodeStatus(Object ioDecodeStatus) {
         this.ioDecodeStatus = ioDecodeStatus;
+    }
+
+    public ByteBufferPool getIoHeapBufferPool() {
+        return ioHeapBufferPool;
+    }
+
+    public void setIoHeapBufferPool(ByteBufferPool ioHeapBufferPool) {
+        this.ioHeapBufferPool = ioHeapBufferPool;
     }
 }

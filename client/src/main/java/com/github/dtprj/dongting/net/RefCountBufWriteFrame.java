@@ -15,42 +15,33 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.pb.PbUtil;
+import com.github.dtprj.dongting.buf.RefCountByteBuffer;
+import com.github.dtprj.dongting.common.DtException;
 
 import java.nio.ByteBuffer;
 
 /**
  * @author huangli
  */
-public class ByteBufferWriteFrame extends WriteFrame {
-    private ByteBuffer body;
-    private int bodySize = -1;
+@SuppressWarnings("FieldMayBeFinal")
+public class RefCountBufWriteFrame extends ByteBufferWriteFrame {
+    private RefCountByteBuffer refCountByteBuffer;
+    private boolean encodeInvoked;
 
-    public ByteBufferWriteFrame(ByteBuffer body) {
-        this.body = body;
-    }
-
-    @Override
-    protected int bodySize() {
-        int bodySize = this.bodySize;
-        if (bodySize == -1) {
-            ByteBuffer body = this.body;
-            bodySize = body == null ? 0 : body.remaining();
-            this.bodySize = bodySize;
-        }
-        return bodySize;
+    public RefCountBufWriteFrame(RefCountByteBuffer refCountByteBuffer) {
+        super(refCountByteBuffer == null ? null : refCountByteBuffer.getBuffer());
+        this.refCountByteBuffer = refCountByteBuffer;
     }
 
     @Override
     protected void encodeBody(ByteBuffer buf) {
-        int bs = bodySize();
-        if (bs > 0) {
-            PbUtil.writeTag(buf, PbUtil.TYPE_LENGTH_DELIMITED, Frame.IDX_BODY);
-            PbUtil.writeVarUnsignedInt32(buf, bs);
-            body.mark();
-            buf.put(body);
-            body.reset();
-            body = null;
+        if (encodeInvoked) {
+            throw new DtException("encode method has been invoked");
         }
+        super.encodeBody(buf);
+        if (refCountByteBuffer != null) {
+            refCountByteBuffer.release();
+        }
+        encodeInvoked = true;
     }
 }

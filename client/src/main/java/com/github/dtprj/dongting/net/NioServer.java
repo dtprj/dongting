@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.buf.RefCountByteBuffer;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.ThreadUtils;
 import com.github.dtprj.dongting.log.BugLog;
@@ -24,7 +25,6 @@ import com.github.dtprj.dongting.log.DtLogs;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
-import java.nio.ByteBuffer;
 import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -203,20 +203,21 @@ public class NioServer extends NioNet implements Runnable {
 
     public static class PingProcessor extends ReqProcessor {
 
+        private static final ByteBufferDecoder DECODER = new ByteBufferDecoder(128);
+
         public PingProcessor() {
         }
 
         @Override
         public WriteFrame process(ReadFrame frame, ProcessContext context) {
-            ByteBufferWriteFrame resp = new ByteBufferWriteFrame();
-            resp.setBody((ByteBuffer) frame.getBody());
+            RefCountBufWriteFrame resp = new RefCountBufWriteFrame((RefCountByteBuffer) frame.getBody());
             resp.setRespCode(CmdCodes.SUCCESS);
             return resp;
         }
 
         @Override
         public Decoder getDecoder() {
-            return ByteBufferDecoder.INSTANCE;
+            return DECODER;
         }
 
     }

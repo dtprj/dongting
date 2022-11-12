@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.log.DtLog;
@@ -84,6 +85,8 @@ class DtChannel implements PbCallback {
         processContext.setRemoteAddr(socketChannel.getRemoteAddress());
         processContext.setLocalAddr(socketChannel.getLocalAddress());
         processContext.setIoThreadStrDecoder(strDecoder);
+        processContext.setIoHeapBufferPool(new ByteBufferPoolReleaseInOtherThread(
+                workerStatus.getHeapPool(), workerStatus.getIoQueue()));
         this.processContext = processContext;
     }
 
@@ -386,7 +389,7 @@ class DtChannel implements PbCallback {
     }
 
     private void writeErrorInIoThread(Frame req, int code, String msg) {
-        ByteBufferWriteFrame resp = new ByteBufferWriteFrame();
+        ByteBufferWriteFrame resp = new ByteBufferWriteFrame(null);
         resp.setCommand(req.getCommand());
         resp.setFrameType(FrameType.TYPE_RESP);
         resp.setSeq(req.getSeq());
@@ -396,7 +399,7 @@ class DtChannel implements PbCallback {
     }
 
     public void writeBizErrorInBizThread(Frame req, String msg) {
-        ByteBufferWriteFrame resp = new ByteBufferWriteFrame();
+        ByteBufferWriteFrame resp = new ByteBufferWriteFrame(null);
         resp.setCommand(req.getCommand());
         resp.setFrameType(FrameType.TYPE_RESP);
         resp.setSeq(req.getSeq());
@@ -525,6 +528,26 @@ class ProcessInBizThreadTask implements Runnable {
         } finally {
             inBytes.addAndGet(-frameSize);
         }
+    }
+}
+
+class ByteBufferPoolReleaseInOtherThread extends ByteBufferPool {
+    private final SimpleByteBufferPool pool;
+    private final IoQueue ioQueue;
+
+    ByteBufferPoolReleaseInOtherThread(SimpleByteBufferPool pool, IoQueue ioQueue) {
+        this.pool = pool;
+        this.ioQueue = ioQueue;
+    }
+
+    @Override
+    public ByteBuffer borrow(int requestSize) {
+        return pool.borrow(requestSize);
+    }
+
+    @Override
+    public void release(ByteBuffer buf) {
+        ioQueue.scheduleFromBizThread(new ReleaseBufferTask(pool, buf));
     }
 }
 

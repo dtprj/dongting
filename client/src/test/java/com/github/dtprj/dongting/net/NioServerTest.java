@@ -83,7 +83,16 @@ public class NioServerTest {
         server = new NioServer(c);
         server.register(CMD_IO_PING, new NioServer.PingProcessor(), null);
         server.register(CMD_BIZ_PING1, new NioServer.PingProcessor());
-        server.register(CMD_BIZ_PING2, new NioServer.PingProcessor() {
+        server.register(CMD_BIZ_PING2, new ReqProcessor() {
+
+            @Override
+            public WriteFrame process(ReadFrame frame, ProcessContext context) {
+                ByteBuffer buf = (ByteBuffer) frame.getBody();
+                ByteBufferWriteFrame resp = new ByteBufferWriteFrame(buf);
+                resp.setRespCode(CmdCodes.SUCCESS);
+                return resp;
+            }
+
             @Override
             public Decoder getDecoder() {
                 return new BizByteBufferDecoder();
@@ -401,7 +410,7 @@ public class NioServerTest {
 
             @Override
             public Decoder getDecoder() {
-                return ByteBufferDecoder.INSTANCE;
+                return new ByteBufferDecoder(0);
             }
         }, null);
         server.register(10002, new ReqProcessor() {
@@ -412,7 +421,7 @@ public class NioServerTest {
 
             @Override
             public Decoder getDecoder() {
-                return ByteBufferDecoder.INSTANCE;
+                return new ByteBufferDecoder(0);
             }
         });
         server.register(10003, new ReqProcessor() {
@@ -423,7 +432,7 @@ public class NioServerTest {
 
             @Override
             public Decoder getDecoder() {
-                return ByteBufferDecoder.INSTANCE;
+                return new ByteBufferDecoder(0);
             }
         }, null);
         server.register(10004, new ReqProcessor() {
@@ -434,7 +443,7 @@ public class NioServerTest {
 
             @Override
             public Decoder getDecoder() {
-                return ByteBufferDecoder.INSTANCE;
+                return new ByteBufferDecoder(0);
             }
         });
         server.start();
@@ -466,7 +475,7 @@ public class NioServerTest {
         return new NioServer.PingProcessor() {
             @Override
             public Decoder getDecoder() {
-                return new ByteBufferDecoder() {
+                return new ByteBufferDecoder(0) {
                     @Override
                     public boolean decodeInIoThread() {
                         return false;
