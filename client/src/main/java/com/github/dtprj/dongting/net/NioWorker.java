@@ -54,6 +54,13 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private static final int SS_PRE_STOP = 1;
     private static final int SS_STOP = 2;
 
+    private int statMarkReadCount;
+    private int statMarkWriteCount;
+    private int statWriteCount;
+    private long statWriteBytes;
+    private int statReadCount;
+    private long statReadBytes;
+
     private final String workerName;
     private final Thread thread;
     private final NioStatus nioStatus;
@@ -162,7 +169,13 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             for (DtChannel dtc : channels) {
                 closeChannel0(dtc.getChannel());
             }
-            log.info("worker thread finished: {}", workerName);
+            log.info("worker thread [{}] finished.\n" +
+                            "markReadCount={}, markWriteCount={}\n" +
+                            "readCount={}, readBytes={}, avgReadBytes={}\n" +
+                            "writeCount={}, writeBytes={}, avgWriteBytes={}",
+                    workerName, statMarkReadCount, statMarkWriteCount,
+                    statReadCount, statReadBytes, statReadBytes / statReadCount,
+                    statWriteCount, statWriteBytes, statWriteBytes / statWriteCount);
         } catch (Exception e) {
             log.error("close error. {}", e);
         }
@@ -228,6 +241,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             stage = 2;
             DtChannel dtc = (DtChannel) key.attachment();
             if (key.isReadable()) {
+                statReadCount++;
                 prepareReadBuffer(roundTime);
                 int readCount = sc.read(readBuffer);
                 if (readCount == -1) {
@@ -235,6 +249,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     closeChannel(key);
                     return false;
                 }
+                statReadBytes += readCount;
                 readBuffer.flip();
                 dtc.afterRead(stopStatus == SS_RUNNING, readBuffer);
             }
@@ -245,11 +260,16 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 if (buf != null) {
                     hasDataToWrite = true;
                     subQueue.setWriting(true);
+                    int x = buf.remaining();
                     sc.write(buf);
+                    x = x - buf.remaining();
+                    statWriteBytes += x;
+                    statWriteCount++;
                 } else {
                     // no data to write
                     subQueue.setWriting(false);
                     key.interestOps(SelectionKey.OP_READ);
+                    statMarkReadCount++;
                 }
             }
         } catch (Exception e) {
@@ -350,7 +370,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         return dtc;
     }
 
-    private static class RegWriteRunner implements Runnable {
+    private  class RegWriteRunner implements Runnable {
         SelectionKey key;
         RegWriteRunner(SelectionKey key) {
             this.key = key;
@@ -358,6 +378,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
         @Override
         public void run() {
+            statMarkWriteCount++;
             key.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
         }
     }
