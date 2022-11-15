@@ -65,7 +65,7 @@ public class StringFieldDecoderTest {
         assertEquals(new String(bytes, 0, buf.capacity()), s);
     }
 
-    public void testHalf1() {
+    private void testHalf1() {
         buf.clear();
         buf.limit(10);
         assertNull(decoder.decodeUTF8(buf, 100, true, false));
@@ -85,7 +85,7 @@ public class StringFieldDecoderTest {
         assertEquals(new String(bytes, 0, buf.capacity()), s);
     }
 
-    public void testHalf2() {
+    private void testHalf2() {
         buf.clear();
         buf.limit(10);
         assertNull(decoder.decodeUTF8(buf, 100, true, false));

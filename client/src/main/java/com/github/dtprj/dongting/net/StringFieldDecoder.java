@@ -33,7 +33,6 @@ public class StringFieldDecoder {
     private final SimpleByteBufferPool pool;
 
     private ByteBuffer bufferFromPool;
-    private int index;
 
     StringFieldDecoder(SimpleByteBufferPool pool) {
         this.pool = pool;
@@ -46,41 +45,21 @@ public class StringFieldDecoder {
             buf.get(threadLocalBuffer, 0, fieldLen);
             return new String(threadLocalBuffer, 0, fieldLen, StandardCharsets.UTF_8);
         }
-        byte[] buffer;
-        int index;
-        ByteBuffer bufferFromPool = null;
+        ByteBuffer bufferFromPool;
         if (start) {
-            index = 0;
-            if (fieldLen <= THREAD_LOCAL_BUFFER_SIZE) {
-                buffer = this.threadLocalBuffer;
-            } else {
-                bufferFromPool = pool.borrow(fieldLen);
-                buffer = bufferFromPool.array();
-                this.bufferFromPool = bufferFromPool;
-            }
+            bufferFromPool = pool.borrow(fieldLen);
         } else {
-            index = this.index;
-            if (fieldLen <= THREAD_LOCAL_BUFFER_SIZE) {
-                buffer = this.threadLocalBuffer;
-            } else {
-                bufferFromPool = this.bufferFromPool;
-                buffer = bufferFromPool.array();
-            }
+            bufferFromPool = this.bufferFromPool;
         }
-        int remain = buf.remaining();
-        buf.get(buffer, index, remain);
-        index += remain;
+        bufferFromPool.put(buf);
 
         if (end) {
-            String s = new String(buffer, 0, index, StandardCharsets.UTF_8);
-            if (bufferFromPool != null) {
-                pool.release(bufferFromPool);
-                this.bufferFromPool = null;
-            }
-            this.index = 0;
+            String s = new String(bufferFromPool.array(), 0, bufferFromPool.position(), StandardCharsets.UTF_8);
+            pool.release(bufferFromPool);
+            this.bufferFromPool = null;
             return s;
         } else {
-            this.index = index;
+            this.bufferFromPool = bufferFromPool;
             return null;
         }
     }
