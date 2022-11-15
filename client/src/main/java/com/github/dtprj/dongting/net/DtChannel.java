@@ -278,9 +278,20 @@ class DtChannel implements PbCallback {
                     log.warn("command {} is not support", frame.getCommand());
                     writeErrorInIoThread(frame, CmdCodes.COMMAND_NOT_SUPPORT, null);
                     return null;
-                } else {
-                    this.processorForRequest = processorForRequest;
                 }
+                if (processorForRequest.getExecutor() != null) {
+                    // TODO can we eliminate this CAS operation?
+                    long bytesAfterAdd = nioStatus.getInReqBytes().addAndGet(this.currentReadFrameSize);
+                    if (bytesAfterAdd > nioConfig.getMaxInBytes()) {
+                        log.debug("pendingBytes({})>maxInBytes({}), write response code FLOW_CONTROL to client",
+                                bytesAfterAdd, nioConfig.getMaxInBytes());
+                        writeErrorInIoThread(frame, CmdCodes.FLOW_CONTROL,
+                                "max incoming request bytes: " + nioConfig.getMaxInBytes());
+                        nioStatus.getInReqBytes().addAndGet(-currentReadFrameSize);
+                        return null;
+                    }
+                }
+                this.processorForRequest = processorForRequest;
             }
             if (returnDecoder) {
                 return processorForRequest.getDecoder();
@@ -353,33 +364,19 @@ class DtChannel implements PbCallback {
         } else {
             AtomicLong bytes = nioStatus.getInReqBytes();
             int currentReadFrameSize = this.currentReadFrameSize;
-            // TODO can we eliminate this CAS operation?
-            long bytesAfterAdd = bytes.addAndGet(currentReadFrameSize);
-            ByteBuffer bufferNeedRelease = null;
+            ByteBuffer bufferNeedRelease = null; // copy buffer need to release
             if (!p.getDecoder().decodeInIoThread()) {
                 bufferNeedRelease = (ByteBuffer) req.getBody();
             }
-            if (bytesAfterAdd < nioConfig.getMaxInBytes()) {
-                try {
-
-                    // TODO use custom thread pool?
-                    p.getExecutor().submit(new ProcessInBizThreadTask(
-                            req, p, currentReadFrameSize, this, bytes));
-                } catch (RejectedExecutionException e) {
-                    log.debug("catch RejectedExecutionException, write response code FLOW_CONTROL to client, maxInRequests={}",
-                            nioConfig.getMaxInRequests());
-                    writeErrorInIoThread(req, CmdCodes.FLOW_CONTROL,
-                            "max incoming request: " + nioConfig.getMaxInRequests());
-                    bytes.addAndGet(-currentReadFrameSize);
-                    if (bufferNeedRelease != null) {
-                        workerStatus.getHeapPool().release(bufferNeedRelease);
-                    }
-                }
-            } else {
-                log.debug("pendingBytes({})>maxInBytes({}), write response code FLOW_CONTROL to client",
-                        bytesAfterAdd, nioConfig.getMaxInBytes());
+            try {
+                // TODO use custom thread pool?
+                p.getExecutor().submit(new ProcessInBizThreadTask(
+                        req, p, currentReadFrameSize, this, bytes));
+            } catch (RejectedExecutionException e) {
+                log.debug("catch RejectedExecutionException, write response code FLOW_CONTROL to client, maxInRequests={}",
+                        nioConfig.getMaxInRequests());
                 writeErrorInIoThread(req, CmdCodes.FLOW_CONTROL,
-                        "max incoming request bytes: " + nioConfig.getMaxInBytes());
+                        "max incoming request: " + nioConfig.getMaxInRequests());
                 bytes.addAndGet(-currentReadFrameSize);
                 if (bufferNeedRelease != null) {
                     workerStatus.getHeapPool().release(bufferNeedRelease);
