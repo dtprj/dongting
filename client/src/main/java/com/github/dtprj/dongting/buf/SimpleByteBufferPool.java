@@ -286,32 +286,26 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         sb.deleteCharAt(sb.length() - 1);
         sb.append("\nborrow ");
 
-        for (int i = 0; i < bufferTypeCount; i++) {
-            sb.append(f1.format(statBorrowCount[i]));
-            sb.append('(');
-            if (statBorrowCount[i] == 0) {
-                sb.append("0%");
-            } else {
-                sb.append(f2.format((double) statBorrowHitCount[i] / statBorrowCount[i]));
-            }
-            sb.append("), ");
-        }
-        sb.deleteCharAt(sb.length() - 1);
-        sb.deleteCharAt(sb.length() - 1);
+        appendDetail(bufferTypeCount, sb, f1, f2, statBorrowCount, statBorrowHitCount);
         sb.append("\nrelease ");
+        appendDetail(bufferTypeCount, sb, f1, f2, statReleaseCount, statReleaseHitCount);
+        return sb.toString();
+    }
+
+    private void appendDetail(int bufferTypeCount, StringBuilder sb, DecimalFormat f1, NumberFormat f2,
+                              long[] count, long[] hitCount) {
         for (int i = 0; i < bufferTypeCount; i++) {
-            sb.append(f1.format(statReleaseCount[i]));
+            sb.append(f1.format(count[i]));
             sb.append('(');
-            if (statReleaseCount[i] == 0) {
+            if (count[i] == 0) {
                 sb.append("0%");
             } else {
-                sb.append(f2.format((double) statReleaseHitCount[i] / statReleaseCount[i]));
+                sb.append(f2.format((double) hitCount[i] / count[i]));
             }
             sb.append("), ");
         }
         sb.deleteCharAt(sb.length() - 1);
         sb.deleteCharAt(sb.length() - 1);
-        return sb.toString();
     }
 
 }
