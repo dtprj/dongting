@@ -176,6 +176,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     workerName, statMarkReadCount, statMarkWriteCount,
                     statReadCount, statReadBytes, statReadBytes / statReadCount,
                     statWriteCount, statWriteBytes, statWriteBytes / statWriteCount);
+            if (log.isDebugEnabled()) {
+                log.debug("direct pool stat: {}\nheap pool stat: {}", directPool.formatStat(), heapPool.formatStat());
+            }
         } catch (Exception e) {
             log.error("close error. {}", e);
         }

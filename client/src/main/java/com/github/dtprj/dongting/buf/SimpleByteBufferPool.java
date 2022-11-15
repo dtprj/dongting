@@ -16,6 +16,8 @@
 package com.github.dtprj.dongting.buf;
 
 import java.nio.ByteBuffer;
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
 import java.util.Objects;
 
 /**
@@ -38,6 +40,13 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     private final long timeoutNanos;
     private final boolean direct;
     private final int[] minCount;
+
+    private final long[] statBorrowCount;
+    private final long[] statBorrowHitCount;
+    private long statBorrowTooSmallCount;
+    private long statBorrowTooLargeCount;
+    private final long[] statReleaseCount;
+    private final long[] statReleaseHitCount;
 
     private long currentNanos = System.nanoTime();
 
@@ -67,7 +76,8 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         Objects.requireNonNull(bufSizes);
         Objects.requireNonNull(minCount);
         Objects.requireNonNull(maxCount);
-        if (bufSizes.length != minCount.length || bufSizes.length != maxCount.length) {
+        int bufferTypeCount = bufSizes.length;
+        if (bufferTypeCount != minCount.length || bufferTypeCount != maxCount.length) {
             throw new IllegalArgumentException();
         }
         if (timeoutMillis <= 0) {
@@ -95,16 +105,21 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         this.threshold = threshold;
         this.bufSizes = bufSizes;
         this.timeoutNanos = timeoutMillis * 1000 * 1000;
-        bufferStacks = new ByteBuffer[bufSizes.length][];
-        returnTimes = new long[bufSizes.length][];
-        for (int i = 0; i < bufSizes.length; i++) {
+        bufferStacks = new ByteBuffer[bufferTypeCount][];
+        returnTimes = new long[bufferTypeCount][];
+        for (int i = 0; i < bufferTypeCount; i++) {
             bufferStacks[i] = new ByteBuffer[maxCount[i]];
             returnTimes[i] = new long[maxCount[i]];
         }
-        bottomIndices = new int[bufSizes.length];
-        topIndices = new int[bufSizes.length];
-        stackSizes = new int[bufSizes.length];
+        bottomIndices = new int[bufferTypeCount];
+        topIndices = new int[bufferTypeCount];
+        stackSizes = new int[bufferTypeCount];
         this.minCount = minCount;
+
+        this.statBorrowCount = new long[bufferTypeCount];
+        this.statBorrowHitCount = new long[bufferTypeCount];
+        this.statReleaseCount = new long[bufferTypeCount];
+        this.statReleaseHitCount = new long[bufferTypeCount];
     }
 
     private ByteBuffer allocate(int size) {
@@ -114,6 +129,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     @Override
     public ByteBuffer borrow(int requestSize) {
         if (requestSize < threshold) {
+            statBorrowTooSmallCount++;
             return allocate(requestSize);
         }
         int[] bufSizes = this.bufSizes;
@@ -127,13 +143,17 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
         if (stackIndex >= stackCount) {
             // request buffer too large, allocate without pool
+            statBorrowTooLargeCount++;
             return allocate(requestSize);
         }
+        statBorrowCount[stackIndex]++;
+
         int[] stackSizes = this.stackSizes;
         if (stackSizes[stackIndex] == 0) {
             // no buffer available
             return allocate(bufSizes[stackIndex]);
         }
+        statBorrowHitCount[stackIndex]++;
         int[] topIndices = this.topIndices;
         ByteBuffer[] bufferStack = this.bufferStacks[stackIndex];
         int stackCapacity = bufferStack.length;
@@ -166,6 +186,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
             // buffer too large, release it without pool
             return;
         }
+        statReleaseCount[stackIndex]++;
         int[] stackSizes = this.stackSizes;
         ByteBuffer[] bufferStack = this.bufferStacks[stackIndex];
         int stackCapacity = bufferStack.length;
@@ -173,6 +194,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
             // too many buffer in pool
             return;
         }
+        statReleaseHitCount[stackIndex]++;
         int[] topIndices = this.topIndices;
         int topIndex = topIndices[stackIndex];
 
@@ -221,4 +243,75 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     public void refreshCurrentNanos(long nanos) {
         this.currentNanos = nanos;
     }
+
+    public String formatStat() {
+        StringBuilder sb = new StringBuilder(512);
+        DecimalFormat f1 = new DecimalFormat("#,###");
+        NumberFormat f2 = NumberFormat.getPercentInstance();
+        f2.setMaximumFractionDigits(1);
+        long totalBorrow = 0;
+        long totalBorrowHit = 0;
+        long totalRelease = 0;
+        long totalReleaseHit = 0;
+        int bufferTypeCount = bufSizes.length;
+        for (int i = 0; i < bufferTypeCount; i++) {
+            totalBorrow += statBorrowCount[i];
+            totalRelease += statReleaseCount[i];
+            totalBorrowHit += statBorrowHitCount[i];
+            totalReleaseHit += statReleaseHitCount[i];
+        }
+        sb.append("borrow ").append(f1.format(totalBorrow)).append('(');
+        if (totalBorrow == 0) {
+            sb.append("0%");
+        } else {
+            sb.append(f2.format((double) totalBorrowHit / totalBorrow));
+        }
+        sb.append("), release ").append(f1.format(totalRelease)).append('(');
+        if (totalRelease == 0) {
+            sb.append("0%");
+        } else {
+            sb.append(f2.format((double) totalReleaseHit / totalRelease));
+        }
+        sb.append("), borrow too small ").append(f1.format(statBorrowTooSmallCount))
+                .append(", borrow too large ").append(f1.format(statBorrowTooLargeCount))
+                .append('\n');
+        for (int s : bufSizes) {
+            if (s < 1024) {
+                sb.append(s);
+            } else {
+                sb.append(s / 1024).append("KB, ");
+            }
+        }
+        sb.deleteCharAt(sb.length() - 1);
+        sb.deleteCharAt(sb.length() - 1);
+        sb.append("\nborrow ");
+
+        for (int i = 0; i < bufferTypeCount; i++) {
+            sb.append(f1.format(statBorrowCount[i]));
+            sb.append('(');
+            if (statBorrowCount[i] == 0) {
+                sb.append("0%");
+            } else {
+                sb.append(f2.format((double) statBorrowHitCount[i] / statBorrowCount[i]));
+            }
+            sb.append("), ");
+        }
+        sb.deleteCharAt(sb.length() - 1);
+        sb.deleteCharAt(sb.length() - 1);
+        sb.append("\nrelease ");
+        for (int i = 0; i < bufferTypeCount; i++) {
+            sb.append(f1.format(statReleaseCount[i]));
+            sb.append('(');
+            if (statReleaseCount[i] == 0) {
+                sb.append("0%");
+            } else {
+                sb.append(f2.format((double) statReleaseHitCount[i] / statReleaseCount[i]));
+            }
+            sb.append("), ");
+        }
+        sb.deleteCharAt(sb.length() - 1);
+        sb.deleteCharAt(sb.length() - 1);
+        return sb.toString();
+    }
+
 }
