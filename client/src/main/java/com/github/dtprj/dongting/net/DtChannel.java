@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * @author huangli
  */
-class DtChannel implements PbCallback {
+class DtChannel extends PbCallback {
     private static final DtLog log = DtLogs.getLogger(DtChannel.class);
 
     private final NioStatus nioStatus;

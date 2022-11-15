@@ -20,19 +20,19 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public interface PbCallback {
+public abstract class PbCallback {
 
-    boolean readVarInt(int index, long value);
+    public abstract boolean readVarInt(int index, long value);
 
-    boolean readFixedInt(int index, int value);
+    public abstract boolean readFixedInt(int index, int value);
 
-    boolean readFixedLong(int index, long value);
+    public abstract boolean readFixedLong(int index, long value);
 
-    boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end);
+    public abstract boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end);
 
-    default void begin(int len) {
+    public void begin(int len) {
     }
 
-    default void end(boolean success) {
+    public void end(boolean success) {
     }
 }

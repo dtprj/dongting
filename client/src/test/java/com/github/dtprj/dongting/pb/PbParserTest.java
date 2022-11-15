@@ -20,7 +20,6 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.function.Supplier;
@@ -34,18 +33,18 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 public class PbParserTest {
 
-    static class Callback implements PbCallback {
+    static class Callback extends PbCallback {
 
         private int beginCount;
         private int endSuccessCount;
         private int endFailCount;
 
-        private int f1;
-        private long f2;
-        private String f3;
-        private String f4;
-        private int f5;
-        private long f6;
+        private final int f1;
+        private final long f2;
+        private final String f3;
+        private final String f4;
+        private final int f5;
+        private final long f6;
         private int expectLen;
 
         private int read_f1;
@@ -206,6 +205,7 @@ public class PbParserTest {
             new PbParser(5).parse(callback.buildFrame(), callback);
             fail();
         } catch (PbException e) {
+            // ignore
         }
         assertEquals(0, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -214,7 +214,7 @@ public class PbParserTest {
 
     @Test
     public void testHalfParse() {
-        int steps[] = new int[]{1, 2, 5, 9};
+        int[] steps = new int[]{1, 2, 5, 9};
         for(int step: steps) {
             testHalfParse0(5, step, 0, 0, "1", "2", 0, 0);
             testHalfParse0(5, step, 1, 1, "1", "2", 1, 1);
@@ -251,7 +251,6 @@ public class PbParserTest {
     }
 
     private static void halfParse(int maxStep, PbParser parser, Callback callback, byte[] fullBuffer) {
-        ArrayList<Integer> steps = new ArrayList<>();
         Random r = new Random();
         int len = fullBuffer.length;
         for (int j = 0; j < len; ) {
@@ -259,7 +258,6 @@ public class PbParserTest {
             ByteBuffer buf = ByteBuffer.allocate(c);
             buf.order(ByteOrder.LITTLE_ENDIAN);
             int readCount = Math.min(c, len - j);
-            steps.add(readCount);
             buf.put(fullBuffer, j, readCount);
             buf.flip();
             parser.parse(buf, callback);
@@ -269,7 +267,6 @@ public class PbParserTest {
 
     @Test
     public void testCallbackFail() {
-        PbParser parser = new PbParser(500);
 
         Supplier<Callback> supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000) {
             @Override
