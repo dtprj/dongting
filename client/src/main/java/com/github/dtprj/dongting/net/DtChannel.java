@@ -160,7 +160,7 @@ class DtChannel extends PbCallback {
     }
 
     @Override
-    public boolean readFixedInt(int index, int value) {
+    public boolean readFix32(int index, int value) {
         if (index != Frame.IDX_SEQ) {
             throw new PbException("bad seq index: " + index);
         }
@@ -169,7 +169,7 @@ class DtChannel extends PbCallback {
     }
 
     @Override
-    public boolean readFixedLong(int index, long value) {
+    public boolean readFix64(int index, long value) {
         return false;
     }
 

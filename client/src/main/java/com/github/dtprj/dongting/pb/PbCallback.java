@@ -24,9 +24,9 @@ public abstract class PbCallback {
 
     public abstract boolean readVarInt(int index, long value);
 
-    public abstract boolean readFixedInt(int index, int value);
+    public abstract boolean readFix32(int index, int value);
 
-    public abstract boolean readFixedLong(int index, long value);
+    public abstract boolean readFix64(int index, long value);
 
     public abstract boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end);
 

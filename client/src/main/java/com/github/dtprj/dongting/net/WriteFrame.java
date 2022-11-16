@@ -44,10 +44,10 @@ public abstract class WriteFrame extends Frame {
     public void encode(ByteBuffer buf) {
         int startPos = buf.position();
         buf.position(startPos + 4);
-        PbUtil.writeVarUnsignedInt32(buf, Frame.IDX_TYPE, frameType);
-        PbUtil.writeVarUnsignedInt32(buf, Frame.IDX_COMMAND, command);
-        PbUtil.writeFixed32(buf, Frame.IDX_SEQ, seq);
-        PbUtil.writeVarUnsignedInt32(buf, Frame.IDX_RESP_CODE, respCode);
+        PbUtil.writeUnsignedInt32(buf, Frame.IDX_TYPE, frameType);
+        PbUtil.writeUnsignedInt32(buf, Frame.IDX_COMMAND, command);
+        PbUtil.writeFix32(buf, Frame.IDX_SEQ, seq);
+        PbUtil.writeUnsignedInt32(buf, Frame.IDX_RESP_CODE, respCode);
         PbUtil.writeUTF8(buf, Frame.IDX_MSG, msg);
         encodeBody(buf);
         buf.putInt(startPos, buf.position() - startPos - 4);

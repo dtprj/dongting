@@ -45,18 +45,18 @@ public class PbUtil {
         }
         int value = (index << 3) | type;
 
-        writeVarUnsignedInt32ValueOnly(buf, value);
+        writeUnsignedInt32ValueOnly(buf, value);
     }
 
-    public static void writeVarUnsignedInt32(ByteBuffer buf, int index, int value) {
+    public static void writeUnsignedInt32(ByteBuffer buf, int index, int value) {
         if (value == 0) {
             return;
         }
         writeTag(buf, TYPE_VAR_INT, index);
-        writeVarUnsignedInt32ValueOnly(buf, value);
+        writeUnsignedInt32ValueOnly(buf, value);
     }
 
-    private static void writeVarUnsignedInt32ValueOnly(ByteBuffer buf, int value) {
+    private static void writeUnsignedInt32ValueOnly(ByteBuffer buf, int value) {
         if (value == 0) {
             throw new IllegalArgumentException();
         }
@@ -73,7 +73,7 @@ public class PbUtil {
         }
     }
 
-    public static void writeFixed32(ByteBuffer buf, int index, int value) {
+    public static void writeFix32(ByteBuffer buf, int index, int value) {
         if (value == 0) {
             return;
         }
@@ -81,7 +81,7 @@ public class PbUtil {
         buf.putInt(Integer.reverseBytes(value));
     }
 
-    public static void writeVarUnsignedInt64(ByteBuffer buf, int index, long value) {
+    public static void writeUnsignedInt64(ByteBuffer buf, int index, long value) {
         if (value == 0) {
             return;
         }
@@ -105,7 +105,7 @@ public class PbUtil {
         }
         writeTag(buf, TYPE_LENGTH_DELIMITED, index);
         byte[] bs = value.getBytes(StandardCharsets.UTF_8);
-        writeVarUnsignedInt32ValueOnly(buf, bs.length);
+        writeUnsignedInt32ValueOnly(buf, bs.length);
         buf.put(bs);
     }
 
@@ -115,7 +115,7 @@ public class PbUtil {
         }
         writeTag(buf, TYPE_LENGTH_DELIMITED, index);
         byte[] bs = value.getBytes(StandardCharsets.ISO_8859_1);
-        writeVarUnsignedInt32ValueOnly(buf, bs.length);
+        writeUnsignedInt32ValueOnly(buf, bs.length);
         buf.put(bs);
     }
 
@@ -124,10 +124,10 @@ public class PbUtil {
             throw new IllegalArgumentException(String.valueOf(len));
         }
         writeTag(buf, TYPE_LENGTH_DELIMITED, index);
-        writeVarUnsignedInt32ValueOnly(buf, len);
+        writeUnsignedInt32ValueOnly(buf, len);
     }
 
-    public static int readVarUnsignedInt32(ByteBuffer buf) {
+    public static int readUnsignedInt32(ByteBuffer buf) {
         int bitIndex = 0;
         int value = 0;
         for (int i = 0; i < 5; i++) {
@@ -141,7 +141,7 @@ public class PbUtil {
         throw new PbException("bad protobuf var int input");
     }
 
-    public static long readVarUnsignedInt64(ByteBuffer buf) {
+    public static long readUnsignedInt64(ByteBuffer buf) {
         int bitIndex = 0;
         long value = 0;
         for (int i = 0; i < 10; i++) {

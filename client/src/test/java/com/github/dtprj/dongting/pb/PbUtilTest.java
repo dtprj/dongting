@@ -73,7 +73,7 @@ public class PbUtilTest {
 
     @Test
     public void testWriteUnsignedInt32() {
-        PbUtil.writeVarUnsignedInt32(null, 0, 0);
+        PbUtil.writeUnsignedInt32(null, 0, 0);
         testWriteUnsignedInt32(1);
         testWriteUnsignedInt32(-1);
         testWriteUnsignedInt32(10000);
@@ -98,7 +98,7 @@ public class PbUtilTest {
         assertTrue(len <= 6);
 
         ByteBuffer buf = ByteBuffer.allocate(20);
-        PbUtil.writeVarUnsignedInt32(buf,1, v);
+        PbUtil.writeUnsignedInt32(buf,1, v);
         assertEquals(len, buf.position());
         byte[] actual = new byte[len];
         System.arraycopy(buf.array(), 0, actual, 0, len);
@@ -108,7 +108,7 @@ public class PbUtilTest {
 
     @Test
     public void testWriteUnsignedInt64() {
-        PbUtil.writeVarUnsignedInt64(null, 1, 0);
+        PbUtil.writeUnsignedInt64(null, 1, 0);
         testWriteUnsignedInt64(1);
         testWriteUnsignedInt64(-1);
         testWriteUnsignedInt64(10000);
@@ -143,7 +143,7 @@ public class PbUtilTest {
         assertTrue(len <= 11);
 
         ByteBuffer buf = ByteBuffer.allocate(20);
-        PbUtil.writeVarUnsignedInt64(buf, 2, v);
+        PbUtil.writeUnsignedInt64(buf, 2, v);
         assertEquals(len, buf.position());
         byte[] actual = new byte[len];
         System.arraycopy(buf.array(), 0, actual, 0, len);
@@ -170,15 +170,15 @@ public class PbUtilTest {
 
         ByteBuffer buf = ByteBuffer.allocate(10);
         buf.limit(1);
-        assertEquals(0, PbUtil.readVarUnsignedInt32(buf));
+        assertEquals(0, PbUtil.readUnsignedInt32(buf));
     }
 
     private void testReadUnsignedInt32(int v) {
         ByteBuffer buf = ByteBuffer.allocate(10);
-        PbUtil.writeVarUnsignedInt32(buf, 1, v);
+        PbUtil.writeUnsignedInt32(buf, 1, v);
         buf.flip();
         buf.position(1);
-        int v2 = PbUtil.readVarUnsignedInt32(buf);
+        int v2 = PbUtil.readUnsignedInt32(buf);
         assertEquals(v, v2);
     }
 
@@ -211,15 +211,15 @@ public class PbUtilTest {
 
         ByteBuffer buf = ByteBuffer.allocate(10);
         buf.limit(1);
-        assertEquals(0, PbUtil.readVarUnsignedInt64(buf));
+        assertEquals(0, PbUtil.readUnsignedInt64(buf));
     }
 
     private void testReadUnsignedInt64(long v) {
         ByteBuffer buf = ByteBuffer.allocate(11);
-        PbUtil.writeVarUnsignedInt64(buf, 1, v);
+        PbUtil.writeUnsignedInt64(buf, 1, v);
         buf.flip();
         buf.position(1);
-        long v2 = PbUtil.readVarUnsignedInt64(buf);
+        long v2 = PbUtil.readUnsignedInt64(buf);
         assertEquals(v, v2);
     }
 

@@ -180,14 +180,14 @@ public class PbParserTest {
         }
 
         @Override
-        public boolean readFixedInt(int index, int value) {
+        public boolean readFix32(int index, int value) {
             assertEquals(5, index);
             read_f5 = value;
             return true;
         }
 
         @Override
-        public boolean readFixedLong(int index, long value) {
+        public boolean readFix64(int index, long value) {
             assertEquals(6, index);
             read_f6 = value;
             return true;
@@ -355,7 +355,7 @@ public class PbParserTest {
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000) {
             @Override
-            public boolean readFixedInt(int index, int value) {
+            public boolean readFix32(int index, int value) {
                 return false;
             }
         };
@@ -363,7 +363,7 @@ public class PbParserTest {
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000) {
             @Override
-            public boolean readFixedInt(int index, int value) {
+            public boolean readFix32(int index, int value) {
                 throw new ArrayIndexOutOfBoundsException();
             }
         };

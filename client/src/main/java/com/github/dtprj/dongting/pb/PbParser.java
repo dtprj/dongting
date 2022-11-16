@@ -420,9 +420,9 @@ public class PbParser {
         boolean r;
         try {
             if (len == 4) {
-                r = callback.readFixedInt(this.fieldIndex, (int) value);
+                r = callback.readFix32(this.fieldIndex, (int) value);
             } else {
-                r = callback.readFixedLong(this.fieldIndex, value);
+                r = callback.readFix64(this.fieldIndex, value);
             }
         } catch (Throwable e) {
             log.error("proto buffer parse callback readFixInt()/readFixLong() fail. fieldIndex={}, error={}", this.fieldIndex, e.toString());
