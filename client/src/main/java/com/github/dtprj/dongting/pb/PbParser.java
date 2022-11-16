@@ -15,10 +15,13 @@
  */
 package com.github.dtprj.dongting.pb;
 
+import com.github.dtprj.dongting.common.DtException;
+import com.github.dtprj.dongting.common.ObjUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.nio.ByteBuffer;
+import java.util.Objects;
 
 /**
  * @author huangli
@@ -32,9 +35,12 @@ public class PbParser {
     private static final int STATUS_PARSE_FILED_LEN = 3;
     private static final int STATUS_PARSE_FILED_BODY = 4;
     private static final int STATUS_SKIP_REST = 5;
+
+    private final PbCallback callback;
+
     private final int maxFrame;
 
-    private int status = STATUS_PARSE_PB_LEN;
+    private int status;
 
     private int frameLen;
     // not include first 4 bytes of protobuf len
@@ -46,12 +52,33 @@ public class PbParser {
     private int fieldLen;
     private long tempValue;
 
-    public PbParser(int maxFrame) {
-        this.maxFrame = maxFrame;
+    private PbParser(PbCallback callback, boolean multi, int maxFrameOrPbLen) {
+        Objects.requireNonNull(callback);
+        if (multi) {
+            ObjUtil.checkPositive(maxFrameOrPbLen, "maxFrame");
+            this.callback = callback;
+            this.maxFrame = maxFrameOrPbLen;
+            this.status = STATUS_PARSE_PB_LEN;
+        } else {
+            ObjUtil.checkPositive(maxFrameOrPbLen, "pbLen");
+            this.callback = callback;
+            this.maxFrame = 0;
+            this.frameLen = maxFrameOrPbLen;
+            callBegin(callback, maxFrameOrPbLen);
+        }
     }
 
-    public void parse(ByteBuffer buf, PbCallback callback) {
+    public static PbParser multiParser(PbCallback callback, int maxFrame) {
+        return new PbParser(callback, true, maxFrame);
+    }
+
+    public static PbParser singleParser(PbCallback callback, int pbLen) {
+        return new PbParser(callback, false, pbLen);
+    }
+
+    public void parse(ByteBuffer buf) {
         int remain = buf.remaining();
+        PbCallback callback = this.callback;
         while (remain > 0) {
             switch (this.status) {
                 case STATUS_PARSE_PB_LEN:
@@ -105,6 +132,10 @@ public class PbParser {
     }
 
     private int onStatusParsePbLen(ByteBuffer buf, PbCallback callback, int remain) {
+        if (this.maxFrame == 0) {
+            throw new DtException("single parser can't reuse");
+        }
+
         // read buffer is little endian.
         // however the length field is out of proto buffer data, and it's big endian
         if (pendingBytes == 0 && remain >= 4) {

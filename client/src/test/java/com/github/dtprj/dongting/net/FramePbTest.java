@@ -4,7 +4,6 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.pb.DtFrame;
-import com.github.dtprj.dongting.pb.PbParser;
 import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.Test;
 
@@ -99,9 +98,8 @@ public class FramePbTest {
                 }
             }
         };
-        PbParser p = new PbParser(2000000);
         buf.order(ByteOrder.LITTLE_ENDIAN);
-        p.parse(buf, dtc);
+        dtc.getParser().parse(buf);
         assertEquals(frameType, dtc.getFrame().getFrameType());
         assertEquals(command, dtc.getFrame().getCommand());
         assertEquals(seq, dtc.getFrame().getSeq());

@@ -77,7 +77,7 @@ class DtChannel extends PbCallback {
         this.nioConfig = nioConfig;
         this.workerStatus = workerStatus;
         this.channelIndexInWorker = channelIndexInWorker;
-        this.parser = new PbParser(nioConfig.getMaxFrameSize());
+        this.parser = PbParser.multiParser(this, nioConfig.getMaxFrameSize());
         this.strDecoder = new StringFieldDecoder(workerStatus.getHeapPool());
 
         ProcessContext processContext = new ProcessContext();
@@ -94,7 +94,7 @@ class DtChannel extends PbCallback {
         if (!running) {
             this.running = false;
         }
-        parser.parse(buf, this);
+        parser.parse(buf);
         for (ReadFrameInfo rfi : frames) {
             ReadFrame f = rfi.frame;
             if (f.getFrameType() == FrameType.TYPE_RESP) {
@@ -455,6 +455,10 @@ class DtChannel extends PbCallback {
         this.peer = peer;
     }
 
+    // for unit test
+    PbParser getParser() {
+        return parser;
+    }
 
     // for unit test
     ReadFrame getFrame() {
