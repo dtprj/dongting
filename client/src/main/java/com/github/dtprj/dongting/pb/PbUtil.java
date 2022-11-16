@@ -81,6 +81,14 @@ public class PbUtil {
         buf.putInt(Integer.reverseBytes(value));
     }
 
+    public static void writeFix64(ByteBuffer buf, int index, long value) {
+        if (value == 0) {
+            return;
+        }
+        writeTag(buf, TYPE_FIX64, index);
+        buf.putLong(Long.reverseBytes(value));
+    }
+
     public static void writeUnsignedInt64(ByteBuffer buf, int index, long value) {
         if (value == 0) {
             return;
