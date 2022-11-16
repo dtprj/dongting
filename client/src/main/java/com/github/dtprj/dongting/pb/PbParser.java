@@ -435,4 +435,7 @@ public class PbParser {
         }
     }
 
+    public PbCallback getCallback() {
+        return callback;
+    }
 }
