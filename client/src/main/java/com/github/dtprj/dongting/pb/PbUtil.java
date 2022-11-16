@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.pb;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 /**
  * encode/decode util for proto buffer 3.
@@ -26,7 +27,7 @@ import java.nio.ByteBuffer;
  */
 public class PbUtil {
 
-    public static final int MAX_SUPPORT_FIELD_INDEX = 536870911; // 29 bits
+    private static final int MAX_SUPPORT_FIELD_INDEX = 536870911; // 29 bits
     private static final int MAX_TAG_LENGTH = 4;
     private static final int MAX_VAR_INT_LENGTH = 5;
     private static final int MAX_VAR_LONG_LENGTH = 10;
@@ -38,16 +39,24 @@ public class PbUtil {
     public static final int TYPE_END_GROUP = 4;
     public static final int TYPE_FIX32 = 5;
 
-    public static void writeTag(ByteBuffer buf, int type, int index) {
+    static void writeTag(ByteBuffer buf, int type, int index) {
         if (index > MAX_SUPPORT_FIELD_INDEX || index <= 0) {
             throw new IllegalArgumentException(String.valueOf(index));
         }
         int value = (index << 3) | type;
 
-        writeVarUnsignedInt32(buf, value);
+        writeVarUnsignedInt32ValueOnly(buf, value);
     }
 
-    public static void writeVarUnsignedInt32(ByteBuffer buf, int value) {
+    public static void writeVarUnsignedInt32(ByteBuffer buf, int index, int value) {
+        if (value == 0) {
+            return;
+        }
+        writeTag(buf, TYPE_VAR_INT, index);
+        writeVarUnsignedInt32ValueOnly(buf, value);
+    }
+
+    private static void writeVarUnsignedInt32ValueOnly(ByteBuffer buf, int value) {
         if (value == 0) {
             throw new IllegalArgumentException();
         }
@@ -64,10 +73,19 @@ public class PbUtil {
         }
     }
 
-    public static void writeVarUnsignedInt64(ByteBuffer buf, long value) {
+    public static void writeFixed32(ByteBuffer buf, int index, int value) {
         if (value == 0) {
-            throw new IllegalArgumentException();
+            return;
         }
+        writeTag(buf, TYPE_FIX32, index);
+        buf.putInt(Integer.reverseBytes(value));
+    }
+
+    public static void writeVarUnsignedInt64(ByteBuffer buf, int index, long value) {
+        if (value == 0) {
+            return;
+        }
+        writeTag(buf, TYPE_VAR_INT, index);
         for (int i = 0; i < 10; i++) {
             long x = value & 0x7FL;
             value >>>= 7;
@@ -79,6 +97,34 @@ public class PbUtil {
                 return;
             }
         }
+    }
+
+    public static void writeUTF8(ByteBuffer buf, int index, String value) {
+        if (value == null || value.length() == 0) {
+            return;
+        }
+        writeTag(buf, TYPE_LENGTH_DELIMITED, index);
+        byte[] bs = value.getBytes(StandardCharsets.UTF_8);
+        writeVarUnsignedInt32ValueOnly(buf, bs.length);
+        buf.put(bs);
+    }
+
+    public static void writeAscii(ByteBuffer buf, int index, String value) {
+        if (value == null || value.length() == 0) {
+            return;
+        }
+        writeTag(buf, TYPE_LENGTH_DELIMITED, index);
+        byte[] bs = value.getBytes(StandardCharsets.ISO_8859_1);
+        writeVarUnsignedInt32ValueOnly(buf, bs.length);
+        buf.put(bs);
+    }
+
+    public static void writeLengthDelimitedPrefix(ByteBuffer buf, int index, int len) {
+        if (len == 0) {
+            throw new IllegalArgumentException(String.valueOf(len));
+        }
+        writeTag(buf, TYPE_LENGTH_DELIMITED, index);
+        writeVarUnsignedInt32ValueOnly(buf, len);
     }
 
     public static int readVarUnsignedInt32(ByteBuffer buf) {

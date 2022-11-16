@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.pb.PbUtil;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 
 /**
  * @author huangli
@@ -45,28 +44,11 @@ public abstract class WriteFrame extends Frame {
     public void encode(ByteBuffer buf) {
         int startPos = buf.position();
         buf.position(startPos + 4);
-        if (frameType != 0) {
-            PbUtil.writeTag(buf, PbUtil.TYPE_VAR_INT, Frame.IDX_TYPE);
-            PbUtil.writeVarUnsignedInt32(buf, frameType);
-        }
-        if (command != 0) {
-            PbUtil.writeTag(buf, PbUtil.TYPE_VAR_INT, Frame.IDX_COMMAND);
-            PbUtil.writeVarUnsignedInt32(buf, command);
-        }
-        if (seq != 0) {
-            PbUtil.writeTag(buf, PbUtil.TYPE_FIX32, Frame.IDX_SEQ);
-            buf.putInt(Integer.reverseBytes(seq));
-        }
-        if (respCode != 0) {
-            PbUtil.writeTag(buf, PbUtil.TYPE_VAR_INT, Frame.IDX_RESP_CODE);
-            PbUtil.writeVarUnsignedInt32(buf, respCode);
-        }
-        if (msg != null && msg.length() > 0) {
-            PbUtil.writeTag(buf, PbUtil.TYPE_LENGTH_DELIMITED, Frame.IDX_MSG);
-            byte[] bs = msg.getBytes(StandardCharsets.UTF_8);
-            PbUtil.writeVarUnsignedInt32(buf, bs.length);
-            buf.put(bs);
-        }
+        PbUtil.writeVarUnsignedInt32(buf, Frame.IDX_TYPE, frameType);
+        PbUtil.writeVarUnsignedInt32(buf, Frame.IDX_COMMAND, command);
+        PbUtil.writeFixed32(buf, Frame.IDX_SEQ, seq);
+        PbUtil.writeVarUnsignedInt32(buf, Frame.IDX_RESP_CODE, respCode);
+        PbUtil.writeUTF8(buf, Frame.IDX_MSG, msg);
         encodeBody(buf);
         buf.putInt(startPos, buf.position() - startPos - 4);
     }

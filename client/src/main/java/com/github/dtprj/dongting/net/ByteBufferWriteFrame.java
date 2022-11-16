@@ -45,8 +45,7 @@ public class ByteBufferWriteFrame extends WriteFrame {
     protected void encodeBody(ByteBuffer buf) {
         int bs = bodySize();
         if (bs > 0) {
-            PbUtil.writeTag(buf, PbUtil.TYPE_LENGTH_DELIMITED, Frame.IDX_BODY);
-            PbUtil.writeVarUnsignedInt32(buf, bs);
+            PbUtil.writeLengthDelimitedPrefix(buf, Frame.IDX_BODY, bs);
             body.mark();
             buf.put(body);
             body.reset();
