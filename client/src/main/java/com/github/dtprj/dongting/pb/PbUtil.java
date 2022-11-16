@@ -27,6 +27,9 @@ import java.nio.ByteBuffer;
 public class PbUtil {
 
     public static final int MAX_SUPPORT_FIELD_INDEX = 536870911; // 29 bits
+    private static final int MAX_TAG_LENGTH = 4;
+    private static final int MAX_VAR_INT_LENGTH = 5;
+    private static final int MAX_VAR_LONG_LENGTH = 10;
 
     public static final int TYPE_VAR_INT = 0;
     public static final int TYPE_FIX64 = 1;
@@ -106,4 +109,49 @@ public class PbUtil {
         throw new PbException("bad protobuf var int input");
     }
 
+    public static int maxStrSizeUTF8(String str) {
+        if (str == null) {
+            return 0;
+        }
+        int len = str.length();
+        if (len == 0) {
+            return 0;
+        }
+        // tag, max 4 bytes
+        // length, var int32, max 5 bytes
+        return MAX_TAG_LENGTH + MAX_VAR_INT_LENGTH + len * 4;
+    }
+
+    public static int maxStrSizeAscii(String str) {
+        if (str == null) {
+            return 0;
+        }
+        int len = str.length();
+        if (len == 0) {
+            return 0;
+        }
+        // tag, max 4 bytes
+        // length, var int32, max 5 bytes
+        return MAX_TAG_LENGTH + MAX_VAR_INT_LENGTH + len;
+    }
+
+    public static int maxVarIntSize() {
+        return MAX_TAG_LENGTH + MAX_VAR_INT_LENGTH;
+    }
+
+    public static int maxVarLongSize() {
+        return MAX_TAG_LENGTH + MAX_VAR_LONG_LENGTH;
+    }
+
+    public static int maxFix32Size() {
+        return MAX_TAG_LENGTH + 4;
+    }
+
+    public static int maxFix64Size() {
+        return MAX_TAG_LENGTH + 8;
+    }
+
+    public static int maxLengthDelimitedSize(int bodyLen) {
+        return MAX_TAG_LENGTH + MAX_VAR_INT_LENGTH + bodyLen;
+    }
 }

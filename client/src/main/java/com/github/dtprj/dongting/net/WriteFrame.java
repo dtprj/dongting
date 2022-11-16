@@ -33,12 +33,11 @@ public abstract class WriteFrame extends Frame {
 
     public int estimateSize() {
         if (dumpSize == 0) {
-            int msgBytes = msg == null ? 0 : msg.length() * 3 + (1 + 5);
             dumpSize = 4 // length
-                    + (1 + 5) * 3 // first int32 field * 3
-                    + 4 //seq
-                    + msgBytes //msg
-                    + bodySize() + (1 + 5); // body
+                    + PbUtil.maxVarIntSize() * 3 // first int32 field * 3
+                    + PbUtil.maxFix32Size() //seq
+                    + PbUtil.maxStrSizeUTF8(msg) //msg
+                    + PbUtil.maxLengthDelimitedSize(bodySize()); // body
         }
         return dumpSize;
     }
