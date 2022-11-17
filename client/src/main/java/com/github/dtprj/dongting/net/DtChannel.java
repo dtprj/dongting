@@ -73,7 +73,7 @@ class DtChannel extends PbCallback {
                      SocketChannel socketChannel, int channelIndexInWorker) throws IOException {
         this.nioStatus = nioStatus;
         this.channel = socketChannel;
-        this.subQueue = new IoSubQueue(workerStatus.getDirectPool());
+        this.subQueue = new IoSubQueue(workerStatus.getDirectPool(), workerStatus.getHeapPool());
         this.nioConfig = nioConfig;
         this.workerStatus = workerStatus;
         this.channelIndexInWorker = channelIndexInWorker;

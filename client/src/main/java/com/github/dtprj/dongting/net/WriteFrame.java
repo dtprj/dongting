@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.pb.PbUtil;
 
 import java.nio.ByteBuffer;
@@ -26,9 +27,9 @@ public abstract class WriteFrame extends Frame {
 
     private int dumpSize;
 
-    protected abstract int bodySize();
+    protected abstract int estimateBodySize();
 
-    protected abstract void encodeBody(ByteBuffer buf);
+    protected abstract void encodeBody(ByteBuffer buf, ByteBufferPool pool);
 
     public int estimateSize() {
         if (dumpSize == 0) {
@@ -36,12 +37,12 @@ public abstract class WriteFrame extends Frame {
                     + PbUtil.maxUnsignedIntSize() * 3 // first int32 field * 3
                     + PbUtil.maxFix32Size() //seq
                     + PbUtil.maxStrSizeUTF8(msg) //msg
-                    + PbUtil.maxLengthDelimitedSize(bodySize()); // body
+                    + PbUtil.maxLengthDelimitedSize(estimateBodySize()); // body
         }
         return dumpSize;
     }
 
-    public void encode(ByteBuffer buf) {
+    public void encode(ByteBuffer buf, ByteBufferPool pool) {
         int startPos = buf.position();
         buf.position(startPos + 4);
         PbUtil.writeUnsignedInt32(buf, Frame.IDX_TYPE, frameType);
@@ -49,7 +50,7 @@ public abstract class WriteFrame extends Frame {
         PbUtil.writeFix32(buf, Frame.IDX_SEQ, seq);
         PbUtil.writeUnsignedInt32(buf, Frame.IDX_RESP_CODE, respCode);
         PbUtil.writeUTF8(buf, Frame.IDX_MSG, msg);
-        encodeBody(buf);
+        encodeBody(buf, pool);
         buf.putInt(startPos, buf.position() - startPos - 4);
     }
 }

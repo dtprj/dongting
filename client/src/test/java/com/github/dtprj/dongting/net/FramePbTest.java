@@ -51,7 +51,7 @@ public class FramePbTest {
         f.setRespCode(respCode);
         f.setMsg(msg);
         ByteBuffer buf = ByteBuffer.allocate(f.estimateSize());
-        f.encode(buf);
+        f.encode(buf, null);
         buf.flip();
         buf.position(4);
         DtFrame.Frame pbf = DtFrame.Frame.parseFrom(buf);
