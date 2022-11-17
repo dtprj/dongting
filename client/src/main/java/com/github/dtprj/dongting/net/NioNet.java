@@ -20,12 +20,12 @@ import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtThreadFactory;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.ObjUtil;
 import com.github.dtprj.dongting.common.ThreadUtils;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.nio.ByteBuffer;
-import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -83,6 +83,8 @@ public abstract class NioNet extends AbstractLifeCircle {
     protected CompletableFuture<ReadFrame> sendRequest(NioWorker worker, Peer peer, WriteFrame request,
                                                        Decoder decoder, DtTime timeout) {
         boolean acquire = false;
+        request.setFrameType(FrameType.TYPE_REQ);
+        ObjUtil.checkPositive(request.getCommand(), "request.command");
         try {
             if (status != LifeStatus.running) {
                 return errorFuture(new IllegalStateException("error state: " + status));
@@ -142,9 +144,7 @@ public abstract class NioNet extends AbstractLifeCircle {
                     new DtThreadFactory(config.getName() + "Biz", false));
         }
         // so register method can be invoked before or after start
-        Iterator<IntObjectCursor<ReqProcessor>> it = nioStatus.getProcessors().iterator();
-        while (it.hasNext()) {
-            IntObjectCursor<ReqProcessor> en = it.next();
+        for (IntObjectCursor<ReqProcessor> en : nioStatus.getProcessors()) {
             ReqProcessor p = en.value;
             if (p.isUseDefaultExecutor()) {
                 if (bizExecutor != null) {
