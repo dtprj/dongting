@@ -154,7 +154,7 @@ class DtChannel extends PbCallback {
                 frame.setRespCode((int) value);
                 break;
             default:
-                throw new PbException("readInt " + index);
+                throw new PbException("unexpect index in readVarInt, index=" + index);
         }
         return true;
     }
@@ -190,7 +190,7 @@ class DtChannel extends PbCallback {
                 return readBody(buf, fieldLen, start, end);
             }
             default:
-                throw new PbException("readInt " + index);
+                throw new PbException("unexpect index in readBytes, index=" + index);
         }
     }
 
