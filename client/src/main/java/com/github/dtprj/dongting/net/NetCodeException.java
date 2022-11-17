@@ -28,4 +28,9 @@ public class NetCodeException extends NetException {
     public int getCode() {
         return code;
     }
+
+    @Override
+    public String toString() {
+        return "receive error from server: " + code;
+    }
 }
