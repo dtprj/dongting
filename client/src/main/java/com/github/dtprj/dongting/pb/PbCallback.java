@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
  */
 public abstract class PbCallback {
 
-    public abstract boolean readVarInt(int index, long value);
+    public abstract boolean readVarNumber(int index, long value);
 
     public abstract boolean readFix32(int index, int value);
 

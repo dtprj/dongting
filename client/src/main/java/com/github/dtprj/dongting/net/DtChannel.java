@@ -139,7 +139,7 @@ class DtChannel extends PbCallback {
     }
 
     @Override
-    public boolean readVarInt(int index, long value) {
+    public boolean readVarNumber(int index, long value) {
         if (readBody) {
             throw new PbException("body has read");
         }

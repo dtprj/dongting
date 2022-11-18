@@ -143,7 +143,7 @@ public class PbParserTest {
         }
 
         @Override
-        public boolean readVarInt(int index, long value) {
+        public boolean readVarNumber(int index, long value) {
             if (index == 1) {
                 read_f1 = (int) value;
             } else if (index == 2) {
@@ -311,22 +311,22 @@ public class PbParserTest {
 
         Supplier<Callback> supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000) {
             @Override
-            public boolean readVarInt(int index, long value) {
+            public boolean readVarNumber(int index, long value) {
                 if (index == 2) {
                     return false;
                 }
-                return super.readVarInt(index, value);
+                return super.readVarNumber(index, value);
             }
         };
         testCallbackFail0(supplier, 1, 0, 1);
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000) {
             @Override
-            public boolean readVarInt(int index, long value) {
+            public boolean readVarNumber(int index, long value) {
                 if (index == 2) {
                     throw new ArrayIndexOutOfBoundsException();
                 }
-                return super.readVarInt(index, value);
+                return super.readVarNumber(index, value);
             }
         };
         testCallbackFail0(supplier, 1, 0, 1);

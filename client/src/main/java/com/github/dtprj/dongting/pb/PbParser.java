@@ -286,7 +286,7 @@ public class PbParser {
                 }
 
                 try {
-                    if (callback.readVarInt(this.fieldIndex, value)) {
+                    if (callback.readVarNumber(this.fieldIndex, value)) {
                         this.status = STATUS_PARSE_TAG;
                     } else {
                         this.status = STATUS_SKIP_REST;
