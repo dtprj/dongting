@@ -28,9 +28,24 @@ import java.nio.charset.StandardCharsets;
 public class PbUtil {
 
     private static final int MAX_SUPPORT_FIELD_INDEX = 536870911; // 29 bits
-    private static final int MAX_TAG_LENGTH = 4;
+    private static final int MAX_TAG_LENGTH = 5;
     private static final int MAX_UNSIGNED_INT_LENGTH = 5;
     private static final int MAX_UNSIGNED_LONG_LENGTH = 10;
+
+    private static final int MAX_1_BYTE_INT_VALUE = 0x0000007F;//7 bits 1
+    private static final int MAX_2_BYTE_INT_VALUE = 0x00003FFF;//14 bits 1
+    private static final int MAX_3_BYTE_INT_VALUE = 0x001FFFFF;//21 bits 1
+    private static final int MAX_4_BYTE_INT_VALUE = 0x0FFFFFFF;//28 bits 1
+
+    private static final long MAX_1_BYTE_LONG_VALUE = 0x00000000_0000007FL;//7 bits 1
+    private static final long MAX_2_BYTE_LONG_VALUE = 0x00000000_00003FFFL;//14 bits 1
+    private static final long MAX_3_BYTE_LONG_VALUE = 0x00000000_001FFFFFL;//21 bits 1
+    private static final long MAX_4_BYTE_LONG_VALUE = 0x00000000_0FFFFFFFL;//28 bits 1
+    private static final long MAX_5_BYTE_LONG_VALUE = 0x00000007_FFFFFFFFL;//35 bits 1
+    private static final long MAX_6_BYTE_LONG_VALUE = 0x000003FF_FFFFFFFFL;//42 bits 1
+    private static final long MAX_7_BYTE_LONG_VALUE = 0x0001FFFF_FFFFFFFFL;//49 bits 1
+    private static final long MAX_8_BYTE_LONG_VALUE = 0x00FFFFFF_FFFFFFFFL;//56 bits 1
+    // private static final long MAX_9_BYTE_LONG_VALUE = 0x7FFFFFFF_FFFFFFFFL;//63 bits 1
 
     public static final int TYPE_VAR_INT = 0;
     public static final int TYPE_FIX64 = 1;
@@ -56,7 +71,7 @@ public class PbUtil {
         writeUnsignedInt32ValueOnly(buf, value);
     }
 
-    private static void writeUnsignedInt32ValueOnly(ByteBuffer buf, int value) {
+    static void writeUnsignedInt32ValueOnly(ByteBuffer buf, int value) {
         if (value == 0) {
             throw new IllegalArgumentException();
         }
@@ -94,6 +109,13 @@ public class PbUtil {
             return;
         }
         writeTag(buf, TYPE_VAR_INT, index);
+        writeUnsignedInt64ValueOnly(buf, value);
+    }
+
+    static void writeUnsignedInt64ValueOnly(ByteBuffer buf, long value) {
+        if (value == 0) {
+            throw new IllegalArgumentException();
+        }
         for (int i = 0; i < 10; i++) {
             long x = value & 0x7FL;
             value >>>= 7;
@@ -118,13 +140,18 @@ public class PbUtil {
     }
 
     public static void writeAscii(ByteBuffer buf, int index, String value) {
-        if (value == null || value.length() == 0) {
+        if (value == null) {
+            return;
+        }
+        int len = value.length();
+        if (len == 0) {
             return;
         }
         writeTag(buf, TYPE_LENGTH_DELIMITED, index);
-        byte[] bs = value.getBytes(StandardCharsets.ISO_8859_1);
-        writeUnsignedInt32ValueOnly(buf, bs.length);
-        buf.put(bs);
+        writeUnsignedInt32ValueOnly(buf, len);
+        for (int i = 0; i < len; i++) {
+            buf.put((byte) value.charAt(i));
+        }
     }
 
     public static void writeLengthDelimitedPrefix(ByteBuffer buf, int index, int len) {
@@ -173,7 +200,7 @@ public class PbUtil {
         }
         // tag, max 4 bytes
         // length, var int32, max 5 bytes
-        return MAX_TAG_LENGTH + MAX_UNSIGNED_INT_LENGTH + len * 4;
+        return MAX_TAG_LENGTH + MAX_UNSIGNED_INT_LENGTH + len + len + len;
     }
 
     public static int maxStrSizeAscii(String str) {
@@ -189,12 +216,89 @@ public class PbUtil {
         return MAX_TAG_LENGTH + MAX_UNSIGNED_INT_LENGTH + len;
     }
 
+    public static int accurateStrSizeAscii(int index, String str) {
+        if (str == null) {
+            return 0;
+        }
+        int len = str.length();
+        if (len == 0) {
+            return 0;
+        }
+        return accurateTagSize(index) + accurateUnsignedIntSize(len) + len;
+    }
+
     public static int maxUnsignedIntSize() {
         return MAX_TAG_LENGTH + MAX_UNSIGNED_INT_LENGTH;
     }
 
     public static int maxUnsignedLongSize() {
         return MAX_TAG_LENGTH + MAX_UNSIGNED_LONG_LENGTH;
+    }
+
+    static int accurateTagSize(int index) {
+        if (index > MAX_SUPPORT_FIELD_INDEX || index <= 0) {
+            throw new IllegalArgumentException(String.valueOf(index));
+        }
+        return accurateUnsignedIntSize(index << 3);
+    }
+
+    public static int accurateUnsignedIntSize(int index, int value) {
+        if (value == 0) {
+            return 0;
+        }
+        return accurateTagSize(index) + accurateUnsignedIntSize(value);
+    }
+
+    static int accurateUnsignedIntSize(int value) {
+        if (value < 0) {
+            return 5;
+        } else if (value == 0) {
+            return 0;
+        } else if (value <= MAX_1_BYTE_INT_VALUE) {
+            return 1;
+        } else if (value <= MAX_2_BYTE_INT_VALUE) {
+            return 2;
+        } else if (value <= MAX_3_BYTE_INT_VALUE) {
+            return 3;
+        } else if (value <= MAX_4_BYTE_INT_VALUE) {
+            return 4;
+        } else {
+            return 5;
+        }
+    }
+
+    public static int accurateUnsignedLongSize(int index, long value) {
+        if (value == 0L) {
+            return 0;
+        }
+        return accurateTagSize(index) + accurateUnsignedLongSize(value);
+    }
+
+    static int accurateUnsignedLongSize(long value) {
+        if (value < 0L) {
+            return 10;
+        } else if (value == 0L) {
+            return 0;
+        } else if (value <= MAX_1_BYTE_LONG_VALUE) {
+            return 1;
+        } else if (value <= MAX_2_BYTE_LONG_VALUE) {
+            return 2;
+        } else if (value <= MAX_3_BYTE_LONG_VALUE) {
+            return 3;
+        } else if (value <= MAX_4_BYTE_LONG_VALUE) {
+            return 4;
+        } else if (value <= MAX_5_BYTE_LONG_VALUE) {
+            return 5;
+        } else if (value <= MAX_6_BYTE_LONG_VALUE) {
+            return 6;
+        } else if (value <= MAX_7_BYTE_LONG_VALUE) {
+            return 7;
+        } else if (value <= MAX_8_BYTE_LONG_VALUE) {
+            return 8;
+        } else  {
+            // MAX_9_BYTE_LONG_VALUE==Long.MAX_VALUE, so ...
+            return 9;
+        }
     }
 
     public static int maxFix32Size() {
@@ -205,7 +309,28 @@ public class PbUtil {
         return MAX_TAG_LENGTH + 8;
     }
 
+    public static int accurateFix32Size(int index, int value) {
+        if (value == 0) {
+            return 0;
+        }
+        return accurateTagSize(index) + 4;
+    }
+
+    public static int accurateFix64Size(int index, long value) {
+        if (value == 0L) {
+            return 0;
+        }
+        return accurateTagSize(index) + 8;
+    }
+
     public static int maxLengthDelimitedSize(int bodyLen) {
         return MAX_TAG_LENGTH + MAX_UNSIGNED_INT_LENGTH + bodyLen;
+    }
+
+    public static int accurateLengthDelimitedSize(int index, int bodyLen) {
+        if (bodyLen == 0) {
+            return 0;
+        }
+        return accurateTagSize(index) + accurateUnsignedIntSize(bodyLen) + bodyLen;
     }
 }
