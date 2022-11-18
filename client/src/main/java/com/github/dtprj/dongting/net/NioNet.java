@@ -118,7 +118,7 @@ public abstract class NioNet extends AbstractLifeCircle {
         @Override
         public ReadFrame apply(ReadFrame frame) {
             if (frame.getRespCode() != CmdCodes.SUCCESS) {
-                throw new NetCodeException(frame.getRespCode());
+                throw new NetCodeException(frame.getRespCode(), frame.getMsg());
             }
             if (!decoder.decodeInIoThread()) {
                 ByteBuffer buf = (ByteBuffer) frame.getBody();

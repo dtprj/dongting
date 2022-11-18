@@ -20,9 +20,11 @@ package com.github.dtprj.dongting.net;
  */
 public class NetCodeException extends NetException {
     private final int code;
+    private final String msg;
 
-    public NetCodeException(int code) {
+    public NetCodeException(int code, String msg) {
         this.code = code;
+        this.msg = msg;
     }
 
     public int getCode() {
@@ -31,6 +33,6 @@ public class NetCodeException extends NetException {
 
     @Override
     public String toString() {
-        return "receive error from server: " + code;
+        return "receive error from server: code=" + code + ", msg=" + msg;
     }
 }
