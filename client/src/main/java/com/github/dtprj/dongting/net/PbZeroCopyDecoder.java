@@ -25,12 +25,20 @@ import java.nio.ByteBuffer;
  */
 public abstract class PbZeroCopyDecoder extends Decoder {
     @Override
+    public boolean supportHalfPacket() {
+        return true;
+    }
+
+    @Override
     public Object decode(ProcessContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
         PbParser parser;
         PbCallback callback = null;
         if (start) {
             callback = createCallback(context);
             parser = PbParser.singleParser(callback, bodyLen);
+            if (!end) {
+                context.setIoDecodeStatus(parser);
+            }
         } else {
             parser = (PbParser) context.getIoDecodeStatus();
         }
