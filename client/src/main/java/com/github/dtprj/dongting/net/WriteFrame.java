@@ -32,12 +32,16 @@ public abstract class WriteFrame extends Frame {
     protected abstract void encodeBody(ByteBuffer buf, ByteBufferPool pool);
 
     public int estimateSize() {
+        int dumpSize = this.dumpSize;
         if (dumpSize == 0) {
             dumpSize = 4 // length
-                    + PbUtil.maxUnsignedIntSize() * 3 // first int32 field * 3
-                    + PbUtil.maxFix32Size() //seq
-                    + PbUtil.maxStrSizeUTF8(msg) //msg
-                    + PbUtil.maxLengthDelimitedSize(estimateBodySize()); // body
+                    + 1 + 1 // uint32 frame_type = 1;
+                    + 1 + 5 // uint32 command = 2;
+                    + 1 + 4 // fixed32 seq = 3;
+                    + 1 + 5 // uint32 resp_code = 4;
+                    + PbUtil.maxStrSizeUTF8(msg) // string resp_msg = 5;
+                    + 1 + 5 + estimateBodySize(); // bytes body = 15;
+            this.dumpSize = dumpSize;
         }
         return dumpSize;
     }
