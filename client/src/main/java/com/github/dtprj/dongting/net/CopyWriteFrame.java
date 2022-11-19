@@ -15,35 +15,31 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.pb.PbUtil;
+
 import java.nio.ByteBuffer;
 
 /**
  * @author huangli
  */
-public class ByteBufferWriteFrame extends ZeroCopyWriteFrame {
-    private ByteBuffer body;
-    private int bodySize = -1;
-
-    public ByteBufferWriteFrame(ByteBuffer body) {
-        this.body = body;
-    }
+public abstract class CopyWriteFrame extends WriteFrame {
 
     @Override
-    protected int accurateBodySize() {
-        int bodySize = this.bodySize;
-        if (bodySize == -1) {
-            ByteBuffer body = this.body;
-            bodySize = body == null ? 0 : body.remaining();
-            this.bodySize = bodySize;
+    protected final void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
+        int s = estimateBodySize();
+        if (s > 0) {
+            ByteBuffer temp = pool.borrow(s);
+            try {
+                encodeBody(temp);
+                temp.flip();
+                PbUtil.writeLengthDelimitedPrefix(buf, Frame.IDX_BODY, temp.remaining());
+                buf.put(temp);
+            } finally {
+                pool.release(temp);
+            }
         }
-        return bodySize;
     }
 
-    @Override
-    protected void encodeBody(ByteBuffer buf) {
-        body.mark();
-        buf.put(body);
-        body.reset();
-        body = null;
-    }
+    protected abstract void encodeBody(ByteBuffer tempBuffer);
 }
