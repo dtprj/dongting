@@ -21,14 +21,14 @@
     <parent>
         <artifactId>dongting</artifactId>
         <groupId>com.github.dtprj.dongting</groupId>
-        <version>0.1-M4</version>
+        <version>0.1-SNAPSHOT</version>
     </parent>
     <artifactId>dongting-server</artifactId>
     <dependencies>
         <dependency>
             <groupId>com.github.dtprj.dongting</groupId>
             <artifactId>dongting-client-java11</artifactId>
-            <version>0.1-M4</version>
+            <version>0.1-SNAPSHOT</version>
         </dependency>
     </dependencies>
     <build>
