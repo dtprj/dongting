@@ -28,6 +28,6 @@ dongting项目是0依赖，会用最高标准从新打造每一个轮子，目�
 微博：
 https://weibo.com/dtprj
 
-公众号还没有头像，但这不重要：
+微信公众号：
 
-![公众号](devlogs/imgs/gzh.jpg)
+![公众号](devlogs/imgs/qrcode_wechat.jpg)
