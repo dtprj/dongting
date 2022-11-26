@@ -116,7 +116,7 @@ public class NioServerTest {
                             BiConsumer<DataOutputStream, byte[]> writer) throws Exception {
         Socket s = new Socket("127.0.0.1", PORT);
         try {
-            s.setSoTimeout(1000);
+            s.setSoTimeout(30000);
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
             Random r = new Random();
@@ -176,7 +176,7 @@ public class NioServerTest {
     public void multiClientTest() throws Exception {
         setupServer(null);
         server.start();
-        final int threads = 200;
+        final int threads = 100;
         AtomicInteger fail = new AtomicInteger(0);
         Thread[] ts = new Thread[threads];
         for (int i = 0; i < threads; i++) {
