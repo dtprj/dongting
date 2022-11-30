@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtThreadFactory;
@@ -143,19 +142,17 @@ public abstract class NioNet extends AbstractLifeCircle {
                     1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(config.getMaxInRequests()),
                     new DtThreadFactory(config.getName() + "Biz", false));
         }
-        // so register method can be invoked before or after start
-        for (IntObjectCursor<ReqProcessor> en : nioStatus.getProcessors()) {
-            ReqProcessor p = en.value;
+        nioStatus.getProcessors().forEach((command, p) -> {
             if (p.isUseDefaultExecutor()) {
                 if (bizExecutor != null) {
                     p.setExecutor(bizExecutor);
                 } else {
                     if (!p.getDecoder().decodeInIoThread()) {
-                        throwThreadNotMatch(en.key);
+                        throwThreadNotMatch(command);
                     }
                 }
             }
-        }
+        });
     }
 
     protected void forceStopWorker(NioWorker worker) {

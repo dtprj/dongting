@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.carrotsearch.hppc.LongObjectHashMap;
 import com.github.dtprj.dongting.common.BitUtil;
+import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import org.jctools.queues.MessagePassingQueue;
@@ -32,11 +32,11 @@ class IoQueue implements MessagePassingQueue.Consumer<Object> {
     private final MpscLinkedQueue<Object> queue = new MpscLinkedQueue<>();
     private final ArrayList<DtChannel> channels;
     private final boolean server;
-    private final LongObjectHashMap<WriteData> pendingOutgoingRequests;
+    private final LongObjMap<WriteData> pendingOutgoingRequests;
     private int invokeIndex;
     private boolean hasDataToWrite;
 
-    public IoQueue(ArrayList<DtChannel> channels, LongObjectHashMap<WriteData> pendingOutgoingRequests) {
+    public IoQueue(ArrayList<DtChannel> channels, LongObjMap<WriteData> pendingOutgoingRequests) {
         this.channels = channels;
         this.server = channels == null;
         this.pendingOutgoingRequests = pendingOutgoingRequests;

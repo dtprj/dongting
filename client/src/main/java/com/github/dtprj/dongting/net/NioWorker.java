@@ -15,11 +15,10 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.carrotsearch.hppc.LongObjectHashMap;
-import com.carrotsearch.hppc.cursors.LongObjectCursor;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -73,7 +72,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private final Collection<DtChannel> channels;
     private final IoQueue ioQueue;
 
-    private final LongObjectHashMap<WriteData> pendingOutgoingRequests = new LongObjectHashMap<>();
+    private final LongObjMap<WriteData> pendingOutgoingRequests = new LongObjMap<>();
     private final CompletableFuture<Void> preCloseFuture = new CompletableFuture<>();
 
     private final Semaphore requestSemaphore;
@@ -428,23 +427,14 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     private void cleanTimeoutReq(long roundStartTime) {
-        LongObjectHashMap<WriteData> map = this.pendingOutgoingRequests;
-        Iterator<LongObjectCursor<WriteData>> it = map.iterator();
-        LinkedList<Long> expireList = null;
-        while (it.hasNext()) {
-            LongObjectCursor<WriteData> en = it.next();
-            WriteData d = en.value;
+        LongObjMap<WriteData> map = this.pendingOutgoingRequests;
+        LinkedList<Long> expireList = new LinkedList<>();
+        map.forEach((key, d) -> {
             DtTime t = d.getTimeout();
             if (t.rest(TimeUnit.MILLISECONDS, roundStartTime) <= 0) {
-                if (expireList == null) {
-                    expireList = new LinkedList<>();
-                }
-                expireList.add(en.key);
+                expireList.add(key);
             }
-        }
-        if (expireList == null) {
-            return;
-        }
+        });
         for(Long key: expireList) {
             WriteData d = map.remove(key);
             DtTime t = d.getTimeout();

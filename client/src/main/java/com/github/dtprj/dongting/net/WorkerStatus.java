@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.carrotsearch.hppc.LongObjectHashMap;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
+import com.github.dtprj.dongting.common.LongObjMap;
 
 /**
  * @author huangli
@@ -24,7 +24,7 @@ import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 class WorkerStatus {
     private IoQueue ioQueue;
     private Runnable wakeupRunnable;
-    private LongObjectHashMap<WriteData> pendingRequests;
+    private LongObjMap<WriteData> pendingRequests;
     private SimpleByteBufferPool directPool;
     private SimpleByteBufferPool heapPool;
 
@@ -47,11 +47,11 @@ class WorkerStatus {
         this.wakeupRunnable = wakeupRunnable;
     }
 
-    public  LongObjectHashMap<WriteData> getPendingRequests() {
+    public LongObjMap<WriteData> getPendingRequests() {
         return pendingRequests;
     }
 
-    public void setPendingRequests( LongObjectHashMap<WriteData> pendingRequests) {
+    public void setPendingRequests(LongObjMap<WriteData> pendingRequests) {
         this.pendingRequests = pendingRequests;
     }
 
