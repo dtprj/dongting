@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -33,8 +34,6 @@ import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Objects;
@@ -70,7 +69,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private final AtomicBoolean notified = new AtomicBoolean(false);
 
     private int channelIndex;
-    private final Collection<DtChannel> channels;
+    private final ArrayList<DtChannel> channelsList;
+    private final IntObjMap<DtChannel> channels;
     private final IoQueue ioQueue;
 
     private final LongObjMap<WriteData> pendingOutgoingRequests = new LongObjMap<>();
@@ -96,12 +96,13 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.requestSemaphore = nioStatus.getRequestSemaphore();
         this.readBufferTimeoutNanos = config.getReadBufferTimeoutMillis() * 1000 * 1000;
 
+        this.channels = new IntObjMap<>();
         if (config instanceof NioServerConfig) {
-            this.channels = new HashSet<>();
+            this.channelsList = null;
             this.ioQueue = new IoQueue(null, pendingOutgoingRequests);
         } else {
-            this.channels = new ArrayList<>();
-            this.ioQueue = new IoQueue((ArrayList<DtChannel>) channels, pendingOutgoingRequests);
+            this.channelsList = new ArrayList<>();
+            this.ioQueue = new IoQueue(channelsList, pendingOutgoingRequests);
         }
 
         this.directPool = new SimpleByteBufferPool(true, 64,
@@ -125,7 +126,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         ioQueue.scheduleFromBizThread(() -> {
             try {
                 DtChannel dtc = initNewChannel(sc, null);
-                channels.add(dtc);
+                channels.put(dtc.getChannelIndexInWorker(), dtc);
             } catch (Exception e) {
                 log.warn("accept channel fail: {}, {}", sc, e.toString());
                 closeChannel0(sc);
@@ -166,9 +167,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
         try {
             selector.close();
-            for (DtChannel dtc : channels) {
-                closeChannel0(dtc.getChannel());
-            }
+            channels.forEach((index, dtc) -> closeChannel0(dtc.getChannel()));
             log.info("worker thread [{}] finished.\n" +
                             "markReadCount={}, markWriteCount={}\n" +
                             "readCount={}, readBytes={}, avgReadBytes={}\n" +
@@ -301,7 +300,11 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             DtChannel dtc = (DtChannel) obj;
             if (!dtc.isClosed()) {
                 dtc.close();
-                channels.remove(dtc);
+                channels.remove(dtc.getChannelIndexInWorker());
+                if (channelsList != null) {
+                    // O(n) in client side
+                    channelsList.remove(dtc);
+                }
                 closeChannel0(sc);
             }
         } else {
@@ -353,6 +356,10 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         sc.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
         sc.setOption(StandardSocketOptions.TCP_NODELAY, true);
 
+        // 32 bit channelIndex may overflow, use channels map to keep it unique in every worker
+        while (channels.get(channelIndex) != null) {
+            channelIndex++;
+        }
         DtChannel dtc = new DtChannel(nioStatus, workerStatus, config, sc, channelIndex++);
         SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
         dtc.getSubQueue().setRegisterForWrite(new RegWriteRunner(selectionKey));
@@ -411,7 +418,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         try {
             channel.finishConnect();
             DtChannel dtc = initNewChannel(channel, peer);
-            channels.add(dtc);
+            channels.put(dtc.getChannelIndexInWorker(), dtc);
+            channelsList.add(dtc);
             f.complete(null);
         } catch (Exception e) {
             log.warn("connect channel fail: {}, {}", channel, e.toString());
