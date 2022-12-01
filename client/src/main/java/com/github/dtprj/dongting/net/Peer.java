@@ -48,4 +48,8 @@ public class Peer {
         this.dtChannel = dtChannel;
     }
 
+    public boolean isConnected() {
+        return dtChannel != null;
+    }
+
 }

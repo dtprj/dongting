@@ -162,6 +162,15 @@ public class PbUtil {
         writeUnsignedInt32ValueOnly(buf, len);
     }
 
+    public static void writeBytes(ByteBuffer buf, int index, byte[] data) {
+        if (data == null || data.length == 0) {
+            return;
+        }
+        writeTag(buf, TYPE_LENGTH_DELIMITED, index);
+        writeUnsignedInt32ValueOnly(buf, data.length);
+        buf.put(data);
+    }
+
     public static int readUnsignedInt32(ByteBuffer buf) {
         int bitIndex = 0;
         int value = 0;

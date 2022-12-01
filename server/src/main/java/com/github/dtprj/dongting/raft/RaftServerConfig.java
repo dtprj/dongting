@@ -13,34 +13,37 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.pb;
-
-import java.nio.ByteBuffer;
+package com.github.dtprj.dongting.raft;
 
 /**
  * @author huangli
  */
-public abstract class PbCallback {
+public class RaftServerConfig {
+    private String servers;
+    private int port;
+    private int id;
 
-    public boolean readVarNumber(int index, long value) {
-        throw new UnsupportedOperationException();
+    public String getServers() {
+        return servers;
     }
 
-    public boolean readFix32(int index, int value) {
-        throw new UnsupportedOperationException();
+    public void setServers(String servers) {
+        this.servers = servers;
     }
 
-    public boolean readFix64(int index, long value) {
-        throw new UnsupportedOperationException();
+    public int getPort() {
+        return port;
     }
 
-    public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
-        throw new UnsupportedOperationException();
+    public void setPort(int port) {
+        this.port = port;
     }
 
-    public void begin(int len) {
+    public int getId() {
+        return id;
     }
 
-    public void end(boolean success) {
+    public void setId(int id) {
+        this.id = id;
     }
 }

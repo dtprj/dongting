@@ -13,34 +13,19 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.pb;
+package com.github.dtprj.dongting.raft;
 
-import java.nio.ByteBuffer;
+import com.github.dtprj.dongting.common.DtException;
 
 /**
  * @author huangli
  */
-public abstract class PbCallback {
-
-    public boolean readVarNumber(int index, long value) {
-        throw new UnsupportedOperationException();
+public class RaftException extends DtException {
+    public RaftException(String message) {
+        super(message);
     }
 
-    public boolean readFix32(int index, int value) {
-        throw new UnsupportedOperationException();
-    }
-
-    public boolean readFix64(int index, long value) {
-        throw new UnsupportedOperationException();
-    }
-
-    public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
-        throw new UnsupportedOperationException();
-    }
-
-    public void begin(int len) {
-    }
-
-    public void end(boolean success) {
+    public RaftException(Throwable e) {
+        super(e);
     }
 }

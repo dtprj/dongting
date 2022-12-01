@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.ThreadUtils;
 import com.github.dtprj.dongting.log.BugLog;
@@ -25,6 +24,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -176,12 +176,13 @@ public class NioClient extends NioNet {
     }
 
     public CompletableFuture<Peer> addPeer(HostPort hostPort) {
+        Objects.requireNonNull(hostPort);
         Peer peer = new Peer(hostPort, this);
         CompletableFuture<Peer> f = new CompletableFuture<>();
         worker.doInIoThread(() -> {
             for (Peer p : peers) {
                 if (p.getEndPoint().equals(hostPort)) {
-                    f.completeExceptionally(new DtException(hostPort + " is in peer list"));
+                    f.complete(p);
                     return;
                 }
             }
