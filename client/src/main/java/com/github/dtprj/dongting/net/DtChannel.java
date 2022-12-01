@@ -342,6 +342,7 @@ class DtChannel extends PbCallback {
     }
 
     private void processIncomingRequest(ReadFrame req, ReqProcessor p) {
+        //TODO drop timeout requests
         NioStatus nioStatus = this.nioStatus;
         if (p.getExecutor() == null) {
             WriteFrame resp;

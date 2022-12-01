@@ -126,6 +126,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         ioQueue.scheduleFromBizThread(() -> {
             try {
                 DtChannel dtc = initNewChannel(sc, null);
+                // TODO do handshake
                 channels.put(dtc.getChannelIndexInWorker(), dtc);
             } catch (Exception e) {
                 log.warn("accept channel fail: {}, {}", sc, e.toString());
