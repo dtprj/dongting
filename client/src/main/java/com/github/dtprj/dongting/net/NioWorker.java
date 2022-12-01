@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.LongObjMap;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -304,16 +305,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 closeChannel0(sc);
             }
         } else {
-            channels.removeIf(d -> {
-                if (d.getChannel() == sc) {
-                    if (!d.isClosed()) {
-                        d.close();
-                        closeChannel0(sc);
-                    }
-                    return true;
-                }
-                return false;
-            });
+            BugLog.getLog().error("assert false. key attachment is not " + DtChannel.class.getName());
+            closeChannel0(sc);
+            assert false;
         }
     }
 
