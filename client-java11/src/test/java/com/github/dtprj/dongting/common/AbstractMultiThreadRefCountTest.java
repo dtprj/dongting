@@ -172,10 +172,7 @@ public abstract class AbstractMultiThreadRefCountTest extends  AbstractRefCountT
     @Timeout(value = 30)
     public void multiThreadTest2() throws Exception {
         final AtomicInteger refCountExceptions = new AtomicInteger();
-        RefCount[] array = new RefCount[10000];
-        for (int i = 0; i < array.length; i++) {
-            array[i] = createInstance();
-        }
+        RefCount rc = createInstance();
         final CountDownLatch readyLatch = new CountDownLatch(THREADS);
         final CountDownLatch startLatch = new CountDownLatch(1);
         final CountDownLatch endLatch = new CountDownLatch(THREADS);
@@ -183,9 +180,9 @@ public abstract class AbstractMultiThreadRefCountTest extends  AbstractRefCountT
             try {
                 readyLatch.countDown();
                 startLatch.await();
-                for (RefCount refCount : array) {
-                    refCount.retain();
-                    refCount.release();
+                for (int i = 0; i < 10000; i++) {
+                    rc.retain();
+                    rc.release();
                 }
             } catch (Throwable e) {
                 refCountExceptions.incrementAndGet();
@@ -200,10 +197,7 @@ public abstract class AbstractMultiThreadRefCountTest extends  AbstractRefCountT
         startLatch.countDown();
         endLatch.await();
         assertEquals(0, refCountExceptions.get());
-        for (int i = 0; i < array.length; i++) {
-            array[i].release();
-            int X = i;
-            assertThrows(DtException.class, () -> array[X].release());
-        }
+        rc.release();
+        assertThrows(DtException.class, rc::release);
     }
 }
