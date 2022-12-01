@@ -59,9 +59,6 @@ public class NioClient extends NioNet {
 
     @Override
     protected void doStart() {
-        if (peers.size() == 0) {
-            throw new IllegalArgumentException("no servers");
-        }
         startFutures = new ArrayList<>();
         initBizExecutor();
         worker.start();
@@ -116,7 +113,7 @@ public class NioClient extends NioNet {
             }
         }
 
-        if (successCount == 0) {
+        if (successCount == 0 && peers.size() > 0) {
             log.error("[{}] start fail: timeoutPeerCount={},failPeerCount={}\n{}",
                     config.getName(), timeoutCount, failCount, sb);
             throw new NetException("init NioClient fail:timeout=" + config.getWaitStartTimeoutMillis()
