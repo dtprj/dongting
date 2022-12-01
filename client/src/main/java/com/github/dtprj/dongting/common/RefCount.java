@@ -32,7 +32,7 @@ public abstract class RefCount {
     private static final RefCountFactory FACTORY;
 
     static {
-        if (JavaVersion.javaVersion() <= 8) {
+        if (JavaVersion.javaVersion() < 11) {
             FACTORY = new Java8RefCountFactory();
         } else {
             RefCountFactory f = null;
@@ -193,7 +193,7 @@ class Java8RefCount extends AbstractRefCount {
 
     public Java8RefCount() {
         super();
-        UPDATER.set(this, 2); //TODO can we use lazySet?
+        UPDATER.lazySet(this, 2);
     }
 
     @Override

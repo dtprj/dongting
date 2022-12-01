@@ -132,7 +132,7 @@ public abstract class AbstractMultiThreadRefCountTest extends  AbstractRefCountT
 
     @Test
     @Timeout(value = 30)
-    public void multiThreadTest() throws Exception {
+    public void multiThreadTest1() throws Exception {
         final AtomicInteger refCountExceptions = new AtomicInteger();
         RefCount[] array = new RefCount[10000];
         for (int i = 0; i < array.length; i++) {
@@ -163,6 +163,45 @@ public abstract class AbstractMultiThreadRefCountTest extends  AbstractRefCountT
         endLatch.await();
         assertEquals(0, refCountExceptions.get());
         for (int i = 0; i < array.length; i++) {
+            int X = i;
+            assertThrows(DtException.class, () -> array[X].release());
+        }
+    }
+
+    @Test
+    @Timeout(value = 30)
+    public void multiThreadTest2() throws Exception {
+        final AtomicInteger refCountExceptions = new AtomicInteger();
+        RefCount[] array = new RefCount[10000];
+        for (int i = 0; i < array.length; i++) {
+            array[i] = createInstance();
+        }
+        final CountDownLatch readyLatch = new CountDownLatch(THREADS);
+        final CountDownLatch startLatch = new CountDownLatch(1);
+        final CountDownLatch endLatch = new CountDownLatch(THREADS);
+        Runnable r = () -> {
+            try {
+                readyLatch.countDown();
+                startLatch.await();
+                for (RefCount refCount : array) {
+                    refCount.retain();
+                    refCount.release();
+                }
+            } catch (Throwable e) {
+                refCountExceptions.incrementAndGet();
+            } finally {
+                endLatch.countDown();
+            }
+        };
+        for (int i = 0; i < THREADS; i++) {
+            execService.submit(r);
+        }
+        readyLatch.await();
+        startLatch.countDown();
+        endLatch.await();
+        assertEquals(0, refCountExceptions.get());
+        for (int i = 0; i < array.length; i++) {
+            array[i].release();
             int X = i;
             assertThrows(DtException.class, () -> array[X].release());
         }

@@ -36,7 +36,6 @@ class VarHandleRefCount extends AbstractRefCount {
 
     public VarHandleRefCount() {
         REF_CNT.set(this, 2);
-        VarHandle.releaseFence();
     }
 
     @Override
@@ -65,7 +64,7 @@ class VarHandleRefCount extends AbstractRefCount {
 
     @Override
     protected boolean weakCAS(int expect, int newValue) {
-        return REF_CNT.weakCompareAndSet(this, expect, newValue);
+        return REF_CNT.weakCompareAndSetPlain(this, expect, newValue);
     }
 }
 
