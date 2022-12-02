@@ -48,16 +48,4 @@ public class Peer {
         this.dtChannel = dtChannel;
     }
 
-    @Override
-    public int hashCode() {
-        return endPoint.hashCode();
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj instanceof Peer) {
-            return endPoint.equals(((Peer) obj).endPoint);
-        }
-        return false;
-    }
 }

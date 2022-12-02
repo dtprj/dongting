@@ -45,6 +45,7 @@ import java.util.concurrent.TimeoutException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -55,17 +56,14 @@ public class NioClientTest {
     private static final DtLog log = DtLogs.getLogger(NioClientTest.class);
 
     private static class BioServer implements AutoCloseable {
-        private ServerSocket ss;
+        private final ServerSocket ss;
         private Socket s;
         private DataInputStream in;
         private DataOutputStream out;
         private volatile boolean stop;
-        private Thread readThread;
-        private Thread writeThread;
-        private ArrayBlockingQueue<DtFrame.Frame> queue = new ArrayBlockingQueue<>(100);
+        private final ArrayBlockingQueue<DtFrame.Frame> queue = new ArrayBlockingQueue<>(100);
         private long sleep;
         private int resultCode = CmdCodes.SUCCESS;
-        private String msg = "msg";
 
         public BioServer(int port) throws Exception {
             ss = new ServerSocket();
@@ -75,15 +73,17 @@ public class NioClientTest {
         }
 
         public void runAcceptThread() {
-            try {
-                s = ss.accept();
-                s.setSoTimeout(1000);
-                readThread = new Thread(this::runReadThread);
-                writeThread = new Thread(this::runWriteThread);
-                readThread.start();
-                writeThread.start();
-            } catch (Throwable e) {
-                log.error("", e);
+            while (!stop) {
+                try {
+                    s = ss.accept();
+                    s.setSoTimeout(1000);
+                    Thread readThread = new Thread(this::runReadThread);
+                    Thread writeThread = new Thread(this::runWriteThread);
+                    readThread.start();
+                    writeThread.start();
+                } catch (Throwable e) {
+                    log.error("", e);
+                }
             }
         }
 
@@ -129,7 +129,7 @@ public class NioClientTest {
             frame = DtFrame.Frame.newBuilder().mergeFrom(frame)
                     .setFrameType(FrameType.TYPE_RESP)
                     .setRespCode(resultCode)
-                    .setRespMsg(msg)
+                    .setRespMsg("msg")
                     .build();
             byte[] bs = frame.toByteArray();
             if (sleep > 0) {
@@ -233,8 +233,7 @@ public class NioClientTest {
         if (bs.length != 0) {
             if (rf.getBody() instanceof RefCountByteBuffer) {
                 RefCountByteBuffer rc = (RefCountByteBuffer) rf.getBody();
-                ByteBuffer buf = rc == null ? null : rc.getBuffer();
-                assertEquals(ByteBuffer.wrap(bs), buf);
+                assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
                 rc.release();
             } else {
                 ByteBuffer buf = (ByteBuffer) rf.getBody();
@@ -300,7 +299,7 @@ public class NioClientTest {
         c.setWaitStartTimeoutMillis(5);
         NioClient client = new NioClient(c);
         client.start();
-        Assertions.assertThrows(NetException.class, () -> client.waitStart());
+        Assertions.assertThrows(NetException.class, client::waitStart);
         client.stop();
     }
 
@@ -378,6 +377,56 @@ public class NioClientTest {
                 assertEquals(NetException.class, e.getCause().getClass());
             }
 
+        } finally {
+            CloseUtil.close(client, server1, server2);
+        }
+    }
+
+    @Test
+    public void peerManageTest() throws Exception {
+        BioServer server1 = null;
+        BioServer server2 = null;
+        NioClientConfig c = new NioClientConfig();
+        c.setWaitStartTimeoutMillis(50);
+        HostPort hp1 = new HostPort("127.0.0.1", 9000);
+        HostPort hp2 = new HostPort("127.0.0.1", 9001);
+        c.setHostPorts(new ArrayList<>());
+        NioClient client = new NioClient(c);
+        try {
+            server1 = new BioServer(9000);
+            server2 = new BioServer(9001);
+
+            client.start();
+            client.waitStart();
+            Peer p1 = client.addPeer(hp1).get();
+            Peer p2 = client.addPeer(hp2).get();
+            assertThrows(ExecutionException.class, () -> client.addPeer(hp1).get());
+            client.connect(p1).get();
+            client.connect(p2).get();
+            assertThrows(ExecutionException.class, () -> client.connect(p1).get());
+            assertEquals(2, client.getPeers().size());
+
+            sendSync(5000, client, 500);
+
+            client.disconnect(p1).get();
+            assertNull(p1.getDtChannel());
+            assertEquals(2, client.getPeers().size());
+            sendSync(5000, client, 100);
+
+            client.connect(p1).get();
+            assertNotNull(p1.getDtChannel());
+            assertEquals(2, client.getPeers().size());
+            sendSyncByPeer(5000, client, p1, 500);
+
+            client.disconnect(p1).get();
+            client.disconnect(p1).get();
+            client.removePeer(p1).get();
+            assertThrows(ExecutionException.class, () -> client.removePeer(p1).get());
+            assertThrows(ExecutionException.class, () -> client.removePeer(p2).get());
+            assertEquals(1, client.getPeers().size());
+            sendSync(5000, client, 100);
+            assertThrows(ExecutionException.class, () -> sendSyncByPeer(5000, client, p1, 500));
+            sendSyncByPeer(5000, client, p2, 500);
         } finally {
             CloseUtil.close(client, server1, server2);
         }

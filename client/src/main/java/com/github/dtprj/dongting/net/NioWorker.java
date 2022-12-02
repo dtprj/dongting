@@ -123,24 +123,22 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     // invoke by NioServer accept thead
     public void newChannelAccept(SocketChannel sc) {
-        ioQueue.scheduleFromBizThread(() -> {
+        doInIoThread(() -> {
             try {
                 DtChannel dtc = initNewChannel(sc, null);
                 // TODO do handshake
                 channels.put(dtc.getChannelIndexInWorker(), dtc);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 log.warn("accept channel fail: {}, {}", sc, e.toString());
                 closeChannel0(sc);
             }
         });
-        wakeup();
     }
 
     // invoke by other threads
     public CompletableFuture<Void> connect(Peer peer) {
         CompletableFuture<Void> f = new CompletableFuture<>();
-        ioQueue.scheduleFromBizThread(() -> doConnect(f, peer));
-        wakeup();
+        doInIoThread(() -> doConnect(f, peer));
         return f;
     }
 
@@ -232,7 +230,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         try {
             if (!key.isValid()) {
                 log.info("socket may closed, remove it: {}", key.channel());
-                closeChannel(key);
+                closeChannelBySelKey(key);
                 return false;
             }
             stage = 1;
@@ -249,7 +247,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 int readCount = sc.read(readBuffer);
                 if (readCount == -1) {
                     // log.info("socket read to end, remove it: {}", key.channel());
-                    closeChannel(key);
+                    closeChannelBySelKey(key);
                     return false;
                 }
                 statReadBytes += readCount;
@@ -289,45 +287,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 default:
                     log.warn("socket error: {}", e.toString());
             }
-            closeChannel(key);
+            closeChannelBySelKey(key);
         }
         return hasDataToWrite;
-    }
-
-    private void closeChannel(SelectionKey key) {
-        Object obj = key.attachment();
-        SocketChannel sc = (SocketChannel) key.channel();
-        if (obj instanceof DtChannel) {
-            DtChannel dtc = (DtChannel) obj;
-            if (!dtc.isClosed()) {
-                dtc.close();
-                Peer peer = dtc.getPeer();
-                if (peer != null && peer.getDtChannel() == dtc) {
-                    peer.setDtChannel(null);
-                }
-                channels.remove(dtc.getChannelIndexInWorker());
-                if (channelsList != null) {
-                    // O(n) in client side
-                    channelsList.remove(dtc);
-                }
-                closeChannel0(sc);
-            }
-        } else {
-            BugLog.getLog().error("assert false. key attachment is not " + DtChannel.class.getName());
-            closeChannel0(sc);
-            assert false;
-        }
-    }
-
-    private void closeChannel0(SocketChannel sc) {
-        try {
-            if (sc.isOpen()) {
-                log.info("closing channel: {}", sc);
-                sc.close();
-            }
-        } catch (Exception e) {
-            log.warn("close channel fail: {}, {}", sc, e.getMessage());
-        }
     }
 
     private boolean select(Selector selector, long selectTimeoutMillis) {
@@ -378,7 +340,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         return dtc;
     }
 
-    private  class RegWriteRunner implements Runnable {
+    private class RegWriteRunner implements Runnable {
         SelectionKey key;
         RegWriteRunner(SelectionKey key) {
             this.key = key;
@@ -430,6 +392,68 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             log.warn("connect channel fail: {}, {}", channel, e.toString());
             closeChannel0((SocketChannel) key.channel());
             f.completeExceptionally(new NetException(e));
+        }
+    }
+
+    public void doInIoThread(Runnable runnable) {
+        ioQueue.scheduleFromBizThread(runnable);
+        wakeup();
+    }
+
+    public CompletableFuture<Void> disconnect(Peer peer) {
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        doInIoThread(() -> {
+            if (peer.getDtChannel() == null) {
+                f.complete(null);
+                return;
+            }
+            try {
+                close(peer.getDtChannel());
+                f.complete(null);
+            } catch (Throwable e) {
+                f.completeExceptionally(e);
+            }
+        });
+        return f;
+    }
+
+    private void closeChannelBySelKey(SelectionKey key) {
+        Object obj = key.attachment();
+        SocketChannel sc = (SocketChannel) key.channel();
+        if (obj instanceof DtChannel) {
+            DtChannel dtc = (DtChannel) obj;
+            close(dtc);
+        } else {
+            BugLog.getLog().error("assert false. key attachment is not " + DtChannel.class.getName());
+            closeChannel0(sc);
+            assert false;
+        }
+    }
+
+    private void close(DtChannel dtc) {
+        if (!dtc.isClosed()) {
+            dtc.close();
+            Peer peer = dtc.getPeer();
+            if (peer != null && peer.getDtChannel() == dtc) {
+                peer.setDtChannel(null);
+            }
+            channels.remove(dtc.getChannelIndexInWorker());
+            if (channelsList != null) {
+                // O(n) in client side
+                channelsList.remove(dtc);
+            }
+            closeChannel0(dtc.getChannel());
+        }
+    }
+
+    private void closeChannel0(SocketChannel sc) {
+        try {
+            if (sc.isOpen()) {
+                log.info("closing channel: {}", sc);
+                sc.close();
+            }
+        } catch (Exception e) {
+            log.warn("close channel fail: {}, {}", sc, e.getMessage());
         }
     }
 

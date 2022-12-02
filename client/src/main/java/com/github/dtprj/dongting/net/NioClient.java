@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -170,22 +171,57 @@ public class NioClient extends NioNet {
         log.warn("force stop done");
     }
 
-    public CopyOnWriteArrayList<Peer> getPeers() {
-        return peers;
+    public List<Peer> getPeers() {
+        return Collections.unmodifiableList(peers);
     }
 
-    public Peer addPeer(HostPort hostPort) {
+    public CompletableFuture<Peer> addPeer(HostPort hostPort) {
         Peer peer = new Peer(hostPort, this);
-        if (!peers.addIfAbsent(peer)) {
-            throw new DtException(hostPort + " is in peer list");
-        }
-        return peer;
+        CompletableFuture<Peer> f = new CompletableFuture<>();
+        worker.doInIoThread(() -> {
+            for (Peer p : peers) {
+                if (p.getEndPoint().equals(hostPort)) {
+                    f.completeExceptionally(new DtException(hostPort + " is in peer list"));
+                    return;
+                }
+            }
+            peers.add(peer);
+            f.complete(peer);
+        });
+        return f;
+    }
+
+    public CompletableFuture<Void> removePeer(Peer peer) {
+        checkOwner(peer);
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        worker.doInIoThread(() -> {
+            if (!peers.contains(peer)) {
+                f.completeExceptionally(new NetException("peer not in list"));
+                return;
+            }
+            if (peer.getDtChannel() != null) {
+                f.completeExceptionally(new NetException("peer not disconnected"));
+                return;
+            }
+            peers.remove(peer);
+            f.complete(null);
+        });
+        return f;
     }
 
     public CompletableFuture<Void> connect(Peer peer) {
+        checkOwner(peer);
+        return worker.connect(peer);
+    }
+
+    public CompletableFuture<Void> disconnect(Peer peer) {
+        checkOwner(peer);
+        return worker.disconnect(peer);
+    }
+
+    private void checkOwner(Peer peer) {
         if (peer.getOwner() != this) {
             throw new IllegalArgumentException("the peer is not owned by this client");
         }
-        return worker.connect(peer);
     }
 }
