@@ -301,6 +301,10 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             DtChannel dtc = (DtChannel) obj;
             if (!dtc.isClosed()) {
                 dtc.close();
+                Peer peer = dtc.getPeer();
+                if (peer != null && peer.getDtChannel() == dtc) {
+                    peer.setDtChannel(null);
+                }
                 channels.remove(dtc.getChannelIndexInWorker());
                 if (channelsList != null) {
                     // O(n) in client side
@@ -394,7 +398,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
         SocketChannel sc = null;
         try {
-            HostPort hp = (HostPort) peer.getEndPoint();
+            HostPort hp = peer.getEndPoint();
             InetSocketAddress addr = new InetSocketAddress(hp.getHost(), hp.getPort());
             sc = SocketChannel.open();
             sc.setOption(StandardSocketOptions.SO_KEEPALIVE, false);

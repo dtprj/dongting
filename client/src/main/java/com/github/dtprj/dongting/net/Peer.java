@@ -15,20 +15,24 @@
  */
 package com.github.dtprj.dongting.net;
 
+import java.util.Objects;
+
 /**
  * @author huangli
  */
-class Peer {
-    private final Object endPoint;
+public class Peer {
+    private final HostPort endPoint;
     private final NioNet owner;
     private volatile DtChannel dtChannel;
 
-    public Peer(Object endPoint, NioNet owner) {
+    Peer(HostPort endPoint, NioNet owner) {
+        Objects.requireNonNull(endPoint);
+        Objects.requireNonNull(owner);
         this.endPoint = endPoint;
         this.owner = owner;
     }
 
-    public Object getEndPoint() {
+    public HostPort getEndPoint() {
         return endPoint;
     }
 
@@ -36,11 +40,24 @@ class Peer {
         return owner;
     }
 
-    public DtChannel getDtChannel() {
+    DtChannel getDtChannel() {
         return dtChannel;
     }
 
-    public void setDtChannel(DtChannel dtChannel) {
+    void setDtChannel(DtChannel dtChannel) {
         this.dtChannel = dtChannel;
+    }
+
+    @Override
+    public int hashCode() {
+        return endPoint.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof Peer) {
+            return endPoint.equals(((Peer) obj).endPoint);
+        }
+        return false;
     }
 }

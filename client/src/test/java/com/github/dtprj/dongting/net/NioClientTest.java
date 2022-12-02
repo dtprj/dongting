@@ -354,26 +354,19 @@ public class NioClientTest {
             sendSyncByPeer(5000, client, p2, 500);
 
             try {
-                client.reconnect(p1).get(20, TimeUnit.MILLISECONDS);
+                client.connect(p1).get(20, TimeUnit.MILLISECONDS);
                 fail();
             } catch (TimeoutException | ExecutionException e) {
             }
             server1 = new BioServer(9000);
-            client.reconnect(p1).get(200, TimeUnit.MILLISECONDS);
+            client.connect(p1).get(200, TimeUnit.MILLISECONDS);
             sendSyncByPeer(5000, client, p1, 500);
 
             try {
-                client.reconnect(p1).get(20, TimeUnit.MILLISECONDS);
+                client.connect(p1).get(20, TimeUnit.MILLISECONDS);
                 fail();
             } catch (ExecutionException e) {
                 assertEquals(NetException.class, e.getCause().getClass());
-            }
-
-            Peer p = new Peer(null, null);
-            try {
-                client.reconnect(p);
-                fail();
-            } catch (IllegalArgumentException e) {
             }
 
             server1.close();

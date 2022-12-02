@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.ThreadUtils;
 import com.github.dtprj.dongting.log.BugLog;
@@ -173,7 +174,15 @@ public class NioClient extends NioNet {
         return peers;
     }
 
-    public CompletableFuture<Void> reconnect(Peer peer) {
+    public Peer addPeer(HostPort hostPort) {
+        Peer peer = new Peer(hostPort, this);
+        if (!peers.addIfAbsent(peer)) {
+            throw new DtException(hostPort + " is in peer list");
+        }
+        return peer;
+    }
+
+    public CompletableFuture<Void> connect(Peer peer) {
         if (peer.getOwner() != this) {
             throw new IllegalArgumentException("the peer is not owned by this client");
         }

@@ -447,13 +447,14 @@ class DtChannel extends PbCallback {
             return;
         }
         this.closed = true;
-        if (peer != null && peer.getDtChannel() == this) {
-            peer.setDtChannel(null);
-        }
     }
 
     public void setPeer(Peer peer) {
         this.peer = peer;
+    }
+
+    public Peer getPeer() {
+        return peer;
     }
 
     // for unit test
