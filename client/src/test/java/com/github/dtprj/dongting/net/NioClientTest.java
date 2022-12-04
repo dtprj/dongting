@@ -151,9 +151,9 @@ public class NioClientTest {
             }
             stop = true;
             for (Socket s : sockets) {
-                s.close();
+                CloseUtil.close(s);
             }
-            ss.close();
+            CloseUtil.close(ss);
         }
     }
 
