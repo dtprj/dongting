@@ -57,11 +57,8 @@ public class NioClientTest {
 
     private static class BioServer implements AutoCloseable {
         private final ServerSocket ss;
-        private Socket s;
-        private DataInputStream in;
-        private DataOutputStream out;
+        private ArrayList<Socket> sockets = new ArrayList<>();
         private volatile boolean stop;
-        private final ArrayBlockingQueue<DtFrame.Frame> queue = new ArrayBlockingQueue<>(100);
         private long sleep;
         private int resultCode = CmdCodes.SUCCESS;
 
@@ -75,10 +72,12 @@ public class NioClientTest {
         public void runAcceptThread() {
             while (!stop) {
                 try {
-                    s = ss.accept();
+                    Socket s = ss.accept();
+                    sockets.add(s);
                     s.setSoTimeout(1000);
-                    Thread readThread = new Thread(this::runReadThread);
-                    Thread writeThread = new Thread(this::runWriteThread);
+                    ArrayBlockingQueue<DtFrame.Frame> queue = new ArrayBlockingQueue<>(100);
+                    Thread readThread = new Thread(() -> runReadThread(s, queue));
+                    Thread writeThread = new Thread(() -> runWriteThread(s, queue));
                     readThread.start();
                     writeThread.start();
                 } catch (Throwable e) {
@@ -87,7 +86,8 @@ public class NioClientTest {
             }
         }
 
-        public void runReadThread() {
+        public void runReadThread(Socket s, ArrayBlockingQueue<DtFrame.Frame> queue) {
+            DataInputStream in = null;
             try {
                 in = new DataInputStream(s.getInputStream());
                 while (!stop) {
@@ -100,10 +100,13 @@ public class NioClientTest {
             } catch (EOFException e) {
             } catch (Exception e) {
                 log.error("", e);
+            } finally {
+                CloseUtil.close(in);
             }
         }
 
-        public void runWriteThread() {
+        public void runWriteThread(Socket s, ArrayBlockingQueue<DtFrame.Frame> queue) {
+            DataOutputStream out = null;
             try {
                 out = new DataOutputStream(s.getOutputStream());
                 while (!stop) {
@@ -122,6 +125,8 @@ public class NioClientTest {
             } catch (InterruptedException e) {
             } catch (Exception e) {
                 log.error("", e);
+            } finally {
+                CloseUtil.close(out);
             }
         }
 
@@ -145,8 +150,9 @@ public class NioClientTest {
                 return;
             }
             stop = true;
-            in.close();
-            out.close();
+            for (Socket s : sockets) {
+                s.close();
+            }
             ss.close();
         }
     }
