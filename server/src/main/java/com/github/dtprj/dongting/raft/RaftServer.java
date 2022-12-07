@@ -76,14 +76,14 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     static Set<HostPort> parseServers(String serversStr) {
-        Set<HostPort> servers = Arrays.stream(serversStr.split(","))
+        Set<HostPort> servers = Arrays.stream(serversStr.split("[,;]"))
                 .filter(Objects::nonNull)
                 .map(s -> {
                     String[] arr = s.split(":");
                     if (arr.length != 2) {
                         throw new IllegalArgumentException("not 'host:port' format:" + s);
                     }
-                    return new HostPort(arr[0], Integer.parseInt(arr[1]));
+                    return new HostPort(arr[0].trim(), Integer.parseInt(arr[1].trim()));
                 }).collect(Collectors.toSet());
         if (servers.size() == 0) {
             throw new DtException("servers list is empty");

@@ -16,9 +16,9 @@
 package com.github.dtprj.dongting.raft;
 
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.Decoder;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NioClient;
@@ -87,74 +87,75 @@ class GroupConManager {
 
     public CompletableFuture<List<Peer>> fetch() {
         ArrayList<Peer> peers = new ArrayList<>();
-        CompletableFuture<List<Peer>> future = new CompletableFuture<>();
+        CompletableFuture<List<Peer>> finalFuture = new CompletableFuture<>();
         AtomicInteger count = new AtomicInteger(allServers.size());
         for (HostPort hp : allServers) {
             if (hp.equals(self)) {
-                decr(future, peers, count);
+                decr(finalFuture, peers, count);
                 continue;
             }
-            client.addPeer(hp).whenComplete((peer, ex) -> {
-                if (peer != null) {
-                    if (peer.isConnected()) {
-                        peers.add(peer);
-                        decr(future, peers, count);
-                    } else {
-                        client.connect(peer).whenComplete((v, ex2) -> whenConnected(future, count, peers, peer, ex2));
-                    }
+            client.addPeer(hp).thenAccept(peer -> {
+                if (peer.isConnected()) {
+                    peers.add(peer);
+                    decr(finalFuture, peers, count);
                 } else {
-                    BugLog.getLog().error("add peer fail: {}", hp);
-                    decr(future, peers, count);
+                    client.connect(peer)
+                            .thenAccept(v -> whenConnected(finalFuture, count, peers, peer))
+                            .exceptionally(ex -> {
+                                log.info("connect to raft server {} fail: {}", peer.getEndPoint(), ex.getMessage());
+                                decr(finalFuture, peers, count);
+                                return null;
+                            });
                 }
+            }).exceptionally(ex -> {
+                log.error("add peer fail: {}", hp, ex);
+                decr(finalFuture, peers, count);
+                return null;
             });
         }
-        return future;
+        return finalFuture;
     }
 
-    private void decr(CompletableFuture<List<Peer>> future, ArrayList<Peer> peers, AtomicInteger count) {
+    private void decr(CompletableFuture<List<Peer>> finalFuture, ArrayList<Peer> peers, AtomicInteger count) {
         int x = count.decrementAndGet();
         if (x == 0) {
-            future.complete(peers);
+            finalFuture.complete(peers);
         }
     }
 
-    private void whenConnected(CompletableFuture<List<Peer>> future, AtomicInteger count,
-                               ArrayList<Peer> peers, Peer peer, Throwable ex) {
-        if (ex != null) {
-            log.info("connect to raft server {} fail: {}", peer.getEndPoint(), ex.getMessage());
-            decr(future, peers, count);
-        } else {
-            DtTime timeout = new DtTime(10, TimeUnit.SECONDS);
-            CompletableFuture<ReadFrame> f = client.sendRequest(new RaftInitWriteFrame(), DECODER, timeout);
-            f.whenComplete((rf, rpcEx) -> whenRpcFinish(rf, future, count, peers, peer, rpcEx));
-        }
+    private void whenConnected(CompletableFuture<List<Peer>> finalFuture, AtomicInteger count,
+                               ArrayList<Peer> peers, Peer peer) {
+        DtTime timeout = new DtTime(10, TimeUnit.SECONDS);
+        CompletableFuture<ReadFrame> f = client.sendRequest(new RaftInitWriteFrame(), DECODER, timeout);
+        f.thenAccept(rf -> whenRpcFinish(rf, finalFuture, count, peers, peer))
+                .exceptionally(ex -> {
+                    log.info("init raft server {} fail: {}", peer.getEndPoint(), ex.getMessage());
+                    decr(finalFuture, peers, count);
+                    return null;
+                });
     }
 
-    private void whenRpcFinish(ReadFrame rf, CompletableFuture<List<Peer>> future, AtomicInteger count,
-                               ArrayList<Peer> peers, Peer peer, Throwable ex) {
-        if (ex != null) {
-            log.info("init raft server {} fail: {}", peer.getEndPoint(), ex.getMessage());
-            decr(future, peers, count);
+    private void whenRpcFinish(ReadFrame rf, CompletableFuture<List<Peer>> finalFuture, AtomicInteger count,
+                               ArrayList<Peer> peers, Peer peer) {
+
+        RaftInitFrameCallback callback = (RaftInitFrameCallback) rf.getBody();
+        if (callback.uuidHigh == uuid.getMostSignificantBits() && callback.uuidLow == uuid.getLeastSignificantBits()) {
+            self = peer.getEndPoint();
+            decr(finalFuture, peers, count);
         } else {
-            RaftInitFrameCallback callback = (RaftInitFrameCallback) rf.getBody();
-            if (callback.uuidHigh == uuid.getMostSignificantBits() && callback.uuidLow == uuid.getLeastSignificantBits()) {
-                self = peer.getEndPoint();
-                decr(future, peers, count);
+            if (callback.id == this.id) {
+                String errorMsg = "config error. duplicated id " + this.id + ", remote peer is " + peer;
+                log.error(errorMsg);
+                finalFuture.completeExceptionally(new RaftException(errorMsg));
             } else {
-                if (callback.id == this.id) {
-                    String errorMsg = "config error. duplicated id " + this.id + ", remote peer is " + peer;
+                Set<HostPort> remoteServers = RaftServer.parseServers(callback.serversStr);
+                if (!allServers.equals(remoteServers)) {
+                    String errorMsg = "config error. server list not same , remote peer is " + peer;
                     log.error(errorMsg);
-                    future.completeExceptionally(new RaftException(errorMsg));
+                    finalFuture.completeExceptionally(new RaftException(errorMsg));
                 } else {
-                    Set<HostPort> remoteServers = RaftServer.parseServers(callback.serversStr);
-                    if (!allServers.equals(remoteServers)) {
-                        String errorMsg = "config error. server list not same , remote peer is " + peer;
-                        log.error(errorMsg);
-                        future.completeExceptionally(new RaftException(errorMsg));
-                    } else {
-                        peers.add(peer);
-                        decr(future, peers, count);
-                    }
+                    peers.add(peer);
+                    decr(finalFuture, peers, count);
                 }
             }
         }
@@ -165,6 +166,10 @@ class GroupConManager {
     }
 
     class RaftInitWriteFrame extends ZeroCopyWriteFrame {
+
+        public RaftInitWriteFrame() {
+            setCommand(Commands.RAFT_HANDSHAKE);
+        }
 
         @Override
         protected int accurateBodySize() {
