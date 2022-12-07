@@ -44,6 +44,7 @@ import java.util.concurrent.TimeoutException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -406,7 +407,7 @@ public class NioClientTest {
             client.waitStart();
             Peer p1 = client.addPeer(hp1).get();
             Peer p2 = client.addPeer(hp2).get();
-            assertThrows(ExecutionException.class, () -> client.addPeer(hp1).get());
+            assertSame(p1, client.addPeer(hp1).get());
             client.connect(p1).get();
             client.connect(p2).get();
             assertThrows(ExecutionException.class, () -> client.connect(p1).get());
