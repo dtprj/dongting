@@ -28,7 +28,6 @@ import org.junit.jupiter.api.Test;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
-import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
@@ -63,9 +62,8 @@ public class NioClientTest {
         private int resultCode = CmdCodes.SUCCESS;
 
         public BioServer(int port) throws Exception {
-            ss = new ServerSocket();
+            ss = new ServerSocket(port);
             ss.setReuseAddress(true);
-            ss.bind(new InetSocketAddress(port));
             new Thread(this::runAcceptThread).start();
         }
 
@@ -154,6 +152,8 @@ public class NioClientTest {
                 CloseUtil.close(s);
             }
             CloseUtil.close(ss);
+            // if no sleep, GitHub action fails: Bind Address already in use (Bind failed)
+            Thread.sleep(1);
         }
     }
 
