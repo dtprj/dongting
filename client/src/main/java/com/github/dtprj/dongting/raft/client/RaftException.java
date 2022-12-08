@@ -13,37 +13,19 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft;
+package com.github.dtprj.dongting.raft.client;
+
+import com.github.dtprj.dongting.common.DtException;
 
 /**
  * @author huangli
  */
-public class RaftServerConfig {
-    private String servers;
-    private int port;
-    private int id;
-
-    public String getServers() {
-        return servers;
+public class RaftException extends DtException {
+    public RaftException(String message) {
+        super(message);
     }
 
-    public void setServers(String servers) {
-        this.servers = servers;
-    }
-
-    public int getPort() {
-        return port;
-    }
-
-    public void setPort(int port) {
-        this.port = port;
-    }
-
-    public int getId() {
-        return id;
-    }
-
-    public void setId(int id) {
-        this.id = id;
+    public RaftException(Throwable e) {
+        super(e);
     }
 }

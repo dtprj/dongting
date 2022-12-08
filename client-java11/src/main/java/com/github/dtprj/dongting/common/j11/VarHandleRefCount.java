@@ -13,7 +13,12 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.common;
+package com.github.dtprj.dongting.common.j11;
+
+import com.github.dtprj.dongting.common.AbstractRefCount;
+import com.github.dtprj.dongting.common.DtException;
+import com.github.dtprj.dongting.common.Processor;
+import com.github.dtprj.dongting.common.RefCount;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -21,7 +26,7 @@ import java.lang.invoke.VarHandle;
 /**
  * @author huangli
  */
-class VarHandleRefCount extends AbstractRefCount {
+public class VarHandleRefCount extends AbstractRefCount {
     private static final VarHandle REF_CNT;
 
     static {
@@ -66,13 +71,15 @@ class VarHandleRefCount extends AbstractRefCount {
     protected boolean weakCAS(int expect, int newValue) {
         return REF_CNT.weakCompareAndSetPlain(this, expect, newValue);
     }
-}
 
-@SuppressWarnings({"unused"})
-class VarHandleRefCountFactory extends RefCountFactory {
+    @SuppressWarnings({"unused"})
+    public static class VarHandleRefCountFactory extends RefCount.RefCountFactory {
 
-    @Override
-    public RefCount newInstance() {
-        return new VarHandleRefCount();
+        @Override
+        public RefCount newInstance() {
+            return new VarHandleRefCount();
+        }
     }
 }
+
+

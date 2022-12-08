@@ -13,10 +13,16 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft;
+package com.github.dtprj.dongting.common.j11;
+
+import com.github.dtprj.dongting.common.RefCount;
 
 /**
  * @author huangli
  */
-public class RaftClient {
+public class PlainRefCountTest extends AbstractRefCountTest{
+    @Override
+    protected RefCount createInstance() {
+        return RefCount.newPlainInstance();
+    }
 }

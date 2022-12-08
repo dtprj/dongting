@@ -13,19 +13,24 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft;
+package com.github.dtprj.dongting.common.j11;
 
-import com.github.dtprj.dongting.common.DtException;
+import com.github.dtprj.dongting.common.Java8RefCount;
+import com.github.dtprj.dongting.common.RefCount;
+import org.junit.jupiter.api.Test;
 
 /**
  * @author huangli
  */
-public class RaftException extends DtException {
-    public RaftException(String message) {
-        super(message);
+public class Java8RefCountTest extends AbstractMultiThreadRefCountTest {
+
+    @Override
+    protected RefCount createInstance() {
+        return new Java8RefCount.Java8RefCountFactory().newInstance();
     }
 
-    public RaftException(Throwable e) {
-        super(e);
+    @Test
+    public void overflowTest(){
+        super.doOverflowTest();
     }
 }

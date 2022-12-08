@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft;
+package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtException;
@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
 import com.github.dtprj.dongting.net.Peer;
+import com.github.dtprj.dongting.raft.client.RaftException;
 
 import java.util.Arrays;
 import java.util.List;

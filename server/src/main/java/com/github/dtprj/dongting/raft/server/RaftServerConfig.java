@@ -13,21 +13,37 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.common;
-
-import org.junit.jupiter.api.Test;
+package com.github.dtprj.dongting.raft.server;
 
 /**
  * @author huangli
  */
-public class VarHandleRefCountTest extends AbstractMultiThreadRefCountTest {
-    @Override
-    protected RefCount createInstance() {
-        return RefCount.newInstance();
+public class RaftServerConfig {
+    private String servers;
+    private int port;
+    private int id;
+
+    public String getServers() {
+        return servers;
     }
 
-    @Test
-    public void overflowTest(){
-        super.doOverflowTest();
+    public void setServers(String servers) {
+        this.servers = servers;
+    }
+
+    public int getPort() {
+        return port;
+    }
+
+    public void setPort(int port) {
+        this.port = port;
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
     }
 }

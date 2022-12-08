@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft;
+package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.log.DtLog;
@@ -32,6 +32,7 @@ import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.net.ZeroCopyWriteFrame;
 import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.pb.PbUtil;
+import com.github.dtprj.dongting.raft.client.RaftException;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;

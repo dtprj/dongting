@@ -13,22 +13,10 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.common;
-
-import org.junit.jupiter.api.Test;
+package com.github.dtprj.dongting.raft.client;
 
 /**
  * @author huangli
  */
-public class Java8RefCountTest extends AbstractMultiThreadRefCountTest {
-
-    @Override
-    protected RefCount createInstance() {
-        return new Java8RefCountFactory().newInstance();
-    }
-
-    @Test
-    public void overflowTest(){
-        super.doOverflowTest();
-    }
+public class RaftClient {
 }
