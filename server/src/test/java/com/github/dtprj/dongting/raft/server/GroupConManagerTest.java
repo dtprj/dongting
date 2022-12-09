@@ -21,16 +21,15 @@ import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
-import com.github.dtprj.dongting.net.Peer;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -38,68 +37,52 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 public class GroupConManagerTest {
 
-    private static class RG {
+    private static class RN {
         NioServer server;
         NioClient client;
         GroupConManager conManager;
+        Set<HostPort> servers;
     }
 
     @Test
     public void testFetch3() throws Exception {
         String servers = "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993";
-        RG rg1 = null;
-        RG rg2 = null;
-        RG rg3 = null;
+        RN rn1 = null;
+        RN rn2 = null;
+        RN rn3 = null;
         try {
-            rg1 = createNioServer(1, servers, 6991);
-            rg2 = createNioServer(2, servers, 6992);
-            rg3 = createNioServer(3, servers, 6993);
-            fetch3(rg1, rg2, rg3);
-            fetch3(rg1, rg2, rg3);
+            rn1 = createRaftNode(1, servers, 6991);
+            rn2 = createRaftNode(2, servers, 6992);
+            rn3 = createRaftNode(3, servers, 6993);
+            fetch3(rn1, rn2, rn3);
+            fetch3(rn1, rn2, rn3);
         } finally {
-            close(rg1);
-            close(rg2);
-            close(rg3);
+            close(rn1);
+            close(rn2);
+            close(rn3);
         }
     }
 
-    private void fetch3(RG rg1, RG rg2, RG rg3) throws Exception {
-        CompletableFuture<List<Peer>> f1 = rg1.conManager.fetch();
-        CompletableFuture<List<Peer>> f2 = rg2.conManager.fetch();
-        CompletableFuture<List<Peer>> f3 = rg3.conManager.fetch();
-        equals("127.0.0.1:6992,127.0.0.1:6993", f1);
-        equals("127.0.0.1:6991,127.0.0.1:6993", f2);
-        equals("127.0.0.1:6991,127.0.0.1:6992", f3);
-    }
-
-    @Test
-    public void testFetch1() throws Exception {
-        String servers = "127.0.0.1:6991";
-        RG rg1 = null;
-        try {
-            rg1 = createNioServer(1, servers, 6991);
-
-            CompletableFuture<List<Peer>> f1 = rg1.conManager.fetch();
-            assertTrue(f1.get(5, TimeUnit.SECONDS).isEmpty());
-
-            f1 = rg1.conManager.fetch();
-            assertTrue(f1.get(5, TimeUnit.SECONDS).isEmpty());
-        } finally {
-            close(rg1);
-        }
+    private void fetch3(RN r1, RN r2, RN r3) throws Exception {
+        CompletableFuture<List<RaftMember>> f1 = r1.conManager.connect(r1.servers).thenCompose(list -> r1.conManager.fetch(list));
+        CompletableFuture<List<RaftMember>> f2 = r2.conManager.connect(r2.servers).thenCompose(list -> r2.conManager.fetch(list));
+        CompletableFuture<List<RaftMember>> f3 = r3.conManager.connect(r3.servers).thenCompose(list -> r3.conManager.fetch(list));
+        equals(r1, f1, 1, 3);
+        equals(r2, f2, 2, 3);
+        equals(r3, f3, 3, 3);
     }
 
     @Test
     public void testFetch2() throws Exception {
         String servers = "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993";
-        RG rg1 = null;
-        RG rg2 = null;
-        RG rg3 = null;
+        RN rg1 = null;
+        RN rg2 = null;
+        RN rg3 = null;
         try {
-            rg1 = createNioServer(1, servers, 6991);
-            rg2 = createNioServer(2, servers, 6992);
+            rg1 = createRaftNode(1, servers, 6991);
+            rg2 = createRaftNode(2, servers, 6992);
             fetch2(rg1, rg2);
-            rg3 = createNioServer(3, servers, 6993, false);
+            rg3 = createRaftNode(3, servers, 6993, false);
             fetch2(rg1, rg2);
         } finally {
             close(rg1);
@@ -108,40 +91,48 @@ public class GroupConManagerTest {
         }
     }
 
-    private void fetch2(RG rg1, RG rg2) throws Exception {
-        CompletableFuture<List<Peer>> f1 = rg1.conManager.fetch();
-        CompletableFuture<List<Peer>> f2 = rg2.conManager.fetch();
-        equals("127.0.0.1:6992", f1);
-        equals("127.0.0.1:6991", f2);
+    private void fetch2(RN r1, RN r2) throws Exception {
+        CompletableFuture<List<RaftMember>> f1 = r1.conManager.connect(r1.servers).thenCompose(list -> r1.conManager.fetch(list));
+        CompletableFuture<List<RaftMember>> f2 = r2.conManager.connect(r2.servers).thenCompose(list -> r2.conManager.fetch(list));
+        equals(r1, f1, 1, 2);
+        equals(r2, f2, 2, 2);
     }
 
 
-    private void equals(String servers, CompletableFuture<List<Peer>> f) throws Exception {
-        Set<HostPort> s1 = RaftServer.parseServers(servers);
-        Set<HostPort> s2 = f.get(5, TimeUnit.SECONDS).stream().map(Peer::getEndPoint).collect(Collectors.toSet());
-        assertEquals(s1, s2);
+    private void equals(RN r1, CompletableFuture<List<RaftMember>> f, int id, int expectSize) throws Exception {
+        Set<HostPort> s1 = r1.servers;
+        List<RaftMember> s2 = f.get(5, TimeUnit.SECONDS);
+        assertEquals(expectSize, s2.size());
+        for (RaftMember m : s2) {
+            assertTrue(s1.containsAll(m.getServers()));
+            assertTrue(m.getId() > 0);
+            assertNotNull(m.getPeer());
+            if (id == m.getId()) {
+                assertTrue(m.isSelf());
+            }
+        }
     }
 
-    private void close(RG member) {
+    private void close(RN member) {
         if (member != null) {
             CloseUtil.close(member.client, member.server);
         }
     }
 
-    private RG createNioServer(int id, String servers, int port) {
-        return createNioServer(id, servers, port, true);
+    private RN createRaftNode(int id, String servers, int port) {
+        return createRaftNode(id, servers, port, true);
     }
 
-    private RG createNioServer(int id, String servers, int port, boolean register) {
+    private RN createRaftNode(int id, String servers, int port, boolean register) {
         NioServerConfig serverConfig = new NioServerConfig();
         serverConfig.setPort(port);
         NioServer server = new NioServer(serverConfig);
 
         NioClientConfig clientConfig = new NioClientConfig();
         NioClient client = new NioClient(clientConfig);
-        GroupConManager manager = new GroupConManager(id, RaftServer.parseServers(servers), servers, client);
+        GroupConManager manager = new GroupConManager(id, servers, client);
 
-        if(register) {
+        if (register) {
             server.register(Commands.RAFT_HANDSHAKE, manager.getProcessor());
         }
 
@@ -149,11 +140,12 @@ public class GroupConManagerTest {
         client.start();
         client.waitStart();
 
-        RG m = new RG();
-        m.conManager = manager;
-        m.server = server;
-        m.client = client;
-        return m;
+        RN rn = new RN();
+        rn.conManager = manager;
+        rn.server = server;
+        rn.client = client;
+        rn.servers = RaftServer.parseServers(servers);
+        return rn;
     }
 
 }

@@ -26,7 +26,6 @@ import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
-import com.github.dtprj.dongting.net.Peer;
 import com.github.dtprj.dongting.raft.client.RaftException;
 
 import java.util.Arrays;
@@ -72,7 +71,7 @@ public class RaftServer extends AbstractLifeCircle {
         nioClientConfig.setName("RaftClient");
         client = new NioClient(nioClientConfig);
 
-        groupConManager = new GroupConManager(config.getId(), servers, config.getServers(), client);
+        groupConManager = new GroupConManager(config.getId(), config.getServers(), client);
         server.register(Commands.RAFT_HANDSHAKE, this.groupConManager.getProcessor());
     }
 
@@ -98,9 +97,10 @@ public class RaftServer extends AbstractLifeCircle {
         client.start();
         client.waitStart();
         while (true) {
-            CompletableFuture<List<Peer>> f = groupConManager.fetch();
+            CompletableFuture<List<RaftMember>> f = groupConManager.connect(servers)
+                    .thenCompose(list -> groupConManager.fetch(list));
             try {
-                List<Peer> peers = f.get(15, TimeUnit.SECONDS);
+                List<RaftMember> peers = f.get(15, TimeUnit.SECONDS);
                 int currentNodes = peers.size() + 1;
                 if (currentNodes >= electQuorum) {
                     log.info("raft group init success. electQuorum={}, currentNodes={}. remote peers: {}",

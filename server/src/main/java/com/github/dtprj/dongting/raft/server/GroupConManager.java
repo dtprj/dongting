@@ -16,6 +16,8 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.MutableInt;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
@@ -32,17 +34,16 @@ import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.net.ZeroCopyWriteFrame;
 import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.pb.PbUtil;
-import com.github.dtprj.dongting.raft.client.RaftException;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author huangli
@@ -51,10 +52,8 @@ class GroupConManager {
     private static final DtLog log = DtLogs.getLogger(GroupConManager.class);
     private final UUID uuid = UUID.randomUUID();
     private final int id;
-    private final Set<HostPort> allServers;
     private final byte[] serversStr;
     private final NioClient client;
-    private volatile HostPort self;
     private static final PbZeroCopyDecoder DECODER = new PbZeroCopyDecoder() {
         @Override
         protected PbCallback createCallback(ProcessContext context) {
@@ -79,87 +78,79 @@ class GroupConManager {
         }
     };
 
-    public GroupConManager(int id, Set<HostPort> allServers, String serversStr, NioClient client) {
+    public GroupConManager(int id, String serversStr, NioClient client) {
         this.id = id;
-        this.allServers = allServers;
         this.serversStr = serversStr.getBytes(StandardCharsets.UTF_8);
         this.client = client;
     }
 
-    public CompletableFuture<List<Peer>> fetch() {
+    public CompletableFuture<List<Peer>> connect(Collection<HostPort> servers) {
         ArrayList<Peer> peers = new ArrayList<>();
         CompletableFuture<List<Peer>> finalFuture = new CompletableFuture<>();
-        AtomicInteger count = new AtomicInteger(allServers.size());
-        for (HostPort hp : allServers) {
-            if (hp.equals(self)) {
-                decr(finalFuture, peers, count);
-                continue;
-            }
-            client.addPeer(hp).thenAccept(peer -> {
-                if (peer.isConnected()) {
+        MutableInt count = new MutableInt(servers.size());
+        for (HostPort hp : servers) {
+            client.addPeer(hp).handle((peer, ex) -> {
+                if (ex == null) {
                     peers.add(peer);
-                    decr(finalFuture, peers, count);
                 } else {
-                    client.connect(peer)
-                            .thenAccept(v -> whenConnected(finalFuture, count, peers, peer))
-                            .exceptionally(ex -> {
-                                log.info("connect to raft server {} fail: {}", peer.getEndPoint(), ex.getMessage());
-                                decr(finalFuture, peers, count);
-                                return null;
-                            });
+                    BugLog.getLog().error("add peer fail: {}", hp, ex);
                 }
-            }).exceptionally(ex -> {
-                log.error("add peer fail: {}", hp, ex);
-                decr(finalFuture, peers, count);
+                if (count.decrement() == 0) {
+                    finalFuture.complete(peers);
+                }
                 return null;
             });
         }
         return finalFuture;
     }
 
-    private void decr(CompletableFuture<List<Peer>> finalFuture, ArrayList<Peer> peers, AtomicInteger count) {
-        int x = count.decrementAndGet();
-        if (x == 0) {
-            finalFuture.complete(peers);
-        }
-    }
-
-    private void whenConnected(CompletableFuture<List<Peer>> finalFuture, AtomicInteger count,
-                               ArrayList<Peer> peers, Peer peer) {
-        DtTime timeout = new DtTime(10, TimeUnit.SECONDS);
-        CompletableFuture<ReadFrame> f = client.sendRequest(new RaftInitWriteFrame(), DECODER, timeout);
-        f.thenAccept(rf -> whenRpcFinish(rf, finalFuture, count, peers, peer))
-                .exceptionally(ex -> {
-                    log.info("init raft server {} fail: {}", peer.getEndPoint(), ex.getMessage());
-                    decr(finalFuture, peers, count);
+    public CompletableFuture<List<RaftMember>> fetch(Collection<Peer> servers) {
+        ArrayList<RaftMember> peers = new ArrayList<>();
+        CompletableFuture<List<RaftMember>> finalFuture = new CompletableFuture<>();
+        MutableInt count = new MutableInt(servers.size());
+        for (Peer peer : servers) {
+            if (peer.isConnected()) {
+                whenConnected(peers, finalFuture, count, peer);
+            } else {
+                client.connect(peer).handle((v, ex) -> {
+                    if (ex == null) {
+                        whenConnected(peers, finalFuture, count, peer);
+                    } else {
+                        log.info("connect to raft server {} fail: {}", peer.getEndPoint(), ex.getMessage());
+                        if (count.decrement() == 0) {
+                            finalFuture.complete(peers);
+                        }
+                    }
                     return null;
                 });
-    }
-
-    private void whenRpcFinish(ReadFrame rf, CompletableFuture<List<Peer>> finalFuture, AtomicInteger count,
-                               ArrayList<Peer> peers, Peer peer) {
-
-        RaftInitFrameCallback callback = (RaftInitFrameCallback) rf.getBody();
-        if (callback.uuidHigh == uuid.getMostSignificantBits() && callback.uuidLow == uuid.getLeastSignificantBits()) {
-            self = peer.getEndPoint();
-            decr(finalFuture, peers, count);
-        } else {
-            if (callback.id == this.id) {
-                String errorMsg = "config error. duplicated id " + this.id + ", remote peer is " + peer;
-                log.error(errorMsg);
-                finalFuture.completeExceptionally(new RaftException(errorMsg));
-            } else {
-                Set<HostPort> remoteServers = RaftServer.parseServers(callback.serversStr);
-                if (!allServers.equals(remoteServers)) {
-                    String errorMsg = "config error. server list not same , remote peer is " + peer;
-                    log.error(errorMsg);
-                    finalFuture.completeExceptionally(new RaftException(errorMsg));
-                } else {
-                    peers.add(peer);
-                    decr(finalFuture, peers, count);
-                }
             }
         }
+        return finalFuture;
+    }
+
+    private void whenConnected(ArrayList<RaftMember> peers, CompletableFuture<List<RaftMember>> finalFuture, MutableInt count, Peer peer) {
+        DtTime timeout = new DtTime(10, TimeUnit.SECONDS);
+        CompletableFuture<ReadFrame> f = client.sendRequest(peer, new RaftInitWriteFrame(), DECODER, timeout);
+        f.handle((rf, ex) -> {
+            if (ex == null) {
+                whenRpcFinish(rf, peers, peer);
+            } else {
+                log.info("init raft server {} fail: {}", peer.getEndPoint(), ex.getMessage());
+            }
+            if (count.decrement() == 0) {
+                finalFuture.complete(peers);
+            }
+            return null;
+        });
+    }
+
+    private void whenRpcFinish(ReadFrame rf, ArrayList<RaftMember> peers, Peer peer) {
+        RaftInitFrameCallback callback = (RaftInitFrameCallback) rf.getBody();
+        boolean self = callback.uuidHigh == uuid.getMostSignificantBits()
+                && callback.uuidLow == uuid.getLeastSignificantBits();
+        Set<HostPort> remoteServers = RaftServer.parseServers(callback.serversStr);
+        RaftMember rm = new RaftMember(callback.id, peer, remoteServers, self);
+        peers.add(rm);
     }
 
     public ReqProcessor getProcessor() {
