@@ -113,17 +113,17 @@ public class GroupConManagerTest {
         }
     }
 
-    private void close(RN member) {
-        if (member != null) {
-            CloseUtil.close(member.client, member.server);
+    private static void close(RN rn) {
+        if (rn != null) {
+            CloseUtil.close(rn.client, rn.server);
         }
     }
 
-    private RN createRaftNode(int id, String servers, int port) {
+    private static RN createRaftNode(int id, String servers, int port) {
         return createRaftNode(id, servers, port, true);
     }
 
-    private RN createRaftNode(int id, String servers, int port, boolean register) {
+    private static RN createRaftNode(int id, String servers, int port, boolean register) {
         NioServerConfig serverConfig = new NioServerConfig();
         serverConfig.setPort(port);
         NioServer server = new NioServer(serverConfig);
@@ -146,6 +146,82 @@ public class GroupConManagerTest {
         rn.client = client;
         rn.servers = RaftServer.parseServers(servers);
         return rn;
+    }
+
+    @Test
+    public void testInit3() throws Exception {
+        String servers = "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993";
+        InitThread t1 = new InitThread(1, servers, 6991, 2);
+        InitThread t2 = new InitThread(2, servers, 6992, 2);
+        InitThread t3 = new InitThread(3, servers, 6993, 2);
+        t1.start();
+        Thread.sleep(1);
+        t2.start();
+        Thread.sleep(1);
+        t3.start();
+        t1.join(1000);
+        t2.join(1000);
+        t3.join(1000);
+        assertEquals(Boolean.TRUE, t1.result);
+        assertEquals(Boolean.TRUE, t2.result);
+        assertEquals(Boolean.TRUE, t3.result);
+    }
+
+    @Test
+    public void testInit2() throws Exception {
+        String servers = "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993";
+        InitThread t1 = new InitThread(1, servers, 6991, 2);
+        InitThread t2 = new InitThread(2, servers, 6992, 2);
+        t1.start();
+        Thread.sleep(1);
+        t2.start();
+
+        t1.join(1000);
+        t2.join(1000);
+
+        assertEquals(Boolean.TRUE, t1.result);
+        assertEquals(Boolean.TRUE, t2.result);
+    }
+
+    @Test
+    public void testInit1() throws Exception {
+        String servers = "127.0.0.1:6991";
+        InitThread t1 = new InitThread(1, servers, 6991, 2);
+        t1.start();
+
+        t1.join(1000);
+
+        assertEquals(Boolean.TRUE, t1.result);
+    }
+
+    private static class InitThread extends Thread {
+
+        private final int id;
+        private final String servers;
+        private final int port;
+        private final int quorum;
+        private Object result;
+
+        public InitThread(int id, String servers, int port, int quorum) {
+            this.id = id;
+            this.servers = servers;
+            this.port = port;
+            this.quorum = quorum;
+        }
+
+        @Override
+        public void run() {
+            RN rn = null;
+            try {
+                rn = createRaftNode(id, servers, port);
+                rn.conManager.init(quorum, rn.servers, 1);
+                result = Boolean.TRUE;
+            } catch (Exception e) {
+                result = e;
+            } finally {
+                close(rn);
+            }
+        }
     }
 
 }

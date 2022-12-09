@@ -26,16 +26,10 @@ import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
-import com.github.dtprj.dongting.raft.client.RaftException;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 /**
@@ -96,25 +90,7 @@ public class RaftServer extends AbstractLifeCircle {
         server.start();
         client.start();
         client.waitStart();
-        while (true) {
-            CompletableFuture<List<RaftMember>> f = groupConManager.connect(servers)
-                    .thenCompose(list -> groupConManager.fetch(list));
-            try {
-                List<RaftMember> peers = f.get(15, TimeUnit.SECONDS);
-                int currentNodes = peers.size() + 1;
-                if (currentNodes >= electQuorum) {
-                    log.info("raft group init success. electQuorum={}, currentNodes={}. remote peers: {}",
-                            electQuorum, currentNodes, peers);
-                    break;
-                }
-            } catch (InterruptedException e) {
-                throw new RaftException(e);
-            } catch (ExecutionException e) {
-                throw new RaftException(e);
-            } catch (TimeoutException e) {
-                log.warn("init raft group timeout, will continue");
-            }
-        }
+        groupConManager.init(electQuorum, servers, 1000);
     }
 
     @Override

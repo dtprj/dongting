@@ -34,6 +34,7 @@ import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.net.ZeroCopyWriteFrame;
 import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.pb.PbUtil;
+import com.github.dtprj.dongting.raft.client.RaftException;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -44,6 +45,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * @author huangli
@@ -151,6 +153,27 @@ class GroupConManager {
         Set<HostPort> remoteServers = RaftServer.parseServers(callback.serversStr);
         RaftMember rm = new RaftMember(callback.id, peer, remoteServers, self);
         peers.add(rm);
+    }
+
+    public void init(int electQuorum, Collection<HostPort> servers, int sleepMillis) {
+        while (true) {
+            CompletableFuture<List<RaftMember>> f = connect(servers)
+                    .thenCompose(list -> fetch(list));
+            try {
+                List<RaftMember> peers = f.get(15, TimeUnit.SECONDS);
+                int currentNodes = peers.size() + 1;
+                if (currentNodes >= electQuorum) {
+                    log.info("raft group init success. electQuorum={}, currentNodes={}. remote peers: {}",
+                            electQuorum, currentNodes, peers);
+                    return;
+                }
+                Thread.sleep(sleepMillis);
+            } catch (TimeoutException e) {
+                log.warn("init raft group timeout, will continue");
+            } catch (Exception e) {
+                throw new RaftException(e);
+            }
+        }
     }
 
     public ReqProcessor getProcessor() {
