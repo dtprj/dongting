@@ -23,13 +23,13 @@ import java.util.Set;
 /**
  * @author huangli
  */
-class RaftMember {
+class RaftNode {
     private final int id;
     private final Peer peer;
     private final Set<HostPort> servers;
     private final boolean self;
 
-    public RaftMember(int id, Peer peer, Set<HostPort> servers, boolean self) {
+    public RaftNode(int id, Peer peer, Set<HostPort> servers, boolean self) {
         this.id = id;
         this.peer = peer;
         this.servers = servers;

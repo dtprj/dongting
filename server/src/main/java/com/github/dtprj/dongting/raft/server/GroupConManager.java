@@ -106,9 +106,9 @@ class GroupConManager {
         return finalFuture;
     }
 
-    public CompletableFuture<List<RaftMember>> fetch(Collection<Peer> servers) {
-        ArrayList<RaftMember> peers = new ArrayList<>();
-        CompletableFuture<List<RaftMember>> finalFuture = new CompletableFuture<>();
+    public CompletableFuture<List<RaftNode>> fetch(Collection<Peer> servers) {
+        ArrayList<RaftNode> peers = new ArrayList<>();
+        CompletableFuture<List<RaftNode>> finalFuture = new CompletableFuture<>();
         MutableInt count = new MutableInt(servers.size());
         for (Peer peer : servers) {
             if (peer.isConnected()) {
@@ -130,7 +130,7 @@ class GroupConManager {
         return finalFuture;
     }
 
-    private void whenConnected(ArrayList<RaftMember> peers, CompletableFuture<List<RaftMember>> finalFuture, MutableInt count, Peer peer) {
+    private void whenConnected(ArrayList<RaftNode> peers, CompletableFuture<List<RaftNode>> finalFuture, MutableInt count, Peer peer) {
         DtTime timeout = new DtTime(10, TimeUnit.SECONDS);
         CompletableFuture<ReadFrame> f = client.sendRequest(peer, new RaftInitWriteFrame(), DECODER, timeout);
         f.handle((rf, ex) -> {
@@ -146,26 +146,50 @@ class GroupConManager {
         });
     }
 
-    private void whenRpcFinish(ReadFrame rf, ArrayList<RaftMember> peers, Peer peer) {
+    private void whenRpcFinish(ReadFrame rf, ArrayList<RaftNode> peers, Peer peer) {
         RaftInitFrameCallback callback = (RaftInitFrameCallback) rf.getBody();
         boolean self = callback.uuidHigh == uuid.getMostSignificantBits()
                 && callback.uuidLow == uuid.getLeastSignificantBits();
         Set<HostPort> remoteServers = RaftServer.parseServers(callback.serversStr);
-        RaftMember rm = new RaftMember(callback.id, peer, remoteServers, self);
+        RaftNode rm = new RaftNode(callback.id, peer, remoteServers, self);
         peers.add(rm);
     }
 
     public void init(int electQuorum, Collection<HostPort> servers, int sleepMillis) {
+        List<RaftNode> nodes = init0(electQuorum, servers, sleepMillis);
+        checkNodes(nodes);
+    }
+
+    private void checkNodes(List<RaftNode> nodes) {
+        int size = nodes.size();
+        for (int i = 0; i < size; i++) {
+            RaftNode rn1 = nodes.get(i);
+            for (int j = i + 1; j < size; j++) {
+                RaftNode rn2 = nodes.get(j);
+                if (rn1.getId() == rn2.getId()) {
+                    throw new RaftException("find same id: " + rn1.getId() + ", "
+                            + rn1.getPeer().getEndPoint() + ", " + rn2.getPeer().getEndPoint());
+                }
+                if (!rn1.getServers().equals(rn2.getServers())) {
+                    throw new RaftException("server list not same: "
+                            + rn1.getPeer().getEndPoint() + ", " + rn2.getPeer().getEndPoint());
+                }
+            }
+        }
+    }
+
+    @SuppressWarnings("BusyWait")
+    private List<RaftNode> init0(int electQuorum, Collection<HostPort> servers, int sleepMillis) {
         while (true) {
-            CompletableFuture<List<RaftMember>> f = connect(servers)
-                    .thenCompose(list -> fetch(list));
+            CompletableFuture<List<RaftNode>> f = connect(servers)
+                    .thenCompose(this::fetch);
             try {
-                List<RaftMember> peers = f.get(15, TimeUnit.SECONDS);
+                List<RaftNode> peers = f.get(15, TimeUnit.SECONDS);
                 int currentNodes = peers.size() + 1;
                 if (currentNodes >= electQuorum) {
                     log.info("raft group init success. electQuorum={}, currentNodes={}. remote peers: {}",
                             electQuorum, currentNodes, peers);
-                    return;
+                    return peers;
                 }
                 Thread.sleep(sleepMillis);
             } catch (TimeoutException e) {

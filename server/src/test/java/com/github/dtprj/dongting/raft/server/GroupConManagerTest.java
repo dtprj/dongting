@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
+import com.github.dtprj.dongting.raft.client.RaftException;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -64,9 +65,9 @@ public class GroupConManagerTest {
     }
 
     private void fetch3(RN r1, RN r2, RN r3) throws Exception {
-        CompletableFuture<List<RaftMember>> f1 = r1.conManager.connect(r1.servers).thenCompose(list -> r1.conManager.fetch(list));
-        CompletableFuture<List<RaftMember>> f2 = r2.conManager.connect(r2.servers).thenCompose(list -> r2.conManager.fetch(list));
-        CompletableFuture<List<RaftMember>> f3 = r3.conManager.connect(r3.servers).thenCompose(list -> r3.conManager.fetch(list));
+        CompletableFuture<List<RaftNode>> f1 = r1.conManager.connect(r1.servers).thenCompose(list -> r1.conManager.fetch(list));
+        CompletableFuture<List<RaftNode>> f2 = r2.conManager.connect(r2.servers).thenCompose(list -> r2.conManager.fetch(list));
+        CompletableFuture<List<RaftNode>> f3 = r3.conManager.connect(r3.servers).thenCompose(list -> r3.conManager.fetch(list));
         equals(r1, f1, 1, 3);
         equals(r2, f2, 2, 3);
         equals(r3, f3, 3, 3);
@@ -92,18 +93,18 @@ public class GroupConManagerTest {
     }
 
     private void fetch2(RN r1, RN r2) throws Exception {
-        CompletableFuture<List<RaftMember>> f1 = r1.conManager.connect(r1.servers).thenCompose(list -> r1.conManager.fetch(list));
-        CompletableFuture<List<RaftMember>> f2 = r2.conManager.connect(r2.servers).thenCompose(list -> r2.conManager.fetch(list));
+        CompletableFuture<List<RaftNode>> f1 = r1.conManager.connect(r1.servers).thenCompose(list -> r1.conManager.fetch(list));
+        CompletableFuture<List<RaftNode>> f2 = r2.conManager.connect(r2.servers).thenCompose(list -> r2.conManager.fetch(list));
         equals(r1, f1, 1, 2);
         equals(r2, f2, 2, 2);
     }
 
 
-    private void equals(RN r1, CompletableFuture<List<RaftMember>> f, int id, int expectSize) throws Exception {
+    private void equals(RN r1, CompletableFuture<List<RaftNode>> f, int id, int expectSize) throws Exception {
         Set<HostPort> s1 = r1.servers;
-        List<RaftMember> s2 = f.get(5, TimeUnit.SECONDS);
+        List<RaftNode> s2 = f.get(5, TimeUnit.SECONDS);
         assertEquals(expectSize, s2.size());
-        for (RaftMember m : s2) {
+        for (RaftNode m : s2) {
             assertTrue(s1.containsAll(m.getServers()));
             assertTrue(m.getId() > 0);
             assertNotNull(m.getPeer());
@@ -192,6 +193,63 @@ public class GroupConManagerTest {
         t1.join(1000);
 
         assertEquals(Boolean.TRUE, t1.result);
+    }
+
+    @Test
+    public void testInitConfigFail3_1() throws Exception {
+        String servers = "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993";
+        InitThread t1 = new InitThread(1, servers, 6991, 2);
+        InitThread t2 = new InitThread(1, servers, 6992, 2);
+        InitThread t3 = new InitThread(3, servers, 6993, 2);
+        t1.start();
+        Thread.sleep(1);
+        t2.start();
+        Thread.sleep(1);
+        t3.start();
+        t1.join(1000);
+        t2.join(1000);
+        t3.join(1000);
+        assertTrue(t1.result instanceof RaftException);
+        assertTrue(t2.result instanceof RaftException);
+        assertTrue(t3.result instanceof RaftException);
+    }
+
+    @Test
+    public void testInitConfigFail3_2() throws Exception {
+        String servers = "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993";
+        InitThread t1 = new InitThread(1, servers, 6991, 2);
+        InitThread t2 = new InitThread(2, servers, 6992, 2);
+        InitThread t3 = new InitThread(3, "127.0.0.1:6992; 127.0.0.1:6993", 6993, 2);
+        t1.start();
+        Thread.sleep(1);
+        t2.start();
+        Thread.sleep(1);
+        t3.start();
+        t1.join(1000);
+        t2.join(1000);
+        t3.join(1000);
+        assertTrue(t1.result instanceof RaftException);
+        assertTrue(t2.result instanceof RaftException);
+        assertTrue(t3.result instanceof RaftException);
+    }
+
+    @Test
+    public void testInitConfigFail3_3() throws Exception {
+        String servers = "127.0.0.1:6991, 127.0.0.1:6992";
+        InitThread t1 = new InitThread(1, servers, 6991, 2);
+        InitThread t2 = new InitThread(2, servers, 6992, 2);
+        InitThread t3 = new InitThread(3, "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993", 6993, 2);
+        t1.start();
+        Thread.sleep(1);
+        t2.start();
+        Thread.sleep(1);
+        t3.start();
+        t1.join(1000);
+        t2.join(1000);
+        t3.join(1000);
+        assertEquals(Boolean.TRUE, t1.result);
+        assertEquals(Boolean.TRUE, t2.result);
+        assertTrue(t3.result instanceof RaftException);
     }
 
     private static class InitThread extends Thread {
