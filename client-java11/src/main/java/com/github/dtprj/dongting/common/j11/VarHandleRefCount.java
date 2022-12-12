@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.common.j11;
 import com.github.dtprj.dongting.common.AbstractRefCount;
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.Processor;
-import com.github.dtprj.dongting.common.RefCount;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -72,14 +71,6 @@ public class VarHandleRefCount extends AbstractRefCount {
         return REF_CNT.weakCompareAndSetPlain(this, expect, newValue);
     }
 
-    @SuppressWarnings({"unused"})
-    public static class VarHandleRefCountFactory extends RefCount.RefCountFactory {
-
-        @Override
-        public RefCount newInstance() {
-            return new VarHandleRefCount();
-        }
-    }
 }
 
 

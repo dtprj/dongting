@@ -56,11 +56,4 @@ public class Java8RefCount extends AbstractRefCount {
         return UPDATER.weakCompareAndSet(this, expect, newValue);
     }
 
-    public static class Java8RefCountFactory extends RefCountFactory {
-
-        @Override
-        public RefCount newInstance() {
-            return new Java8RefCount();
-        }
-    }
 }

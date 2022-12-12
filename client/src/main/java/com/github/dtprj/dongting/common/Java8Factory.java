@@ -13,24 +13,15 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.common.j11;
-
-import com.github.dtprj.dongting.common.Java8Factory;
-import com.github.dtprj.dongting.common.RefCount;
-import org.junit.jupiter.api.Test;
+package com.github.dtprj.dongting.common;
 
 /**
  * @author huangli
  */
-public class Java8RefCountTest extends AbstractMultiThreadRefCountTest {
+public class Java8Factory extends VersionFactory {
 
     @Override
-    protected RefCount createInstance() {
-        return new Java8Factory().newRefCount();
-    }
-
-    @Test
-    public void overflowTest(){
-        super.doOverflowTest();
+    public RefCount newRefCount() {
+        return new Java8RefCount();
     }
 }

@@ -15,9 +15,6 @@
  */
 package com.github.dtprj.dongting.common;
 
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
-
 /**
  * @author huangli
  * <p>
@@ -25,30 +22,11 @@ import com.github.dtprj.dongting.log.DtLogs;
  */
 public abstract class RefCount {
 
-    private static final DtLog log = DtLogs.getLogger(RefCount.class);
-
-    private static final RefCountFactory FACTORY;
-
-    static {
-        if (JavaVersion.javaVersion() < 11) {
-            FACTORY = new Java8RefCount.Java8RefCountFactory();
-        } else {
-            RefCountFactory f = null;
-            try {
-                Class<?> clz = Class.forName("com.github.dtprj.dongting.common.j11.VarHandleRefCount$VarHandleRefCountFactory");
-                f = (RefCountFactory) clz.getDeclaredConstructor().newInstance();
-            } catch (Exception e) {
-                log.error("", e);
-            }
-            FACTORY = f != null ? f : new Java8RefCount.Java8RefCountFactory();
-        }
-    }
-
     protected RefCount() {
     }
 
     public static RefCount newInstance() {
-        return FACTORY.newInstance();
+        return VersionFactory.getInstance().newRefCount();
     }
 
     /**
@@ -65,9 +43,5 @@ public abstract class RefCount {
     public abstract boolean release();
 
     public abstract boolean release(int decrement);
-
-    public static abstract class RefCountFactory {
-        public abstract RefCount newInstance();
-    }
 
 }

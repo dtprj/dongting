@@ -15,22 +15,17 @@
  */
 package com.github.dtprj.dongting.common.j11;
 
-import com.github.dtprj.dongting.common.Java8Factory;
 import com.github.dtprj.dongting.common.RefCount;
-import org.junit.jupiter.api.Test;
+import com.github.dtprj.dongting.common.VersionFactory;
 
 /**
  * @author huangli
  */
-public class Java8RefCountTest extends AbstractMultiThreadRefCountTest {
+@SuppressWarnings({"unused"})
+public class Java11Factory extends VersionFactory {
 
     @Override
-    protected RefCount createInstance() {
-        return new Java8Factory().newRefCount();
-    }
-
-    @Test
-    public void overflowTest(){
-        super.doOverflowTest();
+    public RefCount newRefCount() {
+        return new VarHandleRefCount();
     }
 }
