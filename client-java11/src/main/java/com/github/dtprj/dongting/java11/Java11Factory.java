@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.java11;
 
 import com.github.dtprj.dongting.common.RefCount;
 import com.github.dtprj.dongting.common.VersionFactory;
+import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 
 /**
  * @author huangli
@@ -27,5 +28,10 @@ public class Java11Factory extends VersionFactory {
     @Override
     public RefCount newRefCount() {
         return new VarHandleRefCount();
+    }
+
+    @Override
+    public <E> MpscLinkedQueue<E> newMpscLinkedQueue() {
+        return new Java11MpscLinkedQueue<>();
     }
 }

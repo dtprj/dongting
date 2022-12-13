@@ -15,22 +15,36 @@
  */
 package com.github.dtprj.dongting.java8;
 
-import com.github.dtprj.dongting.common.RefCount;
-import com.github.dtprj.dongting.common.VersionFactory;
-import com.github.dtprj.dongting.queue.MpscLinkedQueue;
+import com.github.dtprj.dongting.queue.LinkedNode;
+
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 /**
  * @author huangli
  */
-public class Java8Factory extends VersionFactory {
+public class Java8LinkedNode<E> extends LinkedNode<E> {
 
-    @Override
-    public RefCount newRefCount() {
-        return new Java8RefCount();
+    @SuppressWarnings("rawtypes")
+    private static final AtomicReferenceFieldUpdater<LinkedNode, LinkedNode> NEXT;
+
+    static {
+        NEXT = AtomicReferenceFieldUpdater.newUpdater(LinkedNode.class, LinkedNode.class, "next");
+    }
+
+    public Java8LinkedNode(E value) {
+        super(value);
     }
 
     @Override
-    public <E> MpscLinkedQueue<E> newMpscLinkedQueue() {
-        return new Java8MpscLinkedQueue<>();
+    protected LinkedNode<E> getNextAcquire() {
+        // volatile read
+        //noinspection unchecked
+        return (LinkedNode<E>) NEXT.get(this);
+    }
+
+    @Override
+    protected void setNextRelease(LinkedNode<E> nextNode) {
+        // release write
+        NEXT.lazySet(this, nextNode);
     }
 }

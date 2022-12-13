@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.common;
 import com.github.dtprj.dongting.java8.Java8Factory;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 
 /**
  * @author huangli
@@ -29,6 +30,8 @@ public abstract class VersionFactory {
     }
 
     public abstract RefCount newRefCount();
+
+    public abstract <E> MpscLinkedQueue<E> newMpscLinkedQueue();
 }
 
 class VfHolder {
@@ -42,7 +45,7 @@ class VfHolder {
         } else {
             VersionFactory f = null;
             try {
-                Class<?> clz = Class.forName("com.github.dtprj.dongting.common.j11.Java11Factory");
+                Class<?> clz = Class.forName("com.github.dtprj.dongting.java11.Java11Factory");
                 f = (VersionFactory) clz.getDeclaredConstructor().newInstance();
             } catch (Exception e) {
                 log.error("", e);

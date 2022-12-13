@@ -13,24 +13,21 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.java8;
+package com.github.dtprj.dongting.java11;
 
-import com.github.dtprj.dongting.common.RefCount;
-import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 /**
  * @author huangli
  */
-public class Java8Factory extends VersionFactory {
+public class MpscLinkedQueueTest {
 
-    @Override
-    public RefCount newRefCount() {
-        return new Java8RefCount();
-    }
-
-    @Override
-    public <E> MpscLinkedQueue<E> newMpscLinkedQueue() {
-        return new Java8MpscLinkedQueue<>();
+    @Test
+    public void simpleTest() {
+        MpscLinkedQueue<String> q = MpscLinkedQueue.newInstance();
+        q.offer("123");
+        Assertions.assertEquals("123", q.relaxedPoll());
     }
 }

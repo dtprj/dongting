@@ -19,17 +19,16 @@ import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import org.jctools.queues.MessagePassingQueue;
-import org.jctools.queues.MpscLinkedQueue;
+import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 
 import java.util.ArrayList;
 
 /**
  * @author huangli
  */
-class IoQueue implements MessagePassingQueue.Consumer<Object> {
+class IoQueue {
     private static final DtLog log = DtLogs.getLogger(IoQueue.class);
-    private final MpscLinkedQueue<Object> queue = new MpscLinkedQueue<>();
+    private final MpscLinkedQueue<Object> queue = MpscLinkedQueue.newInstance();
     private final ArrayList<DtChannel> channels;
     private final boolean server;
     private final LongObjMap<WriteData> pendingOutgoingRequests;
@@ -43,21 +42,23 @@ class IoQueue implements MessagePassingQueue.Consumer<Object> {
     }
 
     public void writeFromBizThread(WriteData data) {
-        queue.add(data);
+        queue.offer(data);
     }
 
     public void scheduleFromBizThread(Runnable runnable) {
-        queue.add(runnable);
+        queue.offer(runnable);
     }
 
     public boolean dispatchWriteQueue() {
         hasDataToWrite = false;
-        queue.drain(this);
+        Object data;
+        while ((data = queue.relaxedPoll()) != null) {
+            process(data);
+        }
         return hasDataToWrite;
     }
 
-    @Override
-    public void accept(Object data) {
+    private void process(Object data) {
         if (data instanceof Runnable) {
             ((Runnable) data).run();
         } else {

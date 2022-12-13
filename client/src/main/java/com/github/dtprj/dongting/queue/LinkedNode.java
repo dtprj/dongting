@@ -13,24 +13,30 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.java8;
-
-import com.github.dtprj.dongting.common.RefCount;
-import com.github.dtprj.dongting.common.VersionFactory;
-import com.github.dtprj.dongting.queue.MpscLinkedQueue;
+package com.github.dtprj.dongting.queue;
 
 /**
  * @author huangli
  */
-public class Java8Factory extends VersionFactory {
+public abstract class LinkedNode<E> {
+    private E value;
 
-    @Override
-    public RefCount newRefCount() {
-        return new Java8RefCount();
+    protected volatile LinkedNode<E> next;
+
+    public LinkedNode(E value) {
+        this.value = value;
     }
 
-    @Override
-    public <E> MpscLinkedQueue<E> newMpscLinkedQueue() {
-        return new Java8MpscLinkedQueue<>();
+    public E getValue() {
+        return value;
     }
+
+    public void setValue(E value) {
+        this.value = value;
+    }
+
+
+    protected abstract LinkedNode<E> getNextAcquire();
+
+    protected abstract void setNextRelease(LinkedNode<E> nextNode);
 }
