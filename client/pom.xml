@@ -27,11 +27,6 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.jctools</groupId>
-            <artifactId>jctools-core</artifactId>
-            <version>4.0.1</version>
-        </dependency>
-        <dependency>
             <groupId>com.carrotsearch</groupId>
             <artifactId>hppc</artifactId>
             <version>0.9.1</version>
@@ -84,15 +79,10 @@
                         <configuration>
                             <artifactSet>
                                 <includes>
-                                    <include>org.jctools</include>
                                     <include>com.carrotsearch</include>
                                 </includes>
                             </artifactSet>
                             <relocations>
-                                <relocation>
-                                    <pattern>org.jctools.</pattern>
-                                    <shadedPattern>com.github.dtprj.dongting.jctools.</shadedPattern>
-                                </relocation>
                                 <relocation>
                                     <pattern>com.carrotsearch.hppc</pattern>
                                     <shadedPattern>com.github.dtprj.dongting.hppc</shadedPattern>
@@ -102,12 +92,6 @@
                             <createSourcesJar>true</createSourcesJar>
                             <shadeSourcesContent>true</shadeSourcesContent>
                             <filters>
-                                <filter>
-                                    <artifact>org.jctools:*</artifact>
-                                    <excludes>
-                                        <exclude>META-INF/*.MF</exclude>
-                                    </excludes>
-                                </filter>
                                 <filter>
                                     <artifact>com.carrotsearch:*</artifact>
                                     <excludes>
