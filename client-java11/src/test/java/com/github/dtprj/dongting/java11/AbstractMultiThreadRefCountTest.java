@@ -73,7 +73,7 @@ public abstract class AbstractMultiThreadRefCountTest extends  AbstractRefCountT
                     }
                 }
             } catch (Throwable e) {
-                e.printStackTrace();
+                retainFailCount.increment();
             } finally {
                 endLatch.countDown();
             }
@@ -113,7 +113,7 @@ public abstract class AbstractMultiThreadRefCountTest extends  AbstractRefCountT
                     }
                 }
             } catch (Throwable e) {
-                e.printStackTrace();
+                failCount.increment();
             } finally {
                 endLatch.countDown();
             }
