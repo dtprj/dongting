@@ -49,10 +49,10 @@ public class MpscLinkedQueueTest {
     }
 
     @Test
-    @Timeout(10)
+    @Timeout(30)
     public void multiThreadTest() throws Throwable {
         int threads = 200;
-        int loop = 50000;
+        int loop = 20000;
         MpscLinkedQueue<Long> q = create();
         CountDownLatch readyLatch = new CountDownLatch(threads);
         CountDownLatch startLatch = new CountDownLatch(1);
