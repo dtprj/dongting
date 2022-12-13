@@ -36,7 +36,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 public abstract class AbstractMultiThreadRefCountTest extends  AbstractRefCountTest {
 
-    private static final int THREADS = 200;
+    private static final int THREADS = 100;
+    private static final int LOOP = 5000;
     private static ExecutorService execService;
 
     @BeforeAll
@@ -53,7 +54,7 @@ public abstract class AbstractMultiThreadRefCountTest extends  AbstractRefCountT
     @Timeout(value = 30)
     public void testRetainFromMultipleThreadsThrowsException() throws Exception {
         final LongAdder retainFailCount = new LongAdder();
-        RefCount[] array = new RefCount[10000];
+        RefCount[] array = new RefCount[LOOP];
         for (int i = 0; i < array.length; i++) {
             array[i] = createInstance();
             array[i].release();
@@ -73,7 +74,7 @@ public abstract class AbstractMultiThreadRefCountTest extends  AbstractRefCountT
                     }
                 }
             } catch (Throwable e) {
-                retainFailCount.increment();
+                retainFailCount.add(222222222);
             } finally {
                 endLatch.countDown();
             }
@@ -92,7 +93,7 @@ public abstract class AbstractMultiThreadRefCountTest extends  AbstractRefCountT
     public void testReleaseFromMultipleThreadsThrowsException() throws Exception {
         final LongAdder failCount = new LongAdder();
         final LongAdder successCount = new LongAdder();
-        RefCount[] array = new RefCount[10000];
+        RefCount[] array = new RefCount[LOOP];
         for (int i = 0; i < array.length; i++) {
             array[i] = createInstance();
             array[i].retain(THREADS - 1 - 10);
@@ -113,7 +114,7 @@ public abstract class AbstractMultiThreadRefCountTest extends  AbstractRefCountT
                     }
                 }
             } catch (Throwable e) {
-                failCount.increment();
+                failCount.add(222222222);
             } finally {
                 endLatch.countDown();
             }
@@ -136,7 +137,7 @@ public abstract class AbstractMultiThreadRefCountTest extends  AbstractRefCountT
     @Timeout(value = 30)
     public void multiThreadTest1() throws Exception {
         final AtomicInteger refCountExceptions = new AtomicInteger();
-        RefCount[] array = new RefCount[10000];
+        RefCount[] array = new RefCount[LOOP];
         for (int i = 0; i < array.length; i++) {
             array[i] = createInstance();
             array[i].retain(THREADS - 1);
@@ -182,7 +183,7 @@ public abstract class AbstractMultiThreadRefCountTest extends  AbstractRefCountT
             try {
                 readyLatch.countDown();
                 startLatch.await();
-                for (int i = 0; i < 10000; i++) {
+                for (int i = 0; i < LOOP; i++) {
                     rc.retain();
                     rc.release();
                 }

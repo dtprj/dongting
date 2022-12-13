@@ -102,7 +102,7 @@ public class GroupConManagerTest {
 
     private void equals(RN r1, CompletableFuture<List<RaftNode>> f, int id, int expectSize) throws Exception {
         Set<HostPort> s1 = r1.servers;
-        List<RaftNode> s2 = f.get(5, TimeUnit.SECONDS);
+        List<RaftNode> s2 = f.get(10, TimeUnit.SECONDS);
         assertEquals(expectSize, s2.size());
         for (RaftNode m : s2) {
             assertTrue(s1.containsAll(m.getServers()));
@@ -160,9 +160,9 @@ public class GroupConManagerTest {
         t2.start();
         Thread.sleep(1);
         t3.start();
-        t1.join(1000);
-        t2.join(1000);
-        t3.join(1000);
+        t1.join(10000);
+        t2.join(10000);
+        t3.join(10000);
         assertEquals(Boolean.TRUE, t1.result);
         assertEquals(Boolean.TRUE, t2.result);
         assertEquals(Boolean.TRUE, t3.result);
@@ -177,8 +177,8 @@ public class GroupConManagerTest {
         Thread.sleep(1);
         t2.start();
 
-        t1.join(1000);
-        t2.join(1000);
+        t1.join(10000);
+        t2.join(10000);
 
         assertEquals(Boolean.TRUE, t1.result);
         assertEquals(Boolean.TRUE, t2.result);
@@ -190,7 +190,7 @@ public class GroupConManagerTest {
         InitThread t1 = new InitThread(1, servers, 6991, 1);
         t1.start();
 
-        t1.join(1000);
+        t1.join(10000);
 
         assertEquals(Boolean.TRUE, t1.result);
     }
@@ -206,9 +206,9 @@ public class GroupConManagerTest {
         t2.start();
         Thread.sleep(1);
         t3.start();
-        t1.join(1000);
-        t2.join(1000);
-        t3.join(1000);
+        t1.join(10000);
+        t2.join(10000);
+        t3.join(10000);
         assertTrue(t1.result instanceof RaftException);
         assertTrue(t2.result instanceof RaftException);
         assertTrue(t3.result instanceof RaftException);
@@ -225,9 +225,9 @@ public class GroupConManagerTest {
         t2.start();
         Thread.sleep(1);
         t3.start();
-        t1.join(1000);
-        t2.join(1000);
-        t3.join(1000);
+        t1.join(10000);
+        t2.join(10000);
+        t3.join(10000);
         assertTrue(t1.result instanceof RaftException);
         assertTrue(t2.result instanceof RaftException);
         assertTrue(t3.result instanceof RaftException);
@@ -244,9 +244,9 @@ public class GroupConManagerTest {
         t2.start();
         Thread.sleep(1);
         t3.start();
-        t1.join(1000);
-        t2.join(1000);
-        t3.join(1000);
+        t1.join(10000);
+        t2.join(10000);
+        t3.join(10000);
         assertEquals(Boolean.TRUE, t1.result);
         assertEquals(Boolean.TRUE, t2.result);
         assertTrue(t3.result instanceof RaftException);
