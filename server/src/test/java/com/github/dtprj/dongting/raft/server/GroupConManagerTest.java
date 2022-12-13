@@ -187,7 +187,7 @@ public class GroupConManagerTest {
     @Test
     public void testInit1() throws Exception {
         String servers = "127.0.0.1:6991";
-        InitThread t1 = new InitThread(1, servers, 6991, 2);
+        InitThread t1 = new InitThread(1, servers, 6991, 1);
         t1.start();
 
         t1.join(1000);

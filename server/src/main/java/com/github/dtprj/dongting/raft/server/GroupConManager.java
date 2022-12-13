@@ -185,7 +185,7 @@ class GroupConManager {
                     .thenCompose(this::fetch);
             try {
                 List<RaftNode> peers = f.get(15, TimeUnit.SECONDS);
-                int currentNodes = peers.size() + 1;
+                int currentNodes = peers.size();
                 if (currentNodes >= electQuorum) {
                     log.info("raft group init success. electQuorum={}, currentNodes={}. remote peers: {}",
                             electQuorum, currentNodes, peers);
