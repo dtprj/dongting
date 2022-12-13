@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.common;
 
+import com.github.dtprj.dongting.java8.Java8Factory;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 

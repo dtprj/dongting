@@ -13,19 +13,22 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.common.j11;
+package com.github.dtprj.dongting.java11;
 
 import com.github.dtprj.dongting.common.RefCount;
-import com.github.dtprj.dongting.common.VersionFactory;
+import org.junit.jupiter.api.Test;
 
 /**
  * @author huangli
  */
-@SuppressWarnings({"unused"})
-public class Java11Factory extends VersionFactory {
-
+public class VarHandleRefCountTest extends AbstractMultiThreadRefCountTest {
     @Override
-    public RefCount newRefCount() {
-        return new VarHandleRefCount();
+    protected RefCount createInstance() {
+        return RefCount.newInstance();
+    }
+
+    @Test
+    public void overflowTest(){
+        super.doOverflowTest();
     }
 }

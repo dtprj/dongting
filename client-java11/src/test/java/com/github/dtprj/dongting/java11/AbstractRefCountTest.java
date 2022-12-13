@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.common.j11;
+package com.github.dtprj.dongting.java11;
 
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.RefCount;

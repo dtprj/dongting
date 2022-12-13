@@ -13,64 +13,49 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.common.j11;
+package com.github.dtprj.dongting.java8;
 
 import com.github.dtprj.dongting.common.AbstractRefCount;
-import com.github.dtprj.dongting.common.DtException;
-import com.github.dtprj.dongting.common.Processor;
 
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 /**
  * @author huangli
  */
-public class VarHandleRefCount extends AbstractRefCount {
-    private static final VarHandle REF_CNT;
+public class Java8RefCount extends AbstractRefCount {
 
-    static {
-        try {
-            REF_CNT = MethodHandles.lookup()
-                    .findVarHandle(AbstractRefCount.class, "refCnt", int.class);
-        } catch (Exception e) {
-            throw new DtException(e);
-        }
-    }
+    private static final AtomicIntegerFieldUpdater<AbstractRefCount> UPDATER =
+            AtomicIntegerFieldUpdater.newUpdater(AbstractRefCount.class, "refCnt");
 
-
-    public VarHandleRefCount() {
-        REF_CNT.set(this, 2);
+    public Java8RefCount() {
+        super();
+        UPDATER.lazySet(this, 2);
     }
 
     @Override
     protected int getAndAdd(int rawIncrement) {
-        return (int) REF_CNT.getAndAdd(this, rawIncrement);
+        return UPDATER.getAndAdd(this, rawIncrement);
     }
 
     @Override
     protected int getPlain() {
-        return (int) REF_CNT.get(this);
+        // not use Unsafe, so we can't perform plain read
+        return UPDATER.get(this);
     }
 
     @Override
     protected int getVolatile() {
-        return (int) REF_CNT.getVolatile(this);
+        return UPDATER.get(this);
     }
 
     @Override
     protected void doSpin(int count) {
-        if (count <= 10 && Processor.processorCount() > 1) {
-            Thread.onSpinWait();
-        } else {
-            Thread.yield();
-        }
+        Thread.yield(); // this benefits throughput under high contention
     }
 
     @Override
     protected boolean weakCAS(int expect, int newValue) {
-        return REF_CNT.weakCompareAndSetPlain(this, expect, newValue);
+        return UPDATER.weakCompareAndSet(this, expect, newValue);
     }
 
 }
-
-
