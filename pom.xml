@@ -58,6 +58,7 @@
         <module>client-java11</module>
         <module>server</module>
         <module>report</module>
+        <module>benchmark</module>
     </modules>
 
     <dependencyManagement>
