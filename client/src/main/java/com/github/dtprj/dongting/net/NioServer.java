@@ -79,10 +79,10 @@ public class NioServer extends NioNet implements Runnable {
             log.info("{} listen at port {}", config.getName(), config.getPort());
 
             initBizExecutor();
-            acceptThread.start();
             for (NioWorker worker : workers) {
                 worker.start();
             }
+            acceptThread.start();
         } catch (IOException e) {
             throw new NetException(e);
         }
