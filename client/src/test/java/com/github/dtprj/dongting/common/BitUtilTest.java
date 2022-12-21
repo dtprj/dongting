@@ -15,25 +15,21 @@
  */
 package com.github.dtprj.dongting.common;
 
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+
 /**
  * @author huangli
  */
-public class ObjUtil {
-
-    /**
-     * Checks that the given argument is strictly positive. If it is not, throws {@link IllegalArgumentException}.
-     * Otherwise, returns the argument.
-     */
-    public static void checkPositive(int i, String name) {
-        if (i <= 0) {
-            throw new IllegalArgumentException(name + " : " + i + " (expected: > 0)");
-        }
+public class BitUtilTest {
+    @Test
+    public void testNextHighestPowerOfTwo() {
+        Assertions.assertEquals(0, BitUtil.nextHighestPowerOfTwo(0));
+        Assertions.assertEquals(1, BitUtil.nextHighestPowerOfTwo(1));
+        Assertions.assertEquals(2, BitUtil.nextHighestPowerOfTwo(2));
+        Assertions.assertEquals(4, BitUtil.nextHighestPowerOfTwo(3));
+        Assertions.assertEquals(4, BitUtil.nextHighestPowerOfTwo(4));
+        Assertions.assertEquals(64, BitUtil.nextHighestPowerOfTwo(52));
+        Assertions.assertEquals(1 << 30, BitUtil.nextHighestPowerOfTwo((1 << 30) - 1));
     }
-
-    public static void checkPositive(float i, String name) {
-        if (i <= 0) {
-            throw new IllegalArgumentException(name + " : " + i + " (expected: > 0)");
-        }
-    }
-
 }

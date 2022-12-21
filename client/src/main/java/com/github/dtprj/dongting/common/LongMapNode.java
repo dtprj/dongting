@@ -18,22 +18,34 @@ package com.github.dtprj.dongting.common;
 /**
  * @author huangli
  */
-public class ObjUtil {
+class LongMapNode<V> {
+    @SuppressWarnings("FieldMayBeFinal")
+    private long key;
+    private V value;
+    private LongMapNode<V> next;
 
-    /**
-     * Checks that the given argument is strictly positive. If it is not, throws {@link IllegalArgumentException}.
-     * Otherwise, returns the argument.
-     */
-    public static void checkPositive(int i, String name) {
-        if (i <= 0) {
-            throw new IllegalArgumentException(name + " : " + i + " (expected: > 0)");
-        }
+    public LongMapNode(long key, V value) {
+        this.key = key;
+        this.value = value;
     }
 
-    public static void checkPositive(float i, String name) {
-        if (i <= 0) {
-            throw new IllegalArgumentException(name + " : " + i + " (expected: > 0)");
-        }
+    public long getKey() {
+        return key;
     }
 
+    public V getValue() {
+        return value;
+    }
+
+    public LongMapNode<V> getNext() {
+        return next;
+    }
+
+    public void setNext(LongMapNode<V> next) {
+        this.next = next;
+    }
+
+    public void setValue(V value) {
+        this.value = value;
+    }
 }
