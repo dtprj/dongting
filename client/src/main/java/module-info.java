@@ -1,7 +1,6 @@
 module dongting.client {
     requires static java.logging;
     requires static org.slf4j;
-    requires com.carrotsearch.hppc;
     exports com.github.dtprj.dongting.buf;
     exports com.github.dtprj.dongting.common;
     exports com.github.dtprj.dongting.log;

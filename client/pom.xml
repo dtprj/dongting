@@ -25,14 +25,6 @@
     </parent>
     <artifactId>dongting-client</artifactId>
 
-    <dependencies>
-        <dependency>
-            <groupId>com.carrotsearch</groupId>
-            <artifactId>hppc</artifactId>
-            <version>0.9.1</version>
-        </dependency>
-    </dependencies>
-
     <build>
         <finalName>dongting-client-${project.version}</finalName>
         <plugins>
@@ -68,42 +60,6 @@
                     <release>8</release>
                 </configuration>
             </plugin>
-            <plugin>
-                <artifactId>maven-shade-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                        <configuration>
-                            <artifactSet>
-                                <includes>
-                                    <include>com.carrotsearch</include>
-                                </includes>
-                            </artifactSet>
-                            <relocations>
-                                <relocation>
-                                    <pattern>com.carrotsearch.hppc</pattern>
-                                    <shadedPattern>com.github.dtprj.dongting.hppc</shadedPattern>
-                                </relocation>
-                            </relocations>
-                            <minimizeJar>true</minimizeJar>
-                            <createSourcesJar>true</createSourcesJar>
-                            <shadeSourcesContent>true</shadeSourcesContent>
-                            <filters>
-                                <filter>
-                                    <artifact>com.carrotsearch:*</artifact>
-                                    <excludes>
-                                        <exclude>META-INF/*.MF</exclude>
-                                    </excludes>
-                                </filter>
-                            </filters>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-
         </plugins>
     </build>
 </project>
