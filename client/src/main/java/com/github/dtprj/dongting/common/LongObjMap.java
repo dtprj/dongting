@@ -87,7 +87,8 @@ public class LongObjMap<V> {
             }
             return null;
         } else {
-            if (this.keys[idx] == key) {
+            long[] keys = this.keys;
+            if (keys[idx] == key) {
                 if (remove) {
                     size--;
                     keys[idx] = 0L;

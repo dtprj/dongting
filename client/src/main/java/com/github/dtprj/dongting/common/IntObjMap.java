@@ -87,7 +87,8 @@ public class IntObjMap<V> {
             }
             return null;
         } else {
-            if (this.keys[idx] == key) {
+            int[] keys = this.keys;
+            if (keys[idx] == key) {
                 if (remove) {
                     size--;
                     keys[idx] = 0;
