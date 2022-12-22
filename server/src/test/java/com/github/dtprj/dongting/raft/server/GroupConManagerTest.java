@@ -200,7 +200,7 @@ public class GroupConManagerTest {
         String servers = "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993";
         InitThread t1 = new InitThread(1, servers, 6991, 2);
         InitThread t2 = new InitThread(1, servers, 6992, 2);
-        InitThread t3 = new InitThread(3, servers, 6993, 2);
+        InitThread t3 = new InitThread(1, servers, 6993, 2);
         t1.start();
         Thread.sleep(1);
         t2.start();
@@ -218,8 +218,8 @@ public class GroupConManagerTest {
     public void testInitConfigFail3_2() throws Exception {
         String servers = "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993";
         InitThread t1 = new InitThread(1, servers, 6991, 2);
-        InitThread t2 = new InitThread(2, servers, 6992, 2);
-        InitThread t3 = new InitThread(3, "127.0.0.1:6992; 127.0.0.1:6993", 6993, 2);
+        InitThread t2 = new InitThread(2, "127.0.0.1:6991, 127.0.0.1:6993", 6992, 2);
+        InitThread t3 = new InitThread(3, "127.0.0.1:6991; 127.0.0.1:6992", 6993, 2);
         t1.start();
         Thread.sleep(1);
         t2.start();
