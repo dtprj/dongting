@@ -86,7 +86,7 @@ class GroupConManager {
         this.client = client;
     }
 
-    public CompletableFuture<List<Peer>> connect(Collection<HostPort> servers) {
+    public CompletableFuture<List<Peer>> add(Collection<HostPort> servers) {
         ArrayList<Peer> peers = new ArrayList<>();
         CompletableFuture<List<Peer>> finalFuture = new CompletableFuture<>();
         MutableInt count = new MutableInt(servers.size());
@@ -181,7 +181,7 @@ class GroupConManager {
     @SuppressWarnings("BusyWait")
     private List<RaftNode> init0(int electQuorum, Collection<HostPort> servers, int sleepMillis) {
         while (true) {
-            CompletableFuture<List<RaftNode>> f = connect(servers)
+            CompletableFuture<List<RaftNode>> f = add(servers)
                     .thenCompose(this::fetch);
             try {
                 List<RaftNode> peers = f.get(15, TimeUnit.SECONDS);

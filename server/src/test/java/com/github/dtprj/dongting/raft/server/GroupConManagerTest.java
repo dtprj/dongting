@@ -65,9 +65,9 @@ public class GroupConManagerTest {
     }
 
     private void fetch3(RN r1, RN r2, RN r3) throws Exception {
-        CompletableFuture<List<RaftNode>> f1 = r1.conManager.connect(r1.servers).thenCompose(list -> r1.conManager.fetch(list));
-        CompletableFuture<List<RaftNode>> f2 = r2.conManager.connect(r2.servers).thenCompose(list -> r2.conManager.fetch(list));
-        CompletableFuture<List<RaftNode>> f3 = r3.conManager.connect(r3.servers).thenCompose(list -> r3.conManager.fetch(list));
+        CompletableFuture<List<RaftNode>> f1 = r1.conManager.add(r1.servers).thenCompose(list -> r1.conManager.fetch(list));
+        CompletableFuture<List<RaftNode>> f2 = r2.conManager.add(r2.servers).thenCompose(list -> r2.conManager.fetch(list));
+        CompletableFuture<List<RaftNode>> f3 = r3.conManager.add(r3.servers).thenCompose(list -> r3.conManager.fetch(list));
         equals(r1, f1, 1, 3);
         equals(r2, f2, 2, 3);
         equals(r3, f3, 3, 3);
@@ -93,8 +93,8 @@ public class GroupConManagerTest {
     }
 
     private void fetch2(RN r1, RN r2) throws Exception {
-        CompletableFuture<List<RaftNode>> f1 = r1.conManager.connect(r1.servers).thenCompose(list -> r1.conManager.fetch(list));
-        CompletableFuture<List<RaftNode>> f2 = r2.conManager.connect(r2.servers).thenCompose(list -> r2.conManager.fetch(list));
+        CompletableFuture<List<RaftNode>> f1 = r1.conManager.add(r1.servers).thenCompose(list -> r1.conManager.fetch(list));
+        CompletableFuture<List<RaftNode>> f2 = r2.conManager.add(r2.servers).thenCompose(list -> r2.conManager.fetch(list));
         equals(r1, f1, 1, 2);
         equals(r2, f2, 2, 2);
     }
