@@ -261,7 +261,7 @@ class DtChannel extends PbCallback {
                 }
             }
             if (returnDecoder) {
-                return writeDataForResp.getDecoder();
+                return writeDataForResp.getRespDecoder();
             } else {
                 return null;
             }

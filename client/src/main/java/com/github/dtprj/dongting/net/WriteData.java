@@ -29,16 +29,16 @@ class WriteData {
     private final WriteFrame data;
     private final DtTime timeout;
     private final CompletableFuture<ReadFrame> future;
-    private final Decoder decoder;
+    private final Decoder respDecoder;
 
     public WriteData(Peer peer, WriteFrame data, DtTime timeout,
-                     CompletableFuture<ReadFrame> future, Decoder decoder) {
+                     CompletableFuture<ReadFrame> future, Decoder respDecoder) {
         this.peer = peer;
         this.dtc = null;
         this.data = data;
         this.timeout = timeout;
         this.future = future;
-        this.decoder = decoder;
+        this.respDecoder = respDecoder;
     }
 
     public WriteData(DtChannel dtc, WriteFrame data) {
@@ -47,7 +47,7 @@ class WriteData {
         this.data = data;
         this.timeout = null;
         this.future = null;
-        this.decoder = null;
+        this.respDecoder = null;
     }
 
     public DtChannel getDtc() {
@@ -66,8 +66,8 @@ class WriteData {
         return future;
     }
 
-    public Decoder getDecoder() {
-        return decoder;
+    public Decoder getRespDecoder() {
+        return respDecoder;
     }
 
     public Peer getPeer() {
