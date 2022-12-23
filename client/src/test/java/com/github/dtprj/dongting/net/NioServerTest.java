@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.buf.RefCountByteBuffer;
 import com.github.dtprj.dongting.common.CloseUtil;
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtTime;
@@ -27,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Random;
@@ -450,7 +452,7 @@ public class NioServerTest {
 
         Socket s = new Socket("127.0.0.1", PORT);
         try {
-            s.setSoTimeout(1000);
+            s.setSoTimeout(50);
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
             int seq = 0;
@@ -460,12 +462,21 @@ public class NioServerTest {
 
             assertEquals(CmdCodes.BIZ_ERROR, invoke(++seq, 10001, 5000, in, out));
             assertEquals(CmdCodes.BIZ_ERROR, invoke(++seq, 10002, 5000, in, out));
-            assertEquals(CmdCodes.BIZ_ERROR, invoke(++seq, 10003, 5000, in, out));
-            assertEquals(CmdCodes.BIZ_ERROR, invoke(++seq, 10004, 5000, in, out));
 
             assertEquals(CmdCodes.SUCCESS, invoke(++seq, CMD_IO_PING, 5000, in, out));
             assertEquals(CmdCodes.SUCCESS, invoke(++seq, CMD_BIZ_PING1, 5000, in, out));
             assertEquals(CmdCodes.SUCCESS, invoke(++seq, CMD_BIZ_PING2, 5000, in, out));
+
+            assertThrows(SocketTimeoutException.class, () -> invoke(123456, 10003, 5000, in, out));
+        } finally {
+            CloseUtil.close(s);
+        }
+        s = new Socket("127.0.0.1", PORT);
+        try {
+            s.setSoTimeout(50);
+            DataInputStream in = new DataInputStream(s.getInputStream());
+            DataOutputStream out = new DataOutputStream(s.getOutputStream());
+            assertThrows(SocketTimeoutException.class, () -> invoke(223456, 10004, 5000, in, out));
         } finally {
             CloseUtil.close(s);
         }
@@ -486,10 +497,10 @@ public class NioServerTest {
     }
 
     @Test
-    public void testThreadNotMatch(){
+    public void testThreadNotMatch() {
         // processor run in io thread, but decoder.decodeInIoThread() == false
         setupServer(null);
-        ReqProcessor badProcessor =  threadNotMatchProcessor();
+        ReqProcessor badProcessor = threadNotMatchProcessor();
         assertThrows(DtException.class, () -> server.register(10005, badProcessor, null));
         server.start();
     }
@@ -509,5 +520,38 @@ public class NioServerTest {
         server.start();
         assertThrows(DtException.class, () -> server.register(12345, new NioServer.PingProcessor()));
         assertThrows(DtException.class, () -> server.register(12345, new NioServer.PingProcessor(), null));
+    }
+
+    @Test
+    public void asyncProcessorTest() throws Exception {
+        setupServer(null);
+        server.register(3333, new ReqProcessor() {
+            @Override
+            public WriteFrame process(ReadFrame frame, ProcessContext context) {
+                Thread t = new Thread(() -> {
+                    RefCountBufWriteFrame resp = new RefCountBufWriteFrame((RefCountByteBuffer) frame.getBody());
+                    resp.setRespCode(CmdCodes.SUCCESS);
+                    context.getRespWriter().writeRespInBizThreads(frame, resp);
+                });
+                t.start();
+                return null;
+            }
+
+            @Override
+            public Decoder getDecoder() {
+                return new ByteBufferDecoder(0);
+            }
+        });
+        server.start();
+
+        Socket s = new Socket("127.0.0.1", PORT);
+        try {
+            s.setSoTimeout(500);
+            DataInputStream in = new DataInputStream(s.getInputStream());
+            DataOutputStream out = new DataOutputStream(s.getOutputStream());
+            assertEquals(CmdCodes.SUCCESS, invoke(1, 3333, 5000, in, out));
+        } finally {
+            CloseUtil.close(s);
+        }
     }
 }

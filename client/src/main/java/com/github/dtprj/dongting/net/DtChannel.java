@@ -42,6 +42,7 @@ class DtChannel extends PbCallback {
     private final WorkerStatus workerStatus;
     private final SocketChannel channel;
     private final ProcessContext processContext;
+    private final RespWriter respWriter;
     private Peer peer;
 
     private final int channelIndexInWorker;
@@ -80,6 +81,8 @@ class DtChannel extends PbCallback {
         this.parser = PbParser.multiParser(this, nioConfig.getMaxFrameSize());
         this.strDecoder = new StringFieldDecoder(workerStatus.getHeapPool());
 
+        this.respWriter = new RespWriter(workerStatus.getIoQueue(), workerStatus.getWakeupRunnable(), this);
+
         ProcessContext processContext = new ProcessContext();
         processContext.setChannel(socketChannel);
         processContext.setRemoteAddr(socketChannel.getRemoteAddress());
@@ -87,6 +90,7 @@ class DtChannel extends PbCallback {
         processContext.setIoThreadStrDecoder(strDecoder);
         processContext.setIoHeapBufferPool(new ByteBufferPoolReleaseInOtherThread(
                 workerStatus.getHeapPool(), workerStatus.getIoQueue()));
+        processContext.setRespWriter(respWriter);
         this.processContext = processContext;
     }
 
@@ -358,9 +362,6 @@ class DtChannel extends PbCallback {
                 resp.setFrameType(FrameType.TYPE_RESP);
                 resp.setSeq(req.getSeq());
                 subQueue.enqueue(resp);
-            } else {
-                log.warn("ReqProcessor.process return null");
-                writeErrorInIoThread(req, CmdCodes.BIZ_ERROR, "processor return null response");
             }
         } else {
             AtomicLong bytes = nioStatus.getInReqBytes();
@@ -398,20 +399,9 @@ class DtChannel extends PbCallback {
 
     public void writeBizErrorInBizThread(Frame req, String msg) {
         ByteBufferWriteFrame resp = new ByteBufferWriteFrame(null);
-        resp.setCommand(req.getCommand());
-        resp.setFrameType(FrameType.TYPE_RESP);
-        resp.setSeq(req.getSeq());
         resp.setRespCode(CmdCodes.BIZ_ERROR);
         resp.setMsg(msg);
-        writeRespInBizThreads(resp);
-    }
-
-    // invoke by other threads
-    public void writeRespInBizThreads(WriteFrame frame) {
-        WriteData data = new WriteData(this, frame);
-        WorkerStatus wp = this.workerStatus;
-        wp.getIoQueue().writeFromBizThread(data);
-        wp.getWakeupRunnable().run();
+        respWriter.writeRespInBizThreads(req, resp);
     }
 
     public int getAndIncSeq() {
@@ -465,6 +455,10 @@ class DtChannel extends PbCallback {
     // for unit test
     ReadFrame getFrame() {
         return frame;
+    }
+
+    public RespWriter getRespWriter() {
+        return respWriter;
     }
 }
 
@@ -520,13 +514,7 @@ class ProcessInBizThreadTask implements Runnable {
                 return;
             }
             if (resp != null) {
-                resp.setCommand(req.getCommand());
-                resp.setFrameType(FrameType.TYPE_RESP);
-                resp.setSeq(req.getSeq());
-                dtc.writeRespInBizThreads(resp);
-            } else {
-                log.warn("ReqProcessor.process return null, command={}", req.getCommand());
-                dtc.writeBizErrorInBizThread(req, "processor return null response");
+                dtc.getRespWriter().writeRespInBizThreads(req, resp);
             }
         } finally {
             inBytes.addAndGet(-frameSize);

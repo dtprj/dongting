@@ -27,6 +27,8 @@ public class ProcessContext {
     private SocketChannel channel;
     private SocketAddress remoteAddr;
     private SocketAddress localAddr;
+    private RespWriter respWriter;
+
     // this decoder can only be used in io thread
     private StringFieldDecoder ioThreadStrDecoder;
     private Object ioDecodeStatus;
@@ -81,5 +83,13 @@ public class ProcessContext {
 
     public void setIoHeapBufferPool(ByteBufferPool ioHeapBufferPool) {
         this.ioHeapBufferPool = ioHeapBufferPool;
+    }
+
+    public RespWriter getRespWriter() {
+        return respWriter;
+    }
+
+    protected void setRespWriter(RespWriter respWriter) {
+        this.respWriter = respWriter;
     }
 }
