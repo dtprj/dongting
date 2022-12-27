@@ -13,38 +13,42 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.pb;
+package com.github.dtprj.dongting.raft.rpc;
 
-import java.nio.ByteBuffer;
+import com.github.dtprj.dongting.pb.PbCallback;
 
 /**
  * @author huangli
  */
-public abstract class PbCallback {
+//  uint32 term = 1;
+//  uint32 success = 2;
+public class AppendRespCallback extends PbCallback {
+    private int term;
+    private boolean success;
 
+    @Override
     public boolean readVarNumber(int index, long value) {
-        throw new UnsupportedOperationException();
+        switch (index) {
+            case 1:
+                term = (int) value;
+                break;
+            case 2:
+                success = value != 0;
+                break;
+        }
+        return true;
     }
 
-    public boolean readFix32(int index, int value) {
-        throw new UnsupportedOperationException();
-    }
-
-    public boolean readFix64(int index, long value) {
-        throw new UnsupportedOperationException();
-    }
-
-    public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
-        throw new UnsupportedOperationException();
-    }
-
-    public void begin(int len) {
-    }
-
-    public void end(boolean success) {
-    }
-
+    @Override
     public Object getResult() {
-        throw new UnsupportedOperationException();
+        return this;
+    }
+
+    public int getTerm() {
+        return term;
+    }
+
+    public boolean isSuccess() {
+        return success;
     }
 }

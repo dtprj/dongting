@@ -48,7 +48,7 @@ public abstract class PbZeroCopyDecoder extends Decoder {
             if (callback == null) {
                 callback = parser.getCallback();
             }
-            return getResult(callback);
+            return callback.getResult();
         } else {
             return null;
         }
@@ -56,5 +56,4 @@ public abstract class PbZeroCopyDecoder extends Decoder {
 
     protected abstract PbCallback createCallback(ProcessContext context);
 
-    protected abstract Object getResult(PbCallback callback);
 }

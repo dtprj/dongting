@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.server;
+package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.Peer;
@@ -23,7 +23,7 @@ import java.util.Set;
 /**
  * @author huangli
  */
-class RaftNode {
+public class RaftNode {
     private final int id;
     private final Peer peer;
     private final Set<HostPort> servers;

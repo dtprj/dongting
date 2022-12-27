@@ -22,6 +22,8 @@ public class RaftServerConfig {
     private String servers;
     private int port;
     private int id;
+    private long leaderTimeout = 10 * 1000;
+    private long rpcTimeout = 3000;
 
     public String getServers() {
         return servers;
@@ -45,5 +47,21 @@ public class RaftServerConfig {
 
     public void setId(int id) {
         this.id = id;
+    }
+
+    public long getLeaderTimeout() {
+        return leaderTimeout;
+    }
+
+    public void setLeaderTimeout(long leaderTimeout) {
+        this.leaderTimeout = leaderTimeout;
+    }
+
+    public long getRpcTimeout() {
+        return rpcTimeout;
+    }
+
+    public void setRpcTimeout(long rpcTimeout) {
+        this.rpcTimeout = rpcTimeout;
     }
 }

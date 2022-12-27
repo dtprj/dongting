@@ -43,7 +43,7 @@ public class RespWriter {
     }
 
     // invoke by other threads
-    public void writeRespInBizThreads(Frame req, WriteFrame resp) {
+    public void writeRespInBizThreads(ReadFrame req, WriteFrame resp) {
         resp.setSeq(req.getSeq());
         resp.setCommand(req.getCommand());
         writeRespInBizThreads(resp);

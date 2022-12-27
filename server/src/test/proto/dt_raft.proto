@@ -27,3 +27,29 @@ message RaftHandshakeResp {
   fixed64 uuid_low = 3;
   string group_servers = 4;
 }
+
+message AppendEntriesReq {
+  uint32 term = 1;
+  uint32 leader_id = 2;
+  fixed64 prev_log_index = 3;
+  uint32 prev_log_term = 4;
+  repeated bytes entries = 5;
+  fixed64 leader_commit = 6;
+}
+
+message AppendEntriesResp {
+  uint32 term = 1;
+  uint32 success = 2;
+}
+
+message RequestVoteReq {
+  uint32 term = 1;
+  uint32 candidate_id = 2;
+  fixed64 last_log_index = 3;
+  uint32 last_log_term = 4;
+}
+
+message RequestVoteResp {
+  uint32 term = 1;
+  uint32 vote_granted = 2;
+}

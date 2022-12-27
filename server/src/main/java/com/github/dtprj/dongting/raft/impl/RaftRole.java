@@ -13,14 +13,11 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.net;
+package com.github.dtprj.dongting.raft.impl;
 
 /**
  * @author huangli
  */
-public interface Commands {
-    int CMD_PING = 1;
-    int RAFT_HANDSHAKE = 2;
-    int RAFT_APPEND_ENTRIES = 3;
-    int RAFT_REQUEST_VOTE = 4;
+public enum RaftRole {
+    leader, follower, candidate
 }

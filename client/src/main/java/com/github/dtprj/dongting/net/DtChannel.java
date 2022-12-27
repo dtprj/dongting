@@ -397,7 +397,7 @@ class DtChannel extends PbCallback {
         subQueue.enqueue(resp);
     }
 
-    public void writeBizErrorInBizThread(Frame req, String msg) {
+    public void writeBizErrorInBizThread(ReadFrame req, String msg) {
         ByteBufferWriteFrame resp = new ByteBufferWriteFrame(null);
         resp.setRespCode(CmdCodes.BIZ_ERROR);
         resp.setMsg(msg);

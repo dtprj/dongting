@@ -13,8 +13,9 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.server;
+package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.MutableInt;
 import com.github.dtprj.dongting.log.BugLog;
@@ -39,32 +40,33 @@ import com.github.dtprj.dongting.raft.client.RaftException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 /**
  * @author huangli
  */
-class GroupConManager {
+public class GroupConManager {
     private static final DtLog log = DtLogs.getLogger(GroupConManager.class);
     private final UUID uuid = UUID.randomUUID();
     private final int id;
     private final byte[] serversStr;
     private final NioClient client;
+
+    private List<RaftNode> servers;
+
     private static final PbZeroCopyDecoder DECODER = new PbZeroCopyDecoder() {
         @Override
         protected PbCallback createCallback(ProcessContext context) {
             return new RaftInitFrameCallback(context.getIoThreadStrDecoder());
-        }
-
-        @Override
-        protected Object getResult(PbCallback callback) {
-            return callback;
         }
     };
 
@@ -84,6 +86,22 @@ class GroupConManager {
         this.id = id;
         this.serversStr = serversStr.getBytes(StandardCharsets.UTF_8);
         this.client = client;
+    }
+
+    public static Set<HostPort> parseServers(String serversStr) {
+        Set<HostPort> servers = Arrays.stream(serversStr.split("[,;]"))
+                .filter(Objects::nonNull)
+                .map(s -> {
+                    String[] arr = s.split(":");
+                    if (arr.length != 2) {
+                        throw new IllegalArgumentException("not 'host:port' format:" + s);
+                    }
+                    return new HostPort(arr[0].trim(), Integer.parseInt(arr[1].trim()));
+                }).collect(Collectors.toSet());
+        if (servers.size() == 0) {
+            throw new DtException("servers list is empty");
+        }
+        return servers;
     }
 
     public CompletableFuture<List<Peer>> add(Collection<HostPort> servers) {
@@ -150,7 +168,7 @@ class GroupConManager {
         RaftInitFrameCallback callback = (RaftInitFrameCallback) rf.getBody();
         boolean self = callback.uuidHigh == uuid.getMostSignificantBits()
                 && callback.uuidLow == uuid.getLeastSignificantBits();
-        Set<HostPort> remoteServers = RaftServer.parseServers(callback.serversStr);
+        Set<HostPort> remoteServers = parseServers(callback.serversStr);
         RaftNode rm = new RaftNode(callback.id, peer, remoteServers, self);
         peers.add(rm);
     }
@@ -158,6 +176,7 @@ class GroupConManager {
     public void init(int electQuorum, Collection<HostPort> servers, int sleepMillis) {
         List<RaftNode> nodes = init0(electQuorum, servers, sleepMillis);
         checkNodes(nodes);
+        this.servers = nodes;
     }
 
     private void checkNodes(List<RaftNode> nodes) {
@@ -202,6 +221,10 @@ class GroupConManager {
 
     public ReqProcessor getProcessor() {
         return processor;
+    }
+
+    public List<RaftNode> getServers() {
+        return servers;
     }
 
     class RaftInitWriteFrame extends ZeroCopyWriteFrame {
