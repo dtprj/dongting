@@ -15,19 +15,11 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
-import com.github.dtprj.dongting.net.Commands;
-import com.github.dtprj.dongting.net.Decoder;
-import com.github.dtprj.dongting.net.NioClient;
-import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
-import com.github.dtprj.dongting.net.ProcessContext;
 import com.github.dtprj.dongting.net.ReadFrame;
-import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.raft.rpc.AppendReqCallback;
-import com.github.dtprj.dongting.raft.rpc.AppendReqWriteFrame;
 import com.github.dtprj.dongting.raft.rpc.AppendRespCallback;
 import com.github.dtprj.dongting.raft.rpc.AppendRespWriteFrame;
 import com.github.dtprj.dongting.raft.rpc.VoteReq;
@@ -37,7 +29,6 @@ import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.Random;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -50,7 +41,7 @@ public class RaftThread extends Thread {
     private final RaftServerConfig config;
     private final RaftStatus raftStatus;
     private final int pollTimeout = new Random().nextInt(100) + 100;
-    private final NioClient client;
+    private final RaftRpc raftRpc;
     private final GroupConManager groupConManager;
 
     private long lastLeaderActiveTime = System.nanoTime();
@@ -60,11 +51,11 @@ public class RaftThread extends Thread {
     private final LinkedBlockingQueue<RaftTask> queue;
 
     public RaftThread(RaftServerConfig config, LinkedBlockingQueue<RaftTask> queue, RaftStatus raftStatus,
-                      NioClient client, GroupConManager groupConManager) {
+                      RaftRpc raftRpc, GroupConManager groupConManager) {
         this.config = config;
         this.raftStatus = raftStatus;
         this.queue = queue;
-        this.client = client;
+        this.raftRpc = raftRpc;
         this.groupConManager = groupConManager;
         timeoutNanos = Duration.ofMillis(config.getLeaderTimeout()).toNanos();
     }
@@ -218,35 +209,8 @@ public class RaftThread extends Thread {
             if (node.isSelf()) {
                 continue;
             }
-            sendHeartBeat0(node);
+            raftRpc.sendHeartBeat(node);
         }
-    }
-
-    private void sendHeartBeat0(RaftNode node) {
-        AppendReqWriteFrame req = new AppendReqWriteFrame();
-        req.setTerm(raftStatus.getCurrentTerm());
-        req.setLeaderId(config.getId());
-        req.setCommand(Commands.RAFT_APPEND_ENTRIES);
-        DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        Decoder decoder = new PbZeroCopyDecoder() {
-            @Override
-            protected PbCallback createCallback(ProcessContext context) {
-                return new AppendRespCallback();
-            }
-        };
-        CompletableFuture<ReadFrame> f = client.sendRequest(node.getPeer(), req, decoder, timeout);
-        f.handle((rf, ex) -> {
-            if (ex == null) {
-                RaftTask t = new RaftTask();
-                t.setType(RaftTask.TYPE_APPEND_ENTRIES_RESP);
-                t.setData(rf);
-                t.setRemoteNode(node);
-                queue.offer(t);
-            } else {
-                // TODO
-            }
-            return null;
-        });
     }
 
     private void startElect() {
@@ -260,42 +224,9 @@ public class RaftThread extends Thread {
             if (node.isSelf()) {
                 continue;
             }
-            sendVoteRequest(node);
+            raftRpc.sendVoteRequest(node, this::timeout);
         }
     }
 
-    private void sendVoteRequest(RaftNode node) {
-        VoteReq req = new VoteReq();
-        req.setCandidateId(config.getId());
-        req.setTerm(raftStatus.getCurrentTerm());
-        // TODO log fields
-        VoteReq.WriteFrame wf = new VoteReq.WriteFrame(req);
-        wf.setCommand(Commands.RAFT_REQUEST_VOTE);
-        DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        Decoder decoder = new PbZeroCopyDecoder() {
-            @Override
-            protected PbCallback createCallback(ProcessContext context) {
-                return new VoteResp.Callback();
-            }
-        };
-        CompletableFuture<ReadFrame> f = client.sendRequest(node.getPeer(), wf, decoder, timeout);
-        log.info("send vote request to {}, term={}, votes={}", node.getPeer().getEndPoint(),
-                raftStatus.getCurrentTerm(), raftStatus.getCurrentVotes());
-        f.handle((rf, ex) -> {
-            if (ex == null) {
-                RaftTask t = new RaftTask();
-                t.setType(RaftTask.TYPE_REQUEST_VOTE_RESP);
-                t.setData(rf);
-                t.setRemoteNode(node);
-                queue.offer(t);
-            } else {
-                log.warn("request vote rpc fail. remote={}, error={}",
-                        node.getPeer().getEndPoint(), ex.toString());
-                if (!timeout()) {
-                    sendVoteRequest(node);
-                }
-            }
-            return null;
-        });
-    }
+
 }

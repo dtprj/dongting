@@ -26,6 +26,7 @@ import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
 import com.github.dtprj.dongting.raft.impl.GroupConManager;
+import com.github.dtprj.dongting.raft.impl.RaftRpc;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftThread;
@@ -47,6 +48,7 @@ public class RaftServer extends AbstractLifeCircle {
     private final Set<HostPort> servers;
     private final GroupConManager groupConManager;
     private final RaftThread raftThread;
+    private final RaftRpc raftRpc;
     private final RaftStatus raftStatus;
 
     public RaftServer(RaftServerConfig config) {
@@ -78,7 +80,8 @@ public class RaftServer extends AbstractLifeCircle {
         server.register(Commands.RAFT_APPEND_ENTRIES, new AppendProcessor(queue));
         server.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(queue));
 
-        raftThread = new RaftThread(config, queue, raftStatus, client, groupConManager);
+        raftRpc = new RaftRpc(client, config, raftStatus, queue);
+        raftThread = new RaftThread(config, queue, raftStatus, raftRpc, groupConManager);
     }
 
     @Override
