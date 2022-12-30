@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Decoder;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ProcessContext;
@@ -22,16 +25,16 @@ import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.pb.PbCallback;
-import com.github.dtprj.dongting.raft.impl.RaftTask;
-
-import java.util.concurrent.LinkedBlockingQueue;
+import com.github.dtprj.dongting.raft.impl.RaftStatus;
+import com.github.dtprj.dongting.raft.impl.RaftThread;
 
 /**
  * @author huangli
  */
 public class VoteProcessor extends ReqProcessor {
+    private static final DtLog log = DtLogs.getLogger(VoteProcessor.class);
 
-    private final LinkedBlockingQueue<RaftTask> raftThreadQueue;
+    private final RaftStatus raftStatus;
 
     private PbZeroCopyDecoder decoder = new PbZeroCopyDecoder() {
         @Override
@@ -40,17 +43,30 @@ public class VoteProcessor extends ReqProcessor {
         }
     };
 
-    public VoteProcessor(LinkedBlockingQueue<RaftTask> raftThreadQueue) {
-        this.raftThreadQueue = raftThreadQueue;
+    public VoteProcessor(RaftStatus raftStatus) {
+        this.raftStatus = raftStatus;
     }
 
     @Override
-    public WriteFrame process(ReadFrame frame, ProcessContext context) {
-        RaftTask t = new RaftTask();
-        t.setType(RaftTask.TYPE_REQUEST_VOTE_REQ);
-        t.setRespWriter(context.getRespWriter());
-        t.setData(frame);
-        return null;
+    public WriteFrame process(ReadFrame rf, ProcessContext context) {
+        VoteReq voteReq = (VoteReq) rf.getBody();
+        VoteResp resp = new VoteResp();
+        int oldTerm = raftStatus.getCurrentTerm();
+        if (voteReq.getTerm() > raftStatus.getCurrentTerm()) {
+            RaftThread.checkTerm(voteReq.getTerm(), raftStatus);
+            raftStatus.setVoteFor(voteReq.getCandidateId());
+            resp.setVoteGranted(true);
+        } else if (voteReq.getTerm() == raftStatus.getCurrentTerm()) {
+            resp.setVoteGranted(raftStatus.getVoteFor() == voteReq.getCandidateId());
+        } else {
+            resp.setVoteGranted(false);
+        }
+        log.info("receive vote request. granted={}. remoteTerm={}, localTerm={}",
+                resp.isVoteGranted(), voteReq.getTerm(), oldTerm);
+        resp.setTerm(raftStatus.getCurrentTerm());
+        VoteResp.WriteFrame wf = new VoteResp.WriteFrame(resp);
+        wf.setRespCode(CmdCodes.SUCCESS);
+        return wf;
     }
 
     @Override

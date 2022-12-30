@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Decoder;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ProcessContext;
@@ -22,16 +23,15 @@ import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.pb.PbCallback;
-import com.github.dtprj.dongting.raft.impl.RaftTask;
-
-import java.util.concurrent.LinkedBlockingQueue;
+import com.github.dtprj.dongting.raft.impl.RaftStatus;
+import com.github.dtprj.dongting.raft.impl.RaftThread;
 
 /**
  * @author huangli
  */
 public class AppendProcessor extends ReqProcessor {
 
-    private final LinkedBlockingQueue<RaftTask> raftThreadQueue;
+    private final RaftStatus raftStatus;
 
     private PbZeroCopyDecoder decoder = new PbZeroCopyDecoder() {
         @Override
@@ -40,18 +40,25 @@ public class AppendProcessor extends ReqProcessor {
         }
     };
 
-    public AppendProcessor(LinkedBlockingQueue<RaftTask> raftThreadQueue) {
-        this.raftThreadQueue = raftThreadQueue;
+    public AppendProcessor(RaftStatus raftStatus) {
+        this.raftStatus = raftStatus;
     }
 
     @Override
-    public WriteFrame process(ReadFrame frame, ProcessContext context) {
-        RaftTask task = new RaftTask();
-        task.setType(RaftTask.TYPE_APPEND_ENTRIES_REQ);
-        task.setData(frame);
-        task.setRespWriter(context.getRespWriter());
-        raftThreadQueue.offer(task);
-        return null;
+    public WriteFrame process(ReadFrame rf, ProcessContext context) {
+        AppendRespWriteFrame resp = new AppendRespWriteFrame();
+        AppendReqCallback req = (AppendReqCallback) rf.getBody();
+        if (req.getTerm() >= raftStatus.getCurrentTerm()) {
+            RaftThread.checkTerm(req.getTerm(), raftStatus);
+            // refresh(); TODO
+            resp.setTerm(raftStatus.getCurrentTerm());
+            resp.setSuccess(true);
+        } else {
+            resp.setTerm(raftStatus.getCurrentTerm());
+            resp.setSuccess(false);
+        }
+        resp.setRespCode(CmdCodes.SUCCESS);
+        return resp;
     }
 
     @Override

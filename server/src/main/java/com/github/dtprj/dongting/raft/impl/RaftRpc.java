@@ -31,8 +31,8 @@ import com.github.dtprj.dongting.raft.rpc.VoteReq;
 import com.github.dtprj.dongting.raft.rpc.VoteResp;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
+import java.util.HashSet;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -46,13 +46,13 @@ public class RaftRpc {
     private final NioClient client;
     private final RaftServerConfig config;
     private final RaftStatus raftStatus;
-    private final LinkedBlockingQueue<RaftTask> queue;
+    private final RaftExecutor executor;
 
-    public RaftRpc(NioClient client, RaftServerConfig config, RaftStatus raftStatus, LinkedBlockingQueue<RaftTask> queue) {
+    public RaftRpc(NioClient client, RaftServerConfig config, RaftStatus raftStatus, RaftExecutor executor) {
         this.client = client;
         this.config = config;
         this.raftStatus = raftStatus;
-        this.queue = queue;
+        this.executor = executor;
     }
 
     public void sendVoteRequest(RaftNode node, Supplier<Boolean> electTimeout) {
@@ -72,22 +72,48 @@ public class RaftRpc {
         CompletableFuture<ReadFrame> f = client.sendRequest(node.getPeer(), wf, decoder, timeout);
         log.info("send vote request to {}, term={}, votes={}", node.getPeer().getEndPoint(),
                 raftStatus.getCurrentTerm(), raftStatus.getCurrentVotes());
-        f.handle((rf, ex) -> {
-            if (ex == null) {
-                RaftTask t = new RaftTask();
-                t.setType(RaftTask.TYPE_REQUEST_VOTE_RESP);
-                t.setData(rf);
-                t.setRemoteNode(node);
-                queue.offer(t);
+        f.handleAsync((rf, ex) -> processVoteRespInRaftThread(rf, ex, node, electTimeout), executor);
+    }
+
+    private Object processVoteRespInRaftThread(ReadFrame rf, Throwable ex, RaftNode remoteNode, Supplier<Boolean> electTimeout) {
+        if (ex == null) {
+            processVoteRespInRaftThread(rf, remoteNode);
+        } else {
+            log.warn("request vote rpc fail. remote={}, error={}",
+                    remoteNode.getPeer().getEndPoint(), ex.toString());
+            if (!electTimeout.get()) {
+                sendVoteRequest(remoteNode, electTimeout);
+            }
+        }
+        return null;
+    }
+
+    private void processVoteRespInRaftThread(ReadFrame rf, RaftNode remoteNode) {
+        VoteResp voteResp = (VoteResp) rf.getBody();
+        if (voteResp.getTerm() < raftStatus.getCurrentTerm()) {
+            log.warn("receive vote resp, ignore, remoteTerm={}, localTerm={}",
+                    voteResp.getTerm(), raftStatus.getCurrentTerm());
+        } else if (voteResp.getTerm() == raftStatus.getCurrentTerm()) {
+            if (raftStatus.getRole() == RaftRole.follower) {
+                log.warn("follower receive vote resp, ignore. remoteTerm={}, localTerm={}",
+                        voteResp.getTerm(), raftStatus.getCurrentTerm());
             } else {
-                log.warn("request vote rpc fail. remote={}, error={}",
-                        node.getPeer().getEndPoint(), ex.toString());
-                if (!electTimeout.get()) {
-                    sendVoteRequest(node, electTimeout);
+                HashSet<Integer> votes = raftStatus.getCurrentVotes();
+                int oldCount = votes.size();
+                log.info("receive vote resp, granted={}, remote={}, remoteTerm={}, localTerm={}, currentVotes={}",
+                        voteResp.isVoteGranted(), voteResp.getTerm(), raftStatus.getCurrentTerm(), oldCount);
+                if (voteResp.isVoteGranted()) {
+                    votes.add(remoteNode.getId());
+                    int newCount = votes.size();
+                    if (newCount > oldCount && newCount == raftStatus.getElectQuorum()) {
+                        raftStatus.setRole(RaftRole.leader);
+                        log.info("change to leader. term={}", raftStatus.getCurrentTerm());
+                    }
                 }
             }
-            return null;
-        });
+        } else {
+            RaftThread.checkTerm(voteResp.getTerm(), raftStatus);
+        }
     }
 
     public void sendHeartBeat(RaftNode node) {
@@ -103,17 +129,16 @@ public class RaftRpc {
             }
         };
         CompletableFuture<ReadFrame> f = client.sendRequest(node.getPeer(), req, decoder, timeout);
-        f.handle((rf, ex) -> {
-            if (ex == null) {
-                RaftTask t = new RaftTask();
-                t.setType(RaftTask.TYPE_APPEND_ENTRIES_RESP);
-                t.setData(rf);
-                t.setRemoteNode(node);
-                queue.offer(t);
-            } else {
-                // TODO
-            }
-            return null;
-        });
+        f.handleAsync((rf, ex) -> processAppendResultInRaftThread(rf, ex), executor);
+    }
+
+    private Object processAppendResultInRaftThread(ReadFrame rf, Throwable ex) {
+        if (ex == null) {
+            AppendRespCallback resp = (AppendRespCallback) rf.getBody();
+            RaftThread.checkTerm(resp.getTerm(), raftStatus);
+        } else {
+            // TODO
+        }
+        return null;
     }
 }
