@@ -26,6 +26,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
@@ -63,14 +64,14 @@ public abstract class NioNet extends AbstractLifeCircle {
     /**
      * register processor use specific executor, if executorService is null, run in io thread.
      */
-    public void register(int cmd, ReqProcessor processor, ExecutorService executorService) {
+    public void register(int cmd, ReqProcessor processor, Executor executor) {
         if (status != LifeStatus.not_start) {
             throw new DtException("processor should register before start");
         }
-        if (executorService == null && !processor.getDecoder().decodeInIoThread()) {
+        if (executor == null && !processor.getDecoder().decodeInIoThread()) {
             throwThreadNotMatch(cmd);
         }
-        processor.setExecutor(executorService);
+        processor.setExecutor(executor);
         nioStatus.registerProcessor(cmd, processor);
     }
 

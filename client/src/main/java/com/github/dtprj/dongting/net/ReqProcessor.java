@@ -15,25 +15,25 @@
  */
 package com.github.dtprj.dongting.net;
 
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 
 /**
  * @author huangli
  */
 public abstract class ReqProcessor {
 
-    private ExecutorService executor;
+    private Executor executor;
     private boolean useDefaultExecutor;
 
     public abstract WriteFrame process(ReadFrame frame, ProcessContext context);
 
     public abstract Decoder getDecoder();
 
-    ExecutorService getExecutor() {
+    Executor getExecutor() {
         return executor;
     }
 
-    void setExecutor(ExecutorService executor) {
+    void setExecutor(Executor executor) {
         this.executor = executor;
     }
 

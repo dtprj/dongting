@@ -372,7 +372,7 @@ class DtChannel extends PbCallback {
             }
             try {
                 // TODO use custom thread pool?
-                p.getExecutor().submit(new ProcessInBizThreadTask(
+                p.getExecutor().execute(new ProcessInBizThreadTask(
                         req, p, currentReadFrameSize, this, bytes));
             } catch (RejectedExecutionException e) {
                 log.debug("catch RejectedExecutionException, write response code FLOW_CONTROL to client, maxInRequests={}",
