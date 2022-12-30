@@ -50,7 +50,7 @@ public class AppendProcessor extends ReqProcessor {
         AppendReqCallback req = (AppendReqCallback) rf.getBody();
         if (req.getTerm() >= raftStatus.getCurrentTerm()) {
             RaftThread.checkTerm(req.getTerm(), raftStatus);
-            // refresh(); TODO
+            raftStatus.setLastLeaderActiveTime(System.nanoTime());
             resp.setTerm(raftStatus.getCurrentTerm());
             resp.setSuccess(true);
         } else {

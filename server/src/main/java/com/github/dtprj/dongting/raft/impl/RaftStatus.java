@@ -31,6 +31,8 @@ public class RaftStatus {
     private final int rwQuorum;
     private final HashSet<Integer> currentVotes = new HashSet<>();
 
+    private long lastLeaderActiveTime = System.nanoTime();
+
     public RaftStatus(int electQuorum, int rwQuorum) {
         this.electQuorum = electQuorum;
         this.rwQuorum = rwQuorum;
@@ -72,4 +74,11 @@ public class RaftStatus {
         return rwQuorum;
     }
 
+    public long getLastLeaderActiveTime() {
+        return lastLeaderActiveTime;
+    }
+
+    public void setLastLeaderActiveTime(long lastLeaderActiveTime) {
+        this.lastLeaderActiveTime = lastLeaderActiveTime;
+    }
 }

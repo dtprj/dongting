@@ -36,7 +36,6 @@ public class RaftThread extends Thread {
     private final RaftRpc raftRpc;
     private final GroupConManager groupConManager;
 
-    private long lastLeaderActiveTime = System.nanoTime();
     private final long timeoutNanos;
 
     // TODO optimise blocking queue
@@ -74,11 +73,7 @@ public class RaftThread extends Thread {
     }
 
     private boolean timeout() {
-        return System.nanoTime() - lastLeaderActiveTime > timeoutNanos;
-    }
-
-    private void refresh() {
-        this.lastLeaderActiveTime = System.nanoTime();
+        return System.nanoTime() - raftStatus.getLastLeaderActiveTime() > timeoutNanos;
     }
 
     public static void checkTerm(int remoteTerm, RaftStatus raftStatus) {
@@ -128,7 +123,7 @@ public class RaftThread extends Thread {
         raftStatus.setRole(RaftRole.candidate);
         raftStatus.getCurrentVotes().clear();
         raftStatus.getCurrentVotes().add(config.getId());
-        refresh();
+        raftStatus.setLastLeaderActiveTime(System.nanoTime());
         for (RaftNode node : groupConManager.getServers()) {
             if (node.isSelf()) {
                 continue;
