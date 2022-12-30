@@ -24,16 +24,24 @@ import java.util.Set;
  * @author huangli
  */
 public class RaftNode {
-    private final int id;
+    private int id;
     private final Peer peer;
-    private final Set<HostPort> servers;
-    private final boolean self;
+    private Set<HostPort> servers;
+    private boolean self;
+    private boolean ready;
 
-    public RaftNode(int id, Peer peer, Set<HostPort> servers, boolean self) {
-        this.id = id;
+    public RaftNode(Peer peer) {
         this.peer = peer;
-        this.servers = servers;
-        this.self = self;
+    }
+
+    @Override
+    public RaftNode clone() {
+        RaftNode n = new RaftNode(peer);
+        n.id = id;
+        n.servers = servers;
+        n.self = self;
+        n.ready = ready;
+        return n;
     }
 
     public int getId() {
@@ -51,4 +59,25 @@ public class RaftNode {
     public boolean isSelf() {
         return self;
     }
+
+    public boolean isReady() {
+        return ready;
+    }
+
+    public void setReady(boolean ready) {
+        this.ready = ready;
+    }
+
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public void setServers(Set<HostPort> servers) {
+        this.servers = servers;
+    }
+
+    public void setSelf(boolean self) {
+        this.self = self;
+    }
+
 }

@@ -74,7 +74,7 @@ public class RaftServer extends AbstractLifeCircle {
         nioClientConfig.setName("RaftClient");
         client = new NioClient(nioClientConfig);
 
-        groupConManager = new GroupConManager(config.getId(), config.getServers(), client);
+        groupConManager = new GroupConManager(config, client);
         server.register(Commands.RAFT_HANDSHAKE, this.groupConManager.getProcessor());
         LinkedBlockingQueue<RaftTask> queue = new LinkedBlockingQueue<>();
         server.register(Commands.RAFT_APPEND_ENTRIES, new AppendProcessor(queue));
@@ -89,7 +89,7 @@ public class RaftServer extends AbstractLifeCircle {
         server.start();
         client.start();
         client.waitStart();
-        groupConManager.init(raftStatus.getElectQuorum(), servers, 1000);
+        groupConManager.initRaftGroup(raftStatus.getElectQuorum(), servers, 1000);
         raftThread.start();
     }
 

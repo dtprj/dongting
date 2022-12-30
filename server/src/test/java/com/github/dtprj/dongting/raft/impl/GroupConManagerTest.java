@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
 import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -46,7 +47,7 @@ public class GroupConManagerTest {
     }
 
     @Test
-    public void testFetch3() throws Exception {
+    public void testInitRaftConnection3() throws Exception {
         String servers = "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993";
         RN rn1 = null;
         RN rn2 = null;
@@ -55,8 +56,8 @@ public class GroupConManagerTest {
             rn1 = createRaftNode(1, servers, 6991);
             rn2 = createRaftNode(2, servers, 6992);
             rn3 = createRaftNode(3, servers, 6993);
-            fetch3(rn1, rn2, rn3);
-            fetch3(rn1, rn2, rn3);
+            initRaftConnection3(rn1, rn2, rn3);
+            initRaftConnection3(rn1, rn2, rn3);
         } finally {
             close(rn1);
             close(rn2);
@@ -64,17 +65,20 @@ public class GroupConManagerTest {
         }
     }
 
-    private void fetch3(RN r1, RN r2, RN r3) throws Exception {
-        CompletableFuture<List<RaftNode>> f1 = r1.conManager.add(r1.servers).thenCompose(list -> r1.conManager.fetch(list));
-        CompletableFuture<List<RaftNode>> f2 = r2.conManager.add(r2.servers).thenCompose(list -> r2.conManager.fetch(list));
-        CompletableFuture<List<RaftNode>> f3 = r3.conManager.add(r3.servers).thenCompose(list -> r3.conManager.fetch(list));
+    private void initRaftConnection3(RN r1, RN r2, RN r3) throws Exception {
+        r1.conManager.addSync(r1.servers);
+        r2.conManager.addSync(r2.servers);
+        r3.conManager.addSync(r3.servers);
+        CompletableFuture<List<RaftNode>> f1 = r1.conManager.initRaftConnection();
+        CompletableFuture<List<RaftNode>> f2 = r2.conManager.initRaftConnection();
+        CompletableFuture<List<RaftNode>> f3 = r3.conManager.initRaftConnection();
         equals(r1, f1, 1, 3);
         equals(r2, f2, 2, 3);
         equals(r3, f3, 3, 3);
     }
 
     @Test
-    public void testFetch2() throws Exception {
+    public void testInitRaftConnection2() throws Exception {
         String servers = "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993";
         RN rg1 = null;
         RN rg2 = null;
@@ -82,9 +86,9 @@ public class GroupConManagerTest {
         try {
             rg1 = createRaftNode(1, servers, 6991);
             rg2 = createRaftNode(2, servers, 6992);
-            fetch2(rg1, rg2);
+            initRaftConnection2(rg1, rg2);
             rg3 = createRaftNode(3, servers, 6993, false);
-            fetch2(rg1, rg2);
+            initRaftConnection2(rg1, rg2);
         } finally {
             close(rg1);
             close(rg2);
@@ -92,25 +96,34 @@ public class GroupConManagerTest {
         }
     }
 
-    private void fetch2(RN r1, RN r2) throws Exception {
-        CompletableFuture<List<RaftNode>> f1 = r1.conManager.add(r1.servers).thenCompose(list -> r1.conManager.fetch(list));
-        CompletableFuture<List<RaftNode>> f2 = r2.conManager.add(r2.servers).thenCompose(list -> r2.conManager.fetch(list));
+    private void initRaftConnection2(RN r1, RN r2) throws Exception {
+        r1.conManager.addSync(r1.servers);
+        r2.conManager.addSync(r2.servers);
+        CompletableFuture<List<RaftNode>> f1 = r1.conManager.initRaftConnection();
+        CompletableFuture<List<RaftNode>> f2 = r2.conManager.initRaftConnection();
         equals(r1, f1, 1, 2);
         equals(r2, f2, 2, 2);
     }
 
 
-    private void equals(RN r1, CompletableFuture<List<RaftNode>> f, int id, int expectSize) throws Exception {
-        Set<HostPort> s1 = r1.servers;
+    private void equals(RN rn, CompletableFuture<List<RaftNode>> f, int id, int expectSize) throws Exception {
+        Set<HostPort> s1 = rn.servers;
         List<RaftNode> s2 = f.get(10, TimeUnit.SECONDS);
-        assertEquals(expectSize, s2.size());
+        rn.conManager.setServers(s2);
+        int count = 0;
         for (RaftNode m : s2) {
-            assertTrue(s1.containsAll(m.getServers()));
-            assertTrue(m.getId() > 0);
-            assertNotNull(m.getPeer());
-            if (id == m.getId()) {
-                assertTrue(m.isSelf());
+            if (m.isReady()) {
+                assertEquals(s1, m.getServers());
+                assertTrue(m.getId() > 0);
+                assertNotNull(m.getPeer());
+                if (id == m.getId()) {
+                    assertTrue(m.isSelf());
+                }
+                count++;
             }
+        }
+        if(expectSize!=count) {
+            assertEquals(expectSize, count);
         }
     }
 
@@ -127,11 +140,17 @@ public class GroupConManagerTest {
     private static RN createRaftNode(int id, String servers, int port, boolean register) {
         NioServerConfig serverConfig = new NioServerConfig();
         serverConfig.setPort(port);
+        serverConfig.setIoThreads(1);
+        serverConfig.setName("RaftServer" + id);
         NioServer server = new NioServer(serverConfig);
 
         NioClientConfig clientConfig = new NioClientConfig();
+        clientConfig.setName("RaftClient" + id);
         NioClient client = new NioClient(clientConfig);
-        GroupConManager manager = new GroupConManager(id, servers, client);
+        RaftServerConfig config = new RaftServerConfig();
+        config.setServers(servers);
+        config.setId(id);
+        GroupConManager manager = new GroupConManager(config, client);
 
         if (register) {
             server.register(Commands.RAFT_HANDSHAKE, manager.getProcessor());
@@ -150,7 +169,7 @@ public class GroupConManagerTest {
     }
 
     @Test
-    public void testInit3() throws Exception {
+    public void testInitRaftGroup3() throws Exception {
         String servers = "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993";
         InitThread t1 = new InitThread(1, servers, 6991, 2);
         InitThread t2 = new InitThread(2, servers, 6992, 2);
@@ -169,7 +188,7 @@ public class GroupConManagerTest {
     }
 
     @Test
-    public void testInit2() throws Exception {
+    public void testInitRaftGroup2() throws Exception {
         String servers = "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993";
         InitThread t1 = new InitThread(1, servers, 6991, 2);
         InitThread t2 = new InitThread(2, servers, 6992, 2);
@@ -185,7 +204,7 @@ public class GroupConManagerTest {
     }
 
     @Test
-    public void testInit1() throws Exception {
+    public void testInitRaftGroup1() throws Exception {
         String servers = "127.0.0.1:6991";
         InitThread t1 = new InitThread(1, servers, 6991, 1);
         t1.start();
@@ -196,7 +215,7 @@ public class GroupConManagerTest {
     }
 
     @Test
-    public void testInitConfigFail3_1() throws Exception {
+    public void testInitRaftGroupFail3_1() throws Exception {
         String servers = "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993";
         InitThread t1 = new InitThread(1, servers, 6991, 2);
         InitThread t2 = new InitThread(1, servers, 6992, 2);
@@ -215,7 +234,7 @@ public class GroupConManagerTest {
     }
 
     @Test
-    public void testInitConfigFail3_2() throws Exception {
+    public void testInitRaftGroupFail3_2() throws Exception {
         String servers = "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993";
         InitThread t1 = new InitThread(1, servers, 6991, 2);
         InitThread t2 = new InitThread(2, "127.0.0.1:6991, 127.0.0.1:6993", 6992, 2);
@@ -234,7 +253,7 @@ public class GroupConManagerTest {
     }
 
     @Test
-    public void testInitConfigFail3_3() throws Exception {
+    public void testInitRaftGroupFail3_3() throws Exception {
         String servers = "127.0.0.1:6991, 127.0.0.1:6992";
         InitThread t1 = new InitThread(1, servers, 6991, 2);
         InitThread t2 = new InitThread(2, servers, 6992, 2);
@@ -272,7 +291,7 @@ public class GroupConManagerTest {
             RN rn = null;
             try {
                 rn = createRaftNode(id, servers, port);
-                rn.conManager.init(quorum, rn.servers, 1);
+                rn.conManager.initRaftGroup(quorum, rn.servers, 1);
                 result = Boolean.TRUE;
             } catch (Exception e) {
                 result = e;

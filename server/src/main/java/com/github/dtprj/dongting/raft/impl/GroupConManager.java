@@ -15,10 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.MutableInt;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
@@ -36,12 +33,16 @@ import com.github.dtprj.dongting.net.ZeroCopyWriteFrame;
 import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.pb.PbUtil;
 import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -57,11 +58,14 @@ import java.util.stream.Collectors;
 public class GroupConManager {
     private static final DtLog log = DtLogs.getLogger(GroupConManager.class);
     private final UUID uuid = UUID.randomUUID();
-    private final int id;
     private final byte[] serversStr;
+    private final RaftServerConfig config;
     private final NioClient client;
 
-    private List<RaftNode> servers;
+    // only read/write by raft thread or init thread
+    private List<RaftNode> servers = new ArrayList<>();
+    private long refreshNanos;
+    private final long refreshTimeout;
 
     private static final PbZeroCopyDecoder DECODER = new PbZeroCopyDecoder() {
         @Override
@@ -82,10 +86,13 @@ public class GroupConManager {
         }
     };
 
-    public GroupConManager(int id, String serversStr, NioClient client) {
-        this.id = id;
-        this.serversStr = serversStr.getBytes(StandardCharsets.UTF_8);
+    public GroupConManager(RaftServerConfig config, NioClient client) {
+        this.serversStr = config.getServers().getBytes(StandardCharsets.UTF_8);
+        this.config = config;
         this.client = client;
+
+        refreshTimeout = Duration.ofSeconds(1).toNanos();
+        this.refreshNanos = System.nanoTime() - 2 * refreshTimeout;
     }
 
     public static Set<HostPort> parseServers(String serversStr) {
@@ -99,92 +106,138 @@ public class GroupConManager {
                     return new HostPort(arr[0].trim(), Integer.parseInt(arr[1].trim()));
                 }).collect(Collectors.toSet());
         if (servers.size() == 0) {
-            throw new DtException("servers list is empty");
+            throw new RaftException("servers list is empty");
         }
         return servers;
     }
 
-    public CompletableFuture<List<Peer>> add(Collection<HostPort> servers) {
-        ArrayList<Peer> peers = new ArrayList<>();
-        CompletableFuture<List<Peer>> finalFuture = new CompletableFuture<>();
-        MutableInt count = new MutableInt(servers.size());
-        for (HostPort hp : servers) {
-            client.addPeer(hp).handle((peer, ex) -> {
-                if (ex == null) {
-                    peers.add(peer);
+    private RaftNode find(List<RaftNode> servers, HostPort hostPort) {
+        for (RaftNode node : servers) {
+            if (node.getPeer().getEndPoint().equals(hostPort)) {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    private CompletableFuture<List<RaftNode>> add(Collection<HostPort> endPoints) {
+        HashSet<HostPort> validEndPoints = new HashSet<>();
+        for (HostPort hp : endPoints) {
+            if (find(servers, hp) == null) {
+                validEndPoints.add(hp);
+            }
+        }
+        if (validEndPoints.size() == 0) {
+            return CompletableFuture.completedFuture(new ArrayList<>());
+        }
+
+        ArrayList<CompletableFuture<Peer>> list = new ArrayList<>();
+        for (HostPort hp : validEndPoints) {
+            list.add(client.addPeer(hp));
+        }
+        return CompletableFuture.allOf(list.toArray(new CompletableFuture[0]))
+                .thenApply(v -> list.stream().map(f -> new RaftNode(f.join()))
+                        .collect(Collectors.toList()));
+    }
+
+    public void addSync(Collection<HostPort> endPoints) {
+        CompletableFuture<List<RaftNode>> result = add(endPoints);
+        List<RaftNode> list = result.join();
+        for (RaftNode node : list) {
+            if (find(servers, node.getPeer().getEndPoint()) == null) {
+                servers.add(node);
+            }
+        }
+    }
+
+    public CompletableFuture<List<RaftNode>> refreshRaftConnection(long currentNanos) {
+        if (Math.abs(currentNanos - refreshNanos) < refreshTimeout) {
+            return CompletableFuture.completedFuture(null);
+        }
+        CompletableFuture<List<RaftNode>> result = initRaftConnection();
+        refreshNanos = currentNanos;
+        return result;
+    }
+
+    public CompletableFuture<List<RaftNode>> initRaftConnection() {
+        ArrayList<CompletableFuture<RaftNode>> futures = new ArrayList<>();
+        List<RaftNode> servers = this.servers;
+        for (RaftNode server : servers) {
+            RaftNode node = server.clone();
+            CompletableFuture<RaftNode> initFuture;
+            if (node.isReady() || node.isSelf()) {
+                initFuture = CompletableFuture.completedFuture(node);
+            } else {
+                CompletableFuture<Void> connectFuture;
+                if (node.getPeer().isConnected()) {
+                    connectFuture = CompletableFuture.completedFuture(null);
                 } else {
-                    BugLog.getLog().error("add peer fail: {}", hp, ex);
+                    connectFuture = client.connect(node.getPeer());
                 }
-                if (count.decrement() == 0) {
-                    finalFuture.complete(peers);
-                }
-                return null;
-            });
-        }
-        return finalFuture;
-    }
-
-    public CompletableFuture<List<RaftNode>> fetch(Collection<Peer> servers) {
-        ArrayList<RaftNode> peers = new ArrayList<>();
-        CompletableFuture<List<RaftNode>> finalFuture = new CompletableFuture<>();
-        MutableInt count = new MutableInt(servers.size());
-        for (Peer peer : servers) {
-            if (peer.isConnected()) {
-                whenConnected(peers, finalFuture, count, peer);
-            } else {
-                client.connect(peer).handle((v, ex) -> {
-                    if (ex == null) {
-                        whenConnected(peers, finalFuture, count, peer);
-                    } else {
-                        log.info("connect to raft server {} fail: {}", peer.getEndPoint(), ex.getMessage());
-                        if (count.decrement() == 0) {
-                            finalFuture.complete(peers);
-                        }
-                    }
-                    return null;
-                });
+                initFuture = connectFuture.thenCompose(v -> sendRaftHandshake(node))
+                        .exceptionally(ex -> {
+                            log.info("connect to raft server {} fail: {}",
+                                    node.getPeer().getEndPoint(), ex.getMessage());
+                            return node;
+                        });
             }
+            futures.add(initFuture);
         }
-        return finalFuture;
+        return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                .thenApply(v -> futures.stream().map(CompletableFuture::join)
+                        .collect(Collectors.toList()));
     }
 
-    private void whenConnected(ArrayList<RaftNode> peers, CompletableFuture<List<RaftNode>> finalFuture, MutableInt count, Peer peer) {
-        DtTime timeout = new DtTime(10, TimeUnit.SECONDS);
-        CompletableFuture<ReadFrame> f = client.sendRequest(peer, new RaftInitWriteFrame(), DECODER, timeout);
-        f.handle((rf, ex) -> {
+    private CompletableFuture<RaftNode> sendRaftHandshake(RaftNode node) {
+        DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
+        CompletableFuture<ReadFrame> f = client.sendRequest(node.getPeer(), new RaftInitWriteFrame(), DECODER, timeout);
+        return f.handle((rf, ex) -> {
             if (ex == null) {
-                whenRpcFinish(rf, peers, peer);
+                whenRpcFinish(rf, node);
             } else {
-                log.info("init raft server {} fail: {}", peer.getEndPoint(), ex.getMessage());
+                log.info("init raft connection {} fail: {}", node.getPeer().getEndPoint(), ex.getMessage());
             }
-            if (count.decrement() == 0) {
-                finalFuture.complete(peers);
-            }
-            return null;
+            return node;
         });
     }
 
-    private void whenRpcFinish(ReadFrame rf, ArrayList<RaftNode> peers, Peer peer) {
+    private void whenRpcFinish(ReadFrame rf, RaftNode node) {
         RaftInitFrameCallback callback = (RaftInitFrameCallback) rf.getBody();
+        Set<HostPort> remoteServers = null;
+        try {
+            remoteServers = parseServers(callback.serversStr);
+        } catch (Exception e) {
+            log.error("servers list is empty", e);
+        }
         boolean self = callback.uuidHigh == uuid.getMostSignificantBits()
                 && callback.uuidLow == uuid.getLeastSignificantBits();
-        Set<HostPort> remoteServers = parseServers(callback.serversStr);
-        RaftNode rm = new RaftNode(callback.id, peer, remoteServers, self);
-        peers.add(rm);
+        if (remoteServers != null) {
+            node.setServers(Collections.unmodifiableSet(remoteServers));
+        }
+        node.setId(callback.id);
+        node.setReady(true);
+        node.setSelf(self);
+
+        if (self) {
+            client.disconnect(node.getPeer());
+        } else {
+            log.info("init raft connection success: remote={}, id={}, servers={}",
+                    node.getPeer().getEndPoint(), node.getId(), callback.serversStr);
+        }
     }
 
-    public void init(int electQuorum, Collection<HostPort> servers, int sleepMillis) {
-        List<RaftNode> nodes = init0(electQuorum, servers, sleepMillis);
-        checkNodes(nodes);
-        this.servers = nodes;
-    }
-
-    private void checkNodes(List<RaftNode> nodes) {
-        int size = nodes.size();
+    private void checkNodes(List<RaftNode> list) {
+        int size = list.size();
         for (int i = 0; i < size; i++) {
-            RaftNode rn1 = nodes.get(i);
+            RaftNode rn1 = list.get(i);
+            if (!rn1.isReady()) {
+                continue;
+            }
             for (int j = i + 1; j < size; j++) {
-                RaftNode rn2 = nodes.get(j);
+                RaftNode rn2 = list.get(j);
+                if (!rn2.isReady()) {
+                    continue;
+                }
                 if (rn1.getId() == rn2.getId()) {
                     throw new RaftException("find same id: " + rn1.getId() + ", "
                             + rn1.getPeer().getEndPoint() + ", " + rn2.getPeer().getEndPoint());
@@ -198,17 +251,19 @@ public class GroupConManager {
     }
 
     @SuppressWarnings("BusyWait")
-    private List<RaftNode> init0(int electQuorum, Collection<HostPort> servers, int sleepMillis) {
+    public void initRaftGroup(int electQuorum, Collection<HostPort> servers, int sleepMillis) {
         while (true) {
-            CompletableFuture<List<RaftNode>> f = add(servers)
-                    .thenCompose(this::fetch);
             try {
-                List<RaftNode> peers = f.get(15, TimeUnit.SECONDS);
-                int currentNodes = peers.size();
+                addSync(servers);
+                CompletableFuture<List<RaftNode>> f = this.initRaftConnection();
+                List<RaftNode> nodes = f.get(config.getLeaderTimeout(), TimeUnit.MILLISECONDS);
+                checkNodes(nodes);
+                long currentNodes = nodes.stream().filter(RaftNode::isReady).count();
                 if (currentNodes >= electQuorum) {
                     log.info("raft group init success. electQuorum={}, currentNodes={}. remote peers: {}",
-                            electQuorum, currentNodes, peers);
-                    return peers;
+                            electQuorum, currentNodes, nodes);
+                    this.servers = nodes;
+                    return;
                 }
                 Thread.sleep(sleepMillis);
             } catch (TimeoutException e) {
@@ -235,7 +290,7 @@ public class GroupConManager {
 
         @Override
         protected int accurateBodySize() {
-            return PbUtil.accurateFix32Size(1, id)
+            return PbUtil.accurateFix32Size(1, config.getId())
                     + PbUtil.accurateFix64Size(2, uuid.getMostSignificantBits())
                     + PbUtil.accurateFix64Size(3, uuid.getLeastSignificantBits())
                     + PbUtil.accurateLengthDelimitedSize(4, serversStr.length);
@@ -243,7 +298,7 @@ public class GroupConManager {
 
         @Override
         protected void encodeBody(ByteBuffer buf) {
-            PbUtil.writeFix32(buf, 1, id);
+            PbUtil.writeFix32(buf, 1, config.getId());
             PbUtil.writeFix64(buf, 2, uuid.getMostSignificantBits());
             PbUtil.writeFix64(buf, 3, uuid.getLeastSignificantBits());
             PbUtil.writeBytes(buf, 4, serversStr);
@@ -287,5 +342,15 @@ public class GroupConManager {
             }
             return true;
         }
+
+        @Override
+        public Object getResult() {
+            return this;
+        }
+    }
+
+    // for unit test
+    void setServers(List<RaftNode> servers) {
+        this.servers = servers;
     }
 }
