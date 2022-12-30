@@ -389,7 +389,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             channelsList.add(dtc);
             f.complete(null);
         } catch (Exception e) {
-            log.warn("connect channel fail: {}, {}", channel, e.toString());
+            log.warn("connect channel fail: {}, {}", peer.getEndPoint(), e.toString());
             closeChannel0((SocketChannel) key.channel());
             f.completeExceptionally(new NetException(e));
         }
