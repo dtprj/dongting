@@ -70,14 +70,14 @@ public class GroupConManager {
     private static final PbZeroCopyDecoder DECODER = new PbZeroCopyDecoder() {
         @Override
         protected PbCallback createCallback(ProcessContext context) {
-            return new RaftInitFrameCallback(context.getIoThreadStrDecoder());
+            return new RaftPingFrameCallback(context.getIoThreadStrDecoder());
         }
     };
 
     private final ReqProcessor processor = new ReqProcessor() {
         @Override
         public WriteFrame process(ReadFrame frame, ProcessContext context) {
-            return new RaftInitWriteFrame();
+            return new RaftPingWriteFrame();
         }
 
         @Override
@@ -154,12 +154,12 @@ public class GroupConManager {
         if (Math.abs(currentNanos - refreshNanos) < refreshTimeout) {
             return CompletableFuture.completedFuture(null);
         }
-        CompletableFuture<List<RaftNode>> result = initRaftConnection();
+        CompletableFuture<List<RaftNode>> result = pingAll();
         refreshNanos = currentNanos;
         return result;
     }
 
-    public CompletableFuture<List<RaftNode>> initRaftConnection() {
+    public CompletableFuture<List<RaftNode>> pingAll() {
         ArrayList<CompletableFuture<RaftNode>> futures = new ArrayList<>();
         List<RaftNode> servers = this.servers;
         for (RaftNode server : servers) {
@@ -174,7 +174,7 @@ public class GroupConManager {
                 } else {
                     connectFuture = client.connect(node.getPeer());
                 }
-                initFuture = connectFuture.thenCompose(v -> sendRaftHandshake(node))
+                initFuture = connectFuture.thenCompose(v -> sendRaftPing(node))
                         .exceptionally(ex -> {
                             log.info("connect to raft server {} fail: {}",
                                     node.getPeer().getEndPoint(), ex.getMessage());
@@ -188,21 +188,22 @@ public class GroupConManager {
                         .collect(Collectors.toList()));
     }
 
-    private CompletableFuture<RaftNode> sendRaftHandshake(RaftNode node) {
+    private CompletableFuture<RaftNode> sendRaftPing(RaftNode node) {
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        CompletableFuture<ReadFrame> f = client.sendRequest(node.getPeer(), new RaftInitWriteFrame(), DECODER, timeout);
+        CompletableFuture<ReadFrame> f = client.sendRequest(node.getPeer(), new RaftPingWriteFrame(), DECODER, timeout);
         return f.handle((rf, ex) -> {
             if (ex == null) {
                 whenRpcFinish(rf, node);
             } else {
                 log.info("init raft connection {} fail: {}", node.getPeer().getEndPoint(), ex.getMessage());
+                client.disconnect(node.getPeer());
             }
             return node;
         });
     }
 
     private void whenRpcFinish(ReadFrame rf, RaftNode node) {
-        RaftInitFrameCallback callback = (RaftInitFrameCallback) rf.getBody();
+        RaftPingFrameCallback callback = (RaftPingFrameCallback) rf.getBody();
         Set<HostPort> remoteServers = null;
         try {
             remoteServers = parseServers(callback.serversStr);
@@ -255,7 +256,7 @@ public class GroupConManager {
         while (true) {
             try {
                 addSync(servers);
-                CompletableFuture<List<RaftNode>> f = this.initRaftConnection();
+                CompletableFuture<List<RaftNode>> f = this.pingAll();
                 List<RaftNode> nodes = f.get(config.getLeaderTimeout(), TimeUnit.MILLISECONDS);
                 checkNodes(nodes);
                 long currentNodes = nodes.stream().filter(RaftNode::isReady).count();
@@ -282,10 +283,10 @@ public class GroupConManager {
         return servers;
     }
 
-    class RaftInitWriteFrame extends ZeroCopyWriteFrame {
+    class RaftPingWriteFrame extends ZeroCopyWriteFrame {
 
-        public RaftInitWriteFrame() {
-            setCommand(Commands.RAFT_HANDSHAKE);
+        public RaftPingWriteFrame() {
+            setCommand(Commands.RAFT_PING);
         }
 
         @Override
@@ -306,14 +307,14 @@ public class GroupConManager {
     }
 
 
-    static class RaftInitFrameCallback extends PbCallback {
+    static class RaftPingFrameCallback extends PbCallback {
         private final StringFieldDecoder ioThreadStrDecoder;
         private int id;
         private long uuidHigh;
         private long uuidLow;
         private String serversStr;
 
-        public RaftInitFrameCallback(StringFieldDecoder ioThreadStrDecoder) {
+        public RaftPingFrameCallback(StringFieldDecoder ioThreadStrDecoder) {
             this.ioThreadStrDecoder = ioThreadStrDecoder;
         }
 

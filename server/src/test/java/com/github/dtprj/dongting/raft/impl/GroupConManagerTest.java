@@ -47,7 +47,7 @@ public class GroupConManagerTest {
     }
 
     @Test
-    public void testInitRaftConnection3() throws Exception {
+    public void testPingAll3() throws Exception {
         String servers = "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993";
         RN rn1 = null;
         RN rn2 = null;
@@ -56,8 +56,8 @@ public class GroupConManagerTest {
             rn1 = createRaftNode(1, servers, 6991);
             rn2 = createRaftNode(2, servers, 6992);
             rn3 = createRaftNode(3, servers, 6993);
-            initRaftConnection3(rn1, rn2, rn3);
-            initRaftConnection3(rn1, rn2, rn3);
+            pingAll3(rn1, rn2, rn3);
+            pingAll3(rn1, rn2, rn3);
         } finally {
             close(rn1);
             close(rn2);
@@ -65,20 +65,20 @@ public class GroupConManagerTest {
         }
     }
 
-    private void initRaftConnection3(RN r1, RN r2, RN r3) throws Exception {
+    private void pingAll3(RN r1, RN r2, RN r3) throws Exception {
         r1.conManager.addSync(r1.servers);
         r2.conManager.addSync(r2.servers);
         r3.conManager.addSync(r3.servers);
-        CompletableFuture<List<RaftNode>> f1 = r1.conManager.initRaftConnection();
-        CompletableFuture<List<RaftNode>> f2 = r2.conManager.initRaftConnection();
-        CompletableFuture<List<RaftNode>> f3 = r3.conManager.initRaftConnection();
+        CompletableFuture<List<RaftNode>> f1 = r1.conManager.pingAll();
+        CompletableFuture<List<RaftNode>> f2 = r2.conManager.pingAll();
+        CompletableFuture<List<RaftNode>> f3 = r3.conManager.pingAll();
         equals(r1, f1, 1, 3);
         equals(r2, f2, 2, 3);
         equals(r3, f3, 3, 3);
     }
 
     @Test
-    public void testInitRaftConnection2() throws Exception {
+    public void testPingAll2() throws Exception {
         String servers = "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993";
         RN rg1 = null;
         RN rg2 = null;
@@ -86,9 +86,9 @@ public class GroupConManagerTest {
         try {
             rg1 = createRaftNode(1, servers, 6991);
             rg2 = createRaftNode(2, servers, 6992);
-            initRaftConnection2(rg1, rg2);
+            pingAll2(rg1, rg2);
             rg3 = createRaftNode(3, servers, 6993, false);
-            initRaftConnection2(rg1, rg2);
+            pingAll2(rg1, rg2);
         } finally {
             close(rg1);
             close(rg2);
@@ -96,11 +96,11 @@ public class GroupConManagerTest {
         }
     }
 
-    private void initRaftConnection2(RN r1, RN r2) throws Exception {
+    private void pingAll2(RN r1, RN r2) throws Exception {
         r1.conManager.addSync(r1.servers);
         r2.conManager.addSync(r2.servers);
-        CompletableFuture<List<RaftNode>> f1 = r1.conManager.initRaftConnection();
-        CompletableFuture<List<RaftNode>> f2 = r2.conManager.initRaftConnection();
+        CompletableFuture<List<RaftNode>> f1 = r1.conManager.pingAll();
+        CompletableFuture<List<RaftNode>> f2 = r2.conManager.pingAll();
         equals(r1, f1, 1, 2);
         equals(r2, f2, 2, 2);
     }
@@ -153,7 +153,7 @@ public class GroupConManagerTest {
         GroupConManager manager = new GroupConManager(config, client);
 
         if (register) {
-            server.register(Commands.RAFT_HANDSHAKE, manager.getProcessor());
+            server.register(Commands.RAFT_PING, manager.getProcessor());
         }
 
         server.start();

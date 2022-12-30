@@ -15,13 +15,13 @@
  */
 syntax = "proto3";
 option java_package = "com.github.dtprj.dongting.raft";
-message RaftHandshakeReq {
+message RaftPingReq {
   fixed32 id = 1;
   fixed64 uuid_high = 2;
   fixed64 uuid_low = 3;
   string group_servers = 4;
 }
-message RaftHandshakeResp {
+message RaftPingResp {
   fixed32 id = 1;
   fixed64 uuid_high = 2;
   fixed64 uuid_low = 3;

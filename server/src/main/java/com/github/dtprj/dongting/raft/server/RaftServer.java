@@ -75,7 +75,7 @@ public class RaftServer extends AbstractLifeCircle {
         client = new NioClient(nioClientConfig);
 
         groupConManager = new GroupConManager(config, client);
-        server.register(Commands.RAFT_HANDSHAKE, this.groupConManager.getProcessor());
+        server.register(Commands.RAFT_PING, this.groupConManager.getProcessor());
         LinkedBlockingQueue<RaftTask> queue = new LinkedBlockingQueue<>();
         server.register(Commands.RAFT_APPEND_ENTRIES, new AppendProcessor(queue));
         server.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(queue));
