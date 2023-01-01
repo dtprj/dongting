@@ -88,6 +88,10 @@ public class RaftThread extends Thread {
             raftStatus.setVoteFor(0);
             raftStatus.setRole(RaftRole.follower);
             raftStatus.getCurrentVotes().clear();
+            long t = System.nanoTime();
+            raftStatus.setLastLeaderActiveTime(t);
+            raftStatus.setHeartbeatTime(t);
+            raftStatus.setLastElectTime(t);
         }
     }
 
