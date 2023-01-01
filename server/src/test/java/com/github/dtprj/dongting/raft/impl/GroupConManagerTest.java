@@ -23,15 +23,15 @@ import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -46,85 +46,16 @@ public class GroupConManagerTest {
         Set<HostPort> servers;
     }
 
-    @Test
-    public void testPingAll3() throws Exception {
-        String servers = "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993";
-        RN rn1 = null;
-        RN rn2 = null;
-        RN rn3 = null;
-        try {
-            rn1 = createRaftNode(1, servers, 6991);
-            rn2 = createRaftNode(2, servers, 6992);
-            rn3 = createRaftNode(3, servers, 6993);
-            pingAll3(rn1, rn2, rn3);
-            pingAll3(rn1, rn2, rn3);
-        } finally {
-            close(rn1);
-            close(rn2);
-            close(rn3);
-        }
+    private static ExecutorService executor;
+
+    @BeforeAll
+    public static void beforeAll() {
+        executor = Executors.newSingleThreadExecutor();
     }
 
-    private void pingAll3(RN r1, RN r2, RN r3) throws Exception {
-        r1.conManager.addSync(r1.servers);
-        r2.conManager.addSync(r2.servers);
-        r3.conManager.addSync(r3.servers);
-        CompletableFuture<List<RaftNode>> f1 = r1.conManager.pingAll();
-        CompletableFuture<List<RaftNode>> f2 = r2.conManager.pingAll();
-        CompletableFuture<List<RaftNode>> f3 = r3.conManager.pingAll();
-        equals(r1, f1, 1, 3);
-        equals(r2, f2, 2, 3);
-        equals(r3, f3, 3, 3);
-    }
-
-    @Test
-    public void testPingAll2() throws Exception {
-        String servers = "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993";
-        RN rg1 = null;
-        RN rg2 = null;
-        RN rg3 = null;
-        try {
-            rg1 = createRaftNode(1, servers, 6991);
-            rg2 = createRaftNode(2, servers, 6992);
-            pingAll2(rg1, rg2);
-            rg3 = createRaftNode(3, servers, 6993, false);
-            pingAll2(rg1, rg2);
-        } finally {
-            close(rg1);
-            close(rg2);
-            close(rg3);
-        }
-    }
-
-    private void pingAll2(RN r1, RN r2) throws Exception {
-        r1.conManager.addSync(r1.servers);
-        r2.conManager.addSync(r2.servers);
-        CompletableFuture<List<RaftNode>> f1 = r1.conManager.pingAll();
-        CompletableFuture<List<RaftNode>> f2 = r2.conManager.pingAll();
-        equals(r1, f1, 1, 2);
-        equals(r2, f2, 2, 2);
-    }
-
-
-    private void equals(RN rn, CompletableFuture<List<RaftNode>> f, int id, int expectSize) throws Exception {
-        Set<HostPort> s1 = rn.servers;
-        List<RaftNode> s2 = f.get(10, TimeUnit.SECONDS);
-        rn.conManager.setServers(s2);
-        int count = 0;
-        for (RaftNode m : s2) {
-            if (m.isReady()) {
-                assertEquals(s1, m.getServers());
-                assertTrue(m.getId() > 0);
-                assertNotNull(m.getPeer());
-                if (id == m.getId()) {
-                    assertTrue(m.isSelf());
-                }
-                count++;
-            }
-        }
-        if(expectSize!=count) {
-            assertEquals(expectSize, count);
-        }
+    @AfterAll
+    public static void afterAll() {
+        executor.shutdown();
     }
 
     private static void close(RN rn) {
@@ -150,7 +81,7 @@ public class GroupConManagerTest {
         RaftServerConfig config = new RaftServerConfig();
         config.setServers(servers);
         config.setId(id);
-        GroupConManager manager = new GroupConManager(config, client);
+        GroupConManager manager = new GroupConManager(config, client, executor);
 
         if (register) {
             server.register(Commands.RAFT_PING, manager.getProcessor());

@@ -33,6 +33,8 @@ public class RaftStatus {
 
     private long lastLeaderActiveTime = System.nanoTime();
 
+    private long heartbeatTime = System.nanoTime();
+
     public RaftStatus(int electQuorum, int rwQuorum) {
         this.electQuorum = electQuorum;
         this.rwQuorum = rwQuorum;
@@ -80,5 +82,13 @@ public class RaftStatus {
 
     public void setLastLeaderActiveTime(long lastLeaderActiveTime) {
         this.lastLeaderActiveTime = lastLeaderActiveTime;
+    }
+
+    public long getHeartbeatTime() {
+        return heartbeatTime;
+    }
+
+    public void setHeartbeatTime(long heartbeatTime) {
+        this.heartbeatTime = heartbeatTime;
     }
 }

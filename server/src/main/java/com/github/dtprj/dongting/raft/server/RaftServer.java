@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
+import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.impl.GroupConManager;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 import com.github.dtprj.dongting.raft.impl.RaftRpc;
@@ -77,7 +78,7 @@ public class RaftServer extends AbstractLifeCircle {
         LinkedBlockingQueue<Runnable> queue = new LinkedBlockingQueue<>();
         RaftExecutor executor = new RaftExecutor(queue);
 
-        groupConManager = new GroupConManager(config, client);
+        groupConManager = new GroupConManager(config, client, executor);
         server.register(Commands.RAFT_PING, this.groupConManager.getProcessor(), executor);
         server.register(Commands.RAFT_APPEND_ENTRIES, new AppendProcessor(raftStatus), executor);
         server.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(raftStatus), executor);
@@ -100,6 +101,12 @@ public class RaftServer extends AbstractLifeCircle {
         server.stop();
         client.stop();
         raftThread.requestShutdown();
+        raftThread.interrupt();
+        try {
+            raftThread.join(100);
+        } catch (InterruptedException e) {
+            throw new RaftException(e);
+        }
     }
 
 }

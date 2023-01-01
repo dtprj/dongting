@@ -24,6 +24,7 @@ public class RaftServerConfig {
     private int id;
     private long leaderTimeout = 15 * 1000;
     private long rpcTimeout = 5 * 1000;
+    private long heartbeatInterval = 2000;
 
     public String getServers() {
         return servers;
@@ -63,5 +64,13 @@ public class RaftServerConfig {
 
     public void setRpcTimeout(long rpcTimeout) {
         this.rpcTimeout = rpcTimeout;
+    }
+
+    public long getHeartbeatInterval() {
+        return heartbeatInterval;
+    }
+
+    public void setHeartbeatInterval(long heartbeatInterval) {
+        this.heartbeatInterval = heartbeatInterval;
     }
 }

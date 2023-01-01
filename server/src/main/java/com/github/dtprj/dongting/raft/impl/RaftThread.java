@@ -32,11 +32,12 @@ public class RaftThread extends Thread {
 
     private final RaftServerConfig config;
     private final RaftStatus raftStatus;
-    private final int pollTimeout = new Random().nextInt(100) + 100;
+    private final long pollTimeout = new Random().nextInt(100) + 50;
     private final RaftRpc raftRpc;
     private final GroupConManager groupConManager;
 
-    private final long timeoutNanos;
+    private final long heartbeatIntervalNanos;
+    private final long leaderTimeoutNanos;
 
     // TODO optimise blocking queue
     private final LinkedBlockingQueue<Runnable> queue;
@@ -50,30 +51,35 @@ public class RaftThread extends Thread {
         this.queue = executor.getQueue();
         this.raftRpc = raftRpc;
         this.groupConManager = groupConManager;
-        timeoutNanos = Duration.ofMillis(config.getLeaderTimeout()).toNanos();
+        leaderTimeoutNanos = Duration.ofMillis(config.getLeaderTimeout()).toNanos();
+        heartbeatIntervalNanos = Duration.ofMillis(config.getHeartbeatInterval()).toNanos();
     }
-
 
     @Override
     public void run() {
+        long roundTimestampMillis = System.currentTimeMillis();
+        long roundTimeNanos;
         while (!stop) {
             Runnable t;
             try {
                 t = queue.poll(pollTimeout, TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
-                log.error("", e);
                 return;
             }
-            if (t == null) {
-                idle();
-            } else {
+            if (t != null) {
                 t.run();
+            }
+            long now = System.currentTimeMillis();
+            if (now < roundTimestampMillis || now - roundTimestampMillis > 50) {
+                roundTimeNanos = System.nanoTime();
+                roundTimestampMillis = now;
+                idle(roundTimeNanos);
             }
         }
     }
 
-    private boolean timeout() {
-        return System.nanoTime() - raftStatus.getLastLeaderActiveTime() > timeoutNanos;
+    private boolean leaderTimeout(long currentNanos) {
+        return currentNanos - raftStatus.getLastLeaderActiveTime() > leaderTimeoutNanos;
     }
 
     public static void checkTerm(int remoteTerm, RaftStatus raftStatus) {
@@ -94,16 +100,23 @@ public class RaftThread extends Thread {
         });
     }
 
-    private void idle() {
+    private void idle(long roundTimeNanos) {
+        if (roundTimeNanos - raftStatus.getHeartbeatTime() > heartbeatIntervalNanos) {
+            raftStatus.setHeartbeatTime(roundTimeNanos);
+            groupConManager.pingAllAndUpdateServers();
+        }
         switch (raftStatus.getRole()) {
             case follower:
             case candidate:
-                if (timeout()) {
+                if (leaderTimeout(roundTimeNanos)) {
                     startElect();
                 }
                 break;
             case leader:
-                sendHeartBeat();
+                if (roundTimeNanos - raftStatus.getHeartbeatTime() > heartbeatIntervalNanos) {
+                    raftStatus.setHeartbeatTime(roundTimeNanos);
+                    sendHeartBeat();
+                }
                 break;
         }
     }
@@ -128,7 +141,7 @@ public class RaftThread extends Thread {
             if (node.isSelf()) {
                 continue;
             }
-            raftRpc.sendVoteRequest(node, this::timeout);
+            raftRpc.sendVoteRequest(node, () -> leaderTimeout(System.nanoTime()));
         }
     }
 
