@@ -38,6 +38,7 @@ public class RaftThread extends Thread {
 
     private final long heartbeatIntervalNanos;
     private final long leaderTimeoutNanos;
+    private final long electTimeoutNanos;
 
     // TODO optimise blocking queue
     private final LinkedBlockingQueue<Runnable> queue;
@@ -53,6 +54,7 @@ public class RaftThread extends Thread {
         this.groupConManager = groupConManager;
         leaderTimeoutNanos = Duration.ofMillis(config.getLeaderTimeout()).toNanos();
         heartbeatIntervalNanos = Duration.ofMillis(config.getHeartbeatInterval()).toNanos();
+        electTimeoutNanos = leaderTimeoutNanos;
     }
 
     @Override
@@ -76,10 +78,6 @@ public class RaftThread extends Thread {
                 idle(roundTimeNanos);
             }
         }
-    }
-
-    private boolean leaderTimeout(long currentNanos) {
-        return currentNanos - raftStatus.getLastLeaderActiveTime() > leaderTimeoutNanos;
     }
 
     public static void checkTerm(int remoteTerm, RaftStatus raftStatus) {
@@ -108,8 +106,10 @@ public class RaftThread extends Thread {
         switch (raftStatus.getRole()) {
             case follower:
             case candidate:
-                if (leaderTimeout(roundTimeNanos)) {
-                    startElect();
+                if (roundTimeNanos - raftStatus.getLastLeaderActiveTime() > leaderTimeoutNanos) {
+                    if (roundTimeNanos - raftStatus.getLastElectTime() > electTimeoutNanos) {
+                        startElect();
+                    }
                 }
                 break;
             case leader:
@@ -136,12 +136,12 @@ public class RaftThread extends Thread {
         raftStatus.setRole(RaftRole.candidate);
         raftStatus.getCurrentVotes().clear();
         raftStatus.getCurrentVotes().add(config.getId());
-        raftStatus.setLastLeaderActiveTime(System.nanoTime());
+        raftStatus.setLastElectTime(System.nanoTime());
         for (RaftNode node : groupConManager.getServers()) {
             if (node.isSelf()) {
                 continue;
             }
-            raftRpc.sendVoteRequest(node, () -> leaderTimeout(System.nanoTime()));
+            raftRpc.sendVoteRequest(node);
         }
     }
 

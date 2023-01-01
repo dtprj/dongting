@@ -31,13 +31,19 @@ public class RaftStatus {
     private final int rwQuorum;
     private final HashSet<Integer> currentVotes = new HashSet<>();
 
-    private long lastLeaderActiveTime = System.nanoTime();
+    private long lastLeaderActiveTime;
 
-    private long heartbeatTime = System.nanoTime();
+    private long lastElectTime;
+
+    private long heartbeatTime;
 
     public RaftStatus(int electQuorum, int rwQuorum) {
         this.electQuorum = electQuorum;
         this.rwQuorum = rwQuorum;
+        long t = System.nanoTime();
+        lastLeaderActiveTime = t;
+        lastElectTime = t;
+        heartbeatTime = t;
     }
 
     public int getCurrentTerm() {
@@ -90,5 +96,13 @@ public class RaftStatus {
 
     public void setHeartbeatTime(long heartbeatTime) {
         this.heartbeatTime = heartbeatTime;
+    }
+
+    public long getLastElectTime() {
+        return lastElectTime;
+    }
+
+    public void setLastElectTime(long lastElectTime) {
+        this.lastElectTime = lastElectTime;
     }
 }
