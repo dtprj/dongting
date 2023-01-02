@@ -135,6 +135,7 @@ public class RaftThread extends Thread {
     }
 
     private void startElect() {
+        // TODO persist raft status
         raftStatus.setCurrentTerm(raftStatus.getCurrentTerm() + 1);
         raftStatus.setVoteFor(config.getId());
         raftStatus.setRole(RaftRole.candidate);
