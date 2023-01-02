@@ -171,9 +171,6 @@ public class GroupConManager {
         node.setReady(nodeCopy.isReady());
         node.setId(nodeCopy.getId());
         node.setServers(nodeCopy.getServers());
-        if (!node.isReady()) {
-            client.disconnect(node.getPeer());
-        }
     }
 
     public CompletableFuture<RaftNode> connectAndPing(RaftNode node) {
@@ -204,7 +201,6 @@ public class GroupConManager {
                 whenRpcFinish(rf, nodeCopy);
             } else {
                 log.info("init raft connection {} fail: {}", nodeCopy.getPeer().getEndPoint(), ex.getMessage());
-                client.disconnect(nodeCopy.getPeer());
             }
             return nodeCopy;
         });
