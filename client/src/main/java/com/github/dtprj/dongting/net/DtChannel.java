@@ -91,6 +91,7 @@ class DtChannel extends PbCallback {
         processContext.setIoHeapBufferPool(new ByteBufferPoolReleaseInOtherThread(
                 workerStatus.getHeapPool(), workerStatus.getIoQueue()));
         processContext.setRespWriter(respWriter);
+        processContext.setIoParser(parser);
         this.processContext = processContext;
     }
 

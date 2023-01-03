@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.pb.PbParser;
 
 import java.net.SocketAddress;
 import java.nio.channels.SocketChannel;
@@ -33,6 +34,7 @@ public class ProcessContext {
     private StringFieldDecoder ioThreadStrDecoder;
     private Object ioDecodeStatus;
     private ByteBufferPool ioHeapBufferPool;
+    private PbParser ioParser;
 
     public SocketChannel getChannel() {
         return channel;
@@ -91,5 +93,13 @@ public class ProcessContext {
 
     protected void setRespWriter(RespWriter respWriter) {
         this.respWriter = respWriter;
+    }
+
+    public PbParser getIoParser() {
+        return ioParser;
+    }
+
+    public void setIoParser(PbParser ioParser) {
+        this.ioParser = ioParser;
     }
 }

@@ -35,13 +35,9 @@ public abstract class PbZeroCopyDecoder extends Decoder {
         PbCallback callback = null;
         if (start) {
             callback = createCallback(context);
-            // TODO reuse parser object
-            parser = PbParser.singleParser(callback, bodyLen);
-            if (!end) {
-                context.setIoDecodeStatus(parser);
-            }
+            parser = context.getIoParser().createOrGetNestedParserSingle(callback, bodyLen);
         } else {
-            parser = (PbParser) context.getIoDecodeStatus();
+            parser = context.getIoParser().getNestedParser();
         }
         parser.parse(buffer);
         if (end) {

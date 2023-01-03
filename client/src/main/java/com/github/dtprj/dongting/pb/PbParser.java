@@ -36,9 +36,9 @@ public class PbParser {
     private static final int STATUS_PARSE_FILED_BODY = 4;
     private static final int STATUS_SKIP_REST = 5;
 
-    private final PbCallback callback;
+    private PbCallback callback;
 
-    private final int maxFrame;
+    private int maxFrame;
 
     private int status;
 
@@ -51,6 +51,8 @@ public class PbParser {
     private int fieldIndex;
     private int fieldLen;
     private long tempValue;
+
+    private PbParser nestedParser;
 
     private PbParser(PbCallback callback, boolean multi, int maxFrameOrPbLen) {
         Objects.requireNonNull(callback);
@@ -74,6 +76,34 @@ public class PbParser {
 
     public static PbParser singleParser(PbCallback callback, int pbLen) {
         return new PbParser(callback, false, pbLen);
+    }
+
+    public void resetMulti(PbCallback callback, int maxFrame) {
+        reset(callback, true, maxFrame);
+    }
+
+    public void resetSingle(PbCallback callback, int pbLen) {
+        reset(callback, false, pbLen);
+    }
+
+    private void reset(PbCallback callback, boolean multi, int maxFrameOrPbLen) {
+        this.callback = callback;
+        this.parsedBytes = 0;
+        this.pendingBytes = 0;
+        this.fieldType = 0;
+        this.fieldIndex = 0;
+        this.fieldLen = 0;
+        this.tempValue = 0;
+
+        if (multi) {
+            this.maxFrame = maxFrameOrPbLen;
+            this.frameLen = 0;
+            this.status = STATUS_PARSE_PB_LEN;
+        } else {
+            this.maxFrame = 0;
+            this.frameLen = maxFrameOrPbLen;
+            callBegin(callback, maxFrameOrPbLen);
+        }
     }
 
     public void parse(ByteBuffer buf) {
@@ -437,5 +467,31 @@ public class PbParser {
 
     public PbCallback getCallback() {
         return callback;
+    }
+
+    public PbParser getNestedParser() {
+        return nestedParser;
+    }
+
+    public PbParser createOrGetNestedParserMulti(PbCallback callback, int maxFrame) {
+        PbParser nestedParser = this.nestedParser;
+        if (nestedParser == null) {
+            nestedParser = multiParser(callback, maxFrame);
+            this.nestedParser = nestedParser;
+        } else {
+            nestedParser.resetMulti(callback, maxFrame);
+        }
+        return nestedParser;
+    }
+
+    public PbParser createOrGetNestedParserSingle(PbCallback callback, int pbLen) {
+        PbParser nestedParser = this.nestedParser;
+        if (nestedParser == null) {
+            nestedParser = singleParser(callback, pbLen);
+            this.nestedParser = nestedParser;
+        } else {
+            nestedParser.resetSingle(callback, pbLen);
+        }
+        return nestedParser;
     }
 }
