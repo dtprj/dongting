@@ -25,7 +25,12 @@ import java.nio.ByteBuffer;
  */
 public abstract class PbZeroCopyDecoder extends Decoder {
     @Override
-    public boolean supportHalfPacket() {
+    public final boolean supportHalfPacket() {
+        return true;
+    }
+
+    @Override
+    public final boolean decodeInIoThread() {
         return true;
     }
 
