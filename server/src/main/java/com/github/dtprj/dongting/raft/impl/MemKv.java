@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.raft.server.StateMachine;
+
 /**
  * @author huangli
  */

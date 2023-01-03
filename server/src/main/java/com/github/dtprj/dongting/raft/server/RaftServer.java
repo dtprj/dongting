@@ -30,11 +30,9 @@ import com.github.dtprj.dongting.raft.impl.GroupConManager;
 import com.github.dtprj.dongting.raft.impl.MemKv;
 import com.github.dtprj.dongting.raft.impl.MemRaftLog;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
-import com.github.dtprj.dongting.raft.impl.RaftLog;
 import com.github.dtprj.dongting.raft.impl.RaftRpc;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftThread;
-import com.github.dtprj.dongting.raft.impl.StateMachine;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.VoteProcessor;
 
@@ -48,9 +46,9 @@ import java.util.concurrent.LinkedBlockingQueue;
 public class RaftServer extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(RaftServer.class);
     private final RaftServerConfig config;
-    private final NioServer server;
-    private final NioClient client;
-    private final Set<HostPort> servers;
+    private final NioServer raftServer;
+    private final NioClient raftClient;
+    private final Set<HostPort> raftServers;
     private final GroupConManager groupConManager;
     private final RaftThread raftThread;
     private final RaftRpc raftRpc;
@@ -64,10 +62,10 @@ public class RaftServer extends AbstractLifeCircle {
         ObjUtil.checkPositive(config.getId(), "id");
         ObjUtil.checkPositive(config.getPort(), "port");
 
-        servers = GroupConManager.parseServers(config.getServers());
+        raftServers = GroupConManager.parseServers(config.getServers());
 
-        int electQuorum = servers.size() / 2 + 1;
-        int rwQuorum = servers.size() % 2 == 0 ? servers.size() / 2 : electQuorum;
+        int electQuorum = raftServers.size() / 2 + 1;
+        int rwQuorum = raftServers.size() % 2 == 0 ? raftServers.size() / 2 : electQuorum;
         raftStatus = new RaftStatus(electQuorum, rwQuorum);
 
         raftLog = new MemRaftLog();
@@ -78,38 +76,38 @@ public class RaftServer extends AbstractLifeCircle {
         nioServerConfig.setName("RaftServer");
         nioServerConfig.setBizThreads(0);
         nioServerConfig.setIoThreads(1);
-        server = new NioServer(nioServerConfig);
+        raftServer = new NioServer(nioServerConfig);
 
         NioClientConfig nioClientConfig = new NioClientConfig();
         nioClientConfig.setName("RaftClient");
-        client = new NioClient(nioClientConfig);
+        raftClient = new NioClient(nioClientConfig);
 
         LinkedBlockingQueue<Runnable> queue = new LinkedBlockingQueue<>();
         RaftExecutor executor = new RaftExecutor(queue);
 
-        groupConManager = new GroupConManager(config, client, executor);
-        server.register(Commands.RAFT_PING, this.groupConManager.getProcessor(), executor);
-        server.register(Commands.RAFT_APPEND_ENTRIES, new AppendProcessor(raftStatus), executor);
-        server.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(raftStatus), executor);
+        groupConManager = new GroupConManager(config, raftClient, executor);
+        raftServer.register(Commands.RAFT_PING, this.groupConManager.getProcessor(), executor);
+        raftServer.register(Commands.RAFT_APPEND_ENTRIES, new AppendProcessor(raftStatus), executor);
+        raftServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(raftStatus), executor);
 
-        raftRpc = new RaftRpc(client, config, raftStatus, executor);
+        raftRpc = new RaftRpc(raftClient, config, raftStatus, executor);
         raftThread = new RaftThread(config, executor, raftStatus, raftRpc, groupConManager);
     }
 
     @Override
     protected void doStart() {
         raftLog.load(stateMachine);
-        server.start();
-        client.start();
-        client.waitStart();
-        groupConManager.initRaftGroup(raftStatus.getElectQuorum(), servers, 1000);
+        raftServer.start();
+        raftClient.start();
+        raftClient.waitStart();
+        groupConManager.initRaftGroup(raftStatus.getElectQuorum(), raftServers, 1000);
         raftThread.start();
     }
 
     @Override
     protected void doStop() {
-        server.stop();
-        client.stop();
+        raftServer.stop();
+        raftClient.stop();
         raftThread.requestShutdown();
         raftThread.interrupt();
         try {
