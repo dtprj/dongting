@@ -39,8 +39,11 @@ public abstract class WriteFrame extends Frame {
                     + 1 + 5 // uint32 command = 2;
                     + 1 + 4 // fixed32 seq = 3;
                     + 1 + 5 // uint32 resp_code = 4;
-                    + PbUtil.maxStrSizeUTF8(msg) // string resp_msg = 5;
-                    + 1 + 5 + estimateBodySize(); // bytes body = 15;
+                    + PbUtil.maxStrSizeUTF8(msg); // string resp_msg = 5;
+            int bodySize = estimateBodySize();
+            if (bodySize > 0) {
+                dumpSize += 1 + 5 + estimateBodySize(); // bytes body = 15;
+            }
             this.dumpSize = dumpSize;
         }
         return dumpSize;
