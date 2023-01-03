@@ -27,10 +27,14 @@ import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.impl.GroupConManager;
+import com.github.dtprj.dongting.raft.impl.MemKv;
+import com.github.dtprj.dongting.raft.impl.MemRaftLog;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
+import com.github.dtprj.dongting.raft.impl.RaftLog;
 import com.github.dtprj.dongting.raft.impl.RaftRpc;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftThread;
+import com.github.dtprj.dongting.raft.impl.StateMachine;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.VoteProcessor;
 
@@ -51,6 +55,8 @@ public class RaftServer extends AbstractLifeCircle {
     private final RaftThread raftThread;
     private final RaftRpc raftRpc;
     private final RaftStatus raftStatus;
+    private final RaftLog raftLog;
+    private final StateMachine stateMachine;
 
     public RaftServer(RaftServerConfig config) {
         this.config = config;
@@ -63,6 +69,9 @@ public class RaftServer extends AbstractLifeCircle {
         int electQuorum = servers.size() / 2 + 1;
         int rwQuorum = servers.size() % 2 == 0 ? servers.size() / 2 : electQuorum;
         raftStatus = new RaftStatus(electQuorum, rwQuorum);
+
+        raftLog = new MemRaftLog();
+        stateMachine = new MemKv();
 
         NioServerConfig nioServerConfig = new NioServerConfig();
         nioServerConfig.setPort(config.getPort());
@@ -89,6 +98,7 @@ public class RaftServer extends AbstractLifeCircle {
 
     @Override
     protected void doStart() {
+        raftLog.load(stateMachine);
         server.start();
         client.start();
         client.waitStart();

@@ -15,13 +15,12 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.buf.RefCountByteBuffer;
-
 /**
  * @author huangli
  */
-public abstract class RaftLog {
-    public abstract void load(StateMachine stateMachine);
-
-    public abstract void append(RefCountByteBuffer log);
+public class MemKv extends StateMachine {
+    @Override
+    public Object apply(Object log) {
+        return null;
+    }
 }
