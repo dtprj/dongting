@@ -89,10 +89,11 @@ public class RaftRpc {
 
     private void processVoteResp(ReadFrame rf, RaftNode remoteNode, VoteReq voteReq) {
         VoteResp voteResp = (VoteResp) rf.getBody();
-        if (voteResp.getTerm() < raftStatus.getCurrentTerm()) {
-            log.warn("receive vote resp, ignore, remoteTerm={}, reqTerm={}, remote={}",
+        int remoteTerm = voteResp.getTerm();
+        if (remoteTerm < raftStatus.getCurrentTerm()) {
+            log.warn("receive outdated vote resp, ignore, remoteTerm={}, reqTerm={}, remote={}",
                     voteResp.getTerm(), voteReq.getTerm(), remoteNode.getPeer().getEndPoint());
-        } else if (voteResp.getTerm() == raftStatus.getCurrentTerm()) {
+        } else if (remoteTerm == raftStatus.getCurrentTerm()) {
             if (raftStatus.getRole() == RaftRole.follower) {
                 log.warn("follower receive vote resp, ignore. remoteTerm={}, reqTerm={}, remote={}",
                         voteResp.getTerm(), voteReq.getTerm(), remoteNode.getPeer().getEndPoint());
@@ -112,7 +113,7 @@ public class RaftRpc {
                 }
             }
         } else {
-            RaftThread.checkTerm(voteResp.getTerm(), raftStatus);
+            RaftThread.updateTermAndConvertToFollower(remoteTerm, raftStatus);
         }
     }
 
@@ -135,7 +136,10 @@ public class RaftRpc {
     private Object processAppendResultInRaftThread(ReadFrame rf, Throwable ex) {
         if (ex == null) {
             AppendRespCallback resp = (AppendRespCallback) rf.getBody();
-            RaftThread.checkTerm(resp.getTerm(), raftStatus);
+            int remoteTerm = resp.getTerm();
+            if (remoteTerm > raftStatus.getCurrentTerm()) {
+                RaftThread.updateTermAndConvertToFollower(remoteTerm, raftStatus);
+            }
         } else {
             // TODO
         }

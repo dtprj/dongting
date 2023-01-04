@@ -80,19 +80,17 @@ public class RaftThread extends Thread {
         }
     }
 
-    public static void checkTerm(int remoteTerm, RaftStatus raftStatus) {
-        if (remoteTerm > raftStatus.getCurrentTerm()) {
-            log.info("update term from {} to {}, change from {} to follower",
-                    raftStatus.getCurrentTerm(), remoteTerm, raftStatus.getRole());
-            raftStatus.setCurrentTerm(remoteTerm);
-            raftStatus.setVoteFor(0);
-            raftStatus.setRole(RaftRole.follower);
-            raftStatus.getCurrentVotes().clear();
-            long t = System.nanoTime();
-            raftStatus.setLastLeaderActiveTime(t);
-            raftStatus.setHeartbeatTime(t);
-            raftStatus.setLastElectTime(t);
-        }
+    public static void updateTermAndConvertToFollower(int remoteTerm, RaftStatus raftStatus) {
+        log.info("update term from {} to {}, change from {} to follower",
+                raftStatus.getCurrentTerm(), remoteTerm, raftStatus.getRole());
+        raftStatus.setCurrentTerm(remoteTerm);
+        raftStatus.setVoteFor(0);
+        raftStatus.setRole(RaftRole.follower);
+        raftStatus.getCurrentVotes().clear();
+        long t = System.nanoTime();
+        raftStatus.setLastLeaderActiveTime(t);
+        raftStatus.setHeartbeatTime(t);
+        raftStatus.setLastElectTime(t);
     }
 
     public void requestShutdown() {

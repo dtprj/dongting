@@ -48,15 +48,18 @@ public class AppendProcessor extends ReqProcessor {
     public WriteFrame process(ReadFrame rf, ProcessContext context) {
         AppendRespWriteFrame resp = new AppendRespWriteFrame();
         AppendReqCallback req = (AppendReqCallback) rf.getBody();
-        if (req.getTerm() >= raftStatus.getCurrentTerm()) {
-            RaftThread.checkTerm(req.getTerm(), raftStatus);
+        int remoteTerm = req.getTerm();
+        RaftStatus raftStatus = this.raftStatus;
+        if (remoteTerm >= raftStatus.getCurrentTerm()) {
+            if (remoteTerm > raftStatus.getCurrentTerm()) {
+                RaftThread.updateTermAndConvertToFollower(remoteTerm, raftStatus);
+            }
             raftStatus.setLastLeaderActiveTime(System.nanoTime());
-            resp.setTerm(raftStatus.getCurrentTerm());
             resp.setSuccess(true);
         } else {
-            resp.setTerm(raftStatus.getCurrentTerm());
             resp.setSuccess(false);
         }
+        resp.setTerm(raftStatus.getCurrentTerm());
         resp.setRespCode(CmdCodes.SUCCESS);
         return resp;
     }

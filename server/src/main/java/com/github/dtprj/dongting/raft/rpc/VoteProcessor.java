@@ -53,14 +53,11 @@ public class VoteProcessor extends ReqProcessor {
         VoteResp resp = new VoteResp();
         int oldTerm = raftStatus.getCurrentTerm();
         if (voteReq.getTerm() > raftStatus.getCurrentTerm()) {
-            RaftThread.checkTerm(voteReq.getTerm(), raftStatus);
+            RaftThread.updateTermAndConvertToFollower(voteReq.getTerm(), raftStatus);
             raftStatus.setVoteFor(voteReq.getCandidateId());
             resp.setVoteGranted(true);
         } else if (voteReq.getTerm() == raftStatus.getCurrentTerm()) {
             resp.setVoteGranted(raftStatus.getVoteFor() == voteReq.getCandidateId());
-            if (resp.isVoteGranted()) {
-                raftStatus.setLastElectTime(System.nanoTime());
-            }
         } else {
             resp.setVoteGranted(false);
         }
