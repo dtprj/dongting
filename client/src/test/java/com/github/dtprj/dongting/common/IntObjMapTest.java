@@ -56,10 +56,17 @@ public class IntObjMapTest {
         IntObjMap<String> m = new IntObjMap<>(7, 0.9f);
         Set<Integer> keys = new HashSet<>();
         Random r = new Random();
+        boolean hasZero = false;
         for (int i = 0; i < loop; i++) {
-            int key = r.nextInt();
-            while (keys.contains(key)) {
+            int key;
+            if (!hasZero) {
+                key = 0;
+                hasZero = true;
+            } else {
                 key = r.nextInt();
+                while (keys.contains(key)) {
+                    key = r.nextInt();
+                }
             }
             keys.add(key);
             assertNull(m.put(key, String.valueOf(key * 2)));

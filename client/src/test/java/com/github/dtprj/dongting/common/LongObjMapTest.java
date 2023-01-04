@@ -56,10 +56,17 @@ public class LongObjMapTest {
         LongObjMap<String> m = new LongObjMap<>(7, 0.9f);
         Set<Long> keys = new HashSet<>();
         Random r = new Random();
+        boolean hasZero = false;
         for (int i = 0; i < loop; i++) {
-            long key = r.nextLong();
-            while (keys.contains(key)) {
+            long key;
+            if (!hasZero) {
+                key = 0;
+                hasZero = true;
+            } else {
                 key = r.nextLong();
+                while (keys.contains(key)) {
+                    key = r.nextLong();
+                }
             }
             keys.add(key);
             assertNull(m.put(key, String.valueOf(key * 2)));
