@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Decoder;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
@@ -23,6 +24,7 @@ import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.pb.PbCallback;
+import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftThread;
 
@@ -50,11 +52,21 @@ public class AppendProcessor extends ReqProcessor {
         AppendReqCallback req = (AppendReqCallback) rf.getBody();
         int remoteTerm = req.getTerm();
         RaftStatus raftStatus = this.raftStatus;
-        if (remoteTerm >= raftStatus.getCurrentTerm()) {
-            if (remoteTerm > raftStatus.getCurrentTerm()) {
+        int localTerm = raftStatus.getCurrentTerm();
+        if (remoteTerm == localTerm) {
+            if (raftStatus.getRole() == RaftRole.follower) {
+                raftStatus.setLastLeaderActiveTime(System.nanoTime());
+                resp.setSuccess(true);
+            } else if (raftStatus.getRole() == RaftRole.candidate) {
                 RaftThread.updateTermAndConvertToFollower(remoteTerm, raftStatus);
+                resp.setSuccess(true);
+            } else {
+                BugLog.getLog().error("leader receive raft append request. term={}, remote={}",
+                        remoteTerm, context.getRemoteAddr());
+                resp.setSuccess(false);
             }
-            raftStatus.setLastLeaderActiveTime(System.nanoTime());
+        } else if (remoteTerm > localTerm) {
+            RaftThread.updateTermAndConvertToFollower(remoteTerm, raftStatus);
             resp.setSuccess(true);
         } else {
             resp.setSuccess(false);
