@@ -486,10 +486,15 @@ public class NioServerTest {
         return new NioServer.PingProcessor() {
             @Override
             public Decoder getDecoder() {
-                return new ByteBufferDecoder(0) {
+                return new Decoder() {
                     @Override
                     public boolean decodeInIoThread() {
                         return false;
+                    }
+
+                    @Override
+                    public Object decode(ProcessContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+                        return null;
                     }
                 };
             }
