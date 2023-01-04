@@ -36,7 +36,7 @@ public class VoteProcessor extends ReqProcessor {
 
     private final RaftStatus raftStatus;
 
-    private PbZeroCopyDecoder decoder = new PbZeroCopyDecoder() {
+    private final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder() {
         @Override
         protected PbCallback createCallback(ProcessContext context) {
             return new VoteReq.Callback();
@@ -58,6 +58,9 @@ public class VoteProcessor extends ReqProcessor {
             resp.setVoteGranted(true);
         } else if (voteReq.getTerm() == raftStatus.getCurrentTerm()) {
             resp.setVoteGranted(raftStatus.getVoteFor() == voteReq.getCandidateId());
+            if (resp.isVoteGranted()) {
+                raftStatus.setLastElectTime(System.nanoTime());
+            }
         } else {
             resp.setVoteGranted(false);
         }
