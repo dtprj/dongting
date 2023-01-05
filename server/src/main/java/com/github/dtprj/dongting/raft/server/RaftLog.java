@@ -21,7 +21,13 @@ import com.github.dtprj.dongting.buf.RefCountByteBuffer;
  * @author huangli
  */
 public abstract class RaftLog {
-    public abstract void load(StateMachine stateMachine);
 
-    public abstract void append(RefCountByteBuffer log);
+    public abstract void init(StateMachine stateMachine);
+
+    public abstract void append(long index, int oldTerm, int currentTerm, RefCountByteBuffer log);
+
+    public abstract long lastIndex();
+
+    public abstract LogItem load(long index);
+
 }

@@ -24,9 +24,9 @@ import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.pb.PbCallback;
+import com.github.dtprj.dongting.raft.impl.Raft;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
-import com.github.dtprj.dongting.raft.impl.RaftThread;
 
 /**
  * @author huangli
@@ -38,7 +38,7 @@ public class AppendProcessor extends ReqProcessor {
     private PbZeroCopyDecoder decoder = new PbZeroCopyDecoder() {
         @Override
         protected PbCallback createCallback(ProcessContext context) {
-            return new AppendReqCallback();
+            return new AppendReqCallback(context.getIoHeapBufferPool());
         }
     };
 
@@ -58,7 +58,7 @@ public class AppendProcessor extends ReqProcessor {
                 raftStatus.setLastLeaderActiveTime(System.nanoTime());
                 resp.setSuccess(true);
             } else if (raftStatus.getRole() == RaftRole.candidate) {
-                RaftThread.updateTermAndConvertToFollower(remoteTerm, raftStatus);
+                Raft.updateTermAndConvertToFollower(remoteTerm, raftStatus);
                 resp.setSuccess(true);
             } else {
                 BugLog.getLog().error("leader receive raft append request. term={}, remote={}",
@@ -66,7 +66,7 @@ public class AppendProcessor extends ReqProcessor {
                 resp.setSuccess(false);
             }
         } else if (remoteTerm > localTerm) {
-            RaftThread.updateTermAndConvertToFollower(remoteTerm, raftStatus);
+            Raft.updateTermAndConvertToFollower(remoteTerm, raftStatus);
             resp.setSuccess(true);
         } else {
             resp.setSuccess(false);

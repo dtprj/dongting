@@ -15,7 +15,11 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.RefCountByteBuffer;
 import com.github.dtprj.dongting.pb.PbCallback;
+
+import java.nio.ByteBuffer;
 
 /**
  * @author huangli
@@ -28,12 +32,18 @@ import com.github.dtprj.dongting.pb.PbCallback;
 //  fixed64 leader_commit = 6;
 public class AppendReqCallback extends PbCallback {
 
+    private final ByteBufferPool heapPool;
     private int term;
     private int leaderId;
     private long prevLogIndex;
     private int prevLogTerm;
-    // TODO entries
+    // TODO batch
+    private RefCountByteBuffer log;
     private long leaderCommit;
+
+    public AppendReqCallback(ByteBufferPool heapPool) {
+        this.heapPool = heapPool;
+    }
 
     @Override
     public boolean readVarNumber(int index, long value) {
@@ -65,6 +75,18 @@ public class AppendReqCallback extends PbCallback {
     }
 
     @Override
+    public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
+        switch (index) {
+            case 5:
+                if (begin) {
+                    log = RefCountByteBuffer.createPlain(heapPool, len, 128);
+                }
+                break;
+        }
+        return true;
+    }
+
+    @Override
     public AppendReqCallback getResult() {
         return this;
     }
@@ -87,5 +109,9 @@ public class AppendReqCallback extends PbCallback {
 
     public long getLeaderCommit() {
         return leaderCommit;
+    }
+
+    public RefCountByteBuffer getLog() {
+        return log;
     }
 }

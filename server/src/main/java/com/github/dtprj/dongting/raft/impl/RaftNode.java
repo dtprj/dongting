@@ -29,19 +29,18 @@ public class RaftNode {
     private Set<HostPort> servers;
     private boolean self;
     private boolean ready;
+    private boolean connecting;
+    private boolean pinging;
+    private long connectionId;
+    private long lastConnectionId;
+    private int pendingRequests;//only include append requests
+
+    // volatile state on leaders
+    private long nextIndex;
+    private long matchIndex;
 
     public RaftNode(Peer peer) {
         this.peer = peer;
-    }
-
-    @Override
-    public RaftNode clone() {
-        RaftNode n = new RaftNode(peer);
-        n.id = id;
-        n.servers = servers;
-        n.self = self;
-        n.ready = ready;
-        return n;
     }
 
     public int getId() {
@@ -80,4 +79,59 @@ public class RaftNode {
         this.self = self;
     }
 
+    public long getNextIndex() {
+        return nextIndex;
+    }
+
+    public void setNextIndex(long nextIndex) {
+        this.nextIndex = nextIndex;
+    }
+
+    public long getMatchIndex() {
+        return matchIndex;
+    }
+
+    public void setMatchIndex(long matchIndex) {
+        this.matchIndex = matchIndex;
+    }
+
+    public long getConnectionId() {
+        return connectionId;
+    }
+
+    public void setConnectionId(long connectionId) {
+        this.connectionId = connectionId;
+    }
+
+    public long getLastConnectionId() {
+        return lastConnectionId;
+    }
+
+    public void setLastConnectionId(long lastConnectionId) {
+        this.lastConnectionId = lastConnectionId;
+    }
+
+    public int getPendingRequests() {
+        return pendingRequests;
+    }
+
+    public void setPendingRequests(int pendingRequests) {
+        this.pendingRequests = pendingRequests;
+    }
+
+    public boolean isConnecting() {
+        return connecting;
+    }
+
+    public void setConnecting(boolean connecting) {
+        this.connecting = connecting;
+    }
+
+    public boolean isPinging() {
+        return pinging;
+    }
+
+    public void setPinging(boolean pinging) {
+        this.pinging = pinging;
+    }
 }

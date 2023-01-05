@@ -13,11 +13,9 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.server;
-
-/**
- * @author huangli
- */
-public abstract class StateMachine<I, O> {
-    public abstract O apply(I log);
+syntax = "proto3";
+option java_package = "com.github.dtprj.dongting.config";
+message SetReq {
+  string key = 1;
+  bytes value = 2;
 }

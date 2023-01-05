@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.buf.RefCountByteBuffer;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -29,29 +30,127 @@ import com.github.dtprj.dongting.raft.rpc.AppendReqWriteFrame;
 import com.github.dtprj.dongting.raft.rpc.AppendRespCallback;
 import com.github.dtprj.dongting.raft.rpc.VoteReq;
 import com.github.dtprj.dongting.raft.rpc.VoteResp;
+import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.HashSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * @author huangli
  */
-public class RaftRpc {
+public class Raft {
 
-    private static final DtLog log = DtLogs.getLogger(RaftRpc.class);
+    private static final DtLog log = DtLogs.getLogger(Raft.class);
 
-    private final NioClient client;
     private final RaftServerConfig config;
+    private final RaftExecutor raftExecutor;
+    private final RaftLog raftLog;
     private final RaftStatus raftStatus;
-    private final RaftExecutor executor;
+    private final NioClient client;
 
-    public RaftRpc(NioClient client, RaftServerConfig config, RaftStatus raftStatus, RaftExecutor executor) {
-        this.client = client;
+    private final int maxReplicateItems;
+    private final int maxReplicateBytes;
+
+    public Raft(RaftServerConfig config, RaftExecutor raftExecutor, RaftLog raftLog,
+                RaftStatus raftStatus, NioClient client) {
         this.config = config;
+        this.raftExecutor = raftExecutor;
+        this.raftLog = raftLog;
         this.raftStatus = raftStatus;
-        this.executor = executor;
+        this.client = client;
+        this.maxReplicateItems = config.getMaxReplicateItems();
+        this.maxReplicateBytes = config.getMaxReplicateBytes();
+    }
+
+    public static void updateTermAndConvertToFollower(int remoteTerm, RaftStatus raftStatus) {
+        log.info("update term from {} to {}, change from {} to follower",
+                raftStatus.getCurrentTerm(), remoteTerm, raftStatus.getRole());
+        raftStatus.setCurrentTerm(remoteTerm);
+        raftStatus.setVoteFor(0);
+        raftStatus.setRole(RaftRole.follower);
+        raftStatus.getCurrentVotes().clear();
+        long t = System.nanoTime();
+        raftStatus.setLastLeaderActiveTime(t);
+        raftStatus.setHeartbeatTime(t);
+        raftStatus.setLastElectTime(t);
+        processOtherRaftNodes(raftStatus, node -> {
+            node.setMatchIndex(0);
+            node.setNextIndex(0);
+        });
+    }
+
+    public static void processOtherRaftNodes(RaftStatus raftStatus, Consumer<RaftNode> consumer) {
+        for (RaftNode node : raftStatus.getServers()) {
+            if (node.isSelf()) {
+                continue;
+            }
+            consumer.accept(node);
+        }
+    }
+
+    public void raftExec(RefCountByteBuffer log) {
+        RaftStatus raftStatus = this.raftStatus;
+        long oldIndex = raftStatus.getLastLogIndex();
+        long newIndex = oldIndex + 1;
+        int oldTerm = raftStatus.getLastLogTerm();
+        int currentTerm = raftStatus.getCurrentTerm();
+        // TODO async append
+        raftLog.append(newIndex, oldTerm, currentTerm, log);
+        raftStatus.setLastLogTerm(currentTerm);
+        raftStatus.setLastLogIndex(newIndex);
+        processOtherRaftNodes(raftStatus, this::replicate);
+    }
+
+    private void replicate(RaftNode node) {
+        if (raftStatus.getRole() != RaftRole.leader) {
+            return;
+        }
+        if (!node.isReady()) {
+            return;
+        }
+        if (node.getConnectionId() == node.getLastConnectionId()) {
+            doReplicate(node);
+        } else {
+            if (node.getPendingRequests() == 0) {
+                node.setLastConnectionId(node.getConnectionId());
+                doReplicate(node);
+            } else {
+                // reconnected, waiting all pending request complete
+            }
+        }
+    }
+
+    private void doReplicate(RaftNode node) {
+        long nextIndex = node.getNextIndex();
+        long lastLogIndex = raftStatus.getLastLogIndex();
+        if (lastLogIndex < nextIndex) {
+            // no data to replicate
+            return;
+        }
+
+        long matchIndex = node.getMatchIndex();
+        int pending = node.getPendingRequests();
+        if (matchIndex == 0 && pending > 0) {
+            // try matching, don't send more
+            return;
+        }
+
+        // flow control
+        if (nextIndex - matchIndex > maxReplicateItems) {
+            return;
+        }
+        // TODO flow control by bytes
+
+        for (long index = nextIndex; index <= lastLogIndex && index - matchIndex <= maxReplicateItems; index++) {
+            LogItem item = raftLog.load(index);
+            // TODO batch
+            node.setPendingRequests(node.getPendingRequests() + 1);
+            sendAppendRequest(node, index - 1, item.getPrevLogTerm(), item.getBuffer());
+        }
     }
 
     public void sendVoteRequest(RaftNode node) {
@@ -71,7 +170,7 @@ public class RaftRpc {
         CompletableFuture<ReadFrame> f = client.sendRequest(node.getPeer(), wf, decoder, timeout);
         log.info("send vote request to {}, term={}, votes={}", node.getPeer().getEndPoint(),
                 raftStatus.getCurrentTerm(), raftStatus.getCurrentVotes());
-        f.handleAsync((rf, ex) -> processVoteResp(rf, ex, node, req), executor);
+        f.handleAsync((rf, ex) -> processVoteResp(rf, ex, node, req), raftExecutor);
     }
 
     private Object processVoteResp(ReadFrame rf, Throwable ex, RaftNode remoteNode, VoteReq voteReq) {
@@ -108,20 +207,30 @@ public class RaftRpc {
                     int newCount = votes.size();
                     if (newCount > oldCount && newCount == raftStatus.getElectQuorum()) {
                         raftStatus.setRole(RaftRole.leader);
+                        Raft.processOtherRaftNodes(raftStatus, n -> {
+                            n.setMatchIndex(0);
+                            n.setNextIndex(raftLog.lastIndex() + 1);
+                            n.setPendingRequests(0);
+                        });
                         log.info("change to leader. term={}", raftStatus.getCurrentTerm());
                     }
                 }
             }
         } else {
-            RaftThread.updateTermAndConvertToFollower(remoteTerm, raftStatus);
+            Raft.updateTermAndConvertToFollower(remoteTerm, raftStatus);
         }
     }
 
-    public void sendHeartBeat(RaftNode node) {
+    public void sendAppendRequest(RaftNode node, long prevLogIndex, int prevLogTerm, RefCountByteBuffer log) {
         AppendReqWriteFrame req = new AppendReqWriteFrame();
+        req.setCommand(Commands.RAFT_APPEND_ENTRIES);
         req.setTerm(raftStatus.getCurrentTerm());
         req.setLeaderId(config.getId());
-        req.setCommand(Commands.RAFT_APPEND_ENTRIES);
+        req.setLeaderCommit(raftStatus.getCommitIndex());
+        req.setPrevLogIndex(prevLogIndex);
+        req.setPrevLogTerm(prevLogTerm);
+        req.setLog(log);
+
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
         Decoder decoder = new PbZeroCopyDecoder() {
             @Override
@@ -130,7 +239,7 @@ public class RaftRpc {
             }
         };
         CompletableFuture<ReadFrame> f = client.sendRequest(node.getPeer(), req, decoder, timeout);
-        f.handleAsync((rf, ex) -> processAppendResultInRaftThread(rf, ex), executor);
+        f.handleAsync((rf, ex) -> processAppendResultInRaftThread(rf, ex), raftExecutor);
     }
 
     private Object processAppendResultInRaftThread(ReadFrame rf, Throwable ex) {
@@ -138,11 +247,14 @@ public class RaftRpc {
             AppendRespCallback resp = (AppendRespCallback) rf.getBody();
             int remoteTerm = resp.getTerm();
             if (remoteTerm > raftStatus.getCurrentTerm()) {
-                RaftThread.updateTermAndConvertToFollower(remoteTerm, raftStatus);
+                Raft.updateTermAndConvertToFollower(remoteTerm, raftStatus);
+            } else {
+
             }
         } else {
             // TODO
         }
         return null;
     }
+
 }

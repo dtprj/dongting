@@ -17,10 +17,12 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.time.Duration;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -33,7 +35,7 @@ public class RaftThread extends Thread {
     private final RaftServerConfig config;
     private final RaftStatus raftStatus;
     private final long pollTimeout = new Random().nextInt(100) + 50;
-    private final RaftRpc raftRpc;
+    private final Raft raft;
     private final GroupConManager groupConManager;
 
     private final long heartbeatIntervalNanos;
@@ -45,20 +47,37 @@ public class RaftThread extends Thread {
 
     private volatile boolean stop;
 
+    private final CompletableFuture<Void> initFuture = new CompletableFuture<>();
+
     public RaftThread(RaftServerConfig config, RaftExecutor executor, RaftStatus raftStatus,
-                      RaftRpc raftRpc, GroupConManager groupConManager) {
+                      Raft raft, GroupConManager groupConManager) {
         this.config = config;
         this.raftStatus = raftStatus;
         this.queue = executor.getQueue();
-        this.raftRpc = raftRpc;
+        this.raft = raft;
         this.groupConManager = groupConManager;
         leaderTimeoutNanos = Duration.ofMillis(config.getLeaderTimeout()).toNanos();
         heartbeatIntervalNanos = Duration.ofMillis(config.getHeartbeatInterval()).toNanos();
         electTimeoutNanos = leaderTimeoutNanos;
     }
 
+    protected boolean init() {
+        try {
+            groupConManager.initRaftGroup(raftStatus.getElectQuorum(),
+                    GroupConManager.parseServers(config.getServers()), 1000);
+            initFuture.complete(null);
+            return true;
+        } catch (Throwable e) {
+            initFuture.completeExceptionally(e);
+            return false;
+        }
+    }
+
     @Override
     public void run() {
+        if (!init()) {
+            return;
+        }
         long roundTimestampMillis = System.currentTimeMillis();
         long roundTimeNanos;
         while (!stop) {
@@ -78,19 +97,6 @@ public class RaftThread extends Thread {
                 idle(roundTimeNanos);
             }
         }
-    }
-
-    public static void updateTermAndConvertToFollower(int remoteTerm, RaftStatus raftStatus) {
-        log.info("update term from {} to {}, change from {} to follower",
-                raftStatus.getCurrentTerm(), remoteTerm, raftStatus.getRole());
-        raftStatus.setCurrentTerm(remoteTerm);
-        raftStatus.setVoteFor(0);
-        raftStatus.setRole(RaftRole.follower);
-        raftStatus.getCurrentVotes().clear();
-        long t = System.nanoTime();
-        raftStatus.setLastLeaderActiveTime(t);
-        raftStatus.setHeartbeatTime(t);
-        raftStatus.setLastElectTime(t);
     }
 
     public void requestShutdown() {
@@ -124,11 +130,11 @@ public class RaftThread extends Thread {
     }
 
     private void sendHeartBeat() {
-        for (RaftNode node : groupConManager.getServers()) {
+        for (RaftNode node : raftStatus.getServers()) {
             if (node.isSelf()) {
                 continue;
             }
-            raftRpc.sendHeartBeat(node);
+            raft.sendAppendRequest(node, raftStatus.getLastLogIndex(), raftStatus.getLastLogTerm(), null);
         }
     }
 
@@ -140,13 +146,19 @@ public class RaftThread extends Thread {
         raftStatus.getCurrentVotes().clear();
         raftStatus.getCurrentVotes().add(config.getId());
         raftStatus.setLastElectTime(System.nanoTime());
-        for (RaftNode node : groupConManager.getServers()) {
+        for (RaftNode node : raftStatus.getServers()) {
             if (node.isSelf()) {
                 continue;
             }
-            raftRpc.sendVoteRequest(node);
+            raft.sendVoteRequest(node);
         }
     }
 
-
+    public void waitInit() {
+        try {
+            initFuture.get();
+        } catch (Exception e) {
+            throw new RaftException(e);
+        }
+    }
 }

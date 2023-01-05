@@ -25,8 +25,8 @@ import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.pb.PbCallback;
+import com.github.dtprj.dongting.raft.impl.Raft;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
-import com.github.dtprj.dongting.raft.impl.RaftThread;
 
 /**
  * @author huangli
@@ -53,7 +53,7 @@ public class VoteProcessor extends ReqProcessor {
         VoteResp resp = new VoteResp();
         int oldTerm = raftStatus.getCurrentTerm();
         if (voteReq.getTerm() > raftStatus.getCurrentTerm()) {
-            RaftThread.updateTermAndConvertToFollower(voteReq.getTerm(), raftStatus);
+            Raft.updateTermAndConvertToFollower(voteReq.getTerm(), raftStatus);
             raftStatus.setVoteFor(voteReq.getCandidateId());
             resp.setVoteGranted(true);
         } else if (voteReq.getTerm() == raftStatus.getCurrentTerm()) {

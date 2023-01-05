@@ -15,17 +15,25 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 
 /**
  * @author huangli
  */
 public class RaftStatus {
 
-    private RaftRole role;
-
+    // persistent state on all servers
     private int currentTerm;
     private int voteFor;
+
+    // volatile state on all servers
+    private long commitIndex;
+    private long lastApplied;
+
+    // dongting fields
+    private RaftRole role;
 
     private final int electQuorum;
     private final int rwQuorum;
@@ -36,6 +44,12 @@ public class RaftStatus {
     private long lastElectTime;
 
     private long heartbeatTime;
+
+    private long lastLogIndex;
+    private int lastLogTerm;
+
+    // only read/write by raft thread or init thread
+    private List<RaftNode> servers = new ArrayList<>();
 
     public RaftStatus(int electQuorum, int rwQuorum) {
         this.electQuorum = electQuorum;
@@ -60,6 +74,22 @@ public class RaftStatus {
 
     public void setVoteFor(int voteFor) {
         this.voteFor = voteFor;
+    }
+
+    public long getCommitIndex() {
+        return commitIndex;
+    }
+
+    public void setCommitIndex(long commitIndex) {
+        this.commitIndex = commitIndex;
+    }
+
+    public long getLastApplied() {
+        return lastApplied;
+    }
+
+    public void setLastApplied(long lastApplied) {
+        this.lastApplied = lastApplied;
     }
 
     public RaftRole getRole() {
@@ -104,5 +134,29 @@ public class RaftStatus {
 
     public void setLastElectTime(long lastElectTime) {
         this.lastElectTime = lastElectTime;
+    }
+
+    public long getLastLogIndex() {
+        return lastLogIndex;
+    }
+
+    public void setLastLogIndex(long lastLogIndex) {
+        this.lastLogIndex = lastLogIndex;
+    }
+
+    public int getLastLogTerm() {
+        return lastLogTerm;
+    }
+
+    public void setLastLogTerm(int lastLogTerm) {
+        this.lastLogTerm = lastLogTerm;
+    }
+
+    public List<RaftNode> getServers() {
+        return servers;
+    }
+
+    public void setServers(List<RaftNode> servers) {
+        this.servers = servers;
     }
 }

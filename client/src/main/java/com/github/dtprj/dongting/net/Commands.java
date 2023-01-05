@@ -23,4 +23,7 @@ public interface Commands {
     int RAFT_PING = 2;
     int RAFT_APPEND_ENTRIES = 3;
     int RAFT_REQUEST_VOTE = 4;
+
+    int CONFIG_SET = 5;
+    int CONFIG_GET = 6;
 }

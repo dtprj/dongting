@@ -13,32 +13,48 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.impl;
+package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.buf.RefCountByteBuffer;
-import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftLog;
-import com.github.dtprj.dongting.raft.server.StateMachine;
 
 /**
  * @author huangli
  */
-public class MemRaftLog extends RaftLog {
-    @Override
-    public void init(StateMachine stateMachine) {
+public class LogItem {
+    private int term;
+    private int prevLogTerm;
+    private RefCountByteBuffer buffer;
+    private long index;
+
+    public int getTerm() {
+        return term;
     }
 
-    @Override
-    public void append(long index, int oldTerm, int currentTerm, RefCountByteBuffer log) {
+    public void setTerm(int term) {
+        this.term = term;
     }
 
-    @Override
-    public long lastIndex() {
-        return 0;
+    public int getPrevLogTerm() {
+        return prevLogTerm;
     }
 
-    @Override
-    public LogItem load(long index) {
-        return null;
+    public void setPrevLogTerm(int prevLogTerm) {
+        this.prevLogTerm = prevLogTerm;
+    }
+
+    public RefCountByteBuffer getBuffer() {
+        return buffer;
+    }
+
+    public void setBuffer(RefCountByteBuffer buffer) {
+        this.buffer = buffer;
+    }
+
+    public long getIndex() {
+        return index;
+    }
+
+    public void setIndex(long index) {
+        this.index = index;
     }
 }

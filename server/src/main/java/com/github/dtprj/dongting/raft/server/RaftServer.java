@@ -17,8 +17,6 @@ package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.ObjUtil;
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NioClient;
@@ -27,10 +25,8 @@ import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.impl.GroupConManager;
-import com.github.dtprj.dongting.raft.impl.MemKv;
-import com.github.dtprj.dongting.raft.impl.MemRaftLog;
+import com.github.dtprj.dongting.raft.impl.Raft;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
-import com.github.dtprj.dongting.raft.impl.RaftRpc;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftThread;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
@@ -43,65 +39,61 @@ import java.util.concurrent.LinkedBlockingQueue;
 /**
  * @author huangli
  */
-public class RaftServer extends AbstractLifeCircle {
-    private static final DtLog log = DtLogs.getLogger(RaftServer.class);
-    private final RaftServerConfig config;
+public class RaftServer<I, O> extends AbstractLifeCircle {
     private final NioServer raftServer;
     private final NioClient raftClient;
-    private final Set<HostPort> raftServers;
     private final GroupConManager groupConManager;
     private final RaftThread raftThread;
-    private final RaftRpc raftRpc;
     private final RaftStatus raftStatus;
     private final RaftLog raftLog;
     private final StateMachine stateMachine;
 
-    public RaftServer(RaftServerConfig config) {
-        this.config = config;
+    public RaftServer(RaftServerConfig config, RaftLog raftLog, StateMachine<I, O> stateMachine) {
+        this.raftLog = raftLog;
+        this.stateMachine = stateMachine;
         Objects.requireNonNull(config.getServers());
         ObjUtil.checkPositive(config.getId(), "id");
-        ObjUtil.checkPositive(config.getPort(), "port");
+        ObjUtil.checkPositive(config.getRaftPort(), "port");
 
-        raftServers = GroupConManager.parseServers(config.getServers());
+        Set<HostPort> raftServers = GroupConManager.parseServers(config.getServers());
 
         int electQuorum = raftServers.size() / 2 + 1;
         int rwQuorum = raftServers.size() % 2 == 0 ? raftServers.size() / 2 : electQuorum;
         raftStatus = new RaftStatus(electQuorum, rwQuorum);
-
-        raftLog = new MemRaftLog();
-        stateMachine = new MemKv();
-
-        NioServerConfig nioServerConfig = new NioServerConfig();
-        nioServerConfig.setPort(config.getPort());
-        nioServerConfig.setName("RaftServer");
-        nioServerConfig.setBizThreads(0);
-        nioServerConfig.setIoThreads(1);
-        raftServer = new NioServer(nioServerConfig);
 
         NioClientConfig nioClientConfig = new NioClientConfig();
         nioClientConfig.setName("RaftClient");
         raftClient = new NioClient(nioClientConfig);
 
         LinkedBlockingQueue<Runnable> queue = new LinkedBlockingQueue<>();
-        RaftExecutor executor = new RaftExecutor(queue);
+        RaftExecutor raftExecutor = new RaftExecutor(queue);
+        groupConManager = new GroupConManager(config, raftClient, raftExecutor, raftStatus);
 
-        groupConManager = new GroupConManager(config, raftClient, executor);
-        raftServer.register(Commands.RAFT_PING, this.groupConManager.getProcessor(), executor);
-        raftServer.register(Commands.RAFT_APPEND_ENTRIES, new AppendProcessor(raftStatus), executor);
-        raftServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(raftStatus), executor);
+        NioServerConfig nioServerConfig = new NioServerConfig();
+        nioServerConfig.setPort(config.getRaftPort());
+        nioServerConfig.setName("RaftServer");
+        nioServerConfig.setBizThreads(0);
+        nioServerConfig.setIoThreads(1);
+        raftServer = new NioServer(nioServerConfig);
+        raftServer.register(Commands.RAFT_PING, this.groupConManager.getProcessor(), raftExecutor);
+        raftServer.register(Commands.RAFT_APPEND_ENTRIES, new AppendProcessor(raftStatus), raftExecutor);
+        raftServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(raftStatus), raftExecutor);
 
-        raftRpc = new RaftRpc(raftClient, config, raftStatus, executor);
-        raftThread = new RaftThread(config, executor, raftStatus, raftRpc, groupConManager);
+        Raft raft = new Raft(config, raftExecutor, raftLog, raftStatus, raftClient);
+        raftThread = new RaftThread(config, raftExecutor, raftStatus, raft, groupConManager);
     }
 
     @Override
     protected void doStart() {
-        raftLog.load(stateMachine);
+        raftLog.init(stateMachine);
+        // TODO
+        //raftStatus.setLastLogIndex(raftLog.getLastLogIndex());
+        //raftStatus.setLastLogTerm(raftLog.getLastLogTerm());
         raftServer.start();
         raftClient.start();
         raftClient.waitStart();
-        groupConManager.initRaftGroup(raftStatus.getElectQuorum(), raftServers, 1000);
         raftThread.start();
+        raftThread.waitInit();
     }
 
     @Override

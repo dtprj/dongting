@@ -20,11 +20,15 @@ package com.github.dtprj.dongting.raft.server;
  */
 public class RaftServerConfig {
     private String servers;
-    private int port;
+    private int raftPort;
+    private int bizPort;
     private int id;
     private long leaderTimeout = 15 * 1000;
     private long rpcTimeout = 5 * 1000;
     private long heartbeatInterval = 2000;
+    private int maxReplicateItems = 100;
+    private int maxReplicateBytes = 4 * 1024 * 1024;
+
 
     public String getServers() {
         return servers;
@@ -34,12 +38,20 @@ public class RaftServerConfig {
         this.servers = servers;
     }
 
-    public int getPort() {
-        return port;
+    public int getRaftPort() {
+        return raftPort;
     }
 
-    public void setPort(int port) {
-        this.port = port;
+    public void setRaftPort(int raftPort) {
+        this.raftPort = raftPort;
+    }
+
+    public int getBizPort() {
+        return bizPort;
+    }
+
+    public void setBizPort(int bizPort) {
+        this.bizPort = bizPort;
     }
 
     public int getId() {
@@ -72,5 +84,21 @@ public class RaftServerConfig {
 
     public void setHeartbeatInterval(long heartbeatInterval) {
         this.heartbeatInterval = heartbeatInterval;
+    }
+
+    public int getMaxReplicateItems() {
+        return maxReplicateItems;
+    }
+
+    public void setMaxReplicateItems(int maxReplicateItems) {
+        this.maxReplicateItems = maxReplicateItems;
+    }
+
+    public int getMaxReplicateBytes() {
+        return maxReplicateBytes;
+    }
+
+    public void setMaxReplicateBytes(int maxReplicateBytes) {
+        this.maxReplicateBytes = maxReplicateBytes;
     }
 }

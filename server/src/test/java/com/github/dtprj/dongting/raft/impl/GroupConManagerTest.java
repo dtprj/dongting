@@ -81,7 +81,7 @@ public class GroupConManagerTest {
         RaftServerConfig config = new RaftServerConfig();
         config.setServers(servers);
         config.setId(id);
-        GroupConManager manager = new GroupConManager(config, client, executor);
+        GroupConManager manager = new GroupConManager(config, client, executor, new RaftStatus(2, 2));
 
         if (register) {
             server.register(Commands.RAFT_PING, manager.getProcessor());
