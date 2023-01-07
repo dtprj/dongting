@@ -35,6 +35,9 @@ public class RefCount {
     @SuppressWarnings({"unused", "FieldMayBeFinal"})
     protected volatile int refCnt;
 
+    /**
+     * @param plain if true, the RefCount is not thread safe.
+     */
     public RefCount(boolean plain) {
         this(plain ? PLAIN_UPDATER : UPDATER);
     }

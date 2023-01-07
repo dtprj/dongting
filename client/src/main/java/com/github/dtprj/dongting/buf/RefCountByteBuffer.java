@@ -38,10 +38,16 @@ public class RefCountByteBuffer extends RefCount {
         }
     }
 
+    /**
+     * create thread safe instance.
+     */
     public static RefCountByteBuffer create(ByteBufferPool pool, int requestSize, int threshold) {
         return new RefCountByteBuffer(false, pool, requestSize, threshold);
     }
 
+    /**
+     * create instance which is not thread safe.
+     */
     public static RefCountByteBuffer createPlain(ByteBufferPool pool, int requestSize, int threshold) {
         return new RefCountByteBuffer(true, pool, requestSize, threshold);
     }
