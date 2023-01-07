@@ -64,6 +64,13 @@ public abstract class AbstractRefCountTest {
     }
 
     @Test
+    public void simpleTest4() {
+        rf.retain(5);
+        assertThrows(DtException.class, () -> rf.release(10));
+    }
+
+
+    @Test
     public void illegalParamTest() {
         assertThrows(IllegalArgumentException.class, () -> rf.retain(0));
         assertThrows(IllegalArgumentException.class, () -> rf.release(0));

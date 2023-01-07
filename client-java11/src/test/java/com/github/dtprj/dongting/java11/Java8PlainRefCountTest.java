@@ -13,24 +13,18 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.java8;
+package com.github.dtprj.dongting.java11;
 
-import com.github.dtprj.dongting.common.AbstractRefCountUpdater;
-import com.github.dtprj.dongting.common.VersionFactory;
-import com.github.dtprj.dongting.queue.MpscLinkedQueue;
+import com.github.dtprj.dongting.common.RefCount;
+import com.github.dtprj.dongting.java8.Java8Factory;
 
 /**
  * @author huangli
  */
-public class Java8Factory extends VersionFactory {
-
+public class Java8PlainRefCountTest extends AbstractRefCountTest {
     @Override
-    public AbstractRefCountUpdater newRefCountUpdater(boolean plain) {
-        return plain ? PlainRefCountUpdater.getInstance() : Java8RefCountUpdater.getInstance();
-    }
-
-    @Override
-    public <E> MpscLinkedQueue<E> newMpscLinkedQueue() {
-        return new Java8MpscLinkedQueue<>();
+    protected RefCount createInstance() {
+        return new RefCount(new Java8Factory().newRefCountUpdater(true)){
+        };
     }
 }

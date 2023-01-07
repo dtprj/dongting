@@ -13,48 +13,53 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.common;
+package com.github.dtprj.dongting.java11;
+
+import com.github.dtprj.dongting.common.AbstractRefCountUpdater;
+import com.github.dtprj.dongting.common.DtException;
+import com.github.dtprj.dongting.common.ObjUtil;
+import com.github.dtprj.dongting.common.RefCount;
+
+import java.lang.invoke.VarHandle;
 
 /**
  * @author huangli
  */
-public class PlainRefCount extends RefCount {
+public class PlainRefCountUpdater extends AbstractRefCountUpdater {
+    private static final VarHandle REF_CNT = VarHandleRefCount.REF_CNT;
+    private static final PlainRefCountUpdater INSTANCE = new PlainRefCountUpdater();
 
-    private int refCnt;
+    private PlainRefCountUpdater() {
+    }
 
-    protected PlainRefCount() {
-        this.refCnt = 1;
+    public static PlainRefCountUpdater getInstance(){
+        return INSTANCE;
     }
 
     @Override
-    public void retain() {
-        retain(1);
+    public void init(RefCount instance) {
+        REF_CNT.set(instance, 1);
     }
 
     @Override
-    public void retain(int increment) {
+    public void retain(RefCount instance, int increment) {
         ObjUtil.checkPositive(increment, "increment");
-        int refCnt = this.refCnt;
+        int refCnt = (int) REF_CNT.get(instance);
         if (refCnt <= 0) {
             throw new DtException("already released");
         }
-        this.refCnt = refCnt + increment;
+        REF_CNT.set(instance, refCnt + increment);
     }
 
     @Override
-    public boolean release() {
-        return release(1);
-    }
-
-    @Override
-    public boolean release(int decrement) {
+    public boolean release(RefCount instance, int decrement) {
         ObjUtil.checkPositive(decrement, "decrement");
-        int refCnt = this.refCnt;
+        int refCnt = (int) REF_CNT.get(instance);
         if (refCnt < decrement) {
             throw new DtException("decrement>refCnt," + decrement + "," + refCnt);
         }
         refCnt -= decrement;
-        this.refCnt = refCnt;
+        REF_CNT.set(instance, refCnt);
         return refCnt == 0;
     }
 }

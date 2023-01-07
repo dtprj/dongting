@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.java11;
 
-import com.github.dtprj.dongting.common.RefCount;
+import com.github.dtprj.dongting.common.AbstractRefCountUpdater;
 import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 
@@ -26,8 +26,8 @@ import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 public class Java11Factory extends VersionFactory {
 
     @Override
-    public RefCount newRefCount() {
-        return new VarHandleRefCount();
+    public AbstractRefCountUpdater newRefCountUpdater(boolean plain) {
+        return plain ? PlainRefCountUpdater.getInstance() : VarHandleRefCount.getInstance();
     }
 
     @Override

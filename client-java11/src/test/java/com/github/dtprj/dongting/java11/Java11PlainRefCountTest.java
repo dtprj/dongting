@@ -16,13 +16,15 @@
 package com.github.dtprj.dongting.java11;
 
 import com.github.dtprj.dongting.common.RefCount;
+import com.github.dtprj.dongting.common.VersionFactory;
 
 /**
  * @author huangli
  */
-public class PlainRefCountTest extends AbstractRefCountTest{
+public class Java11PlainRefCountTest extends AbstractRefCountTest {
     @Override
     protected RefCount createInstance() {
-        return RefCount.newPlainInstance();
+        return new RefCount(VersionFactory.getInstance().newRefCountUpdater(true)){
+        };
     }
 }

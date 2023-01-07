@@ -15,37 +15,45 @@
  */
 package com.github.dtprj.dongting.java8;
 
-import com.github.dtprj.dongting.common.AbstractRefCount;
+import com.github.dtprj.dongting.common.RefCount;
+import com.github.dtprj.dongting.common.RefCountUpdater;
 
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 /**
  * @author huangli
  */
-public class Java8RefCount extends AbstractRefCount {
+public class Java8RefCountUpdater extends RefCountUpdater {
 
-    private static final AtomicIntegerFieldUpdater<AbstractRefCount> UPDATER =
-            AtomicIntegerFieldUpdater.newUpdater(AbstractRefCount.class, "refCnt");
+    private static final AtomicIntegerFieldUpdater<RefCount> UPDATER = RefCount.REF_CNT_UPDATER;
+    private static final Java8RefCountUpdater INSTANCE = new Java8RefCountUpdater();
 
-    public Java8RefCount() {
-        super();
-        UPDATER.lazySet(this, 2);
+    private Java8RefCountUpdater() {
+    }
+
+    public static Java8RefCountUpdater getInstance() {
+        return INSTANCE;
     }
 
     @Override
-    protected int getAndAdd(int rawIncrement) {
-        return UPDATER.getAndAdd(this, rawIncrement);
+    public void init(RefCount instance) {
+        UPDATER.lazySet(instance, 2);
     }
 
     @Override
-    protected int getPlain() {
+    protected int getAndAdd(RefCount instance, int rawIncrement) {
+        return UPDATER.getAndAdd(instance, rawIncrement);
+    }
+
+    @Override
+    protected int getPlain(RefCount instance) {
         // not use Unsafe, so we can't perform plain read
-        return UPDATER.get(this);
+        return UPDATER.get(instance);
     }
 
     @Override
-    protected int getVolatile() {
-        return UPDATER.get(this);
+    protected int getVolatile(RefCount instance) {
+        return UPDATER.get(instance);
     }
 
     @Override
@@ -54,8 +62,9 @@ public class Java8RefCount extends AbstractRefCount {
     }
 
     @Override
-    protected boolean weakCAS(int expect, int newValue) {
-        return UPDATER.weakCompareAndSet(this, expect, newValue);
+    protected boolean weakCAS(RefCount instance, int expect, int newValue) {
+        return UPDATER.weakCompareAndSet(instance, expect, newValue);
     }
 
 }
+

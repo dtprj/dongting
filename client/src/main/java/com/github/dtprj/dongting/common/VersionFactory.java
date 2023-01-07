@@ -29,7 +29,7 @@ public abstract class VersionFactory {
         return VfHolder.FACTORY;
     }
 
-    public abstract RefCount newRefCount();
+    public abstract AbstractRefCountUpdater newRefCountUpdater(boolean plain);
 
     public abstract <E> MpscLinkedQueue<E> newMpscLinkedQueue();
 }

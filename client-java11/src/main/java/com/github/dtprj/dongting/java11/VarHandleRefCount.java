@@ -15,9 +15,10 @@
  */
 package com.github.dtprj.dongting.java11;
 
-import com.github.dtprj.dongting.common.AbstractRefCount;
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.Processor;
+import com.github.dtprj.dongting.common.RefCount;
+import com.github.dtprj.dongting.common.RefCountUpdater;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -25,36 +26,45 @@ import java.lang.invoke.VarHandle;
 /**
  * @author huangli
  */
-public class VarHandleRefCount extends AbstractRefCount {
-    private static final VarHandle REF_CNT;
+public class VarHandleRefCount extends RefCountUpdater {
+    static final VarHandle REF_CNT;
 
     static {
         try {
-            REF_CNT = MethodHandles.lookup()
-                    .findVarHandle(AbstractRefCount.class, "refCnt", int.class);
+            REF_CNT = MethodHandles.privateLookupIn(RefCount.class, MethodHandles.lookup())
+                    .findVarHandle(RefCount.class, "refCnt", int.class);
         } catch (Exception e) {
             throw new DtException(e);
         }
     }
 
+    private static final VarHandleRefCount INSTANCE = new VarHandleRefCount();
 
-    public VarHandleRefCount() {
-        REF_CNT.set(this, 2);
+    private VarHandleRefCount() {
+    }
+
+    public static VarHandleRefCount getInstance() {
+        return INSTANCE;
     }
 
     @Override
-    protected int getAndAdd(int rawIncrement) {
-        return (int) REF_CNT.getAndAdd(this, rawIncrement);
+    public void init(RefCount instance) {
+        REF_CNT.set(instance, 2);
     }
 
     @Override
-    protected int getPlain() {
-        return (int) REF_CNT.get(this);
+    protected int getAndAdd(RefCount instance, int rawIncrement) {
+        return (int) REF_CNT.getAndAdd(instance, rawIncrement);
     }
 
     @Override
-    protected int getVolatile() {
-        return (int) REF_CNT.getVolatile(this);
+    protected int getPlain(RefCount instance) {
+        return (int) REF_CNT.get(instance);
+    }
+
+    @Override
+    protected int getVolatile(RefCount instance) {
+        return (int) REF_CNT.getVolatile(instance);
     }
 
     @Override
@@ -67,8 +77,8 @@ public class VarHandleRefCount extends AbstractRefCount {
     }
 
     @Override
-    protected boolean weakCAS(int expect, int newValue) {
-        return REF_CNT.weakCompareAndSetPlain(this, expect, newValue);
+    protected boolean weakCAS(RefCount instance, int expect, int newValue) {
+        return REF_CNT.weakCompareAndSetPlain(instance, expect, newValue);
     }
 
 }

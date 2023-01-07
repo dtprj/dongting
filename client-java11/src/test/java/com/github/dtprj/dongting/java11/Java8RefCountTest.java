@@ -26,7 +26,8 @@ public class Java8RefCountTest extends AbstractMultiThreadRefCountTest {
 
     @Override
     protected RefCount createInstance() {
-        return new Java8Factory().newRefCount();
+        return new RefCount(new Java8Factory().newRefCountUpdater(false)){
+        };
     }
 
     @Test

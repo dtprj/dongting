@@ -22,53 +22,48 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class RefCountByteBuffer {
+public class RefCountByteBuffer extends RefCount {
 
-    private ByteBuffer buffer;
-    private ByteBufferPool pool;
-    private RefCount refCount;
+    private final ByteBuffer buffer;
+    private final ByteBufferPool pool;
 
-    protected RefCountByteBuffer() {
+    protected RefCountByteBuffer(boolean plain, ByteBufferPool pool, int requestSize, int threshold) {
+        super(plain);
+        if (requestSize < threshold) {
+            this.buffer = ByteBuffer.allocate(requestSize);
+            this.pool = null;
+        } else {
+            this.buffer = pool.borrow(requestSize);
+            this.pool = pool;
+        }
     }
 
     public static RefCountByteBuffer create(ByteBufferPool pool, int requestSize, int threshold) {
-        RefCountByteBuffer value = new RefCountByteBuffer();
-        if (requestSize < threshold) {
-            value.buffer = ByteBuffer.allocate(requestSize);
-        } else {
-            value.buffer = pool.borrow(requestSize);
-            value.pool = pool;
-            value.refCount = RefCount.newInstance();
-        }
-        return value;
+        return new RefCountByteBuffer(false, pool, requestSize, threshold);
     }
 
     public static RefCountByteBuffer createPlain(ByteBufferPool pool, int requestSize, int threshold) {
-        RefCountByteBuffer value = new RefCountByteBuffer();
-        if (requestSize < threshold) {
-            value.buffer = ByteBuffer.allocate(requestSize);
-        } else {
-            value.buffer = pool.borrow(requestSize);
-            value.pool = pool;
-            value.refCount = RefCount.newPlainInstance();
-        }
-        return value;
+        return new RefCountByteBuffer(true, pool, requestSize, threshold);
     }
 
-    public void retain() {
-        RefCount refCount = this.refCount;
-        if (refCount != null) {
-            refCount.retain();
+    @Override
+    public void retain(int increment) {
+        if (pool == null) {
+            return;
         }
+        super.retain(increment);
     }
 
-    public void release() {
-        RefCount refCount = this.refCount;
-        if (refCount != null) {
-            if (refCount.release()) {
-                pool.release(buffer);
-            }
+    @Override
+    public boolean release(int decrement) {
+        if (pool == null) {
+            return false;
         }
+        boolean result = super.release(decrement);
+        if (result) {
+            pool.release(buffer);
+        }
+        return result;
     }
 
     public ByteBuffer getBuffer() {

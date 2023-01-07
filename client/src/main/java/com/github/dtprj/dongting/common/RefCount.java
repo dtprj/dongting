@@ -15,33 +15,49 @@
  */
 package com.github.dtprj.dongting.common;
 
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+
 /**
  * @author huangli
  * <p>
  * see netty ReferenceCountUpdater.
  */
-public abstract class RefCount {
+public class RefCount {
 
-    protected RefCount() {
+    // init this field first
+    public static final AtomicIntegerFieldUpdater<RefCount> REF_CNT_UPDATER =
+            AtomicIntegerFieldUpdater.newUpdater(RefCount.class, "refCnt");
+
+    private static final AbstractRefCountUpdater UPDATER = VersionFactory.getInstance().newRefCountUpdater(false);
+    private static final AbstractRefCountUpdater PLAIN_UPDATER = VersionFactory.getInstance().newRefCountUpdater(true);
+    private final AbstractRefCountUpdater updater;
+
+    @SuppressWarnings({"unused", "FieldMayBeFinal"})
+    protected volatile int refCnt;
+
+    public RefCount(boolean plain) {
+        this(plain ? PLAIN_UPDATER : UPDATER);
     }
 
-    public static RefCount newInstance() {
-        return VersionFactory.getInstance().newRefCount();
+    protected RefCount(AbstractRefCountUpdater updater) {
+        this.updater = updater;
+        updater.init(this);
     }
 
-    /**
-     * return RefCount instance that is not threadSafe
-     */
-    public static RefCount newPlainInstance() {
-        return new PlainRefCount();
+    public void retain() {
+        retain(1);
     }
 
-    public abstract void retain();
+    public void retain(int increment) {
+        updater.retain(this, increment);
+    }
 
-    public abstract void retain(int increment);
+    public boolean release() {
+        return release(1);
+    }
 
-    public abstract boolean release();
-
-    public abstract boolean release(int decrement);
+    public boolean release(int decrement) {
+        return updater.release(this, decrement);
+    }
 
 }

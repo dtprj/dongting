@@ -16,36 +16,32 @@
 package com.github.dtprj.dongting.common;
 
 /**
+ * see netty ReferenceCountUpdater
+ * For the updated int field:
+ *   Even => "real" refcount is (refCnt >>> 1)
+ *   Odd  => "real" refcount is 0
+ * (x & y) appears to be surprisingly expensive relative to (x == y). Thus this class uses
+ * a fast-path in some places for most common low values when checking for live (even) refcounts,
+ * for example: if (rawCnt == 2 || rawCnt == 4 || (rawCnt & 1) == 0) { ...
+ *
  * @author huangli
  */
-public abstract class AbstractRefCount extends RefCount {
+public abstract class RefCountUpdater extends AbstractRefCountUpdater {
 
-    /*
-     * Implementation notes:
-     *
-     * For the updated int field:
-     *   Even => "real" refcount is (refCnt >>> 1)
-     *   Odd  => "real" refcount is 0
-     *
-     * (x & y) appears to be surprisingly expensive relative to (x == y). Thus this class uses
-     * a fast-path in some places for most common low values when checking for live (even) refcounts,
-     * for example: if (rawCnt == 2 || rawCnt == 4 || (rawCnt & 1) == 0) { ...
-     */
-    @SuppressWarnings({"unused", "FieldMayBeFinal"})
-    protected volatile int refCnt;
-
-    protected AbstractRefCount() {
+    protected RefCountUpdater() {
     }
 
-    protected abstract int getAndAdd(int rawIncrement);
+    public abstract void init(RefCount instance);
 
-    protected abstract int getPlain();
+    protected abstract int getAndAdd(RefCount instance, int rawIncrement);
 
-    protected abstract int getVolatile();
+    protected abstract int getPlain(RefCount instance);
+
+    protected abstract int getVolatile(RefCount instance);
 
     protected abstract void doSpin(int count);
 
-    protected abstract boolean weakCAS(int expect, int newValue);
+    protected abstract boolean weakCAS(RefCount instance, int expect, int newValue);
 
     private int realRefCnt(int rawCnt) {
         return rawCnt != 2 && rawCnt != 4 && (rawCnt & 1) != 0 ? 0 : rawCnt >>> 1;
@@ -63,66 +59,55 @@ public abstract class AbstractRefCount extends RefCount {
     }
 
     @Override
-    public void retain() {
-        retain0(1, 2);
-    }
-
-    @Override
-    public void retain(int increment) {
+    public void retain(RefCount instance, int increment) {
         ObjUtil.checkPositive(increment, "increment");
-        retain0(increment, increment << 1);
+        retain0(instance, increment, increment << 1);
     }
 
-    private void retain0(int increment, int rawIncrement) {
-        int oldRef = getAndAdd(rawIncrement);
+    private void retain0(RefCount instance, int increment, int rawIncrement) {
+        int oldRef = getAndAdd(instance, rawIncrement);
         if (oldRef != 2 && oldRef != 4 && (oldRef & 1) != 0) {
             throw new DtException("the count is 0, increment=" + increment);
         }
         if (oldRef <= 0 || oldRef + rawIncrement < oldRef) {
             // overflow case
-            getAndAdd(-rawIncrement);
+            getAndAdd(instance, -rawIncrement);
             throw new DtException("retain overflow: " + realRefCnt(oldRef) + "," + increment);
         }
     }
 
     @Override
-    public boolean release() {
-        return release(1);
-    }
-
-    @Override
-    public boolean release(int decrement) {
+    public boolean release(RefCount instance, int decrement) {
         ObjUtil.checkPositive(decrement, "decrement");
-        int rawCnt = getPlain();
+        int rawCnt = getPlain(instance);
         int realCnt = toLiveRealRefCnt(rawCnt);
-        return decrement == realCnt ? tryFinalRelease0(rawCnt) || retryRelease0(decrement)
-                : nonFinalRelease0(decrement, rawCnt, realCnt);
+        return decrement == realCnt ? tryFinalRelease0(instance, rawCnt) || retryRelease0(instance, decrement)
+                : nonFinalRelease0(instance, decrement, rawCnt, realCnt);
     }
 
-    private boolean tryFinalRelease0(int expectRawCnt) {
-        return weakCAS(expectRawCnt, 1); // any odd number will work
+    private boolean tryFinalRelease0(RefCount instance, int expectRawCnt) {
+        return weakCAS(instance, expectRawCnt, 1); // any odd number will work
     }
 
-    private boolean nonFinalRelease0(int decrement, int rawCnt, int realCnt) {
+    private boolean nonFinalRelease0(RefCount instance, int decrement, int rawCnt, int realCnt) {
         if (decrement < realCnt
-                // all changes to the raw count are 2x the "real" change - overflow is OK
-                && weakCAS(rawCnt, rawCnt - (decrement << 1))) {
+                && weakCAS(instance, rawCnt, rawCnt - (decrement << 1))) {
             return false;
         }
-        return retryRelease0(decrement);
+        return retryRelease0(instance, decrement);
     }
 
-    private boolean retryRelease0(int decrement) {
+    private boolean retryRelease0(RefCount instance, int decrement) {
         int count = 0;
         for (; ; ) {
-            int rawCnt = getVolatile(), realCnt = toLiveRealRefCnt(rawCnt);
+            int rawCnt = getVolatile(instance), realCnt = toLiveRealRefCnt(rawCnt);
             if (decrement == realCnt) {
-                if (tryFinalRelease0(rawCnt)) {
+                if (tryFinalRelease0(instance, rawCnt)) {
                     return true;
                 }
             } else if (decrement < realCnt) {
                 // all changes to the raw count are 2x the "real" change
-                if (weakCAS(rawCnt, rawCnt - (decrement << 1))) {
+                if (weakCAS(instance, rawCnt, rawCnt - (decrement << 1))) {
                     return false;
                 }
             } else {
@@ -131,5 +116,4 @@ public abstract class AbstractRefCount extends RefCount {
             doSpin(++count);
         }
     }
-
 }
