@@ -23,20 +23,22 @@ import java.util.Objects;
 public class Peer {
     private final HostPort endPoint;
     private final NioNet owner;
-    private volatile DtChannel dtChannel;
+    private DtChannel dtChannel;
+    private volatile PeerStatus status;
 
     Peer(HostPort endPoint, NioNet owner) {
         Objects.requireNonNull(endPoint);
         Objects.requireNonNull(owner);
         this.endPoint = endPoint;
         this.owner = owner;
+        this.status = PeerStatus.not_connect;
     }
 
     public HostPort getEndPoint() {
         return endPoint;
     }
 
-    public NioNet getOwner() {
+    NioNet getOwner() {
         return owner;
     }
 
@@ -48,8 +50,11 @@ public class Peer {
         this.dtChannel = dtChannel;
     }
 
-    public boolean isConnected() {
-        return dtChannel != null;
+    public PeerStatus getStatus() {
+        return status;
     }
 
+    void setStatus(PeerStatus status) {
+        this.status = status;
+    }
 }

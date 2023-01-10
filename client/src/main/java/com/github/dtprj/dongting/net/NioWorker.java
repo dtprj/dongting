@@ -334,6 +334,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         if (peer != null) {
             peer.setDtChannel(dtc);
             dtc.setPeer(peer);
+            peer.setStatus(PeerStatus.connected);
         }
 
         log.info("new DtChannel init: {}", sc);
@@ -354,9 +355,13 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     private void doConnect(CompletableFuture<Void> f, Peer peer) {
-        if (peer.getDtChannel() != null) {
-            f.completeExceptionally(new NetException("peer connected"));
+        PeerStatus s = peer.getStatus();
+        if (s != PeerStatus.not_connect) {
+            String msg = s == PeerStatus.connected ? "peer connected" : "peer connecting";
+            f.completeExceptionally(new NetException(msg));
             return;
+        } else {
+            peer.setStatus(PeerStatus.connecting);
         }
         SocketChannel sc = null;
         try {
@@ -391,6 +396,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         } catch (Exception e) {
             log.warn("connect channel fail: {}, {}", peer.getEndPoint(), e.toString());
             closeChannel0((SocketChannel) key.channel());
+            peer.setStatus(PeerStatus.not_connect);
             f.completeExceptionally(new NetException(e));
         }
     }
@@ -436,6 +442,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             Peer peer = dtc.getPeer();
             if (peer != null && peer.getDtChannel() == dtc) {
                 peer.setDtChannel(null);
+                peer.setStatus(PeerStatus.not_connect);
             }
             channels.remove(dtc.getChannelIndexInWorker());
             if (channelsList != null) {

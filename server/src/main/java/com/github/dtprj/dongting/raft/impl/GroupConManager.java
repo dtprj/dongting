@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.Peer;
+import com.github.dtprj.dongting.net.PeerStatus;
 import com.github.dtprj.dongting.net.ProcessContext;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqProcessor;
@@ -179,7 +180,8 @@ public class GroupConManager {
             return CompletableFuture.completedFuture(nodeCopy);
         } else {
             CompletableFuture<Void> connectFuture;
-            if (nodeCopy.getPeer().isConnected()) {
+            // TODO process connecting
+            if (nodeCopy.getPeer().getStatus() == PeerStatus.connected) {
                 connectFuture = CompletableFuture.completedFuture(null);
             } else {
                 connectFuture = client.connect(nodeCopy.getPeer());
