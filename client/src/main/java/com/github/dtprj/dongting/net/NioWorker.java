@@ -166,7 +166,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
         try {
             selector.close();
-            channels.forEach((index, dtc) -> closeChannel0(dtc.getChannel()));
+            channels.forEach((index, dtc) -> close(dtc));
             log.info("worker thread [{}] finished.\n" +
                             "markReadCount={}, markWriteCount={}\n" +
                             "readCount={}, readBytes={}, avgReadBytes={}\n" +
@@ -377,6 +377,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             if (sc != null) {
                 closeChannel0(sc);
             }
+            peer.setStatus(PeerStatus.not_connect);
             f.completeExceptionally(new NetException(e));
         }
     }
