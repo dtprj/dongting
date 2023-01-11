@@ -166,6 +166,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
         try {
             selector.close();
+            pendingOutgoingRequests.forEach((d, wd) ->
+                    wd.getFuture().completeExceptionally(new NetException("client closed")));
             channels.forEach((index, dtc) -> close(dtc));
             log.info("worker thread [{}] finished.\n" +
                             "markReadCount={}, markWriteCount={}\n" +

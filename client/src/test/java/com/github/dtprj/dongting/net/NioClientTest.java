@@ -570,7 +570,8 @@ public class NioClientTest {
             c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
             c.setCleanIntervalMills(1);
             c.setSelectTimeoutMillis(0);
-            c.setCloseTimeoutMillis(30);
+            // close timeout less than server process time
+            c.setCloseTimeoutMillis(10);
             client = new NioClient(c);
             client.start();
             client.waitStart();
@@ -579,7 +580,10 @@ public class NioClientTest {
             client.stop();
             try {
                 f.get(1, TimeUnit.SECONDS);
-            } catch (TimeoutException e) {
+                fail();
+            } catch (ExecutionException e) {
+                assertEquals(NetException.class, e.getCause().getClass());
+                assertEquals("client closed", e.getCause().getMessage());
             }
         } finally {
             CloseUtil.close(client, server);
