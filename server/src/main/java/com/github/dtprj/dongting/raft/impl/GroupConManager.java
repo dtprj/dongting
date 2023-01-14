@@ -190,7 +190,7 @@ public class GroupConManager {
             connectFuture = CompletableFuture.completedFuture(null);
         } else if (peerStatus == PeerStatus.not_connect) {
             connectFuture = client.connect(node.getPeer()).thenApply(v -> {
-                pingResult.connectionId++;
+                pingResult.newEpoch = true;
                 return null;
             });
         } else {
@@ -202,7 +202,7 @@ public class GroupConManager {
                     log.info("connect to raft server {} fail: {}",
                             node.getPeer().getEndPoint(), ex.toString());
                     pingResult.ready = false;
-                    pingResult.pinging = false;
+                    pingResult.newEpoch = true;
                     return pingResult;
                 });
     }
@@ -215,7 +215,7 @@ public class GroupConManager {
                 whenRpcFinish(rf, node, pingResult);
             } else {
                 pingResult.ready = false;
-                pingResult.pinging = false;
+                pingResult.newEpoch = true;
                 log.info("init raft connection {} fail: {}", node.getPeer().getEndPoint(), ex.getMessage());
             }
             return pingResult;
@@ -225,11 +225,14 @@ public class GroupConManager {
     // run in io thread
     private void whenRpcFinish(ReadFrame rf, RaftNode node, PingResult pingResult) {
         RaftPingFrameCallback callback = (RaftPingFrameCallback) rf.getBody();
-        Set<HostPort> remoteServers = null;
+        Set<HostPort> remoteServers;
         try {
             remoteServers = parseServers(callback.serversStr);
         } catch (Exception e) {
+            pingResult.ready = false;
+            pingResult.newEpoch = true;
             log.error("servers list is empty", e);
+            return;
         }
         boolean self = callback.uuidHigh == uuid.getMostSignificantBits()
                 && callback.uuidLow == uuid.getLeastSignificantBits();
@@ -240,7 +243,6 @@ public class GroupConManager {
         pingResult.self = self;
 
         pingResult.ready = true;
-        pingResult.pinging = false;
 
         if (!self) {
             log.info("init raft connection success: remote={}, id={}, servers={}",
@@ -413,8 +415,7 @@ public class GroupConManager {
         boolean self;
 
         boolean ready;
-        boolean pinging;
-        long connectionId;
+        boolean newEpoch;
 
         PingResult(RaftNode initStatus) {
             this.id = initStatus.getId();
@@ -422,8 +423,6 @@ public class GroupConManager {
             this.self = initStatus.isSelf();
 
             this.ready = initStatus.isReady();
-            this.pinging = initStatus.isPinging();
-            this.connectionId = initStatus.getLastConnectionId();
         }
 
         public void copyTo(RaftNode node) {
@@ -432,8 +431,11 @@ public class GroupConManager {
             node.setSelf(self);
 
             node.setReady(ready);
-            node.setPinging(pinging);
-            node.setConnectionId(connectionId);
+
+            if (newEpoch) {
+                node.incrEpoch();
+            }
+            node.setPinging(false);
         }
     }
 

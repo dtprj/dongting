@@ -30,8 +30,8 @@ public class RaftNode {
     private boolean self;
     private boolean ready;
     private boolean pinging;
-    private long connectionId;
-    private long lastConnectionId;
+    private long epoch;
+    private long lastEpoch;
     private int pendingRequests;//only include append requests
 
     // volatile state on leaders
@@ -49,6 +49,17 @@ public class RaftNode {
     public int decrAndGetPendingRequests() {
         return --pendingRequests;
     }
+
+    public boolean incrEpoch() {
+        if (epoch == lastEpoch) {
+            epoch++;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    //-------------------------getter and setters-------------------------------
 
     public int getId() {
         return id;
@@ -102,20 +113,20 @@ public class RaftNode {
         this.matchIndex = matchIndex;
     }
 
-    public long getConnectionId() {
-        return connectionId;
+    public long getEpoch() {
+        return epoch;
     }
 
-    public void setConnectionId(long connectionId) {
-        this.connectionId = connectionId;
+    public void setEpoch(long epoch) {
+        this.epoch = epoch;
     }
 
-    public long getLastConnectionId() {
-        return lastConnectionId;
+    public long getLastEpoch() {
+        return lastEpoch;
     }
 
-    public void setLastConnectionId(long lastConnectionId) {
-        this.lastConnectionId = lastConnectionId;
+    public void setLastEpoch(long lastEpoch) {
+        this.lastEpoch = lastEpoch;
     }
 
     public int getPendingRequests() {

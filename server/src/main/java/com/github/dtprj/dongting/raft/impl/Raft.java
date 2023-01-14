@@ -115,19 +115,18 @@ public class Raft {
         if (!node.isReady()) {
             return;
         }
-        if (node.getConnectionId() == node.getLastConnectionId()) {
-            doReplicate(node);
+        if (node.getEpoch() == node.getLastEpoch()) {
+            doReplicate(node, false);
         } else {
             if (node.getPendingRequests() == 0) {
-                node.setLastConnectionId(node.getConnectionId());
-                doReplicate(node);
+                doReplicate(node, true);
             } else {
-                // reconnected, waiting all pending request complete
+                // waiting all pending request complete
             }
         }
     }
 
-    private void doReplicate(RaftNode node) {
+    private void doReplicate(RaftNode node, boolean tryMatch) {
         long nextIndex = node.getNextIndex();
         long lastLogIndex = raftStatus.getLastLogIndex();
         if (lastLogIndex < nextIndex) {
@@ -136,11 +135,6 @@ public class Raft {
         }
 
         long matchIndex = node.getMatchIndex();
-        if (matchIndex == 0 && node.getPendingRequests() > 0) {
-            // try matching, don't send more
-            return;
-        }
-
         // flow control
         if (nextIndex - matchIndex > maxReplicateItems) {
             return;
@@ -152,6 +146,9 @@ public class Raft {
             // TODO batch
             node.incrAndGetPendingRequests();
             sendAppendRequest(node, index - 1, item.getPrevLogTerm(), item.getBuffer());
+            if (tryMatch) {
+                break;
+            }
         }
     }
 
@@ -208,19 +205,24 @@ public class Raft {
                     votes.add(remoteNode.getId());
                     int newCount = votes.size();
                     if (newCount > oldCount && newCount == raftStatus.getElectQuorum()) {
-                        raftStatus.setRole(RaftRole.leader);
-                        Raft.processOtherRaftNodes(raftStatus, n -> {
-                            n.setMatchIndex(0);
-                            n.setNextIndex(raftLog.lastIndex() + 1);
-                            n.setPendingRequests(0);
-                        });
-                        log.info("change to leader. term={}", raftStatus.getCurrentTerm());
+                        changeToLeader();
                     }
                 }
             }
         } else {
             Raft.updateTermAndConvertToFollower(remoteTerm, raftStatus);
         }
+    }
+
+    private void changeToLeader() {
+        raftStatus.setRole(RaftRole.leader);
+        Raft.processOtherRaftNodes(raftStatus, n -> {
+            n.setMatchIndex(0);
+            n.setNextIndex(raftLog.lastIndex() + 1);
+            n.setPendingRequests(0);
+            n.incrEpoch();
+        });
+        log.info("change to leader. term={}", raftStatus.getCurrentTerm());
     }
 
     public void sendAppendRequest(RaftNode node, long prevLogIndex, int prevLogTerm, RefCountByteBuffer log) {
@@ -235,15 +237,21 @@ public class Raft {
 
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
         CompletableFuture<ReadFrame> f = client.sendRequest(node.getPeer(), req, AppendRespDecoder.INSTANCE, timeout);
-        processAppendResult(node, prevLogIndex, f);
+        registerAppendResultCallback(node, prevLogIndex, f, raftStatus.getCurrentTerm());
     }
 
-    private void processAppendResult(RaftNode node, long prevLogIndex, CompletableFuture<ReadFrame> f) {
+    private void registerAppendResultCallback(RaftNode node, long prevLogIndex,
+                                              CompletableFuture<ReadFrame> f, int reqTerm) {
         f.handleAsync((rf, ex) -> {
             if (ex == null) {
                 processAppendResult(node, rf, prevLogIndex);
             } else {
-
+                String msg = "append fail. remoteId={}, localTerm={}, reqTerm={}, prevLogIndex={}";
+                if (node.incrEpoch()) {
+                    log.warn(msg, node.getId(), raftStatus.getCurrentTerm(), reqTerm, prevLogIndex, ex);
+                } else {
+                    log.warn(msg, node.getId(), raftStatus.getCurrentTerm(), reqTerm, prevLogIndex);
+                }
             }
             return null;
         }, raftExecutor);
@@ -271,10 +279,12 @@ public class Raft {
                     body.getReqTerm(), raftStatus.getCurrentTerm());
             return;
         }
+        node.decrAndGetPendingRequests();
         if (body.isSuccess()) {
-            node.decrAndGetPendingRequests();
             if (node.getMatchIndex() <= prevLogIndex) {
                 node.setMatchIndex(expectNewMatchIndex);
+                // update last epoch
+                node.setLastEpoch(node.getEpoch());
                 tryCommit();
                 if (raftStatus.getLastLogIndex() >= node.getNextIndex()) {
                     replicate(node);
@@ -288,7 +298,8 @@ public class Raft {
                     node.getId(), node.getMatchIndex(), prevLogIndex, expectNewMatchIndex, body.getMaxLogTerm(),
                     body.getMaxLogIndex(), raftStatus.getCurrentTerm(), body.getReqTerm(), body.getTerm());
             LogItem item = raftLog.findLogItemToReplicate(body.getMaxLogTerm(), body.getMaxLogIndex());
-            sendAppendRequest(node, item.getIndex() - 1, item.getPrevLogTerm(), item.getBuffer());
+            node.setNextIndex(item.getIndex());
+            replicate(node);
         } else {
             BugLog.getLog().error("append fail. appendCode={}, old matchIndex={}, append prevLogIndex={}, expectNewMatchIndex={}, remoteId={}, localTerm={}, reqTerm={}, remoteTerm={}",
                     body.getAppendCode(), node.getMatchIndex(), prevLogIndex, expectNewMatchIndex, node.getId(), raftStatus.getCurrentTerm(), body.getReqTerm(), body.getTerm());
