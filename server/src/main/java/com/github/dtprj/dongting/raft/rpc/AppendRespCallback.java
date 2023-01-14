@@ -26,7 +26,6 @@ public class AppendRespCallback extends PbCallback {
     private int term;
     private boolean success;
     private int appendCode;
-    private int reqTerm;
     private int maxLogTerm;
     private long maxLogIndex;
 
@@ -43,9 +42,6 @@ public class AppendRespCallback extends PbCallback {
                 appendCode = (int) value;
                 break;
             case 4:
-                reqTerm = (int) value;
-                break;
-            case 5:
                 maxLogTerm = (int) value;
                 break;
         }
@@ -55,7 +51,7 @@ public class AppendRespCallback extends PbCallback {
     @Override
     public boolean readFix64(int index, long value) {
         switch (index) {
-            case 6:
+            case 5:
                 maxLogIndex = value;
                 break;
         }
@@ -77,10 +73,6 @@ public class AppendRespCallback extends PbCallback {
 
     public int getAppendCode() {
         return appendCode;
-    }
-
-    public int getReqTerm() {
-        return reqTerm;
     }
 
     public int getMaxLogTerm() {

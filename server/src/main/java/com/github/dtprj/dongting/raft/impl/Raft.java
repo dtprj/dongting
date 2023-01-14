@@ -244,7 +244,7 @@ public class Raft {
                                               CompletableFuture<ReadFrame> f, int reqTerm) {
         f.handleAsync((rf, ex) -> {
             if (ex == null) {
-                processAppendResult(node, rf, prevLogIndex);
+                processAppendResult(node, rf, prevLogIndex, reqTerm);
             } else {
                 String msg = "append fail. remoteId={}, localTerm={}, reqTerm={}, prevLogIndex={}";
                 if (node.incrEpoch()) {
@@ -258,7 +258,7 @@ public class Raft {
     }
 
     // in raft thread
-    private void processAppendResult(RaftNode node, ReadFrame rf, long prevLogIndex) {
+    private void processAppendResult(RaftNode node, ReadFrame rf, long prevLogIndex, int reqTerm) {
         long expectNewMatchIndex = prevLogIndex + 1;
         AppendRespCallback body = (AppendRespCallback) rf.getBody();
         int remoteTerm = body.getTerm();
@@ -271,12 +271,12 @@ public class Raft {
 
         if (raftStatus.getRole() != RaftRole.leader) {
             log.info("receive append result, not leader, ignore. reqTerm={}, currentTerm={}",
-                    body.getReqTerm(), raftStatus.getCurrentTerm());
+                    reqTerm, raftStatus.getCurrentTerm());
             return;
         }
-        if (body.getReqTerm() != raftStatus.getCurrentTerm()) {
+        if (reqTerm != raftStatus.getCurrentTerm()) {
             log.info("receive append result, term not match. reqTerm={}, currentTerm={}",
-                    body.getReqTerm(), raftStatus.getCurrentTerm());
+                    reqTerm, raftStatus.getCurrentTerm());
             return;
         }
         node.decrAndGetPendingRequests();
@@ -291,18 +291,18 @@ public class Raft {
                 }
             } else {
                 BugLog.getLog().error("append miss order. old matchIndex={}, append prevLogIndex={}, expectNewMatchIndex={}, remoteId={}, localTerm={}, reqTerm={}, remoteTerm={}",
-                        node.getMatchIndex(), prevLogIndex, expectNewMatchIndex, node.getId(), raftStatus.getCurrentTerm(), body.getReqTerm(), body.getTerm());
+                        node.getMatchIndex(), prevLogIndex, expectNewMatchIndex, node.getId(), raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
             }
         } else if (body.getAppendCode() == AppendProcessor.CODE_LOG_NOT_MATCH) {
             log.info("log not match. remoteId={}, matchIndex={}, prevLogIndex={}, expectNewMatchIndex={}, maxLogTerm={}, maxLogIndex={}, localTerm={}, reqTerm={}, remoteTerm={}",
                     node.getId(), node.getMatchIndex(), prevLogIndex, expectNewMatchIndex, body.getMaxLogTerm(),
-                    body.getMaxLogIndex(), raftStatus.getCurrentTerm(), body.getReqTerm(), body.getTerm());
+                    body.getMaxLogIndex(), raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
             LogItem item = raftLog.findLogItemToReplicate(body.getMaxLogTerm(), body.getMaxLogIndex());
             node.setNextIndex(item.getIndex());
             replicate(node);
         } else {
             BugLog.getLog().error("append fail. appendCode={}, old matchIndex={}, append prevLogIndex={}, expectNewMatchIndex={}, remoteId={}, localTerm={}, reqTerm={}, remoteTerm={}",
-                    body.getAppendCode(), node.getMatchIndex(), prevLogIndex, expectNewMatchIndex, node.getId(), raftStatus.getCurrentTerm(), body.getReqTerm(), body.getTerm());
+                    body.getAppendCode(), node.getMatchIndex(), prevLogIndex, expectNewMatchIndex, node.getId(), raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
         }
     }
 
