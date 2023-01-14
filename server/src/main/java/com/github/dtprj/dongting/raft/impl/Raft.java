@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.buf.RefCountByteBuffer;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
@@ -26,8 +27,10 @@ import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ProcessContext;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.pb.PbCallback;
+import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.AppendReqWriteFrame;
 import com.github.dtprj.dongting.raft.rpc.AppendRespCallback;
+import com.github.dtprj.dongting.raft.rpc.AppendRespDecoder;
 import com.github.dtprj.dongting.raft.rpc.VoteReq;
 import com.github.dtprj.dongting.raft.rpc.VoteResp;
 import com.github.dtprj.dongting.raft.server.LogItem;
@@ -133,8 +136,7 @@ public class Raft {
         }
 
         long matchIndex = node.getMatchIndex();
-        int pending = node.getPendingRequests();
-        if (matchIndex == 0 && pending > 0) {
+        if (matchIndex == 0 && node.getPendingRequests() > 0) {
             // try matching, don't send more
             return;
         }
@@ -148,7 +150,7 @@ public class Raft {
         for (long index = nextIndex; index <= lastLogIndex && index - matchIndex <= maxReplicateItems; index++) {
             LogItem item = raftLog.load(index);
             // TODO batch
-            node.setPendingRequests(node.getPendingRequests() + 1);
+            node.incrAndGetPendingRequests();
             sendAppendRequest(node, index - 1, item.getPrevLogTerm(), item.getBuffer());
         }
     }
@@ -232,29 +234,68 @@ public class Raft {
         req.setLog(log);
 
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        Decoder decoder = new PbZeroCopyDecoder() {
-            @Override
-            protected PbCallback createCallback(ProcessContext context) {
-                return new AppendRespCallback();
-            }
-        };
-        CompletableFuture<ReadFrame> f = client.sendRequest(node.getPeer(), req, decoder, timeout);
-        f.handleAsync((rf, ex) -> processAppendResultInRaftThread(rf, ex), raftExecutor);
+        CompletableFuture<ReadFrame> f = client.sendRequest(node.getPeer(), req, AppendRespDecoder.INSTANCE, timeout);
+        processAppendResult(node, prevLogIndex, f);
     }
 
-    private Object processAppendResultInRaftThread(ReadFrame rf, Throwable ex) {
-        if (ex == null) {
-            AppendRespCallback resp = (AppendRespCallback) rf.getBody();
-            int remoteTerm = resp.getTerm();
-            if (remoteTerm > raftStatus.getCurrentTerm()) {
-                Raft.updateTermAndConvertToFollower(remoteTerm, raftStatus);
+    private void processAppendResult(RaftNode node, long prevLogIndex, CompletableFuture<ReadFrame> f) {
+        f.handleAsync((rf, ex) -> {
+            if (ex == null) {
+                processAppendResult(node, rf, prevLogIndex);
             } else {
 
             }
-        } else {
-            // TODO
+            return null;
+        }, raftExecutor);
+    }
+
+    // in raft thread
+    private void processAppendResult(RaftNode node, ReadFrame rf, long prevLogIndex) {
+        long expectNewMatchIndex = prevLogIndex + 1;
+        AppendRespCallback body = (AppendRespCallback) rf.getBody();
+        int remoteTerm = body.getTerm();
+        if (remoteTerm > raftStatus.getCurrentTerm()) {
+            log.info("find remote term greater than local term. remoteTerm={}, localTerm={}",
+                    body.getTerm(), raftStatus.getCurrentTerm());
+            Raft.updateTermAndConvertToFollower(remoteTerm, raftStatus);
+            return;
         }
-        return null;
+
+        if (raftStatus.getRole() != RaftRole.leader) {
+            log.info("receive append result, not leader, ignore. reqTerm={}, currentTerm={}",
+                    body.getReqTerm(), raftStatus.getCurrentTerm());
+            return;
+        }
+        if (body.getReqTerm() != raftStatus.getCurrentTerm()) {
+            log.info("receive append result, term not match. reqTerm={}, currentTerm={}",
+                    body.getReqTerm(), raftStatus.getCurrentTerm());
+            return;
+        }
+        if (body.isSuccess()) {
+            node.decrAndGetPendingRequests();
+            if (node.getMatchIndex() <= prevLogIndex) {
+                node.setMatchIndex(expectNewMatchIndex);
+                tryCommit();
+                if (raftStatus.getLastLogIndex() >= node.getNextIndex()) {
+                    replicate(node);
+                }
+            } else {
+                BugLog.getLog().error("append miss order. old matchIndex={}, append prevLogIndex={}, expectNewMatchIndex={}, remoteId={}, localTerm={}, reqTerm={}, remoteTerm={}",
+                        node.getMatchIndex(), prevLogIndex, expectNewMatchIndex, node.getId(), raftStatus.getCurrentTerm(), body.getReqTerm(), body.getTerm());
+            }
+        } else if (body.getAppendCode() == AppendProcessor.CODE_LOG_NOT_MATCH) {
+            log.info("log not match. remoteId={}, matchIndex={}, prevLogIndex={}, expectNewMatchIndex={}, maxLogTerm={}, maxLogIndex={}, localTerm={}, reqTerm={}, remoteTerm={}",
+                    node.getId(), node.getMatchIndex(), prevLogIndex, expectNewMatchIndex, body.getMaxLogTerm(),
+                    body.getMaxLogIndex(), raftStatus.getCurrentTerm(), body.getReqTerm(), body.getTerm());
+            LogItem item = raftLog.findLogItemToReplicate(body.getMaxLogTerm(), body.getMaxLogIndex());
+            sendAppendRequest(node, item.getIndex() - 1, item.getPrevLogTerm(), item.getBuffer());
+        } else {
+            BugLog.getLog().error("append fail. appendCode={}, old matchIndex={}, append prevLogIndex={}, expectNewMatchIndex={}, remoteId={}, localTerm={}, reqTerm={}, remoteTerm={}",
+                    body.getAppendCode(), node.getMatchIndex(), prevLogIndex, expectNewMatchIndex, node.getId(), raftStatus.getCurrentTerm(), body.getReqTerm(), body.getTerm());
+        }
+    }
+
+    private void tryCommit() {
     }
 
 }

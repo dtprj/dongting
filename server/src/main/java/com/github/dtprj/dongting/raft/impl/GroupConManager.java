@@ -177,20 +177,18 @@ public class GroupConManager {
     }
 
     public CompletableFuture<PingResult> connectAndPing(RaftNode node) {
-        if (node.isConnecting() || node.isPinging()) {
+        if (node.isPinging()) {
             // do nothing, node status will not change
             return CompletableFuture.completedFuture(null);
         }
 
+        node.setPinging(true);
         PingResult pingResult = new PingResult(node);
         CompletableFuture<Void> connectFuture;
         PeerStatus peerStatus = node.getPeer().getStatus();
         if (peerStatus == PeerStatus.connected) {
-            node.setPinging(true); // invoke origin object, in raft thread
             connectFuture = CompletableFuture.completedFuture(null);
         } else if (peerStatus == PeerStatus.not_connect) {
-            node.setConnecting(true); // invoke origin object, in raft thread
-            node.setPinging(true); // maybe no need to set
             connectFuture = client.connect(node.getPeer()).thenApply(v -> {
                 pingResult.connectionId++;
                 return null;
@@ -205,7 +203,6 @@ public class GroupConManager {
                             node.getPeer().getEndPoint(), ex.toString());
                     pingResult.ready = false;
                     pingResult.pinging = false;
-                    pingResult.connecting = false;
                     return pingResult;
                 });
     }
@@ -219,7 +216,6 @@ public class GroupConManager {
             } else {
                 pingResult.ready = false;
                 pingResult.pinging = false;
-                pingResult.connecting = false;
                 log.info("init raft connection {} fail: {}", node.getPeer().getEndPoint(), ex.getMessage());
             }
             return pingResult;
@@ -245,7 +241,6 @@ public class GroupConManager {
 
         pingResult.ready = true;
         pingResult.pinging = false;
-        pingResult.connecting = false;
 
         if (!self) {
             log.info("init raft connection success: remote={}, id={}, servers={}",
@@ -418,7 +413,6 @@ public class GroupConManager {
         boolean self;
 
         boolean ready;
-        boolean connecting;
         boolean pinging;
         long connectionId;
 
@@ -429,7 +423,6 @@ public class GroupConManager {
 
             this.ready = initStatus.isReady();
             this.pinging = initStatus.isPinging();
-            this.connecting = initStatus.isConnecting();
             this.connectionId = initStatus.getLastConnectionId();
         }
 
@@ -439,7 +432,6 @@ public class GroupConManager {
             node.setSelf(self);
 
             node.setReady(ready);
-            node.setConnecting(connecting);
             node.setPinging(pinging);
             node.setConnectionId(connectionId);
         }

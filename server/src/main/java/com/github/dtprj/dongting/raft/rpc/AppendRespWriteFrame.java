@@ -28,17 +28,29 @@ import java.nio.ByteBuffer;
 public class AppendRespWriteFrame extends ZeroCopyWriteFrame {
     private int term;
     private boolean success;
+    private int appendCode;
+    private int reqTerm;
+    private int maxLogTerm;
+    private long maxLogIndex;
 
     @Override
     protected int accurateBodySize() {
         return PbUtil.accurateUnsignedIntSize(1, term)
-                + PbUtil.accurateUnsignedIntSize(2, success ? 1 : 0);
+                + PbUtil.accurateUnsignedIntSize(2, success ? 1 : 0)
+                + PbUtil.accurateUnsignedIntSize(3, appendCode)
+                + PbUtil.accurateUnsignedIntSize(4, reqTerm)
+                + PbUtil.accurateUnsignedIntSize(5, maxLogTerm)
+                + PbUtil.accurateFix64Size(6, maxLogIndex);
     }
 
     @Override
     protected void encodeBody(ByteBuffer buf) {
         PbUtil.writeUnsignedInt32(buf, 1, term);
         PbUtil.writeUnsignedInt32(buf, 2, success ? 1 : 0);
+        PbUtil.writeUnsignedInt32(buf, 3, appendCode);
+        PbUtil.writeUnsignedInt32(buf, 4, reqTerm);
+        PbUtil.writeUnsignedInt32(buf, 5, maxLogTerm);
+        PbUtil.writeFix64(buf, 6, maxLogIndex);
     }
 
     public void setTerm(int term) {
@@ -47,5 +59,21 @@ public class AppendRespWriteFrame extends ZeroCopyWriteFrame {
 
     public void setSuccess(boolean success) {
         this.success = success;
+    }
+
+    public void setAppendCode(int appendCode) {
+        this.appendCode = appendCode;
+    }
+
+    public void setReqTerm(int reqTerm) {
+        this.reqTerm = reqTerm;
+    }
+
+    public void setMaxLogTerm(int maxLogTerm) {
+        this.maxLogTerm = maxLogTerm;
+    }
+
+    public void setMaxLogIndex(long maxLogIndex) {
+        this.maxLogIndex = maxLogIndex;
     }
 }

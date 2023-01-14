@@ -13,22 +13,21 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.server;
+package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.buf.RefCountByteBuffer;
+import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
+import com.github.dtprj.dongting.net.ProcessContext;
+import com.github.dtprj.dongting.pb.PbCallback;
 
 /**
  * @author huangli
  */
-public abstract class RaftLog {
+public class AppendRespDecoder extends PbZeroCopyDecoder{
 
-    public abstract void init(StateMachine stateMachine);
+    public static final AppendRespDecoder INSTANCE = new AppendRespDecoder();
 
-    public abstract void append(long index, int oldTerm, int currentTerm, RefCountByteBuffer log);
-
-    public abstract long lastIndex();
-
-    public abstract LogItem load(long index);
-
-    public abstract LogItem findLogItemToReplicate(int followerMaxTerm, long follwerMaxIndex);
+    @Override
+    protected PbCallback createCallback(ProcessContext context) {
+        return new AppendRespCallback();
+    }
 }

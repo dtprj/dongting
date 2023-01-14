@@ -29,7 +29,6 @@ public class RaftNode {
     private Set<HostPort> servers;
     private boolean self;
     private boolean ready;
-    private boolean connecting;
     private boolean pinging;
     private long connectionId;
     private long lastConnectionId;
@@ -41,6 +40,14 @@ public class RaftNode {
 
     public RaftNode(Peer peer) {
         this.peer = peer;
+    }
+
+    public int incrAndGetPendingRequests() {
+        return ++pendingRequests;
+    }
+
+    public int decrAndGetPendingRequests() {
+        return --pendingRequests;
     }
 
     public int getId() {
@@ -117,14 +124,6 @@ public class RaftNode {
 
     public void setPendingRequests(int pendingRequests) {
         this.pendingRequests = pendingRequests;
-    }
-
-    public boolean isConnecting() {
-        return connecting;
-    }
-
-    public void setConnecting(boolean connecting) {
-        this.connecting = connecting;
     }
 
     public boolean isPinging() {

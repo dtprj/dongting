@@ -33,6 +33,8 @@ import com.github.dtprj.dongting.raft.impl.RaftStatus;
  */
 public class AppendProcessor extends ReqProcessor {
 
+    public static final int CODE_LOG_NOT_MATCH = 1;
+
     private final RaftStatus raftStatus;
 
     private PbZeroCopyDecoder decoder = new PbZeroCopyDecoder() {

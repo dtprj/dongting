@@ -25,6 +25,10 @@ import com.github.dtprj.dongting.pb.PbCallback;
 public class AppendRespCallback extends PbCallback {
     private int term;
     private boolean success;
+    private int appendCode;
+    private int reqTerm;
+    private int maxLogTerm;
+    private long maxLogIndex;
 
     @Override
     public boolean readVarNumber(int index, long value) {
@@ -34,6 +38,25 @@ public class AppendRespCallback extends PbCallback {
                 break;
             case 2:
                 success = value != 0;
+                break;
+            case 3:
+                appendCode = (int) value;
+                break;
+            case 4:
+                reqTerm = (int) value;
+                break;
+            case 5:
+                maxLogTerm = (int) value;
+                break;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean readFix64(int index, long value) {
+        switch (index) {
+            case 6:
+                maxLogIndex = value;
                 break;
         }
         return true;
@@ -50,5 +73,21 @@ public class AppendRespCallback extends PbCallback {
 
     public boolean isSuccess() {
         return success;
+    }
+
+    public int getAppendCode() {
+        return appendCode;
+    }
+
+    public int getReqTerm() {
+        return reqTerm;
+    }
+
+    public int getMaxLogTerm() {
+        return maxLogTerm;
+    }
+
+    public long getMaxLogIndex() {
+        return maxLogIndex;
     }
 }
