@@ -28,6 +28,8 @@ public class RaftServerConfig {
     private long heartbeatInterval = 2000;
     private int maxReplicateItems = 100;
     private int maxReplicateBytes = 4 * 1024 * 1024;
+    private int maxRequests = 1024;
+    private long maxRequestBytes = 4 * 1024 * 1024;
 
 
     public String getServers() {
@@ -100,5 +102,21 @@ public class RaftServerConfig {
 
     public void setMaxReplicateBytes(int maxReplicateBytes) {
         this.maxReplicateBytes = maxReplicateBytes;
+    }
+
+    public int getMaxRequests() {
+        return maxRequests;
+    }
+
+    public void setMaxRequests(int maxRequests) {
+        this.maxRequests = maxRequests;
+    }
+
+    public long getMaxRequestBytes() {
+        return maxRequestBytes;
+    }
+
+    public void setMaxRequestBytes(long maxRequestBytes) {
+        this.maxRequestBytes = maxRequestBytes;
     }
 }

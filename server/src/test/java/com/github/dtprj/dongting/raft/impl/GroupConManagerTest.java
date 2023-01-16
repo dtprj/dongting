@@ -95,7 +95,7 @@ public class GroupConManagerTest {
         rn.conManager = manager;
         rn.server = server;
         rn.client = client;
-        rn.servers = GroupConManager.parseServers(servers);
+        rn.servers = RaftUtil.parseServers(servers);
         return rn;
     }
 

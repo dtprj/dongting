@@ -18,6 +18,6 @@ package com.github.dtprj.dongting.raft.server;
 /**
  * @author huangli
  */
-public abstract class StateMachine<I, O> {
-    public abstract O apply(I log);
+public abstract class StateMachine {
+    public abstract Object apply(Object log);
 }

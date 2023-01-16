@@ -40,12 +40,10 @@ import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -92,22 +90,6 @@ public class GroupConManager {
         this.client = client;
         this.executor = executor;
         this.raftStatus = raftStatus;
-    }
-
-    public static Set<HostPort> parseServers(String serversStr) {
-        Set<HostPort> servers = Arrays.stream(serversStr.split("[,;]"))
-                .filter(Objects::nonNull)
-                .map(s -> {
-                    String[] arr = s.split(":");
-                    if (arr.length != 2) {
-                        throw new IllegalArgumentException("not 'host:port' format:" + s);
-                    }
-                    return new HostPort(arr[0].trim(), Integer.parseInt(arr[1].trim()));
-                }).collect(Collectors.toSet());
-        if (servers.size() == 0) {
-            throw new RaftException("servers list is empty");
-        }
-        return servers;
     }
 
     private RaftNode find(List<RaftNode> servers, HostPort hostPort) {
@@ -227,7 +209,7 @@ public class GroupConManager {
         RaftPingFrameCallback callback = (RaftPingFrameCallback) rf.getBody();
         Set<HostPort> remoteServers;
         try {
-            remoteServers = parseServers(callback.serversStr);
+            remoteServers = RaftUtil.parseServers(callback.serversStr);
         } catch (Exception e) {
             pingResult.ready = false;
             pingResult.newEpoch = true;

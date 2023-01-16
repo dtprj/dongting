@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.buf.RefCountByteBuffer;
 import com.github.dtprj.dongting.net.ZeroCopyWriteFrame;
 import com.github.dtprj.dongting.pb.PbUtil;
 
@@ -37,8 +36,7 @@ public class AppendReqWriteFrame extends ZeroCopyWriteFrame {
     private long prevLogIndex;
     private int prevLogTerm;
     // TODO batch
-    private boolean empty = false;
-    private RefCountByteBuffer log;
+    private ByteBuffer log;
     private long leaderCommit;
 
     @Override
@@ -47,7 +45,7 @@ public class AppendReqWriteFrame extends ZeroCopyWriteFrame {
                 + PbUtil.accurateUnsignedIntSize(2, leaderId)
                 + PbUtil.accurateFix64Size(3, prevLogIndex)
                 + PbUtil.accurateUnsignedIntSize(4, prevLogTerm)
-                + (empty ? 0 : PbUtil.accurateLengthDelimitedSize(5, log.getBuffer().remaining()))
+                + (log == null ? 0 : PbUtil.accurateLengthDelimitedSize(5, log.remaining()))
                 + PbUtil.accurateFix64Size(6, leaderCommit);
     }
 
@@ -57,9 +55,8 @@ public class AppendReqWriteFrame extends ZeroCopyWriteFrame {
         PbUtil.writeUnsignedInt32(buf, 2, leaderId);
         PbUtil.writeFix64(buf, 3, prevLogIndex);
         PbUtil.writeUnsignedInt32(buf, 4, prevLogTerm);
-        PbUtil.writeLengthDelimitedPrefix(buf, 5, log.getBuffer().remaining());
-        buf.put(log.getBuffer());
-        log.release();
+        PbUtil.writeLengthDelimitedPrefix(buf, 5, log.remaining());
+        buf.put(log);
         log = null;
         PbUtil.writeFix64(buf, 6, leaderCommit);
     }
@@ -84,8 +81,7 @@ public class AppendReqWriteFrame extends ZeroCopyWriteFrame {
         this.leaderCommit = leaderCommit;
     }
 
-    public void setLog(RefCountByteBuffer log) {
-        this.empty = log == null;
+    public void setLog(ByteBuffer log) {
         this.log = log;
     }
 }

@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.buf.RefCountByteBuffer;
+import java.nio.ByteBuffer;
 
 /**
  * @author huangli
@@ -23,7 +23,7 @@ import com.github.dtprj.dongting.buf.RefCountByteBuffer;
 public class LogItem {
     private int term;
     private int prevLogTerm;
-    private RefCountByteBuffer buffer;
+    private ByteBuffer buffer;
     private long index;
 
     public int getTerm() {
@@ -42,11 +42,11 @@ public class LogItem {
         this.prevLogTerm = prevLogTerm;
     }
 
-    public RefCountByteBuffer getBuffer() {
+    public ByteBuffer getBuffer() {
         return buffer;
     }
 
-    public void setBuffer(RefCountByteBuffer buffer) {
+    public void setBuffer(ByteBuffer buffer) {
         this.buffer = buffer;
     }
 

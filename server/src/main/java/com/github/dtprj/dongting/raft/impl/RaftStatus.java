@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.LongObjMap;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -48,8 +50,9 @@ public class RaftStatus {
     private long lastLogIndex;
     private int lastLogTerm;
 
-    // only read/write by raft thread or init thread
     private List<RaftNode> servers = new ArrayList<>();
+
+    private LongObjMap<Raft.RaftTask> pendingRequests = new LongObjMap<>();
 
     public RaftStatus(int electQuorum, int rwQuorum) {
         this.electQuorum = electQuorum;
@@ -158,5 +161,13 @@ public class RaftStatus {
 
     public void setServers(List<RaftNode> servers) {
         this.servers = servers;
+    }
+
+    public LongObjMap<Raft.RaftTask> getPendingRequests() {
+        return pendingRequests;
+    }
+
+    public void setPendingRequests(LongObjMap<Raft.RaftTask> pendingRequests) {
+        this.pendingRequests = pendingRequests;
     }
 }

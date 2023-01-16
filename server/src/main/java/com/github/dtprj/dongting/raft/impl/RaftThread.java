@@ -64,7 +64,7 @@ public class RaftThread extends Thread {
     protected boolean init() {
         try {
             groupConManager.initRaftGroup(raftStatus.getElectQuorum(),
-                    GroupConManager.parseServers(config.getServers()), 1000);
+                    RaftUtil.parseServers(config.getServers()), 1000);
             initFuture.complete(null);
             return true;
         } catch (Throwable e) {

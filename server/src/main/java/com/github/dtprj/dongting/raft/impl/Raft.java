@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.buf.RefCountByteBuffer;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -36,11 +36,15 @@ import com.github.dtprj.dongting.raft.rpc.VoteResp;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
+import com.github.dtprj.dongting.raft.server.StateMachine;
 
+import java.nio.ByteBuffer;
 import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * @author huangli
@@ -54,17 +58,27 @@ public class Raft {
     private final RaftLog raftLog;
     private final RaftStatus raftStatus;
     private final NioClient client;
+    private final StateMachine stateMachine;
+    private final Function<ByteBuffer, Object> logDecoder;
 
     private final int maxReplicateItems;
     private final int maxReplicateBytes;
 
+
+    static class RaftTask {
+        CompletableFuture<Object> future;
+        Object decodedInput;
+    }
+
     public Raft(RaftServerConfig config, RaftExecutor raftExecutor, RaftLog raftLog,
-                RaftStatus raftStatus, NioClient client) {
+                RaftStatus raftStatus, NioClient client, Function<ByteBuffer, Object> logDecoder, StateMachine stateMachine) {
         this.config = config;
         this.raftExecutor = raftExecutor;
         this.raftLog = raftLog;
         this.raftStatus = raftStatus;
         this.client = client;
+        this.logDecoder = logDecoder;
+        this.stateMachine = stateMachine;
         this.maxReplicateItems = config.getMaxReplicateItems();
         this.maxReplicateBytes = config.getMaxReplicateBytes();
     }
@@ -80,6 +94,7 @@ public class Raft {
         raftStatus.setLastLeaderActiveTime(t);
         raftStatus.setHeartbeatTime(t);
         raftStatus.setLastElectTime(t);
+        raftStatus.setPendingRequests(new LongObjMap<>());
         processOtherRaftNodes(raftStatus, node -> {
             node.setMatchIndex(0);
             node.setNextIndex(0);
@@ -95,17 +110,23 @@ public class Raft {
         }
     }
 
-    public void raftExec(RefCountByteBuffer log) {
+    public CompletableFuture<Object> raftExec(ByteBuffer log, Object decodedInput) {
         RaftStatus raftStatus = this.raftStatus;
         long oldIndex = raftStatus.getLastLogIndex();
         long newIndex = oldIndex + 1;
         int oldTerm = raftStatus.getLastLogTerm();
         int currentTerm = raftStatus.getCurrentTerm();
-        // TODO async append
+        // TODO async append, error handle
         raftLog.append(newIndex, oldTerm, currentTerm, log);
+        CompletableFuture<Object> f = new CompletableFuture<>();
+        RaftTask rt = new RaftTask();
+        rt.future = f;
+        rt.decodedInput = decodedInput;
+        raftStatus.getPendingRequests().put(newIndex, rt);
         raftStatus.setLastLogTerm(currentTerm);
         raftStatus.setLastLogIndex(newIndex);
         processOtherRaftNodes(raftStatus, this::replicate);
+        return f;
     }
 
     private void replicate(RaftNode node) {
@@ -221,11 +242,12 @@ public class Raft {
             n.setNextIndex(raftLog.lastIndex() + 1);
             n.setPendingRequests(0);
             n.incrEpoch();
+            raftStatus.setPendingRequests(new LongObjMap<>());
         });
         log.info("change to leader. term={}", raftStatus.getCurrentTerm());
     }
 
-    public void sendAppendRequest(RaftNode node, long prevLogIndex, int prevLogTerm, RefCountByteBuffer log) {
+    public void sendAppendRequest(RaftNode node, long prevLogIndex, int prevLogTerm, ByteBuffer log) {
         AppendReqWriteFrame req = new AppendReqWriteFrame();
         req.setCommand(Commands.RAFT_APPEND_ENTRIES);
         req.setTerm(raftStatus.getCurrentTerm());
@@ -307,6 +329,38 @@ public class Raft {
     }
 
     private void tryCommit() {
+        RaftStatus raftStatus = this.raftStatus;
+        List<RaftNode> servers = raftStatus.getServers();
+        int rwQuorum = raftStatus.getRwQuorum() - 1; // exclude self
+        long commitIndex = raftStatus.getCommitIndex();
+        while (true) {
+            int match = 0;
+            boolean needCommit = false;
+            for (RaftNode node : servers) {
+                if (node.getMatchIndex() > commitIndex) {
+                    if (++match >= rwQuorum) {
+                        needCommit = true;
+                        break;
+                    }
+                }
+            }
+            if (needCommit) {
+                commitIndex++;
+                // TODO error handle
+                RaftTask rt = raftStatus.getPendingRequests().remove(commitIndex);
+                Object input;
+                if (rt != null) {
+                    input = rt.decodedInput;
+                } else {
+                    LogItem item = raftLog.load(commitIndex);
+                    input = logDecoder.apply(item.getBuffer());
+                }
+                Object result = stateMachine.apply(input);
+                rt.future.complete(result);
+            } else {
+                break;
+            }
+        }
+        raftStatus.setCommitIndex(commitIndex);
     }
-
 }

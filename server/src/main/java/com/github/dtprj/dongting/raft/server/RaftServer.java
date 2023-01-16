@@ -29,17 +29,20 @@ import com.github.dtprj.dongting.raft.impl.Raft;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftThread;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.VoteProcessor;
 
+import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.function.Function;
 
 /**
  * @author huangli
  */
-public class RaftServer<I, O> extends AbstractLifeCircle {
+public class RaftServer extends AbstractLifeCircle {
     private final NioServer raftServer;
     private final NioClient raftClient;
     private final GroupConManager groupConManager;
@@ -48,14 +51,14 @@ public class RaftServer<I, O> extends AbstractLifeCircle {
     private final RaftLog raftLog;
     private final StateMachine stateMachine;
 
-    public RaftServer(RaftServerConfig config, RaftLog raftLog, StateMachine<I, O> stateMachine) {
+    public RaftServer(RaftServerConfig config, RaftLog raftLog, StateMachine stateMachine, Function<ByteBuffer, Object> logDecoder) {
         this.raftLog = raftLog;
         this.stateMachine = stateMachine;
         Objects.requireNonNull(config.getServers());
         ObjUtil.checkPositive(config.getId(), "id");
         ObjUtil.checkPositive(config.getRaftPort(), "port");
 
-        Set<HostPort> raftServers = GroupConManager.parseServers(config.getServers());
+        Set<HostPort> raftServers = RaftUtil.parseServers(config.getServers());
 
         int electQuorum = raftServers.size() / 2 + 1;
         int rwQuorum = raftServers.size() % 2 == 0 ? raftServers.size() / 2 : electQuorum;
@@ -79,7 +82,7 @@ public class RaftServer<I, O> extends AbstractLifeCircle {
         raftServer.register(Commands.RAFT_APPEND_ENTRIES, new AppendProcessor(raftStatus), raftExecutor);
         raftServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(raftStatus), raftExecutor);
 
-        Raft raft = new Raft(config, raftExecutor, raftLog, raftStatus, raftClient);
+        Raft raft = new Raft(config, raftExecutor, raftLog, raftStatus, raftClient, logDecoder, stateMachine);
         raftThread = new RaftThread(config, raftExecutor, raftStatus, raft, groupConManager);
     }
 
