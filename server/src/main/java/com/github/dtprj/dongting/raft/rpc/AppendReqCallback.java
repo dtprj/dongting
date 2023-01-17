@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.RefCountByteBuffer;
 import com.github.dtprj.dongting.pb.PbCallback;
 
 import java.nio.ByteBuffer;
@@ -38,7 +37,7 @@ public class AppendReqCallback extends PbCallback {
     private long prevLogIndex;
     private int prevLogTerm;
     // TODO batch
-    private RefCountByteBuffer log;
+    private ByteBuffer log;
     private long leaderCommit;
 
     public AppendReqCallback(ByteBufferPool heapPool) {
@@ -79,7 +78,11 @@ public class AppendReqCallback extends PbCallback {
         switch (index) {
             case 5:
                 if (begin) {
-                    log = RefCountByteBuffer.createPlain(heapPool, len, 128);
+                    log = ByteBuffer.allocate(len);
+                }
+                log.put(buf);
+                if (end) {
+                    log.flip();
                 }
                 break;
         }
@@ -111,7 +114,7 @@ public class AppendReqCallback extends PbCallback {
         return leaderCommit;
     }
 
-    public RefCountByteBuffer getLog() {
+    public ByteBuffer getLog() {
         return log;
     }
 }

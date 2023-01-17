@@ -40,6 +40,7 @@ message AppendEntriesReq {
 message AppendEntriesResp {
   uint32 term = 1;
   uint32 success = 2;
+  ///////////////////////////
   uint32 append_code = 3;
   uint32 max_log_term = 4;
   fixed64 max_log_index = 5;

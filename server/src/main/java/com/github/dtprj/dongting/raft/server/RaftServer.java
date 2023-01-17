@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.ObjUtil;
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NioClient;
@@ -79,7 +80,7 @@ public class RaftServer extends AbstractLifeCircle {
         nioServerConfig.setIoThreads(1);
         raftServer = new NioServer(nioServerConfig);
         raftServer.register(Commands.RAFT_PING, this.groupConManager.getProcessor(), raftExecutor);
-        raftServer.register(Commands.RAFT_APPEND_ENTRIES, new AppendProcessor(raftStatus), raftExecutor);
+        raftServer.register(Commands.RAFT_APPEND_ENTRIES, new AppendProcessor(raftStatus, raftLog), raftExecutor);
         raftServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(raftStatus), raftExecutor);
 
         Raft raft = new Raft(config, raftExecutor, raftLog, raftStatus, raftClient, logDecoder, stateMachine);
@@ -88,10 +89,9 @@ public class RaftServer extends AbstractLifeCircle {
 
     @Override
     protected void doStart() {
-        raftLog.init(stateMachine);
-        // TODO
-        //raftStatus.setLastLogIndex(raftLog.getLastLogIndex());
-        //raftStatus.setLastLogTerm(raftLog.getLastLogTerm());
+        Pair<Integer, Long> initResult = raftLog.init(stateMachine);
+        raftStatus.setLastLogTerm(initResult.getLeft());
+        raftStatus.setLastLogIndex(initResult.getRight());
         raftServer.start();
         raftClient.start();
         raftClient.waitStart();

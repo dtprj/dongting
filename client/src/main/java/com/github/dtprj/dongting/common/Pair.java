@@ -13,24 +13,33 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.server;
-
-import com.github.dtprj.dongting.common.Pair;
-
-import java.nio.ByteBuffer;
+package com.github.dtprj.dongting.common;
 
 /**
  * @author huangli
  */
-public abstract class RaftLog {
+public class Pair<L, R> {
+    private L left;
+    private R right;
 
-    public abstract Pair<Integer, Long> init(StateMachine stateMachine);
+    public Pair(L left, R right){
+        this.left = left;
+        this.right = right;
+    }
 
-    public abstract void append(long index, int oldTerm, int currentTerm, ByteBuffer log);
+    public L getLeft() {
+        return left;
+    }
 
-    public abstract LogItem load(long index);
+    public void setLeft(L left) {
+        this.left = left;
+    }
 
-    public abstract LogItem findLogItemToReplicate(int followerMaxTerm, long followerMaxIndex);
+    public R getRight() {
+        return right;
+    }
 
-
+    public void setRight(R right) {
+        this.right = right;
+    }
 }

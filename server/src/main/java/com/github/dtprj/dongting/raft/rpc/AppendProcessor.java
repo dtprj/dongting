@@ -16,6 +16,8 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.log.BugLog;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Decoder;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
@@ -27,15 +29,18 @@ import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.raft.impl.Raft;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
+import com.github.dtprj.dongting.raft.server.RaftLog;
 
 /**
  * @author huangli
  */
 public class AppendProcessor extends ReqProcessor {
+    private static final DtLog log = DtLogs.getLogger(AppendProcessor.class);
 
     public static final int CODE_LOG_NOT_MATCH = 1;
 
     private final RaftStatus raftStatus;
+    private final RaftLog raftLog;
 
     private PbZeroCopyDecoder decoder = new PbZeroCopyDecoder() {
         @Override
@@ -44,8 +49,9 @@ public class AppendProcessor extends ReqProcessor {
         }
     };
 
-    public AppendProcessor(RaftStatus raftStatus) {
+    public AppendProcessor(RaftStatus raftStatus, RaftLog raftLog) {
         this.raftStatus = raftStatus;
+        this.raftLog = raftLog;
     }
 
     @Override
@@ -58,10 +64,10 @@ public class AppendProcessor extends ReqProcessor {
         if (remoteTerm == localTerm) {
             if (raftStatus.getRole() == RaftRole.follower) {
                 raftStatus.setLastLeaderActiveTime(System.nanoTime());
-                resp.setSuccess(true);
+                append(req, resp);
             } else if (raftStatus.getRole() == RaftRole.candidate) {
                 Raft.updateTermAndConvertToFollower(remoteTerm, raftStatus);
-                resp.setSuccess(true);
+                append(req, resp);
             } else {
                 BugLog.getLog().error("leader receive raft append request. term={}, remote={}",
                         remoteTerm, context.getRemoteAddr());
@@ -69,13 +75,30 @@ public class AppendProcessor extends ReqProcessor {
             }
         } else if (remoteTerm > localTerm) {
             Raft.updateTermAndConvertToFollower(remoteTerm, raftStatus);
-            resp.setSuccess(true);
+            append(req, resp);
         } else {
+            log.debug("receive append request with a smaller term, ignore, remoteTerm={}, localTerm={}", remoteTerm, localTerm);
             resp.setSuccess(false);
         }
         resp.setTerm(raftStatus.getCurrentTerm());
         resp.setRespCode(CmdCodes.SUCCESS);
         return resp;
+    }
+
+    private void append(AppendReqCallback req, AppendRespWriteFrame resp) {
+        if (req.getPrevLogIndex() != raftStatus.getLastLogIndex() || req.getPrevLogTerm() != raftStatus.getLastLogTerm()) {
+            log.info("log not match. prevLogIndex={}, localLastLogIndex={}, prevLogTerm={}, localLastLogTerm={}, leaderId={}",
+                    req.getPrevLogIndex(), raftStatus.getLastLogIndex(), req.getPrevLogTerm(), raftStatus.getLastLogTerm(), req.getLeaderId());
+            resp.setSuccess(false);
+            resp.setAppendCode(CODE_LOG_NOT_MATCH);
+            resp.setMaxLogIndex(raftStatus.getLastLogIndex());
+            resp.setMaxLogTerm(raftStatus.getLastLogTerm());
+            return;
+        }
+
+        // TODO error handle
+        raftLog.append(req.getPrevLogIndex() + 1, req.getPrevLogTerm(), req.getTerm(), req.getLog());
+        resp.setSuccess(true);
     }
 
     @Override

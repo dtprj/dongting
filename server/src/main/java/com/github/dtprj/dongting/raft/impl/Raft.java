@@ -239,7 +239,7 @@ public class Raft {
         raftStatus.setRole(RaftRole.leader);
         Raft.processOtherRaftNodes(raftStatus, n -> {
             n.setMatchIndex(0);
-            n.setNextIndex(raftLog.lastIndex() + 1);
+            n.setNextIndex(raftStatus.getLastLogIndex() + 1);
             n.setPendingRequests(0);
             n.incrEpoch();
             raftStatus.setPendingRequests(new LongObjMap<>());
@@ -362,5 +362,6 @@ public class Raft {
             }
         }
         raftStatus.setCommitIndex(commitIndex);
+        raftStatus.setLastApplied(commitIndex);
     }
 }

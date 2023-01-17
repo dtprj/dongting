@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.StateMachine;
@@ -26,16 +27,12 @@ import java.nio.ByteBuffer;
  */
 public class MemRaftLog extends RaftLog {
     @Override
-    public void init(StateMachine stateMachine) {
+    public Pair<Integer, Long> init(StateMachine stateMachine) {
+        return null;
     }
 
     @Override
     public void append(long index, int oldTerm, int currentTerm, ByteBuffer log) {
-    }
-
-    @Override
-    public long lastIndex() {
-        return 0;
     }
 
     @Override
