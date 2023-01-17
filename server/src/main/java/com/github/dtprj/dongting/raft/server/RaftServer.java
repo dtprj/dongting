@@ -80,7 +80,8 @@ public class RaftServer extends AbstractLifeCircle {
         nioServerConfig.setIoThreads(1);
         raftServer = new NioServer(nioServerConfig);
         raftServer.register(Commands.RAFT_PING, this.groupConManager.getProcessor(), raftExecutor);
-        raftServer.register(Commands.RAFT_APPEND_ENTRIES, new AppendProcessor(raftStatus, raftLog), raftExecutor);
+        AppendProcessor ap = new AppendProcessor(raftStatus, raftLog, stateMachine, logDecoder);
+        raftServer.register(Commands.RAFT_APPEND_ENTRIES, ap , raftExecutor);
         raftServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(raftStatus), raftExecutor);
 
         Raft raft = new Raft(config, raftExecutor, raftLog, raftStatus, raftClient, logDecoder, stateMachine);

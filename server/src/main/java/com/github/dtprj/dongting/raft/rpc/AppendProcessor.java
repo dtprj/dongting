@@ -29,7 +29,12 @@ import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.raft.impl.Raft;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
+import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftLog;
+import com.github.dtprj.dongting.raft.server.StateMachine;
+
+import java.nio.ByteBuffer;
+import java.util.function.Function;
 
 /**
  * @author huangli
@@ -38,9 +43,13 @@ public class AppendProcessor extends ReqProcessor {
     private static final DtLog log = DtLogs.getLogger(AppendProcessor.class);
 
     public static final int CODE_LOG_NOT_MATCH = 1;
+    public static final int CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT = 2;
+
 
     private final RaftStatus raftStatus;
     private final RaftLog raftLog;
+    private final StateMachine stateMachine;
+    private final Function<ByteBuffer, Object> logDecoder;
 
     private PbZeroCopyDecoder decoder = new PbZeroCopyDecoder() {
         @Override
@@ -49,9 +58,12 @@ public class AppendProcessor extends ReqProcessor {
         }
     };
 
-    public AppendProcessor(RaftStatus raftStatus, RaftLog raftLog) {
+    public AppendProcessor(RaftStatus raftStatus, RaftLog raftLog, StateMachine stateMachine,
+                           Function<ByteBuffer, Object> logDecoder) {
         this.raftStatus = raftStatus;
         this.raftLog = raftLog;
+        this.stateMachine = stateMachine;
+        this.logDecoder = logDecoder;
     }
 
     @Override
@@ -86,6 +98,7 @@ public class AppendProcessor extends ReqProcessor {
     }
 
     private void append(AppendReqCallback req, AppendRespWriteFrame resp) {
+        RaftStatus raftStatus = this.raftStatus;
         if (req.getPrevLogIndex() != raftStatus.getLastLogIndex() || req.getPrevLogTerm() != raftStatus.getLastLogTerm()) {
             log.info("log not match. prevLogIndex={}, localLastLogIndex={}, prevLogTerm={}, localLastLogTerm={}, leaderId={}",
                     req.getPrevLogIndex(), raftStatus.getLastLogIndex(), req.getPrevLogTerm(), raftStatus.getLastLogTerm(), req.getLeaderId());
@@ -95,9 +108,33 @@ public class AppendProcessor extends ReqProcessor {
             resp.setMaxLogTerm(raftStatus.getLastLogTerm());
             return;
         }
+        if (req.getPrevLogIndex() < raftStatus.getCommitIndex()) {
+            BugLog.getLog().error("leader append request prevLogIndex less than local commit index. leaderId={}, prevLogIndex={}, commitIndex={}",
+                    req.getLeaderId(), req.getPrevLogIndex(), raftStatus.getCommitIndex());
+            resp.setSuccess(false);
+            resp.setAppendCode(CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT);
+            return;
+        }
 
+        long newIndex = req.getPrevLogIndex() + 1;
         // TODO error handle
-        raftLog.append(req.getPrevLogIndex() + 1, req.getPrevLogTerm(), req.getTerm(), req.getLog());
+        raftLog.append(newIndex, req.getPrevLogTerm(), req.getTerm(), req.getLog());
+        raftStatus.setLastLogIndex(newIndex);
+        raftStatus.setLastLogTerm(req.getTerm());
+        if (req.getLeaderCommit() >= raftStatus.getCommitIndex()) {
+            raftStatus.setCommitIndex(Math.min(newIndex, req.getLeaderCommit()));
+            if (raftStatus.getLastApplied() < raftStatus.getCommitIndex()) {
+                for (long i = raftStatus.getLastApplied() + 1; i <= raftStatus.getCommitIndex(); i++) {
+                    LogItem item = raftLog.load(i);
+                    Object decodedObj = logDecoder.apply(item.getBuffer());
+                    stateMachine.apply(decodedObj);
+                }
+            }
+            raftStatus.setLastApplied(raftStatus.getCommitIndex());
+        } else {
+            log.warn("leader commitIndex less than local. leaderId={}, leaderTerm={}, leaderCommitIndex={}, localCommitIndex={}",
+                    req.getLeaderId(), req.getTerm(), req.getLeaderCommit(), raftStatus.getCommitIndex());
+        }
         resp.setSuccess(true);
     }
 
