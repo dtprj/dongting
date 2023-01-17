@@ -177,7 +177,8 @@ public class Raft {
         VoteReq req = new VoteReq();
         req.setCandidateId(config.getId());
         req.setTerm(raftStatus.getCurrentTerm());
-        // TODO log fields
+        req.setLastLogIndex(raftStatus.getLastLogIndex());
+        req.setLastLogTerm(raftStatus.getLastLogTerm());
         VoteReq.WriteFrame wf = new VoteReq.WriteFrame(req);
         wf.setCommand(Commands.RAFT_REQUEST_VOTE);
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
@@ -199,9 +200,7 @@ public class Raft {
         } else {
             log.warn("request vote rpc fail.term={}, remote={}, error={}", voteReq.getTerm(),
                     remoteNode.getPeer().getEndPoint(), ex.toString());
-            if (voteReq.getTerm() == raftStatus.getCurrentTerm() && raftStatus.getRole() == RaftRole.candidate) {
-                sendVoteRequest(remoteNode);
-            }
+            // don't send more request for simplification
         }
         return null;
     }
