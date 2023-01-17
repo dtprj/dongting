@@ -51,7 +51,7 @@ public class AppendProcessor extends ReqProcessor {
     private final StateMachine stateMachine;
     private final Function<ByteBuffer, Object> logDecoder;
 
-    private PbZeroCopyDecoder decoder = new PbZeroCopyDecoder() {
+    private final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder() {
         @Override
         protected PbCallback createCallback(ProcessContext context) {
             return new AppendReqCallback(context.getIoHeapBufferPool());

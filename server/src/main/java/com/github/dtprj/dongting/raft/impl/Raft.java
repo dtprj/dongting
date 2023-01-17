@@ -259,14 +259,14 @@ public class Raft {
 
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
         CompletableFuture<ReadFrame> f = client.sendRequest(node.getPeer(), req, AppendRespDecoder.INSTANCE, timeout);
-        registerAppendResultCallback(node, prevLogIndex, f, raftStatus.getCurrentTerm());
+        registerAppendResultCallback(node, prevLogIndex, prevLogTerm, f, raftStatus.getCurrentTerm());
     }
 
-    private void registerAppendResultCallback(RaftNode node, long prevLogIndex,
+    private void registerAppendResultCallback(RaftNode node, long prevLogIndex, int prevLogTerm,
                                               CompletableFuture<ReadFrame> f, int reqTerm) {
         f.handleAsync((rf, ex) -> {
             if (ex == null) {
-                processAppendResult(node, rf, prevLogIndex, reqTerm);
+                processAppendResult(node, rf, prevLogIndex, prevLogTerm, reqTerm);
             } else {
                 String msg = "append fail. remoteId={}, localTerm={}, reqTerm={}, prevLogIndex={}";
                 if (node.incrEpoch()) {
@@ -280,9 +280,10 @@ public class Raft {
     }
 
     // in raft thread
-    private void processAppendResult(RaftNode node, ReadFrame rf, long prevLogIndex, int reqTerm) {
+    private void processAppendResult(RaftNode node, ReadFrame rf, long prevLogIndex, int prevLogTerm, int reqTerm) {
         long expectNewMatchIndex = prevLogIndex + 1;
         AppendRespCallback body = (AppendRespCallback) rf.getBody();
+        RaftStatus raftStatus = this.raftStatus;
         int remoteTerm = body.getTerm();
         if (remoteTerm > raftStatus.getCurrentTerm()) {
             log.info("find remote term greater than local term. remoteTerm={}, localTerm={}",
@@ -319,8 +320,26 @@ public class Raft {
             log.info("log not match. remoteId={}, matchIndex={}, prevLogIndex={}, expectNewMatchIndex={}, maxLogTerm={}, maxLogIndex={}, localTerm={}, reqTerm={}, remoteTerm={}",
                     node.getId(), node.getMatchIndex(), prevLogIndex, expectNewMatchIndex, body.getMaxLogTerm(),
                     body.getMaxLogIndex(), raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
-            LogItem item = raftLog.findLogItemToReplicate(body.getMaxLogTerm(), body.getMaxLogIndex());
-            node.setNextIndex(item.getIndex());
+            if (body.getTerm() == raftStatus.getCurrentTerm() && reqTerm == raftStatus.getCurrentTerm()) {
+                node.setNextIndex(body.getMaxLogIndex() + 1);
+            } else {
+                long idx = raftLog.findLastLogItemIndexByTerm(body.getMaxLogTerm());
+                if (idx > 0) {
+                    node.setNextIndex(Math.min(body.getMaxLogIndex(), idx) + 1);
+                } else {
+                    int t = raftLog.findLastTermLessThan(body.getMaxLogTerm());
+                    if (t > 0) {
+                        idx = raftLog.findLastLogItemIndexByTerm(t);
+                        if (idx > 0) {
+                            node.setNextIndex(Math.min(body.getMaxLogIndex(), idx) + 1);
+                        } else {
+                            BugLog.getLog().error("can't find log to replicate. term={}", t);
+                        }
+                    } else {
+                        BugLog.getLog().error("can't find log to replicate. follower maxTerm={}", body.getMaxLogTerm());
+                    }
+                }
+            }
             replicate(node);
         } else {
             BugLog.getLog().error("append fail. appendCode={}, old matchIndex={}, append prevLogIndex={}, expectNewMatchIndex={}, remoteId={}, localTerm={}, reqTerm={}, remoteTerm={}",

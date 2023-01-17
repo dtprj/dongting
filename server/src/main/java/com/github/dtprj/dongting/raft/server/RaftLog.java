@@ -30,7 +30,13 @@ public abstract class RaftLog {
 
     public abstract LogItem load(long index);
 
-    public abstract LogItem findLogItemToReplicate(int followerMaxTerm, long followerMaxIndex);
+    /**
+     * if there is no such term, return -1.
+     */
+    public abstract long findLastLogItemIndexByTerm(int term);
 
-
+    /**
+     * if there is no such term, return -1.
+     */
+    public abstract int findLastTermLessThan(int term);
 }

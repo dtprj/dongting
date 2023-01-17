@@ -41,7 +41,12 @@ public class MemRaftLog extends RaftLog {
     }
 
     @Override
-    public LogItem findLogItemToReplicate(int followerMaxTerm, long followerMaxIndex){
-        return null;
+    public long findLastLogItemIndexByTerm(int term) {
+        return 0;
+    }
+
+    @Override
+    public int findLastTermLessThan(int term) {
+        return 0;
     }
 }
