@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.raft.client.RaftException;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -41,5 +42,24 @@ public class RaftUtil {
             throw new RaftException("servers list is empty");
         }
         return servers;
+    }
+
+    public static boolean computeCommitIndex(long currentCommitIndex, long recentMatchIndex,
+                                             List<RaftNode> servers, int rwQuorum) {
+        if (recentMatchIndex < currentCommitIndex) {
+            return false;
+        }
+        int count = 0;
+        for (RaftNode node : servers) {
+            if (node.isSelf()) {
+                if (recentMatchIndex > node.getMatchIndex()) {
+                    return false;
+                }
+            }
+            if (node.getMatchIndex() >= recentMatchIndex) {
+                count++;
+            }
+        }
+        return count >= rwQuorum;
     }
 }

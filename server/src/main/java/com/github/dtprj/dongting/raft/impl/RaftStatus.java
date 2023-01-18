@@ -54,6 +54,8 @@ public class RaftStatus {
 
     private LongObjMap<Raft.RaftTask> pendingRequests = new LongObjMap<>();
 
+    private boolean committedInCurrentTerm;
+
     public RaftStatus(int electQuorum, int rwQuorum) {
         this.electQuorum = electQuorum;
         this.rwQuorum = rwQuorum;
@@ -169,5 +171,13 @@ public class RaftStatus {
 
     public void setPendingRequests(LongObjMap<Raft.RaftTask> pendingRequests) {
         this.pendingRequests = pendingRequests;
+    }
+
+    public boolean isCommittedInCurrentTerm() {
+        return committedInCurrentTerm;
+    }
+
+    public void setCommittedInCurrentTerm(boolean committedInCurrentTerm) {
+        this.committedInCurrentTerm = committedInCurrentTerm;
     }
 }

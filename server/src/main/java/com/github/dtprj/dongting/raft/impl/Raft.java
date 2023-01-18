@@ -64,6 +64,7 @@ public class Raft {
     private final int maxReplicateItems;
     private final int maxReplicateBytes;
 
+    private RaftNode self;
 
     static class RaftTask {
         CompletableFuture<Object> future;
@@ -81,6 +82,19 @@ public class Raft {
         this.stateMachine = stateMachine;
         this.maxReplicateItems = config.getMaxReplicateItems();
         this.maxReplicateBytes = config.getMaxReplicateBytes();
+    }
+
+    private RaftNode getSelf() {
+        if (self != null) {
+            return self;
+        }
+        for (RaftNode node : raftStatus.getServers()) {
+            if (node.isSelf()) {
+                this.self = node;
+                break;
+            }
+        }
+        return self;
     }
 
     public static void updateTermAndConvertToFollower(int remoteTerm, RaftStatus raftStatus) {
@@ -118,6 +132,8 @@ public class Raft {
         int currentTerm = raftStatus.getCurrentTerm();
         // TODO async append, error handle
         raftLog.append(newIndex, oldTerm, currentTerm, log);
+        getSelf().setNextIndex(newIndex + 1);
+        getSelf().setMatchIndex(newIndex);
         CompletableFuture<Object> f = new CompletableFuture<>();
         RaftTask rt = new RaftTask();
         rt.future = f;
@@ -236,12 +252,13 @@ public class Raft {
 
     private void changeToLeader() {
         raftStatus.setRole(RaftRole.leader);
+        raftStatus.setPendingRequests(new LongObjMap<>());
+        raftStatus.setCommittedInCurrentTerm(false);
         Raft.processOtherRaftNodes(raftStatus, n -> {
             n.setMatchIndex(0);
             n.setNextIndex(raftStatus.getLastLogIndex() + 1);
             n.setPendingRequests(0);
             n.incrEpoch();
-            raftStatus.setPendingRequests(new LongObjMap<>());
         });
         log.info("change to leader. term={}", raftStatus.getCurrentTerm());
     }
@@ -307,7 +324,7 @@ public class Raft {
                 node.setMatchIndex(expectNewMatchIndex);
                 // update last epoch
                 node.setLastEpoch(node.getEpoch());
-                tryCommit();
+                tryCommit(expectNewMatchIndex);
                 if (raftStatus.getLastLogIndex() >= node.getNextIndex()) {
                     replicate(node);
                 }
@@ -316,8 +333,8 @@ public class Raft {
                         node.getMatchIndex(), prevLogIndex, expectNewMatchIndex, node.getId(), raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
             }
         } else if (body.getAppendCode() == AppendProcessor.CODE_LOG_NOT_MATCH) {
-            log.info("log not match. remoteId={}, matchIndex={}, prevLogIndex={}, expectNewMatchIndex={}, maxLogTerm={}, maxLogIndex={}, localTerm={}, reqTerm={}, remoteTerm={}",
-                    node.getId(), node.getMatchIndex(), prevLogIndex, expectNewMatchIndex, body.getMaxLogTerm(),
+            log.info("log not match. remoteId={}, matchIndex={}, prevLogIndex={}, prevLogTerm={}, remoteLogTerm={}, remoteLogIndex={}, localTerm={}, reqTerm={}, remoteTerm={}",
+                    node.getId(), node.getMatchIndex(), prevLogIndex, prevLogTerm, body.getMaxLogTerm(),
                     body.getMaxLogIndex(), raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
             if (body.getTerm() == raftStatus.getCurrentTerm() && reqTerm == raftStatus.getCurrentTerm()) {
                 node.setNextIndex(body.getMaxLogIndex() + 1);
@@ -346,40 +363,43 @@ public class Raft {
         }
     }
 
-    private void tryCommit() {
+    private void tryCommit(long recentMatchIndex) {
         RaftStatus raftStatus = this.raftStatus;
         List<RaftNode> servers = raftStatus.getServers();
-        int rwQuorum = raftStatus.getRwQuorum() - 1; // exclude self
+        int rwQuorum = raftStatus.getRwQuorum();
         long commitIndex = raftStatus.getCommitIndex();
-        while (true) {
-            int match = 0;
-            boolean needCommit = false;
-            for (RaftNode node : servers) {
-                if (node.getMatchIndex() > commitIndex) {
-                    if (++match >= rwQuorum) {
-                        needCommit = true;
-                        break;
-                    }
-                }
-            }
-            if (needCommit) {
-                commitIndex++;
-                // TODO error handle
-                RaftTask rt = raftStatus.getPendingRequests().remove(commitIndex);
-                Object input;
-                if (rt != null) {
-                    input = rt.decodedInput;
-                } else {
-                    LogItem item = raftLog.load(commitIndex);
-                    input = logDecoder.apply(item.getBuffer());
-                }
-                Object result = stateMachine.apply(input);
-                rt.future.complete(result);
+
+        boolean needCommit = RaftUtil.computeCommitIndex(raftStatus.getCommitIndex(), recentMatchIndex, servers, rwQuorum);
+        if (!needCommit) {
+            return;
+        }
+        // leader can only commit log in current term, see raft paper 5.4.2
+        if (!raftStatus.isCommittedInCurrentTerm()) {
+            LogItem item = raftLog.load(recentMatchIndex);
+            if (item.getTerm() != raftStatus.getCurrentTerm()) {
+                return;
             } else {
-                break;
+                raftStatus.setCommittedInCurrentTerm(true);
             }
         }
-        raftStatus.setCommitIndex(commitIndex);
-        raftStatus.setLastApplied(commitIndex);
+        raftStatus.setCommitIndex(recentMatchIndex);
+
+        for (long i = raftStatus.getLastApplied(); i <= recentMatchIndex; i++) {
+            // TODO error handle
+            RaftTask rt = raftStatus.getPendingRequests().remove(commitIndex);
+            Object input;
+            if (rt != null) {
+                input = rt.decodedInput;
+            } else {
+                LogItem item = raftLog.load(commitIndex);
+                input = logDecoder.apply(item.getBuffer());
+            }
+            Object result = stateMachine.apply(input);
+            if (rt != null) {
+                rt.future.complete(result);
+            }
+        }
+
+        raftStatus.setLastApplied(recentMatchIndex);
     }
 }
