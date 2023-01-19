@@ -26,7 +26,7 @@ public abstract class RaftLog {
 
     public abstract Pair<Integer, Long> init(StateMachine stateMachine);
 
-    public abstract void append(long index, int oldTerm, int currentTerm, ByteBuffer log);
+    public abstract void append(long prevLogIndex, int prevLogTerm, int currentTerm, ByteBuffer... log);
 
     public abstract LogItem load(long index);
 

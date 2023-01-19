@@ -32,7 +32,7 @@ public class MemRaftLog extends RaftLog {
     }
 
     @Override
-    public void append(long index, int oldTerm, int currentTerm, ByteBuffer log) {
+    public void append(long prevLogIndex, int prevLogTerm, int currentTerm, ByteBuffer... log) {
     }
 
     @Override

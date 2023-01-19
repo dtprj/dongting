@@ -69,6 +69,7 @@ public class Raft {
     static class RaftTask {
         CompletableFuture<Object> future;
         Object decodedInput;
+        ByteBuffer data;
     }
 
     public Raft(RaftServerConfig config, RaftExecutor raftExecutor, RaftLog raftLog,
@@ -124,25 +125,31 @@ public class Raft {
         }
     }
 
-    public CompletableFuture<Object> raftExec(ByteBuffer log, Object decodedInput) {
+    public void raftExec(RaftTask... inputs) {
         RaftStatus raftStatus = this.raftStatus;
         long oldIndex = raftStatus.getLastLogIndex();
-        long newIndex = oldIndex + 1;
+        int len = inputs.length;
+
         int oldTerm = raftStatus.getLastLogTerm();
         int currentTerm = raftStatus.getCurrentTerm();
         // TODO async append, error handle
-        raftLog.append(newIndex, oldTerm, currentTerm, log);
+        ByteBuffer[] logs = new ByteBuffer[len];
+        for (int i = 0; i < len; i++) {
+            logs[i] = inputs[i].data;
+        }
+        long newIndex = oldIndex + len;
+        raftLog.append(newIndex, oldTerm, currentTerm, logs);
         getSelf().setNextIndex(newIndex + 1);
         getSelf().setMatchIndex(newIndex);
-        CompletableFuture<Object> f = new CompletableFuture<>();
-        RaftTask rt = new RaftTask();
-        rt.future = f;
-        rt.decodedInput = decodedInput;
-        raftStatus.getPendingRequests().put(newIndex, rt);
+
+        for (int i = 1; i <= len; i++) {
+            RaftTask rt = inputs[i];
+            raftStatus.getPendingRequests().put(oldIndex + i, rt);
+            rt.data = null;
+        }
         raftStatus.setLastLogTerm(currentTerm);
         raftStatus.setLastLogIndex(newIndex);
         processOtherRaftNodes(raftStatus, this::replicate);
-        return f;
     }
 
     private void replicate(RaftNode node) {
