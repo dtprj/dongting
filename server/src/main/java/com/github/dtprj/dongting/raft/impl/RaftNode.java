@@ -33,6 +33,7 @@ public class RaftNode {
     private long epoch;
     private long lastEpoch;
     private int pendingRequests;//only include append requests
+    private long pendingBytes;
 
     // volatile state on leaders
     private long nextIndex;
@@ -42,12 +43,14 @@ public class RaftNode {
         this.peer = peer;
     }
 
-    public int incrAndGetPendingRequests() {
-        return ++pendingRequests;
+    public void incrAndGetPendingRequests(int requests, long bytes) {
+        pendingRequests += requests;
+        pendingBytes += bytes;
     }
 
-    public int decrAndGetPendingRequests() {
-        return --pendingRequests;
+    public void decrAndGetPendingRequests(int requests, long bytes) {
+        pendingRequests -= requests;
+        pendingBytes -= bytes;
     }
 
     public boolean incrEpoch() {
@@ -135,6 +138,14 @@ public class RaftNode {
 
     public void setPendingRequests(int pendingRequests) {
         this.pendingRequests = pendingRequests;
+    }
+
+    public long getPendingBytes() {
+        return pendingBytes;
+    }
+
+    public void setPendingBytes(long pendingBytes) {
+        this.pendingBytes = pendingBytes;
     }
 
     public boolean isPinging() {

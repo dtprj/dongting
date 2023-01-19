@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.pb.PbCallback;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 
 /**
  * @author huangli
@@ -38,6 +39,7 @@ public class AppendReqCallback extends PbCallback {
     private int prevLogTerm;
     // TODO batch
     private ByteBuffer log;
+    private ArrayList<ByteBuffer> logs = new ArrayList<>();
     private long leaderCommit;
 
     public AppendReqCallback(ByteBufferPool heapPool) {
@@ -83,6 +85,8 @@ public class AppendReqCallback extends PbCallback {
                 log.put(buf);
                 if (end) {
                     log.flip();
+                    logs.add(log);
+                    log = null;
                 }
                 break;
         }
@@ -114,7 +118,7 @@ public class AppendReqCallback extends PbCallback {
         return leaderCommit;
     }
 
-    public ByteBuffer getLog() {
-        return log;
+    public ArrayList<ByteBuffer> getLogs() {
+        return logs;
     }
 }

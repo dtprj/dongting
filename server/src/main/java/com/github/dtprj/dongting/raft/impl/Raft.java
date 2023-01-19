@@ -39,6 +39,8 @@ import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.server.StateMachine;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -62,6 +64,7 @@ public class Raft {
     private final Function<ByteBuffer, Object> logDecoder;
 
     private final int maxReplicateItems;
+    private final int restItemsToStartReplicate;
     private final int maxReplicateBytes;
 
     private RaftNode self;
@@ -83,6 +86,7 @@ public class Raft {
         this.stateMachine = stateMachine;
         this.maxReplicateItems = config.getMaxReplicateItems();
         this.maxReplicateBytes = config.getMaxReplicateBytes();
+        this.restItemsToStartReplicate = (int) (maxReplicateItems * 0.1);
     }
 
     private RaftNode getSelf() {
@@ -125,17 +129,17 @@ public class Raft {
         }
     }
 
-    public void raftExec(RaftTask... inputs) {
+    public void raftExec(List<RaftTask> inputs) {
         RaftStatus raftStatus = this.raftStatus;
         long oldIndex = raftStatus.getLastLogIndex();
-        int len = inputs.length;
+        int len = inputs.size();
 
         int oldTerm = raftStatus.getLastLogTerm();
         int currentTerm = raftStatus.getCurrentTerm();
         // TODO async append, error handle
-        ByteBuffer[] logs = new ByteBuffer[len];
-        for (int i = 0; i < len; i++) {
-            logs[i] = inputs[i].data;
+        ArrayList<ByteBuffer> logs = new ArrayList<>(len);
+        for (RaftTask input : inputs) {
+            logs.add(input.data);
         }
         long newIndex = oldIndex + len;
         raftLog.append(newIndex, oldTerm, currentTerm, logs);
@@ -143,7 +147,7 @@ public class Raft {
         getSelf().setMatchIndex(newIndex);
 
         for (int i = 1; i <= len; i++) {
-            RaftTask rt = inputs[i];
+            RaftTask rt = inputs.get(i);
             raftStatus.getPendingRequests().put(oldIndex + i, rt);
             rt.data = null;
         }
@@ -152,6 +156,7 @@ public class Raft {
         processOtherRaftNodes(raftStatus, this::replicate);
     }
 
+    @SuppressWarnings("StatementWithEmptyBody")
     private void replicate(RaftNode node) {
         if (raftStatus.getRole() != RaftRole.leader) {
             return;
@@ -178,26 +183,39 @@ public class Raft {
             return;
         }
 
-        long matchIndex = node.getMatchIndex();
         // flow control
-        if (nextIndex - matchIndex > maxReplicateItems) {
+        int rest = maxReplicateItems - node.getPendingRequests();
+        if (rest <= restItemsToStartReplicate) {
+            // avoid silly window syndrome
             return;
         }
-        // TODO flow control by bytes
+        if (node.getPendingBytes() >= maxReplicateBytes) {
+            return;
+        }
 
-        for (long index = nextIndex; index <= lastLogIndex && index - matchIndex <= maxReplicateItems; index++) {
-            LogItem item = raftLog.load(index);
-            // TODO batch
-            node.incrAndGetPendingRequests();
-            sendAppendRequest(node, index - 1, item.getPrevLogTerm(), item.getBuffer());
-            if (tryMatch) {
-                break;
+        LogItem[] items = raftLog.load(nextIndex, tryMatch ? 1 : rest);
+
+        //TODO split
+        ArrayList<ByteBuffer> logs = new ArrayList<>();
+        int count = 0;
+        long bytes = 0;
+        for (LogItem item : items) {
+            count++;
+            if (item.getBuffer() == null) {
+                // TODO proto buffer can't mark heartbeat log (empty)
+                bytes += 1;
+                logs.add(ByteBuffer.allocate(1));
+            } else {
+                bytes += item.getBuffer().remaining();
+                logs.add(item.getBuffer());
             }
         }
+        node.incrAndGetPendingRequests(count, bytes);
+        sendAppendRequest(node, items[0].getIndex() - 1, items[0].getPrevLogTerm(), logs, bytes);
     }
 
     public void sendHeartBeat() {
-        raftExec(null, null);
+        raftExec(Collections.singletonList(new RaftTask()));
     }
 
     public void sendVoteRequest(RaftNode node) {
@@ -276,7 +294,7 @@ public class Raft {
         sendHeartBeat();
     }
 
-    public void sendAppendRequest(RaftNode node, long prevLogIndex, int prevLogTerm, ByteBuffer log) {
+    public void sendAppendRequest(RaftNode node, long prevLogIndex, int prevLogTerm, List<ByteBuffer> logs, long bytes) {
         AppendReqWriteFrame req = new AppendReqWriteFrame();
         req.setCommand(Commands.RAFT_APPEND_ENTRIES);
         req.setTerm(raftStatus.getCurrentTerm());
@@ -284,18 +302,18 @@ public class Raft {
         req.setLeaderCommit(raftStatus.getCommitIndex());
         req.setPrevLogIndex(prevLogIndex);
         req.setPrevLogTerm(prevLogTerm);
-        req.setLog(log);
+        req.setLogs(logs);
 
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
         CompletableFuture<ReadFrame> f = client.sendRequest(node.getPeer(), req, AppendRespDecoder.INSTANCE, timeout);
-        registerAppendResultCallback(node, prevLogIndex, prevLogTerm, f, raftStatus.getCurrentTerm());
+        registerAppendResultCallback(node, prevLogIndex, prevLogTerm, f, raftStatus.getCurrentTerm(), logs.size(), bytes);
     }
 
     private void registerAppendResultCallback(RaftNode node, long prevLogIndex, int prevLogTerm,
-                                              CompletableFuture<ReadFrame> f, int reqTerm) {
+                                              CompletableFuture<ReadFrame> f, int reqTerm, int count, long bytes) {
         f.handleAsync((rf, ex) -> {
             if (ex == null) {
-                processAppendResult(node, rf, prevLogIndex, prevLogTerm, reqTerm);
+                processAppendResult(node, rf, prevLogIndex, prevLogTerm, reqTerm, count, bytes);
             } else {
                 String msg = "append fail. remoteId={}, localTerm={}, reqTerm={}, prevLogIndex={}";
                 if (node.incrEpoch()) {
@@ -309,8 +327,9 @@ public class Raft {
     }
 
     // in raft thread
-    private void processAppendResult(RaftNode node, ReadFrame rf, long prevLogIndex, int prevLogTerm, int reqTerm) {
-        long expectNewMatchIndex = prevLogIndex + 1;
+    private void processAppendResult(RaftNode node, ReadFrame rf, long prevLogIndex,
+                                     int prevLogTerm, int reqTerm, int count, long bytes) {
+        long expectNewMatchIndex = prevLogIndex + count;
         AppendRespCallback body = (AppendRespCallback) rf.getBody();
         RaftStatus raftStatus = this.raftStatus;
         int remoteTerm = body.getTerm();
@@ -331,7 +350,7 @@ public class Raft {
                     reqTerm, raftStatus.getCurrentTerm());
             return;
         }
-        node.decrAndGetPendingRequests();
+        node.decrAndGetPendingRequests(count, bytes);
         if (body.isSuccess()) {
             if (node.getMatchIndex() <= prevLogIndex) {
                 node.setMatchIndex(expectNewMatchIndex);

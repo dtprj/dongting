@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.net.ZeroCopyWriteFrame;
 import com.github.dtprj.dongting.pb.PbUtil;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 
 /**
  * @author huangli
@@ -35,18 +36,22 @@ public class AppendReqWriteFrame extends ZeroCopyWriteFrame {
     private int leaderId;
     private long prevLogIndex;
     private int prevLogTerm;
-    // TODO batch
-    private ByteBuffer log;
+    private List<ByteBuffer> logs;
     private long leaderCommit;
 
     @Override
     protected int accurateBodySize() {
-        return PbUtil.accurateUnsignedIntSize(1, term)
+        int x = PbUtil.accurateUnsignedIntSize(1, term)
                 + PbUtil.accurateUnsignedIntSize(2, leaderId)
                 + PbUtil.accurateFix64Size(3, prevLogIndex)
                 + PbUtil.accurateUnsignedIntSize(4, prevLogTerm)
-                + (log == null ? 0 : PbUtil.accurateLengthDelimitedSize(5, log.remaining()))
                 + PbUtil.accurateFix64Size(6, leaderCommit);
+        if (logs != null) {
+            for (ByteBuffer log : logs) {
+                x += log == null ? 0 : PbUtil.accurateLengthDelimitedSize(5, log.remaining());
+            }
+        }
+        return x;
     }
 
     @Override
@@ -55,9 +60,14 @@ public class AppendReqWriteFrame extends ZeroCopyWriteFrame {
         PbUtil.writeUnsignedInt32(buf, 2, leaderId);
         PbUtil.writeFix64(buf, 3, prevLogIndex);
         PbUtil.writeUnsignedInt32(buf, 4, prevLogTerm);
-        PbUtil.writeLengthDelimitedPrefix(buf, 5, log.remaining());
-        buf.put(log);
-        log = null;
+        if (logs != null) {
+            for (ByteBuffer log : logs) {
+                if (log != null) {
+                    PbUtil.writeLengthDelimitedPrefix(buf, 5, log.remaining());
+                }
+            }
+            logs = null;
+        }
         PbUtil.writeFix64(buf, 6, leaderCommit);
     }
 
@@ -81,7 +91,7 @@ public class AppendReqWriteFrame extends ZeroCopyWriteFrame {
         this.leaderCommit = leaderCommit;
     }
 
-    public void setLog(ByteBuffer log) {
-        this.log = log;
+    public void setLogs(List<ByteBuffer> logs) {
+        this.logs = logs;
     }
 }

@@ -34,6 +34,7 @@ import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.StateMachine;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -44,6 +45,8 @@ public class AppendProcessor extends ReqProcessor {
 
     public static final int CODE_LOG_NOT_MATCH = 1;
     public static final int CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT = 2;
+    public static final int CODE_CLIENT_REQ_ERROR = 3;
+    public static final int CODE_SERVER_SYS_ERROR = 4;
 
 
     private final RaftStatus raftStatus;
@@ -115,10 +118,24 @@ public class AppendProcessor extends ReqProcessor {
             resp.setAppendCode(CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT);
             return;
         }
+        List<ByteBuffer> logs = req.getLogs();
+        if (logs == null) {
+            log.error("bad request: no logs");
+            resp.setSuccess(false);
+            resp.setAppendCode(CODE_CLIENT_REQ_ERROR);
+            return;
+        }
 
-        long newIndex = req.getPrevLogIndex() + 1;
+        // TODO proto buffer can't mark heartbeat log (empty)
+        for (int i = 0; i < logs.size(); i++) {
+            ByteBuffer buf = logs.get(i);
+            if (buf.capacity() == 1 && buf.get() == 0) {
+                logs.set(i, null);
+            }
+        }
         // TODO error handle
-        raftLog.append(newIndex, req.getPrevLogTerm(), req.getTerm(), req.getLog());
+        long newIndex = req.getPrevLogIndex() + logs.size();
+        raftLog.append(newIndex, req.getPrevLogTerm(), req.getTerm(), logs);
         raftStatus.setLastLogIndex(newIndex);
         raftStatus.setLastLogTerm(req.getTerm());
         if (req.getLeaderCommit() >= raftStatus.getCommitIndex()) {
