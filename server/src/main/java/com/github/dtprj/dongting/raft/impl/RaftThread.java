@@ -123,18 +123,9 @@ public class RaftThread extends Thread {
             case leader:
                 if (roundTimeNanos - raftStatus.getHeartbeatTime() > heartbeatIntervalNanos) {
                     raftStatus.setHeartbeatTime(roundTimeNanos);
-                    sendHeartBeat();
+                    raft.sendHeartBeat();
                 }
                 break;
-        }
-    }
-
-    private void sendHeartBeat() {
-        for (RaftNode node : raftStatus.getServers()) {
-            if (node.isSelf()) {
-                continue;
-            }
-            raft.sendAppendRequest(node, raftStatus.getLastLogIndex(), raftStatus.getLastLogTerm(), null);
         }
     }
 

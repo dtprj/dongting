@@ -126,8 +126,10 @@ public class AppendProcessor extends ReqProcessor {
             if (raftStatus.getLastApplied() < raftStatus.getCommitIndex()) {
                 for (long i = raftStatus.getLastApplied() + 1; i <= raftStatus.getCommitIndex(); i++) {
                     LogItem item = raftLog.load(i);
-                    Object decodedObj = logDecoder.apply(item.getBuffer());
-                    stateMachine.apply(decodedObj);
+                    if (item.getBuffer() != null) {
+                        Object decodedObj = logDecoder.apply(item.getBuffer());
+                        stateMachine.apply(decodedObj);
+                    }
                 }
             }
             raftStatus.setLastApplied(raftStatus.getCommitIndex());

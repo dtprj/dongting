@@ -189,6 +189,10 @@ public class Raft {
         }
     }
 
+    public void sendHeartBeat() {
+        raftExec(null, null);
+    }
+
     public void sendVoteRequest(RaftNode node) {
         VoteReq req = new VoteReq();
         req.setCandidateId(config.getId());
@@ -261,6 +265,8 @@ public class Raft {
             n.incrEpoch();
         });
         log.info("change to leader. term={}", raftStatus.getCurrentTerm());
+
+        sendHeartBeat();
     }
 
     public void sendAppendRequest(RaftNode node, long prevLogIndex, int prevLogTerm, ByteBuffer log) {
@@ -338,16 +344,19 @@ public class Raft {
                     body.getMaxLogIndex(), raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
             if (body.getTerm() == raftStatus.getCurrentTerm() && reqTerm == raftStatus.getCurrentTerm()) {
                 node.setNextIndex(body.getMaxLogIndex() + 1);
+                replicate(node);
             } else {
                 long idx = raftLog.findLastLogItemIndexByTerm(body.getMaxLogTerm());
                 if (idx > 0) {
                     node.setNextIndex(Math.min(body.getMaxLogIndex(), idx) + 1);
+                    replicate(node);
                 } else {
                     int t = raftLog.findLastTermLessThan(body.getMaxLogTerm());
                     if (t > 0) {
                         idx = raftLog.findLastLogItemIndexByTerm(t);
                         if (idx > 0) {
                             node.setNextIndex(Math.min(body.getMaxLogIndex(), idx) + 1);
+                            replicate(node);
                         } else {
                             BugLog.getLog().error("can't find log to replicate. term={}", t);
                         }
@@ -356,7 +365,6 @@ public class Raft {
                     }
                 }
             }
-            replicate(node);
         } else {
             BugLog.getLog().error("append fail. appendCode={}, old matchIndex={}, append prevLogIndex={}, expectNewMatchIndex={}, remoteId={}, localTerm={}, reqTerm={}, remoteTerm={}",
                     body.getAppendCode(), node.getMatchIndex(), prevLogIndex, expectNewMatchIndex, node.getId(), raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
@@ -387,16 +395,20 @@ public class Raft {
         for (long i = raftStatus.getLastApplied(); i <= recentMatchIndex; i++) {
             // TODO error handle
             RaftTask rt = raftStatus.getPendingRequests().remove(commitIndex);
-            Object input;
+            Object input = null;
             if (rt != null) {
                 input = rt.decodedInput;
             } else {
                 LogItem item = raftLog.load(commitIndex);
-                input = logDecoder.apply(item.getBuffer());
+                if (item.getBuffer() != null) {
+                    input = logDecoder.apply(item.getBuffer());
+                }
             }
-            Object result = stateMachine.apply(input);
-            if (rt != null) {
-                rt.future.complete(result);
+            if (input != null) {
+                Object result = stateMachine.apply(input);
+                if (rt != null) {
+                    rt.future.complete(result);
+                }
             }
         }
 
