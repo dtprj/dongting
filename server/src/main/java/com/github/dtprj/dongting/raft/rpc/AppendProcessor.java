@@ -138,7 +138,7 @@ public class AppendProcessor extends ReqProcessor {
         raftLog.append(newIndex, req.getPrevLogTerm(), req.getTerm(), logs);
         raftStatus.setLastLogIndex(newIndex);
         raftStatus.setLastLogTerm(req.getTerm());
-        if (req.getLeaderCommit() >= raftStatus.getCommitIndex()) {
+        if (req.getLeaderCommit() > raftStatus.getCommitIndex()) {
             raftStatus.setCommitIndex(Math.min(newIndex, req.getLeaderCommit()));
             if (raftStatus.getLastApplied() < raftStatus.getCommitIndex()) {
                 for (long i = raftStatus.getLastApplied() + 1; i <= raftStatus.getCommitIndex(); i++) {
@@ -150,7 +150,7 @@ public class AppendProcessor extends ReqProcessor {
                 }
             }
             raftStatus.setLastApplied(raftStatus.getCommitIndex());
-        } else {
+        } else if (req.getLeaderCommit() < raftStatus.getCommitIndex()) {
             log.warn("leader commitIndex less than local. leaderId={}, leaderTerm={}, leaderCommitIndex={}, localCommitIndex={}",
                     req.getLeaderId(), req.getTerm(), req.getLeaderCommit(), raftStatus.getCommitIndex());
         }
