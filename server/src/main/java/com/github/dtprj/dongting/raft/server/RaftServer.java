@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.NioClientConfig;
+import com.github.dtprj.dongting.net.NioConfig;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
 import com.github.dtprj.dongting.raft.client.RaftException;
@@ -67,6 +68,7 @@ public class RaftServer extends AbstractLifeCircle {
 
         NioClientConfig nioClientConfig = new NioClientConfig();
         nioClientConfig.setName("RaftClient");
+        setupNioConfig(nioClientConfig, config);
         raftClient = new NioClient(nioClientConfig);
 
         LinkedBlockingQueue<Runnable> queue = new LinkedBlockingQueue<>();
@@ -78,6 +80,7 @@ public class RaftServer extends AbstractLifeCircle {
         nioServerConfig.setName("RaftServer");
         nioServerConfig.setBizThreads(0);
         nioServerConfig.setIoThreads(1);
+        setupNioConfig(nioServerConfig, config);
         raftServer = new NioServer(nioServerConfig);
         raftServer.register(Commands.RAFT_PING, this.groupConManager.getProcessor(), raftExecutor);
         AppendProcessor ap = new AppendProcessor(raftStatus, raftLog, stateMachine, logDecoder);
@@ -86,6 +89,13 @@ public class RaftServer extends AbstractLifeCircle {
 
         Raft raft = new Raft(config, raftExecutor, raftLog, raftStatus, raftClient, logDecoder, stateMachine);
         raftThread = new RaftThread(config, raftExecutor, raftStatus, raft, groupConManager);
+    }
+
+    private void setupNioConfig(NioConfig nc, RaftServerConfig config) {
+        // in Raft.doReplicate() only calculate body bytes of entries
+        // but each tag of entries use 1 byte in protobuf
+        nc.setMaxBodySize(config.getMaxBodySize() + 64 * 1024 + config.getMaxReplicateItems());
+        nc.setMaxFrameSize(nc.getMaxBodySize() + 128 * 1024);
     }
 
     @Override

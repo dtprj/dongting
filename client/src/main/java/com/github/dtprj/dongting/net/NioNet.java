@@ -48,7 +48,7 @@ public abstract class NioNet extends AbstractLifeCircle {
         this.config = config;
         this.semaphore = new Semaphore(config.getMaxOutRequests());
         nioStatus.setRequestSemaphore(semaphore);
-        if (config.getMaxFrameSize() < config.getMaxBodySize() + 64 * 1024) {
+        if (config.getMaxFrameSize() < config.getMaxBodySize() + 128 * 1024) {
             throw new IllegalArgumentException("maxFrameSize should greater than maxBodySize plus 64KB.");
         }
     }

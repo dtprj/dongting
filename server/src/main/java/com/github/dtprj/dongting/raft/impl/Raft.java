@@ -193,25 +193,45 @@ public class Raft {
             return;
         }
 
+        // TODO error handle
         LogItem[] items = raftLog.load(nextIndex, tryMatch ? 1 : rest);
 
-        //TODO split
         ArrayList<ByteBuffer> logs = new ArrayList<>();
         int count = 0;
         long bytes = 0;
-        for (LogItem item : items) {
-            count++;
-            if (item.getBuffer() == null) {
-                // TODO proto buffer can't mark heartbeat log (empty)
-                bytes += 1;
-                logs.add(ByteBuffer.allocate(1));
-            } else {
-                bytes += item.getBuffer().remaining();
-                logs.add(item.getBuffer());
+        LogItem firstItem = null;
+        for (int i = 0; i < items.length;) {
+            LogItem item = items[i];
+            if (firstItem == null) {
+                firstItem = item;
             }
+            // TODO proto buffer can't mark heartbeat log (empty)
+            ByteBuffer buf = item.getBuffer() == null ? ByteBuffer.allocate(1) : item.getBuffer();
+            if (bytes + buf.remaining() > config.getMaxBodySize()) {
+                if (logs.size() > 0) {
+                    sendAppendRequest(node, firstItem.getIndex() - 1, firstItem.getPrevLogTerm(), logs, bytes);
+                    node.incrAndGetPendingRequests(count, bytes);
+
+                    count = 0;
+                    bytes = 0;
+                    firstItem = null;
+                    logs = new ArrayList<>();
+                    continue;
+                } else {
+                    log.error("body too large: {}", buf.remaining());
+                    return;
+                }
+            }
+            count++;
+            bytes += buf.remaining();
+            logs.add(item.getBuffer());
+            i++;
         }
-        node.incrAndGetPendingRequests(count, bytes);
-        sendAppendRequest(node, items[0].getIndex() - 1, items[0].getPrevLogTerm(), logs, bytes);
+
+        if (logs.size() > 0) {
+            sendAppendRequest(node, firstItem.getIndex() - 1, firstItem.getPrevLogTerm(), logs, bytes);
+            node.incrAndGetPendingRequests(count, bytes);
+        }
     }
 
     public void sendHeartBeat() {
