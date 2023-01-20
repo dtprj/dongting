@@ -110,22 +110,16 @@ public class RaftThread extends Thread {
         if (roundTimeNanos - raftStatus.getHeartbeatTime() > heartbeatIntervalNanos) {
             raftStatus.setHeartbeatTime(roundTimeNanos);
             groupConManager.pingAllAndUpdateServers();
+            if (raftStatus.getRole() == RaftRole.leader) {
+                raft.sendHeartBeat();
+            }
         }
-        switch (raftStatus.getRole()) {
-            case follower:
-            case candidate:
-                if (roundTimeNanos - raftStatus.getLastLeaderActiveTime() > leaderTimeoutNanos) {
-                    if (roundTimeNanos - raftStatus.getLastElectTime() > electTimeoutNanos) {
-                        startElect();
-                    }
+        if (raftStatus.getRole() == RaftRole.follower || raftStatus.getRole() == RaftRole.candidate) {
+            if (roundTimeNanos - raftStatus.getLastLeaderActiveTime() > leaderTimeoutNanos) {
+                if (roundTimeNanos - raftStatus.getLastElectTime() > electTimeoutNanos) {
+                    startElect();
                 }
-                break;
-            case leader:
-                if (roundTimeNanos - raftStatus.getHeartbeatTime() > heartbeatIntervalNanos) {
-                    raftStatus.setHeartbeatTime(roundTimeNanos);
-                    raft.sendHeartBeat();
-                }
-                break;
+            }
         }
     }
 

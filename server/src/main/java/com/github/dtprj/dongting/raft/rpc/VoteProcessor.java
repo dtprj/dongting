@@ -63,10 +63,12 @@ public class VoteProcessor extends ReqProcessor {
                 // TODO persist
                 if (voteReq.getLastLogTerm() > raftStatus.getLastLogTerm()) {
                     raftStatus.setVoteFor(voteReq.getCandidateId());
+                    raftStatus.setLastElectTime(System.nanoTime());
                     resp.setVoteGranted(true);
                 } else if (voteReq.getLastLogTerm() == raftStatus.getLastLogTerm()
                         && voteReq.getLastLogIndex() >= raftStatus.getLastLogIndex()) {
                     raftStatus.setVoteFor(voteReq.getCandidateId());
+                    raftStatus.setLastElectTime(System.nanoTime());
                     resp.setVoteGranted(true);
                 } else {
                     resp.setVoteGranted(false);
