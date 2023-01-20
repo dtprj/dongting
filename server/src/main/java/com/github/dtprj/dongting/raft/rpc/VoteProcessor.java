@@ -51,27 +51,32 @@ public class VoteProcessor extends ReqProcessor {
     public WriteFrame process(ReadFrame rf, ProcessContext context) {
         VoteReq voteReq = (VoteReq) rf.getBody();
         VoteResp resp = new VoteResp();
-        int oldTerm = raftStatus.getCurrentTerm();
-        if (voteReq.getTerm() > raftStatus.getCurrentTerm()) {
+        int localTerm = raftStatus.getCurrentTerm();
+        if (voteReq.getTerm() > localTerm) {
             Raft.updateTermAndConvertToFollower(voteReq.getTerm(), raftStatus);
-            // TODO persist
-            if (voteReq.getLastLogTerm() > raftStatus.getLastLogTerm()) {
-                raftStatus.setVoteFor(voteReq.getCandidateId());
-                resp.setVoteGranted(true);
-            } else if (voteReq.getLastLogTerm() == raftStatus.getLastLogTerm()
-                    && voteReq.getLastLogIndex() >= raftStatus.getLastLogIndex()) {
-                raftStatus.setVoteFor(voteReq.getCandidateId());
-                resp.setVoteGranted(true);
+        }
+
+        if (voteReq.getTerm() < localTerm) {
+            resp.setVoteGranted(false);
+        } else {
+            if (raftStatus.getVoteFor() == 0 || raftStatus.getVoteFor() == voteReq.getCandidateId()) {
+                // TODO persist
+                if (voteReq.getLastLogTerm() > raftStatus.getLastLogTerm()) {
+                    raftStatus.setVoteFor(voteReq.getCandidateId());
+                    resp.setVoteGranted(true);
+                } else if (voteReq.getLastLogTerm() == raftStatus.getLastLogTerm()
+                        && voteReq.getLastLogIndex() >= raftStatus.getLastLogIndex()) {
+                    raftStatus.setVoteFor(voteReq.getCandidateId());
+                    resp.setVoteGranted(true);
+                } else {
+                    resp.setVoteGranted(false);
+                }
             } else {
                 resp.setVoteGranted(false);
             }
-        } else if (voteReq.getTerm() == raftStatus.getCurrentTerm()) {
-            resp.setVoteGranted(raftStatus.getVoteFor() == voteReq.getCandidateId());
-        } else {
-            resp.setVoteGranted(false);
         }
         log.info("receive vote request. granted={}. remoteTerm={}, localTerm={}",
-                resp.isVoteGranted(), voteReq.getTerm(), oldTerm);
+                resp.isVoteGranted(), voteReq.getTerm(), localTerm);
         resp.setTerm(raftStatus.getCurrentTerm());
         VoteResp.WriteFrame wf = new VoteResp.WriteFrame(resp);
         wf.setRespCode(CmdCodes.SUCCESS);
