@@ -25,16 +25,16 @@ import java.nio.ByteBuffer;
  */
 public abstract class ZeroCopyWriteFrame extends WriteFrame {
 
-    protected abstract int accurateBodySize();
+    protected abstract int calcAccurateBodySize();
 
     @Override
-    protected final int estimateBodySize() {
-        return accurateBodySize();
+    protected final int calcEstimateBodySize() {
+        return calcAccurateBodySize();
     }
 
     @Override
     protected final void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
-        int s = accurateBodySize();
+        int s = estimateBodySize();
         if (s > 0) {
             PbUtil.writeLengthDelimitedPrefix(buf, Frame.IDX_BODY, s);
             encodeBody(buf);

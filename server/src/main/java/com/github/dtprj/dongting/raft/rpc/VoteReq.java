@@ -78,7 +78,7 @@ public class VoteReq {
         }
 
         @Override
-        protected int accurateBodySize() {
+        protected int calcAccurateBodySize() {
             return PbUtil.accurateUnsignedLongSize(1, data.term)
                     + PbUtil.accurateUnsignedIntSize(2, data.candidateId)
                     + PbUtil.accurateFix64Size(3, data.lastLogIndex)

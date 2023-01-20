@@ -22,21 +22,15 @@ import java.nio.ByteBuffer;
  */
 public class ByteBufferWriteFrame extends ZeroCopyWriteFrame {
     private ByteBuffer body;
-    private int bodySize = -1;
 
     public ByteBufferWriteFrame(ByteBuffer body) {
         this.body = body;
     }
 
     @Override
-    protected int accurateBodySize() {
-        int bodySize = this.bodySize;
-        if (bodySize == -1) {
-            ByteBuffer body = this.body;
-            bodySize = body == null ? 0 : body.remaining();
-            this.bodySize = bodySize;
-        }
-        return bodySize;
+    protected int calcAccurateBodySize() {
+        ByteBuffer body = this.body;
+        return body == null ? 0 : body.remaining();
     }
 
     @Override

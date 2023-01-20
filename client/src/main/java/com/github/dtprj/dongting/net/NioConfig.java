@@ -33,7 +33,8 @@ public abstract class NioConfig {
     private long cleanIntervalMills = 100;
     private long closeTimeoutMillis = 1000;
 
-    private int maxFrameSize = 8 * 1024 * 1024;
+    private int maxFrameSize = 5 * 1024 * 1024;
+    private int maxBodySize = 4 * 1024 * 1024;
 
     private int[] bufPoolSize = SimpleByteBufferPool.DEFAULT_BUF_SIZE;
     private int[] bufPoolMinCount = SimpleByteBufferPool.DEFAULT_MIN_COUNT;
@@ -145,6 +146,14 @@ public abstract class NioConfig {
 
     public void setMaxFrameSize(int maxFrameSize) {
         this.maxFrameSize = maxFrameSize;
+    }
+
+    public int getMaxBodySize() {
+        return maxBodySize;
+    }
+
+    public void setMaxBodySize(int maxBodySize) {
+        this.maxBodySize = maxBodySize;
     }
 
     public int getReadBufferSize() {

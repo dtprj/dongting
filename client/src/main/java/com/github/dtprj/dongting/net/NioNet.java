@@ -48,6 +48,9 @@ public abstract class NioNet extends AbstractLifeCircle {
         this.config = config;
         this.semaphore = new Semaphore(config.getMaxOutRequests());
         nioStatus.setRequestSemaphore(semaphore);
+        if (config.getMaxFrameSize() < config.getMaxBodySize() + 64 * 1024) {
+            throw new IllegalArgumentException("maxFrameSize should greater than maxBodySize plus 64KB.");
+        }
     }
 
     /**
@@ -85,6 +88,12 @@ public abstract class NioNet extends AbstractLifeCircle {
         boolean acquire = false;
         request.setFrameType(FrameType.TYPE_REQ);
         ObjUtil.checkPositive(request.getCommand(), "request.command");
+        if (request.estimateBodySize() > config.getMaxBodySize()) {
+            throw new IllegalArgumentException("request body too large: " + request.estimateBodySize());
+        }
+        if (request.estimateSize() > config.getMaxFrameSize()) {
+            throw new IllegalArgumentException("request frame too large: " + request.estimateSize());
+        }
         try {
             if (status != LifeStatus.running) {
                 return errorFuture(new IllegalStateException("error state: " + status));

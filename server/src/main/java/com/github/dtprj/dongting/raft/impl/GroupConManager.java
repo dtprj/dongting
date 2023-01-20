@@ -331,7 +331,7 @@ public class GroupConManager {
         }
 
         @Override
-        protected int accurateBodySize() {
+        protected int calcAccurateBodySize() {
             return PbUtil.accurateFix32Size(1, config.getId())
                     + PbUtil.accurateFix64Size(2, uuid.getMostSignificantBits())
                     + PbUtil.accurateFix64Size(3, uuid.getLeastSignificantBits())

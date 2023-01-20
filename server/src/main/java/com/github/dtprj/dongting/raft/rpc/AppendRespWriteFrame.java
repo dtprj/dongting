@@ -33,7 +33,7 @@ public class AppendRespWriteFrame extends ZeroCopyWriteFrame {
     private long maxLogIndex;
 
     @Override
-    protected int accurateBodySize() {
+    protected int calcAccurateBodySize() {
         return PbUtil.accurateUnsignedIntSize(1, term)
                 + PbUtil.accurateUnsignedIntSize(2, success ? 1 : 0)
                 + PbUtil.accurateUnsignedIntSize(3, appendCode)

@@ -40,7 +40,7 @@ public class AppendReqWriteFrame extends ZeroCopyWriteFrame {
     private long leaderCommit;
 
     @Override
-    protected int accurateBodySize() {
+    protected int calcAccurateBodySize() {
         int x = PbUtil.accurateUnsignedIntSize(1, term)
                 + PbUtil.accurateUnsignedIntSize(2, leaderId)
                 + PbUtil.accurateFix64Size(3, prevLogIndex)

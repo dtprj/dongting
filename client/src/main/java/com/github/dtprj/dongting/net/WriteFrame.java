@@ -26,10 +26,18 @@ import java.nio.ByteBuffer;
 public abstract class WriteFrame extends Frame {
 
     private int dumpSize;
+    private int bodySize;
 
-    protected abstract int estimateBodySize();
+    protected abstract int calcEstimateBodySize();
 
     protected abstract void encodeBody(ByteBuffer buf, ByteBufferPool pool);
+
+    public int estimateBodySize() {
+        if (bodySize == 0) {
+            bodySize = calcEstimateBodySize();
+        }
+        return bodySize;
+    }
 
     public int estimateSize() {
         int dumpSize = this.dumpSize;
@@ -42,7 +50,7 @@ public abstract class WriteFrame extends Frame {
                     + PbUtil.maxStrSizeUTF8(msg); // string resp_msg = 5;
             int bodySize = estimateBodySize();
             if (bodySize > 0) {
-                dumpSize += 1 + 5 + estimateBodySize(); // bytes body = 15;
+                dumpSize += 1 + 5 + bodySize; // bytes body = 15;
             }
             this.dumpSize = dumpSize;
         }

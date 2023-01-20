@@ -61,7 +61,7 @@ public class VoteResp {
         }
 
         @Override
-        protected int accurateBodySize() {
+        protected int calcAccurateBodySize() {
             return PbUtil.accurateUnsignedIntSize(1, data.term)
                     + PbUtil.accurateUnsignedIntSize(2, data.voteGranted ? 1 : 0);
         }
