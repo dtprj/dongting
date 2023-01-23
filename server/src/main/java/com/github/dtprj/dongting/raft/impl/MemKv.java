@@ -20,9 +20,15 @@ import com.github.dtprj.dongting.raft.server.StateMachine;
 /**
  * @author huangli
  */
-public class MemKv extends StateMachine {
+public class MemKv implements StateMachine {
+
     @Override
-    public Object apply(Object log) {
+    public Object write(Object input) {
+        return null;
+    }
+
+    @Override
+    public Object read(Object input) {
         return null;
     }
 }

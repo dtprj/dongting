@@ -145,7 +145,7 @@ public class AppendProcessor extends ReqProcessor {
                     LogItem item = raftLog.load(i);
                     if (item.getBuffer() != null) {
                         Object decodedObj = logDecoder.apply(item.getBuffer());
-                        stateMachine.apply(decodedObj);
+                        stateMachine.write(decodedObj);
                     }
                 }
             }

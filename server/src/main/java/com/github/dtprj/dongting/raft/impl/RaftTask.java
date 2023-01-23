@@ -13,12 +13,16 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.server;
+package com.github.dtprj.dongting.raft.impl;
+
+import java.nio.ByteBuffer;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * @author huangli
  */
-public interface StateMachine {
-    Object write(Object input);
-    Object read(Object input);
+class RaftTask {
+    CompletableFuture<Object> future;
+    Object decodedInput;
+    ByteBuffer data;
 }

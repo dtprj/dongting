@@ -52,7 +52,7 @@ public class RaftStatus {
 
     private List<RaftNode> servers = new ArrayList<>();
 
-    private LongObjMap<Raft.RaftTask> pendingRequests = new LongObjMap<>();
+    private LongObjMap<RaftTask> pendingRequests = new LongObjMap<>();
 
     private boolean committedInCurrentTerm;
 
@@ -165,11 +165,11 @@ public class RaftStatus {
         this.servers = servers;
     }
 
-    public LongObjMap<Raft.RaftTask> getPendingRequests() {
+    public LongObjMap<RaftTask> getPendingRequests() {
         return pendingRequests;
     }
 
-    public void setPendingRequests(LongObjMap<Raft.RaftTask> pendingRequests) {
+    public void setPendingRequests(LongObjMap<RaftTask> pendingRequests) {
         this.pendingRequests = pendingRequests;
     }
 

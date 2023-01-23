@@ -69,12 +69,6 @@ public class Raft {
 
     private RaftNode self;
 
-    static class RaftTask {
-        CompletableFuture<Object> future;
-        Object decodedInput;
-        ByteBuffer data;
-    }
-
     public Raft(RaftServerConfig config, RaftExecutor raftExecutor, RaftLog raftLog,
                 RaftStatus raftStatus, NioClient client, Function<ByteBuffer, Object> logDecoder, StateMachine stateMachine) {
         this.config = config;
@@ -451,7 +445,7 @@ public class Raft {
                 }
             }
             if (input != null) {
-                Object result = stateMachine.apply(input);
+                Object result = stateMachine.write(input);
                 if (rt != null) {
                     rt.future.complete(result);
                 }
