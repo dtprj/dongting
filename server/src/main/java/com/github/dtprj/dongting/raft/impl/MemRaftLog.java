@@ -47,6 +47,11 @@ public class MemRaftLog extends RaftLog {
     }
 
     @Override
+    public int getTermOf(long index) {
+        return 0;
+    }
+
+    @Override
     public long findMaxIndexByTerm(int term) {
         return 0;
     }

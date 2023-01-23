@@ -429,8 +429,8 @@ public class Raft {
         }
         // leader can only commit log in current term, see raft paper 5.4.2
         if (!raftStatus.isCommittedInCurrentTerm()) {
-            LogItem item = raftLog.load(recentMatchIndex);
-            if (item.getTerm() != raftStatus.getCurrentTerm()) {
+            int t = raftLog.getTermOf(recentMatchIndex);
+            if (t != raftStatus.getCurrentTerm()) {
                 return;
             } else {
                 raftStatus.setCommittedInCurrentTerm(true);

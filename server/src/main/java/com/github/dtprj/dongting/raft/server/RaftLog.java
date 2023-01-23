@@ -34,6 +34,11 @@ public abstract class RaftLog {
     public abstract LogItem[] load(long index, int limit, long bytesLimit);
 
     /**
+     * if there is no such index, return -1.
+     */
+    public abstract int getTermOf(long index);
+
+    /**
      * if there is no such term, return -1.
      */
     public abstract long findMaxIndexByTerm(int term);
