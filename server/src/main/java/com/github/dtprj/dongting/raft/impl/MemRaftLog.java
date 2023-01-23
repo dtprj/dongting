@@ -42,12 +42,12 @@ public class MemRaftLog extends RaftLog {
     }
 
     @Override
-    public LogItem[] load(long index, int limit) {
+    public LogItem[] load(long index, int limit, long bytesLimit) {
         return new LogItem[0];
     }
 
     @Override
-    public long findLastLogItemIndexByTerm(int term) {
+    public long findMaxIndexByTerm(int term) {
         return 0;
     }
 

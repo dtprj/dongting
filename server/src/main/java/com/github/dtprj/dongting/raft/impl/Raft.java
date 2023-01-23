@@ -194,7 +194,7 @@ public class Raft {
         }
 
         // TODO error handle
-        LogItem[] items = raftLog.load(nextIndex, tryMatch ? 1 : rest);
+        LogItem[] items = raftLog.load(nextIndex, tryMatch ? 1 : rest, maxReplicateBytes);
 
         ArrayList<ByteBuffer> logs = new ArrayList<>();
         int count = 0;
@@ -392,14 +392,14 @@ public class Raft {
                 node.setNextIndex(body.getMaxLogIndex() + 1);
                 replicate(node);
             } else {
-                long idx = raftLog.findLastLogItemIndexByTerm(body.getMaxLogTerm());
+                long idx = raftLog.findMaxIndexByTerm(body.getMaxLogTerm());
                 if (idx > 0) {
                     node.setNextIndex(Math.min(body.getMaxLogIndex(), idx) + 1);
                     replicate(node);
                 } else {
                     int t = raftLog.findLastTermLessThan(body.getMaxLogTerm());
                     if (t > 0) {
-                        idx = raftLog.findLastLogItemIndexByTerm(t);
+                        idx = raftLog.findMaxIndexByTerm(t);
                         if (idx > 0) {
                             node.setNextIndex(Math.min(body.getMaxLogIndex(), idx) + 1);
                             replicate(node);

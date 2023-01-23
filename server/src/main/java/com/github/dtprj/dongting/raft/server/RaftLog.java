@@ -31,12 +31,12 @@ public abstract class RaftLog {
 
     public abstract LogItem load(long index);
 
-    public abstract LogItem[] load(long index, int limit);
+    public abstract LogItem[] load(long index, int limit, long bytesLimit);
 
     /**
      * if there is no such term, return -1.
      */
-    public abstract long findLastLogItemIndexByTerm(int term);
+    public abstract long findMaxIndexByTerm(int term);
 
     /**
      * if there is no such term, return -1.
