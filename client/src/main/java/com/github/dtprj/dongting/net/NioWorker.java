@@ -99,10 +99,10 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.channels = new IntObjMap<>();
         if (config instanceof NioServerConfig) {
             this.channelsList = null;
-            this.ioQueue = new IoQueue(null, pendingOutgoingRequests);
+            this.ioQueue = new IoQueue(null);
         } else {
             this.channelsList = new ArrayList<>();
-            this.ioQueue = new IoQueue(channelsList, pendingOutgoingRequests);
+            this.ioQueue = new IoQueue(channelsList);
         }
 
         this.directPool = new SimpleByteBufferPool(true, 64,
@@ -188,8 +188,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         if (!select(selector, selectTimeoutMillis)) {
             return System.nanoTime();
         }
-        long roundTime = System.nanoTime();
         boolean hasDataToWrite = ioQueue.dispatchWriteQueue();
+        long roundTime = System.nanoTime();
         Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
         while (iterator.hasNext()) {
             SelectionKey key = iterator.next();
@@ -259,7 +259,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             stage = 3;
             if (key.isWritable()) {
                 IoSubQueue subQueue = dtc.getSubQueue();
-                ByteBuffer buf = subQueue.getWriteBuffer();
+                ByteBuffer buf = subQueue.getWriteBuffer(roundTime);
                 if (buf != null) {
                     hasDataToWrite = true;
                     subQueue.setWriting(true);

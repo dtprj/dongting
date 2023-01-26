@@ -47,7 +47,8 @@ public abstract class WriteFrame extends Frame {
                     + 1 + 5 // uint32 command = 2;
                     + 1 + 4 // fixed32 seq = 3;
                     + 1 + 5 // uint32 resp_code = 4;
-                    + PbUtil.maxStrSizeUTF8(msg); // string resp_msg = 5;
+                    + PbUtil.maxStrSizeUTF8(msg) // string resp_msg = 5;
+                    + 1 + 8; // fixed32 timeout_millis = 6;
             int bodySize = estimateBodySize();
             if (bodySize > 0) {
                 dumpSize += 1 + 5 + bodySize; // bytes body = 15;
@@ -65,6 +66,7 @@ public abstract class WriteFrame extends Frame {
         PbUtil.writeFix32(buf, Frame.IDX_SEQ, seq);
         PbUtil.writeUnsignedInt32(buf, Frame.IDX_RESP_CODE, respCode);
         PbUtil.writeUTF8(buf, Frame.IDX_MSG, msg);
+        PbUtil.writeFix64(buf, Frame.IDX_TIMOUT, timeout);
         encodeBody(buf, pool);
         buf.putInt(startPos, buf.position() - startPos - 4);
     }

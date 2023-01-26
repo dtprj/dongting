@@ -74,7 +74,7 @@ class DtChannel extends PbCallback {
                      SocketChannel socketChannel, int channelIndexInWorker) throws IOException {
         this.nioStatus = nioStatus;
         this.channel = socketChannel;
-        this.subQueue = new IoSubQueue(workerStatus.getDirectPool(), workerStatus.getHeapPool());
+        this.subQueue = new IoSubQueue(workerStatus, nioStatus, this);
         this.nioConfig = nioConfig;
         this.workerStatus = workerStatus;
         this.channelIndexInWorker = channelIndexInWorker;
@@ -158,24 +158,24 @@ class DtChannel extends PbCallback {
             case Frame.IDX_RESP_CODE:
                 frame.setRespCode((int) value);
                 break;
-            default:
-                throw new PbException("unexpect index in readVarInt, index=" + index);
         }
         return true;
     }
 
     @Override
     public boolean readFix32(int index, int value) {
-        if (index != Frame.IDX_SEQ) {
-            throw new PbException("bad seq index: " + index);
+        if (index == Frame.IDX_SEQ) {
+            frame.setSeq(value);
         }
-        frame.setSeq(value);
         return true;
     }
 
     @Override
     public boolean readFix64(int index, long value) {
-        return false;
+        if (index == Frame.IDX_TIMOUT) {
+            frame.setTimeout(value);
+        }
+        return true;
     }
 
     @Override
@@ -194,9 +194,8 @@ class DtChannel extends PbCallback {
             case Frame.IDX_BODY: {
                 return readBody(buf, fieldLen, start, end);
             }
-            default:
-                throw new PbException("unexpect index in readBytes, index=" + index);
         }
+        return true;
     }
 
     private boolean readBody(ByteBuffer buf, int fieldLen, boolean start, boolean end) {
@@ -362,7 +361,7 @@ class DtChannel extends PbCallback {
                 resp.setCommand(req.getCommand());
                 resp.setFrameType(FrameType.TYPE_RESP);
                 resp.setSeq(req.getSeq());
-                subQueue.enqueue(resp);
+                subQueue.enqueue(new WriteData(this, resp));
             }
         } else {
             AtomicLong bytes = nioStatus.getInReqBytes();
@@ -395,7 +394,7 @@ class DtChannel extends PbCallback {
         resp.setSeq(req.getSeq());
         resp.setRespCode(code);
         resp.setMsg(msg);
-        subQueue.enqueue(resp);
+        subQueue.enqueue(new WriteData(this, resp));
     }
 
     public void writeBizErrorInBizThread(ReadFrame req, String msg) {

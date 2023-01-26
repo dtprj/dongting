@@ -24,6 +24,7 @@ public abstract class Frame {
     public static final int IDX_SEQ = 3;
     public static final int IDX_RESP_CODE = 4;
     public static final int IDX_MSG = 5;
+    public static final int IDX_TIMOUT = 6;
     public static final int IDX_BODY = 15;
 
     protected int frameType;
@@ -31,6 +32,7 @@ public abstract class Frame {
     protected int seq;
     protected int respCode;
     protected String msg;
+    protected long timeout;
 
     @Override
     public String toString() {
@@ -84,4 +86,11 @@ public abstract class Frame {
         this.msg = msg;
     }
 
+    public long getTimeout() {
+        return timeout;
+    }
+
+    public void setTimeout(long timeout) {
+        this.timeout = timeout;
+    }
 }

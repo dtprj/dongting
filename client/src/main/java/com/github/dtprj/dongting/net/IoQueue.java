@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.common.BitUtil;
-import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
@@ -31,14 +29,12 @@ class IoQueue {
     private final MpscLinkedQueue<Object> queue = MpscLinkedQueue.newInstance();
     private final ArrayList<DtChannel> channels;
     private final boolean server;
-    private final LongObjMap<WriteData> pendingOutgoingRequests;
     private int invokeIndex;
     private boolean hasDataToWrite;
 
-    public IoQueue(ArrayList<DtChannel> channels, LongObjMap<WriteData> pendingOutgoingRequests) {
+    public IoQueue(ArrayList<DtChannel> channels) {
         this.channels = channels;
         this.server = channels == null;
-        this.pendingOutgoingRequests = pendingOutgoingRequests;
     }
 
     public void writeFromBizThread(WriteData data) {
@@ -102,20 +98,7 @@ class IoQueue {
             }
             return;
         }
-        if (frame.getFrameType() == FrameType.TYPE_REQ) {
-            int seq = dtc.getAndIncSeq();
-            frame.setSeq(seq);
-            long key = BitUtil.toLong(dtc.getChannelIndexInWorker(), seq);
-            WriteData old = pendingOutgoingRequests.put(key, wo);
-            if (old != null) {
-                String errMsg = "dup seq: old=" + old.getData() + ", new=" + frame;
-                log.error(errMsg);
-                wo.getFuture().completeExceptionally(new NetException(errMsg));
-                pendingOutgoingRequests.put(key, old);
-                return;
-            }
-        }
-        dtc.getSubQueue().enqueue(frame);
+        dtc.getSubQueue().enqueue(wo);
         this.hasDataToWrite = true;
     }
 

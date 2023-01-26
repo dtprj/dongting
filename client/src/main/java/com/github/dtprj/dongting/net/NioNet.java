@@ -85,7 +85,6 @@ public abstract class NioNet extends AbstractLifeCircle {
 
     protected CompletableFuture<ReadFrame> sendRequest(NioWorker worker, Peer peer, WriteFrame request,
                                                        Decoder decoder, DtTime timeout) {
-        boolean acquire = false;
         request.setFrameType(FrameType.TYPE_REQ);
         ObjUtil.checkPositive(request.getCommand(), "request.command");
         if (request.estimateBodySize() > config.getMaxBodySize()) {
@@ -94,6 +93,8 @@ public abstract class NioNet extends AbstractLifeCircle {
         if (request.estimateSize() > config.getMaxFrameSize()) {
             throw new IllegalArgumentException("request frame too large: " + request.estimateSize());
         }
+        boolean acquire = false;
+        boolean write = false;
         try {
             if (status != LifeStatus.running) {
                 return errorFuture(new IllegalStateException("error state: " + status));
@@ -103,6 +104,7 @@ public abstract class NioNet extends AbstractLifeCircle {
             if (acquire) {
                 CompletableFuture<ReadFrame> future = new CompletableFuture<>();
                 worker.writeReqInBizThreads(peer, request, decoder, timeout, future);
+                write = true;
                 return future.thenApply(new RespConvertor(decoder));
             } else {
                 return errorFuture(new NetTimeoutException(
@@ -110,10 +112,11 @@ public abstract class NioNet extends AbstractLifeCircle {
                                 + timeout.getTimeout(TimeUnit.MILLISECONDS) + " ms"));
             }
         } catch (Throwable e) {
-            if (acquire) {
+            return errorFuture(new NetException("sendRequest error", e));
+        } finally {
+            if (acquire && !write) {
                 this.semaphore.release();
             }
-            return errorFuture(new NetException("sendRequest error", e));
         }
     }
 
