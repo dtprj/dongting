@@ -133,13 +133,18 @@ class IoSubQueue {
         DtTime t = wd.getTimeout();
         long rest = t.rest(TimeUnit.NANOSECONDS, roundTime);
         if (rest < 0) {
-            nioStatus.getRequestSemaphore().release();
-            String frameType = f.getFrameType() == FrameType.TYPE_RESP ? "response" : "request";
+            String frameType;
+            if (f.getFrameType() == FrameType.TYPE_RESP) {
+                frameType = "response";
+            } else {
+                frameType = "request";
+                nioStatus.getRequestSemaphore().release();
+                String msg = "timeout before send: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
+                wd.getFuture().completeExceptionally(new NetTimeoutException(msg));
+            }
             log.debug("{} timeout before send: {}ms, seq={}, {}", frameType,
                     t.getTimeout(TimeUnit.MILLISECONDS), wd.getData().getSeq(),
                     wd.getDtc());
-            String msg = "timeout before send: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
-            wd.getFuture().completeExceptionally(new NetTimeoutException(msg));
             return false;
         }
 
