@@ -21,14 +21,21 @@ import java.util.concurrent.TimeUnit;
  * @author huangli
  */
 public class DtTime {
-    private final long createTime = System.nanoTime();
+    private final long createTime;
     private final long deadline;
 
     public DtTime() {
+        this.createTime = System.nanoTime();
         this.deadline = createTime;
     }
 
     public DtTime(long timeout, TimeUnit unit) {
+        this.createTime = System.nanoTime();
+        this.deadline = createTime + unit.toNanos(timeout);
+    }
+
+    public DtTime(long createTime, long timeout, TimeUnit unit) {
+        this.createTime = createTime;
         this.deadline = createTime + unit.toNanos(timeout);
     }
 

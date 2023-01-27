@@ -30,6 +30,7 @@ import java.io.DataOutputStream;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
@@ -142,6 +143,7 @@ public class NioServerTest {
                             .setSeq(seq + i)
                             .setCommand(CMD_IO_PING + (i % 3))
                             .setBody(ByteString.copyFrom(map.get(seq + i)))
+                            .setTimeout(Duration.ofSeconds(1).toNanos())
                             .build();
                     byte[] bs = frame.toByteArray();
                     if (writer == null) {
@@ -247,6 +249,7 @@ public class NioServerTest {
                 .setSeq(seq)
                 .setCommand(command)
                 .setBody(ByteString.copyFrom(bs))
+                .setTimeout(Duration.ofSeconds(1).toNanos())
                 .build();
         byte[] frameBytes = frame.toByteArray();
         out.writeInt(frameBytes.length);
@@ -536,7 +539,7 @@ public class NioServerTest {
                 Thread t = new Thread(() -> {
                     RefCountBufWriteFrame resp = new RefCountBufWriteFrame((RefCountByteBuffer) frame.getBody());
                     resp.setRespCode(CmdCodes.SUCCESS);
-                    channelContext.getRespWriter().writeRespInBizThreads(frame, resp);
+                    channelContext.getRespWriter().writeRespInBizThreads(frame, resp, new DtTime(1, TimeUnit.SECONDS));
                 });
                 t.start();
                 return null;

@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.BitUtil;
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.pb.PbCallback;
@@ -29,6 +30,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -95,7 +97,7 @@ class DtChannel extends PbCallback {
         this.channelContext = channelContext;
     }
 
-    public void afterRead(boolean running, ByteBuffer buf) {
+    public void afterRead(boolean running, ByteBuffer buf, long roundTime) {
         if (!running) {
             this.running = false;
         }
@@ -105,7 +107,7 @@ class DtChannel extends PbCallback {
             if (f.getFrameType() == FrameType.TYPE_RESP) {
                 processIncomingResponse(f, rfi.writeDataForResp);
             } else {
-                processIncomingRequest(f, rfi.processorForRequest);
+                processIncomingRequest(f, rfi.processorForRequest, roundTime);
             }
         }
         frames.clear();
@@ -345,24 +347,27 @@ class DtChannel extends PbCallback {
         wo.getFuture().complete(resp);
     }
 
-    private void processIncomingRequest(ReadFrame req, ReqProcessor p) {
-        //TODO drop timeout requests
+    private void processIncomingRequest(ReadFrame req, ReqProcessor p, long roundTime) {
         NioStatus nioStatus = this.nioStatus;
         ReqContext reqContext = new ReqContext();
+        reqContext.setTimeout(new DtTime(roundTime, req.getTimeout(), TimeUnit.NANOSECONDS));
         if (p.getExecutor() == null) {
+            if (timeout(req, channelContext, reqContext)) {
+                return;
+            }
             WriteFrame resp;
             try {
                 resp = p.process(req, channelContext, reqContext);
             } catch (Throwable e) {
                 log.warn("ReqProcessor.process fail", e);
-                writeErrorInIoThread(req, CmdCodes.BIZ_ERROR, e.toString());
+                writeErrorInIoThread(req, CmdCodes.BIZ_ERROR, e.toString(), reqContext.getTimeout());
                 return;
             }
             if (resp != null) {
                 resp.setCommand(req.getCommand());
                 resp.setFrameType(FrameType.TYPE_RESP);
                 resp.setSeq(req.getSeq());
-                subQueue.enqueue(new WriteData(this, resp));
+                subQueue.enqueue(new WriteData(this, resp, reqContext.getTimeout()));
             }
         } else {
             AtomicLong bytes = nioStatus.getInReqBytes();
@@ -379,7 +384,7 @@ class DtChannel extends PbCallback {
                 log.debug("catch RejectedExecutionException, write response code FLOW_CONTROL to client, maxInRequests={}",
                         nioConfig.getMaxInRequests());
                 writeErrorInIoThread(req, CmdCodes.FLOW_CONTROL,
-                        "max incoming request: " + nioConfig.getMaxInRequests());
+                        "max incoming request: " + nioConfig.getMaxInRequests(), reqContext.getTimeout());
                 bytes.addAndGet(-currentReadFrameSize);
                 if (bufferNeedRelease != null) {
                     workerStatus.getHeapPool().release(bufferNeedRelease);
@@ -388,21 +393,37 @@ class DtChannel extends PbCallback {
         }
     }
 
+    static boolean timeout(ReadFrame rf, ChannelContext channelContext, ReqContext reqContext) {
+        DtTime t = reqContext.getTimeout();
+        if (t.rest(TimeUnit.NANOSECONDS) <= 0) {
+            String type = rf.getFrameType() == FrameType.TYPE_REQ ? "request" : "response";
+            log.debug("drop timeout {}, remote={}, seq={}, timeout={}ms", type,
+                    channelContext.getRemoteAddr(), rf.getSeq(), t.getTimeout(TimeUnit.MILLISECONDS));
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     private void writeErrorInIoThread(Frame req, int code, String msg) {
+        writeErrorInIoThread(req, code, msg, new DtTime(10, TimeUnit.SECONDS));
+    }
+
+    private void writeErrorInIoThread(Frame req, int code, String msg, DtTime timeout) {
         ByteBufferWriteFrame resp = new ByteBufferWriteFrame(null);
         resp.setCommand(req.getCommand());
         resp.setFrameType(FrameType.TYPE_RESP);
         resp.setSeq(req.getSeq());
         resp.setRespCode(code);
         resp.setMsg(msg);
-        subQueue.enqueue(new WriteData(this, resp));
+        subQueue.enqueue(new WriteData(this, resp, timeout));
     }
 
-    public void writeBizErrorInBizThread(ReadFrame req, String msg) {
+    public void writeBizErrorInBizThread(ReadFrame req, String msg, DtTime timeout) {
         ByteBufferWriteFrame resp = new ByteBufferWriteFrame(null);
         resp.setRespCode(CmdCodes.BIZ_ERROR);
         resp.setMsg(msg);
-        respWriter.writeRespInBizThreads(req, resp);
+        respWriter.writeRespInBizThreads(req, resp, timeout);
     }
 
     public int getAndIncSeq() {
@@ -490,6 +511,9 @@ class ProcessInBizThreadTask implements Runnable {
             DtChannel dtc = this.dtc;
             boolean decodeSuccess = false;
             try {
+                if (DtChannel.timeout(req, dtc.getProcessContext(), reqContext)) {
+                    return;
+                }
                 ReqProcessor processor = this.processor;
                 Decoder decoder = processor.getDecoder();
                 if (!processor.getDecoder().decodeInIoThread()) {
@@ -513,11 +537,11 @@ class ProcessInBizThreadTask implements Runnable {
                 } else {
                     log.warn("ReqProcessor decode fail, command={}", req.getCommand(), e);
                 }
-                dtc.writeBizErrorInBizThread(req, e.toString());
+                dtc.writeBizErrorInBizThread(req, e.toString(), reqContext.getTimeout());
                 return;
             }
             if (resp != null) {
-                dtc.getRespWriter().writeRespInBizThreads(req, resp);
+                dtc.getRespWriter().writeRespInBizThreads(req, resp, reqContext.getTimeout());
             }
         } finally {
             inBytes.addAndGet(-frameSize);

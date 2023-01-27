@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.common.DtTime;
+
 /**
  * @author huangli
  */
@@ -31,21 +33,21 @@ public class RespWriter {
     }
 
     // invoke by other threads
-    public void writeRespInBizThreads(WriteFrame resp) {
+    public void writeRespInBizThreads(WriteFrame resp, DtTime timeout) {
         if (dtc.isClosed()) {
             // not restrict, but we will check again in io thread
             return;
         }
         resp.setFrameType(FrameType.TYPE_RESP);
-        WriteData data = new WriteData(dtc, resp);
+        WriteData data = new WriteData(dtc, resp, timeout);
         ioQueue.writeFromBizThread(data);
         wakeupRunnable.run();
     }
 
     // invoke by other threads
-    public void writeRespInBizThreads(ReadFrame req, WriteFrame resp) {
+    public void writeRespInBizThreads(ReadFrame req, WriteFrame resp, DtTime timeout) {
         resp.setSeq(req.getSeq());
         resp.setCommand(req.getCommand());
-        writeRespInBizThreads(resp);
+        writeRespInBizThreads(resp, timeout);
     }
 }

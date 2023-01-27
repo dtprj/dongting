@@ -254,7 +254,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 }
                 statReadBytes += readCount;
                 readBuffer.flip();
-                dtc.afterRead(stopStatus == SS_RUNNING, readBuffer);
+                dtc.afterRead(stopStatus == SS_RUNNING, readBuffer, roundTime);
             }
             stage = 3;
             if (key.isWritable()) {

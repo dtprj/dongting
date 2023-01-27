@@ -41,11 +41,11 @@ class WriteData {
         this.respDecoder = respDecoder;
     }
 
-    public WriteData(DtChannel dtc, WriteFrame data) {
+    public WriteData(DtChannel dtc, WriteFrame data, DtTime timeout) {
         this.dtc = dtc;
         this.peer = null;
         this.data = data;
-        this.timeout = null;
+        this.timeout = timeout;
         this.future = null;
         this.respDecoder = null;
     }

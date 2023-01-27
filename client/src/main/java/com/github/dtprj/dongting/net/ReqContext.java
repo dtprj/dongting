@@ -15,8 +15,19 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.common.DtTime;
+
 /**
  * @author huangli
  */
 public class ReqContext {
+    private DtTime timeout;
+
+    public DtTime getTimeout() {
+        return timeout;
+    }
+
+    public void setTimeout(DtTime timeout) {
+        this.timeout = timeout;
+    }
 }

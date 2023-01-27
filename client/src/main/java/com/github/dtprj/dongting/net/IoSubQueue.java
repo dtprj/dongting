@@ -85,7 +85,7 @@ class IoSubQueue {
             buf = directPool.borrow(subQueueBytes);
             WriteData wd;
             while ((wd = subQueue.pollFirst()) != null) {
-                if (addToPendingRequests(wd, roundTime)) {
+                if (checkTimeoutAndAddToPending(wd, roundTime)) {
                     wd.getData().encode(buf, heapPool);
                 }
             }
@@ -93,7 +93,7 @@ class IoSubQueue {
         } else {
             WriteData wd;
             while ((wd = subQueue.pollFirst()) != null) {
-                if(!addToPendingRequests(wd, roundTime)){
+                if(!checkTimeoutAndAddToPending(wd, roundTime)){
                     continue;
                 }
                 WriteFrame f = wd.getData();
@@ -128,16 +128,14 @@ class IoSubQueue {
         return buf;
     }
 
-    private boolean addToPendingRequests(WriteData wd, long roundTime) {
+    private boolean checkTimeoutAndAddToPending(WriteData wd, long roundTime) {
         WriteFrame f = wd.getData();
-        if (f.getFrameType() == FrameType.TYPE_RESP) {
-            return true;
-        }
         DtTime t = wd.getTimeout();
         long rest = t.rest(TimeUnit.NANOSECONDS, roundTime);
         if (rest < 0) {
             nioStatus.getRequestSemaphore().release();
-            log.debug("request timeout before send: {}ms, seq={}, {}",
+            String frameType = f.getFrameType() == FrameType.TYPE_RESP ? "response" : "request";
+            log.debug("{} timeout before send: {}ms, seq={}, {}", frameType,
                     t.getTimeout(TimeUnit.MILLISECONDS), wd.getData().getSeq(),
                     wd.getDtc());
             String msg = "timeout before send: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
@@ -145,8 +143,13 @@ class IoSubQueue {
             return false;
         }
 
+        if (f.getFrameType() == FrameType.TYPE_RESP) {
+            return true;
+        }
+
         int seq = dtc.getAndIncSeq();
         f.setSeq(seq);
+        f.setTimeout(rest);
         long key = BitUtil.toLong(dtc.getChannelIndexInWorker(), seq);
         WriteData old = workerStatus.getPendingRequests().put(key, wd);
         if (old != null) {
