@@ -616,7 +616,7 @@ public class NioClientTest {
                     }
 
                     @Override
-                    public Object decode(ProcessContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+                    public Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
                         throw new ArrayIndexOutOfBoundsException();
                     }
                 };
@@ -641,7 +641,7 @@ public class NioClientTest {
                     }
 
                     @Override
-                    public Object decode(ProcessContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+                    public Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
                         throw new ArrayIndexOutOfBoundsException();
                     }
                 };

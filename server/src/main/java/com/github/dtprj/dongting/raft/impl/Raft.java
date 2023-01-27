@@ -20,11 +20,11 @@ import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.ChannelContext;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.Decoder;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
-import com.github.dtprj.dongting.net.ProcessContext;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
@@ -243,7 +243,7 @@ public class Raft {
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
         Decoder decoder = new PbZeroCopyDecoder() {
             @Override
-            protected PbCallback createCallback(ProcessContext context) {
+            protected PbCallback createCallback(ChannelContext context) {
                 return new VoteResp.Callback();
             }
         };

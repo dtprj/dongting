@@ -17,10 +17,10 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.ChannelContext;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Decoder;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
-import com.github.dtprj.dongting.net.ProcessContext;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
@@ -38,7 +38,7 @@ public class VoteProcessor extends ReqProcessor {
 
     private final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder() {
         @Override
-        protected PbCallback createCallback(ProcessContext context) {
+        protected PbCallback createCallback(ChannelContext context) {
             return new VoteReq.Callback();
         }
     };
@@ -48,7 +48,7 @@ public class VoteProcessor extends ReqProcessor {
     }
 
     @Override
-    public WriteFrame process(ReadFrame rf, ProcessContext context) {
+    public WriteFrame process(ReadFrame rf, ChannelContext context) {
         VoteReq voteReq = (VoteReq) rf.getBody();
         VoteResp resp = new VoteResp();
         int localTerm = raftStatus.getCurrentTerm();

@@ -25,7 +25,7 @@ public abstract class ReqProcessor {
     private Executor executor;
     private boolean useDefaultExecutor;
 
-    public abstract WriteFrame process(ReadFrame frame, ProcessContext context);
+    public abstract WriteFrame process(ReadFrame frame, ChannelContext context);
 
     public abstract Decoder getDecoder();
 

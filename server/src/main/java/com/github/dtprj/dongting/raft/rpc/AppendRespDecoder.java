@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.net.ChannelContext;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
-import com.github.dtprj.dongting.net.ProcessContext;
 import com.github.dtprj.dongting.pb.PbCallback;
 
 /**
@@ -27,7 +27,7 @@ public class AppendRespDecoder extends PbZeroCopyDecoder{
     public static final AppendRespDecoder INSTANCE = new AppendRespDecoder();
 
     @Override
-    protected PbCallback createCallback(ProcessContext context) {
+    protected PbCallback createCallback(ChannelContext context) {
         return new AppendRespCallback();
     }
 }

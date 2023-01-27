@@ -35,7 +35,7 @@ public abstract class PbZeroCopyDecoder extends Decoder {
     }
 
     @Override
-    public Object decode(ProcessContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+    public Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
         PbParser parser;
         PbCallback callback = null;
         if (start) {
@@ -55,6 +55,6 @@ public abstract class PbZeroCopyDecoder extends Decoder {
         }
     }
 
-    protected abstract PbCallback createCallback(ProcessContext context);
+    protected abstract PbCallback createCallback(ChannelContext context);
 
 }

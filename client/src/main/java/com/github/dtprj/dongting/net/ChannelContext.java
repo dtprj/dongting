@@ -24,7 +24,7 @@ import java.nio.channels.SocketChannel;
 /**
  * @author huangli
  */
-public class ProcessContext {
+public class ChannelContext {
     private SocketChannel channel;
     private SocketAddress remoteAddr;
     private SocketAddress localAddr;

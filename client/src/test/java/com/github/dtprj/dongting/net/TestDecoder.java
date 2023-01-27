@@ -27,7 +27,7 @@ class BizByteBufferDecoder extends Decoder {
     }
 
     @Override
-    public Object decode(ProcessContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+    public Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
         ByteBuffer buf = ByteBuffer.allocate(bodyLen);
         buf.put(buffer);
         buf.flip();
@@ -37,7 +37,7 @@ class BizByteBufferDecoder extends Decoder {
 
 class IoFullPackByteBufferDecoder extends Decoder {
     @Override
-    public Object decode(ProcessContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+    public Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
         ByteBuffer buf = ByteBuffer.allocate(bodyLen);
         buf.put(buffer);
         buf.flip();

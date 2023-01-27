@@ -41,7 +41,7 @@ class DtChannel extends PbCallback {
     private final NioConfig nioConfig;
     private final WorkerStatus workerStatus;
     private final SocketChannel channel;
-    private final ProcessContext processContext;
+    private final ChannelContext channelContext;
     private final RespWriter respWriter;
     private Peer peer;
 
@@ -83,16 +83,16 @@ class DtChannel extends PbCallback {
 
         this.respWriter = new RespWriter(workerStatus.getIoQueue(), workerStatus.getWakeupRunnable(), this);
 
-        ProcessContext processContext = new ProcessContext();
-        processContext.setChannel(socketChannel);
-        processContext.setRemoteAddr(socketChannel.getRemoteAddress());
-        processContext.setLocalAddr(socketChannel.getLocalAddress());
-        processContext.setIoThreadStrDecoder(strDecoder);
-        processContext.setIoHeapBufferPool(new ByteBufferPoolReleaseInOtherThread(
+        ChannelContext channelContext = new ChannelContext();
+        channelContext.setChannel(socketChannel);
+        channelContext.setRemoteAddr(socketChannel.getRemoteAddress());
+        channelContext.setLocalAddr(socketChannel.getLocalAddress());
+        channelContext.setIoThreadStrDecoder(strDecoder);
+        channelContext.setIoHeapBufferPool(new ByteBufferPoolReleaseInOtherThread(
                 workerStatus.getHeapPool(), workerStatus.getIoQueue()));
-        processContext.setRespWriter(respWriter);
-        processContext.setIoParser(parser);
-        this.processContext = processContext;
+        channelContext.setRespWriter(respWriter);
+        channelContext.setIoParser(parser);
+        this.channelContext = channelContext;
     }
 
     public void afterRead(boolean running, ByteBuffer buf) {
@@ -213,20 +213,20 @@ class DtChannel extends PbCallback {
         boolean useIoBufferDecode = decodeInIoThread && decoder.supportHalfPacket();
         try {
             if (useIoBufferDecode) {
-                Object o = decoder.decode(processContext, buf, fieldLen, start, end);
+                Object o = decoder.decode(channelContext, buf, fieldLen, start, end);
                 if (end) {
                     frame.setBody(o);
                 }
             } else {
                 if (decodeInIoThread) {
                     if (start && end) {
-                        Object o = decoder.decode(processContext, buf, fieldLen, true, true);
+                        Object o = decoder.decode(channelContext, buf, fieldLen, true, true);
                         frame.setBody(o);
                     } else {
                         ByteBuffer copyBuffer = copyBuffer(buf, fieldLen, start, end);
                         if (end) {
                             try {
-                                Object result = decoder.decode(processContext, copyBuffer,
+                                Object result = decoder.decode(channelContext, copyBuffer,
                                         fieldLen, false, true);
                                 frame.setBody(result);
                             } finally {
@@ -244,7 +244,7 @@ class DtChannel extends PbCallback {
         }
 
         if (end) {
-            processContext.setIoDecodeStatus(null);
+            channelContext.setIoDecodeStatus(null);
             // so if the body is not last field, exception throws
             readBody = true;
         }
@@ -351,7 +351,7 @@ class DtChannel extends PbCallback {
         if (p.getExecutor() == null) {
             WriteFrame resp;
             try {
-                resp = p.process(req, processContext);
+                resp = p.process(req, channelContext);
             } catch (Throwable e) {
                 log.warn("ReqProcessor.process fail", e);
                 writeErrorInIoThread(req, CmdCodes.BIZ_ERROR, e.toString());
@@ -428,8 +428,8 @@ class DtChannel extends PbCallback {
         return workerStatus;
     }
 
-    public ProcessContext getProcessContext() {
-        return processContext;
+    public ChannelContext getProcessContext() {
+        return channelContext;
     }
 
     public void close() {

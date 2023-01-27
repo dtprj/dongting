@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.ChannelContext;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.Decoder;
 import com.github.dtprj.dongting.net.HostPort;
@@ -26,7 +27,6 @@ import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.Peer;
 import com.github.dtprj.dongting.net.PeerStatus;
-import com.github.dtprj.dongting.net.ProcessContext;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.StringFieldDecoder;
@@ -67,14 +67,14 @@ public class GroupConManager {
 
     private static final PbZeroCopyDecoder DECODER = new PbZeroCopyDecoder() {
         @Override
-        protected PbCallback createCallback(ProcessContext context) {
+        protected PbCallback createCallback(ChannelContext context) {
             return new RaftPingFrameCallback(context.getIoThreadStrDecoder());
         }
     };
 
     private final ReqProcessor processor = new ReqProcessor() {
         @Override
-        public WriteFrame process(ReadFrame frame, ProcessContext context) {
+        public WriteFrame process(ReadFrame frame, ChannelContext context) {
             return new RaftPingWriteFrame();
         }
 

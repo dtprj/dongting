@@ -64,7 +64,7 @@ public class NioServerTest {
         }
 
         @Override
-        public WriteFrame process(ReadFrame frame, ProcessContext context) {
+        public WriteFrame process(ReadFrame frame, ChannelContext context) {
             if (sleep > 0) {
                 try {
                     Thread.sleep(sleep);
@@ -88,7 +88,7 @@ public class NioServerTest {
         server.register(CMD_BIZ_PING2, new ReqProcessor() {
 
             @Override
-            public WriteFrame process(ReadFrame frame, ProcessContext context) {
+            public WriteFrame process(ReadFrame frame, ChannelContext context) {
                 ByteBuffer buf = (ByteBuffer) frame.getBody();
                 ByteBufferWriteFrame resp = new ByteBufferWriteFrame(buf);
                 resp.setRespCode(CmdCodes.SUCCESS);
@@ -339,7 +339,7 @@ public class NioServerTest {
         setupServer(null);
         server.register(10001, new ReqProcessor() {
             @Override
-            public WriteFrame process(ReadFrame frame, ProcessContext context) {
+            public WriteFrame process(ReadFrame frame, ChannelContext context) {
                 return null;
             }
 
@@ -352,7 +352,7 @@ public class NioServerTest {
                     }
 
                     @Override
-                    public Object decode(ProcessContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+                    public Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
                         throw new ArrayIndexOutOfBoundsException();
                     }
                 };
@@ -361,7 +361,7 @@ public class NioServerTest {
 
         server.register(10002, new ReqProcessor() {
             @Override
-            public WriteFrame process(ReadFrame frame, ProcessContext context) {
+            public WriteFrame process(ReadFrame frame, ChannelContext context) {
                 return null;
             }
 
@@ -374,7 +374,7 @@ public class NioServerTest {
                     }
 
                     @Override
-                    public Object decode(ProcessContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+                    public Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
                         throw new ArrayIndexOutOfBoundsException();
                     }
                 };
@@ -406,7 +406,7 @@ public class NioServerTest {
         setupServer(null);
         server.register(10001, new ReqProcessor() {
             @Override
-            public WriteFrame process(ReadFrame frame, ProcessContext context) {
+            public WriteFrame process(ReadFrame frame, ChannelContext context) {
                 throw new ArrayIndexOutOfBoundsException();
             }
 
@@ -417,7 +417,7 @@ public class NioServerTest {
         }, null);
         server.register(10002, new ReqProcessor() {
             @Override
-            public WriteFrame process(ReadFrame frame, ProcessContext context) {
+            public WriteFrame process(ReadFrame frame, ChannelContext context) {
                 throw new ArrayIndexOutOfBoundsException();
             }
 
@@ -428,7 +428,7 @@ public class NioServerTest {
         });
         server.register(10003, new ReqProcessor() {
             @Override
-            public WriteFrame process(ReadFrame frame, ProcessContext context) {
+            public WriteFrame process(ReadFrame frame, ChannelContext context) {
                 return null;
             }
 
@@ -439,7 +439,7 @@ public class NioServerTest {
         }, null);
         server.register(10004, new ReqProcessor() {
             @Override
-            public WriteFrame process(ReadFrame frame, ProcessContext context) {
+            public WriteFrame process(ReadFrame frame, ChannelContext context) {
                 return null;
             }
 
@@ -493,7 +493,7 @@ public class NioServerTest {
                     }
 
                     @Override
-                    public Object decode(ProcessContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+                    public Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
                         return null;
                     }
                 };
@@ -532,7 +532,7 @@ public class NioServerTest {
         setupServer(null);
         server.register(3333, new ReqProcessor() {
             @Override
-            public WriteFrame process(ReadFrame frame, ProcessContext context) {
+            public WriteFrame process(ReadFrame frame, ChannelContext context) {
                 Thread t = new Thread(() -> {
                     RefCountBufWriteFrame resp = new RefCountBufWriteFrame((RefCountByteBuffer) frame.getBody());
                     resp.setRespCode(CmdCodes.SUCCESS);
