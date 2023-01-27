@@ -348,10 +348,11 @@ class DtChannel extends PbCallback {
     private void processIncomingRequest(ReadFrame req, ReqProcessor p) {
         //TODO drop timeout requests
         NioStatus nioStatus = this.nioStatus;
+        ReqContext reqContext = new ReqContext();
         if (p.getExecutor() == null) {
             WriteFrame resp;
             try {
-                resp = p.process(req, channelContext);
+                resp = p.process(req, channelContext, reqContext);
             } catch (Throwable e) {
                 log.warn("ReqProcessor.process fail", e);
                 writeErrorInIoThread(req, CmdCodes.BIZ_ERROR, e.toString());
@@ -373,7 +374,7 @@ class DtChannel extends PbCallback {
             try {
                 // TODO use custom thread pool?
                 p.getExecutor().execute(new ProcessInBizThreadTask(
-                        req, p, currentReadFrameSize, this, bytes));
+                        req, p, currentReadFrameSize, this, bytes, reqContext));
             } catch (RejectedExecutionException e) {
                 log.debug("catch RejectedExecutionException, write response code FLOW_CONTROL to client, maxInRequests={}",
                         nioConfig.getMaxInRequests());
@@ -469,14 +470,16 @@ class ProcessInBizThreadTask implements Runnable {
     private final int frameSize;
     private final DtChannel dtc;
     private final AtomicLong inBytes;
+    private final ReqContext reqContext;
 
     ProcessInBizThreadTask(ReadFrame req, ReqProcessor processor,
-                           int frameSize, DtChannel dtc, AtomicLong inBytes) {
+                           int frameSize, DtChannel dtc, AtomicLong inBytes, ReqContext reqContext) {
         this.req = req;
         this.processor = processor;
         this.frameSize = frameSize;
         this.dtc = dtc;
         this.inBytes = inBytes;
+        this.reqContext = reqContext;
     }
 
     @Override
@@ -503,7 +506,7 @@ class ProcessInBizThreadTask implements Runnable {
                     }
                 }
                 decodeSuccess = true;
-                resp = processor.process(req, dtc.getProcessContext());
+                resp = processor.process(req, dtc.getProcessContext(), reqContext);
             } catch (Throwable e) {
                 if (decodeSuccess) {
                     log.warn("ReqProcessor.process fail, command={}", req.getCommand(), e);

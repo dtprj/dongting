@@ -15,33 +15,8 @@
  */
 package com.github.dtprj.dongting.net;
 
-import java.util.concurrent.Executor;
-
 /**
  * @author huangli
  */
-public abstract class ReqProcessor {
-
-    private Executor executor;
-    private boolean useDefaultExecutor;
-
-    public abstract WriteFrame process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext);
-
-    public abstract Decoder getDecoder();
-
-    Executor getExecutor() {
-        return executor;
-    }
-
-    void setExecutor(Executor executor) {
-        this.executor = executor;
-    }
-
-    boolean isUseDefaultExecutor() {
-        return useDefaultExecutor;
-    }
-
-    void setUseDefaultExecutor(boolean useDefaultExecutor) {
-        this.useDefaultExecutor = useDefaultExecutor;
-    }
+public class ReqContext {
 }

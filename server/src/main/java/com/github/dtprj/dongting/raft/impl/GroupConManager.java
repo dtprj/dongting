@@ -28,6 +28,7 @@ import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.Peer;
 import com.github.dtprj.dongting.net.PeerStatus;
 import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.StringFieldDecoder;
 import com.github.dtprj.dongting.net.WriteFrame;
@@ -74,7 +75,7 @@ public class GroupConManager {
 
     private final ReqProcessor processor = new ReqProcessor() {
         @Override
-        public WriteFrame process(ReadFrame frame, ChannelContext context) {
+        public WriteFrame process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext) {
             return new RaftPingWriteFrame();
         }
 

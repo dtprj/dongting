@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Decoder;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.pb.PbCallback;
@@ -48,7 +49,7 @@ public class VoteProcessor extends ReqProcessor {
     }
 
     @Override
-    public WriteFrame process(ReadFrame rf, ChannelContext context) {
+    public WriteFrame process(ReadFrame rf, ChannelContext channelContext, ReqContext reqContext) {
         VoteReq voteReq = (VoteReq) rf.getBody();
         VoteResp resp = new VoteResp();
         int localTerm = raftStatus.getCurrentTerm();
