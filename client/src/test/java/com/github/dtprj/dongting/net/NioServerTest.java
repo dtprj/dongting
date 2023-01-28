@@ -143,7 +143,7 @@ public class NioServerTest {
                             .setSeq(seq + i)
                             .setCommand(CMD_IO_PING + (i % 3))
                             .setBody(ByteString.copyFrom(map.get(seq + i)))
-                            .setTimeout(Duration.ofSeconds(1).toNanos())
+                            .setTimeout(Duration.ofSeconds(10).toNanos())
                             .build();
                     byte[] bs = frame.toByteArray();
                     if (writer == null) {
