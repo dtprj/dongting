@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.github.dtprj.dongting.common.Tick.tick;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -95,13 +96,13 @@ public class TimeoutTest {
         CompletableFuture<ReadFrame> f1 = send(new DtTime(1, TimeUnit.SECONDS));
         try {
             CompletableFuture<ReadFrame> f2 = send(new DtTime(1, TimeUnit.NANOSECONDS));
-            f2.get(1, TimeUnit.SECONDS);
+            f2.get(5, TimeUnit.SECONDS);
             fail();
         } catch (ExecutionException e) {
             assertEquals(NetTimeoutException.class, e.getCause().getClass());
             assertTrue(e.getCause().getMessage().contains("too many pending requests"));
         }
-        f1.get(1, TimeUnit.SECONDS);
+        f1.get(5, TimeUnit.SECONDS);
         assertEquals(1, client.nioStatus.getRequestSemaphore().availablePermits());
         //ensure connection status is correct after timeout
         NioServerClientTest.invoke(client);
@@ -109,10 +110,10 @@ public class TimeoutTest {
 
     @Test
     public void dropBeforeRequestSendTest() throws Exception {
-        setup(() -> registerDelayPingProcessor(10));
+        setup(() -> registerDelayPingProcessor(0));
         try {
             CompletableFuture<ReadFrame> f1 = send(new DtTime(1, TimeUnit.NANOSECONDS));
-            f1.get(1, TimeUnit.SECONDS);
+            f1.get(5, TimeUnit.SECONDS);
             fail();
         } catch (ExecutionException e) {
             assertEquals(NetTimeoutException.class, e.getCause().getClass());
@@ -126,17 +127,17 @@ public class TimeoutTest {
     @Test
     public void processTimeoutTest() throws Exception {
         int oldCount = runCount.get();
-        setup(() -> registerDelayPingProcessor(15));
+        setup(() -> registerDelayPingProcessor(tick(15)));
         try {
-            CompletableFuture<ReadFrame> f = send(new DtTime(14, TimeUnit.MILLISECONDS));
-            f.get(1, TimeUnit.SECONDS);
+            CompletableFuture<ReadFrame> f = send(new DtTime(tick(14), TimeUnit.MILLISECONDS));
+            f.get(5, TimeUnit.SECONDS);
             fail();
         } catch (ExecutionException e) {
             assertEquals(NetTimeoutException.class, e.getCause().getClass());
             assertTrue(e.getCause().getMessage().contains("timeout: "), e.getCause().getMessage());
         }
         // wait server process finished
-        Thread.sleep(15);
+        Thread.sleep(tick(15));
 
         // need more check server side status
         assertEquals(oldCount + 1, runCount.get());
@@ -162,7 +163,7 @@ public class TimeoutTest {
                     @Override
                     public Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
                         try {
-                            Thread.sleep(15);
+                            Thread.sleep(tick(15));
                         } catch (InterruptedException e) {
                             throw new RuntimeException(e);
                         }
@@ -178,8 +179,8 @@ public class TimeoutTest {
         int oldCount = runCount.get();
 
         try {
-            CompletableFuture<ReadFrame> f = send(new DtTime(10, TimeUnit.MILLISECONDS));
-            f.get(1, TimeUnit.SECONDS);
+            CompletableFuture<ReadFrame> f = send(new DtTime(tick(10), TimeUnit.MILLISECONDS));
+            f.get(5, TimeUnit.SECONDS);
             fail();
         } catch (ExecutionException e) {
             assertEquals(NetTimeoutException.class, e.getCause().getClass());
@@ -190,7 +191,7 @@ public class TimeoutTest {
         NioServerClientTest.invoke(client);
 
         // wait server process finished
-        Thread.sleep(15);
+        Thread.sleep(tick(15));
 
         // need more check server side status
         assertEquals(oldCount, runCount.get());

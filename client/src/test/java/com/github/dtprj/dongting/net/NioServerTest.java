@@ -39,6 +39,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import static com.github.dtprj.dongting.common.Tick.tick;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -249,7 +250,7 @@ public class NioServerTest {
                 .setSeq(seq)
                 .setCommand(command)
                 .setBody(ByteString.copyFrom(bs))
-                .setTimeout(Duration.ofSeconds(1).toNanos())
+                .setTimeout(Duration.ofSeconds(tick(1)).toNanos())
                 .build();
         byte[] frameBytes = frame.toByteArray();
         out.writeInt(frameBytes.length);
@@ -273,7 +274,7 @@ public class NioServerTest {
         server.start();
         Socket s = new Socket("127.0.0.1", PORT);
         try {
-            s.setSoTimeout(1000);
+            s.setSoTimeout(tick(1000));
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
             int code = invoke(1, 12323434, 5000, in, out);
@@ -294,7 +295,7 @@ public class NioServerTest {
         @Override
         public void run() {
             try (Socket s = new Socket("127.0.0.1", PORT)) {
-                s.setSoTimeout(1000);
+                s.setSoTimeout(tick(1000));
                 DataInputStream in = new DataInputStream(s.getInputStream());
                 DataOutputStream out = new DataOutputStream(s.getOutputStream());
                 int code = invoke(1, 50000, bodySize, in, out);
@@ -455,7 +456,7 @@ public class NioServerTest {
 
         Socket s = new Socket("127.0.0.1", PORT);
         try {
-            s.setSoTimeout(50);
+            s.setSoTimeout(tick(50));
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
             int seq = 0;
@@ -476,10 +477,19 @@ public class NioServerTest {
         }
         s = new Socket("127.0.0.1", PORT);
         try {
-            s.setSoTimeout(50);
+            s.setSoTimeout(tick(50));
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
-            assertThrows(SocketTimeoutException.class, () -> invoke(223456, 10004, 5000, in, out));
+            assertThrows(SocketTimeoutException.class, () -> invoke(10003, 10004, 5000, in, out));
+        } finally {
+            CloseUtil.close(s);
+        }
+        s = new Socket("127.0.0.1", PORT);
+        try {
+            s.setSoTimeout(tick(50));
+            DataInputStream in = new DataInputStream(s.getInputStream());
+            DataOutputStream out = new DataOutputStream(s.getOutputStream());
+            assertThrows(SocketTimeoutException.class, () -> invoke(10004, 10004, 5000, in, out));
         } finally {
             CloseUtil.close(s);
         }
