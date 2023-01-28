@@ -101,6 +101,7 @@ public class Raft {
                 raftStatus.getCurrentTerm(), remoteTerm, raftStatus.getRole());
         raftStatus.setCurrentTerm(remoteTerm);
         raftStatus.setVoteFor(0);
+        raftStatus.setFirstCommitIndexOfCurrentTerm(0);
         raftStatus.setRole(RaftRole.follower);
         raftStatus.getCurrentVotes().clear();
         long t = System.nanoTime();
@@ -111,6 +112,8 @@ public class Raft {
         processOtherRaftNodes(raftStatus, node -> {
             node.setMatchIndex(0);
             node.setNextIndex(0);
+            node.setPendingRequests(0);
+            node.incrEpoch();
         });
     }
 
@@ -296,7 +299,7 @@ public class Raft {
     private void changeToLeader() {
         raftStatus.setRole(RaftRole.leader);
         raftStatus.setPendingRequests(new LongObjMap<>());
-        raftStatus.setCommittedInCurrentTerm(false);
+        raftStatus.setFirstCommitIndexOfCurrentTerm(0);
         Raft.processOtherRaftNodes(raftStatus, n -> {
             n.setMatchIndex(0);
             n.setNextIndex(raftStatus.getLastLogIndex() + 1);
@@ -422,12 +425,12 @@ public class Raft {
             return;
         }
         // leader can only commit log in current term, see raft paper 5.4.2
-        if (!raftStatus.isCommittedInCurrentTerm()) {
+        if (raftStatus.getFirstCommitIndexOfCurrentTerm() <= 0) {
             int t = raftLog.getTermOf(recentMatchIndex);
             if (t != raftStatus.getCurrentTerm()) {
                 return;
             } else {
-                raftStatus.setCommittedInCurrentTerm(true);
+                raftStatus.setFirstCommitIndexOfCurrentTerm(recentMatchIndex);
             }
         }
         raftStatus.setCommitIndex(recentMatchIndex);
