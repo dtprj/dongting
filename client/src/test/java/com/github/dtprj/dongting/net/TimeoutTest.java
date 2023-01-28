@@ -135,15 +135,16 @@ public class TimeoutTest {
             assertEquals(NetTimeoutException.class, e.getCause().getClass());
             assertTrue(e.getCause().getMessage().contains("timeout: "), e.getCause().getMessage());
         }
-        assertEquals(1, client.nioStatus.getRequestSemaphore().availablePermits());
-        //ensure connection status is correct after timeout
-        NioServerClientTest.invoke(client);
-
         // wait server process finished
         Thread.sleep(15);
 
         // need more check server side status
         assertEquals(oldCount + 1, runCount.get());
+
+        assertEquals(1, client.nioStatus.getRequestSemaphore().availablePermits());
+
+        //ensure connection status is correct after timeout
+        NioServerClientTest.invoke(client);
     }
 
     private void serverTimeoutBeforeProcessTest(boolean runProcessInIoThread) throws Exception {
