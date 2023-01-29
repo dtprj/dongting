@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
@@ -78,8 +79,7 @@ public class RaftThread extends Thread {
         if (!init()) {
             return;
         }
-        long roundTimestampMillis = System.currentTimeMillis();
-        long roundTimeNanos;
+        Timestamp ts = new Timestamp();
         while (!stop) {
             Runnable t;
             try {
@@ -87,14 +87,13 @@ public class RaftThread extends Thread {
             } catch (InterruptedException e) {
                 return;
             }
+            long oldNanos = ts.getNanoTime();
+            ts.refresh(1);
             if (t != null) {
                 t.run();
             }
-            long now = System.currentTimeMillis();
-            if (now < roundTimestampMillis || now - roundTimestampMillis > 50) {
-                roundTimeNanos = System.nanoTime();
-                roundTimestampMillis = now;
-                idle(roundTimeNanos);
+            if (ts.getNanoTime() - oldNanos > 50 * 1000 * 1000) {
+                idle(ts.getNanoTime());
             }
         }
     }

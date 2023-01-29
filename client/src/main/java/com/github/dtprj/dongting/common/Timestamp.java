@@ -19,8 +19,8 @@ package com.github.dtprj.dongting.common;
  * @author huangli
  */
 public class Timestamp {
-    private final long nanoTime;
-    private final long wallClockMillis;
+    private long nanoTime;
+    private long wallClockMillis;
 
     public Timestamp() {
         nanoTime = System.nanoTime();
@@ -38,5 +38,14 @@ public class Timestamp {
 
     public long getWallClockMillis() {
         return wallClockMillis;
+    }
+
+    public void refresh(int millisDiff) {
+        long t = System.currentTimeMillis();
+        long old = this.wallClockMillis;
+        if (t < old || t - old >= millisDiff) {
+            this.wallClockMillis = t;
+            this.nanoTime = System.nanoTime();
+        }
     }
 }

@@ -147,19 +147,19 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     public void run() {
         long cleanIntervalNanos = config.getCleanIntervalMills() * 1000 * 1000;
         long lastCleanNano = System.nanoTime();
-        long selectTimeoutMillis = config.getSelectTimeoutMillis();
         Selector selector = this.selector;
+        Timestamp ts = new Timestamp();
         int stopStatus;
         while ((stopStatus = this.stopStatus) <= SS_PRE_STOP) {
             try {
-                Timestamp roundStartTime = run0(selector, selectTimeoutMillis, stopStatus);
-                if (roundStartTime.getNanoTime() - lastCleanNano > cleanIntervalNanos) {
-                    cleanTimeoutReq(roundStartTime);
-                    directPool.refreshCurrentNanos(roundStartTime);
-                    heapPool.refreshCurrentNanos(roundStartTime);
-                    directPool.clean(roundStartTime);
-                    heapPool.clean(roundStartTime);
-                    lastCleanNano = roundStartTime.getNanoTime();
+                run0(selector, stopStatus, ts);
+                if (ts.getNanoTime() - lastCleanNano > cleanIntervalNanos) {
+                    cleanTimeoutReq(ts);
+                    directPool.refreshCurrentNanos(ts);
+                    heapPool.refreshCurrentNanos(ts);
+                    directPool.clean(ts);
+                    heapPool.clean(ts);
+                    lastCleanNano = ts.getNanoTime();
                 }
             } catch (Throwable e) {
                 log.error("", e);
@@ -185,12 +185,13 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    private Timestamp run0(Selector selector, long selectTimeoutMillis, int stopStatus) {
-        if (!select(selector, selectTimeoutMillis)) {
-            return new Timestamp();
+    private void run0(Selector selector, int stopStatus, Timestamp roundTime) {
+        if (!select(selector, config.getSelectTimeoutMillis())) {
+            roundTime.refresh(1);
+            return;
         }
         boolean hasDataToWrite = ioQueue.dispatchWriteQueue();
-        Timestamp roundTime = new Timestamp();
+        roundTime.refresh(1);
         Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
         while (iterator.hasNext()) {
             SelectionKey key = iterator.next();
@@ -203,7 +204,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 preCloseFuture.complete(null);
             }
         }
-        return roundTime;
     }
 
     private void prepareReadBuffer(Timestamp roundTime) {
