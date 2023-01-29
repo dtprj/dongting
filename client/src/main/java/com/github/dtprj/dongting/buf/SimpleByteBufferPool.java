@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.buf;
 
+import com.github.dtprj.dongting.common.Timestamp;
+
 import java.nio.ByteBuffer;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
@@ -208,13 +210,13 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         stackSizes[stackIndex]++;
     }
 
-    public void clean(long nanos) {
+    public void clean(Timestamp ts) {
         ByteBuffer[][] bufferStacks = this.bufferStacks;
         long[][] returnTimes = this.returnTimes;
         int[] bottomIndices = this.bottomIndices;
         int[] stackSizes = this.stackSizes;
         int stackCount = bufferStacks.length;
-        long expireNanos = nanos - this.timeoutNanos;
+        long expireNanos = ts.getNanoTime() - this.timeoutNanos;
         for (int stackIndex = 0; stackIndex < stackCount; stackIndex++) {
             ByteBuffer[] stack = bufferStacks[stackIndex];
             long[] stackReturnTime = returnTimes[stackIndex];
@@ -240,8 +242,8 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         }
     }
 
-    public void refreshCurrentNanos(long nanos) {
-        this.currentNanos = nanos;
+    public void refreshCurrentNanos(Timestamp ts) {
+        this.currentNanos = ts.getNanoTime();
     }
 
     public String formatStat() {

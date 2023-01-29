@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.LongObjMap;
+import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -151,14 +152,14 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         int stopStatus;
         while ((stopStatus = this.stopStatus) <= SS_PRE_STOP) {
             try {
-                long roundStartTime = run0(selector, selectTimeoutMillis, stopStatus);
-                if (roundStartTime - lastCleanNano > cleanIntervalNanos) {
+                Timestamp roundStartTime = run0(selector, selectTimeoutMillis, stopStatus);
+                if (roundStartTime.getNanoTime() - lastCleanNano > cleanIntervalNanos) {
                     cleanTimeoutReq(roundStartTime);
                     directPool.refreshCurrentNanos(roundStartTime);
                     heapPool.refreshCurrentNanos(roundStartTime);
                     directPool.clean(roundStartTime);
                     heapPool.clean(roundStartTime);
-                    lastCleanNano = roundStartTime;
+                    lastCleanNano = roundStartTime.getNanoTime();
                 }
             } catch (Throwable e) {
                 log.error("", e);
@@ -184,12 +185,12 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    private long run0(Selector selector, long selectTimeoutMillis, int stopStatus) {
+    private Timestamp run0(Selector selector, long selectTimeoutMillis, int stopStatus) {
         if (!select(selector, selectTimeoutMillis)) {
-            return System.nanoTime();
+            return new Timestamp();
         }
         boolean hasDataToWrite = ioQueue.dispatchWriteQueue();
-        long roundTime = System.nanoTime();
+        Timestamp roundTime = new Timestamp();
         Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
         while (iterator.hasNext()) {
             SelectionKey key = iterator.next();
@@ -205,27 +206,28 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         return roundTime;
     }
 
-    private void prepareReadBuffer(long roundTime) {
+    private void prepareReadBuffer(Timestamp roundTime) {
         if (readBuffer == null) {
             readBuffer = directPool.borrow(config.getReadBufferSize());
             // change to little endian since protobuf is little endian
             readBuffer.order(ByteOrder.LITTLE_ENDIAN);
         }
         readBuffer.clear();
-        readBufferUseTime = roundTime;
+        readBufferUseTime = roundTime.getNanoTime();
     }
 
-    private void cleanReadBuffer(long roundTime) {
-        if (readBuffer != null && roundTime - readBufferUseTime > readBufferTimeoutNanos) {
+    private void cleanReadBuffer(Timestamp roundTime) {
+        ByteBuffer readBuffer = this.readBuffer;
+        if (readBuffer != null && roundTime.getNanoTime() - readBufferUseTime > readBufferTimeoutNanos) {
             // recover to big endian
             readBuffer.order(ByteOrder.BIG_ENDIAN);
             directPool.release(readBuffer);
-            readBuffer = null;
+            this.readBuffer = null;
             readBufferUseTime = 0;
         }
     }
 
-    private boolean processOneSelectionKey(SelectionKey key, int stopStatus, long roundTime) {
+    private boolean processOneSelectionKey(SelectionKey key, int stopStatus, Timestamp roundTime) {
         SocketChannel sc = (SocketChannel) key.channel();
         int stage = 0;
         boolean hasDataToWrite = false;
@@ -467,7 +469,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    private void cleanTimeoutReq(long roundStartTime) {
+    private void cleanTimeoutReq(Timestamp roundStartTime) {
         LongObjMap<WriteData> map = this.pendingOutgoingRequests;
         LinkedList<Long> expireList = new LinkedList<>();
         map.forEach((key, d) -> {

@@ -3,6 +3,7 @@
  */
 package com.github.dtprj.dongting.buf;
 
+import com.github.dtprj.dongting.common.Timestamp;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -17,6 +18,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author <a href="mailto:areyouok@gmail.com">huangli</a>
  */
 public class SimpleByteBufferPoolTest {
+
+    private Timestamp plus(Timestamp ts, long millis){
+        return new Timestamp(ts.getNanoTime() + millis * 1000 * 1000, ts.getWallClockMillis() + millis);
+    }
 
     @Test
     public void testConstructor() {
@@ -88,7 +93,7 @@ public class SimpleByteBufferPoolTest {
     public void testClean1() {
         SimpleByteBufferPool pool = new SimpleByteBufferPool(false, 0, new int[]{1024, 2048},
                 new int[]{1, 1}, new int[]{2, 2}, 1000);
-        long time = System.nanoTime();
+        Timestamp time = new Timestamp();
         pool.refreshCurrentNanos(time);
         ByteBuffer buf1 = pool.borrow(1024);
         ByteBuffer buf2 = pool.borrow(1024);
@@ -96,7 +101,7 @@ public class SimpleByteBufferPoolTest {
         pool.release(buf2);
 
         // not clean
-        pool.clean(time + 500L * 1000 * 1000);
+        pool.clean(plus(time, 500));
         ByteBuffer buf3 = pool.borrow(1024);
         ByteBuffer buf4 = pool.borrow(1024);
         assertSame(buf2, buf3);
@@ -128,7 +133,7 @@ public class SimpleByteBufferPoolTest {
     public void testClean2() {
         SimpleByteBufferPool pool = new SimpleByteBufferPool(false, 0, new int[]{1024, 2048},
                 new int[]{1, 1}, new int[]{3, 3}, 1000);
-        long time = System.nanoTime();
+        Timestamp time = new Timestamp();
         pool.refreshCurrentNanos(time);
         ByteBuffer buf1 = pool.borrow(1024);
         ByteBuffer buf2 = pool.borrow(1024);
@@ -139,7 +144,7 @@ public class SimpleByteBufferPoolTest {
 
         //clean 2 buffer
         for (int i = 0; i < 5; i++) {
-            pool.clean(time + 1001L * 1000 * 1000);
+            pool.clean(plus(time, 1001));
             ByteBuffer buf4 = pool.borrow(1024);
             ByteBuffer buf5 = pool.borrow(1024);
             ByteBuffer buf6 = pool.borrow(1024);
@@ -159,7 +164,7 @@ public class SimpleByteBufferPoolTest {
     public void testClean3() {
         SimpleByteBufferPool pool = new SimpleByteBufferPool(false, 0, new int[]{1024, 2048},
                 new int[]{1, 1}, new int[]{2, 2}, 1000);
-        long time = System.nanoTime();
+        Timestamp time = new Timestamp();
         pool.refreshCurrentNanos(time);
         ByteBuffer buf1 = pool.borrow(2048);
         ByteBuffer buf2 = pool.borrow(2048);
@@ -168,7 +173,7 @@ public class SimpleByteBufferPoolTest {
 
         //clean 1 buffer
         for (int i = 0; i < 5; i++) {
-            pool.clean(time + 1001L * 1000 * 1000);
+            pool.clean(plus(time, 1001));
             ByteBuffer buf3 = pool.borrow(2048);
             ByteBuffer buf4 = pool.borrow(2048);
             assertSame(buf2, buf3);
@@ -184,7 +189,7 @@ public class SimpleByteBufferPoolTest {
     public void testClean4() {
         SimpleByteBufferPool pool = new SimpleByteBufferPool(false, 0, new int[]{1024, 2048},
                 new int[]{0, 0}, new int[]{2, 2}, 1000);
-        long time = System.nanoTime();
+        Timestamp time = new Timestamp();
         pool.refreshCurrentNanos(time);
         ByteBuffer buf1 = pool.borrow(2048);
         ByteBuffer buf2 = pool.borrow(2048);
@@ -193,7 +198,7 @@ public class SimpleByteBufferPoolTest {
 
         //clean 2 buffer
         for (int i = 0; i < 5; i++) {
-            pool.clean(time + 1001L * 1000 * 1000);
+            pool.clean(plus(time, 1001));
             ByteBuffer buf3 = pool.borrow(2048);
             ByteBuffer buf4 = pool.borrow(2048);
             assertTrue(buf3 != buf1 && buf3 != buf2);

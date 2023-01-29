@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -65,7 +66,7 @@ class IoSubQueue {
         }
     }
 
-    public ByteBuffer getWriteBuffer(long roundTime) {
+    public ByteBuffer getWriteBuffer(Timestamp roundTime) {
         ByteBuffer writeBuffer = this.writeBuffer;
         if (writeBuffer != null) {
             if (writeBuffer.remaining() > 0) {
@@ -128,7 +129,7 @@ class IoSubQueue {
         return buf;
     }
 
-    private boolean checkTimeoutAndAddToPending(WriteData wd, long roundTime) {
+    private boolean checkTimeoutAndAddToPending(WriteData wd, Timestamp roundTime) {
         WriteFrame f = wd.getData();
         DtTime t = wd.getTimeout();
         long rest = t.rest(TimeUnit.NANOSECONDS, roundTime);

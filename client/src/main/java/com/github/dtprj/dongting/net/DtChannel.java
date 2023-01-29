@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.pb.PbCallback;
@@ -97,7 +98,7 @@ class DtChannel extends PbCallback {
         this.channelContext = channelContext;
     }
 
-    public void afterRead(boolean running, ByteBuffer buf, long roundTime) {
+    public void afterRead(boolean running, ByteBuffer buf, Timestamp roundTime) {
         if (!running) {
             this.running = false;
         }
@@ -347,10 +348,10 @@ class DtChannel extends PbCallback {
         wo.getFuture().complete(resp);
     }
 
-    private void processIncomingRequest(ReadFrame req, ReqProcessor p, long roundTime) {
+    private void processIncomingRequest(ReadFrame req, ReqProcessor p, Timestamp roundTime) {
         NioStatus nioStatus = this.nioStatus;
         ReqContext reqContext = new ReqContext();
-        reqContext.setTimeout(new DtTime(roundTime, req.getTimeout(), TimeUnit.NANOSECONDS));
+        reqContext.setTimeout(new DtTime(roundTime.getNanoTime(), req.getTimeout(), TimeUnit.NANOSECONDS));
         if (p.getExecutor() == null) {
             if (timeout(req, channelContext, reqContext)) {
                 return;
