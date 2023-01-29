@@ -353,7 +353,7 @@ class DtChannel extends PbCallback {
         ReqContext reqContext = new ReqContext();
         reqContext.setTimeout(new DtTime(roundTime.getNanoTime(), req.getTimeout(), TimeUnit.NANOSECONDS));
         if (p.getExecutor() == null) {
-            if (timeout(req, channelContext, reqContext)) {
+            if (timeout(req, channelContext, reqContext, roundTime)) {
                 return;
             }
             WriteFrame resp;
@@ -394,9 +394,10 @@ class DtChannel extends PbCallback {
         }
     }
 
-    static boolean timeout(ReadFrame rf, ChannelContext channelContext, ReqContext reqContext) {
+    static boolean timeout(ReadFrame rf, ChannelContext channelContext, ReqContext reqContext, Timestamp ts) {
         DtTime t = reqContext.getTimeout();
-        if (t.rest(TimeUnit.NANOSECONDS) <= 0) {
+        long rest = ts == null ? t.rest(TimeUnit.NANOSECONDS) : t.rest(TimeUnit.NANOSECONDS, ts);
+        if (rest <= 0) {
             String type = rf.getFrameType() == FrameType.TYPE_REQ ? "request" : "response";
             log.debug("drop timeout {}, remote={}, seq={}, timeout={}ms", type,
                     channelContext.getRemoteAddr(), rf.getSeq(), t.getTimeout(TimeUnit.MILLISECONDS));
@@ -512,7 +513,7 @@ class ProcessInBizThreadTask implements Runnable {
             DtChannel dtc = this.dtc;
             boolean decodeSuccess = false;
             try {
-                if (DtChannel.timeout(req, dtc.getProcessContext(), reqContext)) {
+                if (DtChannel.timeout(req, dtc.getProcessContext(), reqContext, null)) {
                     return;
                 }
                 ReqProcessor processor = this.processor;
