@@ -34,8 +34,8 @@ public class DtTime {
         this.deadline = createTime + unit.toNanos(timeout);
     }
 
-    public DtTime(long createTime, long timeout, TimeUnit unit) {
-        this.createTime = createTime;
+    public DtTime(Timestamp ts, long timeout, TimeUnit unit) {
+        this.createTime = ts.getNanoTime();
         this.deadline = createTime + unit.toNanos(timeout);
     }
 
@@ -49,6 +49,14 @@ public class DtTime {
 
     public long rest(TimeUnit unit, Timestamp ts) {
         return unit.convert(deadline - ts.getNanoTime(), TimeUnit.NANOSECONDS);
+    }
+
+    public boolean isTimeout() {
+        return deadline - System.nanoTime() <= 0;
+    }
+
+    public boolean isTimeout(Timestamp ts) {
+        return deadline - ts.getNanoTime() <= 0;
     }
 
     public long getTimeout(TimeUnit unit) {

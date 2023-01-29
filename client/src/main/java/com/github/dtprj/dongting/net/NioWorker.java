@@ -474,7 +474,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         LinkedList<Long> expireList = new LinkedList<>();
         map.forEach((key, d) -> {
             DtTime t = d.getTimeout();
-            if (t.rest(TimeUnit.MILLISECONDS, roundStartTime) <= 0) {
+            if (t.isTimeout(roundStartTime)) {
                 expireList.add(key);
             }
         });

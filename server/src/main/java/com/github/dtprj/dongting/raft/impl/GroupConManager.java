@@ -286,7 +286,7 @@ public class GroupConManager {
                 CompletableFuture<PingResult> f = futures.get(i);
                 long timeoutMillis = timeout.rest(TimeUnit.MILLISECONDS);
                 PingResult pingResult;
-                if (timeout.rest(TimeUnit.MILLISECONDS) > 0) {
+                if (timeoutMillis > 0) {
                     try {
                         pingResult = f.get(timeoutMillis, TimeUnit.MILLISECONDS);
                     } catch (InterruptedException e) {

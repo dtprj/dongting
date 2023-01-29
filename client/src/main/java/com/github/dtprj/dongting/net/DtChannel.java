@@ -351,7 +351,7 @@ class DtChannel extends PbCallback {
     private void processIncomingRequest(ReadFrame req, ReqProcessor p, Timestamp roundTime) {
         NioStatus nioStatus = this.nioStatus;
         ReqContext reqContext = new ReqContext();
-        reqContext.setTimeout(new DtTime(roundTime.getNanoTime(), req.getTimeout(), TimeUnit.NANOSECONDS));
+        reqContext.setTimeout(new DtTime(roundTime, req.getTimeout(), TimeUnit.NANOSECONDS));
         if (p.getExecutor() == null) {
             if (timeout(req, channelContext, reqContext, roundTime)) {
                 return;
@@ -396,8 +396,8 @@ class DtChannel extends PbCallback {
 
     static boolean timeout(ReadFrame rf, ChannelContext channelContext, ReqContext reqContext, Timestamp ts) {
         DtTime t = reqContext.getTimeout();
-        long rest = ts == null ? t.rest(TimeUnit.NANOSECONDS) : t.rest(TimeUnit.NANOSECONDS, ts);
-        if (rest <= 0) {
+        boolean timeout = ts == null ? t.isTimeout() : t.isTimeout(ts);
+        if (timeout) {
             String type = rf.getFrameType() == FrameType.TYPE_REQ ? "request" : "response";
             log.debug("drop timeout {}, remote={}, seq={}, timeout={}ms", type,
                     channelContext.getRemoteAddr(), rf.getSeq(), t.getTimeout(TimeUnit.MILLISECONDS));
