@@ -47,7 +47,6 @@ import java.util.function.Function;
 public class RaftServer extends AbstractLifeCircle {
     private final NioServer raftServer;
     private final NioClient raftClient;
-    private final GroupConManager groupConManager;
     private final RaftThread raftThread;
     private final RaftStatus raftStatus;
     private final RaftLog raftLog;
@@ -68,21 +67,26 @@ public class RaftServer extends AbstractLifeCircle {
 
         NioClientConfig nioClientConfig = new NioClientConfig();
         nioClientConfig.setName("RaftClient");
+        // need more for ping and heartbeat, etc
+        nioClientConfig.setMaxOutRequests(config.getMaxReplicateItems() + 100);
         setupNioConfig(nioClientConfig, config);
         raftClient = new NioClient(nioClientConfig);
 
         LinkedBlockingQueue<Runnable> queue = new LinkedBlockingQueue<>();
         RaftExecutor raftExecutor = new RaftExecutor(queue);
-        groupConManager = new GroupConManager(config, raftClient, raftExecutor, raftStatus);
+        GroupConManager groupConManager = new GroupConManager(config, raftClient, raftExecutor, raftStatus);
 
         NioServerConfig nioServerConfig = new NioServerConfig();
         nioServerConfig.setPort(config.getRaftPort());
         nioServerConfig.setName("RaftServer");
         nioServerConfig.setBizThreads(0);
         nioServerConfig.setIoThreads(1);
+        // need more for ping and heartbeat, etc
+        nioServerConfig.setMaxInRequests(config.getMaxReplicateItems() + 100);
+        nioServerConfig.setMaxInBytes(config.getMaxReplicateBytes() + 128 * 1024);
         setupNioConfig(nioServerConfig, config);
         raftServer = new NioServer(nioServerConfig);
-        raftServer.register(Commands.RAFT_PING, this.groupConManager.getProcessor(), raftExecutor);
+        raftServer.register(Commands.RAFT_PING, groupConManager.getProcessor(), raftExecutor);
         AppendProcessor ap = new AppendProcessor(raftStatus, raftLog, stateMachine, logDecoder);
         raftServer.register(Commands.RAFT_APPEND_ENTRIES, ap , raftExecutor);
         raftServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(raftStatus), raftExecutor);

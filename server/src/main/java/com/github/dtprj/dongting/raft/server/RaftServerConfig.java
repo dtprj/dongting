@@ -29,8 +29,6 @@ public class RaftServerConfig {
     private int maxBodySize = 4 * 1024 * 1024;
     private int maxReplicateItems = 1000;
     private int maxReplicateBytes = 16 * 1024 * 1024;
-    private int maxRequests = 1024;
-    private long maxRequestBytes = 4 * 1024 * 1024;
 
     public String getServers() {
         return servers;
@@ -102,22 +100,6 @@ public class RaftServerConfig {
 
     public void setMaxReplicateBytes(int maxReplicateBytes) {
         this.maxReplicateBytes = maxReplicateBytes;
-    }
-
-    public int getMaxRequests() {
-        return maxRequests;
-    }
-
-    public void setMaxRequests(int maxRequests) {
-        this.maxRequests = maxRequests;
-    }
-
-    public long getMaxRequestBytes() {
-        return maxRequestBytes;
-    }
-
-    public void setMaxRequestBytes(long maxRequestBytes) {
-        this.maxRequestBytes = maxRequestBytes;
     }
 
     public int getMaxBodySize() {
