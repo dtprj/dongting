@@ -449,7 +449,7 @@ public class Raft {
             }
             if (input != null) {
                 Object result = stateMachine.write(input);
-                if (rt != null) {
+                if (rt != null && rt.future != null) {
                     rt.future.complete(result);
                 }
             }
