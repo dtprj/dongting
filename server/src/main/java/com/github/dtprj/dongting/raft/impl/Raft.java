@@ -108,13 +108,36 @@ public class Raft {
         raftStatus.setLastLeaderActiveTime(t);
         raftStatus.setHeartbeatTime(t);
         raftStatus.setLastElectTime(t);
+        raftStatus.setLeaseStartNanos(0);
+        raftStatus.setHasLeaseStartNanos(false);
         raftStatus.setPendingRequests(new LongObjMap<>());
         processOtherRaftNodes(raftStatus, node -> {
             node.setMatchIndex(0);
             node.setNextIndex(0);
             node.setPendingRequests(0);
+            node.setLastConfirmReqNanos(0);
+            node.setHasLastConfirmReqNanos(false);
             node.incrEpoch();
         });
+    }
+
+    private void changeToLeader() {
+        raftStatus.setRole(RaftRole.leader);
+        raftStatus.setLeaseStartNanos(0);
+        raftStatus.setHasLeaseStartNanos(false);
+        raftStatus.setPendingRequests(new LongObjMap<>());
+        raftStatus.setFirstCommitIndexOfCurrentTerm(0);
+        Raft.processOtherRaftNodes(raftStatus, n -> {
+            n.setMatchIndex(0);
+            n.setNextIndex(raftStatus.getLastLogIndex() + 1);
+            n.setPendingRequests(0);
+            n.incrEpoch();
+            n.setLastConfirmReqNanos(0);
+            n.setHasLastConfirmReqNanos(false);
+        });
+        log.info("change to leader. term={}", raftStatus.getCurrentTerm());
+
+        sendHeartBeat();
     }
 
     public static void processOtherRaftNodes(RaftStatus raftStatus, Consumer<RaftNode> consumer) {
@@ -296,22 +319,7 @@ public class Raft {
         }
     }
 
-    private void changeToLeader() {
-        raftStatus.setRole(RaftRole.leader);
-        raftStatus.setPendingRequests(new LongObjMap<>());
-        raftStatus.setFirstCommitIndexOfCurrentTerm(0);
-        Raft.processOtherRaftNodes(raftStatus, n -> {
-            n.setMatchIndex(0);
-            n.setNextIndex(raftStatus.getLastLogIndex() + 1);
-            n.setPendingRequests(0);
-            n.incrEpoch();
-        });
-        log.info("change to leader. term={}", raftStatus.getCurrentTerm());
-
-        sendHeartBeat();
-    }
-
-    public void sendAppendRequest(RaftNode node, long prevLogIndex, int prevLogTerm, List<ByteBuffer> logs, long bytes) {
+    private void sendAppendRequest(RaftNode node, long prevLogIndex, int prevLogTerm, List<ByteBuffer> logs, long bytes) {
         AppendReqWriteFrame req = new AppendReqWriteFrame();
         req.setCommand(Commands.RAFT_APPEND_ENTRIES);
         req.setTerm(raftStatus.getCurrentTerm());
@@ -323,14 +331,17 @@ public class Raft {
 
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
         CompletableFuture<ReadFrame> f = client.sendRequest(node.getPeer(), req, AppendRespDecoder.INSTANCE, timeout);
-        registerAppendResultCallback(node, prevLogIndex, prevLogTerm, f, raftStatus.getCurrentTerm(), logs.size(), bytes);
+        registerAppendResultCallback(node, prevLogIndex, prevLogTerm, f, logs.size(), bytes);
     }
 
     private void registerAppendResultCallback(RaftNode node, long prevLogIndex, int prevLogTerm,
-                                              CompletableFuture<ReadFrame> f, int reqTerm, int count, long bytes) {
+                                              CompletableFuture<ReadFrame> f, int count, long bytes) {
+        int reqTerm = raftStatus.getCurrentTerm();
+        // the time refresh happens before this line
+        long reqNanos = raftStatus.getTs().getNanoTime();
         f.handleAsync((rf, ex) -> {
             if (ex == null) {
-                processAppendResult(node, rf, prevLogIndex, prevLogTerm, reqTerm, count, bytes);
+                processAppendResult(node, rf, prevLogIndex, prevLogTerm, reqTerm, reqNanos, count, bytes);
             } else {
                 String msg = "append fail. remoteId={}, localTerm={}, reqTerm={}, prevLogIndex={}";
                 if (node.incrEpoch()) {
@@ -345,7 +356,7 @@ public class Raft {
 
     // in raft thread
     private void processAppendResult(RaftNode node, ReadFrame rf, long prevLogIndex,
-                                     int prevLogTerm, int reqTerm, int count, long bytes) {
+                                     int prevLogTerm, int reqTerm, long reqNanos, int count, long bytes) {
         long expectNewMatchIndex = prevLogIndex + count;
         AppendRespCallback body = (AppendRespCallback) rf.getBody();
         RaftStatus raftStatus = this.raftStatus;
@@ -370,6 +381,9 @@ public class Raft {
         node.decrAndGetPendingRequests(count, bytes);
         if (body.isSuccess()) {
             if (node.getMatchIndex() <= prevLogIndex) {
+                node.setHasLastConfirmReqNanos(true);
+                node.setLastConfirmReqNanos(reqNanos);
+                RaftUtil.updateLease(reqNanos, raftStatus);
                 node.setMatchIndex(expectNewMatchIndex);
                 // update last epoch
                 node.setLastEpoch(node.getEpoch());
@@ -385,6 +399,9 @@ public class Raft {
             log.info("log not match. remoteId={}, matchIndex={}, prevLogIndex={}, prevLogTerm={}, remoteLogTerm={}, remoteLogIndex={}, localTerm={}, reqTerm={}, remoteTerm={}",
                     node.getId(), node.getMatchIndex(), prevLogIndex, prevLogTerm, body.getMaxLogTerm(),
                     body.getMaxLogIndex(), raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
+            node.setHasLastConfirmReqNanos(true);
+            node.setLastConfirmReqNanos(reqNanos);
+            RaftUtil.updateLease(reqNanos, raftStatus);
             if (body.getTerm() == raftStatus.getCurrentTerm() && reqTerm == raftStatus.getCurrentTerm()) {
                 node.setNextIndex(body.getMaxLogIndex() + 1);
                 replicate(node);
@@ -420,7 +437,7 @@ public class Raft {
         int rwQuorum = raftStatus.getRwQuorum();
         long commitIndex = raftStatus.getCommitIndex();
 
-        boolean needCommit = RaftUtil.computeCommitIndex(raftStatus.getCommitIndex(), recentMatchIndex, servers, rwQuorum);
+        boolean needCommit = RaftUtil.needCommit(raftStatus.getCommitIndex(), recentMatchIndex, servers, rwQuorum);
         if (!needCommit) {
             return;
         }

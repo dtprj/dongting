@@ -79,7 +79,7 @@ public class RaftThread extends Thread {
         if (!init()) {
             return;
         }
-        Timestamp ts = new Timestamp();
+        Timestamp ts = raftStatus.getTs();
         while (!stop) {
             Runnable t;
             try {

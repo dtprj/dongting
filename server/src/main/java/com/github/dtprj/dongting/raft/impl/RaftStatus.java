@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.LongObjMap;
+import com.github.dtprj.dongting.common.Timestamp;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -36,6 +37,10 @@ public class RaftStatus {
 
     // dongting fields
     private RaftRole role;
+
+    private Timestamp ts;
+    private long leaseStartNanos;
+    private boolean hasLeaseStartNanos;
 
     private final int electQuorum;
     private final int rwQuorum;
@@ -179,5 +184,29 @@ public class RaftStatus {
 
     public void setFirstCommitIndexOfCurrentTerm(long firstCommitIndexOfCurrentTerm) {
         this.firstCommitIndexOfCurrentTerm = firstCommitIndexOfCurrentTerm;
+    }
+
+    public Timestamp getTs() {
+        return ts;
+    }
+
+    public void setTs(Timestamp ts) {
+        this.ts = ts;
+    }
+
+    public long getLeaseStartNanos() {
+        return leaseStartNanos;
+    }
+
+    public void setLeaseStartNanos(long leaseStartNanos) {
+        this.leaseStartNanos = leaseStartNanos;
+    }
+
+    public boolean isHasLeaseStartNanos() {
+        return hasLeaseStartNanos;
+    }
+
+    public void setHasLeaseStartNanos(boolean hasLeaseStartNanos) {
+        this.hasLeaseStartNanos = hasLeaseStartNanos;
     }
 }

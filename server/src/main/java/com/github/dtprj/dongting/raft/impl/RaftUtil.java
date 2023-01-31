@@ -44,8 +44,8 @@ public class RaftUtil {
         return servers;
     }
 
-    public static boolean computeCommitIndex(long currentCommitIndex, long recentMatchIndex,
-                                             List<RaftNode> servers, int rwQuorum) {
+    public static boolean needCommit(long currentCommitIndex, long recentMatchIndex,
+                                     List<RaftNode> servers, int rwQuorum) {
         if (recentMatchIndex < currentCommitIndex) {
             return false;
         }
@@ -61,5 +61,21 @@ public class RaftUtil {
             }
         }
         return count >= rwQuorum;
+    }
+
+    public static void updateLease(long currentReqNanos, RaftStatus raftStatus) {
+        int order = 0;
+        for (RaftNode node : raftStatus.getServers()) {
+            if (!node.isHasLastConfirmReqNanos()) {
+                continue;
+            }
+            if (currentReqNanos - node.getLastConfirmReqNanos() <= 0) {
+                order++;
+            }
+        }
+        if (raftStatus.getRwQuorum() == order) {
+            raftStatus.setLeaseStartNanos(currentReqNanos);
+            raftStatus.setHasLeaseStartNanos(true);
+        }
     }
 }

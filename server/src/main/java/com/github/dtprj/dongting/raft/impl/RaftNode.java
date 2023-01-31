@@ -35,6 +35,9 @@ public class RaftNode {
     private int pendingRequests;//only include append requests
     private long pendingBytes;
 
+    private long lastConfirmReqNanos;
+    private boolean hasLastConfirmReqNanos;
+
     // volatile state on leaders
     private long nextIndex;
     private long matchIndex;
@@ -154,5 +157,21 @@ public class RaftNode {
 
     public void setPinging(boolean pinging) {
         this.pinging = pinging;
+    }
+
+    public long getLastConfirmReqNanos() {
+        return lastConfirmReqNanos;
+    }
+
+    public void setLastConfirmReqNanos(long lastConfirmReqNanos) {
+        this.lastConfirmReqNanos = lastConfirmReqNanos;
+    }
+
+    public boolean isHasLastConfirmReqNanos() {
+        return hasLastConfirmReqNanos;
+    }
+
+    public void setHasLastConfirmReqNanos(boolean hasLastConfirmReqNanos) {
+        this.hasLastConfirmReqNanos = hasLastConfirmReqNanos;
     }
 }
