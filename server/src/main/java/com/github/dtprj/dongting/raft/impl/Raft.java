@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.LongObjMap;
+import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -68,6 +69,7 @@ public class Raft {
     private final int maxReplicateBytes;
 
     private RaftNode self;
+    private final Timestamp ts;
 
     public Raft(RaftServerConfig config, RaftExecutor raftExecutor, RaftLog raftLog,
                 RaftStatus raftStatus, NioClient client, Function<ByteBuffer, Object> logDecoder, StateMachine stateMachine) {
@@ -81,6 +83,7 @@ public class Raft {
         this.maxReplicateItems = config.getMaxReplicateItems();
         this.maxReplicateBytes = config.getMaxReplicateBytes();
         this.restItemsToStartReplicate = (int) (maxReplicateItems * 0.1);
+        this.ts = raftStatus.getTs();
     }
 
     private RaftNode getSelf() {
@@ -161,8 +164,9 @@ public class Raft {
         }
         long newIndex = oldIndex + len;
         raftLog.append(newIndex, oldTerm, currentTerm, logs);
-        getSelf().setNextIndex(newIndex + 1);
-        getSelf().setMatchIndex(newIndex);
+        RaftNode self = getSelf();
+        self.setNextIndex(newIndex + 1);
+        self.setMatchIndex(newIndex);
 
         for (int i = 1; i <= len; i++) {
             RaftTask rt = inputs.get(i);
@@ -171,6 +175,8 @@ public class Raft {
         }
         raftStatus.setLastLogTerm(currentTerm);
         raftStatus.setLastLogIndex(newIndex);
+        self.setHasLastConfirmReqNanos(true);
+        self.setLastConfirmReqNanos(ts.getNanoTime());
         processOtherRaftNodes(raftStatus, this::replicate);
     }
 
@@ -336,7 +342,7 @@ public class Raft {
                                               CompletableFuture<ReadFrame> f, int count, long bytes) {
         int reqTerm = raftStatus.getCurrentTerm();
         // the time refresh happens before this line
-        long reqNanos = raftStatus.getTs().getNanoTime();
+        long reqNanos = ts.getNanoTime();
         f.handleAsync((rf, ex) -> {
             if (ex == null) {
                 processAppendResult(node, rf, prevLogIndex, prevLogTerm, reqTerm, reqNanos, count, bytes);

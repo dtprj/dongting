@@ -91,7 +91,7 @@ public class RaftThread extends Thread {
                 t.run();
             }
             if (ts.getNanoTime() - oldNanos > 50 * 1000 * 1000) {
-                idle(ts.getNanoTime());
+                idle(ts);
             }
         }
     }
@@ -103,8 +103,9 @@ public class RaftThread extends Thread {
         });
     }
 
-    private void idle(long roundTimeNanos) {
-        raftStatus.getTs().refresh(1);
+    private void idle(Timestamp ts) {
+        ts.refresh(1);
+        long roundTimeNanos = ts.getNanoTime();
         if (roundTimeNanos - raftStatus.getHeartbeatTime() > heartbeatIntervalNanos) {
             raftStatus.setHeartbeatTime(roundTimeNanos);
             groupConManager.pingAllAndUpdateServers();
