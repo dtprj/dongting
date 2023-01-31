@@ -22,9 +22,9 @@ import java.util.concurrent.LinkedBlockingQueue;
  * @author huangli
  */
 public class RaftExecutor implements Executor {
-    private LinkedBlockingQueue<Runnable> queue;
+    private final LinkedBlockingQueue<Object> queue;
 
-    public RaftExecutor(LinkedBlockingQueue<Runnable> queue) {
+    public RaftExecutor(LinkedBlockingQueue<Object> queue) {
         this.queue = queue;
     }
 
@@ -33,7 +33,7 @@ public class RaftExecutor implements Executor {
         queue.offer(command);
     }
 
-    public LinkedBlockingQueue<Runnable> getQueue() {
+    public LinkedBlockingQueue<Object> getQueue() {
         return queue;
     }
 }

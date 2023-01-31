@@ -38,6 +38,7 @@ import com.github.dtprj.dongting.raft.rpc.VoteProcessor;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Function;
 
@@ -72,7 +73,7 @@ public class RaftServer extends AbstractLifeCircle {
         setupNioConfig(nioClientConfig, config);
         raftClient = new NioClient(nioClientConfig);
 
-        LinkedBlockingQueue<Runnable> queue = new LinkedBlockingQueue<>();
+        LinkedBlockingQueue<Object> queue = new LinkedBlockingQueue<>();
         RaftExecutor raftExecutor = new RaftExecutor(queue);
         GroupConManager groupConManager = new GroupConManager(config, raftClient, raftExecutor, raftStatus);
 
@@ -125,6 +126,10 @@ public class RaftServer extends AbstractLifeCircle {
         } catch (InterruptedException e) {
             throw new RaftException(e);
         }
+    }
+
+    public CompletableFuture<Object> submitRaftTask(ByteBuffer data, Object decodedInput) {
+        return raftThread.submitRaftTask(data, decodedInput);
     }
 
 }

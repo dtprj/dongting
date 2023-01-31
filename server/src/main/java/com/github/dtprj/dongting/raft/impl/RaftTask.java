@@ -22,6 +22,10 @@ import java.util.concurrent.CompletableFuture;
  * @author huangli
  */
 class RaftTask {
+
+    RaftTask(){
+    }
+
     CompletableFuture<Object> future;
     Object decodedInput;
     ByteBuffer data;

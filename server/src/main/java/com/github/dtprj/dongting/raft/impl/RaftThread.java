@@ -16,12 +16,16 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
+import java.nio.ByteBuffer;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -43,7 +47,7 @@ public class RaftThread extends Thread {
     private final long electTimeoutNanos;
 
     // TODO optimise blocking queue
-    private final LinkedBlockingQueue<Runnable> queue;
+    private final LinkedBlockingQueue<Object> queue;
 
     private volatile boolean stop;
 
@@ -78,18 +82,47 @@ public class RaftThread extends Thread {
             return;
         }
         Timestamp ts = raftStatus.getTs();
+        ArrayList<RaftTask> tasks = new ArrayList<>(32);
+        ArrayList<Object> queueData = new ArrayList<>(32);
+        boolean poll = true;
         while (!stop) {
-            Runnable t;
-            try {
-                t = queue.poll(pollTimeout, TimeUnit.MILLISECONDS);
-            } catch (InterruptedException e) {
-                return;
-            }
             long oldNanos = ts.getNanoTime();
-            ts.refresh(1);
-            if (t != null) {
-                t.run();
+            if (poll) {
+                try {
+                    Object o = queue.poll(pollTimeout, TimeUnit.MILLISECONDS);
+                    if (o != null) {
+                        queueData.add(o);
+                    }
+                } catch (InterruptedException e) {
+                    return;
+                }
+            } else {
+                queue.drainTo(queueData);
             }
+
+            ts.refresh(1);
+            poll = ts.getNanoTime() - oldNanos > 2 * 1000 * 1000 || queueData.size() == 0;
+
+            for (Object o : queueData) {
+                if(o instanceof RaftTask){
+                    tasks.add((RaftTask) o);
+                } else if (o instanceof Runnable) {
+                    if (tasks.size() > 0) {
+                        raft.raftExec(tasks);
+                        tasks.clear();
+                    }
+                    ((Runnable) o).run();
+                } else {
+                    BugLog.getLog().error("type error: {}", o.getClass());
+                    return;
+                }
+            }
+
+            if (tasks.size() > 0) {
+                raft.raftExec(tasks);
+                tasks.clear();
+            }
+
             if (ts.getNanoTime() - oldNanos > 50 * 1000 * 1000) {
                 idle(ts);
             }
@@ -97,10 +130,11 @@ public class RaftThread extends Thread {
     }
 
     public void requestShutdown() {
-        queue.offer(() -> {
+        Runnable r = () -> {
             stop = true;
             log.info("request raft thread shutdown");
-        });
+        };
+        queue.offer(r);
     }
 
     private void idle(Timestamp ts) {
@@ -142,5 +176,17 @@ public class RaftThread extends Thread {
         } catch (Exception e) {
             throw new RaftException(e);
         }
+    }
+
+    public CompletableFuture<Object> submitRaftTask(ByteBuffer data, Object decodedInput) {
+        Objects.requireNonNull(data);
+        Objects.requireNonNull(decodedInput);
+        CompletableFuture<Object> f = new CompletableFuture<>();
+        RaftTask t = new RaftTask();
+        t.future = f;
+        t.data = data;
+        t.decodedInput = decodedInput;
+        queue.offer(t);
+        return f;
     }
 }
