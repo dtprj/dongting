@@ -177,6 +177,11 @@ public class Raft {
         raftStatus.setLastLogIndex(newIndex);
         self.setHasLastConfirmReqNanos(true);
         self.setLastConfirmReqNanos(ts.getNanoTime());
+
+        // for single node mode
+        RaftUtil.updateLease(ts.getNanoTime(), raftStatus);
+        tryCommit(newIndex);
+
         processOtherRaftNodes(raftStatus, this::replicate);
     }
 
