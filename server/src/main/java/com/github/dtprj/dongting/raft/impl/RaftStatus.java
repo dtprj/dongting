@@ -38,15 +38,13 @@ public class RaftStatus {
     // dongting fields
     private RaftRole role;
 
-    private Timestamp ts;
+    private Timestamp ts = new Timestamp();
     private long leaseStartNanos;
     private boolean hasLeaseStartNanos;
 
     private final int electQuorum;
     private final int rwQuorum;
     private final HashSet<Integer> currentVotes = new HashSet<>();
-
-    private long lastLeaderActiveTime;
 
     private long lastElectTime;
 
@@ -64,10 +62,8 @@ public class RaftStatus {
     public RaftStatus(int electQuorum, int rwQuorum) {
         this.electQuorum = electQuorum;
         this.rwQuorum = rwQuorum;
-        long t = System.nanoTime();
-        lastLeaderActiveTime = t;
-        lastElectTime = t;
-        heartbeatTime = t;
+        lastElectTime = ts.getNanoTime();
+        heartbeatTime = ts.getNanoTime();
     }
 
     public int getCurrentTerm() {
@@ -120,14 +116,6 @@ public class RaftStatus {
 
     public int getRwQuorum() {
         return rwQuorum;
-    }
-
-    public long getLastLeaderActiveTime() {
-        return lastLeaderActiveTime;
-    }
-
-    public void setLastLeaderActiveTime(long lastLeaderActiveTime) {
-        this.lastLeaderActiveTime = lastLeaderActiveTime;
     }
 
     public long getHeartbeatTime() {
@@ -188,10 +176,6 @@ public class RaftStatus {
 
     public Timestamp getTs() {
         return ts;
-    }
-
-    public void setTs(Timestamp ts) {
-        this.ts = ts;
     }
 
     public long getLeaseStartNanos() {

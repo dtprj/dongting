@@ -30,6 +30,7 @@ import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.raft.impl.Raft;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.StateMachine;
@@ -79,7 +80,7 @@ public class AppendProcessor extends ReqProcessor {
         int localTerm = raftStatus.getCurrentTerm();
         if (remoteTerm == localTerm) {
             if (raftStatus.getRole() == RaftRole.follower) {
-                raftStatus.setLastLeaderActiveTime(System.nanoTime());
+                RaftUtil.resetElectTimer(raftStatus);
                 append(req, resp);
             } else if (raftStatus.getRole() == RaftRole.candidate) {
                 Raft.updateTermAndConvertToFollower(remoteTerm, raftStatus);

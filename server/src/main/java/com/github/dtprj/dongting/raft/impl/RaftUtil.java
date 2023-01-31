@@ -78,4 +78,8 @@ public class RaftUtil {
             raftStatus.setHasLeaseStartNanos(true);
         }
     }
+
+    public static void resetElectTimer(RaftStatus raftStatus) {
+        raftStatus.setLastElectTime(raftStatus.getTs().getNanoTime());
+    }
 }

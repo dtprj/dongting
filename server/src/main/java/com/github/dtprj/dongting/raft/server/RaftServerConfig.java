@@ -23,7 +23,7 @@ public class RaftServerConfig {
     private int raftPort;
     private int bizPort;
     private int id;
-    private long leaderTimeout = 15 * 1000;
+    private long electTimeout = 15 * 1000;
     private long rpcTimeout = 5 * 1000;
     private long heartbeatInterval = 2000;
     private int maxBodySize = 4 * 1024 * 1024;
@@ -62,12 +62,12 @@ public class RaftServerConfig {
         this.id = id;
     }
 
-    public long getLeaderTimeout() {
-        return leaderTimeout;
+    public long getElectTimeout() {
+        return electTimeout;
     }
 
-    public void setLeaderTimeout(long leaderTimeout) {
-        this.leaderTimeout = leaderTimeout;
+    public void setElectTimeout(long electTimeout) {
+        this.electTimeout = electTimeout;
     }
 
     public long getRpcTimeout() {

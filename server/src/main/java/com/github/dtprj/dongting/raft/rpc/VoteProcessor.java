@@ -28,6 +28,7 @@ import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.raft.impl.Raft;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 
 /**
  * @author huangli
@@ -60,16 +61,15 @@ public class VoteProcessor extends ReqProcessor {
         if (voteReq.getTerm() < localTerm) {
             resp.setVoteGranted(false);
         } else {
+            RaftUtil.resetElectTimer(raftStatus);
             if (raftStatus.getVoteFor() == 0 || raftStatus.getVoteFor() == voteReq.getCandidateId()) {
                 // TODO persist
                 if (voteReq.getLastLogTerm() > raftStatus.getLastLogTerm()) {
                     raftStatus.setVoteFor(voteReq.getCandidateId());
-                    raftStatus.setLastElectTime(System.nanoTime());
                     resp.setVoteGranted(true);
                 } else if (voteReq.getLastLogTerm() == raftStatus.getLastLogTerm()
                         && voteReq.getLastLogIndex() >= raftStatus.getLastLogIndex()) {
                     raftStatus.setVoteFor(voteReq.getCandidateId());
-                    raftStatus.setLastElectTime(System.nanoTime());
                     resp.setVoteGranted(true);
                 } else {
                     resp.setVoteGranted(false);

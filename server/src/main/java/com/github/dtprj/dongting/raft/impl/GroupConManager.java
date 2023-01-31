@@ -280,7 +280,7 @@ public class GroupConManager {
             for (RaftNode node : serverList) {
                 futures.add(connectAndPing(node));
             }
-            DtTime timeout = new DtTime(config.getLeaderTimeout(), TimeUnit.MILLISECONDS);
+            DtTime timeout = new DtTime(config.getElectTimeout(), TimeUnit.MILLISECONDS);
             for (int i = 0; i < futures.size(); i++) {
                 RaftNode node = serverList.get(i);
                 CompletableFuture<PingResult> f = futures.get(i);

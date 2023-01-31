@@ -40,7 +40,6 @@ public class RaftThread extends Thread {
     private final GroupConManager groupConManager;
 
     private final long heartbeatIntervalNanos;
-    private final long leaderTimeoutNanos;
     private final long electTimeoutNanos;
 
     // TODO optimise blocking queue
@@ -57,9 +56,8 @@ public class RaftThread extends Thread {
         this.queue = executor.getQueue();
         this.raft = raft;
         this.groupConManager = groupConManager;
-        leaderTimeoutNanos = Duration.ofMillis(config.getLeaderTimeout()).toNanos();
+        electTimeoutNanos = Duration.ofMillis(config.getElectTimeout()).toNanos();
         heartbeatIntervalNanos = Duration.ofMillis(config.getHeartbeatInterval()).toNanos();
-        electTimeoutNanos = leaderTimeoutNanos;
     }
 
     protected boolean init() {
@@ -106,6 +104,7 @@ public class RaftThread extends Thread {
     }
 
     private void idle(long roundTimeNanos) {
+        raftStatus.getTs().refresh(1);
         if (roundTimeNanos - raftStatus.getHeartbeatTime() > heartbeatIntervalNanos) {
             raftStatus.setHeartbeatTime(roundTimeNanos);
             groupConManager.pingAllAndUpdateServers();
@@ -114,10 +113,8 @@ public class RaftThread extends Thread {
             }
         }
         if (raftStatus.getRole() == RaftRole.follower || raftStatus.getRole() == RaftRole.candidate) {
-            if (roundTimeNanos - raftStatus.getLastLeaderActiveTime() > leaderTimeoutNanos) {
-                if (roundTimeNanos - raftStatus.getLastElectTime() > electTimeoutNanos) {
-                    startElect();
-                }
+            if (roundTimeNanos - raftStatus.getLastElectTime() > electTimeoutNanos) {
+                startElect();
             }
         }
     }
@@ -129,7 +126,7 @@ public class RaftThread extends Thread {
         raftStatus.setRole(RaftRole.candidate);
         raftStatus.getCurrentVotes().clear();
         raftStatus.getCurrentVotes().add(config.getId());
-        raftStatus.setLastElectTime(System.nanoTime());
+        raftStatus.setLastElectTime(raftStatus.getTs().getNanoTime());
         for (RaftNode node : raftStatus.getServers()) {
             if (node.isSelf()) {
                 continue;

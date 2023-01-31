@@ -104,10 +104,8 @@ public class Raft {
         raftStatus.setFirstCommitIndexOfCurrentTerm(0);
         raftStatus.setRole(RaftRole.follower);
         raftStatus.getCurrentVotes().clear();
-        long t = System.nanoTime();
-        raftStatus.setLastLeaderActiveTime(t);
-        raftStatus.setHeartbeatTime(t);
-        raftStatus.setLastElectTime(t);
+        RaftUtil.resetElectTimer(raftStatus);
+        raftStatus.setHeartbeatTime(raftStatus.getLastElectTime());
         raftStatus.setLeaseStartNanos(0);
         raftStatus.setHasLeaseStartNanos(false);
         raftStatus.setPendingRequests(new LongObjMap<>());
