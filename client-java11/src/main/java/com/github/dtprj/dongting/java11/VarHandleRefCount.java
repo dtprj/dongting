@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.java11;
 
-import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.Processor;
 import com.github.dtprj.dongting.common.RefCount;
 import com.github.dtprj.dongting.common.RefCountUpdater;
@@ -34,7 +33,7 @@ public class VarHandleRefCount extends RefCountUpdater {
             REF_CNT = MethodHandles.privateLookupIn(RefCount.class, MethodHandles.lookup())
                     .findVarHandle(RefCount.class, "refCnt", int.class);
         } catch (Exception e) {
-            throw new DtException(e);
+            throw new Error(e);
         }
     }
 

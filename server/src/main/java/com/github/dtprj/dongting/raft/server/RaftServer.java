@@ -18,6 +18,8 @@ package com.github.dtprj.dongting.raft.server;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.ObjUtil;
 import com.github.dtprj.dongting.common.Pair;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NioClient;
@@ -35,6 +37,8 @@ import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.VoteProcessor;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.Set;
@@ -46,6 +50,7 @@ import java.util.function.Function;
  * @author huangli
  */
 public class RaftServer extends AbstractLifeCircle {
+    private static DtLog log = DtLogs.getLogger(RaftServer.class);
     private final NioServer raftServer;
     private final NioClient raftClient;
     private final RaftThread raftThread;
@@ -53,12 +58,32 @@ public class RaftServer extends AbstractLifeCircle {
     private final RaftLog raftLog;
     private final StateMachine stateMachine;
 
+    private final int maxPendingWrites;
+    private final long maxPendingWriteBytes;
+    private volatile int pendingWrites;
+    private volatile long pendingWriteBytes;
+
+    private static final VarHandle PENDING_WRITES;
+    private static final VarHandle PENDING_WRITE_BYTES;
+
+    static {
+        try {
+            MethodHandles.Lookup lookup = MethodHandles.lookup();
+            PENDING_WRITES = lookup.findVarHandle(RaftServer.class, "pendingWrites", int.class);
+            PENDING_WRITE_BYTES = lookup.findVarHandle(RaftServer.class, "pendingWriteBytes", long.class);
+        } catch (Exception e) {
+            throw new Error(e);
+        }
+    }
+
     public RaftServer(RaftServerConfig config, RaftLog raftLog, StateMachine stateMachine, Function<ByteBuffer, Object> logDecoder) {
-        this.raftLog = raftLog;
-        this.stateMachine = stateMachine;
         Objects.requireNonNull(config.getServers());
         ObjUtil.checkPositive(config.getId(), "id");
         ObjUtil.checkPositive(config.getRaftPort(), "port");
+        this.raftLog = raftLog;
+        this.stateMachine = stateMachine;
+        this.maxPendingWrites = config.getMaxPendingWrites();
+        this.maxPendingWriteBytes = config.getMaxPendingWriteBytes();
 
         Set<HostPort> raftServers = RaftUtil.parseServers(config.getServers());
 
@@ -89,7 +114,7 @@ public class RaftServer extends AbstractLifeCircle {
         raftServer = new NioServer(nioServerConfig);
         raftServer.register(Commands.RAFT_PING, groupConManager.getProcessor(), raftExecutor);
         AppendProcessor ap = new AppendProcessor(raftStatus, raftLog, stateMachine, logDecoder);
-        raftServer.register(Commands.RAFT_APPEND_ENTRIES, ap , raftExecutor);
+        raftServer.register(Commands.RAFT_APPEND_ENTRIES, ap, raftExecutor);
         raftServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(raftStatus), raftExecutor);
 
         Raft raft = new Raft(config, raftExecutor, raftLog, raftStatus, raftClient, logDecoder, stateMachine);
@@ -129,7 +154,31 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     public CompletableFuture<Object> submitRaftTask(ByteBuffer data, Object decodedInput) {
-        return raftThread.submitRaftTask(data, decodedInput);
+        Objects.requireNonNull(data);
+        Objects.requireNonNull(decodedInput);
+        int currentPendingWrites = (int) PENDING_WRITES.getAndAddRelease(this, 1);
+        if (currentPendingWrites >= maxPendingWrites) {
+            log.warn("submitRaftTask failed: too many pending writes");
+            PENDING_WRITES.getAndAddRelease(this, -1);
+            return null;
+        }
+        int size = data.remaining();
+        long currentPendingWriteBytes = (long) PENDING_WRITE_BYTES.getAndAdd(this, size);
+        if (currentPendingWriteBytes >= maxPendingWriteBytes) {
+            log.warn("submitRaftTask failed: too many pending write bytes, currentSize={}", size);
+            PENDING_WRITE_BYTES.getAndAddRelease(this, -size);
+            return null;
+        }
+        CompletableFuture<Object> f = raftThread.submitRaftTask(data, decodedInput);
+        registerCallback(f, size);
+        return f;
+    }
+
+    private void registerCallback(CompletableFuture<Object> f, int size) {
+        f.whenComplete((o, ex) -> {
+            PENDING_WRITES.getAndAddRelease(this, -1);
+            PENDING_WRITE_BYTES.getAndAddRelease(this, -size);
+        });
     }
 
 }

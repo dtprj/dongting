@@ -66,7 +66,7 @@ public class Raft {
 
     private final int maxReplicateItems;
     private final int restItemsToStartReplicate;
-    private final int maxReplicateBytes;
+    private final long maxReplicateBytes;
 
     private RaftNode self;
     private final Timestamp ts;

@@ -25,7 +25,6 @@ import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -179,8 +178,6 @@ public class RaftThread extends Thread {
     }
 
     public CompletableFuture<Object> submitRaftTask(ByteBuffer data, Object decodedInput) {
-        Objects.requireNonNull(data);
-        Objects.requireNonNull(decodedInput);
         CompletableFuture<Object> f = new CompletableFuture<>();
         RaftTask t = new RaftTask();
         t.future = f;

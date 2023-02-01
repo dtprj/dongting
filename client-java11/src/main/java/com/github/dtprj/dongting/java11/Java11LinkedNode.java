@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.java11;
 
-import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.queue.LinkedNode;
 
 import java.lang.invoke.MethodHandles;
@@ -33,7 +32,7 @@ public class Java11LinkedNode<E> extends LinkedNode<E> {
             MethodHandles.Lookup l = MethodHandles.lookup();
             NEXT = l.findVarHandle(LinkedNode.class, "next", LinkedNode.class);
         } catch (Exception e) {
-            throw new DtException(e);
+            throw new Error(e);
         }
     }
 

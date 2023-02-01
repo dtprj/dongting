@@ -28,7 +28,10 @@ public class RaftServerConfig {
     private long heartbeatInterval = 2000;
     private int maxBodySize = 4 * 1024 * 1024;
     private int maxReplicateItems = 1000;
-    private int maxReplicateBytes = 16 * 1024 * 1024;
+    private long maxReplicateBytes = 16 * 1024 * 1024;
+
+    private int maxPendingWrites = 10000;
+    private long maxPendingWriteBytes = 256 * 1024 * 1024;
 
     public String getServers() {
         return servers;
@@ -94,11 +97,11 @@ public class RaftServerConfig {
         this.maxReplicateItems = maxReplicateItems;
     }
 
-    public int getMaxReplicateBytes() {
+    public long getMaxReplicateBytes() {
         return maxReplicateBytes;
     }
 
-    public void setMaxReplicateBytes(int maxReplicateBytes) {
+    public void setMaxReplicateBytes(long maxReplicateBytes) {
         this.maxReplicateBytes = maxReplicateBytes;
     }
 
@@ -108,5 +111,21 @@ public class RaftServerConfig {
 
     public void setMaxBodySize(int maxBodySize) {
         this.maxBodySize = maxBodySize;
+    }
+
+    public int getMaxPendingWrites() {
+        return maxPendingWrites;
+    }
+
+    public void setMaxPendingWrites(int maxPendingWrites) {
+        this.maxPendingWrites = maxPendingWrites;
+    }
+
+    public long getMaxPendingWriteBytes() {
+        return maxPendingWriteBytes;
+    }
+
+    public void setMaxPendingWriteBytes(long maxPendingWriteBytes) {
+        this.maxPendingWriteBytes = maxPendingWriteBytes;
     }
 }

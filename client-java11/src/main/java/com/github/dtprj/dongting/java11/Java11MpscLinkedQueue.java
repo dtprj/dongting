@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.java11;
 
-import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.queue.LinkedNode;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 
@@ -33,7 +32,7 @@ public class Java11MpscLinkedQueue<E> extends MpscLinkedQueue<E> {
             MethodHandles.Lookup l = MethodHandles.lookup();
             PRODUCER_NODE = l.findVarHandle(MpscLinkedQueue.class, "producerNode", LinkedNode.class);
         } catch (Exception e) {
-            throw new DtException(e);
+            throw new Error(e);
         }
     }
 
