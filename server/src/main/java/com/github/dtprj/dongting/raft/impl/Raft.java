@@ -442,11 +442,9 @@ public class Raft {
 
     private void tryCommit(long recentMatchIndex) {
         RaftStatus raftStatus = this.raftStatus;
-        List<RaftNode> servers = raftStatus.getServers();
-        int rwQuorum = raftStatus.getRwQuorum();
-        long commitIndex = raftStatus.getCommitIndex();
 
-        boolean needCommit = RaftUtil.needCommit(raftStatus.getCommitIndex(), recentMatchIndex, servers, rwQuorum);
+        boolean needCommit = RaftUtil.needCommit(raftStatus.getCommitIndex(), recentMatchIndex,
+                raftStatus.getServers(), raftStatus.getRwQuorum());
         if (!needCommit) {
             return;
         }
@@ -461,14 +459,14 @@ public class Raft {
         }
         raftStatus.setCommitIndex(recentMatchIndex);
 
-        for (long i = raftStatus.getLastApplied(); i <= recentMatchIndex; i++) {
+        for (long i = raftStatus.getLastApplied() + 1; i <= recentMatchIndex; i++) {
             // TODO error handle
-            RaftTask rt = raftStatus.getPendingRequests().remove(commitIndex);
+            RaftTask rt = raftStatus.getPendingRequests().remove(i);
             Object input = null;
             if (rt != null) {
                 input = rt.decodedInput;
             } else {
-                LogItem item = raftLog.load(commitIndex);
+                LogItem item = raftLog.load(i);
                 if (item.getBuffer() != null) {
                     input = logDecoder.apply(item.getBuffer());
                 }
