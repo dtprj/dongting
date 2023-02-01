@@ -35,6 +35,7 @@ import com.github.dtprj.dongting.raft.rpc.AppendRespDecoder;
 import com.github.dtprj.dongting.raft.rpc.VoteReq;
 import com.github.dtprj.dongting.raft.rpc.VoteResp;
 import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.server.StateMachine;
@@ -152,6 +153,13 @@ public class Raft {
 
     public void raftExec(List<RaftTask> inputs) {
         RaftStatus raftStatus = this.raftStatus;
+        if (raftStatus.getRole() != RaftRole.leader) {
+            for (RaftTask t : inputs) {
+                if (t.future != null) {
+                    t.future.completeExceptionally(new NotLeaderException());
+                }
+            }
+        }
         long oldIndex = raftStatus.getLastLogIndex();
         int len = inputs.size();
 
@@ -229,7 +237,7 @@ public class Raft {
         int count = 0;
         long bytes = 0;
         LogItem firstItem = null;
-        for (int i = 0; i < items.length;) {
+        for (int i = 0; i < items.length; ) {
             LogItem item = items[i];
             if (firstItem == null) {
                 firstItem = item;

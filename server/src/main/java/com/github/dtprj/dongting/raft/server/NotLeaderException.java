@@ -13,22 +13,12 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.client;
+package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.common.DtException;
+import com.github.dtprj.dongting.raft.client.RaftException;
 
 /**
  * @author huangli
  */
-public class RaftException extends DtException {
-    public RaftException() {
-    }
-
-    public RaftException(String message) {
-        super(message);
-    }
-
-    public RaftException(Throwable e) {
-        super(e);
-    }
+public class NotLeaderException extends RaftException {
 }
