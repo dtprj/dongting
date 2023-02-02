@@ -16,8 +16,10 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.ObjUtil;
 import com.github.dtprj.dongting.common.Pair;
+import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
@@ -31,9 +33,11 @@ import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.impl.GroupConManager;
 import com.github.dtprj.dongting.raft.impl.Raft;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
+import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftThread;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.impl.ShareStatus;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.VoteProcessor;
 
@@ -50,7 +54,7 @@ import java.util.function.Function;
  * @author huangli
  */
 public class RaftServer extends AbstractLifeCircle {
-    private static DtLog log = DtLogs.getLogger(RaftServer.class);
+    private static final DtLog log = DtLogs.getLogger(RaftServer.class);
     private final NioServer raftServer;
     private final NioClient raftClient;
     private final RaftThread raftThread;
@@ -60,11 +64,15 @@ public class RaftServer extends AbstractLifeCircle {
 
     private final int maxPendingWrites;
     private final long maxPendingWriteBytes;
+    @SuppressWarnings({"unused"})
     private volatile int pendingWrites;
+    @SuppressWarnings({"unused"})
     private volatile long pendingWriteBytes;
 
     private static final VarHandle PENDING_WRITES;
     private static final VarHandle PENDING_WRITE_BYTES;
+
+    private final Timestamp readTimestamp = new Timestamp();
 
     static {
         try {
@@ -179,6 +187,23 @@ public class RaftServer extends AbstractLifeCircle {
             PENDING_WRITES.getAndAddRelease(this, -1);
             PENDING_WRITE_BYTES.getAndAddRelease(this, -size);
         });
+    }
+
+    public Object raftRead(Object input, DtTime deadline) throws NotLeaderException {
+        ShareStatus ss = raftStatus.getShareStatus();
+        readTimestamp.refresh(1);
+        if (ss.role != RaftRole.leader) {
+            throw new NotLeaderException(ss.currentLeader);
+        }
+        long t = readTimestamp.getNanoTime();
+        if (ss.leaseEndNanos - t < 0) {
+            throw new NotLeaderException(null);
+        }
+        if(!ss.firstCommitOfCurrentTermApplied){
+            // TODO wait
+            return null;
+        }
+        return stateMachine.read(input, ss.lastApplied);
     }
 
 }

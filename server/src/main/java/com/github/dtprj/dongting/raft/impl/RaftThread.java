@@ -60,6 +60,7 @@ public class RaftThread extends Thread {
         this.raft = raft;
         this.groupConManager = groupConManager;
         electTimeoutNanos = Duration.ofMillis(config.getElectTimeout()).toNanos();
+        raftStatus.setElectTimeoutNanos(electTimeoutNanos);
         heartbeatIntervalNanos = Duration.ofMillis(config.getHeartbeatInterval()).toNanos();
     }
 
@@ -103,14 +104,16 @@ public class RaftThread extends Thread {
             poll = ts.getNanoTime() - oldNanos > 2 * 1000 * 1000 || queueData.size() == 0;
 
             for (Object o : queueData) {
-                if(o instanceof RaftTask){
+                if (o instanceof RaftTask) {
                     tasks.add((RaftTask) o);
                 } else if (o instanceof Runnable) {
                     if (tasks.size() > 0) {
                         raft.raftExec(tasks);
                         tasks.clear();
                     }
+                    raftStatus.copyShareStatus();
                     ((Runnable) o).run();
+                    raftStatus.copyShareStatus();
                 } else {
                     BugLog.getLog().error("type error: {}", o.getClass());
                     return;
@@ -121,6 +124,7 @@ public class RaftThread extends Thread {
                 raft.raftExec(tasks);
                 tasks.clear();
             }
+            raftStatus.copyShareStatus();
 
             if (ts.getNanoTime() - oldNanos > 50 * 1000 * 1000) {
                 idle(ts);
@@ -146,11 +150,13 @@ public class RaftThread extends Thread {
                 raft.sendHeartBeat();
             }
         }
+        raftStatus.copyShareStatus();
         if (raftStatus.getRole() == RaftRole.follower || raftStatus.getRole() == RaftRole.candidate) {
             if (roundTimeNanos - raftStatus.getLastElectTime() > electTimeoutNanos) {
                 startElect();
             }
         }
+        raftStatus.copyShareStatus();
     }
 
     private void startElect() {

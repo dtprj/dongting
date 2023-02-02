@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.net.HostPort;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -33,31 +34,32 @@ public class RaftStatus {
 
     // volatile state on all servers
     private long commitIndex;
-    private long lastApplied;
+    private long lastApplied; // shared
 
-    // dongting fields
-    private RaftRole role;
-
-    private Timestamp ts = new Timestamp();
-    private long leaseStartNanos;
-    private boolean hasLeaseStartNanos;
-
+    private RaftRole role; // shared
+    private HostPort currentLeader; // shared
+    private final Timestamp ts = new Timestamp();
     private final int electQuorum;
     private final int rwQuorum;
     private final HashSet<Integer> currentVotes = new HashSet<>();
+    private final List<RaftNode> servers = new ArrayList<>();
+
+    private LongObjMap<RaftTask> pendingRequests = new LongObjMap<>();
+    private long firstCommitIndexOfCurrentTerm;
+    private boolean firstCommitOfCurrentTermApplied; // shared
+
+    private boolean shareStatusUpdated;
+    private volatile ShareStatus shareStatus;
+    private long electTimeoutNanos; // shared
+
+    private long leaseStartNanos; // shared
+    private boolean hasLeaseStartNanos; // shared
 
     private long lastElectTime;
-
     private long heartbeatTime;
 
     private long lastLogIndex;
     private int lastLogTerm;
-
-    private List<RaftNode> servers = new ArrayList<>();
-
-    private LongObjMap<RaftTask> pendingRequests = new LongObjMap<>();
-
-    private long firstCommitIndexOfCurrentTerm;
 
     public RaftStatus(int electQuorum, int rwQuorum) {
         this.electQuorum = electQuorum;
@@ -65,6 +67,58 @@ public class RaftStatus {
         lastElectTime = ts.getNanoTime();
         heartbeatTime = ts.getNanoTime();
     }
+
+    public void copyShareStatus() {
+        if (shareStatusUpdated) {
+            ShareStatus ss = new ShareStatus();
+            ss.role = role;
+            ss.lastApplied = lastApplied;
+            ss.hasLease = hasLeaseStartNanos;
+            ss.leaseEndNanos = leaseStartNanos + electTimeoutNanos;
+            ss.currentLeader = currentLeader;
+            ss.firstCommitOfCurrentTermApplied = firstCommitOfCurrentTermApplied;
+
+            this.shareStatusUpdated = false;
+            this.shareStatus = ss;
+        }
+    }
+
+    public void setLastApplied(long lastApplied) {
+        this.lastApplied = lastApplied;
+        this.shareStatusUpdated = true;
+    }
+
+    public void setRole(RaftRole role) {
+        this.role = role;
+        this.shareStatusUpdated = true;
+    }
+
+    public void setHasLeaseStartNanos(boolean hasLeaseStartNanos) {
+        this.hasLeaseStartNanos = hasLeaseStartNanos;
+        this.shareStatusUpdated = true;
+    }
+
+    public void setLeaseStartNanos(long leaseStartNanos) {
+        this.leaseStartNanos = leaseStartNanos;
+        this.shareStatusUpdated = true;
+    }
+
+    public void setCurrentLeader(HostPort currentLeader) {
+        this.currentLeader = currentLeader;
+        this.shareStatusUpdated = true;
+    }
+
+    public void setElectTimeoutNanos(long electTimeoutNanos) {
+        this.electTimeoutNanos = electTimeoutNanos;
+        this.shareStatusUpdated = true;
+    }
+
+    public void setFirstCommitOfCurrentTermApplied(boolean firstCommitOfCurrentTermApplied) {
+        this.firstCommitOfCurrentTermApplied = firstCommitOfCurrentTermApplied;
+        this.shareStatusUpdated = true;
+    }
+
+    //------------------------- simple getters and setters--------------------------------
 
     public int getCurrentTerm() {
         return currentTerm;
@@ -94,16 +148,8 @@ public class RaftStatus {
         return lastApplied;
     }
 
-    public void setLastApplied(long lastApplied) {
-        this.lastApplied = lastApplied;
-    }
-
     public RaftRole getRole() {
         return role;
-    }
-
-    public void setRole(RaftRole role) {
-        this.role = role;
     }
 
     public int getElectQuorum() {
@@ -154,10 +200,6 @@ public class RaftStatus {
         return servers;
     }
 
-    public void setServers(List<RaftNode> servers) {
-        this.servers = servers;
-    }
-
     public LongObjMap<RaftTask> getPendingRequests() {
         return pendingRequests;
     }
@@ -182,15 +224,24 @@ public class RaftStatus {
         return leaseStartNanos;
     }
 
-    public void setLeaseStartNanos(long leaseStartNanos) {
-        this.leaseStartNanos = leaseStartNanos;
-    }
-
     public boolean isHasLeaseStartNanos() {
         return hasLeaseStartNanos;
     }
 
-    public void setHasLeaseStartNanos(boolean hasLeaseStartNanos) {
-        this.hasLeaseStartNanos = hasLeaseStartNanos;
+    public ShareStatus getShareStatus() {
+        return shareStatus;
+    }
+
+    public HostPort getCurrentLeader() {
+        return currentLeader;
+    }
+
+    public long getElectTimeoutNanos() {
+        return electTimeoutNanos;
+    }
+
+
+    public boolean isFirstCommitOfCurrentTermApplied() {
+        return firstCommitOfCurrentTermApplied;
     }
 }

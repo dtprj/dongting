@@ -106,6 +106,7 @@ public class Raft {
         raftStatus.setCurrentTerm(remoteTerm);
         raftStatus.setVoteFor(0);
         raftStatus.setFirstCommitIndexOfCurrentTerm(0);
+        raftStatus.setFirstCommitOfCurrentTermApplied(false);
         raftStatus.setRole(RaftRole.follower);
         raftStatus.getCurrentVotes().clear();
         RaftUtil.resetElectTimer(raftStatus);
@@ -113,6 +114,7 @@ public class Raft {
         raftStatus.setLeaseStartNanos(0);
         raftStatus.setHasLeaseStartNanos(false);
         raftStatus.setPendingRequests(new LongObjMap<>());
+        raftStatus.setCurrentLeader(null);
         processOtherRaftNodes(raftStatus, node -> {
             node.setMatchIndex(0);
             node.setNextIndex(0);
@@ -129,6 +131,8 @@ public class Raft {
         raftStatus.setHasLeaseStartNanos(false);
         raftStatus.setPendingRequests(new LongObjMap<>());
         raftStatus.setFirstCommitIndexOfCurrentTerm(0);
+        raftStatus.setFirstCommitOfCurrentTermApplied(false);
+        raftStatus.setCurrentLeader(null);
         Raft.processOtherRaftNodes(raftStatus, n -> {
             n.setMatchIndex(0);
             n.setNextIndex(raftStatus.getLastLogIndex() + 1);
@@ -156,7 +160,7 @@ public class Raft {
         if (raftStatus.getRole() != RaftRole.leader) {
             for (RaftTask t : inputs) {
                 if (t.future != null) {
-                    t.future.completeExceptionally(new NotLeaderException());
+                    t.future.completeExceptionally(new NotLeaderException(raftStatus.getCurrentLeader()));
                 }
             }
         }
@@ -187,8 +191,10 @@ public class Raft {
         self.setLastConfirmReqNanos(ts.getNanoTime());
 
         // for single node mode
-        RaftUtil.updateLease(ts.getNanoTime(), raftStatus);
-        tryCommit(newIndex);
+        if (raftStatus.getRwQuorum() == 1) {
+            RaftUtil.updateLease(ts.getNanoTime(), raftStatus);
+            tryCommit(newIndex);
+        }
 
         processOtherRaftNodes(raftStatus, this::replicate);
     }
@@ -488,5 +494,8 @@ public class Raft {
         }
 
         raftStatus.setLastApplied(recentMatchIndex);
+        if (recentMatchIndex >= raftStatus.getFirstCommitIndexOfCurrentTerm()) {
+            raftStatus.setFirstCommitOfCurrentTermApplied(true);
+        }
     }
 }

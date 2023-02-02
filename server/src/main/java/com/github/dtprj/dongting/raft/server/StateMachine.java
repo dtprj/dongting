@@ -20,5 +20,5 @@ package com.github.dtprj.dongting.raft.server;
  */
 public interface StateMachine {
     Object write(Object input);
-    Object read(Object input);
+    Object read(Object input, long logIndex);
 }

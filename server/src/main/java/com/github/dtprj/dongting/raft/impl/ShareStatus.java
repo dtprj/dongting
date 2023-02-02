@@ -13,27 +13,18 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.server;
+package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.net.HostPort;
-import com.github.dtprj.dongting.raft.client.RaftException;
 
 /**
  * @author huangli
  */
-public class NotLeaderException extends RaftException {
-
-    // may be null
-    private final HostPort currentLeader;
-
-    public NotLeaderException(HostPort currentLeader) {
-        this.currentLeader = currentLeader;
-    }
-
-    /**
-     * get current known leader, may be null.
-     */
-    public HostPort getCurrentLeader() {
-        return currentLeader;
-    }
+public class ShareStatus {
+    public long lastApplied;
+    public RaftRole role;
+    public long leaseEndNanos;
+    public boolean hasLease;
+    public boolean firstCommitOfCurrentTermApplied;
+    public HostPort currentLeader;
 }

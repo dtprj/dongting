@@ -28,7 +28,7 @@ public class MemKv implements StateMachine {
     }
 
     @Override
-    public Object read(Object input) {
+    public Object read(Object input, long logIndex) {
         return null;
     }
 }
