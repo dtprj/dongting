@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
@@ -90,7 +91,7 @@ public class RaftUtil {
 
     public static void resetStatus(RaftStatus raftStatus) {
         raftStatus.setFirstCommitIndexOfCurrentTerm(0);
-        raftStatus.setFirstCommitOfCurrentTermApplied(false);
+        raftStatus.setFirstCommitOfApplied(new CompletableFuture<>());
         RaftUtil.resetElectTimer(raftStatus);
         raftStatus.setHeartbeatTime(raftStatus.getLastElectTime());
         raftStatus.setLeaseStartNanos(0);

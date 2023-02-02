@@ -419,12 +419,14 @@ public class Raft {
             return;
         }
         // leader can only commit log in current term, see raft paper 5.4.2
+        boolean needNotify = false;
         if (raftStatus.getFirstCommitIndexOfCurrentTerm() <= 0) {
             int t = raftLog.getTermOf(recentMatchIndex);
             if (t != raftStatus.getCurrentTerm()) {
                 return;
             } else {
                 raftStatus.setFirstCommitIndexOfCurrentTerm(recentMatchIndex);
+                needNotify = true;
             }
         }
         raftStatus.setCommitIndex(recentMatchIndex);
@@ -450,8 +452,9 @@ public class Raft {
         }
 
         raftStatus.setLastApplied(recentMatchIndex);
-        if (recentMatchIndex >= raftStatus.getFirstCommitIndexOfCurrentTerm()) {
-            raftStatus.setFirstCommitOfCurrentTermApplied(true);
+        if (needNotify) {
+            raftStatus.getFirstCommitOfApplied().complete(null);
+            raftStatus.setFirstCommitOfApplied(null);
         }
     }
 }

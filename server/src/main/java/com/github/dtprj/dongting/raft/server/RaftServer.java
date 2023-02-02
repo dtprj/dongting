@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.ObjUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
@@ -47,7 +48,10 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 /**
@@ -189,7 +193,8 @@ public class RaftServer extends AbstractLifeCircle {
         });
     }
 
-    public Object raftRead(Object input, DtTime deadline) throws NotLeaderException {
+    public Object raftRead(Object input, DtTime deadline)
+            throws NotLeaderException, InterruptedException, TimeoutException {
         ShareStatus ss = raftStatus.getShareStatus();
         readTimestamp.refresh(1);
         if (ss.role != RaftRole.leader) {
@@ -199,9 +204,13 @@ public class RaftServer extends AbstractLifeCircle {
         if (ss.leaseEndNanos - t < 0) {
             throw new NotLeaderException(null);
         }
-        if(!ss.firstCommitOfCurrentTermApplied){
-            // TODO wait
-            return null;
+        if (ss.firstCommitOfApplied != null) {
+            try {
+                ss.firstCommitOfApplied.get(deadline.rest(TimeUnit.NANOSECONDS), TimeUnit.NANOSECONDS);
+            } catch (ExecutionException e) {
+                BugLog.log(e);
+                return null;
+            }
         }
         return stateMachine.read(input, ss.lastApplied);
     }

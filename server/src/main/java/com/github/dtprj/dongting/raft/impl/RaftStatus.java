@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.net.HostPort;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * @author huangli
@@ -46,7 +47,7 @@ public class RaftStatus {
 
     private LongObjMap<RaftTask> pendingRequests = new LongObjMap<>();
     private long firstCommitIndexOfCurrentTerm;
-    private boolean firstCommitOfCurrentTermApplied; // shared
+    private CompletableFuture<Void> firstCommitOfApplied; // shared
 
     private boolean shareStatusUpdated;
     private volatile ShareStatus shareStatus;
@@ -76,7 +77,7 @@ public class RaftStatus {
             ss.hasLease = hasLeaseStartNanos;
             ss.leaseEndNanos = leaseStartNanos + electTimeoutNanos;
             ss.currentLeader = currentLeader;
-            ss.firstCommitOfCurrentTermApplied = firstCommitOfCurrentTermApplied;
+            ss.firstCommitOfApplied = firstCommitOfApplied;
 
             this.shareStatusUpdated = false;
             this.shareStatus = ss;
@@ -113,8 +114,8 @@ public class RaftStatus {
         this.shareStatusUpdated = true;
     }
 
-    public void setFirstCommitOfCurrentTermApplied(boolean firstCommitOfCurrentTermApplied) {
-        this.firstCommitOfCurrentTermApplied = firstCommitOfCurrentTermApplied;
+    public void setFirstCommitOfApplied(CompletableFuture<Void> firstCommitOfApplied) {
+        this.firstCommitOfApplied = firstCommitOfApplied;
         this.shareStatusUpdated = true;
     }
 
@@ -240,8 +241,7 @@ public class RaftStatus {
         return electTimeoutNanos;
     }
 
-
-    public boolean isFirstCommitOfCurrentTermApplied() {
-        return firstCommitOfCurrentTermApplied;
+    public CompletableFuture<Void> getFirstCommitOfApplied() {
+        return firstCommitOfApplied;
     }
 }
