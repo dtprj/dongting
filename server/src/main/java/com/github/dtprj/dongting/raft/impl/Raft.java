@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -100,52 +99,6 @@ public class Raft {
         return self;
     }
 
-    public static void updateTermAndConvertToFollower(int remoteTerm, RaftStatus raftStatus) {
-        log.info("update term from {} to {}, change from {} to follower",
-                raftStatus.getCurrentTerm(), remoteTerm, raftStatus.getRole());
-        raftStatus.setCurrentTerm(remoteTerm);
-        raftStatus.setVoteFor(0);
-        raftStatus.setFirstCommitIndexOfCurrentTerm(0);
-        raftStatus.setFirstCommitOfCurrentTermApplied(false);
-        raftStatus.setRole(RaftRole.follower);
-        raftStatus.getCurrentVotes().clear();
-        RaftUtil.resetElectTimer(raftStatus);
-        raftStatus.setHeartbeatTime(raftStatus.getLastElectTime());
-        raftStatus.setLeaseStartNanos(0);
-        raftStatus.setHasLeaseStartNanos(false);
-        raftStatus.setPendingRequests(new LongObjMap<>());
-        raftStatus.setCurrentLeader(null);
-        processOtherRaftNodes(raftStatus, node -> {
-            node.setMatchIndex(0);
-            node.setNextIndex(0);
-            node.setPendingRequests(0);
-            node.setLastConfirmReqNanos(0);
-            node.setHasLastConfirmReqNanos(false);
-            node.incrEpoch();
-        });
-    }
-
-    private void changeToLeader() {
-        raftStatus.setRole(RaftRole.leader);
-        raftStatus.setLeaseStartNanos(0);
-        raftStatus.setHasLeaseStartNanos(false);
-        raftStatus.setPendingRequests(new LongObjMap<>());
-        raftStatus.setFirstCommitIndexOfCurrentTerm(0);
-        raftStatus.setFirstCommitOfCurrentTermApplied(false);
-        raftStatus.setCurrentLeader(null);
-        Raft.processOtherRaftNodes(raftStatus, n -> {
-            n.setMatchIndex(0);
-            n.setNextIndex(raftStatus.getLastLogIndex() + 1);
-            n.setPendingRequests(0);
-            n.incrEpoch();
-            n.setLastConfirmReqNanos(0);
-            n.setHasLastConfirmReqNanos(false);
-        });
-        log.info("change to leader. term={}", raftStatus.getCurrentTerm());
-
-        sendHeartBeat();
-    }
-
     public static void processOtherRaftNodes(RaftStatus raftStatus, Consumer<RaftNode> consumer) {
         for (RaftNode node : raftStatus.getServers()) {
             if (node.isSelf()) {
@@ -176,9 +129,7 @@ public class Raft {
         }
         long newIndex = oldIndex + len;
         raftLog.append(newIndex, oldTerm, currentTerm, logs);
-        RaftNode self = getSelf();
-        self.setNextIndex(newIndex + 1);
-        self.setMatchIndex(newIndex);
+
 
         for (int i = 1; i <= len; i++) {
             RaftTask rt = inputs.get(i);
@@ -187,6 +138,10 @@ public class Raft {
         }
         raftStatus.setLastLogTerm(currentTerm);
         raftStatus.setLastLogIndex(newIndex);
+
+        RaftNode self = getSelf();
+        self.setNextIndex(newIndex + 1);
+        self.setMatchIndex(newIndex);
         self.setHasLastConfirmReqNanos(true);
         self.setLastConfirmReqNanos(ts.getNanoTime());
 
@@ -333,12 +288,13 @@ public class Raft {
                     votes.add(remoteNode.getId());
                     int newCount = votes.size();
                     if (newCount > oldCount && newCount == raftStatus.getElectQuorum()) {
-                        changeToLeader();
+                        RaftUtil.changeToLeader(raftStatus);
+                        sendHeartBeat();
                     }
                 }
             }
         } else {
-            Raft.updateTermAndConvertToFollower(remoteTerm, raftStatus);
+            RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus);
         }
     }
 
@@ -387,7 +343,7 @@ public class Raft {
         if (remoteTerm > raftStatus.getCurrentTerm()) {
             log.info("find remote term greater than local term. remoteTerm={}, localTerm={}",
                     body.getTerm(), raftStatus.getCurrentTerm());
-            Raft.updateTermAndConvertToFollower(remoteTerm, raftStatus);
+            RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus);
             return;
         }
 

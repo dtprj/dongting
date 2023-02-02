@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.LongObjMap;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.raft.client.RaftException;
 
@@ -28,6 +31,8 @@ import java.util.stream.Collectors;
  * @author huangli
  */
 public class RaftUtil {
+    private static final DtLog log = DtLogs.getLogger(RaftUtil.class);
+
     public static Set<HostPort> parseServers(String serversStr) {
         Set<HostPort> servers = Arrays.stream(serversStr.split("[,;]"))
                 .filter(Objects::nonNull)
@@ -82,4 +87,49 @@ public class RaftUtil {
     public static void resetElectTimer(RaftStatus raftStatus) {
         raftStatus.setLastElectTime(raftStatus.getTs().getNanoTime());
     }
+
+    public static void resetStatus(RaftStatus raftStatus) {
+        raftStatus.setFirstCommitIndexOfCurrentTerm(0);
+        raftStatus.setFirstCommitOfCurrentTermApplied(false);
+        RaftUtil.resetElectTimer(raftStatus);
+        raftStatus.setHeartbeatTime(raftStatus.getLastElectTime());
+        raftStatus.setLeaseStartNanos(0);
+        raftStatus.setHasLeaseStartNanos(false);
+        raftStatus.setPendingRequests(new LongObjMap<>());
+        raftStatus.setCurrentLeader(null);
+        raftStatus.getCurrentVotes().clear();
+        for (RaftNode node : raftStatus.getServers()) {
+            node.setMatchIndex(0);
+            node.setNextIndex(0);
+            node.setPendingRequests(0);
+            node.setLastConfirmReqNanos(0);
+            node.setHasLastConfirmReqNanos(false);
+            node.incrEpoch();
+        }
+    }
+
+    public static void incrTermAndConvertToFollower(int remoteTerm, RaftStatus raftStatus) {
+        log.info("update term from {} to {}, change to follower, oldRole={}",
+                raftStatus.getCurrentTerm(), remoteTerm, raftStatus.getRole());
+        resetStatus(raftStatus);
+        raftStatus.setCurrentTerm(remoteTerm);
+        raftStatus.setVoteFor(0);
+        raftStatus.setRole(RaftRole.follower);
+    }
+
+    public static void changeToFollower(RaftStatus raftStatus) {
+        log.info("change to follower. term={}, oldRole={}", raftStatus.getCurrentTerm(), raftStatus.getRole());
+        resetStatus(raftStatus);
+        raftStatus.setRole(RaftRole.follower);
+    }
+
+    public static void changeToLeader(RaftStatus raftStatus) {
+        log.info("change to leader. term={}", raftStatus.getCurrentTerm());
+        resetStatus(raftStatus);
+        raftStatus.setRole(RaftRole.leader);
+        for (RaftNode node : raftStatus.getServers()) {
+            node.setNextIndex(raftStatus.getLastLogIndex() + 1);
+        }
+    }
+
 }

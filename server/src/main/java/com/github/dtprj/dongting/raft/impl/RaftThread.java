@@ -161,12 +161,18 @@ public class RaftThread extends Thread {
 
     private void startElect() {
         // TODO persist raft status
+        RaftUtil.resetStatus(raftStatus);
+        if(raftStatus.getRole()!=RaftRole.candidate){
+            log.info("change to candidate. oldTerm={}", raftStatus.getCurrentTerm());
+            raftStatus.setRole(RaftRole.candidate);
+        }
+
         raftStatus.setCurrentTerm(raftStatus.getCurrentTerm() + 1);
         raftStatus.setVoteFor(config.getId());
-        raftStatus.setRole(RaftRole.candidate);
-        raftStatus.getCurrentVotes().clear();
         raftStatus.getCurrentVotes().add(config.getId());
-        raftStatus.setLastElectTime(raftStatus.getTs().getNanoTime());
+
+        log.info("start elect. newTerm={}", raftStatus.getCurrentTerm());
+
         for (RaftNode node : raftStatus.getServers()) {
             if (node.isSelf()) {
                 continue;

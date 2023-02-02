@@ -27,7 +27,6 @@ import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.pb.PbCallback;
-import com.github.dtprj.dongting.raft.impl.Raft;
 import com.github.dtprj.dongting.raft.impl.RaftNode;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
@@ -85,7 +84,7 @@ public class AppendProcessor extends ReqProcessor {
                 updateLeader(raftStatus, req.getLeaderId());
                 append(req, resp);
             } else if (raftStatus.getRole() == RaftRole.candidate) {
-                Raft.updateTermAndConvertToFollower(remoteTerm, raftStatus);
+                RaftUtil.changeToFollower(raftStatus);
                 updateLeader(raftStatus, req.getLeaderId());
                 append(req, resp);
             } else {
@@ -94,7 +93,7 @@ public class AppendProcessor extends ReqProcessor {
                 resp.setSuccess(false);
             }
         } else if (remoteTerm > localTerm) {
-            Raft.updateTermAndConvertToFollower(remoteTerm, raftStatus);
+            RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus);
             updateLeader(raftStatus, req.getLeaderId());
             append(req, resp);
         } else {
