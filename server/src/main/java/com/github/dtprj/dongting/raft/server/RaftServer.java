@@ -52,7 +52,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Function;
 
 /**
  * @author huangli
@@ -88,7 +87,7 @@ public class RaftServer extends AbstractLifeCircle {
         }
     }
 
-    public RaftServer(RaftServerConfig config, RaftLog raftLog, StateMachine stateMachine, Function<ByteBuffer, Object> logDecoder) {
+    public RaftServer(RaftServerConfig config, RaftLog raftLog, StateMachine stateMachine) {
         Objects.requireNonNull(config.getServers());
         ObjUtil.checkPositive(config.getId(), "id");
         ObjUtil.checkPositive(config.getRaftPort(), "port");
@@ -125,11 +124,11 @@ public class RaftServer extends AbstractLifeCircle {
         setupNioConfig(nioServerConfig, config);
         raftServer = new NioServer(nioServerConfig);
         raftServer.register(Commands.RAFT_PING, groupConManager.getProcessor(), raftExecutor);
-        AppendProcessor ap = new AppendProcessor(raftStatus, raftLog, stateMachine, logDecoder);
+        AppendProcessor ap = new AppendProcessor(raftStatus, raftLog, stateMachine);
         raftServer.register(Commands.RAFT_APPEND_ENTRIES, ap, raftExecutor);
         raftServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(raftStatus), raftExecutor);
 
-        Raft raft = new Raft(config, raftExecutor, raftLog, raftStatus, raftClient, logDecoder, stateMachine);
+        Raft raft = new Raft(config, raftExecutor, raftLog, raftStatus, raftClient, stateMachine);
         raftThread = new RaftThread(config, raftExecutor, raftStatus, raft, groupConManager);
     }
 

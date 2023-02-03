@@ -15,10 +15,13 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import java.nio.ByteBuffer;
+
 /**
  * @author huangli
  */
 public interface StateMachine {
+    Object decode(ByteBuffer logData);
     Object write(Object input);
     Object read(Object input, long logIndex);
 }

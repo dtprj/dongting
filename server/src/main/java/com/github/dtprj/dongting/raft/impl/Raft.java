@@ -47,7 +47,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 /**
  * @author huangli
@@ -62,7 +61,6 @@ public class Raft {
     private final RaftStatus raftStatus;
     private final NioClient client;
     private final StateMachine stateMachine;
-    private final Function<ByteBuffer, Object> logDecoder;
 
     private final int maxReplicateItems;
     private final int restItemsToStartReplicate;
@@ -72,13 +70,12 @@ public class Raft {
     private final Timestamp ts;
 
     public Raft(RaftServerConfig config, RaftExecutor raftExecutor, RaftLog raftLog,
-                RaftStatus raftStatus, NioClient client, Function<ByteBuffer, Object> logDecoder, StateMachine stateMachine) {
+                RaftStatus raftStatus, NioClient client, StateMachine stateMachine) {
         this.config = config;
         this.raftExecutor = raftExecutor;
         this.raftLog = raftLog;
         this.raftStatus = raftStatus;
         this.client = client;
-        this.logDecoder = logDecoder;
         this.stateMachine = stateMachine;
         this.maxReplicateItems = config.getMaxReplicateItems();
         this.maxReplicateBytes = config.getMaxReplicateBytes();
@@ -440,7 +437,7 @@ public class Raft {
             } else {
                 LogItem item = raftLog.load(i);
                 if (item.getBuffer() != null) {
-                    input = logDecoder.apply(item.getBuffer());
+                    input = stateMachine.decode(item.getBuffer());
                 }
             }
             if (input != null) {

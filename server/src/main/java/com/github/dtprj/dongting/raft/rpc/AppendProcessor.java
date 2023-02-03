@@ -37,7 +37,6 @@ import com.github.dtprj.dongting.raft.server.StateMachine;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.function.Function;
 
 /**
  * @author huangli
@@ -54,7 +53,6 @@ public class AppendProcessor extends ReqProcessor {
     private final RaftStatus raftStatus;
     private final RaftLog raftLog;
     private final StateMachine stateMachine;
-    private final Function<ByteBuffer, Object> logDecoder;
 
     private final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder() {
         @Override
@@ -63,12 +61,10 @@ public class AppendProcessor extends ReqProcessor {
         }
     };
 
-    public AppendProcessor(RaftStatus raftStatus, RaftLog raftLog, StateMachine stateMachine,
-                           Function<ByteBuffer, Object> logDecoder) {
+    public AppendProcessor(RaftStatus raftStatus, RaftLog raftLog, StateMachine stateMachine) {
         this.raftStatus = raftStatus;
         this.raftLog = raftLog;
         this.stateMachine = stateMachine;
-        this.logDecoder = logDecoder;
     }
 
     @Override
@@ -159,7 +155,7 @@ public class AppendProcessor extends ReqProcessor {
                 for (long i = raftStatus.getLastApplied() + 1; i <= raftStatus.getCommitIndex(); i++) {
                     LogItem item = raftLog.load(i);
                     if (item.getBuffer() != null) {
-                        Object decodedObj = logDecoder.apply(item.getBuffer());
+                        Object decodedObj = stateMachine.decode(item.getBuffer());
                         stateMachine.write(decodedObj);
                     }
                 }
