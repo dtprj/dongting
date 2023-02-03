@@ -47,7 +47,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
 /**
  * @author huangli
@@ -97,15 +96,6 @@ public class Raft {
         return self;
     }
 
-    public static void processOtherRaftNodes(RaftStatus raftStatus, Consumer<RaftNode> consumer) {
-        for (RaftNode node : raftStatus.getServers()) {
-            if (node.isSelf()) {
-                continue;
-            }
-            consumer.accept(node);
-        }
-    }
-
     public void raftExec(List<RaftTask> inputs) {
         RaftStatus raftStatus = this.raftStatus;
         if (raftStatus.getRole() != RaftRole.leader) {
@@ -150,7 +140,13 @@ public class Raft {
             tryCommit(newIndex);
         }
 
-        processOtherRaftNodes(raftStatus, this::replicate);
+
+        for (RaftNode node : raftStatus.getServers()) {
+            if (node.isSelf()) {
+                continue;
+            }
+            replicate(node);
+        }
     }
 
     @SuppressWarnings("StatementWithEmptyBody")
