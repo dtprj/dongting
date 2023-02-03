@@ -13,26 +13,26 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.impl;
-
-import com.github.dtprj.dongting.raft.server.StateMachine;
-
-import java.nio.ByteBuffer;
+package com.github.dtprj.dongting.raft.server;
 
 /**
  * @author huangli
  */
-public class MemKv implements StateMachine {
+public class RaftOutput {
 
-    @Override
-    public Object decode(ByteBuffer logData) {
-        return null;
+    private final long logIndex;
+    private final Object result;
+
+    public RaftOutput(long logIndex, Object result) {
+        this.logIndex = logIndex;
+        this.result = result;
     }
 
-    @Override
-    public Object write(Object input) {
-        return null;
+    public long getLogIndex() {
+        return logIndex;
     }
 
-
+    public Object getResult() {
+        return result;
+    }
 }

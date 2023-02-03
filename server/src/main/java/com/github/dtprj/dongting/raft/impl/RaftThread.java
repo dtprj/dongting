@@ -20,9 +20,10 @@ import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
-import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Random;
@@ -189,12 +190,11 @@ public class RaftThread extends Thread {
         }
     }
 
-    public CompletableFuture<Object> submitRaftTask(ByteBuffer data, Object decodedInput) {
-        CompletableFuture<Object> f = new CompletableFuture<>();
+    public CompletableFuture<RaftOutput> submitRaftTask(RaftInput input) {
+        CompletableFuture<RaftOutput> f = new CompletableFuture<>();
         RaftTask t = new RaftTask();
         t.future = f;
-        t.data = data;
-        t.decodedInput = decodedInput;
+        t.input = input;
         queue.offer(t);
         return f;
     }

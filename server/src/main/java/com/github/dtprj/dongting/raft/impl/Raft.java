@@ -36,6 +36,7 @@ import com.github.dtprj.dongting.raft.rpc.VoteResp;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftLog;
+import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.server.StateMachine;
 
@@ -122,7 +123,7 @@ public class Raft {
         // TODO async append, error handle
         ArrayList<ByteBuffer> logs = new ArrayList<>(len);
         for (RaftTask input : inputs) {
-            logs.add(input.data);
+            logs.add(input.input.getLogData());
         }
         long newIndex = oldIndex + len;
         raftLog.append(newIndex, oldTerm, currentTerm, logs);
@@ -131,7 +132,6 @@ public class Raft {
         for (int i = 1; i <= len; i++) {
             RaftTask rt = inputs.get(i);
             raftStatus.getPendingRequests().put(oldIndex + i, rt);
-            rt.data = null;
         }
         raftStatus.setLastLogTerm(currentTerm);
         raftStatus.setLastLogIndex(newIndex);
@@ -433,7 +433,7 @@ public class Raft {
             RaftTask rt = raftStatus.getPendingRequests().remove(i);
             Object input = null;
             if (rt != null) {
-                input = rt.decodedInput;
+                input = rt.input.getInput();
             } else {
                 LogItem item = raftLog.load(i);
                 if (item.getBuffer() != null) {
@@ -443,7 +443,7 @@ public class Raft {
             if (input != null) {
                 Object result = stateMachine.write(input);
                 if (rt != null && rt.future != null) {
-                    rt.future.complete(result);
+                    rt.future.complete(new RaftOutput(i, result));
                 }
             }
         }

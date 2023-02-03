@@ -15,7 +15,9 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import java.nio.ByteBuffer;
+import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.server.RaftOutput;
+
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -26,7 +28,6 @@ class RaftTask {
     RaftTask(){
     }
 
-    CompletableFuture<Object> future;
-    Object decodedInput;
-    ByteBuffer data;
+    RaftInput input;
+    CompletableFuture<RaftOutput> future;
 }

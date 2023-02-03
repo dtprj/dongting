@@ -44,7 +44,6 @@ import com.github.dtprj.dongting.raft.rpc.VoteProcessor;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
-import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -164,35 +163,33 @@ public class RaftServer extends AbstractLifeCircle {
         }
     }
 
-    public CompletableFuture<Object> submitRaftTask(ByteBuffer data, Object decodedInput) {
-        Objects.requireNonNull(data);
-        Objects.requireNonNull(decodedInput);
+    public CompletableFuture<RaftOutput> submitLinearTask(RaftInput input) {
         int currentPendingWrites = (int) PENDING_WRITES.getAndAddRelease(this, 1);
         if (currentPendingWrites >= maxPendingWrites) {
             log.warn("submitRaftTask failed: too many pending writes");
             PENDING_WRITES.getAndAddRelease(this, -1);
             return null;
         }
-        int size = data.remaining();
+        int size = input.size();
         long currentPendingWriteBytes = (long) PENDING_WRITE_BYTES.getAndAdd(this, size);
         if (currentPendingWriteBytes >= maxPendingWriteBytes) {
             log.warn("submitRaftTask failed: too many pending write bytes, currentSize={}", size);
             PENDING_WRITE_BYTES.getAndAddRelease(this, -size);
             return null;
         }
-        CompletableFuture<Object> f = raftThread.submitRaftTask(data, decodedInput);
+        CompletableFuture<RaftOutput> f = raftThread.submitRaftTask(input);
         registerCallback(f, size);
         return f;
     }
 
-    private void registerCallback(CompletableFuture<Object> f, int size) {
+    private void registerCallback(CompletableFuture<?> f, int size) {
         f.whenComplete((o, ex) -> {
             PENDING_WRITES.getAndAddRelease(this, -1);
             PENDING_WRITE_BYTES.getAndAddRelease(this, -size);
         });
     }
 
-    public Object raftRead(Object input, DtTime deadline)
+    public long getLogIndexForRead(DtTime deadline)
             throws NotLeaderException, InterruptedException, TimeoutException {
         ShareStatus ss = raftStatus.getShareStatus();
         readTimestamp.refresh(1);
@@ -208,10 +205,10 @@ public class RaftServer extends AbstractLifeCircle {
                 ss.firstCommitOfApplied.get(deadline.rest(TimeUnit.NANOSECONDS), TimeUnit.NANOSECONDS);
             } catch (ExecutionException e) {
                 BugLog.log(e);
-                return null;
+                return -1;
             }
         }
-        return stateMachine.read(input, ss.lastApplied);
+        return ss.lastApplied;
     }
 
 }
