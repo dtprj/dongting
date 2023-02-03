@@ -114,6 +114,7 @@ public class Raft {
                     t.future.completeExceptionally(new NotLeaderException(raftStatus.getCurrentLeader()));
                 }
             }
+            return;
         }
         long oldIndex = raftStatus.getLastLogIndex();
         int len = inputs.size();
