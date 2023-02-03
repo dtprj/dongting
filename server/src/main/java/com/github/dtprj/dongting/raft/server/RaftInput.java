@@ -22,16 +22,16 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public abstract class RaftInput {
+public class RaftInput {
     private final DtTime deadline;
+    private ByteBuffer logData;
+    private final Object input;
 
-    public RaftInput(DtTime deadline) {
+    public RaftInput(ByteBuffer logData, Object input ,DtTime deadline) {
+        this.logData = logData;
+        this.input = input;
         this.deadline = deadline;
     }
-
-    public abstract ByteBuffer getLogData();
-
-    public abstract Object getInput();
 
     /**
      * return size for flow control.
@@ -42,5 +42,17 @@ public abstract class RaftInput {
 
     public DtTime getDeadline() {
         return deadline;
+    }
+
+    public ByteBuffer getLogData() {
+        return logData;
+    }
+
+    public void setLogData(ByteBuffer logData) {
+        this.logData = logData;
+    }
+
+    public Object getInput() {
+        return input;
     }
 }

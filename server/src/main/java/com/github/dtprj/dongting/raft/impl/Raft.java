@@ -133,6 +133,7 @@ public class Raft {
         for (int i = 1; i <= len; i++) {
             RaftTask rt = inputs.get(i);
             raftStatus.getPendingRequests().put(oldIndex + i, rt);
+            rt.input.setLogData(null);
         }
         raftStatus.setLastLogTerm(currentTerm);
         raftStatus.setLastLogIndex(newIndex);
