@@ -336,7 +336,7 @@ public class GroupConManager {
             return PbUtil.accurateFix32Size(1, config.getId())
                     + PbUtil.accurateFix64Size(2, uuid.getMostSignificantBits())
                     + PbUtil.accurateFix64Size(3, uuid.getLeastSignificantBits())
-                    + PbUtil.accurateLengthDelimitedSize(4, serversStr.length);
+                    + PbUtil.accurateLengthDelimitedSize(4, serversStr.length, false);
         }
 
         @Override
@@ -344,7 +344,7 @@ public class GroupConManager {
             PbUtil.writeFix32(buf, 1, config.getId());
             PbUtil.writeFix64(buf, 2, uuid.getMostSignificantBits());
             PbUtil.writeFix64(buf, 3, uuid.getLeastSignificantBits());
-            PbUtil.writeBytes(buf, 4, serversStr);
+            PbUtil.writeBytes(buf, 4, serversStr, false);
         }
     }
 

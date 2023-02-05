@@ -35,10 +35,8 @@ public abstract class ZeroCopyWriteFrame extends WriteFrame {
     @Override
     protected final void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
         int s = estimateBodySize();
-        if (s > 0) {
-            PbUtil.writeLengthDelimitedPrefix(buf, Frame.IDX_BODY, s);
-            encodeBody(buf);
-        }
+        PbUtil.writeLengthDelimitedPrefix(buf, Frame.IDX_BODY, s, true);
+        encodeBody(buf);
     }
 
     protected abstract void encodeBody(ByteBuffer buf);

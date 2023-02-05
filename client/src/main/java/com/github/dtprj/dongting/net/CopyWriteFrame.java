@@ -33,7 +33,7 @@ public abstract class CopyWriteFrame extends WriteFrame {
             try {
                 encodeBody(temp);
                 temp.flip();
-                PbUtil.writeLengthDelimitedPrefix(buf, Frame.IDX_BODY, temp.remaining());
+                PbUtil.writeLengthDelimitedPrefix(buf, Frame.IDX_BODY, temp.remaining(), true);
                 buf.put(temp);
             } finally {
                 pool.release(temp);
