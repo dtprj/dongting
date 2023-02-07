@@ -70,6 +70,10 @@ public class PbParser {
         }
     }
 
+    private boolean isSingle() {
+        return maxFrame == 0;
+    }
+
     public static PbParser multiParser(PbCallback callback, int maxFrame) {
         return new PbParser(callback, true, maxFrame);
     }
@@ -145,6 +149,9 @@ public class PbParser {
         } catch (Throwable e) {
             log.error("proto buffer parse callback end() fail: {}", e.toString());
         }
+        if (isSingle()) {
+            this.callback = null;
+        }
         this.status = STATUS_PARSE_PB_LEN;
         this.pendingBytes = 0;
         this.frameLen = 0;
@@ -153,7 +160,7 @@ public class PbParser {
 
     private void callBegin(PbCallback callback, int len) {
         try {
-            callback.begin(len);
+            callback.begin(len, this);
             this.status = STATUS_PARSE_TAG;
         } catch (Throwable e) {
             log.error("proto buffer parse callback begin() fail: {}", e.toString());
@@ -162,7 +169,7 @@ public class PbParser {
     }
 
     private int onStatusParsePbLen(ByteBuffer buf, PbCallback callback, int remain) {
-        if (this.maxFrame == 0) {
+        if (isSingle()) {
             throw new DtException("single parser can't reuse");
         }
 
@@ -470,17 +477,6 @@ public class PbParser {
     }
 
     public PbParser getNestedParser() {
-        return nestedParser;
-    }
-
-    public PbParser createOrGetNestedParserMulti(PbCallback callback, int maxFrame) {
-        PbParser nestedParser = this.nestedParser;
-        if (nestedParser == null) {
-            nestedParser = multiParser(callback, maxFrame);
-            this.nestedParser = nestedParser;
-        } else {
-            nestedParser.resetMulti(callback, maxFrame);
-        }
         return nestedParser;
     }
 

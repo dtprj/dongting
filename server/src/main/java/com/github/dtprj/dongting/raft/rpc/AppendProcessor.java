@@ -35,7 +35,6 @@ import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.StateMachine;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 
 /**
@@ -57,7 +56,7 @@ public class AppendProcessor extends ReqProcessor {
     private final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder() {
         @Override
         protected PbCallback createCallback(ChannelContext context) {
-            return new AppendReqCallback(context.getIoHeapBufferPool());
+            return new AppendReqCallback();
         }
     };
 
@@ -129,34 +128,27 @@ public class AppendProcessor extends ReqProcessor {
             resp.setAppendCode(CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT);
             return;
         }
-        List<ByteBuffer> logs = req.getLogs();
-        if (logs == null) {
+        List<LogItem> logs = req.getLogs();
+        if (logs == null || logs.size() == 0) {
             log.error("bad request: no logs");
             resp.setSuccess(false);
             resp.setAppendCode(CODE_CLIENT_REQ_ERROR);
             return;
         }
 
-        // TODO proto buffer can't mark heartbeat log (empty)
-        for (int i = 0; i < logs.size(); i++) {
-            ByteBuffer buf = logs.get(i);
-            if (buf.capacity() == 1 && buf.get() == 0) {
-                logs.set(i, null);
-            }
-        }
         // TODO error handle
         long newIndex = req.getPrevLogIndex() + logs.size();
-        raftLog.append(newIndex, req.getPrevLogTerm(), req.getTerm(), logs);
+        raftLog.append(newIndex, req.getPrevLogTerm(), logs);
         raftStatus.setLastLogIndex(newIndex);
-        raftStatus.setLastLogTerm(req.getTerm());
+        raftStatus.setLastLogTerm(logs.get(logs.size() - 1).getTerm());
         if (req.getLeaderCommit() > raftStatus.getCommitIndex()) {
             raftStatus.setCommitIndex(Math.min(newIndex, req.getLeaderCommit()));
             if (raftStatus.getLastApplied() < raftStatus.getCommitIndex()) {
                 for (long i = raftStatus.getLastApplied() + 1; i <= raftStatus.getCommitIndex(); i++) {
                     LogItem item = raftLog.load(i);
-                    if (item.getBuffer() != null) {
+                    if (item.getType() != LogItem.TYPE_HEARTBEAT) {
                         Object decodedObj = stateMachine.decode(item.getBuffer());
-                        stateMachine.write(decodedObj);
+                        stateMachine.exec(decodedObj);
                     }
                 }
             }

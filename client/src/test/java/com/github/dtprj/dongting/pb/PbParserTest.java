@@ -116,7 +116,7 @@ public class PbParserTest {
         }
 
         @Override
-        public void begin(int len) {
+        public void begin(int len, PbParser parser) {
             beginCount++;
             assertEquals(expectLen, len);
             read_f1 = 0;
@@ -371,7 +371,7 @@ public class PbParserTest {
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000) {
             @Override
-            public void begin(int len) {
+            public void begin(int len, PbParser p) {
                 throw new ArrayIndexOutOfBoundsException();
             }
         };

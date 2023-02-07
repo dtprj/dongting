@@ -15,8 +15,9 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.pb.PbCallback;
+import com.github.dtprj.dongting.pb.PbParser;
+import com.github.dtprj.dongting.raft.server.LogItem;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -24,26 +25,37 @@ import java.util.ArrayList;
 /**
  * @author huangli
  */
+//message AppendEntriesReq {
 //  uint32 term = 1;
 //  uint32 leader_id = 2;
 //  fixed64 prev_log_index = 3;
 //  uint32 prev_log_term = 4;
-//  repeated bytes entries = 5;
+//  repeated LogItem entries = 5;
 //  fixed64 leader_commit = 6;
+//}
+//
 public class AppendReqCallback extends PbCallback {
 
-    private final ByteBufferPool heapPool;
     private int term;
     private int leaderId;
     private long prevLogIndex;
     private int prevLogTerm;
-    // TODO batch
-    private ByteBuffer log;
-    private ArrayList<ByteBuffer> logs = new ArrayList<>();
+    private ArrayList<LogItem> logs = new ArrayList<>();
     private long leaderCommit;
 
-    public AppendReqCallback(ByteBufferPool heapPool) {
-        this.heapPool = heapPool;
+    private PbParser parser;
+
+    public AppendReqCallback() {
+    }
+
+    @Override
+    public void begin(int len, PbParser parser) {
+        this.parser = parser;
+    }
+
+    @Override
+    public void end(boolean success) {
+        this.parser = null;
     }
 
     @Override
@@ -79,14 +91,16 @@ public class AppendReqCallback extends PbCallback {
     public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
         switch (index) {
             case 5:
+                PbParser logItemParser;
                 if (begin) {
-                    log = ByteBuffer.allocate(len);
+                    logItemParser = parser.createOrGetNestedParserSingle(new LogItemCallback(), len);
+                } else {
+                    logItemParser = parser.getNestedParser();
                 }
-                log.put(buf);
+                logItemParser.parse(buf);
                 if (end) {
-                    log.flip();
-                    logs.add(log);
-                    log = null;
+                    LogItem i = ((LogItemCallback) logItemParser.getCallback()).item;
+                    logs.add(i);
                 }
                 break;
         }
@@ -118,7 +132,64 @@ public class AppendReqCallback extends PbCallback {
         return leaderCommit;
     }
 
-    public ArrayList<ByteBuffer> getLogs() {
+    public ArrayList<LogItem> getLogs() {
         return logs;
+    }
+
+    //message LogItem {
+    //  uint32 type = 1;
+    //  uint32 term = 2;
+    //  fixed64 index = 3;
+    //  uint32 prev_log_term = 4;
+    //  bytes data = 5;
+    //}
+    static class LogItemCallback extends PbCallback {
+        private LogItem item = new LogItem();
+
+        @Override
+        public boolean readVarNumber(int index, long value) {
+            switch (index) {
+                case 1:
+                    item.setType((int) value);
+                    break;
+                case 2:
+                    item.setTerm((int) value);
+                    break;
+                case 4:
+                    item.setPrevLogTerm((int) value);
+                    break;
+            }
+            return true;
+        }
+
+        @Override
+        public boolean readFix64(int index, long value) {
+            switch (index) {
+                case 3:
+                    item.setIndex(value);
+                    break;
+            }
+            return true;
+        }
+
+        @Override
+        public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
+            switch (index) {
+                case 5:
+                    ByteBuffer dest;
+                    if (begin) {
+                        dest = ByteBuffer.allocate(len);
+                        item.setBuffer(dest);
+                    } else {
+                        dest = item.getBuffer();
+                    }
+                    dest.put(buf);
+                    if (end) {
+                        dest.flip();
+                    }
+                    break;
+            }
+            return true;
+        }
     }
 }

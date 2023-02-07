@@ -115,7 +115,7 @@ class DtChannel extends PbCallback {
     }
 
     @Override
-    public void begin(int len) {
+    public void begin(int len, PbParser parser) {
         this.currentReadFrameSize = len;
         frame = new ReadFrame();
         readBody = false;

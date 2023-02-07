@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
 
+import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -25,9 +26,18 @@ import java.util.concurrent.CompletableFuture;
  */
 class RaftTask {
 
-    RaftTask(){
+    RaftTask() {
     }
 
+    boolean heartbeat;
     RaftInput input;
     CompletableFuture<RaftOutput> future;
+    ArrayList<RaftTask> nextReaders;
+
+    public void addNext(RaftTask t) {
+        if (nextReaders == null) {
+            nextReaders = new ArrayList<>();
+        }
+        nextReaders.add(t);
+    }
 }

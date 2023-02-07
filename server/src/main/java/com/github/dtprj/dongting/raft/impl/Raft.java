@@ -35,6 +35,7 @@ import com.github.dtprj.dongting.raft.rpc.VoteReq;
 import com.github.dtprj.dongting.raft.rpc.VoteResp;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
+import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
@@ -107,22 +108,45 @@ public class Raft {
             return;
         }
         long oldIndex = raftStatus.getLastLogIndex();
-        int len = inputs.size();
+        long newIndex = oldIndex;
 
+        ArrayList<LogItem> logs = new ArrayList<>(inputs.size());
         int oldTerm = raftStatus.getLastLogTerm();
         int currentTerm = raftStatus.getCurrentTerm();
-        // TODO async append, error handle
-        ArrayList<ByteBuffer> logs = new ArrayList<>(len);
-        for (RaftTask input : inputs) {
-            logs.add(input.input.getLogData());
+        for (RaftTask rt : inputs) {
+            ByteBuffer buf = rt.input.getLogData();
+            if (buf != null || rt.heartbeat) {
+                newIndex++;
+                LogItem item = new LogItem();
+                item.setBuffer(buf);
+                item.setIndex(newIndex);
+                item.setPrevLogTerm(oldTerm);
+                item.setTerm(currentTerm);
+                item.setType(rt.heartbeat ? LogItem.TYPE_HEARTBEAT : LogItem.TYPE_NORMAL);
+                logs.add(item);
+                raftStatus.getPendingRequests().put(newIndex, rt);
+            } else {
+                // read
+                if (newIndex <= raftStatus.getLastApplied()) {
+                    execInStateMachine(newIndex, false, rt.input.getInput(), rt.future);
+                } else {
+                    RaftTask newTask = raftStatus.getPendingRequests().get(newIndex);
+                    if (newTask == null) {
+                        raftStatus.getPendingRequests().put(newIndex, rt);
+                    } else {
+                        newTask.addNext(rt);
+                    }
+                }
+            }
         }
-        long newIndex = oldIndex + len;
-        raftLog.append(newIndex, oldTerm, currentTerm, logs);
+
+        // TODO async append, error handle
+        raftLog.append(oldIndex, oldTerm, logs);
 
 
-        for (int i = 1; i <= len; i++) {
+        for (int i = 1; i <= logs.size(); i++) {
             RaftTask rt = inputs.get(i);
-            raftStatus.getPendingRequests().put(oldIndex + i, rt);
+            // TODD use this buffer
             rt.input.setLogData(null);
         }
         raftStatus.setLastLogTerm(currentTerm);
@@ -189,46 +213,46 @@ public class Raft {
         // TODO error handle
         LogItem[] items = raftLog.load(nextIndex, tryMatch ? 1 : rest, maxReplicateBytes);
 
-        ArrayList<ByteBuffer> logs = new ArrayList<>();
+        ArrayList<LogItem> logs = new ArrayList<>();
         int count = 0;
         long bytes = 0;
-        LogItem firstItem = null;
         for (int i = 0; i < items.length; ) {
             LogItem item = items[i];
-            if (firstItem == null) {
-                firstItem = item;
-            }
-            // TODO proto buffer can't mark heartbeat log (empty)
-            ByteBuffer buf = item.getBuffer() == null ? ByteBuffer.allocate(1) : item.getBuffer();
-            if (bytes + buf.remaining() > config.getMaxBodySize()) {
+            int currentSize = item.getBuffer() == null ? 0 : item.getBuffer().remaining();
+            if (bytes + currentSize > config.getMaxBodySize()) {
                 if (logs.size() > 0) {
+                    LogItem firstItem = logs.get(0);
                     sendAppendRequest(node, firstItem.getIndex() - 1, firstItem.getPrevLogTerm(), logs, bytes);
                     node.incrAndGetPendingRequests(count, bytes);
 
                     count = 0;
                     bytes = 0;
-                    firstItem = null;
                     logs = new ArrayList<>();
                     continue;
                 } else {
-                    log.error("body too large: {}", buf.remaining());
+                    log.error("body too large: {}", currentSize);
                     return;
                 }
             }
             count++;
-            bytes += buf.remaining();
-            logs.add(item.getBuffer());
+            bytes += currentSize;
+            logs.add(item);
             i++;
         }
 
         if (logs.size() > 0) {
+            LogItem firstItem = logs.get(0);
             sendAppendRequest(node, firstItem.getIndex() - 1, firstItem.getPrevLogTerm(), logs, bytes);
             node.incrAndGetPendingRequests(count, bytes);
         }
     }
 
     public void sendHeartBeat() {
-        raftExec(Collections.singletonList(new RaftTask()));
+        RaftTask rt = new RaftTask();
+        rt.heartbeat = true;
+        DtTime deadline = new DtTime(ts, raftStatus.getElectTimeoutNanos(), TimeUnit.NANOSECONDS);
+        rt.input = new RaftInput(null, null, deadline);
+        raftExec(Collections.singletonList(rt));
     }
 
     public void sendVoteRequest(RaftNode node) {
@@ -293,7 +317,7 @@ public class Raft {
         }
     }
 
-    private void sendAppendRequest(RaftNode node, long prevLogIndex, int prevLogTerm, List<ByteBuffer> logs, long bytes) {
+    private void sendAppendRequest(RaftNode node, long prevLogIndex, int prevLogTerm, List<LogItem> logs, long bytes) {
         AppendReqWriteFrame req = new AppendReqWriteFrame();
         req.setCommand(Commands.RAFT_APPEND_ENTRIES);
         req.setTerm(raftStatus.getCurrentTerm());
@@ -427,22 +451,18 @@ public class Raft {
         raftStatus.setCommitIndex(recentMatchIndex);
 
         for (long i = raftStatus.getLastApplied() + 1; i <= recentMatchIndex; i++) {
-            // TODO error handle
             RaftTask rt = raftStatus.getPendingRequests().remove(i);
-            Object input = null;
-            if (rt != null) {
-                input = rt.input.getInput();
-            } else {
+            if (rt == null) {
+                rt = new RaftTask();
                 LogItem item = raftLog.load(i);
-                if (item.getBuffer() != null) {
-                    input = stateMachine.decode(item.getBuffer());
+                rt.heartbeat = item.getType() == LogItem.TYPE_HEARTBEAT;
+                if (item.getType() != LogItem.TYPE_HEARTBEAT) {
+                    Object o = stateMachine.decode(item.getBuffer());
+                    rt.input = new RaftInput(item.getBuffer(), o, null);
+                } else {
+                    rt.input = new RaftInput(item.getBuffer(), null, null);
                 }
-            }
-            if (input != null) {
-                Object result = stateMachine.write(input);
-                if (rt != null && rt.future != null) {
-                    rt.future.complete(new RaftOutput(i, result));
-                }
+                execInStateMachine(i, rt);
             }
         }
 
@@ -450,6 +470,27 @@ public class Raft {
         if (needNotify) {
             raftStatus.getFirstCommitOfApplied().complete(null);
             raftStatus.setFirstCommitOfApplied(null);
+        }
+    }
+
+    private void execInStateMachine(long index, RaftTask rt) {
+        execInStateMachine(index, rt.heartbeat, rt.input.getInput(), rt.future);
+        if (rt.nextReaders == null) {
+            return;
+        }
+        for (RaftTask r : rt.nextReaders) {
+            execInStateMachine(index, false, r.input.getInput(), r.future);
+        }
+    }
+
+    private void execInStateMachine(long index, boolean heartbeat, Object input, CompletableFuture<RaftOutput> f) {
+        // TODO error handle
+        if (heartbeat) {
+            return;
+        }
+        Object result = stateMachine.exec(input);
+        if (f != null) {
+            f.complete(new RaftOutput(index, result));
         }
     }
 }

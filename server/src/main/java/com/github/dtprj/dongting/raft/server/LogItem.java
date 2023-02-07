@@ -21,10 +21,22 @@ import java.nio.ByteBuffer;
  * @author huangli
  */
 public class LogItem {
+    public static final int TYPE_NORMAL = 0;
+    public static final int TYPE_HEARTBEAT = 1;
+
+    private int type;
     private int term;
     private int prevLogTerm;
     private ByteBuffer buffer;
     private long index;
+
+    public int getType() {
+        return type;
+    }
+
+    public void setType(int type) {
+        this.type = type;
+    }
 
     public int getTerm() {
         return term;

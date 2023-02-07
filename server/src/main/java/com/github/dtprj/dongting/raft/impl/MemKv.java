@@ -30,7 +30,7 @@ public class MemKv implements StateMachine {
     }
 
     @Override
-    public Object write(Object input) {
+    public Object exec(Object input) {
         return null;
     }
 

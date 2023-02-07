@@ -33,8 +33,16 @@ message AppendEntriesReq {
   uint32 leader_id = 2;
   fixed64 prev_log_index = 3;
   uint32 prev_log_term = 4;
-  repeated bytes entries = 5;
+  repeated LogItem entries = 5;
   fixed64 leader_commit = 6;
+}
+
+message LogItem {
+  uint32 type = 1;
+  uint32 term = 2;
+  fixed64 index = 3;
+  uint32 prev_log_term = 4;
+  bytes data = 5;
 }
 
 message AppendEntriesResp {

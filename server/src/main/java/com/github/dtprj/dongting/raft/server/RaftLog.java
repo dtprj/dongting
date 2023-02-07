@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.Pair;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 
 /**
@@ -27,7 +26,7 @@ public abstract class RaftLog {
 
     public abstract Pair<Integer, Long> init(StateMachine stateMachine);
 
-    public abstract void append(long prevLogIndex, int prevLogTerm, int currentTerm, List<ByteBuffer> logs);
+    public abstract void append(long prevLogIndex, int prevLogTerm, List<LogItem> logs);
 
     public abstract LogItem load(long index);
 

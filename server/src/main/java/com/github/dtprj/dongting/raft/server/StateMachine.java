@@ -22,5 +22,5 @@ import java.nio.ByteBuffer;
  */
 public interface StateMachine {
     Object decode(ByteBuffer logData);
-    Object write(Object input);
+    Object exec(Object input);
 }

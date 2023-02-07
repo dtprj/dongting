@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.net.ZeroCopyWriteFrame;
 import com.github.dtprj.dongting.pb.PbUtil;
+import com.github.dtprj.dongting.raft.server.LogItem;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -24,19 +25,29 @@ import java.util.List;
 /**
  * @author huangli
  */
+//message AppendEntriesReq {
 //  uint32 term = 1;
 //  uint32 leader_id = 2;
 //  fixed64 prev_log_index = 3;
 //  uint32 prev_log_term = 4;
-//  repeated bytes entries = 5;
+//  repeated LogItem entries = 5;
 //  fixed64 leader_commit = 6;
+//}
+//
+//message LogItem {
+//  uint32 type = 1;
+//  uint32 term = 2;
+//  fixed64 index = 3;
+//  uint32 prev_log_term = 4;
+//  bytes data = 5;
+//}
 public class AppendReqWriteFrame extends ZeroCopyWriteFrame {
 
     private int term;
     private int leaderId;
     private long prevLogIndex;
     private int prevLogTerm;
-    private List<ByteBuffer> logs;
+    private List<LogItem> logs;
     private long leaderCommit;
 
     @Override
@@ -47,11 +58,24 @@ public class AppendReqWriteFrame extends ZeroCopyWriteFrame {
                 + PbUtil.accurateUnsignedIntSize(4, prevLogTerm)
                 + PbUtil.accurateFix64Size(6, leaderCommit);
         if (logs != null) {
-            for (ByteBuffer log : logs) {
-                x += log == null ? 0 : PbUtil.accurateLengthDelimitedSize(5, log.remaining());
+            for (LogItem item : logs) {
+                int itemSize = computeItemSize(item);
+                x += PbUtil.accurateLengthDelimitedSize(5, itemSize, false);
             }
         }
         return x;
+    }
+
+    private int computeItemSize(LogItem item) {
+        int itemSize = 0;
+        itemSize += PbUtil.accurateUnsignedIntSize(1, item.getType());
+        itemSize += PbUtil.accurateUnsignedIntSize(2, item.getTerm());
+        itemSize += PbUtil.accurateFix64Size(3, item.getIndex());
+        itemSize += PbUtil.accurateUnsignedIntSize(4, item.getPrevLogTerm());
+        if (item.getBuffer() != null) {
+            itemSize += PbUtil.accurateLengthDelimitedSize(5, item.getBuffer().remaining(), true);
+        }
+        return itemSize;
     }
 
     @Override
@@ -61,9 +85,17 @@ public class AppendReqWriteFrame extends ZeroCopyWriteFrame {
         PbUtil.writeFix64(buf, 3, prevLogIndex);
         PbUtil.writeUnsignedInt32(buf, 4, prevLogTerm);
         if (logs != null) {
-            for (ByteBuffer log : logs) {
-                if (log != null) {
-                    PbUtil.writeLengthDelimitedPrefix(buf, 5, log.remaining());
+            for (LogItem item : logs) {
+                PbUtil.writeLengthDelimitedPrefix(buf, 5, computeItemSize(item), false);
+
+                PbUtil.writeUnsignedInt32(buf, 1, item.getType());
+                PbUtil.writeUnsignedInt32(buf, 2, item.getTerm());
+                PbUtil.writeFix64(buf, 3, item.getIndex());
+                PbUtil.writeUnsignedInt32(buf, 4, item.getPrevLogTerm());
+                ByteBuffer logBuffer = item.getBuffer();
+                if (logBuffer != null) {
+                    PbUtil.writeLengthDelimitedPrefix(buf, 5, logBuffer.remaining(), true);
+                    buf.put(logBuffer);
                 }
             }
             logs = null;
@@ -91,7 +123,7 @@ public class AppendReqWriteFrame extends ZeroCopyWriteFrame {
         this.leaderCommit = leaderCommit;
     }
 
-    public void setLogs(List<ByteBuffer> logs) {
+    public void setLogs(List<LogItem> logs) {
         this.logs = logs;
     }
 }

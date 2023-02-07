@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.StateMachine;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 
 /**
@@ -33,7 +32,7 @@ public class MemRaftLog extends RaftLog {
     }
 
     @Override
-    public void append(long prevLogIndex, int prevLogTerm, int currentTerm, List<ByteBuffer> logs) {
+    public void append(long prevLogIndex, int prevLogTerm, List<LogItem> logs) {
     }
 
     @Override

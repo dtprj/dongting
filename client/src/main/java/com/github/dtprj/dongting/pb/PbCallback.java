@@ -38,7 +38,7 @@ public abstract class PbCallback {
         throw new UnsupportedOperationException();
     }
 
-    public void begin(int len) {
+    public void begin(int len, PbParser parser) {
     }
 
     public void end(boolean success) {
