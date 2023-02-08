@@ -39,6 +39,11 @@ public class DtTime {
         this.deadline = createTime + unit.toNanos(timeout);
     }
 
+    public DtTime(long nanoTime, long timeout, TimeUnit unit) {
+        this.createTime = nanoTime;
+        this.deadline = createTime + unit.toNanos(timeout);
+    }
+
     public long elapse(TimeUnit unit) {
         return unit.convert(System.nanoTime() - createTime, TimeUnit.NANOSECONDS);
     }

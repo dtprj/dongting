@@ -112,7 +112,8 @@ public class TimeoutTest {
     public void dropBeforeRequestSendTest() throws Exception {
         setup(() -> registerDelayPingProcessor(0));
         try {
-            CompletableFuture<ReadFrame> f1 = send(new DtTime(1, TimeUnit.NANOSECONDS));
+            DtTime deadline = new DtTime(System.nanoTime() - 5 * 1000 * 1000, 1, TimeUnit.NANOSECONDS);
+            CompletableFuture<ReadFrame> f1 = send(deadline);
             f1.get(5, TimeUnit.SECONDS);
             fail();
         } catch (ExecutionException e) {
