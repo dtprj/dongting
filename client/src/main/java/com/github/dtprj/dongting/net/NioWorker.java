@@ -149,10 +149,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         long lastCleanNano = System.nanoTime();
         Selector selector = this.selector;
         Timestamp ts = new Timestamp();
-        int stopStatus;
-        while ((stopStatus = this.stopStatus) <= SS_PRE_STOP) {
+        while (this.stopStatus <= SS_PRE_STOP) {
             try {
-                run0(selector, stopStatus, ts);
+                run0(selector, ts);
                 if (ts.getNanoTime() - lastCleanNano > cleanIntervalNanos) {
                     cleanTimeoutReq(ts);
                     directPool.refreshCurrentNanos(ts);
@@ -185,7 +184,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    private void run0(Selector selector, int stopStatus, Timestamp roundTime) {
+    private void run0(Selector selector, Timestamp roundTime) {
         if (!select(selector, config.getSelectTimeoutMillis())) {
             roundTime.refresh(1);
             return;

@@ -132,9 +132,6 @@ public class NioServer extends NioNet implements Runnable {
     public void doStop() {
         DtTime timeout = new DtTime(config.getCloseTimeoutMillis(), TimeUnit.MILLISECONDS);
         stopAcceptThread();
-        if (selector != null) {
-            selector.wakeup();
-        }
         for (NioWorker worker : workers) {
             worker.preStop();
         }
@@ -170,6 +167,9 @@ public class NioServer extends NioNet implements Runnable {
 
     private void stopAcceptThread() {
         stop = true;
+        if (selector != null) {
+            selector.wakeup();
+        }
         try {
             acceptThread.join(100);
         } catch (InterruptedException e) {
