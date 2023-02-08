@@ -15,12 +15,14 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.buf.ByteBufferPool;
+
 import java.nio.ByteBuffer;
 
 /**
  * @author huangli
  */
-public class ByteBufferWriteFrame extends ZeroCopyWriteFrame {
+public class ByteBufferWriteFrame extends WriteFrame {
     private ByteBuffer body;
 
     public ByteBufferWriteFrame(ByteBuffer body) {
@@ -28,13 +30,17 @@ public class ByteBufferWriteFrame extends ZeroCopyWriteFrame {
     }
 
     @Override
-    protected int calcAccurateBodySize() {
+    protected int calcEstimateBodySize() {
         ByteBuffer body = this.body;
         return body == null ? 0 : body.remaining();
     }
 
     @Override
-    protected void encodeBody(ByteBuffer buf) {
+    protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
+        if (body == null) {
+            return;
+        }
+        writeBodySize(buf, estimateBodySize());
         body.mark();
         buf.put(body);
         body.reset();

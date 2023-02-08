@@ -138,7 +138,9 @@ public class PbParser {
                     break;
             }
         }
-        if (this.status == STATUS_SKIP_REST && this.parsedBytes == this.frameLen) {
+        if (this.status == STATUS_PARSE_FILED_BODY && fieldLen == 0 && this.fieldType == PbUtil.TYPE_LENGTH_DELIMITED) {
+            onStatusParseFieldBody(buf, callback, 0);
+        } else if (this.status == STATUS_SKIP_REST && this.parsedBytes == this.frameLen) {
             callEnd(callback, false);
         }
     }
@@ -238,7 +240,7 @@ public class PbParser {
                         afterTagParsed(value);
                         break;
                     case STATUS_PARSE_FILED_LEN:
-                        if (value <= 0) {
+                        if (value < 0) {
                             throw new PbException("bad field len: " + fieldLen);
                         }
                         if (parsedBytes + value > frameLen) {

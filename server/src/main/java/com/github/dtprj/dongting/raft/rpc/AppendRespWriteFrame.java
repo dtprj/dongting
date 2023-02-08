@@ -15,7 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.net.ZeroCopyWriteFrame;
+import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.pb.PbUtil;
 
 import java.nio.ByteBuffer;
@@ -25,7 +26,7 @@ import java.nio.ByteBuffer;
  */
 //  uint32 term = 1;
 //  uint32 success = 2;
-public class AppendRespWriteFrame extends ZeroCopyWriteFrame {
+public class AppendRespWriteFrame extends WriteFrame {
     private int term;
     private boolean success;
     private int appendCode;
@@ -33,7 +34,7 @@ public class AppendRespWriteFrame extends ZeroCopyWriteFrame {
     private long maxLogIndex;
 
     @Override
-    protected int calcAccurateBodySize() {
+    protected int calcEstimateBodySize() {
         return PbUtil.accurateUnsignedIntSize(1, term)
                 + PbUtil.accurateUnsignedIntSize(2, success ? 1 : 0)
                 + PbUtil.accurateUnsignedIntSize(3, appendCode)
@@ -42,7 +43,8 @@ public class AppendRespWriteFrame extends ZeroCopyWriteFrame {
     }
 
     @Override
-    protected void encodeBody(ByteBuffer buf) {
+    protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
+        super.writeBodySize(buf, estimateBodySize());
         PbUtil.writeUnsignedInt32(buf, 1, term);
         PbUtil.writeUnsignedInt32(buf, 2, success ? 1 : 0);
         PbUtil.writeUnsignedInt32(buf, 3, appendCode);

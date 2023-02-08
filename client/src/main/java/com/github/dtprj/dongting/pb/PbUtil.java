@@ -72,9 +72,6 @@ public class PbUtil {
     }
 
     static void writeUnsignedInt32ValueOnly(ByteBuffer buf, int value) {
-        if (value == 0) {
-            throw new IllegalArgumentException();
-        }
         for (int i = 0; i < 5; i++) {
             int x = value & 0x7F;
             value >>>= 7;

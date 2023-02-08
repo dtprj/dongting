@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -32,7 +33,6 @@ import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.StringFieldDecoder;
 import com.github.dtprj.dongting.net.WriteFrame;
-import com.github.dtprj.dongting.net.ZeroCopyWriteFrame;
 import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.pb.PbUtil;
 import com.github.dtprj.dongting.raft.client.RaftException;
@@ -325,14 +325,14 @@ public class GroupConManager {
         return processor;
     }
 
-    class RaftPingWriteFrame extends ZeroCopyWriteFrame {
+    class RaftPingWriteFrame extends WriteFrame {
 
         public RaftPingWriteFrame() {
             setCommand(Commands.RAFT_PING);
         }
 
         @Override
-        protected int calcAccurateBodySize() {
+        protected int calcEstimateBodySize() {
             return PbUtil.accurateFix32Size(1, config.getId())
                     + PbUtil.accurateFix64Size(2, uuid.getMostSignificantBits())
                     + PbUtil.accurateFix64Size(3, uuid.getLeastSignificantBits())
@@ -340,7 +340,8 @@ public class GroupConManager {
         }
 
         @Override
-        protected void encodeBody(ByteBuffer buf) {
+        protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
+            super.writeBodySize(buf, estimateBodySize());
             PbUtil.writeFix32(buf, 1, config.getId());
             PbUtil.writeFix64(buf, 2, uuid.getMostSignificantBits());
             PbUtil.writeFix64(buf, 3, uuid.getLeastSignificantBits());

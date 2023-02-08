@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefCountByteBuffer;
 import com.github.dtprj.dongting.common.DtException;
 
@@ -34,11 +35,11 @@ public class RefCountBufWriteFrame extends ByteBufferWriteFrame {
     }
 
     @Override
-    protected void encodeBody(ByteBuffer buf) {
+    protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
         if (encodeInvoked) {
             throw new DtException("encode method has been invoked");
         }
-        super.encodeBody(buf);
+        super.encodeBody(buf, pool);
         if (refCountByteBuffer != null) {
             refCountByteBuffer.release();
         }

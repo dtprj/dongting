@@ -32,7 +32,7 @@ public abstract class WriteFrame extends Frame {
 
     protected abstract void encodeBody(ByteBuffer buf, ByteBufferPool pool);
 
-    public int estimateBodySize() {
+    public final int estimateBodySize() {
         if (bodySize == 0) {
             bodySize = calcEstimateBodySize();
         }
@@ -69,5 +69,9 @@ public abstract class WriteFrame extends Frame {
         PbUtil.writeFix64(buf, Frame.IDX_TIMOUT, timeout);
         encodeBody(buf, pool);
         buf.putInt(startPos, buf.position() - startPos - 4);
+    }
+
+    protected void writeBodySize(ByteBuffer buf, int len) {
+        PbUtil.writeLengthDelimitedPrefix(buf, Frame.IDX_BODY, estimateBodySize(), true);
     }
 }

@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.net.ZeroCopyWriteFrame;
+import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.pb.PbUtil;
 
@@ -69,7 +69,7 @@ public class VoteReq {
         }
     }
 
-    public static class WriteFrame extends ZeroCopyWriteFrame {
+    public static class WriteFrame extends com.github.dtprj.dongting.net.WriteFrame {
 
         private final VoteReq data;
 
@@ -78,7 +78,7 @@ public class VoteReq {
         }
 
         @Override
-        protected int calcAccurateBodySize() {
+        protected int calcEstimateBodySize() {
             return PbUtil.accurateUnsignedLongSize(1, data.term)
                     + PbUtil.accurateUnsignedIntSize(2, data.candidateId)
                     + PbUtil.accurateFix64Size(3, data.lastLogIndex)
@@ -86,7 +86,8 @@ public class VoteReq {
         }
 
         @Override
-        protected void encodeBody(ByteBuffer buf) {
+        protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
+            super.writeBodySize(buf, estimateBodySize());
             PbUtil.writeUnsignedInt32(buf, 1, data.term);
             PbUtil.writeUnsignedInt32(buf, 2, data.candidateId);
             PbUtil.writeFix64(buf, 3, data.lastLogIndex);

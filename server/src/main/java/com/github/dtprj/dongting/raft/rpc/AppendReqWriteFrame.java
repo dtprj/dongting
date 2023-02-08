@@ -15,7 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.net.ZeroCopyWriteFrame;
+import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.pb.PbUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 
@@ -41,7 +42,7 @@ import java.util.List;
 //  uint32 prev_log_term = 4;
 //  bytes data = 5;
 //}
-public class AppendReqWriteFrame extends ZeroCopyWriteFrame {
+public class AppendReqWriteFrame extends WriteFrame {
 
     private int term;
     private int leaderId;
@@ -51,7 +52,7 @@ public class AppendReqWriteFrame extends ZeroCopyWriteFrame {
     private long leaderCommit;
 
     @Override
-    protected int calcAccurateBodySize() {
+    protected int calcEstimateBodySize() {
         int x = PbUtil.accurateUnsignedIntSize(1, term)
                 + PbUtil.accurateUnsignedIntSize(2, leaderId)
                 + PbUtil.accurateFix64Size(3, prevLogIndex)
@@ -79,7 +80,8 @@ public class AppendReqWriteFrame extends ZeroCopyWriteFrame {
     }
 
     @Override
-    protected void encodeBody(ByteBuffer buf) {
+    protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
+        super.writeBodySize(buf, estimateBodySize());
         PbUtil.writeUnsignedInt32(buf, 1, term);
         PbUtil.writeUnsignedInt32(buf, 2, leaderId);
         PbUtil.writeFix64(buf, 3, prevLogIndex);
