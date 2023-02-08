@@ -41,7 +41,7 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * each worker represent a thread.
@@ -67,7 +67,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private final NioConfig config;
     private volatile int stopStatus = SS_RUNNING;
     private Selector selector;
-    private final AtomicBoolean notified = new AtomicBoolean(false);
+    private final AtomicInteger notified = new AtomicInteger(0);
 
     private int channelIndex;
     private final ArrayList<DtChannel> channelsList;
@@ -308,7 +308,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             log.error("select failed: {}", workerName, e);
             return false;
         } finally {
-            notified.set(false);
+            notified.lazySet(0);
         }
     }
 
@@ -316,7 +316,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         if (Thread.currentThread() == thread) {
             return;
         }
-        if (notified.compareAndSet(false, true)) {
+        if (notified.incrementAndGet() == 1) {
             selector.wakeup();
         }
     }
