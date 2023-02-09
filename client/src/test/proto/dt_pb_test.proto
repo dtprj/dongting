@@ -42,4 +42,10 @@ message PbParserTestMsg {
   bytes bytesField = 4000;
   fixed32 int32Fix = 5;
   fixed64 int64Fix = 6;
+  PbParserTestMsgNested nested = 7;
+}
+
+message PbParserTestMsgNested {
+  uint32 f101 = 101;
+  string f102 = 102;
 }

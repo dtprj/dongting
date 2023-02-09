@@ -33,8 +33,9 @@ public class PbParser {
     private static final int STATUS_PARSE_PB_LEN = 1;
     private static final int STATUS_PARSE_TAG = 2;
     private static final int STATUS_PARSE_FILED_LEN = 3;
-    private static final int STATUS_PARSE_FILED_BODY = 4;
-    private static final int STATUS_SKIP_REST = 5;
+    private static final int STATUS_PARSE_FILED_BODY_BEGIN = 4;
+    private static final int STATUS_PARSE_FILED_BODY = 5;
+    private static final int STATUS_SKIP_REST = 6;
 
     private PbCallback callback;
 
@@ -121,9 +122,11 @@ public class PbParser {
                 case STATUS_PARSE_TAG:
                 case STATUS_PARSE_FILED_LEN:
                     remain = parseVarInt(buf, remain);
-                    if (status != STATUS_PARSE_FILED_BODY) {
+                    if (status != STATUS_PARSE_FILED_BODY_BEGIN || fieldLen > 0) {
                         break;
                     }
+                    // go down to ensure empty body will invoke callEnd()
+                case STATUS_PARSE_FILED_BODY_BEGIN:
                 case STATUS_PARSE_FILED_BODY:
                     remain = onStatusParseFieldBody(buf, callback, remain);
                     break;
@@ -249,7 +252,7 @@ public class PbParser {
                             throw new PbException("field length overflow frame length:" + value);
                         }
                         this.fieldLen = value;
-                        this.status = STATUS_PARSE_FILED_BODY;
+                        this.status = STATUS_PARSE_FILED_BODY_BEGIN;
                         break;
                     default:
                         throw new PbException("invalid status: " + status);
@@ -383,8 +386,10 @@ public class PbParser {
     }
 
     private int parseBodyLenDelimited(ByteBuffer buf, PbCallback callback, int remain) {
+        if (remain == 0 && status != STATUS_PARSE_FILED_BODY_BEGIN) {
+            return 0;
+        }
         int fieldLen = this.fieldLen;
-        int pendingBytes = this.pendingBytes;
         int needRead = fieldLen - pendingBytes;
         int actualRead = Math.min(needRead, remain);
         int start = buf.position();
@@ -394,7 +399,7 @@ public class PbParser {
         boolean result = false;
         try {
             result = callback.readBytes(this.fieldIndex, buf, fieldLen,
-                    pendingBytes == 0, needRead == actualRead);
+                    status == STATUS_PARSE_FILED_BODY_BEGIN, needRead == actualRead);
         } catch (Throwable e) {
             log.error("proto buffer parse callback readBytes() fail. fieldIndex={}, error={}", this.fieldIndex, e.toString());
         } finally {
@@ -408,12 +413,13 @@ public class PbParser {
                     status = STATUS_PARSE_TAG;
                 } else {
                     pendingBytes += actualRead;
+                    // ensure readBytes() with begin==true invoked only once
+                    status = STATUS_PARSE_FILED_BODY;
                 }
             } else {
                 pendingBytes = 0;
                 status = STATUS_SKIP_REST;
             }
-            this.pendingBytes = pendingBytes;
         }
         return remain;
     }

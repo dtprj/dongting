@@ -22,11 +22,11 @@ import org.junit.jupiter.api.Test;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.Random;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -35,55 +35,83 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 public class PbParserTest {
 
-    static class Callback extends PbCallback {
-
-        private int beginCount;
-        private int endSuccessCount;
-        private int endFailCount;
-
+    static class Msg {
         private int f1;
         private long f2;
         private String f3;
         private String f4;
         private int f5;
         private long f6;
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) return false;
+            Msg msg = (Msg) o;
+            return f1 == msg.f1 && f2 == msg.f2 && f5 == msg.f5 && f6 == msg.f6 && Objects.equals(f3, msg.f3)
+                    && Objects.equals(f4, msg.f4);
+        }
+
+        @Override
+        public int hashCode() {
+            return 0;
+        }
+    }
+
+    static class Callback extends PbCallback {
+
+        private Msg msg;
+        private Msg readMsg;
+
+        private int beginCount;
+        private int endSuccessCount;
+        private int endFailCount;
+
         private int expectLen;
 
-        private int read_f1;
-        private long read_f2;
-        private String read_f3;
-        private String read_f4;
-        private int read_f5;
-        private long read_f6;
+        private int setF1Count;
+        private int setF2Count;
+        private int f3BeginCount;
+        private int f3EndCount;
+        private int f4BeginCount;
+        private int f4EndCount;
+        private int setF5Count;
+        private int setF6Count;
+
+        PbParser parser;
 
         Callback(int f1, long f2, String f3, String f4, int f5, long f6) {
-            this.f1 = f1;
-            this.f2 = f2;
-            this.f3 = f3;
-            this.f4 = f4;
-            this.f5 = f5;
-            this.f6 = f6;
+            msg = new Msg();
+            msg.f1 = f1;
+            msg.f2 = f2;
+            msg.f3 = f3;
+            msg.f4 = f4;
+            msg.f5 = f5;
+            msg.f6 = f6;
         }
 
         public void reset(int f1, long f2, String f3, String f4, int f5, long f6) {
-            this.f1 = f1;
-            this.f2 = f2;
-            this.f3 = f3;
-            this.f4 = f4;
-            this.f5 = f5;
-            this.f6 = f6;
+            msg.f1 = f1;
+            msg.f2 = f2;
+            msg.f3 = f3;
+            msg.f4 = f4;
+            msg.f5 = f5;
+            msg.f6 = f6;
 
             this.expectLen = 0;
             this.beginCount = 0;
             this.endSuccessCount = 0;
             this.endFailCount = 0;
 
-            this.read_f1 = 0;
-            this.read_f2 = 0;
-            this.read_f3 = null;
-            this.read_f4 = null;
-            this.read_f5 = 0;
-            this.read_f6 = 0;
+            readMsg = null;
+
+            setF1Count = 0;
+            setF2Count = 0;
+            f3BeginCount = 0;
+            f3EndCount = 0;
+            f4BeginCount = 0;
+            f4EndCount = 0;
+            setF5Count = 0;
+            setF6Count = 0;
         }
 
         public ByteBuffer buildFrame() {
@@ -91,15 +119,14 @@ public class PbParserTest {
         }
 
         public ByteBuffer buildFrame(boolean hasLenField) {
-            byte[] bs = DtPbTest.PbParserTestMsg.newBuilder()
-                    .setInt32Field(f1)
-                    .setInt64Field(f2)
-                    .setStringField(f3)
-                    .setBytesField(ByteString.copyFrom(f4.getBytes()))
-                    .setInt32Fix(f5)
-                    .setInt64Fix(f6)
-                    .build()
-                    .toByteArray();
+            DtPbTest.PbParserTestMsg.Builder builder = DtPbTest.PbParserTestMsg.newBuilder()
+                    .setInt32Field(msg.f1)
+                    .setInt64Field(msg.f2)
+                    .setStringField(msg.f3)
+                    .setBytesField(ByteString.copyFrom(msg.f4.getBytes()))
+                    .setInt32Fix(msg.f5)
+                    .setInt64Fix(msg.f6);
+            byte[] bs = builder.build().toByteArray();
             ByteBuffer buf;
             if (hasLenField) {
                 buf = ByteBuffer.allocate(bs.length + 4);
@@ -117,26 +144,45 @@ public class PbParserTest {
 
         @Override
         public void begin(int len, PbParser parser) {
+            this.parser = parser;
             beginCount++;
             assertEquals(expectLen, len);
-            read_f1 = 0;
-            read_f2 = 0;
-            read_f3 = "";
-            read_f4 = "";
-            read_f5 = 0;
-            read_f6 = 0;
+            readMsg = new Msg();
+            readMsg.f3 = "";
+            readMsg.f4 = "";
+
+            setF1Count = 0;
+            setF2Count = 0;
+            f3BeginCount = 0;
+            f3EndCount = 0;
+            f4BeginCount = 0;
+            f4EndCount = 0;
+            setF5Count = 0;
+            setF6Count = 0;
         }
 
         @Override
         public void end(boolean success) {
             if (success) {
                 endSuccessCount++;
-                assertEquals(f1, read_f1);
-                assertEquals(f2, read_f2);
-                assertEquals(f3, read_f3);
-                assertEquals(f4, read_f4);
-                assertEquals(f5, read_f5);
-                assertEquals(f6, read_f6);
+                try {
+                    assertEquals(msg, readMsg);
+
+                    assertEquals(msg.f1 == 0 ? 0 : 1, setF1Count);
+                    assertEquals(msg.f2 == 0 ? 0 : 1, setF2Count);
+
+                    assertEquals(msg.f3.length() == 0 ? 0 : 1, f3BeginCount);
+                    assertEquals(msg.f3.length() == 0 ? 0 : 1, f3EndCount);
+
+                    assertEquals(msg.f4.length() == 0 ? 0 : 1, f4BeginCount);
+                    assertEquals(msg.f4.length() == 0 ? 0 : 1, f4EndCount);
+
+                    assertEquals(msg.f5 == 0 ? 0 : 1, setF5Count);
+                    assertEquals(msg.f6 == 0 ? 0 : 1, setF6Count);
+                } catch (Throwable e) {
+                    e.printStackTrace();
+                    endFailCount++;
+                }
             } else {
                 endFailCount++;
             }
@@ -145,9 +191,11 @@ public class PbParserTest {
         @Override
         public boolean readVarNumber(int index, long value) {
             if (index == 1) {
-                read_f1 = (int) value;
+                readMsg.f1 = (int) value;
+                setF1Count++;
             } else if (index == 2) {
-                read_f2 = value;
+                readMsg.f2 = value;
+                setF2Count++;
             } else {
                 fail();
             }
@@ -160,19 +208,21 @@ public class PbParserTest {
             buf.get(bs);
             String s = new String(bs);
             if (index == 3) {
-                read_f3 += s;
-                if (end) {
-                    assertEquals(f3, read_f3);
-                } else {
-                    assertNotEquals(f3, read_f3);
-                }
+                readMsg.f3 += s;
+                f3BeginCount += begin ? 1 : 0;
+                f3EndCount += end ? 1 : 0;
             } else if (index == 4000) {
-                read_f4 += s;
-                if (end) {
-                    assertEquals(f4, read_f4);
-                } else {
-                    assertNotEquals(f4, read_f4);
-                }
+                readMsg.f4 += s;
+                f4BeginCount += begin ? 1 : 0;
+                f4EndCount += end ? 1 : 0;
+            } else if (index == 7) {
+//                PbParser nc;
+//                if (begin) {
+//                    nc = parser.createOrGetNestedParserSingle(f7, len);
+//                } else {
+//                    nc = parser.getNestedParser();
+//                }
+//                nc.parse(buf);
             } else {
                 fail();
             }
@@ -182,14 +232,16 @@ public class PbParserTest {
         @Override
         public boolean readFix32(int index, int value) {
             assertEquals(5, index);
-            read_f5 = value;
+            readMsg.f5 = value;
+            setF5Count++;
             return true;
         }
 
         @Override
         public boolean readFix64(int index, long value) {
             assertEquals(6, index);
-            read_f6 = value;
+            readMsg.f6 = value;
+            setF6Count++;
             return true;
         }
     }
@@ -256,8 +308,17 @@ public class PbParserTest {
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endSuccessCount);
         assertEquals(0, callback.endFailCount);
+
         callback.reset(100, 200, "msg", "body", 100, 200);
         assertThrows(DtException.class, () -> parser.parse(callback.buildFrame(false)));
+
+        callback.reset(100, 200, "msg", "body", 100, 200);
+        buffer = callback.buildFrame(false);
+        parser.resetSingle(callback, buffer.remaining());
+        parser.parse(buffer);
+        assertEquals(1, callback.beginCount);
+        assertEquals(1, callback.endSuccessCount);
+        assertEquals(0, callback.endFailCount);
     }
 
     @Test
