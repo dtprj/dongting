@@ -121,7 +121,9 @@ public class PbParser {
                 case STATUS_PARSE_TAG:
                 case STATUS_PARSE_FILED_LEN:
                     remain = parseVarInt(buf, remain);
-                    break;
+                    if (status != STATUS_PARSE_FILED_BODY) {
+                        break;
+                    }
                 case STATUS_PARSE_FILED_BODY:
                     remain = onStatusParseFieldBody(buf, callback, remain);
                     break;
