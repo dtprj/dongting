@@ -113,7 +113,7 @@ public class PbParser {
     public void parse(ByteBuffer buf) {
         int remain = buf.remaining();
         PbCallback callback = this.callback;
-        while (remain > 0) {
+        while (true) {
             switch (this.status) {
                 case STATUS_PARSE_PB_LEN:
                     remain = onStatusParsePbLen(buf, callback, remain);
@@ -127,7 +127,6 @@ public class PbParser {
                     break;
                 case STATUS_SKIP_REST:
                     int skipCount = Math.min(this.frameLen - this.parsedBytes, buf.remaining());
-                    assert skipCount >= 0;
                     buf.position(buf.position() + skipCount);
                     if (this.parsedBytes + skipCount == this.frameLen) {
                         callEnd(callback, false);
@@ -137,11 +136,9 @@ public class PbParser {
                     remain -= skipCount;
                     break;
             }
-        }
-        if (this.status == STATUS_PARSE_FILED_BODY && fieldLen == 0 && this.fieldType == PbUtil.TYPE_LENGTH_DELIMITED) {
-            onStatusParseFieldBody(buf, callback, 0);
-        } else if (this.status == STATUS_SKIP_REST && this.parsedBytes == this.frameLen) {
-            callEnd(callback, false);
+            if (remain == 0) {
+                return;
+            }
         }
     }
 
@@ -168,6 +165,9 @@ public class PbParser {
             log.error("proto buffer parse callback begin() fail: {}", e.toString());
             this.status = STATUS_SKIP_REST;
         }
+        if (len == 0) {
+            callEnd(callback, this.status == STATUS_PARSE_TAG);
+        }
     }
 
     private int onStatusParsePbLen(ByteBuffer buf, PbCallback callback, int remain) {
@@ -180,7 +180,7 @@ public class PbParser {
         if (pendingBytes == 0 && remain >= 4) {
             int len = buf.getInt();
             len = Integer.reverseBytes(len);
-            if (len <= 0 || len > maxFrame) {
+            if (len < 0 || len > maxFrame) {
                 throw new PbException("maxFrameSize exceed: max=" + maxFrame + ", actual=" + len);
             }
             frameLen = len;
@@ -192,7 +192,7 @@ public class PbParser {
             for (int i = 0; i < restLen; i++) {
                 frameLen = (frameLen << 8) | (0xFF & buf.get());
             }
-            if (frameLen <= 0 || frameLen > maxFrame) {
+            if (frameLen < 0 || frameLen > maxFrame) {
                 throw new PbException("maxFrameSize exceed: max=" + maxFrame + ", actual=" + frameLen);
             }
             pendingBytes = 0;
@@ -373,8 +373,9 @@ public class PbParser {
             default:
                 throw new PbException("type not support:" + this.fieldType);
         }
-        if (frameLen == parsedBytes && status == STATUS_PARSE_TAG) {
-            callEnd(callback, true);
+        int status = this.status;
+        if (frameLen == parsedBytes && (status == STATUS_PARSE_TAG || status == STATUS_SKIP_REST)) {
+            callEnd(callback, status == STATUS_PARSE_TAG);
         }
         return remain;
     }
@@ -443,6 +444,7 @@ public class PbParser {
             callbackOnReadFixNumber(callback, len, value);
             this.pendingBytes = 0;
             this.parsedBytes += restLen;
+            return remain - restLen;
         } else {
             for (int i = 0; i < remain; i++) {
                 value |= (buf.get() & 0xFFL) << bitIndex;
@@ -451,8 +453,8 @@ public class PbParser {
             this.pendingBytes = pendingBytes + remain;
             this.parsedBytes = this.parsedBytes + remain;
             this.tempValue = value;
+            return 0;
         }
-        return remain - restLen;
     }
 
     private void callbackOnReadFixNumber(PbCallback callback, int len, long value) {

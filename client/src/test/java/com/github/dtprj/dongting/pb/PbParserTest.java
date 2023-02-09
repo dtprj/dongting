@@ -197,8 +197,15 @@ public class PbParserTest {
 
     @Test
     public void testParse() {
-        Callback callback = new Callback(100, 200, "msg", "body", 100, 200);
+        Callback callback = new Callback(0, 0, "", "", 0, 0);
         PbParser parser = PbParser.multiParser(callback, 500);
+        parser.parse(callback.buildFrame());
+        assertEquals(1, callback.beginCount);
+        assertEquals(1, callback.endSuccessCount);
+        assertEquals(0, callback.endFailCount);
+
+        callback = new Callback(100, 200, "msg", "body", 100, 200);
+        parser = PbParser.multiParser(callback, 500);
         parser.parse(callback.buildFrame());
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endSuccessCount);
@@ -257,25 +264,26 @@ public class PbParserTest {
     public void testHalfParse() {
         int[] steps = new int[]{1, 2, 5, 9};
         for(int step: steps) {
-            testHalfParse0(5, step, 0, 0, "1", "2", 0, 0);
-            testHalfParse0(5, step, 1, 1, "1", "2", 1, 1);
-            testHalfParse0(5, step, -1, -1, "1", "2", -1, -1);
-            testHalfParse0(5, step, 1000, 2000, "1", "2", 1000, 2000);
-            testHalfParse0(5, step, -1000, -2000, "1", "2", -1000, -2000);
+            testHalfParse0(step, 0, 0, "1", "2", 0, 0);
+            testHalfParse0(step, 1, 1, "1", "2", 1, 1);
+            testHalfParse0(step, -1, -1, "1", "2", -1, -1);
+            testHalfParse0(step, 1000, 2000, "1", "2", 1000, 2000);
+            testHalfParse0(step, -1000, -2000, "1", "2", -1000, -2000);
 
-            testHalfParse0(5, step, Integer.MAX_VALUE, Long.MAX_VALUE, "123", "234",
+            testHalfParse0(step, Integer.MAX_VALUE, Long.MAX_VALUE, "123", "234",
                     Integer.MAX_VALUE, Long.MAX_VALUE);
 
-            testHalfParse0(5, step, Integer.MIN_VALUE, Long.MIN_VALUE, "123", "234",
+            testHalfParse0(step, Integer.MIN_VALUE, Long.MIN_VALUE, "123", "234",
                     Integer.MIN_VALUE, Long.MIN_VALUE);
 
             char[] msg = new char[257];
             Arrays.fill(msg, 'a');
-            testHalfParse0(5, 20,1000, 2000, new String(msg), "2000", -1000, -2000);
+            testHalfParse0(20,1000, 2000, new String(msg), "2000", -1000, -2000);
         }
     }
 
-    private void testHalfParse0(int loop, int maxStep, int f1, long f2, String f3, String f4, int f5, long f6) {
+    private void testHalfParse0(int maxStep, int f1, long f2, String f3, String f4, int f5, long f6) {
+        int loop = 10;
         Callback callback = new Callback(f1, f2, f3, f4, f5, f6);
         PbParser parser = PbParser.multiParser(callback, f3.length() + f4.length() + 100);
         byte[] fullBuffer = callback.buildFrame().array();
@@ -295,7 +303,7 @@ public class PbParserTest {
         Random r = new Random();
         int len = fullBuffer.length;
         for (int j = 0; j < len; ) {
-            int c = r.nextInt(maxStep) + 1;
+            int c = r.nextInt(maxStep + 1);
             ByteBuffer buf = ByteBuffer.allocate(c);
             buf.order(ByteOrder.LITTLE_ENDIAN);
             int readCount = Math.min(c, len - j);
@@ -400,6 +408,7 @@ public class PbParserTest {
         assertEquals(expectEndSuccess, callback.endSuccessCount);
         assertEquals(expectEndFail, callback.endFailCount);
 
+        halfParse(1, parser, callback.buildFrame().array());
         halfParse(2, parser, callback.buildFrame().array());
         halfParse(3, parser, callback.buildFrame().array());
         halfParse(4, parser, callback.buildFrame().array());
@@ -409,8 +418,8 @@ public class PbParserTest {
         halfParse(8, parser, callback.buildFrame().array());
         halfParse(9, parser, callback.buildFrame().array());
 
-        assertEquals(expectBegin * 9, callback.beginCount);
-        assertEquals(expectEndSuccess * 9, callback.endSuccessCount);
-        assertEquals(expectEndFail * 9, callback.endFailCount);
+        assertEquals(expectBegin * 10, callback.beginCount);
+        assertEquals(expectEndSuccess * 10, callback.endSuccessCount);
+        assertEquals(expectEndFail * 10, callback.endFailCount);
     }
 }
