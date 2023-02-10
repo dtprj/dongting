@@ -36,6 +36,8 @@ public class PbParser {
     private static final int STATUS_PARSE_FILED_BODY_BEGIN = 4;
     private static final int STATUS_PARSE_FILED_BODY = 5;
     private static final int STATUS_SKIP_REST = 6;
+    private static final int STATUS_SINGLE_INIT = 7;
+    private static final int STATUS_SINGLE_END = 8;
 
     private PbCallback callback;
 
@@ -63,11 +65,10 @@ public class PbParser {
             this.maxFrame = maxFrameOrPbLen;
             this.status = STATUS_PARSE_PB_LEN;
         } else {
-            ObjUtil.checkPositive(maxFrameOrPbLen, "pbLen");
+            ObjUtil.checkNotNegative(maxFrameOrPbLen, "pbLen");
             this.callback = callback;
-            this.maxFrame = 0;
             this.frameLen = maxFrameOrPbLen;
-            callBegin(callback, maxFrameOrPbLen);
+            this.status = STATUS_SINGLE_INIT;
         }
     }
 
@@ -107,7 +108,7 @@ public class PbParser {
         } else {
             this.maxFrame = 0;
             this.frameLen = maxFrameOrPbLen;
-            callBegin(callback, maxFrameOrPbLen);
+            this.status = STATUS_SINGLE_INIT;
         }
     }
 
@@ -118,6 +119,9 @@ public class PbParser {
             switch (this.status) {
                 case STATUS_PARSE_PB_LEN:
                     remain = onStatusParsePbLen(buf, callback, remain);
+                    break;
+                case STATUS_SINGLE_INIT:
+                    callBegin(callback, frameLen);
                     break;
                 case STATUS_PARSE_TAG:
                 case STATUS_PARSE_FILED_LEN:
@@ -140,6 +144,11 @@ public class PbParser {
                     }
                     remain -= skipCount;
                     break;
+                case STATUS_SINGLE_END:
+                    if (isSingle()) {
+                        throw new DtException("single parser can't reuse");
+                    }
+                    break;
             }
             if (remain == 0) {
                 return;
@@ -156,7 +165,7 @@ public class PbParser {
         if (isSingle()) {
             this.callback = null;
         }
-        this.status = STATUS_PARSE_PB_LEN;
+        this.status = isSingle() ? STATUS_SINGLE_END : STATUS_PARSE_PB_LEN;
         this.pendingBytes = 0;
         this.frameLen = 0;
         this.parsedBytes = 0;
@@ -176,10 +185,6 @@ public class PbParser {
     }
 
     private int onStatusParsePbLen(ByteBuffer buf, PbCallback callback, int remain) {
-        if (isSingle()) {
-            throw new DtException("single parser can't reuse");
-        }
-
         // read buffer is little endian.
         // however the length field is out of proto buffer data, and it's big endian
         if (pendingBytes == 0 && remain >= 4) {

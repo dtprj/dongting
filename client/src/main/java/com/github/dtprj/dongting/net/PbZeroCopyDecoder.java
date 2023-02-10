@@ -37,18 +37,15 @@ public abstract class PbZeroCopyDecoder extends Decoder {
     @Override
     public Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
         PbParser parser;
-        PbCallback callback = null;
+        PbCallback callback;
         if (start) {
-            callback = createCallback(context);
-            parser = context.getIoParser().createOrGetNestedParserSingle(callback, bodyLen);
+            parser = context.getIoParser().createOrGetNestedParserSingle(createCallback(context), bodyLen);
         } else {
             parser = context.getIoParser().getNestedParser();
         }
+        callback = parser.getCallback();
         parser.parse(buffer);
         if (end) {
-            if (callback == null) {
-                callback = parser.getCallback();
-            }
             return callback.getResult();
         } else {
             return null;

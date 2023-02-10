@@ -97,9 +97,10 @@ public class AppendReqCallback extends PbCallback {
                 } else {
                     logItemParser = parser.getNestedParser();
                 }
+                LogItemCallback callback = (LogItemCallback) logItemParser.getCallback();
                 logItemParser.parse(buf);
                 if (end) {
-                    LogItem i = ((LogItemCallback) logItemParser.getCallback()).item;
+                    LogItem i = callback.item;
                     logs.add(i);
                 }
                 break;

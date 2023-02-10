@@ -30,6 +30,12 @@ public class ObjUtil {
         }
     }
 
+    public static void checkNotNegative(int i, String name) {
+        if (i < 0) {
+            throw new IllegalArgumentException(name + " : " + i + " (expected: >= 0)");
+        }
+    }
+
     public static void checkPositive(float i, String name) {
         if (i <= 0) {
             throw new IllegalArgumentException(name + " : " + i + " (expected: > 0)");
