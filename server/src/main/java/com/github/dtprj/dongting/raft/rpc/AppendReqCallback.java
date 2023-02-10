@@ -43,19 +43,7 @@ public class AppendReqCallback extends PbCallback {
     private ArrayList<LogItem> logs = new ArrayList<>();
     private long leaderCommit;
 
-    private PbParser parser;
-
     public AppendReqCallback() {
-    }
-
-    @Override
-    public void begin(int len, PbParser parser) {
-        this.parser = parser;
-    }
-
-    @Override
-    public void end(boolean success) {
-        this.parser = null;
     }
 
     @Override

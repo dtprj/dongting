@@ -149,8 +149,6 @@ public class PbParserTest {
         private int setF5Count;
         private int setF6Count;
 
-        private PbParser parser;
-
         private NestedCallback nestedCallback;
 
 
@@ -231,7 +229,7 @@ public class PbParserTest {
 
         @Override
         public void begin(int len, PbParser parser) {
-            this.parser = parser;
+            super.begin(len, parser);
             beginCount++;
             assertEquals(expectLen, len);
             readMsg = new Msg();

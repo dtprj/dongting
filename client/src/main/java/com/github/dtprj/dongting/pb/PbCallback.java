@@ -22,6 +22,8 @@ import java.nio.ByteBuffer;
  */
 public abstract class PbCallback {
 
+    protected PbParser parser;
+
     public boolean readVarNumber(int index, long value) {
         throw new UnsupportedOperationException();
     }
@@ -39,9 +41,11 @@ public abstract class PbCallback {
     }
 
     public void begin(int len, PbParser parser) {
+        this.parser = parser;
     }
 
     public void end(boolean success) {
+        this.parser = null;
     }
 
     public Object getResult() {
