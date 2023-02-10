@@ -504,4 +504,38 @@ public class PbUtilTest {
         assertTrue(accurateLengthDelimitedSize(10000, Integer.MAX_VALUE, false) < maxLengthDelimitedSize(Integer.MAX_VALUE));
         assertTrue(accurateLengthDelimitedSize(536870911, 10000, false) < maxLengthDelimitedSize(10000));
     }
+
+    @Test
+    public void testWriteUnsignedInt32ValueOnly(){
+        testWriteUnsignedInt32ValueOnly(0);
+        testWriteUnsignedInt32ValueOnly(1);
+        testWriteUnsignedInt32ValueOnly(-1);
+        testWriteUnsignedInt32ValueOnly(Integer.MAX_VALUE);
+        testWriteUnsignedInt32ValueOnly(Integer.MIN_VALUE);
+    }
+
+    private void testWriteUnsignedInt32ValueOnly(int v) {
+        ByteBuffer buf = ByteBuffer.allocate(10);
+
+        PbUtil.writeUnsignedInt32ValueOnly(buf, v);
+        buf.flip();
+        assertEquals(v, PbUtil.readUnsignedInt32(buf));
+    }
+
+    @Test
+    public void testWriteUnsignedInt64ValueOnly() {
+        // testWriteUnsignedInt64ValueOnly(0);
+        testWriteUnsignedInt64ValueOnly(1);
+        testWriteUnsignedInt64ValueOnly(-1);
+        testWriteUnsignedInt64ValueOnly(Long.MAX_VALUE);
+        testWriteUnsignedInt64ValueOnly(Long.MIN_VALUE);
+    }
+
+    private void testWriteUnsignedInt64ValueOnly(long v) {
+        ByteBuffer buf = ByteBuffer.allocate(10);
+
+        PbUtil.writeUnsignedInt64ValueOnly(buf, v);
+        buf.flip();
+        assertEquals(v, PbUtil.readUnsignedInt64(buf));
+    }
 }

@@ -38,6 +38,7 @@ public class PbParser {
     private static final int STATUS_SKIP_REST = 6;
     private static final int STATUS_SINGLE_INIT = 7;
     private static final int STATUS_SINGLE_END = 8;
+    private static final int STATUS_ERROR = 9;
 
     private PbCallback callback;
 
@@ -117,6 +118,8 @@ public class PbParser {
         PbCallback callback = this.callback;
         while (true) {
             switch (this.status) {
+                case STATUS_ERROR:
+                    throw new PbException("parser is in error status");
                 case STATUS_PARSE_PB_LEN:
                     remain = onStatusParsePbLen(buf, callback, remain);
                     break;
@@ -191,6 +194,7 @@ public class PbParser {
             int len = buf.getInt();
             len = Integer.reverseBytes(len);
             if (len < 0 || len > maxFrame) {
+                status = STATUS_ERROR;
                 throw new PbException("maxFrameSize exceed: max=" + maxFrame + ", actual=" + len);
             }
             frameLen = len;
@@ -203,6 +207,7 @@ public class PbParser {
                 frameLen = (frameLen << 8) | (0xFF & buf.get());
             }
             if (frameLen < 0 || frameLen > maxFrame) {
+                status = STATUS_ERROR;
                 throw new PbException("maxFrameSize exceed: max=" + maxFrame + ", actual=" + frameLen);
             }
             pendingBytes = 0;
@@ -237,10 +242,12 @@ public class PbParser {
             if (x >= 0) {
                 // first bit is 0, read complete
                 if (pendingBytes + i > MAX_BYTES) {
+                    status = STATUS_ERROR;
                     throw new PbException("var int too long: " + (pendingBytes + i + 1));
                 }
                 parsedBytes += i;
                 if (parsedBytes > frameLen) {
+                    status = STATUS_ERROR;
                     throw new PbException("frame exceed " + frameLen);
                 }
 
@@ -251,15 +258,18 @@ public class PbParser {
                         break;
                     case STATUS_PARSE_FILED_LEN:
                         if (value < 0) {
+                            status = STATUS_ERROR;
                             throw new PbException("bad field len: " + fieldLen);
                         }
                         if (parsedBytes + value > frameLen) {
+                            status = STATUS_ERROR;
                             throw new PbException("field length overflow frame length:" + value);
                         }
                         this.fieldLen = value;
                         this.status = STATUS_PARSE_FILED_BODY_BEGIN;
                         break;
                     default:
+                        status = STATUS_ERROR;
                         throw new PbException("invalid status: " + status);
                 }
                 this.parsedBytes = parsedBytes;
@@ -273,9 +283,11 @@ public class PbParser {
         pendingBytes += remain;
         parsedBytes += remain;
         if (pendingBytes >= MAX_BYTES) {
+            status = STATUS_ERROR;
             throw new PbException("var int too long, at least " + pendingBytes);
         }
         if (parsedBytes >= frameLen) {
+            status = STATUS_ERROR;
             throw new PbException("frame exceed, at least " + frameLen);
         }
         this.tempValue = value;
@@ -289,6 +301,7 @@ public class PbParser {
         this.fieldType = type;
         value = value >>> 3;
         if (value == 0) {
+            status = STATUS_ERROR;
             throw new PbException("bad index:" + fieldIndex);
         }
         this.fieldIndex = value;
@@ -303,6 +316,7 @@ public class PbParser {
                 this.status = STATUS_PARSE_FILED_LEN;
                 break;
             default:
+                status = STATUS_ERROR;
                 throw new PbException("type not support:" + type);
         }
     }
@@ -327,10 +341,12 @@ public class PbParser {
             if (x >= 0) {
                 // first bit is 0, read complete
                 if (pendingBytes + i > MAX_BYTES) {
+                    status = STATUS_ERROR;
                     throw new PbException("var long too long: " + (pendingBytes + i + 1));
                 }
                 parsedBytes += i;
                 if (parsedBytes > frameLen) {
+                    status = STATUS_ERROR;
                     throw new PbException("frame exceed " + frameLen);
                 }
 
@@ -355,9 +371,11 @@ public class PbParser {
         pendingBytes += remain;
         parsedBytes += remain;
         if (pendingBytes >= MAX_BYTES) {
+            status = STATUS_ERROR;
             throw new PbException("var long too long, at least " + pendingBytes);
         }
         if (parsedBytes >= frameLen) {
+            status = STATUS_ERROR;
             throw new PbException("frame exceed, at least " + frameLen);
         }
         this.tempValue = value;
@@ -381,6 +399,7 @@ public class PbParser {
                 remain = parseBodyLenDelimited(buf, callback, remain);
                 break;
             default:
+                status = STATUS_ERROR;
                 throw new PbException("type not support:" + this.fieldType);
         }
         int status = this.status;
@@ -495,6 +514,10 @@ public class PbParser {
 
     public PbParser getNestedParser() {
         return nestedParser;
+    }
+
+    public boolean isInErrorState() {
+        return status == STATUS_ERROR;
     }
 
     public PbParser createOrGetNestedParserSingle(PbCallback callback, int pbLen) {

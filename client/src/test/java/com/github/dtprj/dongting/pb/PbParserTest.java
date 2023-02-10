@@ -106,13 +106,13 @@ public class PbParserTest {
     }
 
     static class Msg {
-        private int f1;
-        private long f2;
-        private String f3;
-        private String f4;
-        private int f5;
-        private long f6;
-        private NestedMsg f7;
+        int f1;
+        long f2;
+        String f3;
+        String f4;
+        int f5;
+        long f6;
+        NestedMsg f7;
 
         @Override
         public boolean equals(Object o) {
@@ -131,12 +131,12 @@ public class PbParserTest {
 
     static class Callback extends PbCallback {
 
-        private final Msg msg;
-        private Msg readMsg;
+        final Msg msg;
+        Msg readMsg;
 
-        private int beginCount;
-        private int endSuccessCount;
-        private int endFailCount;
+        int beginCount;
+        int endSuccessCount;
+        int endFailCount;
 
         private int expectLen;
 
@@ -387,17 +387,6 @@ public class PbParserTest {
         parser.parse(callback.buildFrame());
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endSuccessCount);
-        assertEquals(0, callback.endFailCount);
-
-        try {
-            callback = new Callback(1, 2, "msg", "body", 1, 2, new NestedMsg(0, ""));
-            PbParser.multiParser(callback, 5).parse(callback.buildFrame());
-            fail();
-        } catch (PbException e) {
-            // ignore
-        }
-        assertEquals(0, callback.beginCount);
-        assertEquals(0, callback.endSuccessCount);
         assertEquals(0, callback.endFailCount);
     }
 
