@@ -228,8 +228,8 @@ public class GroupConManager {
         pingResult.ready = true;
 
         if (!self) {
-            log.info("init raft connection success: remote={}, id={}, servers={}",
-                    node.getPeer().getEndPoint(), node.getId(), callback.serversStr);
+            log.info("init raft connection success: remote={}, remoteId={}, servers={}",
+                    node.getPeer().getEndPoint(), callback.id, callback.serversStr);
         } else {
             client.disconnect(node.getPeer());
         }
