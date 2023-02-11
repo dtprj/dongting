@@ -236,9 +236,7 @@ public class GroupConManager {
         }
         boolean self = callback.uuidHigh == uuid.getMostSignificantBits()
                 && callback.uuidLow == uuid.getLeastSignificantBits();
-        if (remoteServers != null) {
-            pingResult.servers = Collections.unmodifiableSet(remoteServers);
-        }
+        pingResult.servers = Collections.unmodifiableSet(remoteServers);
         pingResult.id = callback.id;
         pingResult.self = self;
 
