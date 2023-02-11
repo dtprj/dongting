@@ -153,6 +153,7 @@ public class GroupConManager {
     }
 
     private void processPingInRaftThread(RaftNode node, PingResult pingResult) {
+        node.setPinging(false);
         if (pingResult == null) {
             return;
         }
@@ -313,6 +314,7 @@ public class GroupConManager {
                 } else {
                     pingResult = f.getNow(null);
                 }
+                node.setPinging(false);
                 if (pingResult != null) {
                     pingResult.copyTo(node);
                 }
@@ -431,7 +433,6 @@ public class GroupConManager {
             if (newEpoch) {
                 node.incrEpoch();
             }
-            node.setPinging(false);
         }
     }
 
