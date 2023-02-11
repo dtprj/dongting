@@ -37,9 +37,10 @@ import java.util.concurrent.TimeUnit;
 public class RaftThread extends Thread {
     private static final DtLog log = DtLogs.getLogger(RaftThread.class);
 
+    private final Random random = new Random();
+
     private final RaftServerConfig config;
     private final RaftStatus raftStatus;
-    private final long pollTimeout = new Random().nextInt(100) + 50;
     private final Raft raft;
     private final GroupConManager groupConManager;
 
@@ -90,7 +91,7 @@ public class RaftThread extends Thread {
             long oldNanos = ts.getNanoTime();
             if (poll) {
                 try {
-                    Object o = queue.poll(pollTimeout, TimeUnit.MILLISECONDS);
+                    Object o = queue.poll(50, TimeUnit.MILLISECONDS);
                     if (o != null) {
                         queueData.add(o);
                     }
@@ -127,7 +128,7 @@ public class RaftThread extends Thread {
             }
             raftStatus.copyShareStatus();
 
-            if (ts.getNanoTime() - oldNanos > 50 * 1000 * 1000) {
+            if (ts.getNanoTime() - oldNanos > 10 * 1000 * 1000) {
                 idle(ts);
             }
         }
@@ -149,15 +150,15 @@ public class RaftThread extends Thread {
             groupConManager.pingAllAndUpdateServers();
             if (raftStatus.getRole() == RaftRole.leader) {
                 raft.sendHeartBeat();
+                raftStatus.copyShareStatus();
             }
         }
-        raftStatus.copyShareStatus();
-        if (raftStatus.getRole() == RaftRole.follower || raftStatus.getRole() == RaftRole.candidate) {
-            if (roundTimeNanos - raftStatus.getLastElectTime() > electTimeoutNanos) {
+        if (raftStatus.getRole() != RaftRole.leader) {
+            if (roundTimeNanos - raftStatus.getLastElectTime() > electTimeoutNanos + random.nextInt(200)) {
                 startElect();
+                raftStatus.copyShareStatus();
             }
         }
-        raftStatus.copyShareStatus();
     }
 
     private void startElect() {
