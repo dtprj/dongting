@@ -58,12 +58,6 @@ public class GroupConManagerTest {
         executor.shutdown();
     }
 
-    private static void close(RN rn) {
-        if (rn != null) {
-            CloseUtil.close(rn.client, rn.server);
-        }
-    }
-
     private static RN createRaftNode(int id, String servers, int port) {
         return createRaftNode(id, servers, port, true);
     }
@@ -102,113 +96,130 @@ public class GroupConManagerTest {
     @Test
     public void testInitRaftGroup3() throws Exception {
         String servers = "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993";
-        InitThread t1 = new InitThread(1, servers, 6991, 2);
-        InitThread t2 = new InitThread(2, servers, 6992, 2);
-        InitThread t3 = new InitThread(3, servers, 6993, 2);
-        t1.start();
-        Thread.sleep(1);
-        t2.start();
-        Thread.sleep(1);
-        t3.start();
-        t1.join(10000);
-        t2.join(10000);
-        t3.join(10000);
-        assertEquals(Boolean.TRUE, t1.result);
-        assertEquals(Boolean.TRUE, t2.result);
-        assertEquals(Boolean.TRUE, t3.result);
+        try (
+                InitThread t1 = new InitThread(1, servers, 6991, 2);
+                InitThread t2 = new InitThread(2, servers, 6992, 2);
+                InitThread t3 = new InitThread(3, servers, 6993, 2);
+        ) {
+            t1.start();
+            Thread.sleep(1);
+            t2.start();
+            Thread.sleep(1);
+            t3.start();
+            t1.join(10000);
+            t2.join(10000);
+            t3.join(10000);
+            assertEquals(Boolean.TRUE, t1.result);
+            assertEquals(Boolean.TRUE, t2.result);
+            assertEquals(Boolean.TRUE, t3.result);
+        }
     }
 
     @Test
     public void testInitRaftGroup2() throws Exception {
         String servers = "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993";
-        InitThread t1 = new InitThread(1, servers, 6991, 2);
-        InitThread t2 = new InitThread(2, servers, 6992, 2);
-        t1.start();
-        Thread.sleep(1);
-        t2.start();
+        try (
+                InitThread t1 = new InitThread(1, servers, 6991, 2);
+                InitThread t2 = new InitThread(2, servers, 6992, 2);
+        ) {
+            t1.start();
+            Thread.sleep(1);
+            t2.start();
 
-        t1.join(10000);
-        t2.join(10000);
+            t1.join(10000);
+            t2.join(10000);
 
-        assertEquals(Boolean.TRUE, t1.result);
-        assertEquals(Boolean.TRUE, t2.result);
+            assertEquals(Boolean.TRUE, t1.result);
+            assertEquals(Boolean.TRUE, t2.result);
+        }
     }
 
     @Test
     public void testInitRaftGroup1() throws Exception {
         String servers = "127.0.0.1:6991";
-        InitThread t1 = new InitThread(1, servers, 6991, 1);
-        t1.start();
+        try (InitThread t1 = new InitThread(1, servers, 6991, 1)) {
+            t1.start();
 
-        t1.join(10000);
+            t1.join(10000);
 
-        assertEquals(Boolean.TRUE, t1.result);
+            assertEquals(Boolean.TRUE, t1.result);
+        }
     }
 
     @Test
     public void testInitRaftGroupFail3_1() throws Exception {
         String servers = "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993";
-        InitThread t1 = new InitThread(1, servers, 6991, 2);
-        InitThread t2 = new InitThread(1, servers, 6992, 2);
-        InitThread t3 = new InitThread(1, servers, 6993, 2);
-        t1.start();
-        Thread.sleep(1);
-        t2.start();
-        Thread.sleep(1);
-        t3.start();
-        t1.join(10000);
-        t2.join(10000);
-        t3.join(10000);
-        assertTrue(t1.result instanceof RaftException);
-        assertTrue(t2.result instanceof RaftException);
-        assertTrue(t3.result instanceof RaftException);
+        try (
+                InitThread t1 = new InitThread(1, servers, 6991, 2);
+                InitThread t2 = new InitThread(1, servers, 6992, 2);
+                InitThread t3 = new InitThread(1, servers, 6993, 2);
+        ) {
+            t1.start();
+            Thread.sleep(1);
+            t2.start();
+            Thread.sleep(1);
+            t3.start();
+            t1.join(10000);
+            t2.join(10000);
+            t3.join(10000);
+            assertTrue(t1.result instanceof RaftException);
+            assertTrue(t2.result instanceof RaftException);
+            assertTrue(t3.result instanceof RaftException);
+        }
     }
 
     @Test
     public void testInitRaftGroupFail3_2() throws Exception {
         String servers = "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993";
-        InitThread t1 = new InitThread(1, servers, 6991, 2);
-        InitThread t2 = new InitThread(2, "127.0.0.1:6991, 127.0.0.1:6993", 6992, 2);
-        InitThread t3 = new InitThread(3, "127.0.0.1:6991; 127.0.0.1:6992", 6993, 2);
-        t1.start();
-        Thread.sleep(1);
-        t2.start();
-        Thread.sleep(1);
-        t3.start();
-        t1.join(10000);
-        t2.join(10000);
-        t3.join(10000);
-        assertTrue(t1.result instanceof RaftException);
-        assertTrue(t2.result instanceof RaftException);
-        assertTrue(t3.result instanceof RaftException);
+        try (
+                InitThread t1 = new InitThread(1, servers, 6991, 2);
+                InitThread t2 = new InitThread(2, "127.0.0.1:6991, 127.0.0.1:6993", 6992, 2);
+                InitThread t3 = new InitThread(3, "127.0.0.1:6991; 127.0.0.1:6992", 6993, 2);
+        ) {
+            t1.start();
+            Thread.sleep(1);
+            t2.start();
+            Thread.sleep(1);
+            t3.start();
+            t1.join(10000);
+            t2.join(10000);
+            t3.join(10000);
+            assertTrue(t1.result instanceof RaftException);
+            assertTrue(t2.result instanceof RaftException);
+            assertTrue(t3.result instanceof RaftException);
+        }
     }
 
     @Test
     public void testInitRaftGroupFail3_3() throws Exception {
         String servers = "127.0.0.1:6991, 127.0.0.1:6992";
-        InitThread t1 = new InitThread(1, servers, 6991, 2);
-        InitThread t2 = new InitThread(2, servers, 6992, 2);
-        InitThread t3 = new InitThread(3, "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993", 6993, 2);
-        t1.start();
-        Thread.sleep(1);
-        t2.start();
-        Thread.sleep(1);
-        t3.start();
-        t1.join(10000);
-        t2.join(10000);
-        t3.join(10000);
-        assertEquals(Boolean.TRUE, t1.result);
-        assertEquals(Boolean.TRUE, t2.result);
-        assertTrue(t3.result instanceof RaftException);
+        try (
+                InitThread t1 = new InitThread(1, servers, 6991, 2);
+                InitThread t2 = new InitThread(2, servers, 6992, 2);
+                InitThread t3 = new InitThread(3, "127.0.0.1:6991, 127.0.0.1:6992; 127.0.0.1:6993", 6993, 2);
+        ) {
+            t1.start();
+            Thread.sleep(1);
+            t2.start();
+            Thread.sleep(1);
+            t3.start();
+            t1.join(10000);
+            t2.join(10000);
+            t3.join(10000);
+            assertEquals(Boolean.TRUE, t1.result);
+            assertEquals(Boolean.TRUE, t2.result);
+            assertTrue(t3.result instanceof RaftException);
+        }
     }
 
-    private static class InitThread extends Thread {
+    private static class InitThread extends Thread implements AutoCloseable {
 
         private final int id;
         private final String servers;
         private final int port;
         private final int quorum;
         private Object result;
+        private RN rn;
 
         public InitThread(int id, String servers, int port, int quorum) {
             this.id = id;
@@ -219,15 +230,19 @@ public class GroupConManagerTest {
 
         @Override
         public void run() {
-            RN rn = null;
             try {
                 rn = createRaftNode(id, servers, port);
                 rn.conManager.initRaftGroup(quorum, rn.servers, 1);
                 result = Boolean.TRUE;
             } catch (Exception e) {
                 result = e;
-            } finally {
-                close(rn);
+            }
+        }
+
+        @Override
+        public void close() {
+            if (rn != null) {
+                CloseUtil.close(rn.client, rn.server);
             }
         }
     }
