@@ -153,8 +153,25 @@ public class GroupConManager {
     }
 
     private void processPingInRaftThread(RaftNode node, PingResult pingResult) {
-        // TODO check
-        if (pingResult != null) {
+        if (pingResult == null) {
+            return;
+        }
+        ArrayList<RaftNode> list = new ArrayList<>(raftStatus.getServers());
+        list.remove(node);
+        RaftNode result = new RaftNode(null);
+        result.setId(pingResult.id);
+        result.setReady(pingResult.ready);
+        result.setServers(pingResult.servers);
+        list.add(result);
+
+        boolean checkOk = false;
+        try {
+            checkNodes(list);
+            checkOk = true;
+        } catch (RaftException e) {
+            log.error(e.getMessage());
+        }
+        if (checkOk) {
             pingResult.copyTo(node);
         }
     }
@@ -237,9 +254,6 @@ public class GroupConManager {
 
     private void checkSelf(List<RaftNode> list) {
         for (RaftNode rn1 : list) {
-            if (!rn1.isReady()) {
-                continue;
-            }
             if (rn1.isSelf()) {
                 return;
             }
@@ -247,7 +261,7 @@ public class GroupConManager {
         throw new RaftException("can't init raft connection to self");
     }
 
-    private void checkNodes(List<RaftNode> list) {
+    private static void checkNodes(List<RaftNode> list) {
         int size = list.size();
         for (int i = 0; i < size; i++) {
             RaftNode rn1 = list.get(i);
