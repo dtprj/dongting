@@ -36,7 +36,6 @@ class IoSubQueue {
     private final ByteBufferPool directPool;
     private final ByteBufferPool heapPool;
     private final WorkerStatus workerStatus;
-    private final NioStatus nioStatus;
     private final DtChannel dtc;
     private Runnable registerForWrite;
     private ByteBuffer writeBuffer;
@@ -45,11 +44,10 @@ class IoSubQueue {
     private int subQueueBytes;
     private boolean writing;
 
-    public IoSubQueue(WorkerStatus workerStatus, NioStatus nioStatus, DtChannel dtc) {
+    public IoSubQueue(WorkerStatus workerStatus, DtChannel dtc) {
         this.directPool = workerStatus.getDirectPool();
         this.heapPool = workerStatus.getHeapPool();
         this.workerStatus = workerStatus;
-        this.nioStatus = nioStatus;
         this.dtc = dtc;
     }
 
