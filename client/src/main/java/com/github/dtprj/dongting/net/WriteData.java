@@ -23,7 +23,7 @@ import java.util.concurrent.CompletableFuture;
  * @author huangli
  */
 class WriteData {
-    private final DtChannel dtc;
+    private DtChannel dtc;
     private final Peer peer;
 
     private final WriteFrame data;
@@ -34,7 +34,6 @@ class WriteData {
     public WriteData(Peer peer, WriteFrame data, DtTime timeout,
                      CompletableFuture<ReadFrame> future, Decoder respDecoder) {
         this.peer = peer;
-        this.dtc = null;
         this.data = data;
         this.timeout = timeout;
         this.future = future;
@@ -72,5 +71,9 @@ class WriteData {
 
     public Peer getPeer() {
         return peer;
+    }
+
+    public void setDtc(DtChannel dtc) {
+        this.dtc = dtc;
     }
 }
