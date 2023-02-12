@@ -39,7 +39,6 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -77,8 +76,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private final LongObjMap<WriteData> pendingOutgoingRequests = new LongObjMap<>();
     private final CompletableFuture<Void> preCloseFuture = new CompletableFuture<>();
 
-    private final Semaphore requestSemaphore;
-
     private final SimpleByteBufferPool directPool;
     private final SimpleByteBufferPool heapPool;
 
@@ -94,7 +91,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.thread = new Thread(this);
         this.workerName = workerName;
         this.thread.setName(workerName);
-        this.requestSemaphore = nioStatus.getRequestSemaphore();
         this.readBufferTimeoutNanos = config.getReadBufferTimeoutMillis() * 1000 * 1000;
 
         this.channels = new IntObjMap<>();
@@ -484,7 +480,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     t.getTimeout(TimeUnit.MILLISECONDS), d.getData().getSeq(),
                     d.getDtc());
             String msg = "timeout: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
-            requestSemaphore.release();
             d.getFuture().completeExceptionally(new NetTimeoutException(msg));
         }
     }

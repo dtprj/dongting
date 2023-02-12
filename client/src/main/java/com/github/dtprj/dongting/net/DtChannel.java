@@ -340,7 +340,6 @@ class DtChannel extends PbCallback {
     }
 
     private void processIncomingResponse(ReadFrame resp, WriteData wo) {
-        nioStatus.getRequestSemaphore().release();
         WriteFrame req = wo.getData();
         if (resp.getCommand() != req.getCommand()) {
             wo.getFuture().completeExceptionally(new NetException("command not match"));

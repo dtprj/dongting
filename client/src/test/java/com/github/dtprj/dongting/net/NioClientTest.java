@@ -651,6 +651,7 @@ public class NioClientTest {
                 try {
                     f.get(5000, TimeUnit.MILLISECONDS);
                 } catch (ExecutionException e) {
+                    e.printStackTrace();
                     assertEquals(ArrayIndexOutOfBoundsException.class, e.getCause().getClass());
                 }
             }

@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.common.IntObjMap;
 
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -26,7 +25,6 @@ import java.util.concurrent.atomic.AtomicLong;
 class NioStatus {
     private final IntObjMap<ReqProcessor> processors = new IntObjMap<>();
     private final AtomicLong inReqBytes = new AtomicLong();
-    private Semaphore requestSemaphore;
 
     public ReqProcessor getProcessor(int cmd) {
         return processors.get(cmd);
@@ -42,14 +40,6 @@ class NioStatus {
 
     public AtomicLong getInReqBytes() {
         return inReqBytes;
-    }
-
-    public Semaphore getRequestSemaphore() {
-        return requestSemaphore;
-    }
-
-    public void setRequestSemaphore(Semaphore requestSemaphore) {
-        this.requestSemaphore = requestSemaphore;
     }
 
 }

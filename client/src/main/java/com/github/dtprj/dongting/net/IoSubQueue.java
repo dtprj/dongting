@@ -139,7 +139,6 @@ class IoSubQueue {
                 frameType = "response";
             } else {
                 frameType = "request";
-                nioStatus.getRequestSemaphore().release();
                 String msg = "timeout before send: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
                 wd.getFuture().completeExceptionally(new NetTimeoutException(msg));
             }
@@ -159,7 +158,6 @@ class IoSubQueue {
         long key = BitUtil.toLong(dtc.getChannelIndexInWorker(), seq);
         WriteData old = workerStatus.getPendingRequests().put(key, wd);
         if (old != null) {
-            nioStatus.getRequestSemaphore().release();
             String errMsg = "dup seq: old=" + old.getData() + ", new=" + f;
             log.error(errMsg);
             wd.getFuture().completeExceptionally(new NetException(errMsg));

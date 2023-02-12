@@ -103,7 +103,7 @@ public class TimeoutTest {
             assertTrue(e.getCause().getMessage().contains("too many pending requests"));
         }
         f1.get(5, TimeUnit.SECONDS);
-        assertEquals(1, client.nioStatus.getRequestSemaphore().availablePermits());
+        assertEquals(1, client.semaphore.availablePermits());
         //ensure connection status is correct after timeout
         NioServerClientTest.invoke(client);
     }
@@ -120,7 +120,7 @@ public class TimeoutTest {
             assertEquals(NetTimeoutException.class, e.getCause().getClass());
             assertTrue(e.getCause().getMessage().contains("timeout before send"));
         }
-        assertEquals(1, client.nioStatus.getRequestSemaphore().availablePermits());
+        assertEquals(1, client.semaphore.availablePermits());
         //ensure connection status is correct after timeout
         NioServerClientTest.invoke(client);
     }
@@ -143,7 +143,7 @@ public class TimeoutTest {
         // need more check server side status
         assertEquals(oldCount + 1, runCount.get());
 
-        assertEquals(1, client.nioStatus.getRequestSemaphore().availablePermits());
+        assertEquals(1, client.semaphore.availablePermits());
 
         //ensure connection status is correct after timeout
         NioServerClientTest.invoke(client);
@@ -187,7 +187,7 @@ public class TimeoutTest {
             assertEquals(NetTimeoutException.class, e.getCause().getClass());
             assertTrue(e.getCause().getMessage().contains("timeout: "), e.getCause().getMessage());
         }
-        assertEquals(1, client.nioStatus.getRequestSemaphore().availablePermits());
+        assertEquals(1, client.semaphore.availablePermits());
         //ensure connection status is correct after timeout
         NioServerClientTest.invoke(client);
 

@@ -32,7 +32,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 
 /**
  * @author huangli
@@ -40,14 +39,13 @@ import java.util.function.Function;
 public abstract class NioNet extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(NioNet.class);
     private final NioConfig config;
-    private final Semaphore semaphore;
+    final Semaphore semaphore;
     protected final NioStatus nioStatus = new NioStatus();
     protected volatile ExecutorService bizExecutor;
 
     public NioNet(NioConfig config) {
         this.config = config;
         this.semaphore = new Semaphore(config.getMaxOutRequests());
-        nioStatus.setRequestSemaphore(semaphore);
         if (config.getMaxFrameSize() < config.getMaxBodySize() + 128 * 1024) {
             throw new IllegalArgumentException("maxFrameSize should greater than maxBodySize plus 64KB.");
         }
@@ -105,7 +103,7 @@ public abstract class NioNet extends AbstractLifeCircle {
                 CompletableFuture<ReadFrame> future = new CompletableFuture<>();
                 worker.writeReqInBizThreads(peer, request, decoder, timeout, future);
                 write = true;
-                return future.thenApply(new RespConvertor(decoder));
+                return registerReqCallback(future, decoder);
             } else {
                 return errorFuture(new NetTimeoutException(
                         "too many pending requests, client wait permit timeout in "
@@ -120,27 +118,21 @@ public abstract class NioNet extends AbstractLifeCircle {
         }
     }
 
-    private static class RespConvertor implements Function<ReadFrame, ReadFrame> {
-        private final Decoder decoder;
-
-        RespConvertor(Decoder decoder) {
-            this.decoder = decoder;
-        }
-
-        @Override
-        public ReadFrame apply(ReadFrame frame) {
-            if (frame.getRespCode() != CmdCodes.SUCCESS) {
-                throw new NetCodeException(frame.getRespCode(), frame.getMsg());
-            }
-            if (!decoder.decodeInIoThread()) {
-                ByteBuffer buf = (ByteBuffer) frame.getBody();
-                if (buf != null) {
-                    Object body = decoder.decode(null, buf, buf.remaining(), true, true);
-                    frame.setBody(body);
-                }
-            }
-            return frame;
-        }
+    private CompletableFuture<ReadFrame> registerReqCallback(CompletableFuture<ReadFrame> future, Decoder decoder) {
+        return future.whenComplete((rf, ex) -> semaphore.release())
+                .thenApply(frame -> {
+                    if (frame.getRespCode() != CmdCodes.SUCCESS) {
+                        throw new NetCodeException(frame.getRespCode(), frame.getMsg());
+                    }
+                    if (!decoder.decodeInIoThread()) {
+                        ByteBuffer buf = (ByteBuffer) frame.getBody();
+                        if (buf != null) {
+                            Object body = decoder.decode(null, buf, buf.remaining(), true, true);
+                            frame.setBody(body);
+                        }
+                    }
+                    return frame;
+                });
     }
 
     protected <T> CompletableFuture<T> errorFuture(Throwable e) {
