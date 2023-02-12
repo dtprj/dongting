@@ -457,9 +457,6 @@ class DtChannel extends PbCallback {
     }
 
     public void close() {
-        if (closed) {
-            return;
-        }
         this.closed = true;
     }
 

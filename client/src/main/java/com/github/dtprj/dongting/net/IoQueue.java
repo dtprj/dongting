@@ -90,6 +90,7 @@ class IoQueue {
                     return;
                 }
             }
+            wo.setDtc(dtc);
         }
 
         if (dtc.isClosed()) {
@@ -98,7 +99,6 @@ class IoQueue {
             }
             return;
         }
-        wo.setDtc(dtc);
         dtc.getSubQueue().enqueue(wo);
         this.hasDataToWrite = true;
     }

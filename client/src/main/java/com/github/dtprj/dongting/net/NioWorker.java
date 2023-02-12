@@ -472,9 +472,12 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private void cleanTimeoutReq(Timestamp roundStartTime) {
         LongObjMap<WriteData> map = this.pendingOutgoingRequests;
         LinkedList<Long> expireList = new LinkedList<>();
-        map.forEach((key, d) -> {
-            DtTime t = d.getTimeout();
-            if (t.isTimeout(roundStartTime)) {
+        LinkedList<Long> closeList = new LinkedList<>();
+        map.forEach((key, wd) -> {
+            DtTime t = wd.getTimeout();
+            if (wd.getDtc().isClosed()) {
+                closeList.add(key);
+            } else if (t.isTimeout(roundStartTime)) {
                 expireList.add(key);
             }
         });
@@ -486,6 +489,10 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     d.getDtc());
             String msg = "timeout: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
             d.getFuture().completeExceptionally(new NetTimeoutException(msg));
+        }
+        for (Long key : closeList) {
+            WriteData wd = map.remove(key);
+            wd.getFuture().completeExceptionally(new NetException("channel closed"));
         }
     }
 
