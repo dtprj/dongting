@@ -165,7 +165,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             }
         }
         try {
-            ioQueue.dispatchWriteQueue();
+            ioQueue.dispatchActions();
             selector.close();
             pendingOutgoingRequests.forEach((d, wd) ->
                     wd.getFuture().completeExceptionally(new NetException("client closed")));
@@ -190,7 +190,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             roundTime.refresh(1);
             return;
         }
-        boolean hasDataToWrite = ioQueue.dispatchWriteQueue();
+        boolean hasDataToWrite = ioQueue.dispatchActions();
         roundTime.refresh(1);
         Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
         while (iterator.hasNext()) {

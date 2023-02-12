@@ -45,7 +45,7 @@ class IoQueue {
         queue.offer(runnable);
     }
 
-    public boolean dispatchWriteQueue() {
+    public boolean dispatchActions() {
         hasDataToWrite = false;
         Object data;
         while ((data = queue.relaxedPoll()) != null) {
