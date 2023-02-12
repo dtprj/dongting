@@ -135,7 +135,11 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     // invoke by other threads
     public CompletableFuture<Void> connect(Peer peer) {
         CompletableFuture<Void> f = new CompletableFuture<>();
-        doInIoThread(() -> doConnect(f, peer));
+        if (stopStatus >= SS_PRE_STOP) {
+            f.completeExceptionally(new NetException("worker closed"));
+        } else {
+            doInIoThread(() -> doConnect(f, peer));
+        }
         return f;
     }
 
@@ -161,6 +165,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             }
         }
         try {
+            ioQueue.dispatchWriteQueue();
             selector.close();
             pendingOutgoingRequests.forEach((d, wd) ->
                     wd.getFuture().completeExceptionally(new NetException("client closed")));
