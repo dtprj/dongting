@@ -58,6 +58,5 @@ public abstract class AbstractLifeCircle implements LifeCircle {
     protected abstract void doStop();
 
     protected void forceStop() {
-        throw new IllegalStateException("error state: " + status);
     }
 }
