@@ -154,6 +154,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             try {
                 run0(selector, ts);
                 if (ts.getNanoTime() - lastCleanNano > cleanIntervalNanos) {
+                    // TODO shrink channels map if the it's internal array is too large
                     cleanTimeoutReq(ts);
                     directPool.refreshCurrentNanos(ts);
                     heapPool.refreshCurrentNanos(ts);
