@@ -44,6 +44,8 @@ public abstract class NioConfig {
     private int readBufferSize = 128 * 1024;
     private long readBufferTimeoutMillis = 200;
 
+    private boolean finishPendingImmediatelyWhenChannelClose = false;
+
     public int getBizThreads() {
         return bizThreads;
     }
@@ -170,5 +172,13 @@ public abstract class NioConfig {
 
     public void setReadBufferTimeoutMillis(long readBufferTimeoutMillis) {
         this.readBufferTimeoutMillis = readBufferTimeoutMillis;
+    }
+
+    public boolean isFinishPendingImmediatelyWhenChannelClose() {
+        return finishPendingImmediatelyWhenChannelClose;
+    }
+
+    public void setFinishPendingImmediatelyWhenChannelClose(boolean finishPendingImmediatelyWhenChannelClose) {
+        this.finishPendingImmediatelyWhenChannelClose = finishPendingImmediatelyWhenChannelClose;
     }
 }

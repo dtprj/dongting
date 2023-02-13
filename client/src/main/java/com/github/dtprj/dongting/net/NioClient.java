@@ -40,7 +40,7 @@ public class NioClient extends NioNet {
     private static final DtLog log = DtLogs.getLogger(NioClient.class);
 
     private final NioClientConfig config;
-    private final NioWorker worker;
+    final NioWorker worker;
 
     private final CopyOnWriteArrayList<Peer> peers;
     private List<CompletableFuture<Void>> startFutures;

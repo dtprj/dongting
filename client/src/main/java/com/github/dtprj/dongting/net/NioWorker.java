@@ -74,7 +74,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private final IntObjMap<DtChannel> channels;
     private final IoQueue ioQueue;
 
-    private final LongObjMap<WriteData> pendingOutgoingRequests = new LongObjMap<>();
+    final LongObjMap<WriteData> pendingOutgoingRequests = new LongObjMap<>();
     private final CompletableFuture<Void> preCloseFuture = new CompletableFuture<>();
 
     private final SimpleByteBufferPool directPool;
@@ -463,6 +463,15 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 channelsList.remove(dtc);
             }
             closeChannel0(dtc.getChannel());
+            if (config.isFinishPendingImmediatelyWhenChannelClose()) {
+                pendingOutgoingRequests.forEach((key, wd) -> {
+                    if (wd.getDtc() == dtc) {
+                        wd.getFuture().completeExceptionally(new NetException("channel closed"));
+                        return false;
+                    }
+                    return true;
+                });
+            }
         }
     }
 
@@ -481,7 +490,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.pendingOutgoingRequests.forEach((key, wd) -> {
             DtTime t = wd.getTimeout();
             if (wd.getDtc().isClosed()) {
-                wd.getFuture().completeExceptionally(new NetException("channel closed"));
+                wd.getFuture().completeExceptionally(new NetException("channel is closed"));
                 return false;
             } else if (t.isTimeout(roundStartTime)) {
                 log.debug("drop timeout request: {}ms, seq={}, {}",

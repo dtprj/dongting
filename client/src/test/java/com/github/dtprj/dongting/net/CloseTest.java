@@ -28,6 +28,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -40,7 +41,7 @@ public class CloseTest {
     private NioClient client;
     private volatile boolean received;
 
-    private void setup(int sleepTime) {
+    private void setup(int sleepTime, boolean finishWhenClose, int cleanInterval) {
         NioServerConfig serverConfig = new NioServerConfig();
         serverConfig.setPort(9000);
         server = new NioServer(serverConfig);
@@ -58,7 +59,8 @@ public class CloseTest {
         });
 
         NioClientConfig clientConfig = new NioClientConfig();
-        clientConfig.setCleanIntervalMills(1);
+        clientConfig.setCleanIntervalMills(cleanInterval);
+        clientConfig.setFinishPendingImmediatelyWhenChannelClose(finishWhenClose);
         clientConfig.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
         client = new NioClient(clientConfig);
 
@@ -76,8 +78,8 @@ public class CloseTest {
     }
 
     @Test
-    public void testClose() {
-        setup(Tick.tick(30));
+    public void testCleanInterval() {
+        setup(Tick.tick(30), false, 1);
 
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(1));
         wf.setCommand(CMD);
@@ -88,6 +90,31 @@ public class CloseTest {
 
         Peer p = client.getPeers().get(0);
         client.disconnect(p);
+        try {
+            f.get(10, TimeUnit.SECONDS);
+            fail();
+        } catch (ExecutionException e) {
+            assertEquals(0, client.worker.pendingOutgoingRequests.size());
+            assertTrue(e.getMessage().contains("channel is closed"));
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    public void testCleanWhenClose() throws Exception {
+        setup(Tick.tick(30), true, 1000000);
+
+        ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(1));
+        wf.setCommand(CMD);
+        wf.setFrameType(FrameType.TYPE_REQ);
+        CompletableFuture<ReadFrame> f = client.sendRequest(wf, new ByteBufferDecoder(0), new DtTime(10, TimeUnit.SECONDS));
+
+        TestUtil.waitUtil(() -> received);
+
+        Peer p = client.getPeers().get(0);
+        client.disconnect(p).get(10, TimeUnit.SECONDS);
+        assertEquals(0, client.worker.pendingOutgoingRequests.size());
         try {
             f.get(10, TimeUnit.SECONDS);
             fail();
