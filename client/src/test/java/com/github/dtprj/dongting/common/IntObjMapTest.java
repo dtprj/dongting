@@ -23,6 +23,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * @author huangli
@@ -138,5 +139,23 @@ public class IntObjMapTest {
             }
             assertEquals(size, m.size());
         }
+    }
+
+    @Test
+    public void testInVisitStatus() {
+        IntObjMap<String> m = new IntObjMap<>();
+        m.put(1, "1");
+        assertThrows(IllegalStateException.class, () -> m.forEach((k, v) -> {
+            m.forEach((k2, v2) -> true);
+            return true;
+        }));
+        assertThrows(IllegalStateException.class, () -> m.forEach((k, v) -> {
+            m.put(2, "2");
+            return true;
+        }));
+        assertThrows(IllegalStateException.class, () -> m.forEach((k, v) -> {
+            m.remove(3);
+            return true;
+        }));
     }
 }

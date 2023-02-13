@@ -29,6 +29,7 @@ public class LongObjMap<V> {
     private final float loadFactor;
     private long[] keys;
     private Object[] values;
+    private boolean inVisit;
 
     public LongObjMap() {
         this(8, 0.75f);
@@ -106,6 +107,9 @@ public class LongObjMap<V> {
 
     public V put(long key, V value) {
         Objects.requireNonNull(value);
+        if (inVisit) {
+            throw new IllegalStateException("can modify the map during iteration");
+        }
         long[] keys = resize();
         Object[] values = this.values;
         V r = put0(keys, values, key, value, keys.length - 1);
@@ -207,6 +211,9 @@ public class LongObjMap<V> {
     }
 
     public V remove(long key) {
+        if (inVisit) {
+            throw new IllegalStateException("can modify the map during iteration");
+        }
         return find(key, true);
     }
 
@@ -215,6 +222,18 @@ public class LongObjMap<V> {
     }
 
     public void forEach(Visitor<V> visitor) {
+        if (inVisit) {
+            throw new IllegalStateException("can not iterate the map during iteration");
+        }
+        inVisit = true;
+        try {
+            forEach0(visitor);
+        } finally {
+            inVisit = false;
+        }
+    }
+
+    private void forEach0(Visitor<V> visitor) {
         long[] keys = this.keys;
         if (keys == null) {
             return;
