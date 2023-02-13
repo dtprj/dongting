@@ -157,6 +157,7 @@ public abstract class NioNet extends AbstractLifeCircle {
                     }
                 }
             }
+            return true;
         });
     }
 

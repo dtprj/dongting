@@ -44,6 +44,7 @@ public class IntObjMapTest {
             assertEquals(1L, k);
             assertEquals("123", v);
             count.increment();
+            return true;
         });
         assertEquals(1, count.getValue());
         assertEquals("123", m.remove(1));
@@ -82,6 +83,7 @@ public class IntObjMapTest {
         m.forEach((k, v) -> {
             assertEquals(Integer.parseInt(v), k * 2);
             count.increment();
+            return true;
         });
         assertEquals(loop, count.getValue());
 
@@ -98,5 +100,43 @@ public class IntObjMapTest {
             assertEquals(v, m.remove(key));
         }
         assertEquals(0, m.size());
+    }
+
+    private IntObjMap<String> setupForEach(int[] keys) {
+        IntObjMap<String> m = new IntObjMap<>(16, 0.99f);
+        for (int key : keys) {
+            m.put(key, String.valueOf(key));
+        }
+        return m;
+    }
+
+    @Test
+    public void testForEach() {
+        int[] keys = new int[]{1, 17, 33, 2, 18, 3};
+
+        IntObjMap<String> m = setupForEach(keys);
+        int size = m.size();
+        m.forEach((k, v) -> false);
+        assertEquals(0, m.size());
+
+        for (int key : keys) {
+            m = setupForEach(keys);
+            // remove the key from map though forEach
+            m.forEach((k, v) -> k != key);
+            assertEquals(size - 1, m.size());
+            assertNull(m.get(key));
+            for (int k : keys) {
+                if (k != key) {
+                    assertEquals(String.valueOf(k), m.get(k));
+                }
+            }
+
+            // re-put
+            m.put(key, String.valueOf(key));
+            for (int k : keys) {
+                assertEquals(String.valueOf(k), m.get(k));
+            }
+            assertEquals(size, m.size());
+        }
     }
 }

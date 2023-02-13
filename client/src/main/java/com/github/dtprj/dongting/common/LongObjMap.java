@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.common;
 
+import com.github.dtprj.dongting.log.BugLog;
+
 import java.util.Objects;
 
 /**
@@ -225,21 +227,61 @@ public class LongObjMap<V> {
                 continue;
             }
             if (v instanceof LongMapNode) {
+                LongMapNode<V> prev = null;
+                boolean first = true;
                 @SuppressWarnings("unchecked")
                 LongMapNode<V> mn = (LongMapNode<V>) v;
                 do {
-                    visitor.visit(mn.getKey(), mn.getValue());
+                    boolean keep = visitor.visit(mn.getKey(), mn.getValue());
+                    if (!keep) {
+                        if (first) {
+                            LongMapNode<V> next = mn.getNext();
+                            if (next == null) {
+                                BugLog.getLog().error("LongObjMap: next is null");
+                            } else {
+                                keys[i] = next.getKey();
+                                if (next.getNext() == null) {
+                                    values[i] = next.getValue();
+                                } else {
+                                    values[i] = next;
+                                }
+                            }
+                        } else {
+                            if (prev != null) {
+                                prev.setNext(mn.getNext());
+                            } else {
+                                keys[i] = mn.getKey();
+                                if (mn.getNext() == null) {
+                                    values[i] = mn.getValue();
+                                } else {
+                                    values[i] = mn;
+                                }
+                            }
+                        }
+                        size--;
+                    } else {
+                        prev = mn;
+                    }
                     mn = mn.getNext();
+                    first = false;
                 } while (mn != null);
             } else {
                 //noinspection unchecked
-                visitor.visit(keys[i], (V) v);
+                boolean keep = visitor.visit(keys[i], (V) v);
+                if (!keep) {
+                    values[i] = null;
+                    keys[i] = 0L;
+                    size--;
+                }
             }
         }
     }
 
     @FunctionalInterface
     public interface Visitor<V> {
-        void visit(long key, V value);
+        /**
+         * return ture if keep this K/V should keep if Map, else remove it
+         */
+        boolean visit(long key, V value);
     }
 }

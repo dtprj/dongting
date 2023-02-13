@@ -44,6 +44,7 @@ public class LongObjMapTest {
             assertEquals(1L, k);
             assertEquals("123", v);
             count.increment();
+            return true;
         });
         assertEquals(1, count.getValue());
         assertEquals("123", m.remove(1));
@@ -82,6 +83,7 @@ public class LongObjMapTest {
         m.forEach((k, v) -> {
             assertEquals(Long.parseLong(v), k * 2);
             count.increment();
+            return true;
         });
         assertEquals(loop, count.getValue());
 
@@ -98,5 +100,43 @@ public class LongObjMapTest {
             assertEquals(v, m.remove(key));
         }
         assertEquals(0, m.size());
+    }
+
+    private LongObjMap<String> setupForEach(long[] keys) {
+        LongObjMap<String> m = new LongObjMap<>(16, 0.99f);
+        for (long key : keys) {
+            m.put(key, String.valueOf(key));
+        }
+        return m;
+    }
+
+    @Test
+    public void testForEach() {
+        long[] keys = new long[]{1, 17, 33, 2, 18, 3};
+
+        LongObjMap<String> m = setupForEach(keys);
+        int size = m.size();
+        m.forEach((k, v) -> false);
+        assertEquals(0, m.size());
+
+        for (long key : keys) {
+            m = setupForEach(keys);
+            // remove the key from map though forEach
+            m.forEach((k, v) -> k != key);
+            assertEquals(size - 1, m.size());
+            assertNull(m.get(key));
+            for (long k : keys) {
+                if (k != key) {
+                    assertEquals(String.valueOf(k), m.get(k));
+                }
+            }
+
+            // re-put
+            m.put(key, String.valueOf(key));
+            for (long k : keys) {
+                assertEquals(String.valueOf(k), m.get(k));
+            }
+            assertEquals(size, m.size());
+        }
     }
 }

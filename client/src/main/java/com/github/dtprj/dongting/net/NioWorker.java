@@ -37,6 +37,7 @@ import java.nio.channels.spi.SelectorProvider;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -169,7 +170,14 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             selector.close();
             pendingOutgoingRequests.forEach((d, wd) ->
                     wd.getFuture().completeExceptionally(new NetException("client closed")));
-            channels.forEach((index, dtc) -> close(dtc));
+            List<DtChannel> tempList = new LinkedList<>();
+            channels.forEach((index, dtc) -> {
+                tempList.add(dtc);
+                return true;
+            });
+            for (DtChannel dtc : tempList) {
+                close(dtc);
+            }
             log.info("worker thread [{}] finished.\n" +
                             "markReadCount={}, markWriteCount={}\n" +
                             "readCount={}, readBytes={}, avgReadBytes={}\n" +
@@ -470,30 +478,21 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     private void cleanTimeoutReq(Timestamp roundStartTime) {
-        LongObjMap<WriteData> map = this.pendingOutgoingRequests;
-        LinkedList<Long> expireList = new LinkedList<>();
-        LinkedList<Long> closeList = new LinkedList<>();
-        map.forEach((key, wd) -> {
+        this.pendingOutgoingRequests.forEach((key, wd) -> {
             DtTime t = wd.getTimeout();
             if (wd.getDtc().isClosed()) {
-                closeList.add(key);
+                log.debug("drop timeout request: {}ms, seq={}, {}",
+                        t.getTimeout(TimeUnit.MILLISECONDS), wd.getData().getSeq(),
+                        wd.getDtc());
+                String msg = "timeout: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
+                wd.getFuture().completeExceptionally(new NetTimeoutException(msg));
+                return false;
             } else if (t.isTimeout(roundStartTime)) {
-                expireList.add(key);
+                wd.getFuture().completeExceptionally(new NetException("channel closed"));
+                return false;
             }
+            return true;
         });
-        for(Long key: expireList) {
-            WriteData d = map.remove(key);
-            DtTime t = d.getTimeout();
-            log.debug("drop timeout request: {}ms, seq={}, {}",
-                    t.getTimeout(TimeUnit.MILLISECONDS), d.getData().getSeq(),
-                    d.getDtc());
-            String msg = "timeout: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
-            d.getFuture().completeExceptionally(new NetTimeoutException(msg));
-        }
-        for (Long key : closeList) {
-            WriteData wd = map.remove(key);
-            wd.getFuture().completeExceptionally(new NetException("channel closed"));
-        }
     }
 
     // invoke by other threads
