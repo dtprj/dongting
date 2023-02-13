@@ -29,9 +29,9 @@ public abstract class NioConfig {
     private int maxInRequests;
     private long maxInBytes;
 
-    private long selectTimeoutMillis = 50;
-    private long cleanIntervalMills = 100;
-    private long closeTimeoutMillis = 1000;
+    private long selectTimeout = 50;
+    private long cleanInterval = 100;
+    private long closeTimeout = 1000;
 
     private int maxFrameSize = 5 * 1024 * 1024;
     private int maxBodySize = 4 * 1024 * 1024;
@@ -42,7 +42,7 @@ public abstract class NioConfig {
     private long bufPoolTimeout = SimpleByteBufferPool.DEFAULT_TIME_OUT_MILLIS;
 
     private int readBufferSize = 128 * 1024;
-    private long readBufferTimeoutMillis = 200;
+    private long readBufferTimeout = 200;
 
     private boolean finishPendingImmediatelyWhenChannelClose = false;
 
@@ -70,28 +70,28 @@ public abstract class NioConfig {
         this.maxOutRequests = maxOutRequests;
     }
 
-    public long getSelectTimeoutMillis() {
-        return selectTimeoutMillis;
+    public long getSelectTimeout() {
+        return selectTimeout;
     }
 
-    public void setSelectTimeoutMillis(long selectTimeoutMillis) {
-        this.selectTimeoutMillis = selectTimeoutMillis;
+    public void setSelectTimeout(long selectTimeout) {
+        this.selectTimeout = selectTimeout;
     }
 
-    public long getCleanIntervalMills() {
-        return cleanIntervalMills;
+    public long getCleanInterval() {
+        return cleanInterval;
     }
 
-    public void setCleanIntervalMills(long cleanIntervalMills) {
-        this.cleanIntervalMills = cleanIntervalMills;
+    public void setCleanInterval(long cleanInterval) {
+        this.cleanInterval = cleanInterval;
     }
 
-    public long getCloseTimeoutMillis() {
-        return closeTimeoutMillis;
+    public long getCloseTimeout() {
+        return closeTimeout;
     }
 
-    public void setCloseTimeoutMillis(long closeTimeoutMillis) {
-        this.closeTimeoutMillis = closeTimeoutMillis;
+    public void setCloseTimeout(long closeTimeout) {
+        this.closeTimeout = closeTimeout;
     }
 
     public int getMaxInRequests() {
@@ -166,12 +166,12 @@ public abstract class NioConfig {
         this.readBufferSize = readBufferSize;
     }
 
-    public long getReadBufferTimeoutMillis() {
-        return readBufferTimeoutMillis;
+    public long getReadBufferTimeout() {
+        return readBufferTimeout;
     }
 
-    public void setReadBufferTimeoutMillis(long readBufferTimeoutMillis) {
-        this.readBufferTimeoutMillis = readBufferTimeoutMillis;
+    public void setReadBufferTimeout(long readBufferTimeout) {
+        this.readBufferTimeout = readBufferTimeout;
     }
 
     public boolean isFinishPendingImmediatelyWhenChannelClose() {

@@ -303,7 +303,7 @@ public class NioClientTest {
     public void connectFailTest() {
         NioClientConfig c = new NioClientConfig();
         c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 23245)));
-        c.setWaitStartTimeoutMillis(5);
+        c.setWaitStartTimeout(5);
         NioClient client = new NioClient(c);
         client.start();
         Assertions.assertThrows(NetException.class, client::waitStart);
@@ -315,7 +315,7 @@ public class NioClientTest {
         BioServer server1 = null;
         BioServer server2 = null;
         NioClientConfig c = new NioClientConfig();
-        c.setWaitStartTimeoutMillis(50);
+        c.setWaitStartTimeout(50);
         HostPort hp1 = new HostPort("127.0.0.1", 9000);
         HostPort hp2 = new HostPort("127.0.0.1", 9001);
         c.setHostPorts(Arrays.asList(hp1, hp2));
@@ -394,7 +394,7 @@ public class NioClientTest {
         BioServer server1 = null;
         BioServer server2 = null;
         NioClientConfig c = new NioClientConfig();
-        c.setWaitStartTimeoutMillis(50);
+        c.setWaitStartTimeout(50);
         HostPort hp1 = new HostPort("127.0.0.1", 9000);
         HostPort hp2 = new HostPort("127.0.0.1", 9001);
         c.setHostPorts(new ArrayList<>());
@@ -448,8 +448,8 @@ public class NioClientTest {
             server.sleep = 30;
             NioClientConfig c = new NioClientConfig();
             c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
-            c.setCleanIntervalMills(1);
-            c.setSelectTimeoutMillis(1);
+            c.setCleanInterval(1);
+            c.setSelectTimeout(1);
             c.setMaxOutRequests(1);
             client = new NioClient(c);
             client.start();
@@ -546,8 +546,8 @@ public class NioClientTest {
             server = new BioServer(9000);
             NioClientConfig c = new NioClientConfig();
             c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
-            c.setCleanIntervalMills(1);
-            c.setSelectTimeoutMillis(1);
+            c.setCleanInterval(1);
+            c.setSelectTimeout(1);
             client = new NioClient(c);
             client.start();
             client.waitStart();
@@ -568,10 +568,10 @@ public class NioClientTest {
             server = new BioServer(9000);
             NioClientConfig c = new NioClientConfig();
             c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
-            c.setCleanIntervalMills(1);
-            c.setSelectTimeoutMillis(0);
+            c.setCleanInterval(1);
+            c.setSelectTimeout(0);
             // close timeout less than server process time
-            c.setCloseTimeoutMillis(10);
+            c.setCloseTimeout(10);
             client = new NioClient(c);
             client.start();
             client.waitStart();

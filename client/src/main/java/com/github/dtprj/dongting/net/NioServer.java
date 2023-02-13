@@ -130,7 +130,7 @@ public class NioServer extends NioNet implements Runnable {
 
     @Override
     public void doStop() {
-        DtTime timeout = new DtTime(config.getCloseTimeoutMillis(), TimeUnit.MILLISECONDS);
+        DtTime timeout = new DtTime(config.getCloseTimeout(), TimeUnit.MILLISECONDS);
         stopAcceptThread();
         for (NioWorker worker : workers) {
             worker.preStop();

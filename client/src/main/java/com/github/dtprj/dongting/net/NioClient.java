@@ -70,7 +70,7 @@ public class NioClient extends NioNet {
     }
 
     public void waitStart() {
-        final DtTime t = new DtTime(config.getWaitStartTimeoutMillis(), TimeUnit.MILLISECONDS);
+        final DtTime t = new DtTime(config.getWaitStartTimeout(), TimeUnit.MILLISECONDS);
         int successCount = 0;
         int timeoutCount = 0;
         int failCount = 0;
@@ -118,7 +118,7 @@ public class NioClient extends NioNet {
         if (successCount == 0 && peers.size() > 0) {
             log.error("[{}] start fail: timeoutPeerCount={},failPeerCount={}\n{}",
                     config.getName(), timeoutCount, failCount, sb);
-            throw new NetException("init NioClient fail:timeout=" + config.getWaitStartTimeoutMillis()
+            throw new NetException("init NioClient fail:timeout=" + config.getWaitStartTimeout()
                     + "ms, timeoutConnectionCount=" + timeoutCount + ", failConnectionCount=" + failCount);
         } else {
             log.info("[{}] started: connectPeerCount={}, timeoutPeerCount={}, failPeerCount={}\n{}",
@@ -137,7 +137,7 @@ public class NioClient extends NioNet {
 
     @Override
     protected void doStop() {
-        DtTime timeout = new DtTime(config.getCloseTimeoutMillis(), TimeUnit.MILLISECONDS);
+        DtTime timeout = new DtTime(config.getCloseTimeout(), TimeUnit.MILLISECONDS);
         worker.preStop();
         try {
             long rest = timeout.rest(TimeUnit.MILLISECONDS);

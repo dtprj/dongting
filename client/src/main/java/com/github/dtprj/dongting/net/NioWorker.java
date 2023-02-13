@@ -92,7 +92,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.thread = new Thread(this);
         this.workerName = workerName;
         this.thread.setName(workerName);
-        this.readBufferTimeoutNanos = config.getReadBufferTimeoutMillis() * 1000 * 1000;
+        this.readBufferTimeoutNanos = config.getReadBufferTimeout() * 1000 * 1000;
 
         this.channels = new IntObjMap<>();
         if (config instanceof NioServerConfig) {
@@ -146,7 +146,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     @Override
     public void run() {
-        long cleanIntervalNanos = config.getCleanIntervalMills() * 1000 * 1000;
+        long cleanIntervalNanos = config.getCleanInterval() * 1000 * 1000;
         long lastCleanNano = System.nanoTime();
         Selector selector = this.selector;
         Timestamp ts = new Timestamp();
@@ -195,7 +195,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     private void run0(Selector selector, Timestamp roundTime) {
-        if (!select(selector, config.getSelectTimeoutMillis())) {
+        if (!select(selector, config.getSelectTimeout())) {
             roundTime.refresh(1);
             return;
         }

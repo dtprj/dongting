@@ -59,7 +59,7 @@ public class CloseTest {
         });
 
         NioClientConfig clientConfig = new NioClientConfig();
-        clientConfig.setCleanIntervalMills(cleanInterval);
+        clientConfig.setCleanInterval(cleanInterval);
         clientConfig.setFinishPendingImmediatelyWhenChannelClose(finishWhenClose);
         clientConfig.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
         client = new NioClient(clientConfig);

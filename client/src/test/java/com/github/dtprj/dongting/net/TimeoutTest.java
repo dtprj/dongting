@@ -52,8 +52,8 @@ public class TimeoutTest {
         }
 
         NioClientConfig clientConfig = new NioClientConfig();
-        clientConfig.setCleanIntervalMills(1);
-        clientConfig.setSelectTimeoutMillis(1);
+        clientConfig.setCleanInterval(1);
+        clientConfig.setSelectTimeout(1);
         clientConfig.setMaxOutRequests(1);
         clientConfig.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
         client = new NioClient(clientConfig);
