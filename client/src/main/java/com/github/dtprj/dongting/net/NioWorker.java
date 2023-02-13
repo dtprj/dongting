@@ -481,14 +481,14 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.pendingOutgoingRequests.forEach((key, wd) -> {
             DtTime t = wd.getTimeout();
             if (wd.getDtc().isClosed()) {
+                wd.getFuture().completeExceptionally(new NetException("channel closed"));
+                return false;
+            } else if (t.isTimeout(roundStartTime)) {
                 log.debug("drop timeout request: {}ms, seq={}, {}",
                         t.getTimeout(TimeUnit.MILLISECONDS), wd.getData().getSeq(),
                         wd.getDtc());
                 String msg = "timeout: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
                 wd.getFuture().completeExceptionally(new NetTimeoutException(msg));
-                return false;
-            } else if (t.isTimeout(roundStartTime)) {
-                wd.getFuture().completeExceptionally(new NetException("channel closed"));
                 return false;
             }
             return true;
