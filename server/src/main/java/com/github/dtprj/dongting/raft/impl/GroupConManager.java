@@ -191,10 +191,7 @@ public class GroupConManager {
             connectFuture = CompletableFuture.completedFuture(null);
         } else if (peerStatus == PeerStatus.not_connect) {
             DtTime deadline = new DtTime(config.getConnectTimeout(), TimeUnit.MILLISECONDS);
-            connectFuture = client.connect(node.getPeer(), deadline).thenApply(v -> {
-                pingResult.newEpoch = true;
-                return null;
-            });
+            connectFuture = client.connect(node.getPeer(), deadline);
         } else {
             BugLog.getLog().error("assert false, peer status is connecting");
             return CompletableFuture.completedFuture(null);
@@ -204,7 +201,6 @@ public class GroupConManager {
                     log.info("connect to raft server {} fail: {}",
                             node.getPeer().getEndPoint(), ex.toString());
                     pingResult.ready = false;
-                    pingResult.newEpoch = true;
                     return pingResult;
                 });
     }
@@ -217,7 +213,6 @@ public class GroupConManager {
                 whenRpcFinish(rf, node, pingResult);
             } else {
                 pingResult.ready = false;
-                pingResult.newEpoch = true;
                 log.info("init raft connection {} fail: {}", node.getPeer().getEndPoint(), ex.getMessage());
             }
             return pingResult;
@@ -232,7 +227,6 @@ public class GroupConManager {
             remoteServers = RaftUtil.parseServers(callback.serversStr);
         } catch (Exception e) {
             pingResult.ready = false;
-            pingResult.newEpoch = true;
             log.error("servers list is empty", e);
             return;
         }
@@ -414,7 +408,6 @@ public class GroupConManager {
         boolean self;
 
         boolean ready;
-        boolean newEpoch;
 
         PingResult(RaftNode initStatus) {
             this.id = initStatus.getId();
@@ -431,8 +424,8 @@ public class GroupConManager {
 
             node.setReady(ready);
 
-            if (newEpoch) {
-                node.incrEpoch();
+            if (!ready) {
+                node.setMultiAppend(false);
             }
         }
     }

@@ -105,7 +105,7 @@ public class RaftUtil {
             node.setPendingRequests(0);
             node.setLastConfirmReqNanos(0);
             node.setHasLastConfirmReqNanos(false);
-            node.incrEpoch();
+            node.setMultiAppend(false);
         }
     }
 

@@ -181,7 +181,7 @@ public class Raft {
         if (!node.isReady()) {
             return;
         }
-        if (node.getEpoch() == node.getLastEpoch()) {
+        if (node.isMultiAppend()) {
             doReplicate(node, false);
         } else {
             if (node.getPendingRequests() == 0) {
@@ -341,11 +341,13 @@ public class Raft {
             if (ex == null) {
                 processAppendResult(node, rf, prevLogIndex, prevLogTerm, reqTerm, reqNanos, count, bytes);
             } else {
-                String msg = "append fail. remoteId={}, localTerm={}, reqTerm={}, prevLogIndex={}";
-                if (node.incrEpoch()) {
+                if (node.isMultiAppend()) {
+                    node.setMultiAppend(false);
+                    String msg = "append fail. remoteId={}, localTerm={}, reqTerm={}, prevLogIndex={}";
                     log.warn(msg, node.getId(), raftStatus.getCurrentTerm(), reqTerm, prevLogIndex, ex);
                 } else {
-                    log.warn(msg, node.getId(), raftStatus.getCurrentTerm(), reqTerm, prevLogIndex);
+                    String msg = "append fail. remoteId={}, localTerm={}, reqTerm={}, prevLogIndex={}, ex={}";
+                    log.warn(msg, node.getId(), raftStatus.getCurrentTerm(), reqTerm, prevLogIndex, ex.toString());
                 }
             }
             return null;
@@ -383,8 +385,7 @@ public class Raft {
                 node.setLastConfirmReqNanos(reqNanos);
                 RaftUtil.updateLease(reqNanos, raftStatus);
                 node.setMatchIndex(expectNewMatchIndex);
-                // update last epoch
-                node.setLastEpoch(node.getEpoch());
+                node.setMultiAppend(true);
                 tryCommit(expectNewMatchIndex);
                 if (raftStatus.getLastLogIndex() >= node.getNextIndex()) {
                     replicate(node);

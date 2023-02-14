@@ -30,8 +30,7 @@ public class RaftNode {
     private boolean self;
     private boolean ready;
     private boolean pinging;
-    private long epoch;
-    private long lastEpoch;
+    private boolean multiAppend;
     private int pendingRequests;//only include append requests
     private long pendingBytes;
 
@@ -54,15 +53,6 @@ public class RaftNode {
     public void decrAndGetPendingRequests(int requests, long bytes) {
         pendingRequests -= requests;
         pendingBytes -= bytes;
-    }
-
-    public boolean incrEpoch() {
-        if (epoch == lastEpoch) {
-            epoch++;
-            return true;
-        } else {
-            return false;
-        }
     }
 
     //-------------------------getter and setters-------------------------------
@@ -119,20 +109,12 @@ public class RaftNode {
         this.matchIndex = matchIndex;
     }
 
-    public long getEpoch() {
-        return epoch;
+    public boolean isMultiAppend() {
+        return multiAppend;
     }
 
-    public void setEpoch(long epoch) {
-        this.epoch = epoch;
-    }
-
-    public long getLastEpoch() {
-        return lastEpoch;
-    }
-
-    public void setLastEpoch(long lastEpoch) {
-        this.lastEpoch = lastEpoch;
+    public void setMultiAppend(boolean multiAppend) {
+        this.multiAppend = multiAppend;
     }
 
     public int getPendingRequests() {
