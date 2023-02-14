@@ -190,7 +190,8 @@ public class GroupConManager {
         if (peerStatus == PeerStatus.connected) {
             connectFuture = CompletableFuture.completedFuture(null);
         } else if (peerStatus == PeerStatus.not_connect) {
-            connectFuture = client.connect(node.getPeer()).thenApply(v -> {
+            DtTime deadline = new DtTime(config.getConnectTimeout(), TimeUnit.MILLISECONDS);
+            connectFuture = client.connect(node.getPeer(), deadline).thenApply(v -> {
                 pingResult.newEpoch = true;
                 return null;
             });

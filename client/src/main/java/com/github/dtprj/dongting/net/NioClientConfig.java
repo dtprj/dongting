@@ -23,6 +23,7 @@ import java.util.List;
 public class NioClientConfig extends NioConfig {
     private List<HostPort> hostPorts;
     private int waitStartTimeout = 2000;
+    private int connectTimeout = 5000;
 
     public NioClientConfig() {
         setName("DtNioClient");
@@ -48,5 +49,13 @@ public class NioClientConfig extends NioConfig {
 
     public void setWaitStartTimeout(int waitStartTimeout) {
         this.waitStartTimeout = waitStartTimeout;
+    }
+
+    public int getConnectTimeout() {
+        return connectTimeout;
+    }
+
+    public void setConnectTimeout(int connectTimeout) {
+        this.connectTimeout = connectTimeout;
     }
 }

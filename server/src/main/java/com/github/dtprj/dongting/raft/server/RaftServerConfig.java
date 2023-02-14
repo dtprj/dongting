@@ -25,6 +25,7 @@ public class RaftServerConfig {
     private int id;
     private long electTimeout = 15 * 1000;
     private long rpcTimeout = 5 * 1000;
+    private long connectTimeout = 2000;
     private long heartbeatInterval = 2000;
     private int maxBodySize = 4 * 1024 * 1024;
     private int maxReplicateItems = 1000;
@@ -127,5 +128,13 @@ public class RaftServerConfig {
 
     public void setMaxPendingWriteBytes(long maxPendingWriteBytes) {
         this.maxPendingWriteBytes = maxPendingWriteBytes;
+    }
+
+    public long getConnectTimeout() {
+        return connectTimeout;
+    }
+
+    public void setConnectTimeout(long connectTimeout) {
+        this.connectTimeout = connectTimeout;
     }
 }

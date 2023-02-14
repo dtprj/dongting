@@ -360,16 +360,16 @@ public class NioClientTest {
             sendSyncByPeer(5000, client, p2, 500);
 
             try {
-                client.connect(p1).get(20, TimeUnit.MILLISECONDS);
+                client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get(20, TimeUnit.MILLISECONDS);
                 fail();
             } catch (TimeoutException | ExecutionException e) {
             }
             server1 = new BioServer(9000);
-            client.connect(p1).get(200, TimeUnit.MILLISECONDS);
+            client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get(200, TimeUnit.MILLISECONDS);
             sendSyncByPeer(5000, client, p1, 500);
 
             try {
-                client.connect(p1).get(20, TimeUnit.MILLISECONDS);
+                client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get(20, TimeUnit.MILLISECONDS);
                 fail();
             } catch (ExecutionException e) {
                 assertEquals(NetException.class, e.getCause().getClass());
@@ -408,9 +408,9 @@ public class NioClientTest {
             Peer p1 = client.addPeer(hp1).get();
             Peer p2 = client.addPeer(hp2).get();
             assertSame(p1, client.addPeer(hp1).get());
-            client.connect(p1).get();
-            client.connect(p2).get();
-            assertThrows(ExecutionException.class, () -> client.connect(p1).get());
+            client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get();
+            client.connect(p2, new DtTime(1, TimeUnit.SECONDS)).get();
+            assertThrows(ExecutionException.class, () -> client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get());
             assertEquals(2, client.getPeers().size());
 
             sendSync(5000, client, 500);
@@ -420,7 +420,7 @@ public class NioClientTest {
             assertEquals(2, client.getPeers().size());
             sendSync(5000, client, 100);
 
-            client.connect(p1).get();
+            client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get();
             assertNotNull(p1.getDtChannel());
             assertEquals(2, client.getPeers().size());
             sendSyncByPeer(5000, client, p1, 500);

@@ -45,6 +45,8 @@ public class NioClient extends NioNet {
     private final CopyOnWriteArrayList<Peer> peers;
     private List<CompletableFuture<Void>> startFutures;
 
+    private DtTime startDeadline;
+
     public NioClient(NioClientConfig config) {
         super(config);
         this.config = config;
@@ -61,16 +63,16 @@ public class NioClient extends NioNet {
 
     @Override
     protected void doStart() {
+        startDeadline = new DtTime(config.getWaitStartTimeout(), TimeUnit.MILLISECONDS);
         startFutures = new ArrayList<>();
         initBizExecutor();
         worker.start();
         for (Peer peer : peers) {
-            startFutures.add(worker.connect(peer));
+            startFutures.add(worker.connect(peer, startDeadline));
         }
     }
 
     public void waitStart() {
-        final DtTime t = new DtTime(config.getWaitStartTimeout(), TimeUnit.MILLISECONDS);
         int successCount = 0;
         int timeoutCount = 0;
         int failCount = 0;
@@ -82,7 +84,7 @@ public class NioClient extends NioNet {
             sb.append(peer.getEndPoint()).append(' ');
             CompletableFuture<Void> f = startFutures.get(i);
             if (!f.isDone()) {
-                long restMillis = t.rest(TimeUnit.MILLISECONDS);
+                long restMillis = startDeadline.rest(TimeUnit.MILLISECONDS);
                 if (restMillis > 0) {
                     try {
                         f.get(restMillis, TimeUnit.MILLISECONDS);
@@ -210,9 +212,9 @@ public class NioClient extends NioNet {
         return f;
     }
 
-    public CompletableFuture<Void> connect(Peer peer) {
+    public CompletableFuture<Void> connect(Peer peer, DtTime deadline) {
         checkOwner(peer);
-        return worker.connect(peer);
+        return worker.connect(peer, deadline);
     }
 
     public CompletableFuture<Void> disconnect(Peer peer) {

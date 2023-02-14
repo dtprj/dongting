@@ -64,7 +64,7 @@ public class TimeoutTest {
     }
 
     @AfterEach
-    public void shutdown(){
+    public void shutdown() {
         CloseUtil.close(client, server);
     }
 
