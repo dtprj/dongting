@@ -103,6 +103,7 @@ public class RaftUtil {
             node.setMatchIndex(0);
             node.setNextIndex(0);
             node.setPendingRequests(0);
+            node.setPendingBytes(0);
             node.setLastConfirmReqNanos(0);
             node.setHasLastConfirmReqNanos(false);
             node.setMultiAppend(false);
