@@ -400,6 +400,7 @@ public class Raft {
                     body.getMaxLogIndex(), raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
             node.setHasLastConfirmReqNanos(true);
             node.setLastConfirmReqNanos(reqNanos);
+            node.setMultiAppend(false);
             RaftUtil.updateLease(reqNanos, raftStatus);
             if (body.getTerm() == raftStatus.getCurrentTerm() && reqTerm == raftStatus.getCurrentTerm()) {
                 node.setNextIndex(body.getMaxLogIndex() + 1);
