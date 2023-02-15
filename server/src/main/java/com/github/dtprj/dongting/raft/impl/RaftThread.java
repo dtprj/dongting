@@ -43,6 +43,7 @@ public class RaftThread extends Thread {
     private final RaftStatus raftStatus;
     private final Raft raft;
     private final GroupConManager groupConManager;
+    private final VoteManager voteManager;
 
     private final long heartbeatIntervalNanos;
     private final long electTimeoutNanos;
@@ -64,6 +65,8 @@ public class RaftThread extends Thread {
         electTimeoutNanos = Duration.ofMillis(config.getElectTimeout()).toNanos();
         raftStatus.setElectTimeoutNanos(electTimeoutNanos);
         heartbeatIntervalNanos = Duration.ofMillis(config.getHeartbeatInterval()).toNanos();
+
+        this.voteManager = new VoteManager(container, raft);
     }
 
     protected boolean init() {
@@ -187,7 +190,7 @@ public class RaftThread extends Thread {
             if (node.isSelf()) {
                 continue;
             }
-            raft.sendVoteRequest(node);
+            voteManager.sendVoteRequest(node);
         }
     }
 
