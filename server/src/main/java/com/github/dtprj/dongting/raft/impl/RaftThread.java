@@ -80,6 +80,14 @@ public class RaftThread extends Thread {
 
     @Override
     public void run() {
+        try {
+            run0();
+        } catch (Throwable e) {
+            BugLog.getLog().error("raft thread error", e);
+        }
+    }
+
+    private void run0() {
         if (!init()) {
             return;
         }
