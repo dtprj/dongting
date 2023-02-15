@@ -33,6 +33,7 @@ import com.github.dtprj.dongting.net.NioServerConfig;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.impl.GroupConManager;
 import com.github.dtprj.dongting.raft.impl.Raft;
+import com.github.dtprj.dongting.raft.impl.RaftContainer;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
@@ -110,6 +111,15 @@ public class RaftServer extends AbstractLifeCircle {
 
         LinkedBlockingQueue<Object> queue = new LinkedBlockingQueue<>();
         RaftExecutor raftExecutor = new RaftExecutor(queue);
+
+        RaftContainer container = new RaftContainer();
+        container.setRaftExecutor(raftExecutor);
+        container.setRaftLog(raftLog);
+        container.setRaftStatus(raftStatus);
+        container.setClient(raftClient);
+        container.setConfig(config);
+        container.setStateMachine(stateMachine);
+
         GroupConManager groupConManager = new GroupConManager(config, raftClient, raftExecutor, raftStatus);
 
         NioServerConfig nioServerConfig = new NioServerConfig();
@@ -127,8 +137,8 @@ public class RaftServer extends AbstractLifeCircle {
         raftServer.register(Commands.RAFT_APPEND_ENTRIES, ap, raftExecutor);
         raftServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(raftStatus), raftExecutor);
 
-        Raft raft = new Raft(config, raftExecutor, raftLog, raftStatus, raftClient, stateMachine);
-        raftThread = new RaftThread(config, raftExecutor, raftStatus, raft, groupConManager);
+        Raft raft = new Raft(container);
+        raftThread = new RaftThread(container, raft, groupConManager);
     }
 
     private void setupNioConfig(NioConfig nc, RaftServerConfig config) {

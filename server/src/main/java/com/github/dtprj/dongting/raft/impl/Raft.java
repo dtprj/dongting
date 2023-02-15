@@ -69,14 +69,14 @@ public class Raft {
 
     private static final PbZeroCopyDecoder appendRespDecoder = new PbZeroCopyDecoder(c -> new AppendRespCallback());
 
-    public Raft(RaftServerConfig config, RaftExecutor raftExecutor, RaftLog raftLog,
-                RaftStatus raftStatus, NioClient client, StateMachine stateMachine) {
-        this.config = config;
-        this.raftExecutor = raftExecutor;
-        this.raftLog = raftLog;
-        this.raftStatus = raftStatus;
-        this.client = client;
-        this.stateMachine = stateMachine;
+    public Raft(RaftContainer container) {
+        this.config = container.getConfig();
+        this.raftExecutor = container.getRaftExecutor();
+        this.raftLog = container.getRaftLog();
+        this.raftStatus = container.getRaftStatus();
+        this.client = container.getClient();
+        this.stateMachine = container.getStateMachine();
+
         this.maxReplicateItems = config.getMaxReplicateItems();
         this.maxReplicateBytes = config.getMaxReplicateBytes();
         this.restItemsToStartReplicate = (int) (maxReplicateItems * 0.1);

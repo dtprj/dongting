@@ -54,13 +54,13 @@ public class RaftThread extends Thread {
 
     private final CompletableFuture<Void> initFuture = new CompletableFuture<>();
 
-    public RaftThread(RaftServerConfig config, RaftExecutor executor, RaftStatus raftStatus,
-                      Raft raft, GroupConManager groupConManager) {
-        this.config = config;
-        this.raftStatus = raftStatus;
-        this.queue = executor.getQueue();
+    public RaftThread(RaftContainer container, Raft raft, GroupConManager groupConManager) {
+        this.config = container.getConfig();
+        this.raftStatus = container.getRaftStatus();
+        this.queue = container.getRaftExecutor().getQueue();
         this.raft = raft;
         this.groupConManager = groupConManager;
+
         electTimeoutNanos = Duration.ofMillis(config.getElectTimeout()).toNanos();
         raftStatus.setElectTimeoutNanos(electTimeoutNanos);
         heartbeatIntervalNanos = Duration.ofMillis(config.getHeartbeatInterval()).toNanos();
