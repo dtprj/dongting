@@ -171,6 +171,7 @@ public class GroupConManager {
             checkOk = true;
         } catch (RaftException e) {
             log.error(e.getMessage());
+            node.setReady(false);
         }
         if (checkOk) {
             pingResult.copyTo(node);

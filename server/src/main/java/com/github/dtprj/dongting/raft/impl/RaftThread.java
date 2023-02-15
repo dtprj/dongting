@@ -164,7 +164,7 @@ public class RaftThread extends Thread {
     private void startElect() {
         // TODO persist raft status
         RaftUtil.resetStatus(raftStatus);
-        if(raftStatus.getRole()!=RaftRole.candidate){
+        if (raftStatus.getRole() != RaftRole.candidate) {
             log.info("change to candidate. oldTerm={}", raftStatus.getCurrentTerm());
             raftStatus.setRole(RaftRole.candidate);
         }
