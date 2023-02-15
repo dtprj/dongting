@@ -214,7 +214,6 @@ public class Raft {
         LogItem[] items = raftLog.load(nextIndex, tryMatch ? 1 : rest, maxReplicateBytes);
 
         ArrayList<LogItem> logs = new ArrayList<>();
-        int count = 0;
         long bytes = 0;
         for (int i = 0; i < items.length; ) {
             LogItem item = items[i];
@@ -223,9 +222,7 @@ public class Raft {
                 if (logs.size() > 0) {
                     LogItem firstItem = logs.get(0);
                     sendAppendRequest(node, firstItem.getIndex() - 1, firstItem.getPrevLogTerm(), logs, bytes);
-                    node.incrAndGetPendingRequests(count, bytes);
 
-                    count = 0;
                     bytes = 0;
                     logs = new ArrayList<>();
                     continue;
@@ -234,7 +231,6 @@ public class Raft {
                     return;
                 }
             }
-            count++;
             bytes += currentSize;
             logs.add(item);
             i++;
@@ -243,7 +239,6 @@ public class Raft {
         if (logs.size() > 0) {
             LogItem firstItem = logs.get(0);
             sendAppendRequest(node, firstItem.getIndex() - 1, firstItem.getPrevLogTerm(), logs, bytes);
-            node.incrAndGetPendingRequests(count, bytes);
         }
     }
 
@@ -327,6 +322,9 @@ public class Raft {
         req.setPrevLogTerm(prevLogTerm);
         req.setLogs(logs);
 
+        node.incrAndGetPendingRequests(logs.size(), bytes);
+        node.setNextIndex(prevLogIndex + 1 + logs.size());
+
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
         CompletableFuture<ReadFrame> f = client.sendRequest(node.getPeer(), req, AppendRespDecoder.INSTANCE, timeout);
         registerAppendResultCallback(node, prevLogIndex, prevLogTerm, f, logs.size(), bytes);
@@ -338,8 +336,9 @@ public class Raft {
         // the time refresh happens before this line
         long reqNanos = ts.getNanoTime();
         f.handleAsync((rf, ex) -> {
+            node.decrAndGetPendingRequests(count, bytes);
             if (ex == null) {
-                processAppendResult(node, rf, prevLogIndex, prevLogTerm, reqTerm, reqNanos, count, bytes);
+                processAppendResult(node, rf, prevLogIndex, prevLogTerm, reqTerm, reqNanos, count);
             } else {
                 if (node.isMultiAppend()) {
                     node.setMultiAppend(false);
@@ -356,7 +355,7 @@ public class Raft {
 
     // in raft thread
     private void processAppendResult(RaftNode node, ReadFrame rf, long prevLogIndex,
-                                     int prevLogTerm, int reqTerm, long reqNanos, int count, long bytes) {
+                                     int prevLogTerm, int reqTerm, long reqNanos, int count) {
         long expectNewMatchIndex = prevLogIndex + count;
         AppendRespCallback body = (AppendRespCallback) rf.getBody();
         RaftStatus raftStatus = this.raftStatus;
@@ -378,7 +377,6 @@ public class Raft {
                     reqTerm, raftStatus.getCurrentTerm());
             return;
         }
-        node.decrAndGetPendingRequests(count, bytes);
         if (body.isSuccess()) {
             if (node.getMatchIndex() <= prevLogIndex) {
                 node.setHasLastConfirmReqNanos(true);
