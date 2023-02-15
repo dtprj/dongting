@@ -26,7 +26,6 @@ import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
-import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.raft.impl.RaftNode;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
@@ -53,12 +52,7 @@ public class AppendProcessor extends ReqProcessor {
     private final RaftLog raftLog;
     private final StateMachine stateMachine;
 
-    private final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder() {
-        @Override
-        protected PbCallback createCallback(ChannelContext context) {
-            return new AppendReqCallback();
-        }
-    };
+    private static final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder(c -> new AppendReqCallback());
 
     public AppendProcessor(RaftStatus raftStatus, RaftLog raftLog, StateMachine stateMachine) {
         this.raftStatus = raftStatus;

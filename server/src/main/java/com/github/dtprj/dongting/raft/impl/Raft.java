@@ -20,17 +20,14 @@ import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.net.ChannelContext;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.Decoder;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ReadFrame;
-import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.AppendReqWriteFrame;
 import com.github.dtprj.dongting.raft.rpc.AppendRespCallback;
-import com.github.dtprj.dongting.raft.rpc.AppendRespDecoder;
 import com.github.dtprj.dongting.raft.rpc.VoteReq;
 import com.github.dtprj.dongting.raft.rpc.VoteResp;
 import com.github.dtprj.dongting.raft.server.LogItem;
@@ -69,6 +66,8 @@ public class Raft {
 
     private RaftNode self;
     private final Timestamp ts;
+
+    private static final PbZeroCopyDecoder appendRespDecoder = new PbZeroCopyDecoder(c -> new AppendRespCallback());
 
     public Raft(RaftServerConfig config, RaftExecutor raftExecutor, RaftLog raftLog,
                 RaftStatus raftStatus, NioClient client, StateMachine stateMachine) {
@@ -259,12 +258,7 @@ public class Raft {
         VoteReq.WriteFrame wf = new VoteReq.WriteFrame(req);
         wf.setCommand(Commands.RAFT_REQUEST_VOTE);
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        Decoder decoder = new PbZeroCopyDecoder() {
-            @Override
-            protected PbCallback createCallback(ChannelContext context) {
-                return new VoteResp.Callback();
-            }
-        };
+        Decoder decoder = new PbZeroCopyDecoder(c -> new VoteResp.Callback());
         CompletableFuture<ReadFrame> f = client.sendRequest(node.getPeer(), wf, decoder, timeout);
         log.info("send vote request to {}, term={}, votes={}", node.getPeer().getEndPoint(),
                 raftStatus.getCurrentTerm(), raftStatus.getCurrentVotes());
@@ -326,7 +320,7 @@ public class Raft {
         node.setNextIndex(prevLogIndex + 1 + logs.size());
 
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        CompletableFuture<ReadFrame> f = client.sendRequest(node.getPeer(), req, AppendRespDecoder.INSTANCE, timeout);
+        CompletableFuture<ReadFrame> f = client.sendRequest(node.getPeer(), req, appendRespDecoder, timeout);
         registerAppendResultCallback(node, prevLogIndex, prevLogTerm, f, logs.size(), bytes);
     }
 

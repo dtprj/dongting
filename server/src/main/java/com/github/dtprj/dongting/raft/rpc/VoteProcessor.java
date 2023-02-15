@@ -25,7 +25,6 @@ import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
-import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 
@@ -37,12 +36,7 @@ public class VoteProcessor extends ReqProcessor {
 
     private final RaftStatus raftStatus;
 
-    private final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder() {
-        @Override
-        protected PbCallback createCallback(ChannelContext context) {
-            return new VoteReq.Callback();
-        }
-    };
+    private final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder(c -> new VoteReq.Callback());
 
     public VoteProcessor(RaftStatus raftStatus) {
         this.raftStatus = raftStatus;

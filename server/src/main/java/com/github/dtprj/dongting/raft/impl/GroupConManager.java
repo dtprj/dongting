@@ -66,12 +66,8 @@ public class GroupConManager {
     private final Executor executor;
     private final RaftStatus raftStatus;
 
-    private static final PbZeroCopyDecoder DECODER = new PbZeroCopyDecoder() {
-        @Override
-        protected PbCallback createCallback(ChannelContext context) {
-            return new RaftPingFrameCallback(context.getIoThreadStrDecoder());
-        }
-    };
+    private static final PbZeroCopyDecoder DECODER = new PbZeroCopyDecoder(context ->
+            new RaftPingFrameCallback(context.getIoThreadStrDecoder()));
 
     private final ReqProcessor processor = new ReqProcessor() {
         @Override

@@ -19,11 +19,19 @@ import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.pb.PbParser;
 
 import java.nio.ByteBuffer;
+import java.util.function.Function;
 
 /**
  * @author huangli
  */
-public abstract class PbZeroCopyDecoder extends Decoder {
+public class PbZeroCopyDecoder extends Decoder {
+
+    private final Function<ChannelContext, PbCallback> callbackCreator;
+
+    public PbZeroCopyDecoder(Function<ChannelContext, PbCallback> callbackCreator) {
+        this.callbackCreator = callbackCreator;
+    }
+
     @Override
     public final boolean supportHalfPacket() {
         return true;
@@ -39,7 +47,7 @@ public abstract class PbZeroCopyDecoder extends Decoder {
         PbParser parser;
         PbCallback callback;
         if (start) {
-            parser = context.getIoParser().createOrGetNestedParserSingle(createCallback(context), bodyLen);
+            parser = context.getIoParser().createOrGetNestedParserSingle(callbackCreator.apply(context), bodyLen);
         } else {
             parser = context.getIoParser().getNestedParser();
         }
@@ -51,7 +59,5 @@ public abstract class PbZeroCopyDecoder extends Decoder {
             return null;
         }
     }
-
-    protected abstract PbCallback createCallback(ChannelContext context);
 
 }
