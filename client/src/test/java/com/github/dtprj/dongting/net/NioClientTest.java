@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.buf.RefCountByteBuffer;
 import com.github.dtprj.dongting.common.CloseUtil;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.TestUtil;
+import com.github.dtprj.dongting.common.Tick;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.pb.DtFrame;
@@ -57,7 +58,7 @@ public class NioClientTest {
 
     private static class BioServer implements AutoCloseable {
         private final ServerSocket ss;
-        private ArrayList<Socket> sockets = new ArrayList<>();
+        private final ArrayList<Socket> sockets = new ArrayList<>();
         private volatile boolean stop;
         private long sleep;
         private int resultCode = CmdCodes.SUCCESS;
@@ -97,6 +98,7 @@ public class NioClientTest {
                     queue.put(pbFrame);
                 }
             } catch (EOFException e) {
+                e.printStackTrace();
             } catch (Exception e) {
                 log.error("", e);
             } finally {
@@ -122,6 +124,7 @@ public class NioClientTest {
                     }
                 }
             } catch (InterruptedException e) {
+                e.printStackTrace();
             } catch (Exception e) {
                 log.error("", e);
             } finally {
@@ -336,6 +339,7 @@ public class NioClientTest {
                     sendSync(5000, client, 100);
                     success++;
                 } catch (Exception e) {
+                    // ignore
                 }
             }
             assertTrue(success >= 9);
@@ -363,6 +367,7 @@ public class NioClientTest {
                 client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get(20, TimeUnit.MILLISECONDS);
                 fail();
             } catch (TimeoutException | ExecutionException e) {
+                // ignore
             }
             server1 = new BioServer(9000);
             client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get(200, TimeUnit.MILLISECONDS);
@@ -482,6 +487,7 @@ public class NioClientTest {
                 client.stop();
                 fail();
             } catch (IllegalStateException e) {
+                // ignore
             }
 
             try {
@@ -508,6 +514,7 @@ public class NioClientTest {
                 client.start();
                 fail();
             } catch (IllegalStateException e) {
+                // ignore
             }
         } finally {
             CloseUtil.close(client, server);
@@ -546,12 +553,12 @@ public class NioClientTest {
             server = new BioServer(9000);
             NioClientConfig c = new NioClientConfig();
             c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
-            c.setCleanInterval(1);
+            c.setCleanInterval(0);
             c.setSelectTimeout(1);
             client = new NioClient(c);
             client.start();
             client.waitStart();
-            server.sleep = 50;
+            server.sleep = Tick.tick(20);
             CompletableFuture<Void> f = sendAsync(3000, client, 1000);
             client.stop();
             f.get(1, TimeUnit.SECONDS);
@@ -568,14 +575,14 @@ public class NioClientTest {
             server = new BioServer(9000);
             NioClientConfig c = new NioClientConfig();
             c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
-            c.setCleanInterval(1);
-            c.setSelectTimeout(0);
+            c.setCleanInterval(0);
+            c.setSelectTimeout(1);
             // close timeout less than server process time
-            c.setCloseTimeout(10);
+            c.setCloseTimeout(Tick.tick(10));
             client = new NioClient(c);
             client.start();
             client.waitStart();
-            server.sleep = 50;
+            server.sleep = Tick.tick(20);
             CompletableFuture<Void> f = sendAsync(3000, client, 1000);
             client.stop();
             try {
@@ -584,6 +591,36 @@ public class NioClientTest {
             } catch (ExecutionException e) {
                 assertEquals(NetException.class, e.getCause().getClass());
                 assertEquals("client closed", e.getCause().getMessage());
+            }
+        } finally {
+            CloseUtil.close(client, server);
+        }
+    }
+
+    @Test
+    public void closeTest3() throws Exception {
+        BioServer server = null;
+        NioClient client = null;
+        try {
+            server = new BioServer(9000);
+            NioClientConfig c = new NioClientConfig();
+            c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+            c.setCleanInterval(0);
+            c.setSelectTimeout(1);
+            // close timeout 0, not dispatch
+            c.setCloseTimeout(0);
+            client = new NioClient(c);
+            client.start();
+            client.waitStart();
+            server.sleep = Tick.tick(20);
+            CompletableFuture<Void> f = sendAsync(3000, client, 1000);
+            client.stop();
+            try {
+                f.get(1, TimeUnit.SECONDS);
+                fail();
+            } catch (ExecutionException e) {
+                assertEquals(NetException.class, e.getCause().getClass());
+                assertEquals("channel closed", e.getCause().getMessage());
             }
         } finally {
             CloseUtil.close(client, server);

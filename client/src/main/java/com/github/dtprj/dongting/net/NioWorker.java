@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.LongObjMap;
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -35,6 +36,7 @@ import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -173,9 +175,11 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         try {
             ioQueue.dispatchActions();
             selector.close();
-            pendingOutgoingRequests.forEach((d, wd) ->
-                    wd.getFuture().completeExceptionally(new NetException("client closed")));
-            List<DtChannel> tempList = new LinkedList<>();
+
+            finishPendingReq();
+
+            List<DtChannel> tempList = new ArrayList<>(channels.size());
+            // can't modify channels map in foreach
             channels.forEach((index, dtc) -> {
                 tempList.add(dtc);
                 return true;
@@ -195,6 +199,20 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             }
         } catch (Exception e) {
             log.error("close error. {}", e);
+        }
+    }
+
+    private void finishPendingReq() {
+        List<Pair<Long, WriteData>> tempList = new ArrayList<>(pendingOutgoingRequests.size());
+        pendingOutgoingRequests.forEach((key, value) -> {
+            tempList.add(new Pair<>(key, value));
+            // return false to remove it
+            return false;
+        });
+        // sort to keep fail order
+        tempList.sort(Comparator.comparingLong(Pair::getLeft));
+        for (Pair<Long, WriteData> p : tempList) {
+            p.getRight().getFuture().completeExceptionally(new NetException("client closed"));
         }
     }
 
@@ -477,29 +495,32 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     private void close(DtChannel dtc) {
-        if (!dtc.isClosed()) {
-            dtc.close();
-            Peer peer = dtc.getPeer();
-            if (peer != null && peer.getDtChannel() == dtc) {
-                peer.setDtChannel(null);
-                peer.setStatus(PeerStatus.not_connect);
-            }
-            channels.remove(dtc.getChannelIndexInWorker());
-            if (channelsList != null) {
-                // O(n) in client side
-                channelsList.remove(dtc);
-            }
-            closeChannel0(dtc.getChannel());
-            if (config.isFinishPendingImmediatelyWhenChannelClose()) {
-                pendingOutgoingRequests.forEach((key, wd) -> {
-                    if (wd.getDtc() == dtc) {
-                        wd.getFuture().completeExceptionally(new NetException("channel closed"));
-                        return false;
-                    }
-                    return true;
-                });
-            }
+        if (dtc.isClosed()) {
+            return;
         }
+
+        dtc.close();
+        Peer peer = dtc.getPeer();
+        if (peer != null && peer.getDtChannel() == dtc) {
+            peer.setDtChannel(null);
+            peer.setStatus(PeerStatus.not_connect);
+        }
+        channels.remove(dtc.getChannelIndexInWorker());
+        if (channelsList != null) {
+            // O(n) in client side
+            channelsList.remove(dtc);
+        }
+        closeChannel0(dtc.getChannel());
+        if (config.isFinishPendingImmediatelyWhenChannelClose()) {
+            pendingOutgoingRequests.forEach((key, wd) -> {
+                if (wd.getDtc() == dtc) {
+                    wd.getFuture().completeExceptionally(new NetException("channel closed"));
+                    return false;
+                }
+                return true;
+            });
+        }
+        dtc.getSubQueue().cleanSubQueue();
     }
 
     private void closeChannel0(SocketChannel sc) {

@@ -64,6 +64,13 @@ class IoSubQueue {
         }
     }
 
+    public void cleanSubQueue() {
+        WriteData wd;
+        while ((wd = subQueue.pollFirst()) != null) {
+            wd.getFuture().completeExceptionally(new NetException("channel closed"));
+        }
+    }
+
     public ByteBuffer getWriteBuffer(Timestamp roundTime) {
         ByteBuffer writeBuffer = this.writeBuffer;
         if (writeBuffer != null) {
