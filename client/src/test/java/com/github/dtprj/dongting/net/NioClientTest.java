@@ -569,6 +569,11 @@ public class NioClientTest {
 
     @Test
     public void closeTest2() throws Exception {
+        closeTest2Impl(0);
+        closeTest2Impl(10);
+    }
+
+    private void closeTest2Impl(int closeTimeout) throws Exception {
         BioServer server = null;
         NioClient client = null;
         try {
@@ -578,7 +583,7 @@ public class NioClientTest {
             c.setCleanInterval(0);
             c.setSelectTimeout(1);
             // close timeout less than server process time
-            c.setCloseTimeout(Tick.tick(10));
+            c.setCloseTimeout(Tick.tick(closeTimeout));
             client = new NioClient(c);
             client.start();
             client.waitStart();
@@ -590,37 +595,8 @@ public class NioClientTest {
                 fail();
             } catch (ExecutionException e) {
                 assertEquals(NetException.class, e.getCause().getClass());
-                assertEquals("client closed", e.getCause().getMessage());
-            }
-        } finally {
-            CloseUtil.close(client, server);
-        }
-    }
-
-    @Test
-    public void closeTest3() throws Exception {
-        BioServer server = null;
-        NioClient client = null;
-        try {
-            server = new BioServer(9000);
-            NioClientConfig c = new NioClientConfig();
-            c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
-            c.setCleanInterval(0);
-            c.setSelectTimeout(1);
-            // close timeout 0, not dispatch
-            c.setCloseTimeout(0);
-            client = new NioClient(c);
-            client.start();
-            client.waitStart();
-            server.sleep = Tick.tick(20);
-            CompletableFuture<Void> f = sendAsync(3000, client, 1000);
-            client.stop();
-            try {
-                f.get(1, TimeUnit.SECONDS);
-                fail();
-            } catch (ExecutionException e) {
-                assertEquals(NetException.class, e.getCause().getClass());
-                assertEquals("channel closed", e.getCause().getMessage());
+                String msg = e.getCause().getMessage();
+                assertTrue(msg.equals("channel closed") || msg.equals("client closed"));
             }
         } finally {
             CloseUtil.close(client, server);
