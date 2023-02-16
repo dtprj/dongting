@@ -59,6 +59,7 @@ message RequestVoteReq {
   uint32 candidate_id = 2;
   fixed64 last_log_index = 3;
   uint32 last_log_term = 4;
+  uint32 pre_vote = 5;
 }
 
 message RequestVoteResp {

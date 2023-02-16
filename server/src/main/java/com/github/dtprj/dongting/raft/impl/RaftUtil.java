@@ -98,7 +98,6 @@ public class RaftUtil {
         raftStatus.setHasLeaseStartNanos(false);
         raftStatus.setPendingRequests(new LongObjMap<>());
         raftStatus.setCurrentLeader(null);
-        raftStatus.getCurrentVotes().clear();
         for (RaftNode node : raftStatus.getServers()) {
             node.setMatchIndex(0);
             node.setNextIndex(0);

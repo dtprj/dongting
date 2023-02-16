@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.net.HostPort;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -42,7 +41,6 @@ public class RaftStatus {
     private final Timestamp ts = new Timestamp();
     private final int electQuorum;
     private final int rwQuorum;
-    private final HashSet<Integer> currentVotes = new HashSet<>();
     private final List<RaftNode> servers = new ArrayList<>();
 
     private LongObjMap<RaftTask> pendingRequests = new LongObjMap<>();
@@ -155,10 +153,6 @@ public class RaftStatus {
 
     public int getElectQuorum() {
         return electQuorum;
-    }
-
-    public HashSet<Integer> getCurrentVotes() {
-        return currentVotes;
     }
 
     public int getRwQuorum() {

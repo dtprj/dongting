@@ -28,14 +28,16 @@ import java.nio.ByteBuffer;
 //  uint32 candidate_id = 2;
 //  fixed64 last_log_index = 3;
 //  uint32 last_log_term = 4;
+//  unit32 pre_vote = 5;
 public class VoteReq {
     private int term;
     private int candidateId;
     private long lastLogIndex;
     private int lastLogTerm;
+    private boolean preVote;
 
     public static class Callback extends PbCallback {
-        private VoteReq result = new VoteReq();
+        private final VoteReq result = new VoteReq();
 
         @Override
         public boolean readVarNumber(int index, long value) {
@@ -49,16 +51,17 @@ public class VoteReq {
                 case 4:
                     result.lastLogTerm = (int) value;
                     break;
+                case 5:
+                    result.preVote = value == 1;
+                    break;
             }
             return true;
         }
 
         @Override
         public boolean readFix64(int index, long value) {
-            switch (index) {
-                case 3:
-                    result.lastLogIndex = value;
-                    break;
+            if (index == 3) {
+                result.lastLogIndex = value;
             }
             return true;
         }
@@ -82,7 +85,8 @@ public class VoteReq {
             return PbUtil.accurateUnsignedLongSize(1, data.term)
                     + PbUtil.accurateUnsignedIntSize(2, data.candidateId)
                     + PbUtil.accurateFix64Size(3, data.lastLogIndex)
-                    + PbUtil.accurateUnsignedIntSize(4, data.lastLogTerm);
+                    + PbUtil.accurateUnsignedIntSize(4, data.lastLogTerm)
+                    + PbUtil.accurateUnsignedIntSize(5, data.preVote ? 1 : 0);
         }
 
         @Override
@@ -92,6 +96,7 @@ public class VoteReq {
             PbUtil.writeUnsignedInt32(buf, 2, data.candidateId);
             PbUtil.writeFix64(buf, 3, data.lastLogIndex);
             PbUtil.writeUnsignedInt32(buf, 4, data.lastLogTerm);
+            PbUtil.writeUnsignedInt32(buf, 5, data.preVote ? 1 : 0);
         }
     }
 
@@ -125,5 +130,13 @@ public class VoteReq {
 
     public void setLastLogTerm(int lastLogTerm) {
         this.lastLogTerm = lastLogTerm;
+    }
+
+    public boolean isPreVote() {
+        return preVote;
+    }
+
+    public void setPreVote(boolean preVote) {
+        this.preVote = preVote;
     }
 }

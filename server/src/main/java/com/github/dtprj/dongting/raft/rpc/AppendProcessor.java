@@ -30,6 +30,7 @@ import com.github.dtprj.dongting.raft.impl.RaftNode;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.impl.VoteManager;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.StateMachine;
@@ -51,13 +52,15 @@ public class AppendProcessor extends ReqProcessor {
     private final RaftStatus raftStatus;
     private final RaftLog raftLog;
     private final StateMachine stateMachine;
+    private final VoteManager voteManager;
 
     private static final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder(c -> new AppendReqCallback());
 
-    public AppendProcessor(RaftStatus raftStatus, RaftLog raftLog, StateMachine stateMachine) {
+    public AppendProcessor(RaftStatus raftStatus, RaftLog raftLog, StateMachine stateMachine, VoteManager voteManager) {
         this.raftStatus = raftStatus;
         this.raftLog = raftLog;
         this.stateMachine = stateMachine;
+        this.voteManager = voteManager;
     }
 
     @Override
@@ -105,6 +108,7 @@ public class AppendProcessor extends ReqProcessor {
     }
 
     private void append(AppendReqCallback req, AppendRespWriteFrame resp) {
+        voteManager.cancelVote();
         RaftStatus raftStatus = this.raftStatus;
         if (req.getPrevLogIndex() != raftStatus.getLastLogIndex() || req.getPrevLogTerm() != raftStatus.getLastLogTerm()) {
             log.info("log not match. prevLogIndex={}, localLastLogIndex={}, prevLogTerm={}, localLastLogTerm={}, leaderId={}",

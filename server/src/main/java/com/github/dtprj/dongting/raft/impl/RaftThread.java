@@ -55,7 +55,7 @@ public class RaftThread extends Thread {
 
     private final CompletableFuture<Void> initFuture = new CompletableFuture<>();
 
-    public RaftThread(RaftContainer container, Raft raft, GroupConManager groupConManager) {
+    public RaftThread(RaftContainer container, Raft raft, GroupConManager groupConManager, VoteManager voteManager) {
         this.config = container.getConfig();
         this.raftStatus = container.getRaftStatus();
         this.queue = container.getRaftExecutor().getQueue();
@@ -66,13 +66,17 @@ public class RaftThread extends Thread {
         raftStatus.setElectTimeoutNanos(electTimeoutNanos);
         heartbeatIntervalNanos = Duration.ofMillis(config.getHeartbeatInterval()).toNanos();
 
-        this.voteManager = new VoteManager(container, raft);
+        this.voteManager = voteManager;
     }
 
     protected boolean init() {
         try {
             groupConManager.initRaftGroup(raftStatus.getElectQuorum(),
                     RaftUtil.parseServers(config.getServers()), 1000);
+            if (raftStatus.getElectQuorum() == 1) {
+                RaftUtil.changeToLeader(raftStatus);
+                raft.sendHeartBeat();
+            }
             initFuture.complete(null);
             return true;
         } catch (Throwable e) {
@@ -154,8 +158,13 @@ public class RaftThread extends Thread {
     }
 
     private void idle(Timestamp ts) {
+        RaftStatus raftStatus = this.raftStatus;
+        if (raftStatus.getElectQuorum() == 1) {
+            return;
+        }
         ts.refresh(1);
         long roundTimeNanos = ts.getNanoTime();
+
         if (roundTimeNanos - raftStatus.getHeartbeatTime() > heartbeatIntervalNanos) {
             raftStatus.setHeartbeatTime(roundTimeNanos);
             groupConManager.pingAllAndUpdateServers();
@@ -166,31 +175,9 @@ public class RaftThread extends Thread {
         }
         if (raftStatus.getRole() != RaftRole.leader) {
             if (roundTimeNanos - raftStatus.getLastElectTime() > electTimeoutNanos + random.nextInt(200)) {
-                startElect();
+                voteManager.tryStartPreVote();
                 raftStatus.copyShareStatus();
             }
-        }
-    }
-
-    private void startElect() {
-        // TODO persist raft status
-        RaftUtil.resetStatus(raftStatus);
-        if (raftStatus.getRole() != RaftRole.candidate) {
-            log.info("change to candidate. oldTerm={}", raftStatus.getCurrentTerm());
-            raftStatus.setRole(RaftRole.candidate);
-        }
-
-        raftStatus.setCurrentTerm(raftStatus.getCurrentTerm() + 1);
-        raftStatus.setVoteFor(config.getId());
-        raftStatus.getCurrentVotes().add(config.getId());
-
-        log.info("start elect. newTerm={}", raftStatus.getCurrentTerm());
-
-        for (RaftNode node : raftStatus.getServers()) {
-            if (node.isSelf()) {
-                continue;
-            }
-            voteManager.sendVoteRequest(node);
         }
     }
 

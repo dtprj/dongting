@@ -36,7 +36,7 @@ public class VoteProcessor extends ReqProcessor {
 
     private final RaftStatus raftStatus;
 
-    private final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder(c -> new VoteReq.Callback());
+    private static final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder(c -> new VoteReq.Callback());
 
     public VoteProcessor(RaftStatus raftStatus) {
         this.raftStatus = raftStatus;
@@ -44,39 +44,61 @@ public class VoteProcessor extends ReqProcessor {
 
     @Override
     public WriteFrame process(ReadFrame rf, ChannelContext channelContext, ReqContext reqContext) {
+        RaftUtil.resetElectTimer(raftStatus);
+
         VoteReq voteReq = (VoteReq) rf.getBody();
         VoteResp resp = new VoteResp();
         int localTerm = raftStatus.getCurrentTerm();
-        if (voteReq.getTerm() > localTerm) {
-            RaftUtil.incrTermAndConvertToFollower(voteReq.getTerm(), raftStatus);
+
+        if (voteReq.isPreVote()) {
+            processPreVote(voteReq, resp, localTerm);
+        } else {
+            processVote(voteReq, resp, localTerm);
         }
 
-        if (voteReq.getTerm() < localTerm) {
-            resp.setVoteGranted(false);
-        } else {
-            RaftUtil.resetElectTimer(raftStatus);
-            if (raftStatus.getVoteFor() == 0 || raftStatus.getVoteFor() == voteReq.getCandidateId()) {
-                // TODO persist
-                if (voteReq.getLastLogTerm() > raftStatus.getLastLogTerm()) {
-                    raftStatus.setVoteFor(voteReq.getCandidateId());
-                    resp.setVoteGranted(true);
-                } else if (voteReq.getLastLogTerm() == raftStatus.getLastLogTerm()
-                        && voteReq.getLastLogIndex() >= raftStatus.getLastLogIndex()) {
-                    raftStatus.setVoteFor(voteReq.getCandidateId());
-                    resp.setVoteGranted(true);
-                } else {
-                    resp.setVoteGranted(false);
-                }
-            } else {
-                resp.setVoteGranted(false);
-            }
-        }
-        log.info("receive vote request. granted={}. remoteTerm={}, localTerm={}",
-                resp.isVoteGranted(), voteReq.getTerm(), localTerm);
+        log.info("receive {} request. granted={}. reqTerm={}, localTerm={}",
+                voteReq.isPreVote() ? "pre-vote" : "vote", resp.isVoteGranted(), voteReq.getTerm(), localTerm);
         resp.setTerm(raftStatus.getCurrentTerm());
         VoteResp.WriteFrame wf = new VoteResp.WriteFrame(resp);
         wf.setRespCode(CmdCodes.SUCCESS);
         return wf;
+    }
+
+    private void processPreVote(VoteReq voteReq, VoteResp resp, int localTerm) {
+        if (shouldGrant(voteReq, localTerm)) {
+            resp.setVoteGranted(true);
+        }
+    }
+
+    private void processVote(VoteReq voteReq, VoteResp resp, int localTerm) {
+        if (voteReq.getTerm() > localTerm) {
+            RaftUtil.incrTermAndConvertToFollower(voteReq.getTerm(), raftStatus);
+        }
+
+        if (shouldGrant(voteReq, localTerm)) {
+            // TODO persist
+            raftStatus.setVoteFor(voteReq.getCandidateId());
+            resp.setVoteGranted(true);
+        }
+    }
+
+    private boolean shouldGrant(VoteReq voteReq, int localTerm) {
+        if (voteReq.getTerm() < localTerm) {
+            return false;
+        } else {
+            if (raftStatus.getVoteFor() == 0 || raftStatus.getVoteFor() == voteReq.getCandidateId()) {
+                if (voteReq.getLastLogTerm() > raftStatus.getLastLogTerm()) {
+                    return true;
+                } else if (voteReq.getLastLogTerm() == raftStatus.getLastLogTerm()
+                        && voteReq.getLastLogIndex() >= raftStatus.getLastLogIndex()) {
+                    return true;
+                } else {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
     }
 
     @Override

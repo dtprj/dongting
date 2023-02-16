@@ -40,6 +40,7 @@ import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftThread;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.ShareStatus;
+import com.github.dtprj.dongting.raft.impl.VoteManager;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.VoteProcessor;
 
@@ -99,7 +100,7 @@ public class RaftServer extends AbstractLifeCircle {
         Set<HostPort> raftServers = RaftUtil.parseServers(config.getServers());
 
         int electQuorum = raftServers.size() / 2 + 1;
-        int rwQuorum = raftServers.size() % 2 == 0 ? raftServers.size() / 2 : electQuorum;
+        int rwQuorum = raftServers.size() >= 4 && raftServers.size() % 2 == 0 ? raftServers.size() / 2 : electQuorum;
         raftStatus = new RaftStatus(electQuorum, rwQuorum);
 
         NioClientConfig nioClientConfig = new NioClientConfig();
@@ -121,24 +122,24 @@ public class RaftServer extends AbstractLifeCircle {
         container.setStateMachine(stateMachine);
 
         GroupConManager groupConManager = new GroupConManager(config, raftClient, raftExecutor, raftStatus);
+        Raft raft = new Raft(container);
+        VoteManager voteManager = new VoteManager(container, raft);
+        raftThread = new RaftThread(container, raft, groupConManager, voteManager);
 
         NioServerConfig nioServerConfig = new NioServerConfig();
         nioServerConfig.setPort(config.getRaftPort());
         nioServerConfig.setName("RaftServer");
         nioServerConfig.setBizThreads(0);
         nioServerConfig.setIoThreads(1);
-        // need more for ping and heartbeat, etc
+        // need more for ping and vote, etc
         nioServerConfig.setMaxInRequests(config.getMaxReplicateItems() + 100);
         nioServerConfig.setMaxInBytes(config.getMaxReplicateBytes() + 128 * 1024);
         setupNioConfig(nioServerConfig, config);
         raftServer = new NioServer(nioServerConfig);
         raftServer.register(Commands.RAFT_PING, groupConManager.getProcessor(), raftExecutor);
-        AppendProcessor ap = new AppendProcessor(raftStatus, raftLog, stateMachine);
+        AppendProcessor ap = new AppendProcessor(raftStatus, raftLog, stateMachine, voteManager);
         raftServer.register(Commands.RAFT_APPEND_ENTRIES, ap, raftExecutor);
         raftServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(raftStatus), raftExecutor);
-
-        Raft raft = new Raft(container);
-        raftThread = new RaftThread(container, raft, groupConManager);
     }
 
     private void setupNioConfig(NioConfig nc, RaftServerConfig config) {
