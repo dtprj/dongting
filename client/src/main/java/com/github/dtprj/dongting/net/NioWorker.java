@@ -260,21 +260,21 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private boolean processOneSelectionKey(SelectionKey key, int stopStatus, Timestamp roundTime) {
         SocketChannel sc = (SocketChannel) key.channel();
-        int stage = 0;
         boolean hasDataToWrite = false;
+        String stage = "check selection key valid";
         try {
             if (!key.isValid()) {
                 log.info("socket may closed, remove it: {}", key.channel());
                 closeChannelBySelKey(key);
                 return false;
             }
-            stage = 1;
+            stage = "process socket connect";
             if (key.isConnectable()) {
                 whenConnected(key);
                 return false;
             }
 
-            stage = 2;
+            stage = "process socket read";
             DtChannel dtc = (DtChannel) key.attachment();
             if (key.isReadable()) {
                 statReadCount++;
@@ -289,7 +289,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 readBuffer.flip();
                 dtc.afterRead(stopStatus == SS_RUNNING, readBuffer, roundTime);
             }
-            stage = 3;
+            stage = "process socket write";
             if (key.isWritable()) {
                 IoSubQueue subQueue = dtc.getSubQueue();
                 ByteBuffer buf = subQueue.getWriteBuffer(roundTime);
@@ -309,18 +309,10 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 }
             }
         } catch (Exception e) {
-            switch (stage) {
-                case 1:
-                    log.warn("process socket connect error: {}", e.toString());
-                    break;
-                case 2:
-                    log.warn("process socket read error: {}", e.toString());
-                    break;
-                case 3:
-                    log.warn("process socket write error: {}", e.toString());
-                    break;
-                default:
-                    log.warn("socket error: {}", e.toString());
+            if (e instanceof IOException) {
+                log.warn("{} error: {}", stage, e.toString());
+            } else {
+                log.warn("{} error: {}", stage, e);
             }
             closeChannelBySelKey(key);
         }
