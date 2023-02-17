@@ -98,8 +98,8 @@ public class NioClientTest {
                     queue.put(pbFrame);
                 }
             } catch (EOFException e) {
-                e.printStackTrace();
-            } catch (Exception e) {
+                // ignore
+            } catch (Throwable e) {
                 log.error("", e);
             } finally {
                 CloseUtil.close(in);
@@ -124,8 +124,8 @@ public class NioClientTest {
                     }
                 }
             } catch (InterruptedException e) {
-                e.printStackTrace();
-            } catch (Exception e) {
+                // ignore
+            } catch (Throwable e) {
                 log.error("", e);
             } finally {
                 CloseUtil.close(out);
@@ -558,7 +558,7 @@ public class NioClientTest {
             client = new NioClient(c);
             client.start();
             client.waitStart();
-            server.sleep = Tick.tick(20);
+            server.sleep = Tick.tick(40);
             CompletableFuture<Void> f = sendAsync(3000, client, 1000);
             client.stop();
             f.get(1, TimeUnit.SECONDS);
@@ -587,7 +587,7 @@ public class NioClientTest {
             client = new NioClient(c);
             client.start();
             client.waitStart();
-            server.sleep = Tick.tick(20);
+            server.sleep = Tick.tick(40);
             CompletableFuture<Void> f = sendAsync(3000, client, 1000);
             client.stop();
             try {
