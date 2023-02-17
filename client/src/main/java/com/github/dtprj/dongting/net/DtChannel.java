@@ -524,7 +524,11 @@ class ProcessInBizThreadTask implements Runnable {
                         } finally {
                             WorkerStatus ws = dtc.getWorkerStatus();
                             ReleaseBufferTask t = new ReleaseBufferTask(ws.getHeapPool(), bodyBuffer);
-                            ws.getIoQueue().scheduleFromBizThread(t);
+                            try {
+                                ws.getIoQueue().scheduleFromBizThread(t);
+                            } catch (NetException e) {
+                                //ignore
+                            }
                         }
                     }
                 }
@@ -564,7 +568,11 @@ class ByteBufferPoolReleaseInOtherThread extends ByteBufferPool {
 
     @Override
     public void release(ByteBuffer buf) {
-        ioQueue.scheduleFromBizThread(new ReleaseBufferTask(pool, buf));
+        try {
+            ioQueue.scheduleFromBizThread(new ReleaseBufferTask(pool, buf));
+        } catch (NetException e) {
+            // ignore
+        }
     }
 }
 

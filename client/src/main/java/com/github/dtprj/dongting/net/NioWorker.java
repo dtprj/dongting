@@ -135,7 +135,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 log.warn("accept channel fail: {}, {}", sc, e.toString());
                 closeChannel0(sc);
             }
-        });
+        }, null);
     }
 
     // invoke by other threads
@@ -144,7 +144,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         if (stopStatus >= SS_PRE_STOP) {
             f.completeExceptionally(new NetException("worker closed"));
         } else {
-            doInIoThread(() -> doConnect(f, peer, deadline));
+            doInIoThread(() -> doConnect(f, peer, deadline), f);
         }
         return f;
     }
@@ -173,6 +173,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             }
         }
         try {
+            ioQueue.close();
             ioQueue.dispatchActions();
             selector.close();
 
@@ -222,16 +223,15 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             return;
         }
         roundTime.refresh(1);
-        boolean hasDataToWrite = ioQueue.dispatchActions();
         Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
         while (iterator.hasNext()) {
             SelectionKey key = iterator.next();
-            hasDataToWrite |= processOneSelectionKey(key, stopStatus, roundTime);
+            processOneSelectionKey(key, stopStatus, roundTime);
             iterator.remove();
         }
         cleanReadBuffer(roundTime);
         if (stopStatus == SS_PRE_STOP) {
-            if (!hasDataToWrite && pendingOutgoingRequests.size() == 0) {
+            if (pendingOutgoingRequests.size() == 0) {
                 preCloseFuture.complete(null);
             }
         }
@@ -258,20 +258,19 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    private boolean processOneSelectionKey(SelectionKey key, int stopStatus, Timestamp roundTime) {
+    private void processOneSelectionKey(SelectionKey key, int stopStatus, Timestamp roundTime) {
         SocketChannel sc = (SocketChannel) key.channel();
-        boolean hasDataToWrite = false;
         String stage = "check selection key valid";
         try {
             if (!key.isValid()) {
                 log.info("socket may closed, remove it: {}", key.channel());
                 closeChannelBySelKey(key);
-                return false;
+                return;
             }
             stage = "process socket connect";
             if (key.isConnectable()) {
                 whenConnected(key);
-                return false;
+                return;
             }
 
             stage = "process socket read";
@@ -283,7 +282,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 if (readCount == -1) {
                     // log.info("socket read to end, remove it: {}", key.channel());
                     closeChannelBySelKey(key);
-                    return false;
+                    return;
                 }
                 statReadBytes += readCount;
                 readBuffer.flip();
@@ -294,7 +293,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 IoSubQueue subQueue = dtc.getSubQueue();
                 ByteBuffer buf = subQueue.getWriteBuffer(roundTime);
                 if (buf != null) {
-                    hasDataToWrite = true;
                     subQueue.setWriting(true);
                     int x = buf.remaining();
                     sc.write(buf);
@@ -316,7 +314,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             }
             closeChannelBySelKey(key);
         }
-        return hasDataToWrite;
     }
 
     private boolean select(Selector selector, long selectTimeoutMillis) {
@@ -370,6 +367,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private class RegWriteRunner implements Runnable {
         SelectionKey key;
+
         RegWriteRunner(SelectionKey key) {
             this.key = key;
         }
@@ -451,9 +449,15 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    public void doInIoThread(Runnable runnable) {
-        ioQueue.scheduleFromBizThread(runnable);
-        wakeup();
+    public void doInIoThread(Runnable runnable, CompletableFuture<?> future) {
+        try {
+            ioQueue.scheduleFromBizThread(runnable);
+            wakeup();
+        } catch (NetException e) {
+            if (future != null) {
+                future.completeExceptionally(e);
+            }
+        }
     }
 
     public CompletableFuture<Void> disconnect(Peer peer) {
@@ -469,7 +473,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             } catch (Throwable e) {
                 f.completeExceptionally(e);
             }
-        });
+        }, f);
         return f;
     }
 
@@ -549,7 +553,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     private void cleanTimeoutConnect(Timestamp roundStartTime) {
-        for(Iterator<ConnectInfo> it = this.outgoingConnects.iterator(); it.hasNext(); ) {
+        for (Iterator<ConnectInfo> it = this.outgoingConnects.iterator(); it.hasNext(); ) {
             ConnectInfo ci = it.next();
             if (ci.deadline.isTimeout(roundStartTime)) {
                 ci.peer.setStatus(PeerStatus.not_connect);
@@ -564,7 +568,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     // invoke by other threads
     public void writeReqInBizThreads(Peer peer, WriteFrame frame, Decoder decoder,
-                                      DtTime timeout, CompletableFuture<ReadFrame> future) {
+                                     DtTime timeout, CompletableFuture<ReadFrame> future) {
         Objects.requireNonNull(timeout);
         Objects.requireNonNull(future);
 

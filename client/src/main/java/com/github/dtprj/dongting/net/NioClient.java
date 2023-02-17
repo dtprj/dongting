@@ -190,7 +190,7 @@ public class NioClient extends NioNet {
             }
             peers.add(peer);
             f.complete(peer);
-        });
+        }, f);
         return f;
     }
 
@@ -208,7 +208,7 @@ public class NioClient extends NioNet {
             }
             peers.remove(peer);
             f.complete(null);
-        });
+        }, f);
         return f;
     }
 

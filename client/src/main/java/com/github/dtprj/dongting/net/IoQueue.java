@@ -30,7 +30,8 @@ class IoQueue {
     private final ArrayList<DtChannel> channels;
     private final boolean server;
     private int invokeIndex;
-    private boolean hasDataToWrite;
+
+    private volatile boolean close;
 
     public IoQueue(ArrayList<DtChannel> channels) {
         this.channels = channels;
@@ -38,20 +39,26 @@ class IoQueue {
     }
 
     public void writeFromBizThread(WriteData data) {
-        queue.offer(data);
+        if (!close) {
+            queue.offer(data);
+        } else if (data.getFuture() != null) {
+            data.getFuture().completeExceptionally(new NetException("IoQueue closed"));
+        }
     }
 
-    public void scheduleFromBizThread(Runnable runnable) {
-        queue.offer(runnable);
+    public void scheduleFromBizThread(Runnable runnable) throws NetException {
+        if (!close) {
+            queue.offer(runnable);
+        } else {
+            throw new NetException("IoQueue closed");
+        }
     }
 
-    public boolean dispatchActions() {
-        hasDataToWrite = false;
+    public void dispatchActions() {
         Object data;
         while ((data = queue.relaxedPoll()) != null) {
             process(data);
         }
-        return hasDataToWrite;
     }
 
     private void process(Object data) {
@@ -100,7 +107,6 @@ class IoQueue {
             return;
         }
         dtc.getSubQueue().enqueue(wo);
-        this.hasDataToWrite = true;
     }
 
     private DtChannel selectChannel() {
@@ -117,5 +123,9 @@ class IoQueue {
             invokeIndex = 0;
             return list.get(0);
         }
+    }
+
+    public void close() {
+        close = true;
     }
 }
