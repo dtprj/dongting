@@ -120,6 +120,7 @@ public class NioServerTest {
                             BiConsumer<DataOutputStream, byte[]> writer) throws Exception {
         Socket s = new Socket("127.0.0.1", PORT);
         try {
+            s.setTcpNoDelay(true);
             s.setSoTimeout(30000);
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
@@ -274,6 +275,7 @@ public class NioServerTest {
         server.start();
         Socket s = new Socket("127.0.0.1", PORT);
         try {
+            s.setTcpNoDelay(true);
             s.setSoTimeout(tick(1000));
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
@@ -296,6 +298,7 @@ public class NioServerTest {
         public void run() {
             try (Socket s = new Socket("127.0.0.1", PORT)) {
                 s.setSoTimeout(tick(1000));
+                s.setTcpNoDelay(true);
                 DataInputStream in = new DataInputStream(s.getInputStream());
                 DataOutputStream out = new DataOutputStream(s.getOutputStream());
                 int code = invoke(1, 50000, bodySize, in, out);
@@ -387,6 +390,7 @@ public class NioServerTest {
         server.start();
         Socket s = new Socket("127.0.0.1", PORT);
         try {
+            s.setTcpNoDelay(true);
             s.setSoTimeout(1000);
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
@@ -456,6 +460,7 @@ public class NioServerTest {
 
         Socket s = new Socket("127.0.0.1", PORT);
         try {
+            s.setTcpNoDelay(true);
             s.setSoTimeout(tick(50));
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
@@ -477,6 +482,7 @@ public class NioServerTest {
         }
         s = new Socket("127.0.0.1", PORT);
         try {
+            s.setTcpNoDelay(true);
             s.setSoTimeout(tick(50));
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
@@ -486,6 +492,7 @@ public class NioServerTest {
         }
         s = new Socket("127.0.0.1", PORT);
         try {
+            s.setTcpNoDelay(true);
             s.setSoTimeout(tick(50));
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
@@ -564,6 +571,7 @@ public class NioServerTest {
 
         Socket s = new Socket("127.0.0.1", PORT);
         try {
+            s.setTcpNoDelay(true);
             s.setSoTimeout(500);
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
