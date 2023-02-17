@@ -94,7 +94,7 @@ class IoQueue {
         }
 
         if (dtc.isClosed()) {
-            if (frame.getFrameType() == FrameType.TYPE_REQ) {
+            if (wo.getFuture() != null) {
                 wo.getFuture().completeExceptionally(new NetException("channel closed during dispatch"));
             }
             return;
