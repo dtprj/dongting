@@ -67,7 +67,7 @@ class IoSubQueue {
     public void cleanSubQueue() {
         WriteData wd;
         while ((wd = subQueue.pollFirst()) != null) {
-            wd.getFuture().completeExceptionally(new NetException("channel closed"));
+            wd.getFuture().completeExceptionally(new NetException("channel closed, future cancelled by subQueue clean"));
         }
     }
 
