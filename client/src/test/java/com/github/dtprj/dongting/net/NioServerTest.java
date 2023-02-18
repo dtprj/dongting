@@ -113,11 +113,51 @@ public class NioServerTest {
     public void simpleTest() throws Exception {
         setupServer(null);
         server.start();
-        simpleTest(1000, 0, 5000, null);
+        Socket s = new Socket("127.0.0.1", PORT);
+        try {
+            s.setTcpNoDelay(true);
+            s.setSoTimeout(30000);
+            DataInputStream in = new DataInputStream(s.getInputStream());
+            DataOutputStream out = new DataOutputStream(s.getOutputStream());
+            simpleTest(CMD_IO_PING, in, out, 1);
+            simpleTest(CMD_BIZ_PING1, in, out, 2);
+            simpleTest(CMD_BIZ_PING2, in, out, 3);
+        } finally {
+            CloseUtil.close(s);
+        }
     }
 
-    private void simpleTest(long millis, int innerLoop, int maxBodySize,
-                            BiConsumer<DataOutputStream, byte[]> writer) throws Exception {
+    private static void simpleTest(int cmd, DataInputStream in, DataOutputStream out, int seq) throws Exception {
+        byte[] bs = new byte[new Random().nextInt(3000)];
+        DtFrame.Frame reqFrame = DtFrame.Frame.newBuilder().setFrameType(FrameType.TYPE_REQ)
+                .setSeq(seq)
+                .setCommand(cmd)
+                .setBody(ByteString.copyFrom(bs))
+                .setTimeout(Duration.ofSeconds(10).toNanos())
+                .build();
+        byte[] reqFrameBytes = reqFrame.toByteArray();
+        out.writeInt(reqFrameBytes.length);
+        out.write(reqFrameBytes);
+        out.flush();
+
+        int len = in.readInt();
+        byte[] resp = new byte[len];
+        in.readFully(resp);
+        DtFrame.Frame frame = DtFrame.Frame.parseFrom(resp);
+        assertEquals(FrameType.TYPE_RESP, frame.getFrameType());
+        assertEquals(CmdCodes.SUCCESS, frame.getRespCode());
+        assertArrayEquals(bs, frame.getBody().toByteArray());
+    }
+
+    @Test
+    public void generalTest() throws Exception {
+        setupServer(null);
+        server.start();
+        generalTest(1000, 0, 5000, null);
+    }
+
+    private void generalTest(long millis, int innerLoop, int maxBodySize,
+                             BiConsumer<DataOutputStream, byte[]> writer) throws Exception {
         Socket s = new Socket("127.0.0.1", PORT);
         try {
             s.setTcpNoDelay(true);
@@ -172,7 +212,6 @@ public class NioServerTest {
                     }
                 }
             }
-            s.close();
         } finally {
             CloseUtil.close(s);
         }
@@ -188,7 +227,7 @@ public class NioServerTest {
         for (int i = 0; i < threads; i++) {
             Runnable r = () -> {
                 try {
-                    simpleTest(1000, 0, 5000, null);
+                    generalTest(1000, 0, 5000, null);
                 } catch (Throwable e) {
                     BugLog.log(e);
                     fail.incrementAndGet();
@@ -207,7 +246,7 @@ public class NioServerTest {
     public void clientReadBlockTest() throws Exception {
         setupServer(null);
         server.start();
-        simpleTest(10, 100, 1024 * 1024, null);
+        generalTest(10, 100, 1024 * 1024, null);
     }
 
     @Test
@@ -215,7 +254,7 @@ public class NioServerTest {
         setupServer(null);
         server.start();
         Random r = new Random();
-        simpleTest(100, 2, 4096, (out, data) -> {
+        generalTest(100, 2, 4096, (out, data) -> {
             try {
                 int len = data.length;
                 out.write(len >>> 24);

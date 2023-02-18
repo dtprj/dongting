@@ -162,7 +162,7 @@ public class NioClientTest {
     }
 
     @Test
-    public void simpleTest() throws Exception {
+    public void simpleSyncTest() throws Exception {
         BioServer server = null;
         NioClient client = null;
         try {
@@ -173,7 +173,43 @@ public class NioClientTest {
             client = new NioClient(c);
             client.start();
             client.waitStart();
-            simpleTest(client, 100, 5000);
+            sendSync(5000, client, 500);
+        } finally {
+            CloseUtil.close(client, server);
+        }
+    }
+
+    @Test
+    public void simpleAsyncTest() throws Exception {
+        BioServer server = null;
+        NioClient client = null;
+        try {
+            server = new BioServer(9000);
+            NioClientConfig c = new NioClientConfig();
+            c.setReadBufferSize(2048);
+            c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+            client = new NioClient(c);
+            client.start();
+            client.waitStart();
+            simpleAsyncTest(client, 200, 1, 6000);
+        } finally {
+            CloseUtil.close(client, server);
+        }
+    }
+
+    @Test
+    public void generalTest() throws Exception {
+        BioServer server = null;
+        NioClient client = null;
+        try {
+            server = new BioServer(9000);
+            NioClientConfig c = new NioClientConfig();
+            c.setReadBufferSize(2048);
+            c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+            client = new NioClient(c);
+            client.start();
+            client.waitStart();
+            generalTest(client, 100, 5000);
         } finally {
             CloseUtil.close(client, server);
         }
@@ -193,26 +229,33 @@ public class NioClientTest {
             client = new NioClient(c);
             client.start();
             client.waitStart();
-            simpleTest(client, 100, 5000);
+            generalTest(client, 100, 5000);
         } finally {
             CloseUtil.close(client, server1, server2);
         }
     }
 
-    private static void simpleTest(NioClient client, long timeMillis, int maxBodySize) throws Exception {
+    private static void generalTest(NioClient client, long timeMillis, int maxBodySize) throws Exception {
         DtTime time = new DtTime();
         do {
             sendSync(maxBodySize, client, 500);
         } while (time.elapse(TimeUnit.MILLISECONDS) < timeMillis);
-        time = new DtTime();
+
+        simpleAsyncTest(client, timeMillis, Integer.MAX_VALUE, maxBodySize);
+    }
+
+    private static void simpleAsyncTest(NioClient client, long timeMillis, long maxLoop, int maxBodySize) throws Exception {
+        DtTime time = new DtTime();
         CompletableFuture<Integer> successCount = new CompletableFuture<>();
         successCount.complete(0);
         int expectCount = 0;
+        int loop = 0;
         do {
             CompletableFuture<Void> f = sendAsync(maxBodySize, client, 500);
             successCount = successCount.thenCombine(f, (value, NULL) -> value + 1);
             expectCount++;
-        } while (time.elapse(TimeUnit.MILLISECONDS) < timeMillis);
+            loop++;
+        } while (time.elapse(TimeUnit.MILLISECONDS) < timeMillis && loop < maxLoop);
         int v = successCount.get(1, TimeUnit.SECONDS);
         assertTrue(v > 0);
         assertEquals(expectCount, v);

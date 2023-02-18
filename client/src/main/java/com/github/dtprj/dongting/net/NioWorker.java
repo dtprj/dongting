@@ -223,6 +223,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             return;
         }
         roundTime.refresh(1);
+        ioQueue.dispatchActions();
         Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
         while (iterator.hasNext()) {
             SelectionKey key = iterator.next();
@@ -231,7 +232,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
         cleanReadBuffer(roundTime);
         if (stopStatus == SS_PRE_STOP) {
-            if (pendingOutgoingRequests.size() == 0) {
+            if (workerStatus.getPacketToWrite() == 0 && pendingOutgoingRequests.size() == 0) {
                 preCloseFuture.complete(null);
             }
         }

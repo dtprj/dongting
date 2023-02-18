@@ -38,11 +38,14 @@ class IoSubQueue {
     private final WorkerStatus workerStatus;
     private final DtChannel dtc;
     private Runnable registerForWrite;
+
     private ByteBuffer writeBuffer;
+    private int packetOfBuffer;
 
     private final ArrayDeque<WriteData> subQueue = new ArrayDeque<>();
     private int subQueueBytes;
     private boolean writing;
+
 
     public IoSubQueue(WorkerStatus workerStatus, DtChannel dtc) {
         this.directPool = workerStatus.getDirectPool();
@@ -62,6 +65,7 @@ class IoSubQueue {
         if (subQueue.size() == 1 && !writing) {
             registerForWrite.run();
         }
+        workerStatus.setPacketToWrite(workerStatus.getPacketToWrite() + 1);
     }
 
     public void cleanSubQueue() {
@@ -79,12 +83,16 @@ class IoSubQueue {
             if (writeBuffer.remaining() > 0) {
                 return writeBuffer;
             } else {
+                // current buffer write finished
+                workerStatus.setPacketToWrite(workerStatus.getPacketToWrite() - packetOfBuffer);
                 directPool.release(writeBuffer);
                 this.writeBuffer = null;
+                packetOfBuffer = 0;
             }
         }
         int subQueueBytes = this.subQueueBytes;
         if (subQueueBytes == 0) {
+            // no packet to write
             return null;
         }
         ArrayDeque<WriteData> subQueue = this.subQueue;
@@ -93,23 +101,18 @@ class IoSubQueue {
             buf = directPool.borrow(subQueueBytes);
             WriteData wd;
             while ((wd = subQueue.pollFirst()) != null) {
-                if (checkTimeoutAndAddToPending(wd, roundTime)) {
-                    wd.getData().encode(buf, heapPool);
-                }
+                encode(buf, wd, roundTime);
             }
             this.subQueueBytes = 0;
         } else {
             WriteData wd;
             while ((wd = subQueue.pollFirst()) != null) {
-                if(!checkTimeoutAndAddToPending(wd, roundTime)){
-                    continue;
-                }
                 WriteFrame f = wd.getData();
                 int size = f.estimateSize();
                 if (buf == null) {
                     if (size > MAX_BUFFER_SIZE) {
                         buf = directPool.borrow(size);
-                        f.encode(buf, heapPool);
+                        encode(buf, wd, roundTime);
                         subQueueBytes -= size;
                         break;
                     } else {
@@ -120,7 +123,7 @@ class IoSubQueue {
                     subQueue.addFirst(wd);
                     break;
                 } else {
-                    f.encode(buf, heapPool);
+                    encode(buf, wd, roundTime);
                     subQueueBytes -= size;
                 }
             }
@@ -136,42 +139,50 @@ class IoSubQueue {
         return buf;
     }
 
-    private boolean checkTimeoutAndAddToPending(WriteData wd, Timestamp roundTime) {
+    private void encode(ByteBuffer buf, WriteData wd, Timestamp roundTime) {
         WriteFrame f = wd.getData();
+        boolean request = f.getFrameType() == FrameType.TYPE_REQ;
         DtTime t = wd.getTimeout();
         long rest = t.rest(TimeUnit.NANOSECONDS, roundTime);
-        if (rest < 0) {
-            String frameType;
-            if (f.getFrameType() == FrameType.TYPE_RESP) {
-                frameType = "response";
-            } else {
-                frameType = "request";
+        if (rest > 0) {
+            if (request) {
+                int seq = dtc.getAndIncSeq();
+                f.setSeq(seq);
+                f.setTimeout(rest);
+            }
+            try {
+                f.encode(buf, heapPool);
+            } catch (RuntimeException | Error e) {
+                if (wd.getFuture() != null) {
+                    wd.getFuture().completeExceptionally(e);
+                }
+                workerStatus.setPacketToWrite(workerStatus.getPacketToWrite() - 1);
+                throw e;
+            }
+            packetOfBuffer++;
+            if (!request) {
+                return;
+            }
+            long key = BitUtil.toLong(dtc.getChannelIndexInWorker(), f.getSeq());
+            WriteData old = workerStatus.getPendingRequests().put(key, wd);
+            if (old != null) {
+                String errMsg = "dup seq: old=" + old.getData() + ", new=" + f;
+                log.error(errMsg);
+                wd.getFuture().completeExceptionally(new NetException(errMsg));
+                workerStatus.getPendingRequests().put(key, old);
+            }
+        } else {
+            if (request) {
                 String msg = "timeout before send: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
                 wd.getFuture().completeExceptionally(new NetTimeoutException(msg));
+                log.info("request timeout before send: {}ms, channel={}",
+                        t.getTimeout(TimeUnit.MILLISECONDS), wd.getDtc().getChannel());
+            } else {
+                log.info("request timeout before send: {}ms, seq={}, channel={}",
+                        t.getTimeout(TimeUnit.MILLISECONDS), f.getSeq(), wd.getDtc().getChannel());
             }
-            log.debug("{} timeout before send: {}ms, seq={}, {}", frameType,
-                    t.getTimeout(TimeUnit.MILLISECONDS), wd.getData().getSeq(),
-                    wd.getDtc());
-            return false;
+            workerStatus.setPacketToWrite(workerStatus.getPacketToWrite() - 1);
         }
-
-        if (f.getFrameType() == FrameType.TYPE_RESP) {
-            return true;
-        }
-
-        int seq = dtc.getAndIncSeq();
-        f.setSeq(seq);
-        f.setTimeout(rest);
-        long key = BitUtil.toLong(dtc.getChannelIndexInWorker(), seq);
-        WriteData old = workerStatus.getPendingRequests().put(key, wd);
-        if (old != null) {
-            String errMsg = "dup seq: old=" + old.getData() + ", new=" + f;
-            log.error(errMsg);
-            wd.getFuture().completeExceptionally(new NetException(errMsg));
-            workerStatus.getPendingRequests().put(key, old);
-            return false;
-        }
-        return true;
     }
 
     public void setWriting(boolean writing) {
