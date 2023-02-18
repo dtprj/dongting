@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.buf.RefCountByteBuffer;
 import com.github.dtprj.dongting.common.CloseUtil;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.TestUtil;
-import com.github.dtprj.dongting.common.Tick;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.pb.DtFrame;
@@ -42,6 +41,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import static com.github.dtprj.dongting.common.Tick.tick;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -74,7 +74,7 @@ public class NioClientTest {
                 try {
                     Socket s = ss.accept();
                     sockets.add(s);
-                    s.setSoTimeout(1000);
+                    s.setSoTimeout(tick(1000));
                     ArrayBlockingQueue<DtFrame.Frame> queue = new ArrayBlockingQueue<>(100);
                     Thread readThread = new Thread(() -> runReadThread(s, queue));
                     Thread writeThread = new Thread(() -> runWriteThread(s, queue));
@@ -173,7 +173,7 @@ public class NioClientTest {
             client = new NioClient(c);
             client.start();
             client.waitStart();
-            sendSync(5000, client, 500);
+            sendSync(5000, client, tick(1000));
         } finally {
             CloseUtil.close(client, server);
         }
@@ -191,7 +191,7 @@ public class NioClientTest {
             client = new NioClient(c);
             client.start();
             client.waitStart();
-            simpleAsyncTest(client, 200, 1, 6000);
+            simpleAsyncTest(client, tick(1000), 1, 6000);
         } finally {
             CloseUtil.close(client, server);
         }
@@ -209,7 +209,7 @@ public class NioClientTest {
             client = new NioClient(c);
             client.start();
             client.waitStart();
-            generalTest(client, 100, 5000);
+            generalTest(client, tick(100), 5000);
         } finally {
             CloseUtil.close(client, server);
         }
@@ -229,7 +229,7 @@ public class NioClientTest {
             client = new NioClient(c);
             client.start();
             client.waitStart();
-            generalTest(client, 100, 5000);
+            generalTest(client, tick(100), 5000);
         } finally {
             CloseUtil.close(client, server1, server2);
         }
@@ -349,7 +349,7 @@ public class NioClientTest {
     public void connectFailTest() {
         NioClientConfig c = new NioClientConfig();
         c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 23245)));
-        c.setWaitStartTimeout(5);
+        c.setWaitStartTimeout(tick(10));
         NioClient client = new NioClient(c);
         client.start();
         Assertions.assertThrows(NetException.class, client::waitStart);
@@ -361,7 +361,7 @@ public class NioClientTest {
         BioServer server1 = null;
         BioServer server2 = null;
         NioClientConfig c = new NioClientConfig();
-        c.setWaitStartTimeout(50);
+        c.setWaitStartTimeout(tick(50));
         HostPort hp1 = new HostPort("127.0.0.1", 9000);
         HostPort hp2 = new HostPort("127.0.0.1", 9001);
         c.setHostPorts(Arrays.asList(hp1, hp2));
@@ -373,13 +373,13 @@ public class NioClientTest {
             client.start();
             client.waitStart();
             for (int i = 0; i < 10; i++) {
-                sendSync(5000, client, 500);
+                sendSync(5000, client, tick(500));
             }
             server1.close();
             int success = 0;
             for (int i = 0; i < 10; i++) {
                 try {
-                    sendSync(5000, client, 100);
+                    sendSync(5000, client, tick(100));
                     success++;
                 } catch (Exception e) {
                     // ignore
@@ -400,24 +400,24 @@ public class NioClientTest {
             }
 
             try {
-                sendSyncByPeer(5000, client, p1, 500);
+                sendSyncByPeer(5000, client, p1, tick(500));
             } catch (ExecutionException e) {
                 assertEquals(NetException.class, e.getCause().getClass());
             }
-            sendSyncByPeer(5000, client, p2, 500);
+            sendSyncByPeer(5000, client, p2, tick(500));
 
             try {
-                client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get(20, TimeUnit.MILLISECONDS);
+                client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get(tick(20), TimeUnit.MILLISECONDS);
                 fail();
             } catch (TimeoutException | ExecutionException e) {
                 // ignore
             }
             server1 = new BioServer(9000);
-            client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get(200, TimeUnit.MILLISECONDS);
+            client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get(tick(200), TimeUnit.MILLISECONDS);
             sendSyncByPeer(5000, client, p1, 500);
 
             try {
-                client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get(20, TimeUnit.MILLISECONDS);
+                client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get(tick(20), TimeUnit.MILLISECONDS);
                 fail();
             } catch (ExecutionException e) {
                 assertEquals(NetException.class, e.getCause().getClass());
@@ -427,7 +427,7 @@ public class NioClientTest {
             server2.close();
             TestUtil.waitUtil(() -> client.getPeers().stream().allMatch(peer -> peer.getDtChannel() == null));
             try {
-                sendSync(5000, client, 500);
+                sendSync(5000, client, tick(500));
             } catch (ExecutionException e) {
                 assertEquals(NetException.class, e.getCause().getClass());
             }
@@ -442,7 +442,7 @@ public class NioClientTest {
         BioServer server1 = null;
         BioServer server2 = null;
         NioClientConfig c = new NioClientConfig();
-        c.setWaitStartTimeout(50);
+        c.setWaitStartTimeout(tick(50));
         HostPort hp1 = new HostPort("127.0.0.1", 9000);
         HostPort hp2 = new HostPort("127.0.0.1", 9001);
         c.setHostPorts(new ArrayList<>());
@@ -456,22 +456,22 @@ public class NioClientTest {
             Peer p1 = client.addPeer(hp1).get();
             Peer p2 = client.addPeer(hp2).get();
             assertSame(p1, client.addPeer(hp1).get());
-            client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get();
-            client.connect(p2, new DtTime(1, TimeUnit.SECONDS)).get();
-            assertThrows(ExecutionException.class, () -> client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get());
+            client.connect(p1, new DtTime(tick(1), TimeUnit.SECONDS)).get();
+            client.connect(p2, new DtTime(tick(1), TimeUnit.SECONDS)).get();
+            assertThrows(ExecutionException.class, () -> client.connect(p1, new DtTime(tick(1), TimeUnit.SECONDS)).get());
             assertEquals(2, client.getPeers().size());
 
-            sendSync(5000, client, 500);
+            sendSync(5000, client, tick(500));
 
             client.disconnect(p1).get();
             assertNull(p1.getDtChannel());
             assertEquals(2, client.getPeers().size());
-            sendSync(5000, client, 100);
+            sendSync(5000, client, tick(100));
 
             client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get();
             assertNotNull(p1.getDtChannel());
             assertEquals(2, client.getPeers().size());
-            sendSyncByPeer(5000, client, p1, 500);
+            sendSyncByPeer(5000, client, p1, tick(500));
 
             client.disconnect(p1).get();
             client.disconnect(p1).get();
@@ -479,9 +479,9 @@ public class NioClientTest {
             assertThrows(ExecutionException.class, () -> client.removePeer(p1).get());
             assertThrows(ExecutionException.class, () -> client.removePeer(p2).get());
             assertEquals(1, client.getPeers().size());
-            sendSync(5000, client, 100);
-            assertThrows(ExecutionException.class, () -> sendSyncByPeer(5000, client, p1, 500));
-            sendSyncByPeer(5000, client, p2, 500);
+            sendSync(5000, client, tick(100));
+            assertThrows(ExecutionException.class, () -> sendSyncByPeer(5000, client, p1, tick(500)));
+            sendSyncByPeer(5000, client, p2, tick(500));
         } finally {
             CloseUtil.close(client, server1, server2);
         }
@@ -493,7 +493,7 @@ public class NioClientTest {
         NioClient client = null;
         try {
             server = new BioServer(9000);
-            server.sleep = 30;
+            server.sleep = tick(30);
             NioClientConfig c = new NioClientConfig();
             c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
             c.setCleanInterval(1);
@@ -502,16 +502,16 @@ public class NioClientTest {
             client = new NioClient(c);
             client.start();
             client.waitStart();
-            CompletableFuture<Void> f1 = sendAsync(5000, client, 1000);
-            CompletableFuture<Void> f2 = sendAsync(5000, client, 15);
-            CompletableFuture<Void> f3 = sendAsync(5000, client, 1000);
-            f1.get(1, TimeUnit.SECONDS);
+            CompletableFuture<Void> f1 = sendAsync(5000, client, tick(1000));
+            CompletableFuture<Void> f2 = sendAsync(5000, client, tick(15));
+            CompletableFuture<Void> f3 = sendAsync(5000, client, tick(1000));
+            f1.get(tick(1), TimeUnit.SECONDS);
             try {
-                f2.get(1, TimeUnit.SECONDS);
+                f2.get(tick(1), TimeUnit.SECONDS);
             } catch (ExecutionException e) {
                 assertEquals(NetTimeoutException.class, e.getCause().getClass());
             }
-            f3.get(1, TimeUnit.SECONDS);
+            f3.get(tick(1), TimeUnit.SECONDS);
         } finally {
             CloseUtil.close(client, server);
         }
@@ -534,7 +534,7 @@ public class NioClientTest {
             }
 
             try {
-                sendSync(5000, client, 1000);
+                sendSync(5000, client, tick(1000));
                 fail();
             } catch (ExecutionException e) {
                 assertEquals(IllegalStateException.class, e.getCause().getClass());
@@ -542,12 +542,12 @@ public class NioClientTest {
 
             client.start();
             client.waitStart();
-            sendSync(5000, client, 1000);
+            sendSync(5000, client, tick(1000));
 
             client.stop();
 
             try {
-                sendSync(5000, client, 1000);
+                sendSync(5000, client, tick(1000));
                 fail();
             } catch (ExecutionException e) {
                 assertEquals(IllegalStateException.class, e.getCause().getClass());
@@ -577,7 +577,7 @@ public class NioClientTest {
             client.waitStart();
             server.resultCode = 100;
             try {
-                sendSync(5000, client, 1000);
+                sendSync(5000, client, tick(1000));
                 fail();
             } catch (ExecutionException e) {
                 assertEquals(NetCodeException.class, e.getCause().getClass());
@@ -601,10 +601,10 @@ public class NioClientTest {
             client = new NioClient(c);
             client.start();
             client.waitStart();
-            server.sleep = Tick.tick(40);
-            CompletableFuture<Void> f = sendAsync(3000, client, 1000);
+            server.sleep = tick(40);
+            CompletableFuture<Void> f = sendAsync(3000, client, tick(1000));
             client.stop();
-            f.get(1, TimeUnit.SECONDS);
+            f.get(tick(1), TimeUnit.SECONDS);
         } finally {
             CloseUtil.close(client, server);
         }
@@ -626,15 +626,15 @@ public class NioClientTest {
             c.setCleanInterval(0);
             c.setSelectTimeout(1);
             // close timeout less than server process time
-            c.setCloseTimeout(Tick.tick(closeTimeout));
+            c.setCloseTimeout(tick(closeTimeout));
             client = new NioClient(c);
             client.start();
             client.waitStart();
-            server.sleep = Tick.tick(40);
-            CompletableFuture<Void> f = sendAsync(3000, client, 1000);
+            server.sleep = tick(40);
+            CompletableFuture<Void> f = sendAsync(3000, client, tick(1000));
             client.stop();
             try {
-                f.get(1, TimeUnit.SECONDS);
+                f.get(tick(1), TimeUnit.SECONDS);
                 fail();
             } catch (ExecutionException e) {
                 assertEquals(NetException.class, e.getCause().getClass());
@@ -657,7 +657,7 @@ public class NioClientTest {
             client.start();
             client.waitStart();
 
-            sendSync(5000, client, 1000);
+            sendSync(5000, client, tick(1000));
 
             {
                 // decoder fail in biz thread
@@ -677,10 +677,10 @@ public class NioClientTest {
                     }
                 };
                 CompletableFuture<ReadFrame> f = client.sendRequest(wf,
-                        decoder, new DtTime(1, TimeUnit.SECONDS));
+                        decoder, new DtTime(tick(1), TimeUnit.SECONDS));
 
                 try {
-                    f.get(5000, TimeUnit.MILLISECONDS);
+                    f.get(tick(5), TimeUnit.SECONDS);
                 } catch (ExecutionException e) {
                     assertEquals(ArrayIndexOutOfBoundsException.class, e.getCause().getClass());
                 }
@@ -702,10 +702,10 @@ public class NioClientTest {
                     }
                 };
                 CompletableFuture<ReadFrame> f = client.sendRequest(wf,
-                        decoder, new DtTime(1, TimeUnit.SECONDS));
+                        decoder, new DtTime(tick(1), TimeUnit.SECONDS));
 
                 try {
-                    f.get(5000, TimeUnit.MILLISECONDS);
+                    f.get(tick(5), TimeUnit.SECONDS);
                 } catch (ExecutionException e) {
                     e.printStackTrace();
                     assertEquals(ArrayIndexOutOfBoundsException.class, e.getCause().getClass());
@@ -714,7 +714,7 @@ public class NioClientTest {
 
             // not affect the following requests
             for (int i = 0; i < 10; i++) {
-                sendSync(5000, client, 1000);
+                sendSync(5000, client, tick(1000));
             }
         } finally {
             CloseUtil.close(client, server);
