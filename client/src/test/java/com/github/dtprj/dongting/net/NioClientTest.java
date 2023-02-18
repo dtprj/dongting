@@ -191,7 +191,7 @@ public class NioClientTest {
             client = new NioClient(c);
             client.start();
             client.waitStart();
-            simpleAsyncTest(client, tick(1000), 1, 6000);
+            asyncTest(client, tick(1000), 1, 6000);
         } finally {
             CloseUtil.close(client, server);
         }
@@ -215,6 +215,38 @@ public class NioClientTest {
         }
     }
 
+    private static void generalTest(NioClient client, long timeMillis, int maxBodySize) throws Exception {
+        DtTime time = new DtTime();
+        do {
+            sendSync(maxBodySize, client, tick(500));
+        } while (time.elapse(TimeUnit.MILLISECONDS) < timeMillis);
+
+        asyncTest(client, timeMillis, Integer.MAX_VALUE, maxBodySize);
+    }
+
+    private static void asyncTest(NioClient client, long timeMillis, long maxLoop, int maxBodySize) throws Exception {
+        DtTime time = new DtTime();
+        CompletableFuture<Integer> successCount = new CompletableFuture<>();
+        successCount.complete(0);
+        int expectCount = 0;
+        int loop = 0;
+        do {
+            CompletableFuture<Void> f = sendAsync(maxBodySize, client, tick(500));
+            successCount = successCount.thenCombine(f, (value, NULL) -> value + 1);
+            expectCount++;
+            loop++;
+        } while (time.elapse(TimeUnit.MILLISECONDS) < timeMillis && loop < maxLoop);
+        int v = successCount.get(1, TimeUnit.SECONDS);
+        assertTrue(v > 0);
+        assertEquals(expectCount, v);
+    }
+
+    private static void sendSync(int maxBodySize, NioClient client, long timeoutMillis) throws Exception {
+        sendSync(maxBodySize, client, timeoutMillis, new ByteBufferDecoder(maxBodySize / 2));
+        sendSync(maxBodySize, client, timeoutMillis, new BizByteBufferDecoder());
+        sendSync(maxBodySize, client, timeoutMillis, new IoFullPackByteBufferDecoder());
+    }
+
     @Test
     public void multiServerTest() throws Exception {
         BioServer server1 = null;
@@ -233,38 +265,6 @@ public class NioClientTest {
         } finally {
             CloseUtil.close(client, server1, server2);
         }
-    }
-
-    private static void generalTest(NioClient client, long timeMillis, int maxBodySize) throws Exception {
-        DtTime time = new DtTime();
-        do {
-            sendSync(maxBodySize, client, 500);
-        } while (time.elapse(TimeUnit.MILLISECONDS) < timeMillis);
-
-        simpleAsyncTest(client, timeMillis, Integer.MAX_VALUE, maxBodySize);
-    }
-
-    private static void simpleAsyncTest(NioClient client, long timeMillis, long maxLoop, int maxBodySize) throws Exception {
-        DtTime time = new DtTime();
-        CompletableFuture<Integer> successCount = new CompletableFuture<>();
-        successCount.complete(0);
-        int expectCount = 0;
-        int loop = 0;
-        do {
-            CompletableFuture<Void> f = sendAsync(maxBodySize, client, 500);
-            successCount = successCount.thenCombine(f, (value, NULL) -> value + 1);
-            expectCount++;
-            loop++;
-        } while (time.elapse(TimeUnit.MILLISECONDS) < timeMillis && loop < maxLoop);
-        int v = successCount.get(1, TimeUnit.SECONDS);
-        assertTrue(v > 0);
-        assertEquals(expectCount, v);
-    }
-
-    private static void sendSync(int maxBodySize, NioClient client, long timeoutMillis) throws Exception {
-        sendSync(maxBodySize, client, timeoutMillis, new ByteBufferDecoder(maxBodySize / 2));
-        sendSync(maxBodySize, client, timeoutMillis, new BizByteBufferDecoder());
-        sendSync(maxBodySize, client, timeoutMillis, new IoFullPackByteBufferDecoder());
     }
 
     private static void sendSync(int maxBodySize, NioClient client, long timeoutMillis, Decoder decoder) throws Exception {
