@@ -135,6 +135,7 @@ public class NioServer extends NioNet implements Runnable {
         for (NioWorker worker : workers) {
             worker.preStop();
         }
+        boolean preStopOk = true;
         for (NioWorker worker : workers) {
             long rest = timeout.rest(TimeUnit.MILLISECONDS);
             if (rest > 0) {
@@ -143,11 +144,19 @@ public class NioServer extends NioNet implements Runnable {
                 } catch (InterruptedException e) {
                     ThreadUtils.restoreInterruptStatus();
                 } catch (TimeoutException e) {
+                    preStopOk = false;
+                    log.info("server {} pre-stop timeout", config.getName());
                     break;
                 } catch (ExecutionException e) {
                     BugLog.log(e);
                 }
+            } else {
+                preStopOk = false;
+                log.info("server {} pre-stop timeout", config.getName());
             }
+        }
+        if (preStopOk) {
+            log.info("server {} pre-stop done", config.getName());
         }
         for (NioWorker worker : workers) {
             worker.stop();
@@ -163,6 +172,8 @@ public class NioServer extends NioNet implements Runnable {
             }
         }
         shutdownBizExecutor(timeout);
+
+        log.info("server {} stopped", config.getName());
     }
 
     private void stopAcceptThread() {

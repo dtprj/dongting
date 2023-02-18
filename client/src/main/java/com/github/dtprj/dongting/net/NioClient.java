@@ -145,11 +145,14 @@ public class NioClient extends NioNet {
             long rest = timeout.rest(TimeUnit.MILLISECONDS);
             if (rest > 0) {
                 worker.getPreCloseFuture().get(rest, TimeUnit.MILLISECONDS);
+                log.info("client {} pre-stop done", config.getName());
+            } else {
+                log.warn("client {} pre-stop timeout", config.getName());
             }
         } catch (InterruptedException e) {
             ThreadUtils.restoreInterruptStatus();
         } catch (TimeoutException e) {
-            // ignore
+            log.warn("client {} pre-stop timeout", config.getName());
         } catch (ExecutionException e) {
             BugLog.log(e);
         }
@@ -163,6 +166,8 @@ public class NioClient extends NioNet {
             ThreadUtils.restoreInterruptStatus();
         }
         shutdownBizExecutor(timeout);
+
+        log.info("client {} stopped", config.getName());
     }
 
     @Override
