@@ -429,17 +429,12 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         ConnectInfo ci = (ConnectInfo) key.attachment();
         SocketChannel channel = ci.channel;
         try {
-            if (ci.peer.getStatus() == PeerStatus.connecting) {
+            if (!ci.future.isDone()) {
                 channel.finishConnect();
                 DtChannel dtc = initNewChannel(channel, ci.peer);
                 channels.put(dtc.getChannelIndexInWorker(), dtc);
                 channelsList.add(dtc);
                 ci.future.complete(null);
-            } else {
-                BugLog.getLog().error("peer status is not connecting, but {}", ci.peer.getStatus());
-                closeChannel0(channel);
-                ci.peer.setStatus(PeerStatus.not_connect);
-                ci.future.completeExceptionally(new NetException("peer status is not connecting"));
             }
         } catch (Exception e) {
             log.warn("connect channel fail: {}, {}", ci.peer.getEndPoint(), e.toString());
