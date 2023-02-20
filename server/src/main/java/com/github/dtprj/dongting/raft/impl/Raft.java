@@ -141,7 +141,7 @@ public class Raft {
 
         for (int i = 1; i <= logs.size(); i++) {
             RaftTask rt = inputs.get(i);
-            // TODD use this buffer
+            // TODO use this buffer
             rt.input.setLogData(null);
         }
         raftStatus.setLastLogTerm(currentTerm);
@@ -387,7 +387,8 @@ public class Raft {
             RaftTask rt = raftStatus.getPendingRequests().remove(i);
             if (rt == null) {
                 rt = new RaftTask();
-                LogItem item = raftLog.load(i);
+                // TODO error handle
+                LogItem item = raftLog.load(i, 1, 0)[0];
                 rt.heartbeat = item.getType() == LogItem.TYPE_HEARTBEAT;
                 if (item.getType() != LogItem.TYPE_HEARTBEAT) {
                     Object o = stateMachine.decode(item.getBuffer());
@@ -395,8 +396,8 @@ public class Raft {
                 } else {
                     rt.input = new RaftInput(item.getBuffer(), null, null);
                 }
-                execInStateMachine(i, rt);
             }
+            execInStateMachine(i, rt);
         }
 
         raftStatus.setLastApplied(recentMatchIndex);

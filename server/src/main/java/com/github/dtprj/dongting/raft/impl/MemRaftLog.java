@@ -36,11 +36,6 @@ public class MemRaftLog extends RaftLog {
     }
 
     @Override
-    public LogItem load(long index) {
-        return null;
-    }
-
-    @Override
     public LogItem[] load(long index, int limit, long bytesLimit) {
         return new LogItem[0];
     }

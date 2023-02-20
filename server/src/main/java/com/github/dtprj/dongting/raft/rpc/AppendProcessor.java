@@ -141,16 +141,20 @@ public class AppendProcessor extends ReqProcessor {
         raftStatus.setLastLogTerm(logs.get(logs.size() - 1).getTerm());
         if (req.getLeaderCommit() > raftStatus.getCommitIndex()) {
             raftStatus.setCommitIndex(Math.min(newIndex, req.getLeaderCommit()));
-            if (raftStatus.getLastApplied() < raftStatus.getCommitIndex()) {
-                for (long i = raftStatus.getLastApplied() + 1; i <= raftStatus.getCommitIndex(); i++) {
-                    LogItem item = raftLog.load(i);
+            long diff = raftStatus.getCommitIndex() - raftStatus.getLastApplied();
+            while (diff > 0) {
+                int limit = (int) Math.min(diff, 100L);
+                LogItem[] items = raftLog.load(raftStatus.getLastApplied() + 1, limit, 16 * 1024 * 1024);
+                int readCount = items.length;
+                for (LogItem item : items) {
                     if (item.getType() != LogItem.TYPE_HEARTBEAT) {
                         Object decodedObj = stateMachine.decode(item.getBuffer());
                         stateMachine.exec(decodedObj);
                     }
                 }
+                raftStatus.setLastApplied(raftStatus.getLastApplied() + readCount);
+                diff -= readCount;
             }
-            raftStatus.setLastApplied(raftStatus.getCommitIndex());
         } else if (req.getLeaderCommit() < raftStatus.getCommitIndex()) {
             log.warn("leader commitIndex less than local. leaderId={}, leaderTerm={}, leaderCommitIndex={}, localCommitIndex={}",
                     req.getLeaderId(), req.getTerm(), req.getLeaderCommit(), raftStatus.getCommitIndex());
