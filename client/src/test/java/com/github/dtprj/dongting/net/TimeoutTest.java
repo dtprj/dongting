@@ -46,6 +46,7 @@ public class TimeoutTest {
     private void setup(Runnable register) {
         NioServerConfig serverConfig = new NioServerConfig();
         serverConfig.setPort(9000);
+        serverConfig.setCloseTimeout(3000);
         server = new NioServer(serverConfig);
         if (register != null) {
             register.run();
@@ -55,6 +56,7 @@ public class TimeoutTest {
         clientConfig.setCleanInterval(1);
         clientConfig.setSelectTimeout(1);
         clientConfig.setMaxOutRequests(1);
+        clientConfig.setCloseTimeout(3000);
         clientConfig.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
         client = new NioClient(clientConfig);
 
