@@ -124,7 +124,7 @@ public class RaftUtil {
         raftStatus.setRole(RaftRole.follower);
         if (oldRole == RaftRole.leader) {
             oldPending.forEach((idx, task) -> {
-                HostPort leaderHostPort = getLeader(raftStatus);
+                HostPort leaderHostPort = getLeader(raftStatus.getCurrentLeader());
                 if (task.future != null) {
                     task.future.completeExceptionally(new NotLeaderException(leaderHostPort));
                 }
@@ -170,9 +170,8 @@ public class RaftUtil {
         }
     }
 
-    public static HostPort getLeader(RaftStatus raftStatus) {
-        return raftStatus.getCurrentLeader() == null ? null :
-                raftStatus.getCurrentLeader().getPeer().getEndPoint();
+    public static HostPort getLeader(RaftNode leader) {
+        return leader == null ? null : leader.getPeer().getEndPoint();
     }
 
 }

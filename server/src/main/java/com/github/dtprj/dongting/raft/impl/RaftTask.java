@@ -26,20 +26,20 @@ import java.util.concurrent.CompletableFuture;
 /**
  * @author huangli
  */
-class RaftTask {
+public class RaftTask {
 
-    final boolean heartbeat;
-    final RaftInput input;
+    public final int type;
+    public final RaftInput input;
     final CompletableFuture<RaftOutput> future;
-    final long createTimeNanos;
+    public final long createTimeNanos;
 
     LogItem item;
 
     ArrayList<RaftTask> nextReaders;
 
-    RaftTask(Timestamp ts, boolean heartbeat, RaftInput input, CompletableFuture<RaftOutput> future) {
+    public RaftTask(Timestamp ts, int type, RaftInput input, CompletableFuture<RaftOutput> future) {
         this.createTimeNanos = ts.getNanoTime();
-        this.heartbeat = heartbeat;
+        this.type = type;
         this.input = input;
         this.future = future;
     }

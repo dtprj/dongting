@@ -205,7 +205,7 @@ public class RaftServer extends AbstractLifeCircle {
         ShareStatus ss = raftStatus.getShareStatus();
         readTimestamp.refresh(1);
         if (ss.role != RaftRole.leader) {
-            throw new NotLeaderException(ss.currentLeader);
+            throw new NotLeaderException(RaftUtil.getLeader(ss.currentLeader));
         }
         long t = readTimestamp.getNanoTime();
         if (ss.leaseEndNanos - t < 0) {

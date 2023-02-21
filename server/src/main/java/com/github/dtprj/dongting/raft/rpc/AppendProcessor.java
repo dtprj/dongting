@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -28,12 +29,15 @@ import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
+import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.VoteManager;
 import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.StateMachine;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 
 /**
@@ -124,29 +128,54 @@ public class AppendProcessor extends ReqProcessor {
         // TODO error handle
         long newIndex = req.getPrevLogIndex() + logs.size();
         raftLog.append(newIndex, req.getPrevLogTerm(), logs);
+
+        for (LogItem li : logs) {
+            RaftInput raftInput = new RaftInput(li.getBuffer(), null, null, false);
+            RaftTask task = new RaftTask(raftStatus.getTs(), li.getType(), raftInput, null);
+            raftStatus.getPendingRequests().put(li.getIndex(), task);
+        }
+
         raftStatus.setLastLogIndex(newIndex);
         raftStatus.setLastLogTerm(logs.get(logs.size() - 1).getTerm());
         if (req.getLeaderCommit() > raftStatus.getCommitIndex()) {
             raftStatus.setCommitIndex(Math.min(newIndex, req.getLeaderCommit()));
-            long diff = raftStatus.getCommitIndex() - raftStatus.getLastApplied();
-            while (diff > 0) {
-                int limit = (int) Math.min(diff, 100L);
-                LogItem[] items = raftLog.load(raftStatus.getLastApplied() + 1, limit, 16 * 1024 * 1024);
-                int readCount = items.length;
-                for (LogItem item : items) {
-                    if (item.getType() != LogItem.TYPE_HEARTBEAT) {
-                        Object decodedObj = stateMachine.decode(item.getBuffer());
-                        stateMachine.exec(decodedObj);
-                    }
-                }
-                raftStatus.setLastApplied(raftStatus.getLastApplied() + readCount);
-                diff -= readCount;
-            }
+            apply(raftStatus);
         } else if (req.getLeaderCommit() < raftStatus.getCommitIndex()) {
             log.warn("leader commitIndex less than local. leaderId={}, leaderTerm={}, leaderCommitIndex={}, localCommitIndex={}",
                     req.getLeaderId(), req.getTerm(), req.getLeaderCommit(), raftStatus.getCommitIndex());
         }
         resp.setSuccess(true);
+    }
+
+    private void apply(RaftStatus raftStatus) {
+        long diff = raftStatus.getCommitIndex() - raftStatus.getLastApplied();
+        LongObjMap<RaftTask> pendingRequests = raftStatus.getPendingRequests();
+        long lastApplied = raftStatus.getLastApplied();
+        while (diff > 0) {
+            RaftTask rt = pendingRequests.get(lastApplied + 1);
+            if (rt != null) {
+                apply(rt.type, rt.input.getLogData());
+                lastApplied++;
+                diff--;
+            } else {
+                int limit = (int) Math.min(diff, 100L);
+                LogItem[] items = raftLog.load(lastApplied + 1, limit, 16 * 1024 * 1024);
+                int readCount = items.length;
+                for (LogItem item : items) {
+                    apply(item.getType(), item.getBuffer());
+                }
+                lastApplied += readCount;
+                diff -= readCount;
+            }
+        }
+        raftStatus.setLastApplied(lastApplied);
+    }
+
+    private void apply(int type, ByteBuffer buffer) {
+        if (type != LogItem.TYPE_HEARTBEAT) {
+            Object decodedObj = stateMachine.decode(buffer);
+            stateMachine.exec(decodedObj);
+        }
     }
 
     @Override

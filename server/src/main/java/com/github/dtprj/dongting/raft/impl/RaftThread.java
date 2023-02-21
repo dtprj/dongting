@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
@@ -191,7 +192,7 @@ public class RaftThread extends Thread {
 
     public CompletableFuture<RaftOutput> submitRaftTask(RaftInput input) {
         CompletableFuture<RaftOutput> f = new CompletableFuture<>();
-        RaftTask t = new RaftTask(raftStatus.getTs(), false, input, f);
+        RaftTask t = new RaftTask(raftStatus.getTs(), LogItem.TYPE_NORMAL, input, f);
         queue.offer(t);
         return f;
     }

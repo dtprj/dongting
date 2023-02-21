@@ -96,7 +96,7 @@ public class Raft {
     public void raftExec(List<RaftTask> inputs) {
         RaftStatus raftStatus = this.raftStatus;
         if (raftStatus.getRole() != RaftRole.leader) {
-            HostPort leader = RaftUtil.getLeader(raftStatus);
+            HostPort leader = RaftUtil.getLeader(raftStatus.getCurrentLeader());
             for (RaftTask t : inputs) {
                 if (t.future != null) {
                     t.future.completeExceptionally(new NotLeaderException(leader));
@@ -115,8 +115,7 @@ public class Raft {
             RaftInput input = rt.input;
             if (!input.isReadOnly()) {
                 newIndex++;
-                int type = rt.heartbeat ? LogItem.TYPE_HEARTBEAT : LogItem.TYPE_NORMAL;
-                LogItem item = new LogItem(type, newIndex, currentTerm, oldTerm, input.getLogData());
+                LogItem item = new LogItem(rt.type, newIndex, currentTerm, oldTerm, input.getLogData());
                 logs.add(item);
 
                 rt.item = item;
@@ -252,7 +251,7 @@ public class Raft {
     public void sendHeartBeat() {
         DtTime deadline = new DtTime(ts, raftStatus.getElectTimeoutNanos(), TimeUnit.NANOSECONDS);
         RaftInput input = new RaftInput(null, null, deadline, false);
-        RaftTask rt = new RaftTask(ts, true, input, null);
+        RaftTask rt = new RaftTask(ts, LogItem.TYPE_HEARTBEAT, input, null);
         raftExec(Collections.singletonList(rt));
     }
 
@@ -399,7 +398,6 @@ public class Raft {
             if (rt == null) {
                 // TODO error handle
                 LogItem item = raftLog.load(i, 1, 0)[0];
-                boolean heartbeat = item.getType() == LogItem.TYPE_HEARTBEAT;
                 RaftInput input;
                 if (item.getType() != LogItem.TYPE_HEARTBEAT) {
                     Object o = stateMachine.decode(item.getBuffer());
@@ -407,7 +405,7 @@ public class Raft {
                 } else {
                     input = new RaftInput(item.getBuffer(), null, null, false);
                 }
-                rt = new RaftTask(ts, heartbeat, input, null);
+                rt = new RaftTask(ts, item.getType(), input, null);
             }
             execInStateMachine(i, rt);
         }
@@ -420,7 +418,7 @@ public class Raft {
     }
 
     private void execInStateMachine(long index, RaftTask rt) {
-        execInStateMachine(index, rt.heartbeat, rt.input.getInput(), rt.future);
+        execInStateMachine(index, rt.type == LogItem.TYPE_HEARTBEAT, rt.input.getInput(), rt.future);
         if (rt.nextReaders == null) {
             return;
         }
