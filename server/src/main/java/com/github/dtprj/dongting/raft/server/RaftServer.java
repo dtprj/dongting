@@ -182,7 +182,7 @@ public class RaftServer extends AbstractLifeCircle {
             return null;
         }
         int size = input.size();
-        long currentPendingWriteBytes = (long) PENDING_WRITE_BYTES.getAndAdd(this, size);
+        long currentPendingWriteBytes = (long) PENDING_WRITE_BYTES.getAndAddRelease(this, size);
         if (currentPendingWriteBytes >= maxPendingWriteBytes) {
             log.warn("submitRaftTask failed: too many pending write bytes, currentSize={}", size);
             PENDING_WRITE_BYTES.getAndAddRelease(this, -size);
