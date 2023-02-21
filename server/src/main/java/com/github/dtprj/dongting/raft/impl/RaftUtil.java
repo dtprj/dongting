@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.server.NotLeaderException;
 
 import java.util.Arrays;
 import java.util.List;
@@ -109,18 +110,42 @@ public class RaftUtil {
         }
     }
 
-    public static void incrTermAndConvertToFollower(int remoteTerm, RaftStatus raftStatus) {
+    public static void incrTermAndConvertToFollower(int remoteTerm, RaftStatus raftStatus, int newLeaderId) {
         log.info("update term from {} to {}, change to follower, oldRole={}",
                 raftStatus.getCurrentTerm(), remoteTerm, raftStatus.getRole());
+        RaftRole oldRole = raftStatus.getRole();
+        LongObjMap<RaftTask> oldPending = raftStatus.getPendingRequests();
         resetStatus(raftStatus);
+        if (newLeaderId > 0) {
+            updateLeader(raftStatus, newLeaderId);
+        }
         raftStatus.setCurrentTerm(remoteTerm);
         raftStatus.setVoteFor(0);
         raftStatus.setRole(RaftRole.follower);
+        if (oldRole == RaftRole.leader) {
+            oldPending.forEach((idx, task) -> {
+                HostPort leaderHostPort = getLeader(raftStatus);
+                if (task.future != null) {
+                    task.future.completeExceptionally(new NotLeaderException(leaderHostPort));
+                }
+                if (task.nextReaders != null) {
+                    task.nextReaders.forEach(readTask -> {
+                        if (readTask.future != null) {
+                            readTask.future.completeExceptionally(new NotLeaderException(leaderHostPort));
+                        }
+                    });
+                }
+                return true;
+            });
+        }
     }
 
-    public static void changeToFollower(RaftStatus raftStatus) {
+    public static void changeToFollower(RaftStatus raftStatus, int leaderId) {
         log.info("change to follower. term={}, oldRole={}", raftStatus.getCurrentTerm(), raftStatus.getRole());
         resetStatus(raftStatus);
+        if (leaderId > 0) {
+            updateLeader(raftStatus, leaderId);
+        }
         raftStatus.setRole(RaftRole.follower);
     }
 
@@ -131,6 +156,23 @@ public class RaftUtil {
         for (RaftNode node : raftStatus.getServers()) {
             node.setNextIndex(raftStatus.getLastLogIndex() + 1);
         }
+    }
+
+    public static void updateLeader(RaftStatus raftStatus, int leaderId) {
+        RaftNode leader = raftStatus.getCurrentLeader();
+        if (leader != null && leader.getId() == leaderId) {
+            return;
+        }
+        for (RaftNode node : raftStatus.getServers()) {
+            if (node.getId() == leaderId) {
+                raftStatus.setCurrentLeader(node);
+            }
+        }
+    }
+
+    public static HostPort getLeader(RaftStatus raftStatus) {
+        return raftStatus.getCurrentLeader() == null ? null :
+                raftStatus.getCurrentLeader().getPeer().getEndPoint();
     }
 
 }

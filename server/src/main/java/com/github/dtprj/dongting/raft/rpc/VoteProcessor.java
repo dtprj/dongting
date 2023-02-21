@@ -72,7 +72,7 @@ public class VoteProcessor extends ReqProcessor {
 
     private void processVote(VoteReq voteReq, VoteResp resp, int localTerm) {
         if (voteReq.getTerm() > localTerm) {
-            RaftUtil.incrTermAndConvertToFollower(voteReq.getTerm(), raftStatus);
+            RaftUtil.incrTermAndConvertToFollower(voteReq.getTerm(), raftStatus, -1);
         }
 
         if (shouldGrant(voteReq, localTerm)) {

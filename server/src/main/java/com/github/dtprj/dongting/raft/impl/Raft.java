@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ReadFrame;
@@ -95,9 +96,10 @@ public class Raft {
     public void raftExec(List<RaftTask> inputs) {
         RaftStatus raftStatus = this.raftStatus;
         if (raftStatus.getRole() != RaftRole.leader) {
+            HostPort leader = RaftUtil.getLeader(raftStatus);
             for (RaftTask t : inputs) {
                 if (t.future != null) {
-                    t.future.completeExceptionally(new NotLeaderException(raftStatus.getCurrentLeader()));
+                    t.future.completeExceptionally(new NotLeaderException(leader));
                 }
             }
             return;
@@ -305,7 +307,7 @@ public class Raft {
         if (remoteTerm > raftStatus.getCurrentTerm()) {
             log.info("find remote term greater than local term. remoteTerm={}, localTerm={}",
                     body.getTerm(), raftStatus.getCurrentTerm());
-            RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus);
+            RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus, -1);
             return;
         }
 

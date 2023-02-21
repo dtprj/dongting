@@ -236,7 +236,7 @@ public class VoteManager {
                 }
             }
         } else {
-            RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus);
+            RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus, -1);
         }
     }
 }

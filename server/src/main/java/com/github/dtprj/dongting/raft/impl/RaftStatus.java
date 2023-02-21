@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.net.HostPort;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,7 +36,7 @@ public class RaftStatus {
     private long lastApplied; // shared
 
     private RaftRole role; // shared
-    private HostPort currentLeader; // shared
+    private RaftNode currentLeader; // shared
     private final Timestamp ts = new Timestamp();
     private final int electQuorum;
     private final int rwQuorum;
@@ -102,7 +101,7 @@ public class RaftStatus {
         this.shareStatusUpdated = true;
     }
 
-    public void setCurrentLeader(HostPort currentLeader) {
+    public void setCurrentLeader(RaftNode currentLeader) {
         this.currentLeader = currentLeader;
         this.shareStatusUpdated = true;
     }
@@ -227,7 +226,7 @@ public class RaftStatus {
         return shareStatus;
     }
 
-    public HostPort getCurrentLeader() {
+    public RaftNode getCurrentLeader() {
         return currentLeader;
     }
 

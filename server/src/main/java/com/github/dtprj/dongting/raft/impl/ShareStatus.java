@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.net.HostPort;
-
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -28,5 +26,5 @@ public class ShareStatus {
     public long leaseEndNanos;
     public boolean hasLease;
     public CompletableFuture<Void> firstCommitOfApplied;
-    public HostPort currentLeader;
+    public RaftNode currentLeader;
 }

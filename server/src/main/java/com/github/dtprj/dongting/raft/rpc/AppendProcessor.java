@@ -26,7 +26,6 @@ import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
-import com.github.dtprj.dongting.raft.impl.RaftNode;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -73,11 +72,10 @@ public class AppendProcessor extends ReqProcessor {
         if (remoteTerm == localTerm) {
             if (raftStatus.getRole() == RaftRole.follower) {
                 RaftUtil.resetElectTimer(raftStatus);
-                updateLeader(raftStatus, req.getLeaderId());
+                RaftUtil.updateLeader(raftStatus, req.getLeaderId());
                 append(req, resp);
             } else if (raftStatus.getRole() == RaftRole.candidate) {
-                RaftUtil.changeToFollower(raftStatus);
-                updateLeader(raftStatus, req.getLeaderId());
+                RaftUtil.changeToFollower(raftStatus, req.getLeaderId());
                 append(req, resp);
             } else {
                 BugLog.getLog().error("leader receive raft append request. term={}, remote={}",
@@ -85,8 +83,7 @@ public class AppendProcessor extends ReqProcessor {
                 resp.setSuccess(false);
             }
         } else if (remoteTerm > localTerm) {
-            RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus);
-            updateLeader(raftStatus, req.getLeaderId());
+            RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus, req.getLeaderId());
             append(req, resp);
         } else {
             log.debug("receive append request with a smaller term, ignore, remoteTerm={}, localTerm={}", remoteTerm, localTerm);
@@ -95,16 +92,6 @@ public class AppendProcessor extends ReqProcessor {
         resp.setTerm(raftStatus.getCurrentTerm());
         resp.setRespCode(CmdCodes.SUCCESS);
         return resp;
-    }
-
-    private void updateLeader(RaftStatus raftStatus, int leaderId) {
-        if (raftStatus.getCurrentLeader() == null) {
-            for (RaftNode node : raftStatus.getServers()) {
-                if (node.getId() == leaderId) {
-                    raftStatus.setCurrentLeader(node.getPeer().getEndPoint());
-                }
-            }
-        }
     }
 
     private void append(AppendReqCallback req, AppendRespWriteFrame resp) {
