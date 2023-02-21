@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
 
@@ -26,13 +28,23 @@ import java.util.concurrent.CompletableFuture;
  */
 class RaftTask {
 
-    RaftTask() {
+    final boolean heartbeat;
+    final RaftInput input;
+    final CompletableFuture<RaftOutput> future;
+    final long createTimeNanos;
+
+    LogItem item;
+
+    ArrayList<RaftTask> nextReaders;
+
+    RaftTask(Timestamp ts, boolean heartbeat, RaftInput input, CompletableFuture<RaftOutput> future) {
+        this.createTimeNanos = ts.getNanoTime();
+        this.heartbeat = heartbeat;
+        this.input = input;
+        this.future = future;
     }
 
-    boolean heartbeat;
-    RaftInput input;
-    CompletableFuture<RaftOutput> future;
-    ArrayList<RaftTask> nextReaders;
+
 
     public void addNext(RaftTask t) {
         if (nextReaders == null) {

@@ -30,6 +30,17 @@ public class LogItem {
     private ByteBuffer buffer;
     private long index;
 
+    public LogItem(int type, long index, int term, int prevLogTerm, ByteBuffer buffer) {
+        this.type = type;
+        this.term = term;
+        this.prevLogTerm = prevLogTerm;
+        this.buffer = buffer;
+        this.index = index;
+    }
+
+    public LogItem() {
+    }
+
     public int getType() {
         return type;
     }

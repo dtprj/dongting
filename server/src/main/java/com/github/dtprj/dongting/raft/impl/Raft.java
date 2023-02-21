@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -35,7 +36,6 @@ import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.server.StateMachine;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -108,26 +108,26 @@ public class Raft {
         ArrayList<LogItem> logs = new ArrayList<>(inputs.size());
         int oldTerm = raftStatus.getLastLogTerm();
         int currentTerm = raftStatus.getCurrentTerm();
+        LongObjMap<RaftTask> pending = raftStatus.getPendingRequests();
         for (RaftTask rt : inputs) {
-            ByteBuffer buf = rt.input.getLogData();
-            if (buf != null || rt.heartbeat) {
+            RaftInput input = rt.input;
+            if (!input.isReadOnly()) {
                 newIndex++;
-                LogItem item = new LogItem();
-                item.setBuffer(buf);
-                item.setIndex(newIndex);
-                item.setPrevLogTerm(oldTerm);
-                item.setTerm(currentTerm);
-                item.setType(rt.heartbeat ? LogItem.TYPE_HEARTBEAT : LogItem.TYPE_NORMAL);
+                int type = rt.heartbeat ? LogItem.TYPE_HEARTBEAT : LogItem.TYPE_NORMAL;
+                LogItem item = new LogItem(type, newIndex, currentTerm, oldTerm, input.getLogData());
                 logs.add(item);
-                raftStatus.getPendingRequests().put(newIndex, rt);
+
+                rt.item = item;
+
+                pending.put(newIndex, rt);
             } else {
                 // read
                 if (newIndex <= raftStatus.getLastApplied()) {
-                    execInStateMachine(newIndex, false, rt.input.getInput(), rt.future);
+                    execInStateMachine(newIndex, false, input.getInput(), rt.future);
                 } else {
-                    RaftTask newTask = raftStatus.getPendingRequests().get(newIndex);
+                    RaftTask newTask = pending.get(newIndex);
                     if (newTask == null) {
-                        raftStatus.getPendingRequests().put(newIndex, rt);
+                        pending.put(newIndex, rt);
                     } else {
                         newTask.addNext(rt);
                     }
@@ -138,12 +138,6 @@ public class Raft {
         // TODO async append, error handle
         raftLog.append(oldIndex, oldTerm, logs);
 
-
-        for (int i = 1; i <= logs.size(); i++) {
-            RaftTask rt = inputs.get(i);
-            // TODO use this buffer
-            rt.input.setLogData(null);
-        }
         raftStatus.setLastLogTerm(currentTerm);
         raftStatus.setLastLogIndex(newIndex);
 
@@ -205,9 +199,25 @@ public class Raft {
             return;
         }
 
-        // TODO error handle
-        LogItem[] items = raftLog.load(nextIndex, tryMatch ? 1 : rest, maxReplicateBytes);
+        int limit = tryMatch ? 1 : rest;
 
+        RaftTask first = raftStatus.getPendingRequests().get(nextIndex);
+        LogItem[] items;
+        if (first != null && !first.input.isReadOnly()) {
+            items = new LogItem[limit];
+            for (int i = 0; i < limit; i++) {
+                RaftTask t = raftStatus.getPendingRequests().get(nextIndex + i);
+                items[i] = t.item;
+            }
+        } else {
+            // TODO error handle
+            items = raftLog.load(nextIndex, limit, maxReplicateBytes);
+        }
+
+        doReplicate(node, items);
+    }
+
+    private void doReplicate(RaftNode node, LogItem[] items) {
         ArrayList<LogItem> logs = new ArrayList<>();
         long bytes = 0;
         for (int i = 0; i < items.length; ) {
@@ -238,10 +248,9 @@ public class Raft {
     }
 
     public void sendHeartBeat() {
-        RaftTask rt = new RaftTask();
-        rt.heartbeat = true;
         DtTime deadline = new DtTime(ts, raftStatus.getElectTimeoutNanos(), TimeUnit.NANOSECONDS);
-        rt.input = new RaftInput(null, null, deadline);
+        RaftInput input = new RaftInput(null, null, deadline, false);
+        RaftTask rt = new RaftTask(ts, true, input, null);
         raftExec(Collections.singletonList(rt));
     }
 
@@ -384,18 +393,19 @@ public class Raft {
         raftStatus.setCommitIndex(recentMatchIndex);
 
         for (long i = raftStatus.getLastApplied() + 1; i <= recentMatchIndex; i++) {
-            RaftTask rt = raftStatus.getPendingRequests().remove(i);
+            RaftTask rt = raftStatus.getPendingRequests().get(i);
             if (rt == null) {
-                rt = new RaftTask();
                 // TODO error handle
                 LogItem item = raftLog.load(i, 1, 0)[0];
-                rt.heartbeat = item.getType() == LogItem.TYPE_HEARTBEAT;
+                boolean heartbeat = item.getType() == LogItem.TYPE_HEARTBEAT;
+                RaftInput input;
                 if (item.getType() != LogItem.TYPE_HEARTBEAT) {
                     Object o = stateMachine.decode(item.getBuffer());
-                    rt.input = new RaftInput(item.getBuffer(), o, null);
+                    input = new RaftInput(item.getBuffer(), o, null, false);
                 } else {
-                    rt.input = new RaftInput(item.getBuffer(), null, null);
+                    input = new RaftInput(item.getBuffer(), null, null, false);
                 }
+                rt = new RaftTask(ts, heartbeat, input, null);
             }
             execInStateMachine(i, rt);
         }

@@ -24,13 +24,15 @@ import java.nio.ByteBuffer;
  */
 public class RaftInput {
     private final DtTime deadline;
+    private final boolean readOnly;
     private ByteBuffer logData;
     private final Object input;
 
-    public RaftInput(ByteBuffer logData, Object input ,DtTime deadline) {
+    public RaftInput(ByteBuffer logData, Object input, DtTime deadline, boolean readOnly) {
         this.logData = logData;
         this.input = input;
         this.deadline = deadline;
+        this.readOnly = readOnly;
     }
 
     /**
@@ -54,5 +56,9 @@ public class RaftInput {
 
     public Object getInput() {
         return input;
+    }
+
+    public boolean isReadOnly() {
+        return readOnly;
     }
 }

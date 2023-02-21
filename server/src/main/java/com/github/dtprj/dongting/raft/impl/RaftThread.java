@@ -191,9 +191,7 @@ public class RaftThread extends Thread {
 
     public CompletableFuture<RaftOutput> submitRaftTask(RaftInput input) {
         CompletableFuture<RaftOutput> f = new CompletableFuture<>();
-        RaftTask t = new RaftTask();
-        t.future = f;
-        t.input = input;
+        RaftTask t = new RaftTask(raftStatus.getTs(), false, input, f);
         queue.offer(t);
         return f;
     }
