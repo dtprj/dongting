@@ -214,14 +214,6 @@ public class RaftStatus {
         return ts;
     }
 
-    public long getLeaseStartNanos() {
-        return leaseStartNanos;
-    }
-
-    public boolean isHasLeaseStartNanos() {
-        return hasLeaseStartNanos;
-    }
-
     public ShareStatus getShareStatus() {
         return shareStatus;
     }
