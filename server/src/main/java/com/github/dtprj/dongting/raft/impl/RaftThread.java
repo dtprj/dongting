@@ -128,8 +128,8 @@ public class RaftThread extends Thread {
                     if (tasks.size() > 0) {
                         raft.raftExec(tasks);
                         tasks.clear();
+                        raftStatus.copyShareStatus();
                     }
-                    raftStatus.copyShareStatus();
                     ((Runnable) o).run();
                     raftStatus.copyShareStatus();
                 } else {
@@ -141,8 +141,8 @@ public class RaftThread extends Thread {
             if (tasks.size() > 0) {
                 raft.raftExec(tasks);
                 tasks.clear();
+                raftStatus.copyShareStatus();
             }
-            raftStatus.copyShareStatus();
 
             if (ts.getNanoTime() - oldNanos > 10 * 1000 * 1000) {
                 idle(ts);
