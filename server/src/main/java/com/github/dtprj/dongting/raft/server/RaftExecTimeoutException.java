@@ -15,10 +15,12 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import com.github.dtprj.dongting.raft.client.RaftException;
+
 /**
  * @author huangli
  */
-public class RaftExecTimeoutException extends Exception {
+public class RaftExecTimeoutException extends RaftException {
     public RaftExecTimeoutException(String message) {
         super(message);
     }
