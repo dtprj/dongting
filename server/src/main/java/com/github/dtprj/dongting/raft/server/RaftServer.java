@@ -174,19 +174,25 @@ public class RaftServer extends AbstractLifeCircle {
         }
     }
 
-    public CompletableFuture<RaftOutput> submitLinearTask(RaftInput input) {
+    public CompletableFuture<RaftOutput> submitLinearTask(RaftInput input) throws RaftException {
+        if (raftStatus.isError()) {
+            throw new RaftException("raft status is error");
+        }
         int currentPendingWrites = (int) PENDING_WRITES.getAndAddRelease(this, 1);
         if (currentPendingWrites >= maxPendingWrites) {
-            log.warn("submitRaftTask failed: too many pending writes");
+            String msg = "submitRaftTask failed: too many pending writes, currentPendingWrites=" + currentPendingWrites;
+            log.warn(msg);
             PENDING_WRITES.getAndAddRelease(this, -1);
-            return null;
+            throw new RaftException(msg);
         }
         int size = input.size();
         long currentPendingWriteBytes = (long) PENDING_WRITE_BYTES.getAndAddRelease(this, size);
         if (currentPendingWriteBytes >= maxPendingWriteBytes) {
-            log.warn("submitRaftTask failed: too many pending write bytes, currentSize={}", size);
+            String msg = "submitRaftTask failed: too many pending write bytes,currentPendingWriteBytes="
+                    + currentPendingWriteBytes + ", currentRequestBytes=" + size;
+            log.warn(msg);
             PENDING_WRITE_BYTES.getAndAddRelease(this, -size);
-            return null;
+            throw new RaftException(msg);
         }
         CompletableFuture<RaftOutput> f = raftThread.submitRaftTask(input);
         registerCallback(f, size);
@@ -201,7 +207,10 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     public long getLogIndexForRead(DtTime deadline)
-            throws NotLeaderException, InterruptedException, TimeoutException {
+            throws RaftException, InterruptedException, TimeoutException {
+        if (raftStatus.isError()) {
+            throw new RaftException("raft status error");
+        }
         ShareStatus ss = raftStatus.getShareStatus();
         readTimestamp.refresh(1);
         if (ss.role != RaftRole.leader) {
@@ -216,7 +225,7 @@ public class RaftServer extends AbstractLifeCircle {
                 ss.firstCommitOfApplied.get(deadline.rest(TimeUnit.NANOSECONDS), TimeUnit.NANOSECONDS);
             } catch (ExecutionException e) {
                 BugLog.log(e);
-                return -1;
+                throw new RaftException(e);
             }
         }
         return ss.lastApplied;

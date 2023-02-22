@@ -147,8 +147,7 @@ public class Raft {
             return;
         }
 
-        // TODO async append, error handle
-        raftLog.append(oldIndex, oldTerm, logs);
+        RaftUtil.append(raftLog, raftStatus, oldIndex, oldTerm, logs);
 
         raftStatus.setLastLogTerm(currentTerm);
         raftStatus.setLastLogIndex(newIndex);
@@ -221,8 +220,7 @@ public class Raft {
                 items[i] = t.item;
             }
         } else {
-            // TODO error handle
-            items = raftLog.load(nextIndex, limit, maxReplicateBytes);
+            items = RaftUtil.load(raftLog, raftStatus, nextIndex, limit, maxReplicateBytes);
         }
 
         doReplicate(node, items);
@@ -355,14 +353,14 @@ public class Raft {
                 node.setNextIndex(body.getMaxLogIndex() + 1);
                 replicate(node);
             } else {
-                long idx = raftLog.findMaxIndexByTerm(body.getMaxLogTerm());
+                long idx = findMaxIndexByTerm(body.getMaxLogTerm());
                 if (idx > 0) {
                     node.setNextIndex(Math.min(body.getMaxLogIndex(), idx) + 1);
                     replicate(node);
                 } else {
-                    int t = raftLog.findLastTermLessThan(body.getMaxLogTerm());
+                    int t = findLastTermLessThan(body.getMaxLogTerm());
                     if (t > 0) {
-                        idx = raftLog.findMaxIndexByTerm(t);
+                        idx = findMaxIndexByTerm(t);
                         if (idx > 0) {
                             node.setNextIndex(Math.min(body.getMaxLogIndex(), idx) + 1);
                             replicate(node);
@@ -380,6 +378,16 @@ public class Raft {
         }
     }
 
+    private long findMaxIndexByTerm(int term) {
+        return RaftUtil.doWithRetry(() -> raftLog.findMaxIndexByTerm(term),
+                raftStatus, 1000, "findMaxIndexByTerm fail");
+    }
+
+    private int findLastTermLessThan(int term) {
+        return RaftUtil.doWithRetry(() -> raftLog.findLastTermLessThan(term),
+                raftStatus, 1000, "findLastTermLessThan fail");
+    }
+
     private void tryCommit(long recentMatchIndex) {
         RaftStatus raftStatus = this.raftStatus;
 
@@ -391,7 +399,8 @@ public class Raft {
         // leader can only commit log in current term, see raft paper 5.4.2
         boolean needNotify = false;
         if (raftStatus.getFirstCommitIndexOfCurrentTerm() <= 0) {
-            int t = raftLog.getTermOf(recentMatchIndex);
+            int t = RaftUtil.doWithRetry(() -> raftLog.getTermOf(recentMatchIndex),
+                    raftStatus, 1000, "RaftLog.getTermOf fail");
             if (t != raftStatus.getCurrentTerm()) {
                 return;
             } else {
@@ -404,8 +413,8 @@ public class Raft {
         for (long i = raftStatus.getLastApplied() + 1; i <= recentMatchIndex; i++) {
             RaftTask rt = raftStatus.getPendingRequests().get(i);
             if (rt == null) {
-                // TODO error handle
-                LogItem item = raftLog.load(i, 1, 0)[0];
+                LogItem item = RaftUtil.load(raftLog, raftStatus, i, 1, 0)[0];
+
                 RaftInput input;
                 if (item.getType() != LogItem.TYPE_HEARTBEAT) {
                     Object o = stateMachine.decode(item.getBuffer());

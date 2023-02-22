@@ -17,6 +17,8 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.Timestamp;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -33,6 +35,9 @@ public class RaftStatus {
     // volatile state on all servers
     private long commitIndex;
     private long lastApplied; // shared
+
+    @SuppressWarnings({"unused"})
+    private boolean error;
 
     private RaftRole role; // shared
     private RaftNode currentLeader; // shared
@@ -56,6 +61,16 @@ public class RaftStatus {
 
     private long lastLogIndex;
     private int lastLogTerm;
+
+    private static final VarHandle ERROR;
+
+    static {
+        try {
+            ERROR = MethodHandles.lookup().findVarHandle(RaftStatus.class, "error", boolean.class);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     public RaftStatus(int electQuorum, int rwQuorum) {
         this.electQuorum = electQuorum;
@@ -106,6 +121,14 @@ public class RaftStatus {
     public void setFirstCommitOfApplied(CompletableFuture<Void> firstCommitOfApplied) {
         this.firstCommitOfApplied = firstCommitOfApplied;
         this.shareStatusUpdated = true;
+    }
+
+    public boolean isError() {
+        return (boolean) ERROR.getAcquire(this);
+    }
+
+    public void setError(boolean errorState) {
+        ERROR.setRelease(this, errorState);
     }
 
     //------------------------- simple getters and setters--------------------------------

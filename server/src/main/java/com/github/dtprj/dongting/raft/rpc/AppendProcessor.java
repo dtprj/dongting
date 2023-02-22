@@ -38,7 +38,7 @@ import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.StateMachine;
 
 import java.nio.ByteBuffer;
-import java.util.List;
+import java.util.ArrayList;
 
 /**
  * @author huangli
@@ -117,7 +117,7 @@ public class AppendProcessor extends ReqProcessor {
             resp.setAppendCode(CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT);
             return;
         }
-        List<LogItem> logs = req.getLogs();
+        ArrayList<LogItem> logs = req.getLogs();
         if (logs == null || logs.size() == 0) {
             log.error("bad request: no logs");
             resp.setSuccess(false);
@@ -125,9 +125,7 @@ public class AppendProcessor extends ReqProcessor {
             return;
         }
 
-        // TODO error handle
-        long newIndex = req.getPrevLogIndex() + logs.size();
-        raftLog.append(newIndex, req.getPrevLogTerm(), logs);
+        RaftUtil.append(raftLog, raftStatus, req.getPrevLogIndex(), req.getPrevLogTerm(), logs);
 
         for (LogItem li : logs) {
             RaftInput raftInput = new RaftInput(li.getBuffer(), null, null, false);
@@ -135,6 +133,7 @@ public class AppendProcessor extends ReqProcessor {
             raftStatus.getPendingRequests().put(li.getIndex(), task);
         }
 
+        long newIndex = req.getPrevLogIndex() + logs.size();
         raftStatus.setLastLogIndex(newIndex);
         raftStatus.setLastLogTerm(logs.get(logs.size() - 1).getTerm());
         if (req.getLeaderCommit() > raftStatus.getCommitIndex()) {
@@ -159,7 +158,8 @@ public class AppendProcessor extends ReqProcessor {
                 diff--;
             } else {
                 int limit = (int) Math.min(diff, 100L);
-                LogItem[] items = raftLog.load(lastApplied + 1, limit, 16 * 1024 * 1024);
+                LogItem[] items = RaftUtil.load(raftLog, raftStatus,
+                        lastApplied + 1, limit, 16 * 1024 * 1024);
                 int readCount = items.length;
                 for (LogItem item : items) {
                     apply(item.getType(), item.getBuffer());

@@ -19,13 +19,17 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
+import com.github.dtprj.dongting.raft.server.RaftLog;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -170,4 +174,48 @@ public class RaftUtil {
         return leader == null ? null : leader.getPeer().getEndPoint();
     }
 
+    public static void append(RaftLog raftLog, RaftStatus raftStatus, long prevLogIndex,
+                              int prevLogTerm, ArrayList<LogItem> logs) {
+        RaftUtil.doWithRetry(() -> {
+            raftLog.append(prevLogIndex, prevLogTerm, logs);
+            return null;
+        }, raftStatus, 1000, "raft log append error");
+    }
+
+    public static <T> T doWithRetry(Supplier<T> callback, RaftStatus raftStatus, long sleepMillis, String errorMsg) {
+        int failCount = 0;
+        while (true) {
+            try {
+                T result = callback.get();
+                if (failCount > 0) {
+                    raftStatus.setError(false);
+                }
+                return result;
+            } catch (Exception e) {
+                failCount++;
+                log.error(errorMsg, e);
+                if (failCount == 2) {
+                    raftStatus.setError(true);
+                }
+                try {
+                    Thread.sleep(sleepMillis);
+                } catch (InterruptedException ex) {
+                    throw new RaftException(ex);
+                }
+            }
+        }
+    }
+
+    public static LogItem[] load(RaftLog raftLog, RaftStatus raftStatus, long index, int limit, long bytesLimit) {
+        LogItem[] items;
+        items = doWithRetry(() -> {
+            raftLog.load(index, limit, bytesLimit);
+            return null;
+        }, raftStatus, 1000, "raft log load error");
+        if (items == null || items.length == 0) {
+            throw new RaftException("can't load raft log, result is null or empty. index=" + index +
+                    ", limit=" + limit + ", bytesLimit=" + bytesLimit);
+        }
+        return items;
+    }
 }
