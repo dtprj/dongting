@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.common.Timestamp;
 
 import java.util.ArrayList;
@@ -42,7 +41,7 @@ public class RaftStatus {
     private final int rwQuorum;
     private final List<RaftNode> servers = new ArrayList<>();
 
-    private LongObjMap<RaftTask> pendingRequests = new LongObjMap<>();
+    private PendingMap pendingRequests;
     private long firstCommitIndexOfCurrentTerm;
     private CompletableFuture<Void> firstCommitOfApplied; // shared
 
@@ -194,11 +193,11 @@ public class RaftStatus {
         return servers;
     }
 
-    public LongObjMap<RaftTask> getPendingRequests() {
+    public PendingMap getPendingRequests() {
         return pendingRequests;
     }
 
-    public void setPendingRequests(LongObjMap<RaftTask> pendingRequests) {
+    public void setPendingRequests(PendingMap pendingRequests) {
         this.pendingRequests = pendingRequests;
     }
 

@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -27,6 +26,7 @@ import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
+import com.github.dtprj.dongting.raft.impl.PendingMap;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
@@ -149,7 +149,7 @@ public class AppendProcessor extends ReqProcessor {
 
     private void apply(RaftStatus raftStatus) {
         long diff = raftStatus.getCommitIndex() - raftStatus.getLastApplied();
-        LongObjMap<RaftTask> pendingRequests = raftStatus.getPendingRequests();
+        PendingMap pendingRequests = raftStatus.getPendingRequests();
         long lastApplied = raftStatus.getLastApplied();
         while (diff > 0) {
             RaftTask rt = pendingRequests.get(lastApplied + 1);

@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.HostPort;
@@ -97,7 +96,7 @@ public class RaftUtil {
         raftStatus.setHeartbeatTime(raftStatus.getLastElectTime());
         raftStatus.setLeaseStartNanos(0);
         raftStatus.setHasLeaseStartNanos(false);
-        raftStatus.setPendingRequests(new LongObjMap<>());
+        raftStatus.setPendingRequests(new PendingMap());
         raftStatus.setCurrentLeader(null);
         for (RaftNode node : raftStatus.getServers()) {
             node.setMatchIndex(0);
@@ -114,7 +113,7 @@ public class RaftUtil {
         log.info("update term from {} to {}, change to follower, oldRole={}",
                 raftStatus.getCurrentTerm(), remoteTerm, raftStatus.getRole());
         RaftRole oldRole = raftStatus.getRole();
-        LongObjMap<RaftTask> oldPending = raftStatus.getPendingRequests();
+        PendingMap oldPending = raftStatus.getPendingRequests();
         resetStatus(raftStatus);
         if (newLeaderId > 0) {
             updateLeader(raftStatus, newLeaderId);

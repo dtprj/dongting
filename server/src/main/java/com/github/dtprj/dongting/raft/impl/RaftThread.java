@@ -100,54 +100,72 @@ public class RaftThread extends Thread {
             return;
         }
         Timestamp ts = raftStatus.getTs();
+        long lastCleanTime = ts.getNanoTime();
         ArrayList<RaftTask> tasks = new ArrayList<>(32);
         ArrayList<Object> queueData = new ArrayList<>(32);
         boolean poll = true;
         while (!stop) {
-            long oldNanos = ts.getNanoTime();
-            if (poll) {
-                try {
-                    Object o = queue.poll(50, TimeUnit.MILLISECONDS);
-                    if (o != null) {
-                        queueData.add(o);
-                    }
-                } catch (InterruptedException e) {
-                    return;
-                }
-            } else {
-                queue.drainTo(queueData);
+            try {
+                poll = pollAndRefreshTs(ts, queueData, poll);
+            } catch (InterruptedException e) {
+                return;
             }
-
-            ts.refresh(1);
-            poll = ts.getNanoTime() - oldNanos > 2 * 1000 * 1000 || queueData.size() == 0;
-
-            for (Object o : queueData) {
-                if (o instanceof RaftTask) {
-                    tasks.add((RaftTask) o);
-                } else if (o instanceof Runnable) {
-                    if (tasks.size() > 0) {
-                        raft.raftExec(tasks);
-                        tasks.clear();
-                        raftStatus.copyShareStatus();
-                    }
-                    ((Runnable) o).run();
-                    raftStatus.copyShareStatus();
-                } else {
-                    BugLog.getLog().error("type error: {}", o.getClass());
-                    return;
-                }
+            if (!process(tasks, queueData)) {
+                return;
             }
-
-            if (tasks.size() > 0) {
-                raft.raftExec(tasks);
-                tasks.clear();
-                raftStatus.copyShareStatus();
+            if (queueData.size() > 0) {
+                ts.refresh(1);
+                queueData.clear();
             }
-
-            if (ts.getNanoTime() - oldNanos > 10 * 1000 * 1000) {
+            if (ts.getNanoTime() - lastCleanTime > 5 * 1000 * 1000) {
+                raftStatus.getPendingRequests().cleanPending(raftStatus,
+                        config.getMaxPendingWrites(), config.getMaxPendingWriteBytes());
                 idle(ts);
+                lastCleanTime = ts.getNanoTime();
             }
         }
+    }
+
+    private boolean process(ArrayList<RaftTask> tasks, ArrayList<Object> queueData) {
+        RaftStatus raftStatus = this.raftStatus;
+        for (Object o : queueData) {
+            if (o instanceof RaftTask) {
+                tasks.add((RaftTask) o);
+            } else if (o instanceof Runnable) {
+                if (tasks.size() > 0) {
+                    raft.raftExec(tasks);
+                    tasks.clear();
+                    raftStatus.copyShareStatus();
+                }
+                ((Runnable) o).run();
+                raftStatus.copyShareStatus();
+            } else {
+                BugLog.getLog().error("type error: {}", o.getClass());
+                return false;
+            }
+        }
+
+        if (tasks.size() > 0) {
+            raft.raftExec(tasks);
+            tasks.clear();
+            raftStatus.copyShareStatus();
+        }
+        return true;
+    }
+
+    private boolean pollAndRefreshTs(Timestamp ts, ArrayList<Object> queueData, boolean poll) throws InterruptedException {
+        long oldNanos = ts.getNanoTime();
+        if (poll) {
+            Object o = queue.poll(50, TimeUnit.MILLISECONDS);
+            if (o != null) {
+                queueData.add(o);
+            }
+        } else {
+            queue.drainTo(queueData);
+        }
+
+        ts.refresh(1);
+        return ts.getNanoTime() - oldNanos > 2 * 1000 * 1000 || queueData.size() == 0;
     }
 
     public void requestShutdown() {
@@ -163,7 +181,6 @@ public class RaftThread extends Thread {
         if (raftStatus.getElectQuorum() == 1) {
             return;
         }
-        ts.refresh(1);
         long roundTimeNanos = ts.getNanoTime();
 
         if (roundTimeNanos - raftStatus.getHeartbeatTime() > heartbeatIntervalNanos) {

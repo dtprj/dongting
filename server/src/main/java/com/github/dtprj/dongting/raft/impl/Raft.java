@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -110,7 +109,7 @@ public class Raft {
         ArrayList<LogItem> logs = new ArrayList<>(inputs.size());
         int oldTerm = raftStatus.getLastLogTerm();
         int currentTerm = raftStatus.getCurrentTerm();
-        LongObjMap<RaftTask> pending = raftStatus.getPendingRequests();
+        PendingMap pending = raftStatus.getPendingRequests();
         for (RaftTask rt : inputs) {
             RaftInput input = rt.input;
             if (!input.isReadOnly()) {
