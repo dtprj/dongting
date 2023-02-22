@@ -15,12 +15,15 @@
  */
 package com.github.dtprj.dongting.net;
 
+import java.io.Serializable;
 import java.util.Objects;
 
 /**
  * @author huangli
  */
-public class HostPort {
+public class HostPort implements Serializable {
+    private static final long serialVersionUID = 6380309910720799448L;
+
     private final String host;
     private final int port;
     private String toStr;

@@ -21,6 +21,8 @@ import com.github.dtprj.dongting.raft.client.RaftException;
  * @author huangli
  */
 public class RaftExecTimeoutException extends RaftException {
+    private static final long serialVersionUID = -5280601793702190730L;
+
     public RaftExecTimeoutException(String message) {
         super(message);
     }

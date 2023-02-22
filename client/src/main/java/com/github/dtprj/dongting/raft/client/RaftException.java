@@ -21,6 +21,8 @@ import com.github.dtprj.dongting.common.DtException;
  * @author huangli
  */
 public class RaftException extends DtException {
+    private static final long serialVersionUID = 761823722154991537L;
+
     public RaftException() {
     }
 

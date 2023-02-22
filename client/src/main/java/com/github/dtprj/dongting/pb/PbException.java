@@ -21,6 +21,8 @@ import com.github.dtprj.dongting.common.DtException;
  * @author huangli
  */
 public class PbException extends DtException {
+    private static final long serialVersionUID = 5611346320921436852L;
+
     public PbException(String message) {
         super(message);
     }

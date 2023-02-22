@@ -21,6 +21,8 @@ import com.github.dtprj.dongting.common.DtException;
  * @author huangli
  */
 public class NetException extends DtException {
+    private static final long serialVersionUID = 1639923130954156868L;
+
     public NetException() {
         super();
     }

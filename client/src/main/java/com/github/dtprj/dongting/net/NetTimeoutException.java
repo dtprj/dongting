@@ -19,6 +19,8 @@ package com.github.dtprj.dongting.net;
  * @author huangli
  */
 public class NetTimeoutException extends NetException {
+    private static final long serialVersionUID = 6210442767957695035L;
+
     public NetTimeoutException(String message) {
         super(message);
     }

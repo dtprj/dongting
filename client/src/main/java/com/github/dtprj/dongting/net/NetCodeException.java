@@ -19,6 +19,7 @@ package com.github.dtprj.dongting.net;
  * @author huangli
  */
 public class NetCodeException extends NetException {
+    private static final long serialVersionUID = -5950474263583156637L;
     private final int code;
     private final String msg;
 

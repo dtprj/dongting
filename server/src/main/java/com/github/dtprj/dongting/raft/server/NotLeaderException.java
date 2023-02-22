@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.raft.client.RaftException;
  * @author huangli
  */
 public class NotLeaderException extends RaftException {
+    private static final long serialVersionUID = 3514859721941247422L;
 
     // may be null
     private final HostPort currentLeader;

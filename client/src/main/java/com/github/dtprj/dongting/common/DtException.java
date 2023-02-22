@@ -19,6 +19,8 @@ package com.github.dtprj.dongting.common;
  * @author huangli
  */
 public class DtException extends RuntimeException {
+    private static final long serialVersionUID = -6365199515910498711L;
+
     public DtException() {
         super();
     }
