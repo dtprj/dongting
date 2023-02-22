@@ -50,7 +50,6 @@ public class RaftStatus {
     private long electTimeoutNanos; // shared
 
     private long leaseStartNanos; // shared
-    private boolean hasLeaseStartNanos; // shared
 
     private long lastElectTime;
     private long heartbeatTime;
@@ -70,7 +69,6 @@ public class RaftStatus {
             ShareStatus ss = new ShareStatus();
             ss.role = role;
             ss.lastApplied = lastApplied;
-            ss.hasLease = hasLeaseStartNanos;
             ss.leaseEndNanos = leaseStartNanos + electTimeoutNanos;
             ss.currentLeader = currentLeader;
             ss.firstCommitOfApplied = firstCommitOfApplied;
@@ -87,11 +85,6 @@ public class RaftStatus {
 
     public void setRole(RaftRole role) {
         this.role = role;
-        this.shareStatusUpdated = true;
-    }
-
-    public void setHasLeaseStartNanos(boolean hasLeaseStartNanos) {
-        this.hasLeaseStartNanos = hasLeaseStartNanos;
         this.shareStatusUpdated = true;
     }
 

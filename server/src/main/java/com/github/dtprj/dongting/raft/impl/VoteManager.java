@@ -116,12 +116,12 @@ public class VoteManager {
     private void startPreVote() {
         for (RaftNode node : raftStatus.getServers()) {
             if (!node.isSelf() && node.isReady()) {
-                sendRequest(node, true);
+                sendRequest(node, true, 0);
             }
         }
     }
 
-    private void sendRequest(RaftNode node, boolean preVote) {
+    private void sendRequest(RaftNode node, boolean preVote, long leaseStartTime) {
         VoteReq req = new VoteReq();
         int currentTerm = raftStatus.getCurrentTerm();
         req.setCandidateId(config.getId());
@@ -141,7 +141,7 @@ public class VoteManager {
         if (preVote) {
             f.handleAsync((rf, ex) -> processPreVoteResp(rf, ex, node, req, voteIdOfRequest), raftExecutor);
         } else {
-            f.handleAsync((rf, ex) -> processVoteResp(rf, ex, node, req, voteIdOfRequest), raftExecutor);
+            f.handleAsync((rf, ex) -> processVoteResp(rf, ex, node, req, voteIdOfRequest, leaseStartTime), raftExecutor);
         }
     }
 
@@ -189,19 +189,23 @@ public class VoteManager {
 
         log.info("start vote. newTerm={}, voteId={}", raftStatus.getCurrentTerm(), currentVoteId);
 
+        long leaseStartTime = raftStatus.getTs().getNanoTime();
         for (RaftNode node : raftStatus.getServers()) {
             if (!node.isSelf()) {
-                sendRequest(node, false);
+                sendRequest(node, false, leaseStartTime);
+            } else {
+                node.setLastConfirm(true, leaseStartTime);
             }
         }
     }
 
-    private Object processVoteResp(ReadFrame rf, Throwable ex, RaftNode remoteNode, VoteReq voteReq, int voteIdOfRequest) {
+    private Object processVoteResp(ReadFrame rf, Throwable ex, RaftNode remoteNode,
+                                   VoteReq voteReq, int voteIdOfRequest, long leaseStartTime) {
         if (voteIdOfRequest != currentVoteId) {
             return null;
         }
         if (ex == null) {
-            processVoteResp(rf, remoteNode, voteReq);
+            processVoteResp(rf, remoteNode, voteReq, leaseStartTime);
         } else {
             log.warn("vote rpc fail.term={}, remote={}, error={}", voteReq.getTerm(),
                     remoteNode.getPeer().getEndPoint(), ex.toString());
@@ -211,7 +215,7 @@ public class VoteManager {
         return null;
     }
 
-    private void processVoteResp(ReadFrame rf, RaftNode remoteNode, VoteReq voteReq) {
+    private void processVoteResp(ReadFrame rf, RaftNode remoteNode, VoteReq voteReq, long leaseStartTime) {
         VoteResp voteResp = (VoteResp) rf.getBody();
         int remoteTerm = voteResp.getTerm();
         if (remoteTerm < raftStatus.getCurrentTerm()) {
@@ -228,9 +232,11 @@ public class VoteManager {
                         voteReq.getTerm(), oldCount, remoteNode.getPeer().getEndPoint());
                 if (voteResp.isVoteGranted()) {
                     votes.add(remoteNode.getId());
+                    remoteNode.setLastConfirm(true, leaseStartTime);
                     int newCount = votes.size();
                     if (newCount > oldCount && newCount == raftStatus.getElectQuorum()) {
                         RaftUtil.changeToLeader(raftStatus);
+                        RaftUtil.updateLease(leaseStartTime, raftStatus);
                         raft.sendHeartBeat();
                     }
                 }

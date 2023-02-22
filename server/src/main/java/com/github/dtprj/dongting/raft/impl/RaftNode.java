@@ -55,6 +55,11 @@ public class RaftNode {
         pendingBytes -= bytes;
     }
 
+    public void setLastConfirm(boolean hasLastConfirmReqNanos, long lastConfirmReqNanos) {
+        this.hasLastConfirmReqNanos = hasLastConfirmReqNanos;
+        this.lastConfirmReqNanos = lastConfirmReqNanos;
+    }
+
     //-------------------------getter and setters-------------------------------
 
     public int getId() {
@@ -145,15 +150,8 @@ public class RaftNode {
         return lastConfirmReqNanos;
     }
 
-    public void setLastConfirmReqNanos(long lastConfirmReqNanos) {
-        this.lastConfirmReqNanos = lastConfirmReqNanos;
-    }
-
     public boolean isHasLastConfirmReqNanos() {
         return hasLastConfirmReqNanos;
     }
 
-    public void setHasLastConfirmReqNanos(boolean hasLastConfirmReqNanos) {
-        this.hasLastConfirmReqNanos = hasLastConfirmReqNanos;
-    }
 }

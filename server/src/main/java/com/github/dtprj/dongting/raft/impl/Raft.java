@@ -156,8 +156,7 @@ public class Raft {
         RaftNode self = getSelf();
         self.setNextIndex(newIndex + 1);
         self.setMatchIndex(newIndex);
-        self.setHasLastConfirmReqNanos(true);
-        self.setLastConfirmReqNanos(ts.getNanoTime());
+        self.setLastConfirm(true, ts.getNanoTime());
 
         // for single node mode
         if (raftStatus.getRwQuorum() == 1) {
@@ -333,8 +332,7 @@ public class Raft {
         }
         if (body.isSuccess()) {
             if (node.getMatchIndex() <= prevLogIndex) {
-                node.setHasLastConfirmReqNanos(true);
-                node.setLastConfirmReqNanos(reqNanos);
+                node.setLastConfirm(true, reqNanos);
                 RaftUtil.updateLease(reqNanos, raftStatus);
                 node.setMatchIndex(expectNewMatchIndex);
                 node.setMultiAppend(true);
@@ -350,8 +348,7 @@ public class Raft {
             log.info("log not match. remoteId={}, matchIndex={}, prevLogIndex={}, prevLogTerm={}, remoteLogTerm={}, remoteLogIndex={}, localTerm={}, reqTerm={}, remoteTerm={}",
                     node.getId(), node.getMatchIndex(), prevLogIndex, prevLogTerm, body.getMaxLogTerm(),
                     body.getMaxLogIndex(), raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
-            node.setHasLastConfirmReqNanos(true);
-            node.setLastConfirmReqNanos(reqNanos);
+            node.setLastConfirm(true, reqNanos);
             node.setMultiAppend(false);
             RaftUtil.updateLease(reqNanos, raftStatus);
             if (body.getTerm() == raftStatus.getCurrentTerm() && reqTerm == raftStatus.getCurrentTerm()) {

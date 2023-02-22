@@ -81,7 +81,6 @@ public class RaftUtil {
         }
         if (raftStatus.getRwQuorum() == order) {
             raftStatus.setLeaseStartNanos(currentReqNanos);
-            raftStatus.setHasLeaseStartNanos(true);
         }
     }
 
@@ -95,7 +94,6 @@ public class RaftUtil {
         RaftUtil.resetElectTimer(raftStatus);
         raftStatus.setHeartbeatTime(raftStatus.getLastElectTime());
         raftStatus.setLeaseStartNanos(0);
-        raftStatus.setHasLeaseStartNanos(false);
         raftStatus.setPendingRequests(new PendingMap());
         raftStatus.setCurrentLeader(null);
         for (RaftNode node : raftStatus.getServers()) {
@@ -103,8 +101,7 @@ public class RaftUtil {
             node.setNextIndex(0);
             node.setPendingRequests(0);
             node.setPendingBytes(0);
-            node.setLastConfirmReqNanos(0);
-            node.setHasLastConfirmReqNanos(false);
+            node.setLastConfirm(false, 0);
             node.setMultiAppend(false);
         }
     }
