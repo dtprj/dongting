@@ -30,6 +30,7 @@ import com.github.dtprj.dongting.raft.rpc.AppendReqWriteFrame;
 import com.github.dtprj.dongting.raft.rpc.AppendRespCallback;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
+import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
@@ -112,6 +113,13 @@ public class Raft {
         PendingMap pending = raftStatus.getPendingRequests();
         for (RaftTask rt : inputs) {
             RaftInput input = rt.input;
+
+            if (input.getDeadline().isTimeout(ts)) {
+                rt.future.completeExceptionally(new RaftExecTimeoutException("timeout "
+                        + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms"));
+                continue;
+            }
+
             if (!input.isReadOnly()) {
                 newIndex++;
                 LogItem item = new LogItem(rt.type, newIndex, currentTerm, oldTerm, input.getLogData());
@@ -123,7 +131,7 @@ public class Raft {
             } else {
                 // read
                 if (newIndex <= raftStatus.getLastApplied()) {
-                    execInStateMachine(newIndex, false, input.getInput(), rt.future);
+                    execInStateMachine0(newIndex, rt);
                 } else {
                     RaftTask newTask = pending.get(newIndex);
                     if (newTask == null) {
@@ -133,6 +141,10 @@ public class Raft {
                     }
                 }
             }
+        }
+
+        if (logs.size() == 0) {
+            return;
         }
 
         // TODO async append, error handle
@@ -417,23 +429,32 @@ public class Raft {
     }
 
     private void execInStateMachine(long index, RaftTask rt) {
-        execInStateMachine(index, rt.type == LogItem.TYPE_HEARTBEAT, rt.input.getInput(), rt.future);
+        execInStateMachine0(index, rt);
         if (rt.nextReaders == null) {
             return;
         }
-        for (RaftTask r : rt.nextReaders) {
-            execInStateMachine(index, false, r.input.getInput(), r.future);
+        for (RaftTask readerTask : rt.nextReaders) {
+            execInStateMachine0(index, readerTask);
         }
     }
 
-    private void execInStateMachine(long index, boolean heartbeat, Object input, CompletableFuture<RaftOutput> f) {
+    private void execInStateMachine0(long index, RaftTask rt) {
         // TODO error handle
-        if (heartbeat) {
+        if (rt.type == LogItem.TYPE_HEARTBEAT) {
+            return;
+        }
+        RaftInput input = rt.input;
+        CompletableFuture<RaftOutput> future = rt.future;
+        if (input.isReadOnly() && input.getDeadline().isTimeout(ts)) {
+            if (future != null) {
+                future.completeExceptionally(new RaftExecTimeoutException("timeout "
+                        + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms"));
+            }
             return;
         }
         Object result = stateMachine.exec(input);
-        if (f != null) {
-            f.complete(new RaftOutput(index, result));
+        if (future != null) {
+            future.complete(new RaftOutput(index, result));
         }
     }
 }
