@@ -445,7 +445,6 @@ public class Raft {
     }
 
     private void execInStateMachine0(long index, RaftTask rt) {
-        // TODO error handle
         if (rt.type == LogItem.TYPE_HEARTBEAT) {
             return;
         }
