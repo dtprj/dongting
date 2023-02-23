@@ -35,7 +35,7 @@ public class MemKv implements StateMachine {
     }
 
     @Override
-    public Object exec(Object input) {
+    public Object exec(long index, Object input) {
         return null;
     }
 

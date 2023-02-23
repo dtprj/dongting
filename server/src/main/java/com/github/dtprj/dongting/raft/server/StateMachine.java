@@ -25,6 +25,6 @@ public interface StateMachine {
 
     Object decode(ByteBuffer logData);
 
-    Object exec(Object input);
+    Object exec(long index, Object input);
 
 }

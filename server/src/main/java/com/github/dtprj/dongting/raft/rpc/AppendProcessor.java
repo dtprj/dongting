@@ -151,18 +151,19 @@ public class AppendProcessor extends ReqProcessor {
         PendingMap pendingRequests = raftStatus.getPendingRequests();
         long lastApplied = raftStatus.getLastApplied();
         while (diff > 0) {
-            RaftTask rt = pendingRequests.get(lastApplied + 1);
+            long index = lastApplied+1;
+            RaftTask rt = pendingRequests.get(index);
             if (rt != null) {
-                apply(rt.type, rt.input.getLogData());
+                apply(rt.type, index, rt.input.getLogData());
                 lastApplied++;
                 diff--;
             } else {
                 int limit = (int) Math.min(diff, 100L);
                 LogItem[] items = RaftUtil.load(raftLog, raftStatus,
-                        lastApplied + 1, limit, 16 * 1024 * 1024);
+                        index, limit, 16 * 1024 * 1024);
                 int readCount = items.length;
                 for (LogItem item : items) {
-                    apply(item.getType(), item.getBuffer());
+                    apply(item.getType(), index++, item.getBuffer());
                 }
                 lastApplied += readCount;
                 diff -= readCount;
@@ -171,10 +172,10 @@ public class AppendProcessor extends ReqProcessor {
         raftStatus.setLastApplied(lastApplied);
     }
 
-    private void apply(int type, ByteBuffer buffer) {
+    private void apply(int type,long index, ByteBuffer buffer) {
         if (type != LogItem.TYPE_HEARTBEAT) {
             Object decodedObj = stateMachine.decode(buffer);
-            stateMachine.exec(decodedObj);
+            stateMachine.exec(index, decodedObj);
         }
     }
 

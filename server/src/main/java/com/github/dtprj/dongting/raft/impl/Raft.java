@@ -458,7 +458,7 @@ public class Raft {
             return;
         }
         try {
-            Object result = stateMachine.exec(input);
+            Object result = stateMachine.exec(index, input);
             if (future != null) {
                 future.complete(new RaftOutput(index, result));
             }
