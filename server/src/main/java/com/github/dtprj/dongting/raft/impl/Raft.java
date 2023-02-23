@@ -26,7 +26,6 @@ import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
-import com.github.dtprj.dongting.raft.server.StateMachine;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -42,11 +41,11 @@ public class Raft {
 
     private final LeaderAppendManager leaderAppendManager;
     private final ApplyManager applyManager;
+    private final CommitManager commitManager;
 
     private final RaftServerConfig config;
     private final RaftLog raftLog;
     private final RaftStatus raftStatus;
-    private final StateMachine stateMachine;
 
     private final int maxReplicateItems;
     private final int restItemsToStartReplicate;
@@ -59,11 +58,11 @@ public class Raft {
         this.config = container.getConfig();
         this.raftLog = container.getRaftLog();
         this.raftStatus = container.getRaftStatus();
-        this.stateMachine = container.getStateMachine();
         this.ts = raftStatus.getTs();
 
         this.applyManager = new ApplyManager(container.getStateMachine(), ts);
-        this.leaderAppendManager = new LeaderAppendManager(container, this);
+        this.commitManager = new CommitManager(raftStatus, raftLog, container.getStateMachine(), applyManager);
+        this.leaderAppendManager = new LeaderAppendManager(container, this, commitManager);
 
         this.maxReplicateItems = config.getMaxReplicateItems();
         this.maxReplicateBytes = config.getMaxReplicateBytes();
@@ -150,7 +149,7 @@ public class Raft {
         // for single node mode
         if (raftStatus.getRwQuorum() == 1) {
             RaftUtil.updateLease(ts.getNanoTime(), raftStatus);
-            tryCommit(newIndex);
+            commitManager.tryCommit(newIndex);
         }
 
 
@@ -252,52 +251,5 @@ public class Raft {
         RaftTask rt = new RaftTask(ts, LogItem.TYPE_HEARTBEAT, input, null);
         raftExec(Collections.singletonList(rt));
     }
-
-    void tryCommit(long recentMatchIndex) {
-        RaftStatus raftStatus = this.raftStatus;
-
-        boolean needCommit = RaftUtil.needCommit(raftStatus.getCommitIndex(), recentMatchIndex,
-                raftStatus.getServers(), raftStatus.getRwQuorum());
-        if (!needCommit) {
-            return;
-        }
-        // leader can only commit log in current term, see raft paper 5.4.2
-        boolean needNotify = false;
-        if (raftStatus.getFirstCommitIndexOfCurrentTerm() <= 0) {
-            int t = RaftUtil.doWithRetry(() -> raftLog.getTermOf(recentMatchIndex),
-                    raftStatus, 1000, "RaftLog.getTermOf fail");
-            if (t != raftStatus.getCurrentTerm()) {
-                return;
-            } else {
-                raftStatus.setFirstCommitIndexOfCurrentTerm(recentMatchIndex);
-                needNotify = true;
-            }
-        }
-        raftStatus.setCommitIndex(recentMatchIndex);
-
-        for (long i = raftStatus.getLastApplied() + 1; i <= recentMatchIndex; i++) {
-            RaftTask rt = raftStatus.getPendingRequests().get(i);
-            if (rt == null) {
-                LogItem item = RaftUtil.load(raftLog, raftStatus, i, 1, 0)[0];
-
-                RaftInput input;
-                if (item.getType() != LogItem.TYPE_HEARTBEAT) {
-                    Object o = stateMachine.decode(item.getBuffer());
-                    input = new RaftInput(item.getBuffer(), o, null, false);
-                } else {
-                    input = new RaftInput(item.getBuffer(), null, null, false);
-                }
-                rt = new RaftTask(ts, item.getType(), input, null);
-            }
-            applyManager.execChain(i, rt);
-        }
-
-        raftStatus.setLastApplied(recentMatchIndex);
-        if (needNotify) {
-            raftStatus.getFirstCommitOfApplied().complete(null);
-            raftStatus.setFirstCommitOfApplied(null);
-        }
-    }
-
 
 }

@@ -47,17 +47,19 @@ class LeaderAppendManager {
     private final RaftLog raftLog;
     private final NioClient client;
     private final RaftExecutor raftExecutor;
+    private final CommitManager commitManager;
     private final Raft raft;
     private final Timestamp ts;
 
     private static final PbZeroCopyDecoder appendRespDecoder = new PbZeroCopyDecoder(c -> new AppendRespCallback());
 
-    LeaderAppendManager(RaftContainer raftContainer, Raft raft) {
+    LeaderAppendManager(RaftContainer raftContainer, Raft raft, CommitManager commitManager) {
         this.raftStatus = raftContainer.getRaftStatus();
         this.config = raftContainer.getConfig();
         this.raftLog = raftContainer.getRaftLog();
         this.client = raftContainer.getClient();
         this.raftExecutor = raftContainer.getRaftExecutor();
+        this.commitManager = commitManager;
         this.ts = raftStatus.getTs();
         this.raft = raft;
     }
@@ -133,7 +135,7 @@ class LeaderAppendManager {
                 RaftUtil.updateLease(reqNanos, raftStatus);
                 node.setMatchIndex(expectNewMatchIndex);
                 node.setMultiAppend(true);
-                raft.tryCommit(expectNewMatchIndex);
+                commitManager.tryCommit(expectNewMatchIndex);
                 if (raftStatus.getLastLogIndex() >= node.getNextIndex()) {
                     raft.replicate(node);
                 }
