@@ -25,14 +25,12 @@ import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftLog;
-import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.server.StateMachine;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -43,6 +41,7 @@ public class Raft {
     private static final DtLog log = DtLogs.getLogger(Raft.class);
 
     private final LeaderAppendManager leaderAppendManager;
+    private final ApplyManager applyManager;
 
     private final RaftServerConfig config;
     private final RaftLog raftLog;
@@ -57,16 +56,18 @@ public class Raft {
     private final Timestamp ts;
 
     public Raft(RaftContainer container) {
-        this.leaderAppendManager = new LeaderAppendManager(container, this);
         this.config = container.getConfig();
         this.raftLog = container.getRaftLog();
         this.raftStatus = container.getRaftStatus();
         this.stateMachine = container.getStateMachine();
+        this.ts = raftStatus.getTs();
+
+        this.applyManager = new ApplyManager(container.getStateMachine(), ts);
+        this.leaderAppendManager = new LeaderAppendManager(container, this);
 
         this.maxReplicateItems = config.getMaxReplicateItems();
         this.maxReplicateBytes = config.getMaxReplicateBytes();
         this.restItemsToStartReplicate = (int) (maxReplicateItems * 0.1);
-        this.ts = raftStatus.getTs();
     }
 
     private RaftNode getSelf() {
@@ -120,7 +121,7 @@ public class Raft {
             } else {
                 // read
                 if (newIndex <= raftStatus.getLastApplied()) {
-                    execInStateMachine0(newIndex, rt);
+                    applyManager.exec(newIndex, rt);
                 } else {
                     RaftTask newTask = pending.get(newIndex);
                     if (newTask == null) {
@@ -288,7 +289,7 @@ public class Raft {
                 }
                 rt = new RaftTask(ts, item.getType(), input, null);
             }
-            execInStateMachine(i, rt);
+            applyManager.execChain(i, rt);
         }
 
         raftStatus.setLastApplied(recentMatchIndex);
@@ -298,43 +299,5 @@ public class Raft {
         }
     }
 
-    private void execInStateMachine(long index, RaftTask rt) {
-        execInStateMachine0(index, rt);
-        if (rt.nextReaders == null) {
-            return;
-        }
-        for (RaftTask readerTask : rt.nextReaders) {
-            execInStateMachine0(index, readerTask);
-        }
-    }
 
-    private void execInStateMachine0(long index, RaftTask rt) {
-        if (rt.type == LogItem.TYPE_HEARTBEAT) {
-            return;
-        }
-        RaftInput input = rt.input;
-        CompletableFuture<RaftOutput> future = rt.future;
-        if (input.isReadOnly() && input.getDeadline().isTimeout(ts)) {
-            if (future != null) {
-                future.completeExceptionally(new RaftExecTimeoutException("timeout "
-                        + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms"));
-            }
-            return;
-        }
-        try {
-            Object result = stateMachine.exec(index, input);
-            if (future != null) {
-                future.complete(new RaftOutput(index, result));
-            }
-        } catch (RuntimeException e) {
-            if (input.isReadOnly()) {
-                if (future != null) {
-                    future.completeExceptionally(e);
-                }
-            } else {
-                throw e;
-            }
-        }
-
-    }
 }
