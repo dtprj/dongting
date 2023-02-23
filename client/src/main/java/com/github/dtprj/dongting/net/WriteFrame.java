@@ -72,6 +72,6 @@ public abstract class WriteFrame extends Frame {
     }
 
     protected void writeBodySize(ByteBuffer buf, int len) {
-        PbUtil.writeLengthDelimitedPrefix(buf, Frame.IDX_BODY, estimateBodySize(), true);
+        PbUtil.writeLengthDelimitedPrefix(buf, Frame.IDX_BODY, len, true);
     }
 }

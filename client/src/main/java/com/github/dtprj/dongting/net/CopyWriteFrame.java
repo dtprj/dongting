@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.pb.PbUtil;
 
 import java.nio.ByteBuffer;
 
@@ -33,7 +32,7 @@ public abstract class CopyWriteFrame extends WriteFrame {
             try {
                 encodeBody(temp);
                 temp.flip();
-                PbUtil.writeLengthDelimitedPrefix(buf, Frame.IDX_BODY, temp.remaining(), true);
+                super.writeBodySize(buf, temp.remaining());
                 buf.put(temp);
             } finally {
                 pool.release(temp);
