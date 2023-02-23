@@ -31,6 +31,7 @@ import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -38,9 +39,9 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-class LeaderAppendManager {
+class ReplicateManager {
 
-    private static final DtLog log = DtLogs.getLogger(LeaderAppendManager.class);
+    private static final DtLog log = DtLogs.getLogger(ReplicateManager.class);
 
     private final RaftStatus raftStatus;
     private final RaftServerConfig config;
@@ -48,12 +49,15 @@ class LeaderAppendManager {
     private final NioClient client;
     private final RaftExecutor raftExecutor;
     private final CommitManager commitManager;
-    private final Raft raft;
     private final Timestamp ts;
+
+    private final int maxReplicateItems;
+    private final int restItemsToStartReplicate;
+    private final long maxReplicateBytes;
 
     private static final PbZeroCopyDecoder appendRespDecoder = new PbZeroCopyDecoder(c -> new AppendRespCallback());
 
-    LeaderAppendManager(RaftContainer raftContainer, Raft raft, CommitManager commitManager) {
+    ReplicateManager(RaftContainer raftContainer, CommitManager commitManager) {
         this.raftStatus = raftContainer.getRaftStatus();
         this.config = raftContainer.getConfig();
         this.raftLog = raftContainer.getRaftLog();
@@ -61,7 +65,94 @@ class LeaderAppendManager {
         this.raftExecutor = raftContainer.getRaftExecutor();
         this.commitManager = commitManager;
         this.ts = raftStatus.getTs();
-        this.raft = raft;
+
+        this.maxReplicateItems = config.getMaxReplicateItems();
+        this.maxReplicateBytes = config.getMaxReplicateBytes();
+        this.restItemsToStartReplicate = (int) (maxReplicateItems * 0.1);
+    }
+
+    @SuppressWarnings("StatementWithEmptyBody")
+    void replicate(RaftNode node) {
+        if (raftStatus.getRole() != RaftRole.leader) {
+            return;
+        }
+        if (!node.isReady()) {
+            return;
+        }
+        if (node.isMultiAppend()) {
+            doReplicate(node, false);
+        } else {
+            if (node.getPendingRequests() == 0) {
+                doReplicate(node, true);
+            } else {
+                // waiting all pending request complete
+            }
+        }
+    }
+
+    private void doReplicate(RaftNode node, boolean tryMatch) {
+        long nextIndex = node.getNextIndex();
+        long lastLogIndex = raftStatus.getLastLogIndex();
+        if (lastLogIndex < nextIndex) {
+            // no data to replicate
+            return;
+        }
+
+        // flow control
+        int rest = maxReplicateItems - node.getPendingRequests();
+        if (rest <= restItemsToStartReplicate) {
+            // avoid silly window syndrome
+            return;
+        }
+        if (node.getPendingBytes() >= maxReplicateBytes) {
+            return;
+        }
+
+        int limit = tryMatch ? 1 : rest;
+
+        RaftTask first = raftStatus.getPendingRequests().get(nextIndex);
+        LogItem[] items;
+        if (first != null && !first.input.isReadOnly()) {
+            items = new LogItem[limit];
+            for (int i = 0; i < limit; i++) {
+                RaftTask t = raftStatus.getPendingRequests().get(nextIndex + i);
+                items[i] = t.item;
+            }
+        } else {
+            items = RaftUtil.load(raftLog, raftStatus, nextIndex, limit, maxReplicateBytes);
+        }
+
+        doReplicate(node, items);
+    }
+
+    private void doReplicate(RaftNode node, LogItem[] items) {
+        ArrayList<LogItem> logs = new ArrayList<>();
+        long bytes = 0;
+        for (int i = 0; i < items.length; ) {
+            LogItem item = items[i];
+            int currentSize = item.getBuffer() == null ? 0 : item.getBuffer().remaining();
+            if (bytes + currentSize > config.getMaxBodySize()) {
+                if (logs.size() > 0) {
+                    LogItem firstItem = logs.get(0);
+                    sendAppendRequest(node, firstItem.getIndex() - 1, firstItem.getPrevLogTerm(), logs, bytes);
+
+                    bytes = 0;
+                    logs = new ArrayList<>();
+                    continue;
+                } else {
+                    log.error("body too large: {}", currentSize);
+                    return;
+                }
+            }
+            bytes += currentSize;
+            logs.add(item);
+            i++;
+        }
+
+        if (logs.size() > 0) {
+            LogItem firstItem = logs.get(0);
+            sendAppendRequest(node, firstItem.getIndex() - 1, firstItem.getPrevLogTerm(), logs, bytes);
+        }
     }
 
     public void sendAppendRequest(RaftNode node, long prevLogIndex, int prevLogTerm, List<LogItem> logs, long bytes) {
@@ -137,7 +228,7 @@ class LeaderAppendManager {
                 node.setMultiAppend(true);
                 commitManager.tryCommit(expectNewMatchIndex);
                 if (raftStatus.getLastLogIndex() >= node.getNextIndex()) {
-                    raft.replicate(node);
+                    replicate(node);
                 }
             } else {
                 BugLog.getLog().error("append miss order. old matchIndex={}, append prevLogIndex={}, expectNewMatchIndex={}, remoteId={}, localTerm={}, reqTerm={}, remoteTerm={}",
@@ -152,19 +243,19 @@ class LeaderAppendManager {
             RaftUtil.updateLease(reqNanos, raftStatus);
             if (body.getTerm() == raftStatus.getCurrentTerm() && reqTerm == raftStatus.getCurrentTerm()) {
                 node.setNextIndex(body.getMaxLogIndex() + 1);
-                raft.replicate(node);
+                replicate(node);
             } else {
                 long idx = findMaxIndexByTerm(body.getMaxLogTerm());
                 if (idx > 0) {
                     node.setNextIndex(Math.min(body.getMaxLogIndex(), idx) + 1);
-                    raft.replicate(node);
+                    replicate(node);
                 } else {
                     int t = findLastTermLessThan(body.getMaxLogTerm());
                     if (t > 0) {
                         idx = findMaxIndexByTerm(t);
                         if (idx > 0) {
                             node.setNextIndex(Math.min(body.getMaxLogIndex(), idx) + 1);
-                            raft.replicate(node);
+                            replicate(node);
                         } else {
                             BugLog.getLog().error("can't find log to replicate. term={}", t);
                         }

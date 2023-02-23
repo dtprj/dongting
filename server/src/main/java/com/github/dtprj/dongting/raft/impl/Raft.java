@@ -17,15 +17,12 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftLog;
-import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -37,37 +34,25 @@ import java.util.concurrent.TimeUnit;
  */
 public class Raft {
 
-    private static final DtLog log = DtLogs.getLogger(Raft.class);
-
-    private final LeaderAppendManager leaderAppendManager;
+    private final ReplicateManager replicateManager;
     private final ApplyManager applyManager;
     private final CommitManager commitManager;
 
-    private final RaftServerConfig config;
     private final RaftLog raftLog;
     private final RaftStatus raftStatus;
-
-    private final int maxReplicateItems;
-    private final int restItemsToStartReplicate;
-    private final long maxReplicateBytes;
 
     private RaftNode self;
     private final Timestamp ts;
 
     public Raft(RaftContainer container) {
-        this.config = container.getConfig();
         this.raftLog = container.getRaftLog();
         this.raftStatus = container.getRaftStatus();
         this.ts = raftStatus.getTs();
 
         this.applyManager = new ApplyManager(container.getStateMachine(), ts);
         this.commitManager = new CommitManager(raftStatus, raftLog, container.getStateMachine(), applyManager);
-        this.leaderAppendManager = new LeaderAppendManager(container, this, commitManager);
-
-        this.maxReplicateItems = config.getMaxReplicateItems();
-        this.maxReplicateBytes = config.getMaxReplicateBytes();
-        this.restItemsToStartReplicate = (int) (maxReplicateItems * 0.1);
-    }
+        this.replicateManager = new ReplicateManager(container, commitManager);
+   }
 
     private RaftNode getSelf() {
         if (self != null) {
@@ -157,91 +142,7 @@ public class Raft {
             if (node.isSelf()) {
                 continue;
             }
-            replicate(node);
-        }
-    }
-
-    @SuppressWarnings("StatementWithEmptyBody")
-    void replicate(RaftNode node) {
-        if (raftStatus.getRole() != RaftRole.leader) {
-            return;
-        }
-        if (!node.isReady()) {
-            return;
-        }
-        if (node.isMultiAppend()) {
-            doReplicate(node, false);
-        } else {
-            if (node.getPendingRequests() == 0) {
-                doReplicate(node, true);
-            } else {
-                // waiting all pending request complete
-            }
-        }
-    }
-
-    private void doReplicate(RaftNode node, boolean tryMatch) {
-        long nextIndex = node.getNextIndex();
-        long lastLogIndex = raftStatus.getLastLogIndex();
-        if (lastLogIndex < nextIndex) {
-            // no data to replicate
-            return;
-        }
-
-        // flow control
-        int rest = maxReplicateItems - node.getPendingRequests();
-        if (rest <= restItemsToStartReplicate) {
-            // avoid silly window syndrome
-            return;
-        }
-        if (node.getPendingBytes() >= maxReplicateBytes) {
-            return;
-        }
-
-        int limit = tryMatch ? 1 : rest;
-
-        RaftTask first = raftStatus.getPendingRequests().get(nextIndex);
-        LogItem[] items;
-        if (first != null && !first.input.isReadOnly()) {
-            items = new LogItem[limit];
-            for (int i = 0; i < limit; i++) {
-                RaftTask t = raftStatus.getPendingRequests().get(nextIndex + i);
-                items[i] = t.item;
-            }
-        } else {
-            items = RaftUtil.load(raftLog, raftStatus, nextIndex, limit, maxReplicateBytes);
-        }
-
-        doReplicate(node, items);
-    }
-
-    private void doReplicate(RaftNode node, LogItem[] items) {
-        ArrayList<LogItem> logs = new ArrayList<>();
-        long bytes = 0;
-        for (int i = 0; i < items.length; ) {
-            LogItem item = items[i];
-            int currentSize = item.getBuffer() == null ? 0 : item.getBuffer().remaining();
-            if (bytes + currentSize > config.getMaxBodySize()) {
-                if (logs.size() > 0) {
-                    LogItem firstItem = logs.get(0);
-                    leaderAppendManager.sendAppendRequest(node, firstItem.getIndex() - 1, firstItem.getPrevLogTerm(), logs, bytes);
-
-                    bytes = 0;
-                    logs = new ArrayList<>();
-                    continue;
-                } else {
-                    log.error("body too large: {}", currentSize);
-                    return;
-                }
-            }
-            bytes += currentSize;
-            logs.add(item);
-            i++;
-        }
-
-        if (logs.size() > 0) {
-            LogItem firstItem = logs.get(0);
-            leaderAppendManager.sendAppendRequest(node, firstItem.getIndex() - 1, firstItem.getPrevLogTerm(), logs, bytes);
+            replicateManager.replicate(node);
         }
     }
 
