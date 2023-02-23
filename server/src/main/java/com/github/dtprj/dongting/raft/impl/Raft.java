@@ -458,9 +458,20 @@ public class Raft {
             }
             return;
         }
-        Object result = stateMachine.exec(input);
-        if (future != null) {
-            future.complete(new RaftOutput(index, result));
+        try {
+            Object result = stateMachine.exec(input);
+            if (future != null) {
+                future.complete(new RaftOutput(index, result));
+            }
+        } catch (RuntimeException e) {
+            if (input.isReadOnly()) {
+                if (future != null) {
+                    future.completeExceptionally(e);
+                }
+            } else {
+                throw e;
+            }
         }
+
     }
 }
