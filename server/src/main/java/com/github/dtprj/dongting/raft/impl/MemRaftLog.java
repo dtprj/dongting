@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftLog;
-import com.github.dtprj.dongting.raft.server.StateMachine;
 
 import java.util.List;
 
@@ -27,7 +26,7 @@ import java.util.List;
  */
 public class MemRaftLog extends RaftLog {
     @Override
-    public Pair<Integer, Long> init(StateMachine stateMachine) {
+    public Pair<Integer, Long> init() {
         return null;
     }
 

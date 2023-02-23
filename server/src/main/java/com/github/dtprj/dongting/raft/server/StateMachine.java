@@ -21,6 +21,10 @@ import java.nio.ByteBuffer;
  * @author huangli
  */
 public interface StateMachine {
+    void init(RaftLog raftLog);
+
     Object decode(ByteBuffer logData);
+
     Object exec(Object input);
+
 }

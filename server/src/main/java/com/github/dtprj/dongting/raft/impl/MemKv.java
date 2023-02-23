@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.StateMachine;
 
 import java.nio.ByteBuffer;
@@ -23,6 +24,10 @@ import java.nio.ByteBuffer;
  * @author huangli
  */
 public class MemKv implements StateMachine {
+
+    @Override
+    public void init(RaftLog raftLog) {
+    }
 
     @Override
     public Object decode(ByteBuffer logData) {

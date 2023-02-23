@@ -24,7 +24,7 @@ import java.util.List;
  */
 public abstract class RaftLog {
 
-    public abstract Pair<Integer, Long> init(StateMachine stateMachine);
+    public abstract Pair<Integer, Long> init();
 
     public abstract void append(long prevLogIndex, int prevLogTerm, List<LogItem> logs);
 
@@ -34,7 +34,7 @@ public abstract class RaftLog {
      * @param index the index of the first log to be loaded
      * @param limit max number of logs to return
      * @param bytesLimit max bytes of logs to return, 0 means no limit
-     * @return
+     * @return return log items, don't return null or empty array
      */
     public abstract LogItem[] load(long index, int limit, long bytesLimit);
 

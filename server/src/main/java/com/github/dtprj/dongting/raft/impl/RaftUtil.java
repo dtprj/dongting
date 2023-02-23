@@ -208,10 +208,8 @@ public class RaftUtil {
 
     public static LogItem[] load(RaftLog raftLog, RaftStatus raftStatus, long index, int limit, long bytesLimit) {
         LogItem[] items;
-        items = doWithRetry(() -> {
-            raftLog.load(index, limit, bytesLimit);
-            return null;
-        }, raftStatus, 1000, "raft log load error");
+        items = doWithRetry(() -> raftLog.load(index, limit, bytesLimit),
+                raftStatus, 1000, "raft log load error");
         if (items == null || items.length == 0) {
             throw new RaftException("can't load raft log, result is null or empty. index=" + index +
                     ", limit=" + limit + ", bytesLimit=" + bytesLimit);

@@ -151,7 +151,8 @@ public class RaftServer extends AbstractLifeCircle {
 
     @Override
     protected void doStart() {
-        Pair<Integer, Long> initResult = raftLog.init(stateMachine);
+        Pair<Integer, Long> initResult = raftLog.init();
+        stateMachine.init(raftLog);
         raftStatus.setLastLogTerm(initResult.getLeft());
         raftStatus.setLastLogIndex(initResult.getRight());
         raftServer.start();
