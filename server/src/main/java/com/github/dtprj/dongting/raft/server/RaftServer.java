@@ -66,6 +66,8 @@ public class RaftServer extends AbstractLifeCircle {
     private final RaftLog raftLog;
     private final StateMachine stateMachine;
 
+    private final RaftServerConfig config;
+
     private final int maxPendingWrites;
     private final long maxPendingWriteBytes;
     @SuppressWarnings({"unused"})
@@ -93,6 +95,7 @@ public class RaftServer extends AbstractLifeCircle {
         ObjUtil.checkPositive(config.getId(), "id");
         ObjUtil.checkPositive(config.getRaftPort(), "port");
         this.raftLog = raftLog;
+        this.config = config;
         this.stateMachine = stateMachine;
         this.maxPendingWrites = config.getMaxPendingWrites();
         this.maxPendingWriteBytes = config.getMaxPendingWriteBytes();
@@ -179,6 +182,10 @@ public class RaftServer extends AbstractLifeCircle {
         if (raftStatus.isError()) {
             throw new RaftException("raft status is error");
         }
+        int size = input.size();
+        if (size > config.getMaxBodySize()) {
+            throw new RaftException("request size too large, size=" + size + ", maxBodySize=" + config.getMaxBodySize());
+        }
         int currentPendingWrites = (int) PENDING_WRITES.getAndAddRelease(this, 1);
         if (currentPendingWrites >= maxPendingWrites) {
             String msg = "submitRaftTask failed: too many pending writes, currentPendingWrites=" + currentPendingWrites;
@@ -186,7 +193,6 @@ public class RaftServer extends AbstractLifeCircle {
             PENDING_WRITES.getAndAddRelease(this, -1);
             throw new RaftException(msg);
         }
-        int size = input.size();
         long currentPendingWriteBytes = (long) PENDING_WRITE_BYTES.getAndAddRelease(this, size);
         if (currentPendingWriteBytes >= maxPendingWriteBytes) {
             String msg = "submitRaftTask failed: too many pending write bytes,currentPendingWriteBytes="
