@@ -24,7 +24,11 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 class NioStatus {
     private final IntObjMap<ReqProcessor> processors = new IntObjMap<>();
-    private final AtomicLong inReqBytes = new AtomicLong();
+    private final AtomicLong inReqBytes;
+
+    NioStatus(AtomicLong inReqBytes) {
+        this.inReqBytes = inReqBytes;
+    }
 
     public ReqProcessor getProcessor(int cmd) {
         return processors.get(cmd);

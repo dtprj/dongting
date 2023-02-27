@@ -32,6 +32,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @author huangli
@@ -40,14 +41,15 @@ public abstract class NioNet extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(NioNet.class);
     private final NioConfig config;
     final Semaphore semaphore;
-    protected final NioStatus nioStatus = new NioStatus();
+    protected final NioStatus nioStatus;
     protected volatile ExecutorService bizExecutor;
 
     public NioNet(NioConfig config) {
         this.config = config;
-        this.semaphore = new Semaphore(config.getMaxOutRequests());
+        this.nioStatus = new NioStatus(config.getMaxInBytes() > 0 ? new AtomicLong(0) : null);
+        this.semaphore = config.getMaxOutRequests() > 0 ? new Semaphore(config.getMaxOutRequests()) : null;
         if (config.getMaxFrameSize() < config.getMaxBodySize() + 128 * 1024) {
-            throw new IllegalArgumentException("maxFrameSize should greater than maxBodySize plus 64KB.");
+            throw new IllegalArgumentException("maxFrameSize should greater than maxBodySize plus 128KB.");
         }
     }
 
@@ -98,17 +100,20 @@ public abstract class NioNet extends AbstractLifeCircle {
                 return errorFuture(new IllegalStateException("error state: " + status));
             }
 
-            acquire = this.semaphore.tryAcquire(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
-            if (acquire) {
-                CompletableFuture<ReadFrame> future = new CompletableFuture<>();
-                worker.writeReqInBizThreads(peer, request, decoder, timeout, future);
-                write = true;
-                return registerReqCallback(future, decoder);
-            } else {
-                return errorFuture(new NetTimeoutException(
-                        "too many pending requests, client wait permit timeout in "
-                                + timeout.getTimeout(TimeUnit.MILLISECONDS) + " ms"));
+            if (this.semaphore != null) {
+                acquire = this.semaphore.tryAcquire(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+                if (!acquire) {
+                    return errorFuture(new NetTimeoutException(
+                            "too many pending requests, client wait permit timeout in "
+                                    + timeout.getTimeout(TimeUnit.MILLISECONDS) + " ms"));
+                }
             }
+
+            CompletableFuture<ReadFrame> future = new CompletableFuture<>();
+            worker.writeReqInBizThreads(peer, request, decoder, timeout, future);
+            write = true;
+            return registerReqCallback(future, decoder);
+
         } catch (Throwable e) {
             return errorFuture(new NetException("sendRequest error", e));
         } finally {
@@ -119,8 +124,10 @@ public abstract class NioNet extends AbstractLifeCircle {
     }
 
     private CompletableFuture<ReadFrame> registerReqCallback(CompletableFuture<ReadFrame> future, Decoder decoder) {
-        return future.whenComplete((rf, ex) -> semaphore.release())
-                .thenApply(frame -> {
+        if (semaphore != null) {
+            future = future.whenComplete((rf, ex) -> semaphore.release());
+        }
+        return future.thenApply(frame -> {
                     if (frame.getRespCode() != CmdCodes.SUCCESS) {
                         throw new NetCodeException(frame.getRespCode(), frame.getMsg());
                     }
@@ -143,8 +150,10 @@ public abstract class NioNet extends AbstractLifeCircle {
 
     protected void initBizExecutor() {
         if (config.getBizThreads() > 0) {
+            int maxReq = config.getMaxInRequests();
+            LinkedBlockingQueue<Runnable> queue = maxReq > 0 ? new LinkedBlockingQueue<>(maxReq) : new LinkedBlockingQueue<>();
             bizExecutor = new ThreadPoolExecutor(config.getBizThreads(), config.getBizThreads(),
-                    1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(config.getMaxInRequests()),
+                    1, TimeUnit.MINUTES, queue,
                     new DtThreadFactory(config.getName() + "Biz", false));
         }
         nioStatus.getProcessors().forEach((command, p) -> {

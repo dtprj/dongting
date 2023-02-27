@@ -289,14 +289,17 @@ class DtChannel extends PbCallback {
                 }
                 if (processorForRequest.getExecutor() != null) {
                     // TODO can we eliminate this CAS operation?
-                    long bytesAfterAdd = nioStatus.getInReqBytes().addAndGet(this.currentReadFrameSize);
-                    if (bytesAfterAdd > nioConfig.getMaxInBytes()) {
-                        log.debug("pendingBytes({})>maxInBytes({}), write response code FLOW_CONTROL to client",
-                                bytesAfterAdd, nioConfig.getMaxInBytes());
-                        writeErrorInIoThread(frame, CmdCodes.FLOW_CONTROL,
-                                "max incoming request bytes: " + nioConfig.getMaxInBytes());
-                        nioStatus.getInReqBytes().addAndGet(-currentReadFrameSize);
-                        return null;
+                    AtomicLong inReqBytes = nioStatus.getInReqBytes();
+                    if (inReqBytes != null) {
+                        long bytesAfterAdd = inReqBytes.addAndGet(this.currentReadFrameSize);
+                        if (bytesAfterAdd > nioConfig.getMaxInBytes()) {
+                            log.debug("pendingBytes({})>maxInBytes({}), write response code FLOW_CONTROL to client",
+                                    bytesAfterAdd, nioConfig.getMaxInBytes());
+                            writeErrorInIoThread(frame, CmdCodes.FLOW_CONTROL,
+                                    "max incoming request bytes: " + nioConfig.getMaxInBytes());
+                            inReqBytes.addAndGet(-currentReadFrameSize);
+                            return null;
+                        }
                     }
                 }
                 this.processorForRequest = processorForRequest;
@@ -386,7 +389,9 @@ class DtChannel extends PbCallback {
                         nioConfig.getMaxInRequests());
                 writeErrorInIoThread(req, CmdCodes.FLOW_CONTROL,
                         "max incoming request: " + nioConfig.getMaxInRequests(), reqContext.getTimeout());
-                bytes.addAndGet(-currentReadFrameSize);
+                if (bytes != null) {
+                    bytes.addAndGet(-currentReadFrameSize);
+                }
                 if (bufferNeedRelease != null) {
                     workerStatus.getHeapPool().release(bufferNeedRelease);
                 }
@@ -547,7 +552,9 @@ class ProcessInBizThreadTask implements Runnable {
                 dtc.getRespWriter().writeRespInBizThreads(req, resp, reqContext.getTimeout());
             }
         } finally {
-            inBytes.addAndGet(-frameSize);
+            if (inBytes != null) {
+                inBytes.addAndGet(-frameSize);
+            }
         }
     }
 }

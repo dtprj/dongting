@@ -143,11 +143,11 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     private void setupNioConfig(NioConfig nc) {
-        nc.setMaxOutRequests(Integer.MAX_VALUE);
+        nc.setMaxOutRequests(0);
+        nc.setMaxInRequests(0);
+        nc.setMaxInBytes(0);
         nc.setMaxBodySize(Integer.MAX_VALUE);
         nc.setMaxFrameSize(Integer.MAX_VALUE);
-        nc.setMaxInRequests(Integer.MAX_VALUE);
-        nc.setMaxInBytes(Long.MAX_VALUE);
     }
 
     @Override
