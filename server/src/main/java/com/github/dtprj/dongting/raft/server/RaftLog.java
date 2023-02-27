@@ -22,11 +22,11 @@ import java.util.List;
 /**
  * @author huangli
  */
-public abstract class RaftLog {
+public interface RaftLog {
 
-    public abstract Pair<Integer, Long> init();
+    Pair<Integer, Long> init();
 
-    public abstract void append(long prevLogIndex, int prevLogTerm, List<LogItem> logs);
+    void append(long prevLogIndex, int prevLogTerm, List<LogItem> logs);
 
     /**
      * load logs.
@@ -36,20 +36,20 @@ public abstract class RaftLog {
      * @param bytesLimit max bytes of logs to return, 0 means no limit
      * @return return log items, don't return null or empty array
      */
-    public abstract LogItem[] load(long index, int limit, long bytesLimit);
+    LogItem[] load(long index, int limit, long bytesLimit);
 
     /**
      * if there is no such index, return -1.
      */
-    public abstract int getTermOf(long index);
+    int getTermOf(long index);
 
     /**
      * if there is no such term, return -1.
      */
-    public abstract long findMaxIndexByTerm(int term);
+    long findMaxIndexByTerm(int term);
 
     /**
      * if there is no such term, return -1.
      */
-    public abstract int findLastTermLessThan(int term);
+    int findLastTermLessThan(int term);
 }

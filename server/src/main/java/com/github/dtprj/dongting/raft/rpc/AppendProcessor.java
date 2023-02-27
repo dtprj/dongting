@@ -49,7 +49,7 @@ public class AppendProcessor extends ReqProcessor {
     public static final int CODE_LOG_NOT_MATCH = 1;
     public static final int CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT = 2;
     public static final int CODE_CLIENT_REQ_ERROR = 3;
-    public static final int CODE_SERVER_SYS_ERROR = 4;
+    public static final int CODE_INSTALL_SNAPSHOT = 4;
 
 
     private final RaftStatus raftStatus;
@@ -99,6 +99,11 @@ public class AppendProcessor extends ReqProcessor {
     }
 
     private void append(AppendReqCallback req, AppendRespWriteFrame resp) {
+        if (raftStatus.isInstallSnapshot()) {
+            resp.setSuccess(false);
+            resp.setAppendCode(CODE_INSTALL_SNAPSHOT);
+            return;
+        }
         voteManager.cancelVote();
         RaftStatus raftStatus = this.raftStatus;
         if (req.getPrevLogIndex() != raftStatus.getLastLogIndex() || req.getPrevLogTerm() != raftStatus.getLastLogTerm()) {

@@ -103,10 +103,21 @@ public class RaftUtil {
         for (RaftNode node : raftStatus.getServers()) {
             node.setMatchIndex(0);
             node.setNextIndex(0);
-            node.setPendingRequests(0);
-            node.setPendingBytes(0);
+            node.setPendingStat(new PendingStat());
             node.setLastConfirm(false, 0);
             node.setMultiAppend(false);
+            node.setInstallSnapshot(false);
+            if (node.getSnapshotInfo() != null) {
+                try {
+                    SnapshotInfo si = node.getSnapshotInfo();
+                    if (si.iterator != null) {
+                        si.stateMachine.closeIterator(si.iterator);
+                    }
+                } catch (Exception e) {
+                    log.error("close snapshot error", e);
+                }
+            }
+            node.setSnapshotInfo(null);
         }
     }
 

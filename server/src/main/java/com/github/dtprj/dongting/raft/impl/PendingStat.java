@@ -15,29 +15,29 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.raft.server.RaftLog;
-import com.github.dtprj.dongting.raft.server.StateMachine;
-
-import java.nio.ByteBuffer;
-
 /**
  * @author huangli
  */
-public class MemKv implements StateMachine {
+public class PendingStat {
+    private int pendingRequests;
+    private long pendingBytes;
 
-    @Override
-    public void init(RaftLog raftLog) {
+    public void incrAndGetPendingRequests(int requests, long bytes) {
+        pendingRequests += requests;
+        pendingBytes += bytes;
     }
 
-    @Override
-    public Object decode(ByteBuffer logData) {
-        return null;
+    public void decrAndGetPendingRequests(int requests, long bytes) {
+        pendingRequests -= requests;
+        pendingBytes -= bytes;
     }
 
-    @Override
-    public Object exec(long index, Object input) {
-        return null;
+    public int getPendingRequests() {
+        return pendingRequests;
     }
 
+    public long getPendingBytes() {
+        return pendingBytes;
+    }
 
 }

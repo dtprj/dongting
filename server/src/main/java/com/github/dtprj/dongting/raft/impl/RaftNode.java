@@ -31,11 +31,14 @@ public class RaftNode {
     private boolean ready;
     private boolean pinging;
     private boolean multiAppend;
-    private int pendingRequests;//only include append requests
-    private long pendingBytes;
+
+    private PendingStat pendingStat;
 
     private long lastConfirmReqNanos;
     private boolean hasLastConfirmReqNanos;
+
+    private boolean installSnapshot;
+    private SnapshotInfo snapshotInfo;
 
     // volatile state on leaders
     private long nextIndex;
@@ -43,16 +46,6 @@ public class RaftNode {
 
     public RaftNode(Peer peer) {
         this.peer = peer;
-    }
-
-    public void incrAndGetPendingRequests(int requests, long bytes) {
-        pendingRequests += requests;
-        pendingBytes += bytes;
-    }
-
-    public void decrAndGetPendingRequests(int requests, long bytes) {
-        pendingRequests -= requests;
-        pendingBytes -= bytes;
     }
 
     public void setLastConfirm(boolean hasLastConfirmReqNanos, long lastConfirmReqNanos) {
@@ -122,22 +115,6 @@ public class RaftNode {
         this.multiAppend = multiAppend;
     }
 
-    public int getPendingRequests() {
-        return pendingRequests;
-    }
-
-    public void setPendingRequests(int pendingRequests) {
-        this.pendingRequests = pendingRequests;
-    }
-
-    public long getPendingBytes() {
-        return pendingBytes;
-    }
-
-    public void setPendingBytes(long pendingBytes) {
-        this.pendingBytes = pendingBytes;
-    }
-
     public boolean isPinging() {
         return pinging;
     }
@@ -154,4 +131,27 @@ public class RaftNode {
         return hasLastConfirmReqNanos;
     }
 
+    public boolean isInstallSnapshot() {
+        return installSnapshot;
+    }
+
+    public void setInstallSnapshot(boolean installSnapshot) {
+        this.installSnapshot = installSnapshot;
+    }
+
+    public SnapshotInfo getSnapshotInfo() {
+        return snapshotInfo;
+    }
+
+    public void setSnapshotInfo(SnapshotInfo snapshotInfo) {
+        this.snapshotInfo = snapshotInfo;
+    }
+
+    public PendingStat getPendingStat() {
+        return pendingStat;
+    }
+
+    public void setPendingStat(PendingStat pendingStat) {
+        this.pendingStat = pendingStat;
+    }
 }

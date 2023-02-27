@@ -42,6 +42,7 @@ import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.ShareStatus;
 import com.github.dtprj.dongting.raft.impl.VoteManager;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
+import com.github.dtprj.dongting.raft.rpc.InstallSnapshotProcessor;
 import com.github.dtprj.dongting.raft.rpc.VoteProcessor;
 
 import java.lang.invoke.MethodHandles;
@@ -138,6 +139,7 @@ public class RaftServer extends AbstractLifeCircle {
         AppendProcessor ap = new AppendProcessor(raftStatus, raftLog, stateMachine, voteManager);
         raftServer.register(Commands.RAFT_APPEND_ENTRIES, ap, raftExecutor);
         raftServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(raftStatus), raftExecutor);
+        raftServer.register(Commands.RAFT_INSTALL_SNAPSHOT, new InstallSnapshotProcessor(raftStatus, stateMachine), raftExecutor);
     }
 
     private void setupNioConfig(NioConfig nc) {

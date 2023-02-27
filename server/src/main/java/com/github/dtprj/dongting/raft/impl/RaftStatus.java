@@ -38,6 +38,7 @@ public class RaftStatus {
 
     @SuppressWarnings({"unused"})
     private boolean error;
+    private boolean installSnapshot;
 
     private RaftRole role; // shared
     private RaftNode currentLeader; // shared
@@ -243,5 +244,13 @@ public class RaftStatus {
 
     public CompletableFuture<Void> getFirstCommitOfApplied() {
         return firstCommitOfApplied;
+    }
+
+    public boolean isInstallSnapshot() {
+        return installSnapshot;
+    }
+
+    public void setInstallSnapshot(boolean installSnapshot) {
+        this.installSnapshot = installSnapshot;
     }
 }

@@ -66,3 +66,18 @@ message RequestVoteResp {
   uint32 term = 1;
   uint32 vote_granted = 2;
 }
+
+message InstallSnapshotReq {
+  uint32 term = 1;
+  uint32 leader_id = 2;
+  fixed64 last_included_index = 3;
+  uint32 last_included_term = 4;
+  fixed64 offset = 5;
+  bytes data = 6;
+  bool done = 7;
+}
+
+message InstallSnapshotResp {
+  uint32 term = 1;
+  bool success = 2;
+}

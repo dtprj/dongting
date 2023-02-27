@@ -15,7 +15,10 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import com.github.dtprj.dongting.common.Pair;
+
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 
 /**
  * @author huangli
@@ -27,4 +30,11 @@ public interface StateMachine {
 
     Object exec(long index, Object input);
 
+    void installSnapshot(boolean start, boolean finish, ByteBuffer data);
+
+    Snapshot findLatestSnapshot();
+
+    Pair<Snapshot, Iterator<ByteBuffer>> openLatestSnapshotIterator();
+
+    void closeIterator(Iterator<ByteBuffer> iterator);
 }
