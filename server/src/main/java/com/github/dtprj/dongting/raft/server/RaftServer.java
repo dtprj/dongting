@@ -108,9 +108,7 @@ public class RaftServer extends AbstractLifeCircle {
 
         NioClientConfig nioClientConfig = new NioClientConfig();
         nioClientConfig.setName("RaftClient");
-        // need more for ping and heartbeat, etc
-        nioClientConfig.setMaxOutRequests(config.getMaxReplicateItems() + 100);
-        setupNioConfig(nioClientConfig, config);
+        setupNioConfig(nioClientConfig);
         raftClient = new NioClient(nioClientConfig);
 
         LinkedBlockingQueue<Object> queue = new LinkedBlockingQueue<>();
@@ -134,10 +132,7 @@ public class RaftServer extends AbstractLifeCircle {
         nioServerConfig.setName("RaftServer");
         nioServerConfig.setBizThreads(0);
         nioServerConfig.setIoThreads(1);
-        // need more for ping and vote, etc
-        nioServerConfig.setMaxInRequests(config.getMaxReplicateItems() + 100);
-        nioServerConfig.setMaxInBytes(config.getMaxReplicateBytes() + 128 * 1024);
-        setupNioConfig(nioServerConfig, config);
+        setupNioConfig(nioServerConfig);
         raftServer = new NioServer(nioServerConfig);
         raftServer.register(Commands.RAFT_PING, groupConManager.getProcessor(), raftExecutor);
         AppendProcessor ap = new AppendProcessor(raftStatus, raftLog, stateMachine, voteManager);
@@ -145,11 +140,12 @@ public class RaftServer extends AbstractLifeCircle {
         raftServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(raftStatus), raftExecutor);
     }
 
-    private void setupNioConfig(NioConfig nc, RaftServerConfig config) {
-        // in Raft.doReplicate() only calculate body bytes of entries
-        // but each tag of entries use 1 byte in protobuf
-        nc.setMaxBodySize(config.getMaxBodySize() + 64 * 1024 + config.getMaxReplicateItems());
-        nc.setMaxFrameSize(nc.getMaxBodySize() + 128 * 1024);
+    private void setupNioConfig(NioConfig nc) {
+        nc.setMaxOutRequests(Integer.MAX_VALUE);
+        nc.setMaxBodySize(Integer.MAX_VALUE);
+        nc.setMaxFrameSize(Integer.MAX_VALUE);
+        nc.setMaxInRequests(Integer.MAX_VALUE);
+        nc.setMaxInBytes(Long.MAX_VALUE);
     }
 
     @Override
