@@ -31,7 +31,7 @@ import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -119,43 +119,19 @@ class ReplicateManager {
                 items[i] = t.item;
             }
         } else {
-            items = RaftUtil.load(raftLog, raftStatus, nextIndex, limit, maxReplicateBytes);
+            items = RaftUtil.load(raftLog, raftStatus, nextIndex, limit, config.getReplicateLoadBytesLimit());
         }
 
-        doReplicate(node, items);
-    }
-
-    private void doReplicate(RaftNode node, LogItem[] items) {
-        ArrayList<LogItem> logs = new ArrayList<>();
+        LogItem firstItem = items[0];
         long bytes = 0;
-        for (int i = 0; i < items.length; ) {
-            LogItem item = items[i];
-            int currentSize = item.getBuffer() == null ? 0 : item.getBuffer().remaining();
-            if (bytes + currentSize > config.getMaxBodySize()) {
-                if (logs.size() > 0) {
-                    LogItem firstItem = logs.get(0);
-                    sendAppendRequest(node, firstItem.getIndex() - 1, firstItem.getPrevLogTerm(), logs, bytes);
+        for (LogItem i : items) {
+            bytes += i.getBuffer() == null ? 0 : i.getBuffer().remaining();
 
-                    bytes = 0;
-                    logs = new ArrayList<>();
-                    continue;
-                } else {
-                    log.error("body too large: {}", currentSize);
-                    return;
-                }
-            }
-            bytes += currentSize;
-            logs.add(item);
-            i++;
         }
-
-        if (logs.size() > 0) {
-            LogItem firstItem = logs.get(0);
-            sendAppendRequest(node, firstItem.getIndex() - 1, firstItem.getPrevLogTerm(), logs, bytes);
-        }
+        sendAppendRequest(node, firstItem.getIndex() - 1, firstItem.getPrevLogTerm(), Arrays.asList(items), bytes);
     }
 
-    public void sendAppendRequest(RaftNode node, long prevLogIndex, int prevLogTerm, List<LogItem> logs, long bytes) {
+    private void sendAppendRequest(RaftNode node, long prevLogIndex, int prevLogTerm, List<LogItem> logs, long bytes) {
         AppendReqWriteFrame req = new AppendReqWriteFrame();
         req.setCommand(Commands.RAFT_APPEND_ENTRIES);
         req.setTerm(raftStatus.getCurrentTerm());
