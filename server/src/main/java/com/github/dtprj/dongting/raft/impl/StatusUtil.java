@@ -135,8 +135,8 @@ public class StatusUtil {
             channel.write(buf);
             channel.force(false);
         } catch (IOException e) {
-            log.error("update status file failed", e);
-            throw new RaftException(e);
+            log.error("update status file failed, retry after 1000ms", e);
+            raftStatus.getRaftExecutor().schedule(() -> updateStatusFile(raftStatus), 1000);
         }
     }
 }

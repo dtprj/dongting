@@ -103,19 +103,23 @@ public class RaftServer extends AbstractLifeCircle {
         this.maxPendingWrites = config.getMaxPendingWrites();
         this.maxPendingWriteBytes = config.getMaxPendingWriteBytes();
 
+
+        LinkedBlockingQueue<Object> queue = new LinkedBlockingQueue<>();
+        RaftExecutor raftExecutor = new RaftExecutor(queue);
+
         Set<HostPort> raftServers = RaftUtil.parseServers(config.getServers());
 
         int electQuorum = raftServers.size() / 2 + 1;
         int rwQuorum = raftServers.size() >= 4 && raftServers.size() % 2 == 0 ? raftServers.size() / 2 : electQuorum;
         raftStatus = new RaftStatus(electQuorum, rwQuorum);
+        raftStatus.setRaftExecutor(raftExecutor);
 
         NioClientConfig nioClientConfig = new NioClientConfig();
         nioClientConfig.setName("RaftClient");
         setupNioConfig(nioClientConfig);
         raftClient = new NioClient(nioClientConfig);
 
-        LinkedBlockingQueue<Object> queue = new LinkedBlockingQueue<>();
-        RaftExecutor raftExecutor = new RaftExecutor(queue);
+
 
         RaftContainer container = new RaftContainer();
         container.setRaftExecutor(raftExecutor);

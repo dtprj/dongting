@@ -70,6 +70,8 @@ public class RaftStatus {
     private FileChannel statusChannel;
     private FileLock statusFileLock;
 
+    private RaftExecutor raftExecutor;
+
     private static final VarHandle ERROR;
 
     static {
@@ -283,5 +285,13 @@ public class RaftStatus {
 
     public void setStatusFileLock(FileLock statusFileLock) {
         this.statusFileLock = statusFileLock;
+    }
+
+    public RaftExecutor getRaftExecutor() {
+        return raftExecutor;
+    }
+
+    public void setRaftExecutor(RaftExecutor raftExecutor) {
+        this.raftExecutor = raftExecutor;
     }
 }
