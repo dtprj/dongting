@@ -191,13 +191,13 @@ public class RaftUtil {
 
     public static void append(RaftLog raftLog, RaftStatus raftStatus, long prevLogIndex,
                               int prevLogTerm, ArrayList<LogItem> logs) {
-        RaftUtil.doWithRetry(() -> {
+        RaftUtil.doWithSyncRetry(() -> {
             raftLog.append(prevLogIndex, prevLogTerm, logs);
             return null;
         }, raftStatus, 1000, "raft log append error");
     }
 
-    public static <T> T doWithRetry(Supplier<T> callback, RaftStatus raftStatus, long sleepMillis, String errorMsg) {
+    public static <T> T doWithSyncRetry(Supplier<T> callback, RaftStatus raftStatus, long sleepMillis, String errorMsg) {
         int failCount = 0;
         while (true) {
             try {
@@ -223,7 +223,7 @@ public class RaftUtil {
 
     public static LogItem[] load(RaftLog raftLog, RaftStatus raftStatus, long index, int limit, long bytesLimit) {
         LogItem[] items;
-        items = doWithRetry(() -> raftLog.load(index, limit, bytesLimit),
+        items = doWithSyncRetry(() -> raftLog.load(index, limit, bytesLimit),
                 raftStatus, 1000, "raft log load error");
         if (items == null || items.length == 0) {
             throw new RaftException("can't load raft log, result is null or empty. index=" + index +

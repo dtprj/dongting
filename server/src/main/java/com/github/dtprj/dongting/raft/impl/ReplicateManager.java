@@ -288,12 +288,12 @@ class ReplicateManager {
     }
 
     private long findMaxIndexByTerm(int term) {
-        return RaftUtil.doWithRetry(() -> raftLog.findMaxIndexByTerm(term),
+        return RaftUtil.doWithSyncRetry(() -> raftLog.findMaxIndexByTerm(term),
                 raftStatus, 1000, "findMaxIndexByTerm fail");
     }
 
     private int findLastTermLessThan(int term) {
-        return RaftUtil.doWithRetry(() -> raftLog.findLastTermLessThan(term),
+        return RaftUtil.doWithSyncRetry(() -> raftLog.findLastTermLessThan(term),
                 raftStatus, 1000, "findLastTermLessThan fail");
     }
 
