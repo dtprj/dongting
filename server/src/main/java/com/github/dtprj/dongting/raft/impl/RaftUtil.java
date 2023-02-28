@@ -121,7 +121,8 @@ public class RaftUtil {
         }
     }
 
-    public static void incrTermAndConvertToFollower(int remoteTerm, RaftStatus raftStatus, int newLeaderId) {
+    public static void incrTermAndConvertToFollower(int remoteTerm, RaftStatus raftStatus,
+                                                    int newLeaderId, boolean persist) {
         log.info("update term from {} to {}, change to follower, oldRole={}",
                 raftStatus.getCurrentTerm(), remoteTerm, raftStatus.getRole());
         RaftRole oldRole = raftStatus.getRole();
@@ -148,6 +149,9 @@ public class RaftUtil {
                 }
                 return true;
             });
+        }
+        if (persist) {
+            StatusUtil.updateStatusFile(raftStatus);
         }
     }
 
@@ -227,4 +231,5 @@ public class RaftUtil {
         }
         return items;
     }
+
 }

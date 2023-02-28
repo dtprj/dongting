@@ -186,6 +186,7 @@ public class VoteManager {
         raftStatus.setCurrentTerm(raftStatus.getCurrentTerm() + 1);
         raftStatus.setVotedFor(config.getId());
         initStatusForVoting(raftStatus.getServers().size() - 1);
+        StatusUtil.updateStatusFile(raftStatus);
 
         log.info("start vote. newTerm={}, voteId={}", raftStatus.getCurrentTerm(), currentVoteId);
 
@@ -242,7 +243,7 @@ public class VoteManager {
                 }
             }
         } else {
-            RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus, -1);
+            RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus, -1, true);
         }
     }
 }

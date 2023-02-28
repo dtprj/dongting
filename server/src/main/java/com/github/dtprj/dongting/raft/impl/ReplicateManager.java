@@ -201,7 +201,7 @@ class ReplicateManager {
         if (remoteTerm > raftStatus.getCurrentTerm()) {
             log.info("find remote term greater than local term. remoteTerm={}, localTerm={}",
                     remoteTerm, raftStatus.getCurrentTerm());
-            RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus, -1);
+            RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus, -1, true);
             return true;
         }
 

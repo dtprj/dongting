@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
+import com.github.dtprj.dongting.common.CloseUtil;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.ObjUtil;
 import com.github.dtprj.dongting.common.Pair;
@@ -40,6 +41,7 @@ import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftThread;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.ShareStatus;
+import com.github.dtprj.dongting.raft.impl.StatusUtil;
 import com.github.dtprj.dongting.raft.impl.VoteManager;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.InstallSnapshotProcessor;
@@ -152,6 +154,8 @@ public class RaftServer extends AbstractLifeCircle {
 
     @Override
     protected void doStart() {
+        StatusUtil.initStatusFileChannel(config.getDataDir(), config.getStatusFile(), raftStatus);
+
         Pair<Integer, Long> initResult = raftLog.init();
         stateMachine.init(raftLog);
         raftStatus.setLastLogTerm(initResult.getLeft());
@@ -173,6 +177,8 @@ public class RaftServer extends AbstractLifeCircle {
             raftThread.join(100);
         } catch (InterruptedException e) {
             throw new RaftException(e);
+        } finally {
+            CloseUtil.close(raftStatus.getStatusFileLock(), raftStatus.getStatusFile());
         }
     }
 

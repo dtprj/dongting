@@ -87,7 +87,7 @@ public class AppendProcessor extends ReqProcessor {
                 resp.setSuccess(false);
             }
         } else if (remoteTerm > localTerm) {
-            RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus, req.getLeaderId());
+            RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus, req.getLeaderId(), true);
             append(req, resp);
         } else {
             log.debug("receive append request with a smaller term, ignore, remoteTerm={}, localTerm={}", remoteTerm, localTerm);

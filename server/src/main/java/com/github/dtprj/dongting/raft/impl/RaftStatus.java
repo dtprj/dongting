@@ -17,8 +17,11 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.Timestamp;
 
+import java.io.RandomAccessFile;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -62,6 +65,10 @@ public class RaftStatus {
 
     private long lastLogIndex;
     private int lastLogTerm;
+
+    private RandomAccessFile statusFile;
+    private FileChannel statusChannel;
+    private FileLock statusFileLock;
 
     private static final VarHandle ERROR;
 
@@ -252,5 +259,29 @@ public class RaftStatus {
 
     public void setInstallSnapshot(boolean installSnapshot) {
         this.installSnapshot = installSnapshot;
+    }
+
+    public RandomAccessFile getStatusFile() {
+        return statusFile;
+    }
+
+    public void setStatusFile(RandomAccessFile statusFile) {
+        this.statusFile = statusFile;
+    }
+
+    public FileChannel getStatusChannel() {
+        return statusChannel;
+    }
+
+    public void setStatusChannel(FileChannel statusChannel) {
+        this.statusChannel = statusChannel;
+    }
+
+    public FileLock getStatusFileLock() {
+        return statusFileLock;
+    }
+
+    public void setStatusFileLock(FileLock statusFileLock) {
+        this.statusFileLock = statusFileLock;
     }
 }

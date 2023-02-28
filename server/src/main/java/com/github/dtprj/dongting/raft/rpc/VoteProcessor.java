@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.impl.StatusUtil;
 
 /**
  * @author huangli
@@ -72,14 +73,14 @@ public class VoteProcessor extends ReqProcessor {
 
     private void processVote(VoteReq voteReq, VoteResp resp, int localTerm) {
         if (voteReq.getTerm() > localTerm) {
-            RaftUtil.incrTermAndConvertToFollower(voteReq.getTerm(), raftStatus, -1);
+            RaftUtil.incrTermAndConvertToFollower(voteReq.getTerm(), raftStatus, -1, false);
         }
 
         if (shouldGrant(voteReq, localTerm)) {
-            // TODO persist
             raftStatus.setVotedFor(voteReq.getCandidateId());
             resp.setVoteGranted(true);
         }
+        StatusUtil.updateStatusFile(raftStatus);
     }
 
     private boolean shouldGrant(VoteReq voteReq, int localTerm) {

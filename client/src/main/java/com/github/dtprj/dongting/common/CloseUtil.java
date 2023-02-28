@@ -18,8 +18,6 @@ package com.github.dtprj.dongting.common;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
-import java.net.Socket;
-
 /**
  * @author huangli
  */
@@ -34,8 +32,6 @@ public class CloseUtil {
                         ((AutoCloseable) res).close();
                     } else if (res instanceof LifeCircle) {
                         ((LifeCircle) res).stop();
-                    } else if (res instanceof Socket) {
-                        ((Socket) res).close();
                     }
                 } catch (Throwable e) {
                     log.error("close fail", e);

@@ -69,7 +69,7 @@ public class InstallSnapshotProcessor extends ReqProcessor {
                 resp.success = false;
             }
         } else if (remoteTerm > localTerm) {
-            RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus, req.leaderId);
+            RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus, req.leaderId, true);
             installSnapshot(req, resp);
         } else {
             log.debug("receive raft install snapshot request with a smaller term, ignore, remoteTerm={}, localTerm={}", remoteTerm, localTerm);
