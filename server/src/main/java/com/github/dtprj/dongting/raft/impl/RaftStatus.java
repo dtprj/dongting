@@ -30,7 +30,7 @@ public class RaftStatus {
 
     // persistent state on all servers
     private int currentTerm;
-    private int voteFor;
+    private int votedFor;
 
     // volatile state on all servers
     private long commitIndex;
@@ -142,12 +142,12 @@ public class RaftStatus {
         this.currentTerm = currentTerm;
     }
 
-    public int getVoteFor() {
-        return voteFor;
+    public int getVotedFor() {
+        return votedFor;
     }
 
-    public void setVoteFor(int voteFor) {
-        this.voteFor = voteFor;
+    public void setVotedFor(int votedFor) {
+        this.votedFor = votedFor;
     }
 
     public long getCommitIndex() {

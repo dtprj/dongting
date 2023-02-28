@@ -131,7 +131,7 @@ public class RaftUtil {
             updateLeader(raftStatus, newLeaderId);
         }
         raftStatus.setCurrentTerm(remoteTerm);
-        raftStatus.setVoteFor(0);
+        raftStatus.setVotedFor(0);
         raftStatus.setRole(RaftRole.follower);
         if (oldRole == RaftRole.leader) {
             oldPending.forEach((idx, task) -> {

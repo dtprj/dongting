@@ -184,7 +184,7 @@ public class VoteManager {
         }
 
         raftStatus.setCurrentTerm(raftStatus.getCurrentTerm() + 1);
-        raftStatus.setVoteFor(config.getId());
+        raftStatus.setVotedFor(config.getId());
         initStatusForVoting(raftStatus.getServers().size() - 1);
 
         log.info("start vote. newTerm={}, voteId={}", raftStatus.getCurrentTerm(), currentVoteId);

@@ -77,7 +77,7 @@ public class VoteProcessor extends ReqProcessor {
 
         if (shouldGrant(voteReq, localTerm)) {
             // TODO persist
-            raftStatus.setVoteFor(voteReq.getCandidateId());
+            raftStatus.setVotedFor(voteReq.getCandidateId());
             resp.setVoteGranted(true);
         }
     }
@@ -86,7 +86,7 @@ public class VoteProcessor extends ReqProcessor {
         if (voteReq.getTerm() < localTerm) {
             return false;
         } else {
-            if (raftStatus.getVoteFor() == 0 || raftStatus.getVoteFor() == voteReq.getCandidateId()) {
+            if (raftStatus.getVotedFor() == 0 || raftStatus.getVotedFor() == voteReq.getCandidateId()) {
                 if (voteReq.getLastLogTerm() > raftStatus.getLastLogTerm()) {
                     return true;
                 } else if (voteReq.getLastLogTerm() == raftStatus.getLastLogTerm()
