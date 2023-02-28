@@ -23,7 +23,7 @@ import com.github.dtprj.dongting.raft.server.StateMachine;
 /**
  * @author huangli
  */
-public class RaftContainer {
+public class RaftComponents {
     private RaftServerConfig config;
     private RaftExecutor raftExecutor;
     private RaftLog raftLog;

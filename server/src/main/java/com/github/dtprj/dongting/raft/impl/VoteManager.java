@@ -51,7 +51,7 @@ public class VoteManager {
     private int currentVoteId;
 
 
-    public VoteManager(RaftContainer container, Raft raft) {
+    public VoteManager(RaftComponents container, Raft raft) {
         this.raft = raft;
         this.client = container.getClient();
         this.raftStatus = container.getRaftStatus();

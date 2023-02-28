@@ -56,7 +56,7 @@ public class RaftThread extends Thread {
 
     private final CompletableFuture<Void> initFuture = new CompletableFuture<>();
 
-    public RaftThread(RaftContainer container, Raft raft, GroupConManager groupConManager, VoteManager voteManager) {
+    public RaftThread(RaftComponents container, Raft raft, GroupConManager groupConManager, VoteManager voteManager) {
         this.config = container.getConfig();
         this.raftStatus = container.getRaftStatus();
         this.queue = container.getRaftExecutor().getQueue();

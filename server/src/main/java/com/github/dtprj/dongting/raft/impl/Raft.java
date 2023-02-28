@@ -44,7 +44,7 @@ public class Raft {
     private RaftNode self;
     private final Timestamp ts;
 
-    public Raft(RaftContainer container) {
+    public Raft(RaftComponents container) {
         this.raftLog = container.getRaftLog();
         this.raftStatus = container.getRaftStatus();
         this.ts = raftStatus.getTs();

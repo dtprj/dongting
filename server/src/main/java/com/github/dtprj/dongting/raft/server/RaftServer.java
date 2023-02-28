@@ -34,7 +34,7 @@ import com.github.dtprj.dongting.net.NioServerConfig;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.impl.GroupConManager;
 import com.github.dtprj.dongting.raft.impl.Raft;
-import com.github.dtprj.dongting.raft.impl.RaftContainer;
+import com.github.dtprj.dongting.raft.impl.RaftComponents;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
@@ -121,7 +121,7 @@ public class RaftServer extends AbstractLifeCircle {
 
 
 
-        RaftContainer container = new RaftContainer();
+        RaftComponents container = new RaftComponents();
         container.setRaftExecutor(raftExecutor);
         container.setRaftLog(raftLog);
         container.setRaftStatus(raftStatus);
