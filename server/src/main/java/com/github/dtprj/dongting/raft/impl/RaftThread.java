@@ -15,10 +15,12 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -27,6 +29,7 @@ import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -72,8 +75,14 @@ public class RaftThread extends Thread {
 
     protected boolean init() {
         try {
+            IntObjMap<HostPort> nodeMap = RaftUtil.parseServers(config.getServers());
+            HashSet<HostPort> nodeSet = new HashSet();
+            nodeMap.forEach((id, hp) -> {
+                nodeSet.add(hp);
+                return true;
+            });
             groupConManager.initRaftGroup(raftStatus.getElectQuorum(),
-                    RaftUtil.parseServers(config.getServers()), 1000);
+                    nodeSet, 1000);
             if (raftStatus.getElectQuorum() == 1) {
                 RaftUtil.changeToLeader(raftStatus);
                 raft.sendHeartBeat();

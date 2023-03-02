@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.HostPort;
@@ -24,13 +25,9 @@ import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * @author huangli
@@ -38,20 +35,35 @@ import java.util.stream.Collectors;
 public class RaftUtil {
     private static final DtLog log = DtLogs.getLogger(RaftUtil.class);
 
-    public static Set<HostPort> parseServers(String serversStr) {
-        Set<HostPort> servers = Arrays.stream(serversStr.split("[,;]"))
-                .filter(Objects::nonNull)
-                .map(s -> {
-                    String[] arr = s.split(":");
-                    if (arr.length != 2) {
-                        throw new IllegalArgumentException("not 'host:port' format:" + s);
-                    }
-                    return new HostPort(arr[0].trim(), Integer.parseInt(arr[1].trim()));
-                }).collect(Collectors.toSet());
-        if (servers.size() == 0) {
+    public static IntObjMap<HostPort> parseServers(String serversStr) {
+        String[] servers = serversStr.split(";");
+        if (servers == null || servers.length == 0) {
             throw new RaftException("servers list is empty");
         }
-        return servers;
+        try {
+            IntObjMap<HostPort> m = new IntObjMap<>();
+            for (String server : servers) {
+                String[] arr = server.split(",");
+                if (arr.length != 2) {
+                    throw new IllegalArgumentException("not 'id,host:port' format:" + server);
+                }
+                int id = Integer.parseInt(arr[0].trim());
+                String hostPortStr = arr[1];
+                int x = hostPortStr.lastIndexOf(':');
+                if (x < 0 || x == hostPortStr.length() - 1) {
+                    throw new IllegalArgumentException("not 'id,host:port' format:" + server);
+                }
+                String host = hostPortStr.substring(0, x).trim();
+                if (host.startsWith("[") && host.endsWith("]")) {
+                    host = host.substring(1, host.length() - 1);
+                }
+                int port = Integer.parseInt(hostPortStr.substring(x + 1).trim());
+                m.put(id, new HostPort(host, port));
+            }
+            return m;
+        } catch (NumberFormatException e) {
+            throw new RaftException("bad servers list: " + serversStr);
+        }
     }
 
     public static boolean needCommit(long currentCommitIndex, long recentMatchIndex,

@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -219,9 +220,13 @@ public class GroupConManager {
     // run in io thread
     private void whenRpcFinish(ReadFrame rf, RaftNode node, PingResult pingResult) {
         RaftPingFrameCallback callback = (RaftPingFrameCallback) rf.getBody();
-        Set<HostPort> remoteServers;
+        HashSet<HostPort> nodesSet = new HashSet<>();
         try {
-            remoteServers = RaftUtil.parseServers(callback.serversStr);
+            IntObjMap<HostPort> remoteServers = RaftUtil.parseServers(callback.serversStr);
+            remoteServers.forEach((id, hp) -> {
+                nodesSet.add(hp);
+                return true;
+            });
         } catch (Exception e) {
             pingResult.ready = false;
             log.error("servers list is empty", e);
@@ -229,7 +234,7 @@ public class GroupConManager {
         }
         boolean self = callback.uuidHigh == uuid.getMostSignificantBits()
                 && callback.uuidLow == uuid.getLeastSignificantBits();
-        pingResult.servers = Collections.unmodifiableSet(remoteServers);
+        pingResult.servers = Collections.unmodifiableSet(nodesSet);
         pingResult.id = callback.id;
         pingResult.self = self;
 

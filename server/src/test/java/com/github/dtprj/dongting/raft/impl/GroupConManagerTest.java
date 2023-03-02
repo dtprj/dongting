@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+/*
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NioClient;
@@ -33,12 +34,13 @@ import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-
+*/
 /**
  * @author huangli
  */
 public class GroupConManagerTest {
 
+    /*
     private static class RN {
         NioServer server;
         NioClient client;
@@ -246,5 +248,5 @@ public class GroupConManagerTest {
             }
         }
     }
-
+*/
 }

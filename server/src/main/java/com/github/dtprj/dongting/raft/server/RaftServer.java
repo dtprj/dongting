@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.server;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.CloseUtil;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.ObjUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -50,7 +51,6 @@ import com.github.dtprj.dongting.raft.rpc.VoteProcessor;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -107,7 +107,7 @@ public class RaftServer extends AbstractLifeCircle {
         LinkedBlockingQueue<Object> queue = new LinkedBlockingQueue<>();
         RaftExecutor raftExecutor = new RaftExecutor(queue);
 
-        Set<HostPort> raftServers = RaftUtil.parseServers(config.getServers());
+        IntObjMap<HostPort> raftServers = RaftUtil.parseServers(config.getServers());
 
         int electQuorum = raftServers.size() / 2 + 1;
         int rwQuorum = raftServers.size() >= 4 && raftServers.size() % 2 == 0 ? raftServers.size() / 2 : electQuorum;
