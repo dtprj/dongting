@@ -25,19 +25,19 @@ public abstract class PbCallback {
     protected PbParser parser;
 
     public boolean readVarNumber(int index, long value) {
-        throw new UnsupportedOperationException();
+        return true;
     }
 
     public boolean readFix32(int index, int value) {
-        throw new UnsupportedOperationException();
+        return true;
     }
 
     public boolean readFix64(int index, long value) {
-        throw new UnsupportedOperationException();
+        return true;
     }
 
     public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
-        throw new UnsupportedOperationException();
+        return true;
     }
 
     public void begin(int len, PbParser parser) {
