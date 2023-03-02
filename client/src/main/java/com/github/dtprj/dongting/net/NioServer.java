@@ -212,6 +212,10 @@ public class NioServer extends NioNet implements Runnable {
         log.warn("force stop done");
     }
 
+    public NioServerConfig getConfig() {
+        return config;
+    }
+
     public static class PingProcessor extends ReqProcessor {
 
         private static final ByteBufferDecoder DECODER = new ByteBufferDecoder(1024);

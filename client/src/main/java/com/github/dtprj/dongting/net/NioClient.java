@@ -232,4 +232,8 @@ public class NioClient extends NioNet {
             throw new IllegalArgumentException("the peer is not owned by this client");
         }
     }
+
+    public NioClientConfig getConfig() {
+        return config;
+    }
 }
