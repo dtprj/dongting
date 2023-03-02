@@ -44,11 +44,11 @@ public class RaftStatus {
     private boolean installSnapshot;
 
     private RaftRole role; // shared
-    private RaftNode currentLeader; // shared
+    private RaftMember currentLeader; // shared
     private final Timestamp ts = new Timestamp();
     private final int electQuorum;
     private final int rwQuorum;
-    private final List<RaftNode> servers = new ArrayList<>();
+    private final List<RaftMember> servers = new ArrayList<>();
 
     private PendingMap pendingRequests;
     private long firstCommitIndexOfCurrentTerm;
@@ -118,7 +118,7 @@ public class RaftStatus {
         this.shareStatusUpdated = true;
     }
 
-    public void setCurrentLeader(RaftNode currentLeader) {
+    public void setCurrentLeader(RaftMember currentLeader) {
         this.currentLeader = currentLeader;
         this.shareStatusUpdated = true;
     }
@@ -215,7 +215,7 @@ public class RaftStatus {
         this.lastLogTerm = lastLogTerm;
     }
 
-    public List<RaftNode> getServers() {
+    public List<RaftMember> getServers() {
         return servers;
     }
 
@@ -243,7 +243,7 @@ public class RaftStatus {
         return shareStatus;
     }
 
-    public RaftNode getCurrentLeader() {
+    public RaftMember getCurrentLeader() {
         return currentLeader;
     }
 

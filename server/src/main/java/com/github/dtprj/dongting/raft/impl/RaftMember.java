@@ -23,7 +23,7 @@ import java.util.Set;
 /**
  * @author huangli
  */
-public class RaftNode {
+public class RaftMember {
     private int id;
     private final Peer peer;
     private Set<HostPort> servers;
@@ -44,7 +44,7 @@ public class RaftNode {
     private long nextIndex;
     private long matchIndex;
 
-    public RaftNode(Peer peer) {
+    public RaftMember(Peer peer) {
         this.peer = peer;
     }
 

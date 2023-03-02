@@ -90,8 +90,8 @@ public class GroupConManager {
         this.raftStatus = raftStatus;
     }
 
-    private RaftNode find(List<RaftNode> servers, HostPort hostPort) {
-        for (RaftNode node : servers) {
+    private RaftMember find(List<RaftMember> servers, HostPort hostPort) {
+        for (RaftMember node : servers) {
             if (node.getPeer().getEndPoint().equals(hostPort)) {
                 return node;
             }
@@ -99,9 +99,9 @@ public class GroupConManager {
         return null;
     }
 
-    private CompletableFuture<List<RaftNode>> add(Collection<HostPort> endPoints) {
+    private CompletableFuture<List<RaftMember>> add(Collection<HostPort> endPoints) {
         HashSet<HostPort> validEndPoints = new HashSet<>();
-        List<RaftNode> servers = raftStatus.getServers();
+        List<RaftMember> servers = raftStatus.getServers();
         for (HostPort hp : endPoints) {
             if (find(servers, hp) == null) {
                 validEndPoints.add(hp);
@@ -116,15 +116,15 @@ public class GroupConManager {
             list.add(client.addPeer(hp));
         }
         return CompletableFuture.allOf(list.toArray(new CompletableFuture[0]))
-                .thenApply(v -> list.stream().map(f -> new RaftNode(f.join()))
+                .thenApply(v -> list.stream().map(f -> new RaftMember(f.join()))
                         .collect(Collectors.toList()));
     }
 
     public void addSync(Collection<HostPort> endPoints) {
-        CompletableFuture<List<RaftNode>> result = add(endPoints);
-        List<RaftNode> list = result.join();
-        List<RaftNode> servers = raftStatus.getServers();
-        for (RaftNode node : list) {
+        CompletableFuture<List<RaftMember>> result = add(endPoints);
+        List<RaftMember> list = result.join();
+        List<RaftMember> servers = raftStatus.getServers();
+        for (RaftMember node : list) {
             if (find(servers, node.getPeer().getEndPoint()) == null) {
                 servers.add(node);
             }
@@ -132,7 +132,7 @@ public class GroupConManager {
     }
 
     public void pingAllAndUpdateServers() {
-        for (RaftNode node : raftStatus.getServers()) {
+        for (RaftMember node : raftStatus.getServers()) {
             if (node.isSelf()) {
                 continue;
             }
@@ -149,14 +149,14 @@ public class GroupConManager {
         }
     }
 
-    private void processPingInRaftThread(RaftNode node, PingResult pingResult) {
+    private void processPingInRaftThread(RaftMember node, PingResult pingResult) {
         node.setPinging(false);
         if (pingResult == null) {
             return;
         }
-        ArrayList<RaftNode> list = new ArrayList<>(raftStatus.getServers());
+        ArrayList<RaftMember> list = new ArrayList<>(raftStatus.getServers());
         list.remove(node);
-        RaftNode result = new RaftNode(null);
+        RaftMember result = new RaftMember(null);
         result.setId(pingResult.id);
         result.setReady(pingResult.ready);
         result.setServers(pingResult.servers);
@@ -175,7 +175,7 @@ public class GroupConManager {
         }
     }
 
-    public CompletableFuture<PingResult> connectAndPing(RaftNode node) {
+    public CompletableFuture<PingResult> connectAndPing(RaftMember node) {
         if (node.isPinging()) {
             // do nothing, node status will not change
             return CompletableFuture.completedFuture(null);
@@ -203,7 +203,7 @@ public class GroupConManager {
                 });
     }
 
-    private CompletableFuture<PingResult> sendRaftPing(RaftNode node, PingResult pingResult) {
+    private CompletableFuture<PingResult> sendRaftPing(RaftMember node, PingResult pingResult) {
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
         CompletableFuture<ReadFrame> f = client.sendRequest(node.getPeer(), new RaftPingWriteFrame(), DECODER, timeout);
         return f.handle((rf, ex) -> {
@@ -218,7 +218,7 @@ public class GroupConManager {
     }
 
     // run in io thread
-    private void whenRpcFinish(ReadFrame rf, RaftNode node, PingResult pingResult) {
+    private void whenRpcFinish(ReadFrame rf, RaftMember node, PingResult pingResult) {
         RaftPingFrameCallback callback = (RaftPingFrameCallback) rf.getBody();
         HashSet<HostPort> nodesSet = new HashSet<>();
         try {
@@ -248,8 +248,8 @@ public class GroupConManager {
         }
     }
 
-    private void checkSelf(List<RaftNode> list) {
-        for (RaftNode rn1 : list) {
+    private void checkSelf(List<RaftMember> list) {
+        for (RaftMember rn1 : list) {
             if (rn1.isSelf()) {
                 return;
             }
@@ -257,15 +257,15 @@ public class GroupConManager {
         throw new RaftException("can't init raft connection to self");
     }
 
-    private static void checkNodes(List<RaftNode> list) {
+    private static void checkNodes(List<RaftMember> list) {
         int size = list.size();
         for (int i = 0; i < size; i++) {
-            RaftNode rn1 = list.get(i);
+            RaftMember rn1 = list.get(i);
             if (!rn1.isReady()) {
                 continue;
             }
             for (int j = i + 1; j < size; j++) {
-                RaftNode rn2 = list.get(j);
+                RaftMember rn2 = list.get(j);
                 if (!rn2.isReady()) {
                     continue;
                 }
@@ -285,14 +285,14 @@ public class GroupConManager {
     public void initRaftGroup(int electQuorum, Collection<HostPort> servers, int sleepMillis) {
         addSync(servers);
         while (true) {
-            List<RaftNode> serverList = raftStatus.getServers();
+            List<RaftMember> serverList = raftStatus.getServers();
             List<CompletableFuture<PingResult>> futures = new ArrayList<>();
-            for (RaftNode node : serverList) {
+            for (RaftMember node : serverList) {
                 futures.add(connectAndPing(node));
             }
             DtTime timeout = new DtTime(config.getElectTimeout(), TimeUnit.MILLISECONDS);
             for (int i = 0; i < futures.size(); i++) {
-                RaftNode node = serverList.get(i);
+                RaftMember node = serverList.get(i);
                 CompletableFuture<PingResult> f = futures.get(i);
                 long timeoutMillis = timeout.rest(TimeUnit.MILLISECONDS);
                 PingResult pingResult;
@@ -318,7 +318,7 @@ public class GroupConManager {
             }
             checkSelf(serverList);
             checkNodes(serverList);
-            long currentNodes = serverList.stream().filter(RaftNode::isReady).count();
+            long currentNodes = serverList.stream().filter(RaftMember::isReady).count();
             if (currentNodes >= electQuorum) {
                 log.info("raft group init success. electQuorum={}, currentNodes={}. remote peers: {}",
                         electQuorum, currentNodes, serverList);
@@ -411,7 +411,7 @@ public class GroupConManager {
 
         boolean ready;
 
-        PingResult(RaftNode initStatus) {
+        PingResult(RaftMember initStatus) {
             this.id = initStatus.getId();
             this.servers = initStatus.getServers();
             this.self = initStatus.isSelf();
@@ -419,7 +419,7 @@ public class GroupConManager {
             this.ready = initStatus.isReady();
         }
 
-        public void copyTo(RaftNode node) {
+        public void copyTo(RaftMember node) {
             node.setId(id);
             node.setServers(servers);
             node.setSelf(self);

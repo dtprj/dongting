@@ -92,7 +92,7 @@ public class VoteManager {
             return;
         }
         int count = 0;
-        for (RaftNode node : raftStatus.getServers()) {
+        for (RaftMember node : raftStatus.getServers()) {
             if (node.isReady()) {
                 // include self
                 count++;
@@ -114,14 +114,14 @@ public class VoteManager {
     }
 
     private void startPreVote() {
-        for (RaftNode node : raftStatus.getServers()) {
+        for (RaftMember node : raftStatus.getServers()) {
             if (!node.isSelf() && node.isReady()) {
                 sendRequest(node, true, 0);
             }
         }
     }
 
-    private void sendRequest(RaftNode node, boolean preVote, long leaseStartTime) {
+    private void sendRequest(RaftMember node, boolean preVote, long leaseStartTime) {
         VoteReq req = new VoteReq();
         int currentTerm = raftStatus.getCurrentTerm();
         req.setCandidateId(config.getId());
@@ -145,7 +145,7 @@ public class VoteManager {
         }
     }
 
-    private Object processPreVoteResp(ReadFrame rf, Throwable ex, RaftNode remoteNode, VoteReq req, int voteIdOfRequest) {
+    private Object processPreVoteResp(ReadFrame rf, Throwable ex, RaftMember remoteNode, VoteReq req, int voteIdOfRequest) {
         if (voteIdOfRequest != currentVoteId) {
             return null;
         }
@@ -191,7 +191,7 @@ public class VoteManager {
         log.info("start vote. newTerm={}, voteId={}", raftStatus.getCurrentTerm(), currentVoteId);
 
         long leaseStartTime = raftStatus.getTs().getNanoTime();
-        for (RaftNode node : raftStatus.getServers()) {
+        for (RaftMember node : raftStatus.getServers()) {
             if (!node.isSelf()) {
                 sendRequest(node, false, leaseStartTime);
             } else {
@@ -200,7 +200,7 @@ public class VoteManager {
         }
     }
 
-    private Object processVoteResp(ReadFrame rf, Throwable ex, RaftNode remoteNode,
+    private Object processVoteResp(ReadFrame rf, Throwable ex, RaftMember remoteNode,
                                    VoteReq voteReq, int voteIdOfRequest, long leaseStartTime) {
         if (voteIdOfRequest != currentVoteId) {
             return null;
@@ -216,7 +216,7 @@ public class VoteManager {
         return null;
     }
 
-    private void processVoteResp(ReadFrame rf, RaftNode remoteNode, VoteReq voteReq, long leaseStartTime) {
+    private void processVoteResp(ReadFrame rf, RaftMember remoteNode, VoteReq voteReq, long leaseStartTime) {
         VoteResp voteResp = (VoteResp) rf.getBody();
         int remoteTerm = voteResp.getTerm();
         if (remoteTerm < raftStatus.getCurrentTerm()) {

@@ -67,12 +67,12 @@ public class RaftUtil {
     }
 
     public static boolean needCommit(long currentCommitIndex, long recentMatchIndex,
-                                     List<RaftNode> servers, int rwQuorum) {
+                                     List<RaftMember> servers, int rwQuorum) {
         if (recentMatchIndex < currentCommitIndex) {
             return false;
         }
         int count = 0;
-        for (RaftNode node : servers) {
+        for (RaftMember node : servers) {
             if (node.isSelf()) {
                 if (recentMatchIndex > node.getMatchIndex()) {
                     return false;
@@ -87,7 +87,7 @@ public class RaftUtil {
 
     public static void updateLease(long currentReqNanos, RaftStatus raftStatus) {
         int order = 0;
-        for (RaftNode node : raftStatus.getServers()) {
+        for (RaftMember node : raftStatus.getServers()) {
             if (!node.isHasLastConfirmReqNanos()) {
                 continue;
             }
@@ -112,7 +112,7 @@ public class RaftUtil {
         raftStatus.setLeaseStartNanos(0);
         raftStatus.setPendingRequests(new PendingMap());
         raftStatus.setCurrentLeader(null);
-        for (RaftNode node : raftStatus.getServers()) {
+        for (RaftMember node : raftStatus.getServers()) {
             node.setMatchIndex(0);
             node.setNextIndex(0);
             node.setPendingStat(new PendingStat());
@@ -180,24 +180,24 @@ public class RaftUtil {
         log.info("change to leader. term={}", raftStatus.getCurrentTerm());
         resetStatus(raftStatus);
         raftStatus.setRole(RaftRole.leader);
-        for (RaftNode node : raftStatus.getServers()) {
+        for (RaftMember node : raftStatus.getServers()) {
             node.setNextIndex(raftStatus.getLastLogIndex() + 1);
         }
     }
 
     public static void updateLeader(RaftStatus raftStatus, int leaderId) {
-        RaftNode leader = raftStatus.getCurrentLeader();
+        RaftMember leader = raftStatus.getCurrentLeader();
         if (leader != null && leader.getId() == leaderId) {
             return;
         }
-        for (RaftNode node : raftStatus.getServers()) {
+        for (RaftMember node : raftStatus.getServers()) {
             if (node.getId() == leaderId) {
                 raftStatus.setCurrentLeader(node);
             }
         }
     }
 
-    public static HostPort getLeader(RaftNode leader) {
+    public static HostPort getLeader(RaftMember leader) {
         return leader == null ? null : leader.getPeer().getEndPoint();
     }
 

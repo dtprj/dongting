@@ -41,7 +41,7 @@ public class Raft {
     private final RaftLog raftLog;
     private final RaftStatus raftStatus;
 
-    private RaftNode self;
+    private RaftMember self;
     private final Timestamp ts;
 
     public Raft(RaftComponents container) {
@@ -54,11 +54,11 @@ public class Raft {
         this.replicateManager = new ReplicateManager(container, commitManager);
    }
 
-    private RaftNode getSelf() {
+    private RaftMember getSelf() {
         if (self != null) {
             return self;
         }
-        for (RaftNode node : raftStatus.getServers()) {
+        for (RaftMember node : raftStatus.getServers()) {
             if (node.isSelf()) {
                 this.self = node;
                 break;
@@ -126,7 +126,7 @@ public class Raft {
         raftStatus.setLastLogTerm(currentTerm);
         raftStatus.setLastLogIndex(newIndex);
 
-        RaftNode self = getSelf();
+        RaftMember self = getSelf();
         self.setNextIndex(newIndex + 1);
         self.setMatchIndex(newIndex);
         self.setLastConfirm(true, ts.getNanoTime());
@@ -138,7 +138,7 @@ public class Raft {
         }
 
 
-        for (RaftNode node : raftStatus.getServers()) {
+        for (RaftMember node : raftStatus.getServers()) {
             if (node.isSelf()) {
                 continue;
             }

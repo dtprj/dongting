@@ -87,7 +87,7 @@ class ReplicateManager {
     }
 
     @SuppressWarnings("StatementWithEmptyBody")
-    void replicate(RaftNode node) {
+    void replicate(RaftMember node) {
         if (raftStatus.getRole() != RaftRole.leader) {
             return;
         }
@@ -107,7 +107,7 @@ class ReplicateManager {
         }
     }
 
-    private void doReplicate(RaftNode node, boolean tryMatch) {
+    private void doReplicate(RaftMember node, boolean tryMatch) {
         long nextIndex = node.getNextIndex();
         long lastLogIndex = raftStatus.getLastLogIndex();
         if (lastLogIndex < nextIndex) {
@@ -149,7 +149,7 @@ class ReplicateManager {
         sendAppendRequest(node, firstItem.getIndex() - 1, firstItem.getPrevLogTerm(), Arrays.asList(items), bytes);
     }
 
-    private void sendAppendRequest(RaftNode node, long prevLogIndex, int prevLogTerm, List<LogItem> logs, long bytes) {
+    private void sendAppendRequest(RaftMember node, long prevLogIndex, int prevLogTerm, List<LogItem> logs, long bytes) {
         AppendReqWriteFrame req = new AppendReqWriteFrame();
         req.setFrameType(FrameType.TYPE_REQ);
         req.setCommand(Commands.RAFT_APPEND_ENTRIES);
@@ -167,7 +167,7 @@ class ReplicateManager {
         registerAppendResultCallback(node, prevLogIndex, prevLogTerm, f, logs.size(), bytes);
     }
 
-    private void registerAppendResultCallback(RaftNode node, long prevLogIndex, int prevLogTerm,
+    private void registerAppendResultCallback(RaftMember node, long prevLogIndex, int prevLogTerm,
                                               CompletableFuture<ReadFrame> f, int count, long bytes) {
         int reqTerm = raftStatus.getCurrentTerm();
         // the time refresh happens before this line
@@ -214,7 +214,7 @@ class ReplicateManager {
     }
 
     // in raft thread
-    private void processAppendResult(RaftNode node, ReadFrame rf, long prevLogIndex,
+    private void processAppendResult(RaftMember node, ReadFrame rf, long prevLogIndex,
                                      int prevLogTerm, int reqTerm, long reqNanos, int count) {
         long expectNewMatchIndex = prevLogIndex + count;
         AppendRespCallback body = (AppendRespCallback) rf.getBody();
@@ -252,7 +252,7 @@ class ReplicateManager {
         }
     }
 
-    private void processLogNotMatch(RaftNode node, long prevLogIndex, int prevLogTerm, int reqTerm,
+    private void processLogNotMatch(RaftMember node, long prevLogIndex, int prevLogTerm, int reqTerm,
                                     long reqNanos, AppendRespCallback body, RaftStatus raftStatus) {
         log.info("log not match. remoteId={}, matchIndex={}, prevLogIndex={}, prevLogTerm={}, remoteLogTerm={}, remoteLogIndex={}, localTerm={}, reqTerm={}, remoteTerm={}",
                 node.getId(), node.getMatchIndex(), prevLogIndex, prevLogTerm, body.getMaxLogTerm(),
@@ -297,13 +297,13 @@ class ReplicateManager {
                 raftStatus, 1000, "findLastTermLessThan fail");
     }
 
-    private void initInstallSnapshot(RaftNode node) {
+    private void initInstallSnapshot(RaftMember node) {
         node.setInstallSnapshot(true);
         node.setPendingStat(new PendingStat());
         installSnapshot(node);
     }
 
-    private void installSnapshot(RaftNode node) {
+    private void installSnapshot(RaftMember node) {
         openSnapshotIterator(node);
         SnapshotInfo si = node.getSnapshotInfo();
         if (si == null) {
@@ -324,7 +324,7 @@ class ReplicateManager {
         sendInstallSnapshotReq(node, si, data);
     }
 
-    private void closeIteratorAndResetStatus(RaftNode node, SnapshotInfo si) {
+    private void closeIteratorAndResetStatus(RaftMember node, SnapshotInfo si) {
         try {
             stateMachine.closeIterator(si.iterator);
         } catch (Throwable e1) {
@@ -334,7 +334,7 @@ class ReplicateManager {
         node.setPendingStat(new PendingStat());
     }
 
-    private void openSnapshotIterator(RaftNode node) {
+    private void openSnapshotIterator(RaftMember node) {
         SnapshotInfo si = node.getSnapshotInfo();
         if (si != null) {
             return;
@@ -373,7 +373,7 @@ class ReplicateManager {
         node.setSnapshotInfo(si);
     }
 
-    private void sendInstallSnapshotReq(RaftNode node, SnapshotInfo si, ByteBuffer data) {
+    private void sendInstallSnapshotReq(RaftMember node, SnapshotInfo si, ByteBuffer data) {
         InstallSnapshotReq req = new InstallSnapshotReq();
         req.term = raftStatus.getCurrentTerm();
         req.leaderId = config.getId();
@@ -393,7 +393,7 @@ class ReplicateManager {
         registerInstallSnapshotCallback(future, node, si, req, bytes);
     }
 
-    private void registerInstallSnapshotCallback(CompletableFuture<ReadFrame> future, RaftNode node,
+    private void registerInstallSnapshotCallback(CompletableFuture<ReadFrame> future, RaftMember node,
                                                  SnapshotInfo si, InstallSnapshotReq req, int bytes) {
         PendingStat pd = node.getPendingStat();
         pd.incrAndGetPendingRequests(1, bytes);
@@ -427,9 +427,9 @@ class ReplicateManager {
 
     class InstallSnapshotRunner implements Runnable {
 
-        private final RaftNode node;
+        private final RaftMember node;
 
-        InstallSnapshotRunner(RaftNode node) {
+        InstallSnapshotRunner(RaftMember node) {
             this.node = node;
         }
         @Override
