@@ -299,7 +299,7 @@ public class LongObjMap<V> {
     @FunctionalInterface
     public interface Visitor<V> {
         /**
-         * return ture if keep this K/V should keep if Map, else remove it
+         * return ture if this K/V should keep in Map, else remove it
          */
         boolean visit(long key, V value);
     }
