@@ -33,7 +33,7 @@ import com.github.dtprj.dongting.net.NioConfig;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
 import com.github.dtprj.dongting.raft.client.RaftException;
-import com.github.dtprj.dongting.raft.impl.GroupConManager;
+import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.Raft;
 import com.github.dtprj.dongting.raft.impl.RaftComponents;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
@@ -129,10 +129,10 @@ public class RaftServer extends AbstractLifeCircle {
         container.setConfig(config);
         container.setStateMachine(stateMachine);
 
-        GroupConManager groupConManager = new GroupConManager(config, raftClient, raftExecutor, raftStatus);
+        MemberManager memberManager = new MemberManager(config, raftClient, raftExecutor, raftStatus);
         Raft raft = new Raft(container);
         VoteManager voteManager = new VoteManager(container, raft);
-        raftThread = new RaftThread(container, raft, groupConManager, voteManager);
+        raftThread = new RaftThread(container, raft, memberManager, voteManager);
 
         NioServerConfig nioServerConfig = new NioServerConfig();
         nioServerConfig.setPort(config.getRaftPort());
@@ -141,7 +141,7 @@ public class RaftServer extends AbstractLifeCircle {
         nioServerConfig.setIoThreads(1);
         setupNioConfig(nioServerConfig);
         raftServer = new NioServer(nioServerConfig);
-        raftServer.register(Commands.RAFT_PING, groupConManager.getProcessor(), raftExecutor);
+        raftServer.register(Commands.RAFT_PING, memberManager.getProcessor(), raftExecutor);
         AppendProcessor ap = new AppendProcessor(raftStatus, raftLog, stateMachine, voteManager);
         raftServer.register(Commands.RAFT_APPEND_ENTRIES, ap, raftExecutor);
         raftServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(raftStatus), raftExecutor);

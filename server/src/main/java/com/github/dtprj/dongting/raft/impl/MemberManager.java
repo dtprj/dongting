@@ -58,8 +58,8 @@ import java.util.stream.Collectors;
 /**
  * @author huangli
  */
-public class GroupConManager {
-    private static final DtLog log = DtLogs.getLogger(GroupConManager.class);
+public class MemberManager {
+    private static final DtLog log = DtLogs.getLogger(MemberManager.class);
     private final UUID uuid = UUID.randomUUID();
     private final byte[] serversStr;
     private final RaftServerConfig config;
@@ -82,7 +82,7 @@ public class GroupConManager {
         }
     };
 
-    public GroupConManager(RaftServerConfig config, NioClient client, Executor executor, RaftStatus raftStatus) {
+    public MemberManager(RaftServerConfig config, NioClient client, Executor executor, RaftStatus raftStatus) {
         this.serversStr = config.getServers().getBytes(StandardCharsets.UTF_8);
         this.config = config;
         this.client = client;

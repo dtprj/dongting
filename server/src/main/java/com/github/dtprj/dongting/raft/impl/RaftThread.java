@@ -46,7 +46,7 @@ public class RaftThread extends Thread {
     private final RaftServerConfig config;
     private final RaftStatus raftStatus;
     private final Raft raft;
-    private final GroupConManager groupConManager;
+    private final MemberManager memberManager;
     private final VoteManager voteManager;
 
     private final long heartbeatIntervalNanos;
@@ -59,12 +59,12 @@ public class RaftThread extends Thread {
 
     private final CompletableFuture<Void> initFuture = new CompletableFuture<>();
 
-    public RaftThread(RaftComponents container, Raft raft, GroupConManager groupConManager, VoteManager voteManager) {
+    public RaftThread(RaftComponents container, Raft raft, MemberManager memberManager, VoteManager voteManager) {
         this.config = container.getConfig();
         this.raftStatus = container.getRaftStatus();
         this.queue = container.getRaftExecutor().getQueue();
         this.raft = raft;
-        this.groupConManager = groupConManager;
+        this.memberManager = memberManager;
 
         electTimeoutNanos = Duration.ofMillis(config.getElectTimeout()).toNanos();
         raftStatus.setElectTimeoutNanos(electTimeoutNanos);
@@ -81,7 +81,7 @@ public class RaftThread extends Thread {
                 nodeSet.add(hp);
                 return true;
             });
-            groupConManager.initRaftGroup(raftStatus.getElectQuorum(),
+            memberManager.initRaftGroup(raftStatus.getElectQuorum(),
                     nodeSet, 1000);
             if (raftStatus.getElectQuorum() == 1) {
                 RaftUtil.changeToLeader(raftStatus);
@@ -194,7 +194,7 @@ public class RaftThread extends Thread {
 
         if (roundTimeNanos - raftStatus.getHeartbeatTime() > heartbeatIntervalNanos) {
             raftStatus.setHeartbeatTime(roundTimeNanos);
-            groupConManager.pingAllAndUpdateServers();
+            memberManager.pingAllAndUpdateServers();
             if (raftStatus.getRole() == RaftRole.leader) {
                 raft.sendHeartBeat();
                 raftStatus.copyShareStatus();
