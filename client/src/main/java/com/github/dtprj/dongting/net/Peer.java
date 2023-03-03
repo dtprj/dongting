@@ -24,6 +24,7 @@ public class Peer {
     private final HostPort endPoint;
     private final NioNet owner;
     private DtChannel dtChannel;
+    private int connectionId;
     private volatile PeerStatus status;
 
     Peer(HostPort endPoint, NioNet owner) {
@@ -56,5 +57,13 @@ public class Peer {
 
     void setStatus(PeerStatus status) {
         this.status = status;
+    }
+
+    void setConnectionId(int connectionId) {
+        this.connectionId = connectionId;
+    }
+
+    public int getConnectionId() {
+        return connectionId;
     }
 }
