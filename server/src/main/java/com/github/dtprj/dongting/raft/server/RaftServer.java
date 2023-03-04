@@ -182,7 +182,7 @@ public class RaftServer extends AbstractLifeCircle {
         } catch (InterruptedException e) {
             throw new RaftException(e);
         } finally {
-            CloseUtil.close(raftStatus.getStatusFileLock(), raftStatus.getStatusFile());
+            CloseUtil.close(raftStatus.getStatusFileLock(), raftStatus.getRandomAccessStatusFile());
         }
     }
 

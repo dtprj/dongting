@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.Timestamp;
 
+import java.io.File;
 import java.io.RandomAccessFile;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -66,11 +67,13 @@ public class RaftStatus {
     private long lastLogIndex;
     private int lastLogTerm;
 
-    private RandomAccessFile statusFile;
+    private File statusFile;
+    private RandomAccessFile randomAccessStatusFile;
     private FileChannel statusChannel;
     private FileLock statusFileLock;
 
     private RaftExecutor raftExecutor;
+    private boolean saving;
 
     private static final VarHandle ERROR;
 
@@ -263,12 +266,12 @@ public class RaftStatus {
         this.installSnapshot = installSnapshot;
     }
 
-    public RandomAccessFile getStatusFile() {
-        return statusFile;
+    public RandomAccessFile getRandomAccessStatusFile() {
+        return randomAccessStatusFile;
     }
 
-    public void setStatusFile(RandomAccessFile statusFile) {
-        this.statusFile = statusFile;
+    public void setRandomAccessStatusFile(RandomAccessFile randomAccessStatusFile) {
+        this.randomAccessStatusFile = randomAccessStatusFile;
     }
 
     public FileChannel getStatusChannel() {
@@ -293,5 +296,21 @@ public class RaftStatus {
 
     public void setRaftExecutor(RaftExecutor raftExecutor) {
         this.raftExecutor = raftExecutor;
+    }
+
+    public boolean isSaving() {
+        return saving;
+    }
+
+    public void setSaving(boolean saving) {
+        this.saving = saving;
+    }
+
+    public File getStatusFile() {
+        return statusFile;
+    }
+
+    public void setStatusFile(File statusFile) {
+        this.statusFile = statusFile;
     }
 }

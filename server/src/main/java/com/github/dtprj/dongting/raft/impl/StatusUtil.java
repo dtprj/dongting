@@ -97,7 +97,8 @@ public class StatusUtil {
                 raftStatus.setVotedFor(Integer.parseInt(p.getProperty(votedForKey).trim()));
             }
 
-            raftStatus.setStatusFile(statusFile);
+            raftStatus.setStatusFile(file);
+            raftStatus.setRandomAccessStatusFile(statusFile);
             raftStatus.setStatusChannel(statusChannel);
             raftStatus.setStatusFileLock(lock);
         } catch (IOException e) {
@@ -110,7 +111,16 @@ public class StatusUtil {
     }
 
     public static void updateStatusFile(RaftStatus raftStatus) {
+        updateStatusFileImpl(raftStatus, true);
+    }
+
+    private static void updateStatusFileImpl(RaftStatus raftStatus, boolean firstTry) {
         try {
+            if (firstTry && raftStatus.isSaving()) {
+                // prevent concurrent saving or saving actions more and more
+                return;
+            }
+            raftStatus.setSaving(true);
             FileChannel channel = raftStatus.getStatusChannel();
             channel.position(0);
             Properties p = new Properties();
@@ -134,9 +144,13 @@ public class StatusUtil {
             ByteBuffer buf = ByteBuffer.wrap(fileContent);
             channel.write(buf);
             channel.force(false);
+            raftStatus.setSaving(false);
+            log.info("{}saving raft status file success: {}", firstTry ? "" : "retry ",
+                    raftStatus.getStatusFile().getName());
         } catch (IOException e) {
-            log.error("update status file failed, retry after 1000ms", e);
-            raftStatus.getRaftExecutor().schedule(() -> updateStatusFile(raftStatus), 1000);
+            log.error("update status file failed, firstTry after 1000ms, file={}",
+                    raftStatus.getStatusFile().getPath(), e);
+            raftStatus.getRaftExecutor().schedule(() -> updateStatusFileImpl(raftStatus, false), 1000);
         }
     }
 }
