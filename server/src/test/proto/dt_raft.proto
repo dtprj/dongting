@@ -15,17 +15,25 @@
  */
 syntax = "proto3";
 option java_package = "com.github.dtprj.dongting.raft";
-message RaftPingReq {
+
+message NodePingReq {
   fixed32 id = 1;
   fixed64 uuid_high = 2;
   fixed64 uuid_low = 3;
-  string group_servers = 4;
+}
+message NodePingResp {
+  fixed32 id = 1;
+  fixed64 uuid_high = 2;
+  fixed64 uuid_low = 3;
+}
+
+message RaftPingReq {
+  fixed32 id = 1;
+  repeated fixed32 members = 2[packed = false];
 }
 message RaftPingResp {
   fixed32 id = 1;
-  fixed64 uuid_high = 2;
-  fixed64 uuid_low = 3;
-  string group_servers = 4;
+  repeated fixed32 members = 2[packed = false];
 }
 
 message AppendEntriesReq {

@@ -13,21 +13,19 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.net;
+package com.github.dtprj.dongting.raft.server;
 
 /**
  * @author huangli
  */
-public interface Commands {
-    // 1 ~ 15
-    int CMD_PING = 1;
-    int RAFT_APPEND_ENTRIES = 2;
+public class RaftGroupConfig {
+    private String ids;
 
-    // 16 ~ 29 for rpc
+    public String getIds() {
+        return ids;
+    }
 
-    // 100 ~ 119 for raft
-    int NODE_PING = 100;
-    int RAFT_PING = 101;
-    int RAFT_REQUEST_VOTE = 102;
-    int RAFT_INSTALL_SNAPSHOT = 103;
+    public void setIds(String ids) {
+        this.ids = ids;
+    }
 }

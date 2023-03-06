@@ -16,9 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -26,7 +24,6 @@ import java.util.concurrent.TimeUnit;
  */
 public class RaftExecutor implements Executor {
     private final LinkedBlockingQueue<Object> queue;
-    private final static ScheduledExecutorService SCHEDULED_SERVICE = Executors.newSingleThreadScheduledExecutor();
 
     public RaftExecutor(LinkedBlockingQueue<Object> queue) {
         this.queue = queue;
@@ -39,7 +36,7 @@ public class RaftExecutor implements Executor {
             // ScheduledExecutorService just for schedule, the runnable will be executed in the RaftThread
             RaftExecutor executor = this;
             Runnable wrapper = () ->  executor.execute(runnable);
-            SCHEDULED_SERVICE.schedule(wrapper, delayMillis, TimeUnit.MILLISECONDS);
+            RaftUtil.SCHEDULED_SERVICE.schedule(wrapper, delayMillis, TimeUnit.MILLISECONDS);
         }
     }
 

@@ -97,7 +97,7 @@ public abstract class NioNet extends AbstractLifeCircle {
         boolean write = false;
         try {
             if (status != LifeStatus.running) {
-                return errorFuture(new IllegalStateException("error state: " + status));
+                return errorFuture(new NetException("error state: " + status));
             }
 
             if (this.semaphore != null) {

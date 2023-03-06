@@ -15,13 +15,10 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.net.HostPort;
-import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
@@ -29,7 +26,7 @@ import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -46,8 +43,10 @@ public class RaftThread extends Thread {
     private final RaftServerConfig config;
     private final RaftStatus raftStatus;
     private final Raft raft;
+    private final NodeManager nodeManager;
     private final MemberManager memberManager;
     private final VoteManager voteManager;
+    private List<RaftNodeEx> otherNodes;
 
     private final long heartbeatIntervalNanos;
     private final long electTimeoutNanos;
@@ -57,13 +56,13 @@ public class RaftThread extends Thread {
 
     private volatile boolean stop;
 
-    private final CompletableFuture<Void> initFuture = new CompletableFuture<>();
-
-    public RaftThread(RaftComponents container, Raft raft, MemberManager memberManager, VoteManager voteManager) {
+    public RaftThread(RaftComponents container, Raft raft, NodeManager nodeManager,
+                      MemberManager memberManager, VoteManager voteManager) {
         this.config = container.getConfig();
         this.raftStatus = container.getRaftStatus();
         this.queue = container.getRaftExecutor().getQueue();
         this.raft = raft;
+        this.nodeManager = nodeManager;
         this.memberManager = memberManager;
 
         electTimeoutNanos = Duration.ofMillis(config.getElectTimeout()).toNanos();
@@ -73,31 +72,14 @@ public class RaftThread extends Thread {
         this.voteManager = voteManager;
     }
 
-    protected boolean init() {
+    @Override
+    public void run() {
         try {
-            IntObjMap<HostPort> nodeMap = RaftUtil.parseServers(config.getServers());
-            HashSet<HostPort> nodeSet = new HashSet();
-            nodeMap.forEach((id, hp) -> {
-                nodeSet.add(hp);
-                return true;
-            });
-            memberManager.initRaftGroup(raftStatus.getElectQuorum(),
-                    nodeSet, 1000);
+            this.otherNodes = nodeManager.getOtherNodes();
             if (raftStatus.getElectQuorum() == 1) {
                 RaftUtil.changeToLeader(raftStatus);
                 raft.sendHeartBeat();
             }
-            initFuture.complete(null);
-            return true;
-        } catch (Throwable e) {
-            initFuture.completeExceptionally(e);
-            return false;
-        }
-    }
-
-    @Override
-    public void run() {
-        try {
             run0();
         } catch (Throwable e) {
             BugLog.getLog().error("raft thread error", e);
@@ -105,15 +87,14 @@ public class RaftThread extends Thread {
     }
 
     private void run0() {
-        if (!init()) {
-            return;
-        }
         Timestamp ts = raftStatus.getTs();
         long lastCleanTime = ts.getNanoTime();
         ArrayList<RaftTask> tasks = new ArrayList<>(32);
         ArrayList<Object> queueData = new ArrayList<>(32);
         boolean poll = true;
         while (!stop) {
+            memberManager.ensureRaftMemberStatus();
+
             try {
                 poll = pollAndRefreshTs(ts, queueData, poll);
             } catch (InterruptedException e) {
@@ -193,9 +174,8 @@ public class RaftThread extends Thread {
         long roundTimeNanos = ts.getNanoTime();
 
         if (roundTimeNanos - raftStatus.getHeartbeatTime() > heartbeatIntervalNanos) {
-            raftStatus.setHeartbeatTime(roundTimeNanos);
-            memberManager.pingAllAndUpdateServers();
             if (raftStatus.getRole() == RaftRole.leader) {
+                raftStatus.setHeartbeatTime(roundTimeNanos);
                 raft.sendHeartBeat();
                 raftStatus.copyShareStatus();
             }
@@ -205,14 +185,6 @@ public class RaftThread extends Thread {
                 voteManager.tryStartPreVote();
                 raftStatus.copyShareStatus();
             }
-        }
-    }
-
-    public void waitInit() {
-        try {
-            initFuture.get();
-        } catch (Exception e) {
-            throw new RaftException(e);
         }
     }
 

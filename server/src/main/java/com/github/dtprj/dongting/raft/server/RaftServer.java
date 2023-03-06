@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.raft.server;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.CloseUtil;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.ObjUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -26,7 +25,6 @@ import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
-import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.NioConfig;
@@ -34,9 +32,11 @@ import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
+import com.github.dtprj.dongting.raft.impl.NodeManager;
 import com.github.dtprj.dongting.raft.impl.Raft;
 import com.github.dtprj.dongting.raft.impl.RaftComponents;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
+import com.github.dtprj.dongting.raft.impl.RaftNode;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftThread;
@@ -50,6 +50,7 @@ import com.github.dtprj.dongting.raft.rpc.VoteProcessor;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -70,6 +71,11 @@ public class RaftServer extends AbstractLifeCircle {
     private final StateMachine stateMachine;
 
     private final RaftServerConfig config;
+    private final RaftGroupConfig groupConfig;
+
+    private final NodeManager nodeManager;
+    private final MemberManager memberManager;
+    private final List<RaftNode> allRaftServers;
 
     private final int maxPendingWrites;
     private final long maxPendingWriteBytes;
@@ -93,24 +99,32 @@ public class RaftServer extends AbstractLifeCircle {
         }
     }
 
-    public RaftServer(RaftServerConfig config, RaftLog raftLog, StateMachine stateMachine) {
+    public RaftServer(RaftServerConfig config, RaftGroupConfig groupConfig, RaftLog raftLog, StateMachine stateMachine) {
         Objects.requireNonNull(config.getServers());
         ObjUtil.checkPositive(config.getId(), "id");
         ObjUtil.checkPositive(config.getRaftPort(), "port");
-        this.raftLog = raftLog;
         this.config = config;
+        this.groupConfig = groupConfig;
+        this.raftLog = raftLog;
         this.stateMachine = stateMachine;
         this.maxPendingWrites = config.getMaxPendingWrites();
         this.maxPendingWriteBytes = config.getMaxPendingWriteBytes();
 
-
         LinkedBlockingQueue<Object> queue = new LinkedBlockingQueue<>();
         RaftExecutor raftExecutor = new RaftExecutor(queue);
 
-        IntObjMap<HostPort> raftServers = RaftUtil.parseServers(config.getServers());
+        allRaftServers = RaftUtil.parseServers(config.getServers());
+        long distinctCount = allRaftServers.stream().map(RaftNode::getId).distinct().count();
+        if (distinctCount != allRaftServers.size()) {
+            throw new IllegalArgumentException("duplicate server id");
+        }
+        distinctCount = allRaftServers.stream().map(RaftNode::getHostPort).distinct().count();
+        if (distinctCount != allRaftServers.size()) {
+            throw new IllegalArgumentException("duplicate server host");
+        }
 
-        int electQuorum = raftServers.size() / 2 + 1;
-        int rwQuorum = raftServers.size() >= 4 && raftServers.size() % 2 == 0 ? raftServers.size() / 2 : electQuorum;
+        int electQuorum = allRaftServers.size() / 2 + 1;
+        int rwQuorum = allRaftServers.size() >= 4 && allRaftServers.size() % 2 == 0 ? allRaftServers.size() / 2 : electQuorum;
         raftStatus = new RaftStatus(electQuorum, rwQuorum);
         raftStatus.setRaftExecutor(raftExecutor);
 
@@ -119,7 +133,7 @@ public class RaftServer extends AbstractLifeCircle {
         setupNioConfig(nioClientConfig);
         raftClient = new NioClient(nioClientConfig);
 
-
+        nodeManager = new NodeManager(config, allRaftServers, raftClient);
 
         RaftComponents container = new RaftComponents();
         container.setRaftExecutor(raftExecutor);
@@ -129,10 +143,10 @@ public class RaftServer extends AbstractLifeCircle {
         container.setConfig(config);
         container.setStateMachine(stateMachine);
 
-        MemberManager memberManager = new MemberManager(config, raftClient, raftExecutor, raftStatus);
+        memberManager = new MemberManager(config, raftClient, raftExecutor);
         Raft raft = new Raft(container);
         VoteManager voteManager = new VoteManager(container, raft);
-        raftThread = new RaftThread(container, raft, memberManager, voteManager);
+        raftThread = new RaftThread(container, raft, nodeManager, memberManager, voteManager);
 
         NioServerConfig nioServerConfig = new NioServerConfig();
         nioServerConfig.setPort(config.getRaftPort());
@@ -167,8 +181,37 @@ public class RaftServer extends AbstractLifeCircle {
         raftServer.start();
         raftClient.start();
         raftClient.waitStart();
+
+        connect();
+        memberManager.init(nodeManager.getSelf(), nodeManager.getOtherNodes());
+
         raftThread.start();
         raftThread.waitInit();
+    }
+
+    private void connect() {
+        DtTime deadline = new DtTime(config.getConnectTimeout(), TimeUnit.MILLISECONDS);
+        nodeManager.start();
+        List<CompletableFuture<Boolean>> connectFutures = nodeManager.getInitFutures();
+        int successCount = 0;
+        for (CompletableFuture<Boolean> future : connectFutures) {
+            try {
+                long rest = deadline.rest(TimeUnit.NANOSECONDS);
+                if (rest > 0) {
+                    if (future.get(rest, TimeUnit.NANOSECONDS)) {
+                        successCount++;
+                    }
+                }
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+        if (successCount < raftStatus.getElectQuorum()) {
+            String msg = "connect to servers failed, total nodes: " + allRaftServers.size()
+                    + ", successNodes: " + successCount;
+            log.error(msg);
+            throw new RaftException(msg);
+        }
     }
 
     @Override

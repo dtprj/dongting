@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.HostPort;
@@ -27,6 +26,8 @@ import com.github.dtprj.dongting.raft.server.RaftLog;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 
 /**
@@ -34,14 +35,15 @@ import java.util.function.Supplier;
  */
 public class RaftUtil {
     private static final DtLog log = DtLogs.getLogger(RaftUtil.class);
+    public final static ScheduledExecutorService SCHEDULED_SERVICE = Executors.newSingleThreadScheduledExecutor();
 
-    public static IntObjMap<HostPort> parseServers(String serversStr) {
+    public static List<RaftNode> parseServers(String serversStr) {
         String[] servers = serversStr.split(";");
         if (servers == null || servers.length == 0) {
             throw new RaftException("servers list is empty");
         }
         try {
-            IntObjMap<HostPort> m = new IntObjMap<>();
+            List<RaftNode> list = new ArrayList<>();
             for (String server : servers) {
                 String[] arr = server.split(",");
                 if (arr.length != 2) {
@@ -58,9 +60,9 @@ public class RaftUtil {
                     host = host.substring(1, host.length() - 1);
                 }
                 int port = Integer.parseInt(hostPortStr.substring(x + 1).trim());
-                m.put(id, new HostPort(host, port));
+                list.add(new RaftNode(id, new HostPort(host, port)));
             }
-            return m;
+            return list;
         } catch (NumberFormatException e) {
             throw new RaftException("bad servers list: " + serversStr);
         }
@@ -198,7 +200,7 @@ public class RaftUtil {
     }
 
     public static HostPort getLeader(RaftMember leader) {
-        return leader == null ? null : leader.getPeer().getEndPoint();
+        return leader == null ? null : leader.getNode().getHostPort();
     }
 
     public static void append(RaftLog raftLog, RaftStatus raftStatus, long prevLogIndex,

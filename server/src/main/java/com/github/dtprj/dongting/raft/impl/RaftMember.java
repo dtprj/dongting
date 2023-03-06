@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.net.HostPort;
-import com.github.dtprj.dongting.net.Peer;
 
 import java.util.Set;
 
@@ -24,13 +23,16 @@ import java.util.Set;
  * @author huangli
  */
 public class RaftMember {
+    private final RaftNodeEx node;
+
     private int id;
-    private final Peer peer;
     private Set<HostPort> servers;
     private boolean self;
     private boolean ready;
     private boolean pinging;
     private boolean multiAppend;
+
+    private int epoch;
 
     private PendingStat pendingStat;
 
@@ -44,8 +46,8 @@ public class RaftMember {
     private long nextIndex;
     private long matchIndex;
 
-    public RaftMember(Peer peer) {
-        this.peer = peer;
+    public RaftMember(RaftNodeEx node) {
+        this.node = node;
     }
 
     public void setLastConfirm(boolean hasLastConfirmReqNanos, long lastConfirmReqNanos) {
@@ -59,8 +61,8 @@ public class RaftMember {
         return id;
     }
 
-    public Peer getPeer() {
-        return peer;
+    public RaftNodeEx getNode() {
+        return node;
     }
 
     public Set<HostPort> getServers() {
@@ -153,5 +155,13 @@ public class RaftMember {
 
     public void setPendingStat(PendingStat pendingStat) {
         this.pendingStat = pendingStat;
+    }
+
+    public int getEpoch() {
+        return epoch;
+    }
+
+    public void setEpoch(int epoch) {
+        this.epoch = epoch;
     }
 }

@@ -36,6 +36,8 @@ public class RaftServerConfig {
     private int maxPendingWrites = 10000;
     private long maxPendingWriteBytes = 256 * 1024 * 1024;
 
+    private boolean checkSelf = true;
+
     public String getServers() {
         return servers;
     }
@@ -154,5 +156,13 @@ public class RaftServerConfig {
 
     public void setReplicateLoadBytesLimit(int replicateLoadBytesLimit) {
         this.replicateLoadBytesLimit = replicateLoadBytesLimit;
+    }
+
+    public boolean isCheckSelf() {
+        return checkSelf;
+    }
+
+    public void setCheckSelf(boolean checkSelf) {
+        this.checkSelf = checkSelf;
     }
 }
