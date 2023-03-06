@@ -54,6 +54,8 @@ public class MemberManager {
     private RaftMember self;
     private List<RaftMember> allMembers;
 
+    private int readyCount;
+
     private static final PbZeroCopyDecoder DECODER = new PbZeroCopyDecoder(context ->
             new RaftPingFrameCallback());
 
@@ -99,13 +101,13 @@ public class MemberManager {
             } else if (nodeStatus.getEpoch() != member.getEpoch()) {
                 setReady(member, false);
                 if (!member.isPinging()) {
-                    raftPing(node, member);
+                    raftPing(node, member, nodeStatus.getEpoch());
                 }
             }
         }
     }
 
-    private void raftPing(RaftNodeEx raftNodeEx, RaftMember member) {
+    private void raftPing(RaftNodeEx raftNodeEx, RaftMember member, int nodeEpochWhenStartPing) {
         if (raftNodeEx.getPeer().getStatus() != PeerStatus.connected) {
             setReady(member, false);
             return;
@@ -114,11 +116,11 @@ public class MemberManager {
         member.setPinging(true);
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
         client.sendRequest(raftNodeEx.getPeer(), new RaftPingWriteFrame(), DECODER, timeout)
-                .whenCompleteAsync((rf, ex) -> processPingResult(raftNodeEx, member, rf, ex), executor);
+                .whenCompleteAsync((rf, ex) -> processPingResult(raftNodeEx, member, rf, ex, nodeEpochWhenStartPing), executor);
     }
 
     private void processPingResult(RaftNodeEx raftNodeEx, RaftMember member,
-                                   ReadFrame rf, Throwable ex) {
+                                   ReadFrame rf, Throwable ex, int nodeEpochWhenStartPing) {
         RaftPingFrameCallback callback = (RaftPingFrameCallback) rf.getBody();
         member.setPinging(false);
         if (ex != null) {
@@ -126,9 +128,18 @@ public class MemberManager {
             setReady(member, false);
         } else {
             if (ids.equals(callback.ids)) {
-                log.info("raft ping success, id={}, servers={}, remote={}",
-                        callback.id, callback.ids, raftNodeEx.getHostPort());
-                setReady(member, true);
+                NodeStatus currentNodeStatus = member.getNode().getStatus();
+                if (currentNodeStatus.isReady() && nodeEpochWhenStartPing == currentNodeStatus.getEpoch()) {
+                    log.info("raft ping success, id={}, remote={}", callback.id, raftNodeEx.getHostPort());
+                    setReady(member, true);
+                    member.setEpoch(nodeEpochWhenStartPing);
+                } else {
+                    log.warn("raft ping success but current node status not match. "
+                                    + "id={}, remoteHost={}, nodeReady={}, nodeEpoch={}, pingEpoch={}",
+                            callback.id, raftNodeEx.getHostPort(), currentNodeStatus.isReady(),
+                            currentNodeStatus.getEpoch(), nodeEpochWhenStartPing);
+                    setReady(member, false);
+                }
             } else {
                 log.error("raft ping error, group ids not match: localIds={}, remoteIds={}, remote={}",
                         ids, callback.ids, raftNodeEx.getHostPort());
@@ -138,21 +149,16 @@ public class MemberManager {
     }
 
     public void setReady(RaftMember member, boolean ready) {
-        int oldReadyCount = 0;
-        for (RaftMember m : allMembers) {
-            if (m.isReady()) {
-                oldReadyCount++;
-            }
+        if (ready == member.isReady()) {
+            return;
         }
         member.setReady(ready);
-        int newReadyCount = 0;
-        for (RaftMember m : allMembers) {
-            if (m.isReady()) {
-                newReadyCount++;
-            }
-        }
-        if (oldReadyCount != newReadyCount && readyListener != null) {
-            readyListener.accept(oldReadyCount, newReadyCount);
+        if (ready) {
+            readyCount++;
+            readyListener.accept(readyCount - 1, readyCount);
+        } else {
+            readyCount--;
+            readyListener.accept(readyCount + 1, readyCount);
         }
     }
 
@@ -188,7 +194,7 @@ public class MemberManager {
 
     static class RaftPingFrameCallback extends PbCallback {
         private int id;
-        private HashSet<Integer> ids = new HashSet<>();
+        private final HashSet<Integer> ids = new HashSet<>();
 
         @Override
         public boolean readFix32(int index, int value) {
