@@ -163,7 +163,7 @@ class ReplicateManager {
         node.setNextIndex(prevLogIndex + 1 + logs.size());
 
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        CompletableFuture<ReadFrame> f = client.sendRequest(node.getPeer(), req, APPEND_RESP_DECODER, timeout);
+        CompletableFuture<ReadFrame> f = client.sendRequest(node.getNode().getPeer(), req, APPEND_RESP_DECODER, timeout);
         registerAppendResultCallback(node, prevLogIndex, prevLogTerm, f, logs.size(), bytes);
     }
 
@@ -297,19 +297,19 @@ class ReplicateManager {
                 raftStatus, 1000, "findLastTermLessThan fail");
     }
 
-    private void initInstallSnapshot(RaftMember node) {
-        node.setInstallSnapshot(true);
-        node.setPendingStat(new PendingStat());
-        installSnapshot(node);
+    private void initInstallSnapshot(RaftMember member) {
+        member.setInstallSnapshot(true);
+        member.setPendingStat(new PendingStat());
+        installSnapshot(member);
     }
 
-    private void installSnapshot(RaftMember node) {
-        openSnapshotIterator(node);
-        SnapshotInfo si = node.getSnapshotInfo();
+    private void installSnapshot(RaftMember member) {
+        openSnapshotIterator(member);
+        SnapshotInfo si = member.getSnapshotInfo();
         if (si == null) {
             return;
         }
-        if (node.getPendingStat().getPendingBytes() >= maxReplicateBytes) {
+        if (member.getPendingStat().getPendingBytes() >= maxReplicateBytes) {
             return;
         }
         ByteBuffer data;
@@ -318,24 +318,24 @@ class ReplicateManager {
         } catch (Exception e) {
             readSnapshotFailTime = raftStatus.getTs().getNanoTime();
             log.error("read snapshot fail", e);
-            closeIteratorAndResetStatus(node, si);
+            closeIteratorAndResetStatus(member, si);
             return;
         }
-        sendInstallSnapshotReq(node, si, data);
+        sendInstallSnapshotReq(member, si, data);
     }
 
-    private void closeIteratorAndResetStatus(RaftMember node, SnapshotInfo si) {
+    private void closeIteratorAndResetStatus(RaftMember member, SnapshotInfo si) {
         try {
             stateMachine.closeIterator(si.iterator);
         } catch (Throwable e1) {
             log.error("close snapshot fail", e1);
         }
-        node.setSnapshotInfo(null);
-        node.setPendingStat(new PendingStat());
+        member.setSnapshotInfo(null);
+        member.setPendingStat(new PendingStat());
     }
 
-    private void openSnapshotIterator(RaftMember node) {
-        SnapshotInfo si = node.getSnapshotInfo();
+    private void openSnapshotIterator(RaftMember member) {
+        SnapshotInfo si = member.getSnapshotInfo();
         if (si != null) {
             return;
         }
@@ -365,15 +365,15 @@ class ReplicateManager {
             }
             return;
         }
-        log.info("begin install snapshot for node: {}", node.getId());
+        log.info("begin install snapshot for member: {}", member.getId());
         si = new SnapshotInfo();
         si.snapshot = pair.getLeft();
         si.iterator = pair.getRight();
         si.offset = 0;
-        node.setSnapshotInfo(si);
+        member.setSnapshotInfo(si);
     }
 
-    private void sendInstallSnapshotReq(RaftMember node, SnapshotInfo si, ByteBuffer data) {
+    private void sendInstallSnapshotReq(RaftMember member, SnapshotInfo si, ByteBuffer data) {
         InstallSnapshotReq req = new InstallSnapshotReq();
         req.term = raftStatus.getCurrentTerm();
         req.leaderId = config.getId();
@@ -387,15 +387,15 @@ class ReplicateManager {
         wf.setCommand(Commands.RAFT_INSTALL_SNAPSHOT);
         wf.setFrameType(FrameType.TYPE_REQ);
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        CompletableFuture<ReadFrame> future = client.sendRequest(node.getPeer(), wf, INSTALL_SNAPSHOT_RESP_DECODER, timeout);
+        CompletableFuture<ReadFrame> future = client.sendRequest(member.getNode().getPeer(), wf, INSTALL_SNAPSHOT_RESP_DECODER, timeout);
         int bytes = data.remaining();
         si.offset += bytes;
-        registerInstallSnapshotCallback(future, node, si, req, bytes);
+        registerInstallSnapshotCallback(future, member, si, req, bytes);
     }
 
-    private void registerInstallSnapshotCallback(CompletableFuture<ReadFrame> future, RaftMember node,
+    private void registerInstallSnapshotCallback(CompletableFuture<ReadFrame> future, RaftMember member,
                                                  SnapshotInfo si, InstallSnapshotReq req, int bytes) {
-        PendingStat pd = node.getPendingStat();
+        PendingStat pd = member.getPendingStat();
         pd.incrAndGetPendingRequests(1, bytes);
         future.whenCompleteAsync((rf, ex) -> {
             if (req.term != raftStatus.getCurrentTerm()) {
@@ -406,21 +406,21 @@ class ReplicateManager {
             pd.decrAndGetPendingRequests(1, bytes);
             if (ex != null) {
                 log.error("send install snapshot fail", ex);
-                closeIteratorAndResetStatus(node, si);
+                closeIteratorAndResetStatus(member, si);
                 return;
             }
             InstallSnapshotResp respBody = (InstallSnapshotResp) rf.getBody();
             if (checkTermAndRoleFailed(req.term, respBody.term)) {
                 return;
             }
-            log.info("transfer snapshot data to node {}, offset={}", node.getId(), req.offset);
+            log.info("transfer snapshot data to member {}, offset={}", member.getId(), req.offset);
             if (req.done) {
-                log.info("install snapshot for node {} finished success", node.getId());
-                closeIteratorAndResetStatus(node, si);
-                node.setInstallSnapshot(false);
-                node.setNextIndex(req.lastIncludedIndex + 1);
+                log.info("install snapshot for member {} finished success", member.getId());
+                closeIteratorAndResetStatus(member, si);
+                member.setInstallSnapshot(false);
+                member.setNextIndex(req.lastIncludedIndex + 1);
             } else {
-                raftExecutor.execute(new InstallSnapshotRunner(node));
+                raftExecutor.execute(new InstallSnapshotRunner(member));
             }
         }, raftExecutor);
     }
