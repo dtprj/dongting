@@ -15,10 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.net.HostPort;
-
-import java.util.Set;
-
 /**
  * @author huangli
  */
@@ -26,7 +22,6 @@ public class RaftMember {
     private final RaftNodeEx node;
 
     private int id;
-    private Set<HostPort> servers;
     private boolean self;
     private boolean ready;
     private boolean pinging;
@@ -65,10 +60,6 @@ public class RaftMember {
         return node;
     }
 
-    public Set<HostPort> getServers() {
-        return servers;
-    }
-
     public boolean isSelf() {
         return self;
     }
@@ -83,10 +74,6 @@ public class RaftMember {
 
     public void setId(int id) {
         this.id = id;
-    }
-
-    public void setServers(Set<HostPort> servers) {
-        this.servers = servers;
     }
 
     public void setSelf(boolean self) {

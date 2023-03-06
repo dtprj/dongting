@@ -78,6 +78,7 @@ public class RaftServer extends AbstractLifeCircle {
 
     private final NodeManager nodeManager;
     private final MemberManager memberManager;
+    private final VoteManager voteManager;
     private final List<RaftNode> allRaftServers;
 
     private final int maxPendingWrites;
@@ -149,7 +150,7 @@ public class RaftServer extends AbstractLifeCircle {
 
         memberManager = new MemberManager(config, raftClient, raftExecutor, this::onMemberStatusChange);
         Raft raft = new Raft(container);
-        VoteManager voteManager = new VoteManager(container, raft);
+        voteManager = new VoteManager(container, raft);
         raftGroup = new RaftGroup(container, raft, nodeManager, memberManager, voteManager);
 
         NioServerConfig nioServerConfig = new NioServerConfig();
@@ -195,7 +196,7 @@ public class RaftServer extends AbstractLifeCircle {
             log.error("error during wait node ready", e);
             throw new RaftException(e);
         }
-        memberManager.init(nodeManager.getSelf(), nodeManager.getAllNodesEx());
+        memberManager.init(nodeManager.getSelf(), nodeManager.getAllNodesEx(), raftStatus.getAllMembers());
 
         memberReadyFuture = new CompletableFuture<>();
         raftGroup.start();

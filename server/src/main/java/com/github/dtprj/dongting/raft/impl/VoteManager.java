@@ -87,17 +87,22 @@ public class VoteManager {
         }
     }
 
-    public void tryStartPreVote() {
-        if (voting) {
-            return;
-        }
+    private int readyCount(){
         int count = 0;
-        for (RaftMember node : raftStatus.getServers()) {
-            if (node.isReady()) {
+        for (RaftMember member : raftStatus.getAllMembers()) {
+            if (member.isReady() && member.getNode().getStatus().isReady()) {
                 // include self
                 count++;
             }
         }
+        return count;
+    }
+
+    public void tryStartPreVote() {
+        if (voting) {
+            return;
+        }
+        int count = readyCount();
 
         // move last elect time 1 seconds, prevent pre-vote too frequently if failed
         long newLastElectTime = raftStatus.getLastElectTime() + TimeUnit.SECONDS.toNanos(1);
@@ -114,7 +119,7 @@ public class VoteManager {
     }
 
     private void startPreVote() {
-        for (RaftMember node : raftStatus.getServers()) {
+        for (RaftMember node : raftStatus.getAllMembers()) {
             if (!node.isSelf() && node.isReady()) {
                 sendRequest(node, true, 0);
             }
@@ -176,7 +181,11 @@ public class VoteManager {
     }
 
     private void startVote() {
-        // TODO persist raft status
+        int count = readyCount();
+        if (count < raftStatus.getElectQuorum()) {
+            log.warn("only {} node is ready, can't start vote. term={}", count, raftStatus.getCurrentTerm());
+            return;
+        }
         RaftUtil.resetStatus(raftStatus);
         if (raftStatus.getRole() != RaftRole.candidate) {
             log.info("change to candidate. oldTerm={}", raftStatus.getCurrentTerm());
@@ -185,17 +194,21 @@ public class VoteManager {
 
         raftStatus.setCurrentTerm(raftStatus.getCurrentTerm() + 1);
         raftStatus.setVotedFor(config.getId());
-        initStatusForVoting(raftStatus.getServers().size() - 1);
+        initStatusForVoting(raftStatus.getAllMembers().size());
         StatusUtil.updateStatusFile(raftStatus);
 
         log.info("start vote. newTerm={}, voteId={}", raftStatus.getCurrentTerm(), currentVoteId);
 
         long leaseStartTime = raftStatus.getTs().getNanoTime();
-        for (RaftMember node : raftStatus.getServers()) {
-            if (!node.isSelf()) {
-                sendRequest(node, false, leaseStartTime);
+        for (RaftMember member : raftStatus.getAllMembers()) {
+            if (!member.isSelf()) {
+                if (member.isReady() && member.getNode().getStatus().isReady()) {
+                    sendRequest(member, false, leaseStartTime);
+                } else {
+                    descPending(currentVoteId);
+                }
             } else {
-                node.setLastConfirm(true, leaseStartTime);
+                member.setLastConfirm(true, leaseStartTime);
             }
         }
     }

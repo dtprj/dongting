@@ -49,7 +49,7 @@ public class RaftStatus {
     private final Timestamp ts = new Timestamp();
     private final int electQuorum;
     private final int rwQuorum;
-    private final List<RaftMember> servers = new ArrayList<>();
+    private final List<RaftMember> allMembers = new ArrayList<>();
 
     private PendingMap pendingRequests;
     private long firstCommitIndexOfCurrentTerm;
@@ -218,8 +218,8 @@ public class RaftStatus {
         this.lastLogTerm = lastLogTerm;
     }
 
-    public List<RaftMember> getServers() {
-        return servers;
+    public List<RaftMember> getAllMembers() {
+        return allMembers;
     }
 
     public PendingMap getPendingRequests() {

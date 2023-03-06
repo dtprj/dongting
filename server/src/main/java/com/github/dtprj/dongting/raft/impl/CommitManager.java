@@ -44,7 +44,7 @@ class CommitManager {
         RaftStatus raftStatus = this.raftStatus;
 
         boolean needCommit = RaftUtil.needCommit(raftStatus.getCommitIndex(), recentMatchIndex,
-                raftStatus.getServers(), raftStatus.getRwQuorum());
+                raftStatus.getAllMembers(), raftStatus.getRwQuorum());
         if (!needCommit) {
             return;
         }

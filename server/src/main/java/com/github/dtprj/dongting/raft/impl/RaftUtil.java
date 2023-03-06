@@ -89,7 +89,7 @@ public class RaftUtil {
 
     public static void updateLease(long currentReqNanos, RaftStatus raftStatus) {
         int order = 0;
-        for (RaftMember node : raftStatus.getServers()) {
+        for (RaftMember node : raftStatus.getAllMembers()) {
             if (!node.isHasLastConfirmReqNanos()) {
                 continue;
             }
@@ -114,7 +114,7 @@ public class RaftUtil {
         raftStatus.setLeaseStartNanos(0);
         raftStatus.setPendingRequests(new PendingMap());
         raftStatus.setCurrentLeader(null);
-        for (RaftMember node : raftStatus.getServers()) {
+        for (RaftMember node : raftStatus.getAllMembers()) {
             node.setMatchIndex(0);
             node.setNextIndex(0);
             node.setPendingStat(new PendingStat());
@@ -182,7 +182,7 @@ public class RaftUtil {
         log.info("change to leader. term={}", raftStatus.getCurrentTerm());
         resetStatus(raftStatus);
         raftStatus.setRole(RaftRole.leader);
-        for (RaftMember node : raftStatus.getServers()) {
+        for (RaftMember node : raftStatus.getAllMembers()) {
             node.setNextIndex(raftStatus.getLastLogIndex() + 1);
         }
     }
@@ -192,7 +192,7 @@ public class RaftUtil {
         if (leader != null && leader.getId() == leaderId) {
             return;
         }
-        for (RaftMember node : raftStatus.getServers()) {
+        for (RaftMember node : raftStatus.getAllMembers()) {
             if (node.getId() == leaderId) {
                 raftStatus.setCurrentLeader(node);
             }

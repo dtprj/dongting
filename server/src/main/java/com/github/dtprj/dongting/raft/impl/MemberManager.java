@@ -77,12 +77,14 @@ public class MemberManager {
         this.readyListener = readyListener;
     }
 
-    public void init(RaftNodeEx selfNodeEx, List<RaftNodeEx> allNodes) {
+    public void init(RaftNodeEx selfNodeEx, List<RaftNodeEx> allNodes, List<RaftMember> allMembers) {
+        this.allMembers = allMembers;
         for (RaftNodeEx node : allNodes) {
             RaftMember m = new RaftMember(node);
             allMembers.add(m);
             ids.add(node.getId());
             if (selfNodeEx == node) {
+                m.setSelf(true);
                 this.self = m;
             }
         }
