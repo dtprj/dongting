@@ -39,6 +39,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 
 /**
  * @author huangli
@@ -50,20 +51,24 @@ public class NodeManager extends AbstractLifeCircle {
     private final List<RaftNode> allRaftNodes;
     private final NioClient client;
     private final RaftServerConfig config;
+    private final BiConsumer<Integer, Integer> readyListener;
 
     private RaftNodeEx self;
-    private ArrayList<RaftNodeEx> otherNodes;
+    private ArrayList<RaftNodeEx> allNodesEx;
 
-    private List<CompletableFuture<Boolean>> initFutures;
     private ScheduledFuture<?> scheduledFuture;
+
+    private int currentReadyNodes;
 
     private static final PbZeroCopyDecoder DECODER = new PbZeroCopyDecoder(ctx -> new NodePingCallback());
 
-    public NodeManager(RaftServerConfig config, List<RaftNode> allRaftNodes, NioClient client) {
+    public NodeManager(RaftServerConfig config, List<RaftNode> allRaftNodes, NioClient client,
+                       BiConsumer<Integer, Integer> readyListener) {
         this.id = config.getId();
         this.allRaftNodes = allRaftNodes;
         this.client = client;
         this.config = config;
+        this.readyListener = readyListener;
         RaftNode s = null;
         for (RaftNode node : allRaftNodes) {
             if (node.getId() == id) {
@@ -83,7 +88,7 @@ public class NodeManager extends AbstractLifeCircle {
 
     @Override
     protected void doStart() {
-        this.initFutures = init();
+        init();
         this.scheduledFuture = RaftUtil.SCHEDULED_SERVICE.scheduleWithFixedDelay(
                 this::tryConnectAndPingAll, 5, 2, TimeUnit.SECONDS);
     }
@@ -95,13 +100,13 @@ public class NodeManager extends AbstractLifeCircle {
         }
     }
 
-    private List<CompletableFuture<Boolean>> init() {
+    private void init() {
         CompletableFuture<RaftNodeEx>[] futures = new CompletableFuture[allRaftNodes.size()];
         int i = 0;
         for (RaftNode n : allRaftNodes) {
             futures[i++] = add(n);
         }
-        otherNodes = new ArrayList<>(futures.length - 1);
+        allNodesEx = new ArrayList<>(futures.length);
 
         for (CompletableFuture<RaftNodeEx> f : futures) {
             RaftNodeEx node = f.join();
@@ -110,20 +115,15 @@ public class NodeManager extends AbstractLifeCircle {
                     doCheckSelf(node);
                 }
                 this.self = node;
-            } else {
-                otherNodes.add(f.join());
+            }
+            allNodesEx.add(f.join());
+        }
+
+        for (RaftNodeEx nodeEx : allNodesEx) {
+            if (nodeEx != self) {
+                connectAndPing(nodeEx);
             }
         }
-
-        List<CompletableFuture<Boolean>> list = new ArrayList<>(otherNodes.size());
-        list.add(CompletableFuture.completedFuture(true)); //self
-
-        for (RaftNodeEx nodeEx : otherNodes) {
-            list.add(connectAndPing(nodeEx));
-        }
-
-
-        return list;
     }
 
     private void doCheckSelf(RaftNodeEx nodeEx) {
@@ -143,11 +143,10 @@ public class NodeManager extends AbstractLifeCircle {
     }
 
     private void tryConnectAndPingAll() {
-        for (RaftNodeEx nodeEx : otherNodes) {
-            if (nodeEx.isConnecting()) {
-                continue;
+        for (RaftNodeEx nodeEx : allNodesEx) {
+            if (nodeEx != self && !nodeEx.isConnecting()) {
+                connectAndPing(nodeEx);
             }
-            connectAndPing(nodeEx);
         }
     }
 
@@ -169,23 +168,33 @@ public class NodeManager extends AbstractLifeCircle {
                 .handleAsync((v, ex) -> processResult(nodeEx, v, ex), RaftUtil.SCHEDULED_SERVICE);
     }
 
-    private static boolean processResult(RaftNodeEx nodeEx, boolean result, Throwable ex) {
+    private boolean processResult(RaftNodeEx nodeEx, boolean result, Throwable ex) {
         nodeEx.setConnecting(false);
         NodeStatus oldStatus = nodeEx.getStatus();
         if (ex != null) {
             log.warn("connect to raft server {} fail: {}",
                     nodeEx.getPeer().getEndPoint(), ex.toString());
-            nodeEx.setStatus(new NodeStatus(false, oldStatus.getEpoch()));
+            updateNodeStatus(nodeEx, false);
             return false;
         } else {
-            if (result) {
-                if (!oldStatus.isReady()) {
-                    nodeEx.setStatus(new NodeStatus(true, oldStatus.getEpoch() + 1));
-                }
-            } else {
-                nodeEx.setStatus(new NodeStatus(false, oldStatus.getEpoch()));
-            }
+            updateNodeStatus(nodeEx, result);
             return result;
+        }
+    }
+
+    private void updateNodeStatus(RaftNodeEx nodeEx, boolean ready) {
+        NodeStatus oldStatus = nodeEx.getStatus();
+        if (ready == oldStatus.isReady()) {
+            return;
+        }
+        if (ready) {
+            currentReadyNodes++;
+            nodeEx.setStatus(new NodeStatus(true, oldStatus.getEpoch() + 1));
+            readyListener.accept(currentReadyNodes - 1, currentReadyNodes);
+        } else {
+            currentReadyNodes--;
+            nodeEx.setStatus(new NodeStatus(false, oldStatus.getEpoch()));
+            readyListener.accept(currentReadyNodes + 1, currentReadyNodes);
         }
     }
 
@@ -222,12 +231,8 @@ public class NodeManager extends AbstractLifeCircle {
         return self;
     }
 
-    public ArrayList<RaftNodeEx> getOtherNodes() {
-        return otherNodes;
-    }
-
-    public List<CompletableFuture<Boolean>> getInitFutures() {
-        return initFutures;
+    public ArrayList<RaftNodeEx> getAllNodesEx() {
+        return allNodesEx;
     }
 
     private class NodePingWriteFrame extends WriteFrame {

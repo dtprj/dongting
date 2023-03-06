@@ -27,7 +27,7 @@ public class RaftNodeEx extends RaftNode {
 
     private boolean connecting;
 
-    private volatile NodeStatus status;
+    private volatile NodeStatus status = new NodeStatus(false, 0);
 
     public RaftNodeEx(int id, HostPort hostPort, Peer peer) {
         super(id, hostPort);

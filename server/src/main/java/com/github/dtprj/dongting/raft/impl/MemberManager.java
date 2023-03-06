@@ -38,6 +38,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 
 /**
  * @author huangli
@@ -48,9 +49,10 @@ public class MemberManager {
     private final HashSet<Integer> ids = new HashSet<>();
     private final NioClient client;
     private final Executor executor;
+    private final BiConsumer<Integer, Integer> readyListener;
 
     private RaftMember self;
-    private List<RaftMember> otherMembers;
+    private List<RaftMember> allMembers;
 
     private static final PbZeroCopyDecoder DECODER = new PbZeroCopyDecoder(context ->
             new RaftPingFrameCallback());
@@ -67,28 +69,33 @@ public class MemberManager {
         }
     };
 
-    public MemberManager(RaftServerConfig config, NioClient client, Executor executor) {
+    public MemberManager(RaftServerConfig config, NioClient client, Executor executor,
+                         BiConsumer<Integer, Integer> readyListener) {
         this.config = config;
         this.client = client;
         this.executor = executor;
+        this.readyListener = readyListener;
     }
 
-    public void init(RaftNodeEx selfNodeEx, List<RaftNodeEx> otherNodes) {
-        for (RaftNodeEx node : otherNodes) {
-            otherMembers.add(new RaftMember(node));
+    public void init(RaftNodeEx selfNodeEx, List<RaftNodeEx> allNodes) {
+        for (RaftNodeEx node : allNodes) {
+            RaftMember m = new RaftMember(node);
+            allMembers.add(m);
             ids.add(node.getId());
+            if (selfNodeEx == node) {
+                this.self = m;
+            }
         }
-        this.self = new RaftMember(selfNodeEx);
     }
 
     public void ensureRaftMemberStatus() {
-        for (RaftMember member : otherMembers) {
+        for (RaftMember member : allMembers) {
             RaftNodeEx node = member.getNode();
             NodeStatus nodeStatus = node.getStatus();
             if (!nodeStatus.isReady()) {
-                member.setReady(false);
+                setReady(member, false);
             } else if (nodeStatus.getEpoch() != member.getEpoch()) {
-                member.setReady(false);
+                setReady(member, false);
                 if (!member.isPinging()) {
                     raftPing(node, member);
                 }
@@ -98,7 +105,7 @@ public class MemberManager {
 
     private void raftPing(RaftNodeEx raftNodeEx, RaftMember member) {
         if (raftNodeEx.getPeer().getStatus() != PeerStatus.connected) {
-            member.setReady(false);
+            setReady(member, false);
             return;
         }
 
@@ -114,17 +121,36 @@ public class MemberManager {
         member.setPinging(false);
         if (ex != null) {
             log.warn("raft ping fail, remote={}", raftNodeEx.getHostPort(), ex);
-            member.setReady(false);
+            setReady(member, false);
         } else {
             if (ids.equals(callback.ids)) {
                 log.info("raft ping success, id={}, servers={}, remote={}",
                         callback.id, callback.ids, raftNodeEx.getHostPort());
-                member.setReady(true);
+                setReady(member, true);
             } else {
                 log.error("raft ping error, group ids not match: localIds={}, remoteIds={}, remote={}",
                         ids, callback.ids, raftNodeEx.getHostPort());
-                member.setReady(false);
+                setReady(member, false);
             }
+        }
+    }
+
+    public void setReady(RaftMember member, boolean ready) {
+        int oldReadyCount = 0;
+        for (RaftMember m : allMembers) {
+            if (m.isReady()) {
+                oldReadyCount++;
+            }
+        }
+        member.setReady(ready);
+        int newReadyCount = 0;
+        for (RaftMember m : allMembers) {
+            if (m.isReady()) {
+                newReadyCount++;
+            }
+        }
+        if (oldReadyCount != newReadyCount && readyListener != null) {
+            readyListener.accept(oldReadyCount, newReadyCount);
         }
     }
 

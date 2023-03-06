@@ -35,8 +35,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-public class RaftThread extends Thread {
-    private static final DtLog log = DtLogs.getLogger(RaftThread.class);
+public class RaftGroup extends Thread {
+    private static final DtLog log = DtLogs.getLogger(RaftGroup.class);
 
     private final Random random = new Random();
 
@@ -56,8 +56,8 @@ public class RaftThread extends Thread {
 
     private volatile boolean stop;
 
-    public RaftThread(RaftComponents container, Raft raft, NodeManager nodeManager,
-                      MemberManager memberManager, VoteManager voteManager) {
+    public RaftGroup(RaftComponents container, Raft raft, NodeManager nodeManager,
+                     MemberManager memberManager, VoteManager voteManager) {
         this.config = container.getConfig();
         this.raftStatus = container.getRaftStatus();
         this.queue = container.getRaftExecutor().getQueue();
@@ -75,7 +75,7 @@ public class RaftThread extends Thread {
     @Override
     public void run() {
         try {
-            this.otherNodes = nodeManager.getOtherNodes();
+            this.otherNodes = nodeManager.getAllNodesEx();
             if (raftStatus.getElectQuorum() == 1) {
                 RaftUtil.changeToLeader(raftStatus);
                 raft.sendHeartBeat();

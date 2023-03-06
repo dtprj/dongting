@@ -36,10 +36,10 @@ import com.github.dtprj.dongting.raft.impl.NodeManager;
 import com.github.dtprj.dongting.raft.impl.Raft;
 import com.github.dtprj.dongting.raft.impl.RaftComponents;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
+import com.github.dtprj.dongting.raft.impl.RaftGroup;
 import com.github.dtprj.dongting.raft.impl.RaftNode;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
-import com.github.dtprj.dongting.raft.impl.RaftThread;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.ShareStatus;
 import com.github.dtprj.dongting.raft.impl.StatusUtil;
@@ -65,10 +65,13 @@ public class RaftServer extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(RaftServer.class);
     private final NioServer raftServer;
     private final NioClient raftClient;
-    private final RaftThread raftThread;
+    private final RaftGroup raftGroup;
     private final RaftStatus raftStatus;
     private final RaftLog raftLog;
     private final StateMachine stateMachine;
+
+    private CompletableFuture<Void> nodeReadyFuture;
+    private CompletableFuture<Void> memberReadyFuture;
 
     private final RaftServerConfig config;
     private final RaftGroupConfig groupConfig;
@@ -88,6 +91,7 @@ public class RaftServer extends AbstractLifeCircle {
     private static final VarHandle PENDING_WRITE_BYTES;
 
     private final Timestamp readTimestamp = new Timestamp();
+
 
     static {
         try {
@@ -133,7 +137,7 @@ public class RaftServer extends AbstractLifeCircle {
         setupNioConfig(nioClientConfig);
         raftClient = new NioClient(nioClientConfig);
 
-        nodeManager = new NodeManager(config, allRaftServers, raftClient);
+        nodeManager = new NodeManager(config, allRaftServers, raftClient, this::onNodeReadyStatusChange);
 
         RaftComponents container = new RaftComponents();
         container.setRaftExecutor(raftExecutor);
@@ -143,10 +147,10 @@ public class RaftServer extends AbstractLifeCircle {
         container.setConfig(config);
         container.setStateMachine(stateMachine);
 
-        memberManager = new MemberManager(config, raftClient, raftExecutor);
+        memberManager = new MemberManager(config, raftClient, raftExecutor, this::onMemberStatusChange);
         Raft raft = new Raft(container);
         VoteManager voteManager = new VoteManager(container, raft);
-        raftThread = new RaftThread(container, raft, nodeManager, memberManager, voteManager);
+        raftGroup = new RaftGroup(container, raft, nodeManager, memberManager, voteManager);
 
         NioServerConfig nioServerConfig = new NioServerConfig();
         nioServerConfig.setPort(config.getRaftPort());
@@ -182,46 +186,36 @@ public class RaftServer extends AbstractLifeCircle {
         raftClient.start();
         raftClient.waitStart();
 
-        connect();
-        memberManager.init(nodeManager.getSelf(), nodeManager.getOtherNodes());
-
-        raftThread.start();
-        raftThread.waitInit();
-    }
-
-    private void connect() {
-        DtTime deadline = new DtTime(config.getConnectTimeout(), TimeUnit.MILLISECONDS);
+        nodeReadyFuture = new CompletableFuture<>();
         nodeManager.start();
-        List<CompletableFuture<Boolean>> connectFutures = nodeManager.getInitFutures();
-        int successCount = 0;
-        for (CompletableFuture<Boolean> future : connectFutures) {
-            try {
-                long rest = deadline.rest(TimeUnit.NANOSECONDS);
-                if (rest > 0) {
-                    if (future.get(rest, TimeUnit.NANOSECONDS)) {
-                        successCount++;
-                    }
-                }
-            } catch (Exception e) {
-                // ignore
-            }
+        try {
+            nodeReadyFuture.get();
+            nodeReadyFuture = null;
+        } catch (Exception e) {
+            log.error("error during wait node ready", e);
+            throw new RaftException(e);
         }
-        if (successCount < raftStatus.getElectQuorum()) {
-            String msg = "connect to servers failed, total nodes: " + allRaftServers.size()
-                    + ", successNodes: " + successCount;
-            log.error(msg);
-            throw new RaftException(msg);
+        memberManager.init(nodeManager.getSelf(), nodeManager.getAllNodesEx());
+
+        memberReadyFuture = new CompletableFuture<>();
+        raftGroup.start();
+        try {
+            memberReadyFuture.get();
+        } catch (Exception e) {
+            log.error("error during wait member ready", e);
+            throw new RaftException(e);
         }
+        memberReadyFuture = null;
     }
 
     @Override
     protected void doStop() {
         raftServer.stop();
         raftClient.stop();
-        raftThread.requestShutdown();
-        raftThread.interrupt();
+        raftGroup.requestShutdown();
+        raftGroup.interrupt();
         try {
-            raftThread.join(100);
+            raftGroup.join(100);
         } catch (InterruptedException e) {
             throw new RaftException(e);
         } finally {
@@ -252,7 +246,7 @@ public class RaftServer extends AbstractLifeCircle {
             PENDING_WRITE_BYTES.getAndAddRelease(this, -size);
             throw new RaftException(msg);
         }
-        CompletableFuture<RaftOutput> f = raftThread.submitRaftTask(input);
+        CompletableFuture<RaftOutput> f = raftGroup.submitRaftTask(input);
         registerCallback(f, size);
         return f;
     }
@@ -288,5 +282,28 @@ public class RaftServer extends AbstractLifeCircle {
         }
         return ss.lastApplied;
     }
+
+    public void onNodeReadyStatusChange(int oldReady, int newReady) {
+        CompletableFuture<Void> f = nodeReadyFuture;
+        onReadyStatusChange(newReady, f);
+    }
+
+    public void onMemberStatusChange(int oldReady, int newReady) {
+        CompletableFuture<Void> f = memberReadyFuture;
+        onReadyStatusChange(newReady, f);
+    }
+
+    private void onReadyStatusChange(int newReady, CompletableFuture<Void> f) {
+        if (f == null) {
+            return;
+        }
+        if (newReady == raftStatus.getElectQuorum()) {
+            if (!f.isDone()) {
+                f.complete(null);
+            }
+        }
+    }
+
+
 
 }
