@@ -78,8 +78,6 @@ public class RaftServer extends AbstractLifeCircle {
 
     private final NodeManager nodeManager;
     private final MemberManager memberManager;
-    private final VoteManager voteManager;
-    private final List<RaftNode> allRaftServers;
 
     private final int maxPendingWrites;
     private final long maxPendingWriteBytes;
@@ -118,7 +116,7 @@ public class RaftServer extends AbstractLifeCircle {
         LinkedBlockingQueue<Object> queue = new LinkedBlockingQueue<>();
         RaftExecutor raftExecutor = new RaftExecutor(queue);
 
-        allRaftServers = RaftUtil.parseServers(config.getServers());
+        List<RaftNode> allRaftServers = RaftUtil.parseServers(config.getServers());
         long distinctCount = allRaftServers.stream().map(RaftNode::getId).distinct().count();
         if (distinctCount != allRaftServers.size()) {
             throw new IllegalArgumentException("duplicate server id");
@@ -150,8 +148,8 @@ public class RaftServer extends AbstractLifeCircle {
 
         memberManager = new MemberManager(config, raftClient, raftExecutor, this::onMemberStatusChange);
         Raft raft = new Raft(container);
-        voteManager = new VoteManager(container, raft);
-        raftGroup = new RaftGroup(container, raft, nodeManager, memberManager, voteManager);
+        VoteManager voteManager = new VoteManager(container, raft);
+        raftGroup = new RaftGroup(container, raft, memberManager, voteManager);
 
         NioServerConfig nioServerConfig = new NioServerConfig();
         nioServerConfig.setPort(config.getRaftPort());

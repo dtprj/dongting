@@ -40,7 +40,7 @@ public class AppendReqCallback extends PbCallback {
     private int leaderId;
     private long prevLogIndex;
     private int prevLogTerm;
-    private ArrayList<LogItem> logs = new ArrayList<>();
+    private final ArrayList<LogItem> logs = new ArrayList<>();
     private long leaderCommit;
 
     public AppendReqCallback() {
@@ -77,21 +77,19 @@ public class AppendReqCallback extends PbCallback {
 
     @Override
     public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
-        switch (index) {
-            case 5:
-                PbParser logItemParser;
-                if (begin) {
-                    logItemParser = parser.createOrGetNestedParserSingle(new LogItemCallback(), len);
-                } else {
-                    logItemParser = parser.getNestedParser();
-                }
-                LogItemCallback callback = (LogItemCallback) logItemParser.getCallback();
-                logItemParser.parse(buf);
-                if (end) {
-                    LogItem i = callback.item;
-                    logs.add(i);
-                }
-                break;
+        if (index == 5) {
+            PbParser logItemParser;
+            if (begin) {
+                logItemParser = parser.createOrGetNestedParserSingle(new LogItemCallback(), len);
+            } else {
+                logItemParser = parser.getNestedParser();
+            }
+            LogItemCallback callback = (LogItemCallback) logItemParser.getCallback();
+            logItemParser.parse(buf);
+            if (end) {
+                LogItem i = callback.item;
+                logs.add(i);
+            }
         }
         return true;
     }
@@ -133,7 +131,7 @@ public class AppendReqCallback extends PbCallback {
     //  bytes data = 5;
     //}
     static class LogItemCallback extends PbCallback {
-        private LogItem item = new LogItem();
+        private final LogItem item = new LogItem();
 
         @Override
         public boolean readVarNumber(int index, long value) {
@@ -153,30 +151,26 @@ public class AppendReqCallback extends PbCallback {
 
         @Override
         public boolean readFix64(int index, long value) {
-            switch (index) {
-                case 3:
-                    item.setIndex(value);
-                    break;
+            if (index == 3) {
+                item.setIndex(value);
             }
             return true;
         }
 
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
-            switch (index) {
-                case 5:
-                    ByteBuffer dest;
-                    if (begin) {
-                        dest = ByteBuffer.allocate(len);
-                        item.setBuffer(dest);
-                    } else {
-                        dest = item.getBuffer();
-                    }
-                    dest.put(buf);
-                    if (end) {
-                        dest.flip();
-                    }
-                    break;
+            if (index == 5) {
+                ByteBuffer dest;
+                if (begin) {
+                    dest = ByteBuffer.allocate(len);
+                    item.setBuffer(dest);
+                } else {
+                    dest = item.getBuffer();
+                }
+                dest.put(buf);
+                if (end) {
+                    dest.flip();
+                }
             }
             return true;
         }

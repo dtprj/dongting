@@ -101,12 +101,11 @@ public class NodeManager extends AbstractLifeCircle {
     }
 
     private void init() {
-        CompletableFuture<RaftNodeEx>[] futures = new CompletableFuture[allRaftNodes.size()];
-        int i = 0;
+        ArrayList<CompletableFuture<RaftNodeEx>> futures = new ArrayList<>();
         for (RaftNode n : allRaftNodes) {
-            futures[i++] = add(n);
+             futures.add(add(n));
         }
-        allNodesEx = new ArrayList<>(futures.length);
+        allNodesEx = new ArrayList<>();
 
         for (CompletableFuture<RaftNodeEx> f : futures) {
             RaftNodeEx node = f.join();
@@ -170,7 +169,6 @@ public class NodeManager extends AbstractLifeCircle {
 
     private boolean processResult(RaftNodeEx nodeEx, boolean result, Throwable ex) {
         nodeEx.setConnecting(false);
-        NodeStatus oldStatus = nodeEx.getStatus();
         if (ex != null) {
             log.warn("connect to raft server {} fail: {}",
                     nodeEx.getPeer().getEndPoint(), ex.toString());

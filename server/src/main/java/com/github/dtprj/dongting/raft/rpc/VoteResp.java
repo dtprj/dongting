@@ -31,7 +31,7 @@ public class VoteResp {
     private boolean voteGranted;
 
     public static class Callback extends PbCallback {
-        private VoteResp result = new VoteResp();
+        private final VoteResp result = new VoteResp();
 
         @Override
         public boolean readVarNumber(int index, long value) {

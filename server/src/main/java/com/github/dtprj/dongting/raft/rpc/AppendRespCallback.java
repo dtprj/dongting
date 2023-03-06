@@ -50,10 +50,8 @@ public class AppendRespCallback extends PbCallback {
 
     @Override
     public boolean readFix64(int index, long value) {
-        switch (index) {
-            case 5:
-                maxLogIndex = value;
-                break;
+        if (index == 5) {
+            maxLogIndex = value;
         }
         return true;
     }

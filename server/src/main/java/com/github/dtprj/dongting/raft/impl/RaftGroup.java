@@ -26,7 +26,6 @@ import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -43,10 +42,8 @@ public class RaftGroup extends Thread {
     private final RaftServerConfig config;
     private final RaftStatus raftStatus;
     private final Raft raft;
-    private final NodeManager nodeManager;
     private final MemberManager memberManager;
     private final VoteManager voteManager;
-    private List<RaftNodeEx> otherNodes;
 
     private final long heartbeatIntervalNanos;
     private final long electTimeoutNanos;
@@ -56,13 +53,12 @@ public class RaftGroup extends Thread {
 
     private volatile boolean stop;
 
-    public RaftGroup(RaftComponents container, Raft raft, NodeManager nodeManager,
+    public RaftGroup(RaftComponents container, Raft raft,
                      MemberManager memberManager, VoteManager voteManager) {
         this.config = container.getConfig();
         this.raftStatus = container.getRaftStatus();
         this.queue = container.getRaftExecutor().getQueue();
         this.raft = raft;
-        this.nodeManager = nodeManager;
         this.memberManager = memberManager;
 
         electTimeoutNanos = Duration.ofMillis(config.getElectTimeout()).toNanos();
@@ -75,7 +71,6 @@ public class RaftGroup extends Thread {
     @Override
     public void run() {
         try {
-            this.otherNodes = nodeManager.getAllNodesEx();
             if (raftStatus.getElectQuorum() == 1) {
                 RaftUtil.changeToLeader(raftStatus);
                 raft.sendHeartBeat();
