@@ -87,28 +87,28 @@ class ReplicateManager {
     }
 
     @SuppressWarnings("StatementWithEmptyBody")
-    void replicate(RaftMember node) {
+    void replicate(RaftMember member) {
         if (raftStatus.getRole() != RaftRole.leader) {
             return;
         }
-        if (!node.isReady()) {
+        if (!member.isReady()) {
             return;
         }
-        if (node.isInstallSnapshot()) {
-            installSnapshot(node);
-        } else if (node.isMultiAppend()) {
-            doReplicate(node, false);
+        if (member.isInstallSnapshot()) {
+            installSnapshot(member);
+        } else if (member.isMultiAppend()) {
+            doReplicate(member, false);
         } else {
-            if (node.getPendingStat().getPendingRequests() == 0) {
-                doReplicate(node, true);
+            if (member.getPendingStat().getPendingRequests() == 0) {
+                doReplicate(member, true);
             } else {
                 // waiting all pending request complete
             }
         }
     }
 
-    private void doReplicate(RaftMember node, boolean tryMatch) {
-        long nextIndex = node.getNextIndex();
+    private void doReplicate(RaftMember member, boolean tryMatch) {
+        long nextIndex = member.getNextIndex();
         long lastLogIndex = raftStatus.getLastLogIndex();
         if (lastLogIndex < nextIndex) {
             // no data to replicate
@@ -116,7 +116,7 @@ class ReplicateManager {
         }
 
         // flow control
-        PendingStat ps = node.getPendingStat();
+        PendingStat ps = member.getPendingStat();
         int rest = maxReplicateItems - ps.getPendingRequests();
         if (rest <= restItemsToStartReplicate) {
             // avoid silly window syndrome
@@ -146,10 +146,10 @@ class ReplicateManager {
             bytes += i.getBuffer() == null ? 0 : i.getBuffer().remaining();
 
         }
-        sendAppendRequest(node, firstItem.getIndex() - 1, firstItem.getPrevLogTerm(), Arrays.asList(items), bytes);
+        sendAppendRequest(member, firstItem.getIndex() - 1, firstItem.getPrevLogTerm(), Arrays.asList(items), bytes);
     }
 
-    private void sendAppendRequest(RaftMember node, long prevLogIndex, int prevLogTerm, List<LogItem> logs, long bytes) {
+    private void sendAppendRequest(RaftMember member, long prevLogIndex, int prevLogTerm, List<LogItem> logs, long bytes) {
         AppendReqWriteFrame req = new AppendReqWriteFrame();
         req.setFrameType(FrameType.TYPE_REQ);
         req.setCommand(Commands.RAFT_APPEND_ENTRIES);
@@ -160,20 +160,20 @@ class ReplicateManager {
         req.setPrevLogTerm(prevLogTerm);
         req.setLogs(logs);
 
-        node.setNextIndex(prevLogIndex + 1 + logs.size());
+        member.setNextIndex(prevLogIndex + 1 + logs.size());
 
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        CompletableFuture<ReadFrame> f = client.sendRequest(node.getNode().getPeer(), req, APPEND_RESP_DECODER, timeout);
-        registerAppendResultCallback(node, prevLogIndex, prevLogTerm, f, logs.size(), bytes);
+        CompletableFuture<ReadFrame> f = client.sendRequest(member.getNode().getPeer(), req, APPEND_RESP_DECODER, timeout);
+        registerAppendResultCallback(member, prevLogIndex, prevLogTerm, f, logs.size(), bytes);
     }
 
-    private void registerAppendResultCallback(RaftMember node, long prevLogIndex, int prevLogTerm,
+    private void registerAppendResultCallback(RaftMember member, long prevLogIndex, int prevLogTerm,
                                               CompletableFuture<ReadFrame> f, int count, long bytes) {
         int reqTerm = raftStatus.getCurrentTerm();
         // the time refresh happens before this line
         long reqNanos = ts.getNanoTime();
         // if PendingStat is reset, we should not invoke decrAndGetPendingRequests() on new instance
-        PendingStat ps = node.getPendingStat();
+        PendingStat ps = member.getPendingStat();
         ps.incrAndGetPendingRequests(count, bytes);
         f.whenCompleteAsync((rf, ex) -> {
             if (reqTerm != raftStatus.getCurrentTerm()) {
@@ -183,15 +183,15 @@ class ReplicateManager {
             }
             ps.decrAndGetPendingRequests(count, bytes);
             if (ex == null) {
-                processAppendResult(node, rf, prevLogIndex, prevLogTerm, reqTerm, reqNanos, count);
+                processAppendResult(member, rf, prevLogIndex, prevLogTerm, reqTerm, reqNanos, count);
             } else {
-                if (node.isMultiAppend()) {
-                    node.setMultiAppend(false);
+                if (member.isMultiAppend()) {
+                    member.setMultiAppend(false);
                     String msg = "append fail. remoteId={}, localTerm={}, reqTerm={}, prevLogIndex={}";
-                    log.warn(msg, node.getId(), raftStatus.getCurrentTerm(), reqTerm, prevLogIndex, ex);
+                    log.warn(msg, member.getId(), raftStatus.getCurrentTerm(), reqTerm, prevLogIndex, ex);
                 } else {
                     String msg = "append fail. remoteId={}, localTerm={}, reqTerm={}, prevLogIndex={}, ex={}";
-                    log.warn(msg, node.getId(), raftStatus.getCurrentTerm(), reqTerm, prevLogIndex, ex.toString());
+                    log.warn(msg, member.getId(), raftStatus.getCurrentTerm(), reqTerm, prevLogIndex, ex.toString());
                 }
             }
         }, raftExecutor);
@@ -214,7 +214,7 @@ class ReplicateManager {
     }
 
     // in raft thread
-    private void processAppendResult(RaftMember node, ReadFrame rf, long prevLogIndex,
+    private void processAppendResult(RaftMember member, ReadFrame rf, long prevLogIndex,
                                      int prevLogTerm, int reqTerm, long reqNanos, int count) {
         long expectNewMatchIndex = prevLogIndex + count;
         AppendRespCallback body = (AppendRespCallback) rf.getBody();
@@ -223,65 +223,65 @@ class ReplicateManager {
         if (checkTermAndRoleFailed(reqTerm, remoteTerm)) {
             return;
         }
-        if (node.isInstallSnapshot()) {
+        if (member.isInstallSnapshot()) {
             log.info("receive append result when install snapshot, ignore. prevLogIndex={}, prevLogTerm={}, remoteId={}",
-                    prevLogIndex, prevLogTerm, node.getId());
+                    prevLogIndex, prevLogTerm, member.getId());
             return;
         }
         if (body.isSuccess()) {
-            if (node.getMatchIndex() <= prevLogIndex) {
-                node.setLastConfirm(true, reqNanos);
+            if (member.getMatchIndex() <= prevLogIndex) {
+                member.setLastConfirm(true, reqNanos);
                 RaftUtil.updateLease(reqNanos, raftStatus);
-                node.setMatchIndex(expectNewMatchIndex);
-                node.setMultiAppend(true);
+                member.setMatchIndex(expectNewMatchIndex);
+                member.setMultiAppend(true);
                 commitManager.tryCommit(expectNewMatchIndex);
-                if (raftStatus.getLastLogIndex() >= node.getNextIndex()) {
-                    replicate(node);
+                if (raftStatus.getLastLogIndex() >= member.getNextIndex()) {
+                    replicate(member);
                 }
             } else {
                 BugLog.getLog().error("append miss order. old matchIndex={}, append prevLogIndex={}, expectNewMatchIndex={}, remoteId={}, localTerm={}, reqTerm={}, remoteTerm={}",
-                        node.getMatchIndex(), prevLogIndex, expectNewMatchIndex, node.getId(), raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
+                        member.getMatchIndex(), prevLogIndex, expectNewMatchIndex, member.getId(), raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
             }
         } else if (body.getAppendCode() == AppendProcessor.CODE_LOG_NOT_MATCH) {
-            processLogNotMatch(node, prevLogIndex, prevLogTerm, reqTerm, reqNanos, body, raftStatus);
+            processLogNotMatch(member, prevLogIndex, prevLogTerm, reqTerm, reqNanos, body, raftStatus);
         } else if (body.getAppendCode() == AppendProcessor.CODE_INSTALL_SNAPSHOT) {
-            initInstallSnapshot(node);
+            initInstallSnapshot(member);
         } else {
             BugLog.getLog().error("append fail. appendCode={}, old matchIndex={}, append prevLogIndex={}, expectNewMatchIndex={}, remoteId={}, localTerm={}, reqTerm={}, remoteTerm={}",
-                    body.getAppendCode(), node.getMatchIndex(), prevLogIndex, expectNewMatchIndex, node.getId(), raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
+                    body.getAppendCode(), member.getMatchIndex(), prevLogIndex, expectNewMatchIndex, member.getId(), raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
         }
     }
 
-    private void processLogNotMatch(RaftMember node, long prevLogIndex, int prevLogTerm, int reqTerm,
+    private void processLogNotMatch(RaftMember member, long prevLogIndex, int prevLogTerm, int reqTerm,
                                     long reqNanos, AppendRespCallback body, RaftStatus raftStatus) {
         log.info("log not match. remoteId={}, matchIndex={}, prevLogIndex={}, prevLogTerm={}, remoteLogTerm={}, remoteLogIndex={}, localTerm={}, reqTerm={}, remoteTerm={}",
-                node.getId(), node.getMatchIndex(), prevLogIndex, prevLogTerm, body.getMaxLogTerm(),
+                member.getId(), member.getMatchIndex(), prevLogIndex, prevLogTerm, body.getMaxLogTerm(),
                 body.getMaxLogIndex(), raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
-        node.setLastConfirm(true, reqNanos);
-        node.setMultiAppend(false);
+        member.setLastConfirm(true, reqNanos);
+        member.setMultiAppend(false);
         RaftUtil.updateLease(reqNanos, raftStatus);
         if (body.getTerm() == raftStatus.getCurrentTerm() && reqTerm == raftStatus.getCurrentTerm()) {
-            node.setNextIndex(body.getMaxLogIndex() + 1);
-            replicate(node);
+            member.setNextIndex(body.getMaxLogIndex() + 1);
+            replicate(member);
         } else {
             long idx = findMaxIndexByTerm(body.getMaxLogTerm());
             if (idx > 0) {
-                node.setNextIndex(Math.min(body.getMaxLogIndex(), idx) + 1);
-                replicate(node);
+                member.setNextIndex(Math.min(body.getMaxLogIndex(), idx) + 1);
+                replicate(member);
             } else {
                 int t = findLastTermLessThan(body.getMaxLogTerm());
                 if (t > 0) {
                     idx = findMaxIndexByTerm(t);
                     if (idx > 0) {
-                        node.setNextIndex(Math.min(body.getMaxLogIndex(), idx) + 1);
-                        replicate(node);
+                        member.setNextIndex(Math.min(body.getMaxLogIndex(), idx) + 1);
+                        replicate(member);
                     } else {
                         log.error("can't find max index of term to replicate: {}. may truncated recently?", t);
-                        initInstallSnapshot(node);
+                        initInstallSnapshot(member);
                     }
                 } else {
                     log.warn("can't find local term to replicate. follower maxTerm={}", body.getMaxLogTerm());
-                    initInstallSnapshot(node);
+                    initInstallSnapshot(member);
                 }
             }
         }
@@ -427,14 +427,14 @@ class ReplicateManager {
 
     class InstallSnapshotRunner implements Runnable {
 
-        private final RaftMember node;
+        private final RaftMember member;
 
-        InstallSnapshotRunner(RaftMember node) {
-            this.node = node;
+        InstallSnapshotRunner(RaftMember member) {
+            this.member = member;
         }
         @Override
         public void run() {
-            replicate(node);
+            replicate(member);
         }
     }
 }
