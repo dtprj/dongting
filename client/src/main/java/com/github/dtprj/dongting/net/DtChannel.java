@@ -417,18 +417,16 @@ class DtChannel extends PbCallback {
     }
 
     private void writeErrorInIoThread(Frame req, int code, String msg, DtTime timeout) {
-        ByteBufferWriteFrame resp = new ByteBufferWriteFrame(null);
+        EmptyBodyRespFrame resp = new EmptyBodyRespFrame(code);
         resp.setCommand(req.getCommand());
         resp.setFrameType(FrameType.TYPE_RESP);
         resp.setSeq(req.getSeq());
-        resp.setRespCode(code);
         resp.setMsg(msg);
         subQueue.enqueue(new WriteData(this, resp, timeout));
     }
 
     public void writeBizErrorInBizThread(ReadFrame req, String msg, DtTime timeout) {
-        ByteBufferWriteFrame resp = new ByteBufferWriteFrame(null);
-        resp.setRespCode(CmdCodes.BIZ_ERROR);
+        EmptyBodyRespFrame resp = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
         resp.setMsg(msg);
         respWriter.writeRespInBizThreads(req, resp, timeout);
     }
