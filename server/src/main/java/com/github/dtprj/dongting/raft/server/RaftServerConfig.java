@@ -21,8 +21,6 @@ package com.github.dtprj.dongting.raft.server;
 public class RaftServerConfig {
     private String servers;
     private int raftPort;
-    private String dataDir = "./data";
-    private String statusFile = "raft.status";
     private int id;
     private long electTimeout = 15 * 1000;
     private long rpcTimeout = 5 * 1000;
@@ -52,22 +50,6 @@ public class RaftServerConfig {
 
     public void setRaftPort(int raftPort) {
         this.raftPort = raftPort;
-    }
-
-    public String getDataDir() {
-        return dataDir;
-    }
-
-    public void setDataDir(String dataDir) {
-        this.dataDir = dataDir;
-    }
-
-    public String getStatusFile() {
-        return statusFile;
-    }
-
-    public void setStatusFile(String statusFile) {
-        this.statusFile = statusFile;
     }
 
     public int getId() {

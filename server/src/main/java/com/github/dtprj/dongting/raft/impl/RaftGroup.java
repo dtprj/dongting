@@ -15,14 +15,18 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
+import com.github.dtprj.dongting.raft.server.StateMachine;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -40,10 +44,14 @@ public class RaftGroup extends Thread {
     private final Random random = new Random();
 
     private final RaftServerConfig config;
+    private final RaftGroupConfig groupConfig;
     private final RaftStatus raftStatus;
     private final Raft raft;
+    private final NodeManager nodeManager;
     private final MemberManager memberManager;
     private final VoteManager voteManager;
+    private final StateMachine stateMachine;
+    private final RaftLog raftLog;
 
     private final long heartbeatIntervalNanos;
     private final long electTimeoutNanos;
@@ -53,13 +61,17 @@ public class RaftGroup extends Thread {
 
     private volatile boolean stop;
 
-    public RaftGroup(RaftComponents container, Raft raft,
+    public RaftGroup(RaftComponents container, Raft raft, NodeManager nodeManager,
                      MemberManager memberManager, VoteManager voteManager) {
         this.config = container.getConfig();
+        this.groupConfig = container.getGroupConfig();
         this.raftStatus = container.getRaftStatus();
         this.queue = container.getRaftExecutor().getQueue();
         this.raft = raft;
+        this.nodeManager = nodeManager;
         this.memberManager = memberManager;
+        this.stateMachine = container.getStateMachine();
+        this.raftLog = container.getRaftLog();
 
         electTimeoutNanos = Duration.ofMillis(config.getElectTimeout()).toNanos();
         raftStatus.setElectTimeoutNanos(electTimeoutNanos);
@@ -68,9 +80,19 @@ public class RaftGroup extends Thread {
         this.voteManager = voteManager;
     }
 
+    public void init() {
+        StatusUtil.initStatusFileChannel(groupConfig.getDataDir(), groupConfig.getStatusFile(), raftStatus);
+
+        Pair<Integer, Long> initResult = raftLog.init();
+        stateMachine.init(raftLog);
+        raftStatus.setLastLogTerm(initResult.getLeft());
+        raftStatus.setLastLogIndex(initResult.getRight());
+    }
+
     @Override
     public void run() {
         try {
+            memberManager.init(nodeManager.getSelf(), nodeManager.getAllNodesEx(), raftStatus.getAllMembers());
             if (raftStatus.getElectQuorum() == 1) {
                 RaftUtil.changeToLeader(raftStatus);
                 raft.sendHeartBeat();

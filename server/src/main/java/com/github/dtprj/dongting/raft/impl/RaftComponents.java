@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.net.NioClient;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.server.StateMachine;
@@ -25,6 +26,7 @@ import com.github.dtprj.dongting.raft.server.StateMachine;
  */
 public class RaftComponents {
     private RaftServerConfig config;
+    private RaftGroupConfig groupConfig;
     private RaftExecutor raftExecutor;
     private RaftLog raftLog;
     private RaftStatus raftStatus;
@@ -37,6 +39,14 @@ public class RaftComponents {
 
     public void setConfig(RaftServerConfig config) {
         this.config = config;
+    }
+
+    public RaftGroupConfig getGroupConfig() {
+        return groupConfig;
+    }
+
+    public void setGroupConfig(RaftGroupConfig groupConfig) {
+        this.groupConfig = groupConfig;
     }
 
     public RaftExecutor getRaftExecutor() {

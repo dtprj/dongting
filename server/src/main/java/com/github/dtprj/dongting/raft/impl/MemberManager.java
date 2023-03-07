@@ -36,9 +36,9 @@ import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
 
 /**
  * @author huangli
@@ -49,7 +49,9 @@ public class MemberManager {
     private final HashSet<Integer> ids = new HashSet<>();
     private final NioClient client;
     private final Executor executor;
-    private final BiConsumer<Integer, Integer> readyListener;
+    private final RaftStatus raftStatus;
+
+    private CompletableFuture<Void> memberReadyFuture;
 
     private RaftMember self;
     private List<RaftMember> allMembers;
@@ -72,15 +74,16 @@ public class MemberManager {
     };
 
     public MemberManager(RaftServerConfig config, NioClient client, Executor executor,
-                         BiConsumer<Integer, Integer> readyListener) {
+                         RaftStatus raftStatus) {
         this.config = config;
         this.client = client;
         this.executor = executor;
-        this.readyListener = readyListener;
+        this.raftStatus = raftStatus;
     }
 
     public void init(RaftNodeEx selfNodeEx, List<RaftNodeEx> allNodes, List<RaftMember> allMembers) {
         this.allMembers = allMembers;
+        this.memberReadyFuture = new CompletableFuture<>();
         for (RaftNodeEx node : allNodes) {
             RaftMember m = new RaftMember(node);
             allMembers.add(m);
@@ -155,11 +158,15 @@ public class MemberManager {
         member.setReady(ready);
         if (ready) {
             readyCount++;
-            readyListener.accept(readyCount - 1, readyCount);
+            RaftUtil.onReadyStatusChange(readyCount, memberReadyFuture, raftStatus);
         } else {
             readyCount--;
-            readyListener.accept(readyCount + 1, readyCount);
+            RaftUtil.onReadyStatusChange(readyCount, memberReadyFuture, raftStatus);
         }
+    }
+
+    public CompletableFuture<Void> getMemberReadyFuture() {
+        return memberReadyFuture;
     }
 
     public ReqProcessor getProcessor() {

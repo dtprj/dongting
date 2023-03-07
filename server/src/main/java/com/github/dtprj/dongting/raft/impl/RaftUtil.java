@@ -246,4 +246,14 @@ public class RaftUtil {
         return items;
     }
 
+    public static void onReadyStatusChange(int newReady, CompletableFuture<Void> f, RaftStatus raftStatus) {
+        if (f == null) {
+            return;
+        }
+        if (newReady == raftStatus.getElectQuorum()) {
+            if (!f.isDone()) {
+                f.complete(null);
+            }
+        }
+    }
 }
