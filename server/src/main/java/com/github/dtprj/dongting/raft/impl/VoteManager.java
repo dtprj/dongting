@@ -51,12 +51,12 @@ public class VoteManager {
     private int currentVoteId;
 
 
-    public VoteManager(RaftComponents container, Raft raft) {
+    public VoteManager(RaftServerConfig serverConfig, RaftStatus raftStatus, NioClient client, RaftExecutor executor, Raft raft) {
         this.raft = raft;
-        this.client = container.getClient();
-        this.raftStatus = container.getRaftStatus();
-        this.config = container.getConfig();
-        this.raftExecutor = container.getRaftExecutor();
+        this.client = client;
+        this.raftStatus = raftStatus;
+        this.config = serverConfig;
+        this.raftExecutor = executor;
     }
 
     public void cancelVote() {
@@ -87,7 +87,7 @@ public class VoteManager {
         }
     }
 
-    private int readyCount(){
+    private int readyCount() {
         int count = 0;
         for (RaftMember member : raftStatus.getAllMembers()) {
             if (member.isReady()) {

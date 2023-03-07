@@ -61,17 +61,18 @@ public class RaftGroup extends Thread {
 
     private volatile boolean stop;
 
-    public RaftGroup(RaftComponents container, Raft raft, NodeManager nodeManager,
-                     MemberManager memberManager, VoteManager voteManager) {
-        this.config = container.getConfig();
-        this.groupConfig = container.getGroupConfig();
-        this.raftStatus = container.getRaftStatus();
-        this.queue = container.getRaftExecutor().getQueue();
+    public RaftGroup(RaftServerConfig serverConfig, RaftGroupConfig groupConfig, RaftStatus raftStatus,
+                     RaftLog raftLog, StateMachine stateMachine, RaftExecutor executor,
+                     Raft raft, NodeManager nodeManager, MemberManager memberManager, VoteManager voteManager) {
+        this.config = serverConfig;
+        this.groupConfig = groupConfig;
+        this.raftStatus = raftStatus;
+        this.queue = executor.getQueue();
         this.raft = raft;
         this.nodeManager = nodeManager;
         this.memberManager = memberManager;
-        this.stateMachine = container.getStateMachine();
-        this.raftLog = container.getRaftLog();
+        this.stateMachine = stateMachine;
+        this.raftLog = raftLog;
 
         electTimeoutNanos = Duration.ofMillis(config.getElectTimeout()).toNanos();
         raftStatus.setElectTimeoutNanos(electTimeoutNanos);
@@ -92,7 +93,7 @@ public class RaftGroup extends Thread {
     @Override
     public void run() {
         try {
-            memberManager.init(nodeManager.getSelf(), nodeManager.getAllNodesEx(), raftStatus.getAllMembers());
+            memberManager.init(nodeManager.getSelf(), nodeManager.getAllNodesEx());
             if (raftStatus.getElectQuorum() == 1) {
                 RaftUtil.changeToLeader(raftStatus);
                 raft.sendHeartBeat();

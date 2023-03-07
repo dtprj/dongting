@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -31,11 +32,9 @@ import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.impl.VoteManager;
+import com.github.dtprj.dongting.raft.server.GroupComponents;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftInput;
-import com.github.dtprj.dongting.raft.server.RaftLog;
-import com.github.dtprj.dongting.raft.server.StateMachine;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -51,19 +50,9 @@ public class AppendProcessor extends ReqProcessor {
     public static final int CODE_CLIENT_REQ_ERROR = 3;
     public static final int CODE_INSTALL_SNAPSHOT = 4;
 
-
-    private final RaftStatus raftStatus;
-    private final RaftLog raftLog;
-    private final StateMachine stateMachine;
-    private final VoteManager voteManager;
-
     private static final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder(c -> new AppendReqCallback());
 
-    public AppendProcessor(RaftStatus raftStatus, RaftLog raftLog, StateMachine stateMachine, VoteManager voteManager) {
-        this.raftStatus = raftStatus;
-        this.raftLog = raftLog;
-        this.stateMachine = stateMachine;
-        this.voteManager = voteManager;
+    public AppendProcessor(IntObjMap<GroupComponents> groupComponents) {
     }
 
     @Override

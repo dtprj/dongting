@@ -15,27 +15,19 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.net.ChannelContext;
-import com.github.dtprj.dongting.net.Commands;
-import com.github.dtprj.dongting.net.Decoder;
 import com.github.dtprj.dongting.net.NioClient;
-import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.PeerStatus;
 import com.github.dtprj.dongting.net.ReadFrame;
-import com.github.dtprj.dongting.net.ReqContext;
-import com.github.dtprj.dongting.net.ReqProcessor;
-import com.github.dtprj.dongting.net.WriteFrame;
-import com.github.dtprj.dongting.pb.PbCallback;
-import com.github.dtprj.dongting.pb.PbUtil;
+import com.github.dtprj.dongting.raft.rpc.RaftPingFrameCallback;
+import com.github.dtprj.dongting.raft.rpc.RaftPingProcessor;
+import com.github.dtprj.dongting.raft.rpc.RaftPingWriteFrame;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
-import java.nio.ByteBuffer;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -45,8 +37,9 @@ import java.util.concurrent.TimeUnit;
  */
 public class MemberManager {
     private static final DtLog log = DtLogs.getLogger(MemberManager.class);
-    private final RaftServerConfig config;
-    private final HashSet<Integer> ids = new HashSet<>();
+    private final RaftServerConfig serverConfig;
+    private final int groupId;
+    private final Set<Integer> ids;
     private final NioClient client;
     private final Executor executor;
     private final RaftStatus raftStatus;
@@ -58,36 +51,23 @@ public class MemberManager {
 
     private int readyCount;
 
-    private static final PbZeroCopyDecoder DECODER = new PbZeroCopyDecoder(context ->
-            new RaftPingFrameCallback());
-
-    private final ReqProcessor processor = new ReqProcessor() {
-        @Override
-        public WriteFrame process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext) {
-            return new RaftPingWriteFrame();
-        }
-
-        @Override
-        public Decoder getDecoder() {
-            return DECODER;
-        }
-    };
-
-    public MemberManager(RaftServerConfig config, NioClient client, Executor executor,
-                         RaftStatus raftStatus) {
-        this.config = config;
+    public MemberManager(RaftServerConfig serverConfig, NioClient client, Executor executor,
+                         RaftStatus raftStatus, int groupId, Set<Integer> ids) {
+        this.serverConfig = serverConfig;
         this.client = client;
         this.executor = executor;
         this.raftStatus = raftStatus;
+        this.groupId = groupId;
+        this.ids = ids;
+        this.allMembers = raftStatus.getAllMembers();
     }
 
-    public void init(RaftNodeEx selfNodeEx, List<RaftNodeEx> allNodes, List<RaftMember> allMembers) {
-        this.allMembers = allMembers;
+
+    public void init(RaftNodeEx selfNodeEx, List<RaftNodeEx> allNodes) {
         this.memberReadyFuture = new CompletableFuture<>();
         for (RaftNodeEx node : allNodes) {
             RaftMember m = new RaftMember(node);
             allMembers.add(m);
-            ids.add(node.getId());
             if (selfNodeEx == node) {
                 m.setSelf(true);
                 this.self = m;
@@ -117,8 +97,9 @@ public class MemberManager {
         }
 
         member.setPinging(true);
-        DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        client.sendRequest(raftNodeEx.getPeer(), new RaftPingWriteFrame(), DECODER, timeout)
+        DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
+        RaftPingWriteFrame f = new RaftPingWriteFrame(groupId, serverConfig.getId(), ids);
+        client.sendRequest(raftNodeEx.getPeer(), f, RaftPingProcessor.DECODER, timeout)
                 .whenCompleteAsync((rf, ex) -> processPingResult(raftNodeEx, member, rf, ex, nodeEpochWhenStartPing), executor);
     }
 
@@ -130,16 +111,20 @@ public class MemberManager {
             log.warn("raft ping fail, remote={}", raftNodeEx.getHostPort(), ex);
             setReady(member, false);
         } else {
-            if (ids.equals(callback.ids)) {
+            if (callback.nodeId == 0 && callback.groupId == 0) {
+                log.error("raft ping error, group not found, groupId={}, remote={}",
+                        member.getGroupId() , raftNodeEx.getHostPort());
+                setReady(member, false);
+            } else if (ids.equals(callback.ids)) {
                 NodeStatus currentNodeStatus = member.getNode().getStatus();
                 if (currentNodeStatus.isReady() && nodeEpochWhenStartPing == currentNodeStatus.getEpoch()) {
-                    log.info("raft ping success, id={}, remote={}", callback.id, raftNodeEx.getHostPort());
+                    log.info("raft ping success, id={}, remote={}", callback.nodeId, raftNodeEx.getHostPort());
                     setReady(member, true);
                     member.setEpoch(nodeEpochWhenStartPing);
                 } else {
                     log.warn("raft ping success but current node status not match. "
                                     + "id={}, remoteHost={}, nodeReady={}, nodeEpoch={}, pingEpoch={}",
-                            callback.id, raftNodeEx.getHostPort(), currentNodeStatus.isReady(),
+                            callback.nodeId, raftNodeEx.getHostPort(), currentNodeStatus.isReady(),
                             currentNodeStatus.getEpoch(), nodeEpochWhenStartPing);
                     setReady(member, false);
                 }
@@ -169,54 +154,7 @@ public class MemberManager {
         return memberReadyFuture;
     }
 
-    public ReqProcessor getProcessor() {
-        return processor;
+    public Set<Integer> getIds() {
+        return ids;
     }
-
-    class RaftPingWriteFrame extends WriteFrame {
-
-        public RaftPingWriteFrame() {
-            setCommand(Commands.RAFT_PING);
-        }
-
-        @Override
-        protected int calcEstimateBodySize() {
-            int size = PbUtil.accurateFix32Size(1, config.getId());
-            for (int id : ids) {
-                size += PbUtil.accurateFix32Size(2, id);
-            }
-            return size;
-        }
-
-        @Override
-        protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
-            super.writeBodySize(buf, estimateBodySize());
-            PbUtil.writeFix32(buf, 1, config.getId());
-            for (int id : ids) {
-                PbUtil.writeFix32(buf, 2, id);
-            }
-        }
-    }
-
-
-    static class RaftPingFrameCallback extends PbCallback {
-        private int id;
-        private final HashSet<Integer> ids = new HashSet<>();
-
-        @Override
-        public boolean readFix32(int index, int value) {
-            if (index == 1) {
-                this.id = value;
-            } else if (index == 2) {
-                ids.add(value);
-            }
-            return true;
-        }
-
-        @Override
-        public Object getResult() {
-            return this;
-        }
-    }
-
 }

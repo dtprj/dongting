@@ -18,12 +18,14 @@ package com.github.dtprj.dongting.raft.server;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.CloseUtil;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.ObjUtil;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.NioConfig;
@@ -33,7 +35,6 @@ import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.NodeManager;
 import com.github.dtprj.dongting.raft.impl.Raft;
-import com.github.dtprj.dongting.raft.impl.RaftComponents;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 import com.github.dtprj.dongting.raft.impl.RaftGroup;
 import com.github.dtprj.dongting.raft.impl.RaftNode;
@@ -44,10 +45,12 @@ import com.github.dtprj.dongting.raft.impl.ShareStatus;
 import com.github.dtprj.dongting.raft.impl.VoteManager;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.InstallSnapshotProcessor;
+import com.github.dtprj.dongting.raft.rpc.RaftPingProcessor;
 import com.github.dtprj.dongting.raft.rpc.VoteProcessor;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -63,16 +66,14 @@ public class RaftServer extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(RaftServer.class);
     private final NioServer raftServer;
     private final NioClient raftClient;
-    private final RaftGroup raftGroup;
-    private final RaftStatus raftStatus;
+
+    private IntObjMap<GroupComponents> groupComponents = new IntObjMap<>();
 
     private CompletableFuture<Void> nodeReadyFuture;
 
     private final RaftServerConfig config;
-    private final RaftGroupConfig groupConfig;
 
     private final NodeManager nodeManager;
-    private final MemberManager memberManager;
 
     private final int maxPendingWrites;
     private final long maxPendingWriteBytes;
@@ -97,12 +98,11 @@ public class RaftServer extends AbstractLifeCircle {
         }
     }
 
-    public RaftServer(RaftServerConfig config, RaftGroupConfig groupConfig, RaftLog raftLog, StateMachine stateMachine) {
+    public RaftServer(RaftServerConfig config, List<RaftGroupConfig> groupConfig, RaftLog raftLog, StateMachine stateMachine) {
         Objects.requireNonNull(config.getServers());
         ObjUtil.checkPositive(config.getId(), "id");
         ObjUtil.checkPositive(config.getRaftPort(), "port");
         this.config = config;
-        this.groupConfig = groupConfig;
         this.maxPendingWrites = config.getMaxPendingWrites();
         this.maxPendingWriteBytes = config.getMaxPendingWriteBytes();
 
@@ -110,19 +110,16 @@ public class RaftServer extends AbstractLifeCircle {
         RaftExecutor raftExecutor = new RaftExecutor(queue);
 
         List<RaftNode> allRaftServers = RaftUtil.parseServers(config.getServers());
-        long distinctCount = allRaftServers.stream().map(RaftNode::getId).distinct().count();
-        if (distinctCount != allRaftServers.size()) {
-            throw new IllegalArgumentException("duplicate server id");
+        HashSet<Integer> allNodeIds = new HashSet<>();
+        HashSet<HostPort> allNodeHosts = new HashSet<>();
+        for (RaftNode rn : allRaftServers) {
+            if (!allNodeIds.add(rn.getId())) {
+                throw new IllegalArgumentException("duplicate server id");
+            }
+            if (!allNodeHosts.add(rn.getHostPort())) {
+                throw new IllegalArgumentException("duplicate server host");
+            }
         }
-        distinctCount = allRaftServers.stream().map(RaftNode::getHostPort).distinct().count();
-        if (distinctCount != allRaftServers.size()) {
-            throw new IllegalArgumentException("duplicate server host");
-        }
-
-        int electQuorum = allRaftServers.size() / 2 + 1;
-        int rwQuorum = allRaftServers.size() >= 4 && allRaftServers.size() % 2 == 0 ? allRaftServers.size() / 2 : electQuorum;
-        raftStatus = new RaftStatus(electQuorum, rwQuorum);
-        raftStatus.setRaftExecutor(raftExecutor);
 
         NioClientConfig nioClientConfig = new NioClientConfig();
         nioClientConfig.setName("RaftClient");
@@ -131,19 +128,33 @@ public class RaftServer extends AbstractLifeCircle {
 
         nodeManager = new NodeManager(config, allRaftServers, raftClient, this::onNodeReadyStatusChange);
 
-        RaftComponents container = new RaftComponents();
-        container.setRaftExecutor(raftExecutor);
-        container.setRaftLog(raftLog);
-        container.setRaftStatus(raftStatus);
-        container.setClient(raftClient);
-        container.setConfig(config);
-        container.setGroupConfig(groupConfig);
-        container.setStateMachine(stateMachine);
+        for (RaftGroupConfig rgc : groupConfig) {
+            String[] idsStr = rgc.getIds().split(",");
+            HashSet<Integer> ids = new HashSet<>();
+            for (String idStr : idsStr) {
+                int id = Integer.parseInt(idStr.trim());
+                if (!allNodeIds.contains(id)) {
+                    throw new IllegalArgumentException("group config id not in servers");
+                }
+                if (!ids.add(id)) {
+                    throw new IllegalArgumentException("duplicated raft member id");
+                }
+            }
 
-        memberManager = new MemberManager(config, raftClient, raftExecutor, raftStatus);
-        Raft raft = new Raft(container);
-        VoteManager voteManager = new VoteManager(container, raft);
-        raftGroup = new RaftGroup(container, raft, nodeManager, memberManager, voteManager);
+            int electQuorum = ids.size() / 2 + 1;
+            int rwQuorum = ids.size() >= 4 && ids.size() % 2 == 0 ? ids.size() / 2 : electQuorum;
+            RaftStatus raftStatus = new RaftStatus(electQuorum, rwQuorum);
+            raftStatus.setRaftExecutor(raftExecutor);
+
+            MemberManager memberManager = new MemberManager(config, raftClient, raftExecutor,
+                    raftStatus, rgc.getGroupId(), ids);
+            Raft raft = new Raft(config, raftStatus, raftLog, stateMachine, raftClient, raftExecutor);
+            VoteManager voteManager = new VoteManager(config, raftStatus, raftClient, raftExecutor, raft);
+            RaftGroup raftGroup = new RaftGroup(config, rgc, raftStatus, raftLog, stateMachine, raftExecutor,
+                    raft, nodeManager, memberManager, voteManager);
+            GroupComponents gc = new GroupComponents(config, rgc, raftGroup, raftStatus, memberManager, voteManager);
+            groupComponents.put(rgc.getGroupId(), gc);
+        }
 
         NioServerConfig nioServerConfig = new NioServerConfig();
         nioServerConfig.setPort(config.getRaftPort());
@@ -152,8 +163,8 @@ public class RaftServer extends AbstractLifeCircle {
         nioServerConfig.setIoThreads(1);
         setupNioConfig(nioServerConfig);
         raftServer = new NioServer(nioServerConfig);
-        raftServer.register(Commands.RAFT_PING, memberManager.getProcessor(), raftExecutor);
-        AppendProcessor ap = new AppendProcessor(raftStatus, raftLog, stateMachine, voteManager);
+        raftServer.register(Commands.RAFT_PING, new RaftPingProcessor(groupComponents), raftExecutor);
+        AppendProcessor ap = new AppendProcessor(groupComponents, raftLog, stateMachine);
         raftServer.register(Commands.RAFT_APPEND_ENTRIES, ap, raftExecutor);
         raftServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(raftStatus), raftExecutor);
         raftServer.register(Commands.RAFT_INSTALL_SNAPSHOT, new InstallSnapshotProcessor(raftStatus, stateMachine), raftExecutor);

@@ -20,8 +20,7 @@ package com.github.dtprj.dongting.raft.impl;
  */
 public class RaftMember {
     private final RaftNodeEx node;
-
-    private int id;
+    private final int groupId;
     private boolean self;
     private boolean ready;
     private boolean pinging;
@@ -41,8 +40,9 @@ public class RaftMember {
     private long nextIndex;
     private long matchIndex;
 
-    public RaftMember(RaftNodeEx node) {
+    public RaftMember(int groupId, RaftNodeEx node) {
         this.node = node;
+        this.groupId = groupId;
     }
 
     public void setLastConfirm(boolean hasLastConfirmReqNanos, long lastConfirmReqNanos) {
@@ -52,8 +52,8 @@ public class RaftMember {
 
     //-------------------------getter and setters-------------------------------
 
-    public int getId() {
-        return id;
+    public int getGroupId() {
+        return groupId;
     }
 
     public RaftNodeEx getNode() {
@@ -70,10 +70,6 @@ public class RaftMember {
 
     public void setReady(boolean ready) {
         this.ready = ready;
-    }
-
-    public void setId(int id) {
-        this.id = id;
     }
 
     public void setSelf(boolean self) {

@@ -19,6 +19,7 @@ package com.github.dtprj.dongting.raft.server;
  * @author huangli
  */
 public class RaftGroupConfig {
+    private int groupId;
     private String ids;
     private String dataDir = "./data";
     private String statusFile = "raft.status";
@@ -45,5 +46,13 @@ public class RaftGroupConfig {
 
     public void setStatusFile(String statusFile) {
         this.statusFile = statusFile;
+    }
+
+    public int getGroupId() {
+        return groupId;
+    }
+
+    public void setGroupId(int groupId) {
+        this.groupId = groupId;
     }
 }

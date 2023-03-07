@@ -18,11 +18,14 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.net.HostPort;
+import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftLog;
+import com.github.dtprj.dongting.raft.server.RaftServerConfig;
+import com.github.dtprj.dongting.raft.server.StateMachine;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -44,14 +47,16 @@ public class Raft {
     private RaftMember self;
     private final Timestamp ts;
 
-    public Raft(RaftComponents container) {
-        this.raftLog = container.getRaftLog();
-        this.raftStatus = container.getRaftStatus();
+    public Raft(RaftServerConfig serverConfig, RaftStatus raftStatus, RaftLog raftLog, StateMachine stateMachine,
+                NioClient client, RaftExecutor executor) {
+        this.raftStatus = raftStatus;
+        this.raftLog = raftLog;
         this.ts = raftStatus.getTs();
 
-        this.applyManager = new ApplyManager(container.getStateMachine(), ts);
-        this.commitManager = new CommitManager(raftStatus, raftLog, container.getStateMachine(), applyManager);
-        this.replicateManager = new ReplicateManager(container, commitManager);
+        this.applyManager = new ApplyManager(stateMachine, ts);
+        this.commitManager = new CommitManager(raftStatus, raftLog, stateMachine, applyManager);
+        this.replicateManager = new ReplicateManager(serverConfig,raftStatus, raftLog,
+                stateMachine, client, executor, commitManager);
    }
 
     private RaftMember getSelf() {

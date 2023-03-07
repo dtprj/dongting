@@ -69,13 +69,14 @@ class ReplicateManager {
     private static final PbZeroCopyDecoder APPEND_RESP_DECODER = new PbZeroCopyDecoder(c -> new AppendRespCallback());
     private static final PbZeroCopyDecoder INSTALL_SNAPSHOT_RESP_DECODER = new PbZeroCopyDecoder(c -> new InstallSnapshotResp.Callback());
 
-    ReplicateManager(RaftComponents raftComponents, CommitManager commitManager) {
-        this.raftStatus = raftComponents.getRaftStatus();
-        this.config = raftComponents.getConfig();
-        this.raftLog = raftComponents.getRaftLog();
-        this.stateMachine = raftComponents.getStateMachine();
-        this.client = raftComponents.getClient();
-        this.raftExecutor = raftComponents.getRaftExecutor();
+    ReplicateManager(RaftServerConfig config, RaftStatus raftStatus, RaftLog raftLog, StateMachine stateMachine,
+                     NioClient client, RaftExecutor executor, CommitManager commitManager) {
+        this.raftStatus = raftStatus;
+        this.config = config;
+        this.raftLog = raftLog;
+        this.stateMachine = stateMachine;
+        this.client = client;
+        this.raftExecutor = executor;
         this.commitManager = commitManager;
         this.ts = raftStatus.getTs();
 
