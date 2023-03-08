@@ -66,7 +66,7 @@ public class RaftServer extends AbstractLifeCircle {
     private final NioServer raftServer;
     private final NioClient raftClient;
 
-    private IntObjMap<GroupComponents> groupComponents = new IntObjMap<>();
+    private IntObjMap<GroupComponents> groupComponentsMap = new IntObjMap<>();
 
     private CompletableFuture<Void> nodeReadyFuture;
 
@@ -166,7 +166,7 @@ public class RaftServer extends AbstractLifeCircle {
             RaftGroup raftGroup = new RaftGroup(config, rgc, raftStatus, raftLog, stateMachine, raftExecutor,
                     raft, nodeManager, memberManager, voteManager);
             GroupComponents gc = new GroupComponents(config, rgc,raftLog, stateMachine, raftGroup, raftStatus, memberManager, voteManager);
-            groupComponents.put(rgc.getGroupId(), gc);
+            groupComponentsMap.put(rgc.getGroupId(), gc);
         }
 
         NioServerConfig nioServerConfig = new NioServerConfig();
@@ -176,11 +176,11 @@ public class RaftServer extends AbstractLifeCircle {
         nioServerConfig.setIoThreads(1);
         setupNioConfig(nioServerConfig);
         raftServer = new NioServer(nioServerConfig);
-        raftServer.register(Commands.RAFT_PING, new RaftPingProcessor(groupComponents), raftExecutor);
-        AppendProcessor ap = new AppendProcessor(groupComponents);
+        raftServer.register(Commands.RAFT_PING, new RaftPingProcessor(groupComponentsMap), raftExecutor);
+        AppendProcessor ap = new AppendProcessor(groupComponentsMap);
         raftServer.register(Commands.RAFT_APPEND_ENTRIES, ap, raftExecutor);
         raftServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(raftStatus), raftExecutor);
-        raftServer.register(Commands.RAFT_INSTALL_SNAPSHOT, new InstallSnapshotProcessor(raftStatus, stateMachine), raftExecutor);
+        raftServer.register(Commands.RAFT_INSTALL_SNAPSHOT, new InstallSnapshotProcessor(groupComponentsMap), raftExecutor);
     }
 
     private void setupNioConfig(NioConfig nc) {
@@ -193,7 +193,7 @@ public class RaftServer extends AbstractLifeCircle {
 
     @Override
     protected void doStart() {
-        groupComponents.forEach((groupId, gc) -> {
+        groupComponentsMap.forEach((groupId, gc) -> {
             gc.getRaftGroup().init();
             return true;
         });
@@ -212,7 +212,7 @@ public class RaftServer extends AbstractLifeCircle {
             throw new RaftException(e);
         }
 
-        groupComponents.forEach((groupId, gc) -> {
+        groupComponentsMap.forEach((groupId, gc) -> {
             gc.getRaftGroup().start();
             return true;
         });
@@ -223,7 +223,7 @@ public class RaftServer extends AbstractLifeCircle {
         raftServer.stop();
         raftClient.stop();
 
-        groupComponents.forEach((groupId, gc) -> {
+        groupComponentsMap.forEach((groupId, gc) -> {
             RaftGroup raftGroup = gc.getRaftGroup();
             raftGroup.requestShutdown();
             raftGroup.interrupt();

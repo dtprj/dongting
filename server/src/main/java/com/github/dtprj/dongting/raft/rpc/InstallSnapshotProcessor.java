@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -29,6 +30,7 @@ import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.server.GroupComponents;
 import com.github.dtprj.dongting.raft.server.StateMachine;
 
 /**
@@ -39,30 +41,30 @@ public class InstallSnapshotProcessor extends ReqProcessor {
     private static final DtLog log = DtLogs.getLogger(InstallSnapshotProcessor.class);
 
     private static final Decoder DECODER = new PbZeroCopyDecoder(c -> new InstallSnapshotReq.Callback());
-    private final RaftStatus raftStatus;
-    private final StateMachine stateMachine;
+    private final IntObjMap<GroupComponents> groupComponentsMap;
 
-    public InstallSnapshotProcessor(RaftStatus raftStatus, StateMachine stateMachine) {
-        this.raftStatus = raftStatus;
-        this.stateMachine = stateMachine;
+
+    public InstallSnapshotProcessor(IntObjMap<GroupComponents> groupComponentsMap) {
+        this.groupComponentsMap = groupComponentsMap;
     }
 
     @Override
     public WriteFrame process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext) {
         InstallSnapshotReq req = (InstallSnapshotReq) frame.getBody();
+        GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, req.groupId);
         InstallSnapshotResp resp = new InstallSnapshotResp();
         InstallSnapshotResp.WriteFrame respFrame = new InstallSnapshotResp.WriteFrame(resp);
         int remoteTerm = req.term;
-        RaftStatus raftStatus = this.raftStatus;
+        RaftStatus raftStatus = gc.getRaftStatus();
         int localTerm = raftStatus.getCurrentTerm();
         if (remoteTerm == localTerm) {
             if (raftStatus.getRole() == RaftRole.follower) {
                 RaftUtil.resetElectTimer(raftStatus);
                 RaftUtil.updateLeader(raftStatus, req.leaderId);
-                installSnapshot(req, resp);
+                installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
             } else if (raftStatus.getRole() == RaftRole.candidate) {
                 RaftUtil.changeToFollower(raftStatus, req.leaderId);
-                installSnapshot(req, resp);
+                installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
             } else {
                 BugLog.getLog().error("leader receive raft install snapshot request. term={}, remote={}",
                         remoteTerm, channelContext.getRemoteAddr());
@@ -70,7 +72,7 @@ public class InstallSnapshotProcessor extends ReqProcessor {
             }
         } else if (remoteTerm > localTerm) {
             RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus, req.leaderId, true);
-            installSnapshot(req, resp);
+            installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
         } else {
             log.debug("receive raft install snapshot request with a smaller term, ignore, remoteTerm={}, localTerm={}", remoteTerm, localTerm);
             resp.success = false;
@@ -80,7 +82,7 @@ public class InstallSnapshotProcessor extends ReqProcessor {
         return respFrame;
     }
 
-    private void installSnapshot(InstallSnapshotReq req, InstallSnapshotResp resp) {
+    private void installSnapshot(RaftStatus raftStatus, StateMachine stateMachine, InstallSnapshotReq req, InstallSnapshotResp resp) {
         boolean start = req.offset == 0;
         boolean finish = req.done;
         if (start) {

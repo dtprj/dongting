@@ -79,13 +79,14 @@ message RequestVoteResp {
 }
 
 message InstallSnapshotReq {
-  uint32 term = 1;
-  uint32 leader_id = 2;
-  fixed64 last_included_index = 3;
-  uint32 last_included_term = 4;
-  fixed64 offset = 5;
-  bytes data = 6;
-  bool done = 7;
+  uint32 group_id = 1;
+  uint32 term = 2;
+  uint32 leader_id = 3;
+  fixed64 last_included_index = 4;
+  uint32 last_included_term = 5;
+  fixed64 offset = 6;
+  bytes data = 7;
+  bool done = 8;
 }
 
 message InstallSnapshotResp {

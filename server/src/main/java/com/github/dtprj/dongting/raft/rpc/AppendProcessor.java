@@ -51,19 +51,19 @@ public class AppendProcessor extends ReqProcessor {
     public static final int CODE_CLIENT_REQ_ERROR = 3;
     public static final int CODE_INSTALL_SNAPSHOT = 4;
 
-    private final IntObjMap<GroupComponents> groupComponents;
+    private final IntObjMap<GroupComponents> groupComponentsMap;
 
     private static final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder(c -> new AppendReqCallback());
 
-    public AppendProcessor(IntObjMap<GroupComponents> groupComponents) {
-        this.groupComponents = groupComponents;
+    public AppendProcessor(IntObjMap<GroupComponents> groupComponentsMap) {
+        this.groupComponentsMap = groupComponentsMap;
     }
 
     @Override
     public WriteFrame process(ReadFrame rf, ChannelContext channelContext, ReqContext reqContext) {
         AppendRespWriteFrame resp = new AppendRespWriteFrame();
         AppendReqCallback req = (AppendReqCallback) rf.getBody();
-        GroupComponents gc = RaftUtil.getGroupComponents(groupComponents, req.getGroupId());
+        GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, req.getGroupId());
         int remoteTerm = req.getTerm();
         RaftStatus raftStatus = gc.getRaftStatus();
         int localTerm = raftStatus.getCurrentTerm();

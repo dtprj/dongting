@@ -261,8 +261,8 @@ public class RaftUtil {
         }
     }
 
-    public static GroupComponents getGroupComponents(IntObjMap<GroupComponents> groupComponents, int groupId) {
-        GroupComponents gc = groupComponents.get(groupId);
+    public static GroupComponents getGroupComponents(IntObjMap<GroupComponents> groupComponentsMap, int groupId) {
+        GroupComponents gc = groupComponentsMap.get(groupId);
         if (gc == null) {
             log.error("raft group not found: {}", groupId);
             throw new NetCodeException(CmdCodes.SYS_ERROR, "raft group not found: " + groupId);

@@ -24,14 +24,16 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-//  uint32 term = 1;
-//  uint32 leader_id = 2;
-//  fixed64 last_included_index = 3;
-//  uint32 last_included_term = 4;
-//  fixed64 offset = 5;
-//  bytes data = 6;
-//  bool done = 7;
+//  uint32 group_id = 1;
+//  uint32 term = 2;
+//  uint32 leader_id = 3;
+//  fixed64 last_included_index = 4;
+//  uint32 last_included_term = 5;
+//  fixed64 offset = 6;
+//  bytes data = 7;
+//  bool done = 8;
 public class InstallSnapshotReq {
+    public int groupId;
     public int term;
     public int leaderId;
     public long lastIncludedIndex;
@@ -47,15 +49,18 @@ public class InstallSnapshotReq {
         public boolean readVarNumber(int index, long value) {
             switch (index) {
                 case 1:
-                    result.term = (int) value;
+                    result.groupId = (int) value;
                     break;
                 case 2:
+                    result.term = (int) value;
+                    break;
+                case 3:
                     result.leaderId = (int) value;
                     break;
                 case 4:
                     result.lastIncludedTerm = (int) value;
                     break;
-                case 7:
+                case 8:
                     result.done = value != 0;
                     break;
             }
@@ -65,10 +70,10 @@ public class InstallSnapshotReq {
         @Override
         public boolean readFix64(int index, long value) {
             switch (index) {
-                case 3:
+                case 4:
                     result.lastIncludedIndex = value;
                     break;
-                case 5:
+                case 6:
                     result.offset = value;
                     break;
             }
@@ -77,7 +82,7 @@ public class InstallSnapshotReq {
 
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
-            if (index == 6) {
+            if (index == 7) {
                 if (begin) {
                     result.data = ByteBuffer.allocate(len);
                 }
@@ -105,26 +110,28 @@ public class InstallSnapshotReq {
 
         @Override
         protected int calcEstimateBodySize() {
-            return PbUtil.accurateUnsignedIntSize(1, data.term)
-                    + PbUtil.accurateUnsignedIntSize(2, data.leaderId)
-                    + PbUtil.accurateFix64Size(3, data.lastIncludedIndex)
-                    + PbUtil.accurateUnsignedIntSize(4, data.lastIncludedTerm)
-                    + PbUtil.accurateFix64Size(5, data.offset)
-                    + PbUtil.accurateLengthDelimitedSize(6, data.data.remaining(), false)
-                    + PbUtil.accurateUnsignedIntSize(7, data.done ? 1 : 0);
+            return PbUtil.accurateUnsignedIntSize(1, data.groupId)
+                    + PbUtil.accurateUnsignedIntSize(2, data.term)
+                    + PbUtil.accurateUnsignedIntSize(3, data.leaderId)
+                    + PbUtil.accurateFix64Size(4, data.lastIncludedIndex)
+                    + PbUtil.accurateUnsignedIntSize(5, data.lastIncludedTerm)
+                    + PbUtil.accurateFix64Size(6, data.offset)
+                    + PbUtil.accurateLengthDelimitedSize(7, data.data.remaining(), false)
+                    + PbUtil.accurateUnsignedIntSize(8, data.done ? 1 : 0);
         }
 
         @Override
         protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
             super.writeBodySize(buf, estimateBodySize());
-            PbUtil.writeUnsignedInt32(buf, 1, data.term);
-            PbUtil.writeUnsignedInt32(buf, 2, data.leaderId);
-            PbUtil.writeFix64(buf, 3, data.lastIncludedIndex);
-            PbUtil.writeUnsignedInt32(buf, 4, data.lastIncludedTerm);
-            PbUtil.writeFix64(buf, 5, data.offset);
-            PbUtil.writeLengthDelimitedPrefix(buf, 6, data.data.remaining(), false);
+            PbUtil.writeUnsignedInt32(buf, 1, data.groupId);
+            PbUtil.writeUnsignedInt32(buf, 2, data.term);
+            PbUtil.writeUnsignedInt32(buf, 3, data.leaderId);
+            PbUtil.writeFix64(buf, 4, data.lastIncludedIndex);
+            PbUtil.writeUnsignedInt32(buf, 5, data.lastIncludedTerm);
+            PbUtil.writeFix64(buf, 6, data.offset);
+            PbUtil.writeLengthDelimitedPrefix(buf, 7, data.data.remaining(), false);
             buf.put(data.data);
-            PbUtil.writeUnsignedInt32(buf, 7, data.done ? 1 : 0);
+            PbUtil.writeUnsignedInt32(buf, 8, data.done ? 1 : 0);
         }
 
     }

@@ -35,16 +35,16 @@ public class RaftPingProcessor extends ReqProcessor {
     public static final PbZeroCopyDecoder DECODER = new PbZeroCopyDecoder(context ->
             new RaftPingFrameCallback());
 
-    private final IntObjMap<GroupComponents> groupComponents;
+    private final IntObjMap<GroupComponents> groupComponentsMap;
 
-    public RaftPingProcessor(IntObjMap<GroupComponents> groupComponents) {
-        this.groupComponents = groupComponents;
+    public RaftPingProcessor(IntObjMap<GroupComponents> groupComponentsMap) {
+        this.groupComponentsMap = groupComponentsMap;
     }
 
     @Override
     public WriteFrame process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext) {
         RaftPingFrameCallback callback = (RaftPingFrameCallback) frame.getBody();
-        GroupComponents gc = RaftUtil.getGroupComponents(groupComponents, callback.groupId);
+        GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, callback.groupId);
         MemberManager mm = gc.getMemberManager();
         RaftPingWriteFrame resp = new RaftPingWriteFrame(gc.getServerConfig().getId(),
                 gc.getGroupConfig().getGroupId(), mm.getIds());
