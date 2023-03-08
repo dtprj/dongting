@@ -193,13 +193,18 @@ public class RaftUtil {
 
     public static void updateLeader(RaftStatus raftStatus, int leaderId) {
         RaftMember leader = raftStatus.getCurrentLeader();
-        if (leader != null && leader.getId() == leaderId) {
+        if (leader != null && leader.getNode().getId() == leaderId) {
             return;
         }
+        boolean found = false;
         for (RaftMember node : raftStatus.getAllMembers()) {
-            if (node.getId() == leaderId) {
+            if (node.getNode().getId() == leaderId) {
                 raftStatus.setCurrentLeader(node);
+                found = true;
             }
+        }
+        if (!found) {
+            raftStatus.setCurrentLeader(null);
         }
     }
 
