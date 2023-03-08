@@ -161,7 +161,7 @@ public class RaftServer extends AbstractLifeCircle {
 
             MemberManager memberManager = new MemberManager(config, raftClient, raftExecutor,
                     raftStatus, rgc.getGroupId(), ids);
-            Raft raft = new Raft(config, raftStatus, raftLog, stateMachine, raftClient, raftExecutor);
+            Raft raft = new Raft(config, rgc, raftStatus, raftLog, stateMachine, raftClient, raftExecutor);
             VoteManager voteManager = new VoteManager(config, raftStatus, raftClient, raftExecutor, raft);
             RaftGroup raftGroup = new RaftGroup(config, rgc, raftStatus, raftLog, stateMachine, raftExecutor,
                     raft, nodeManager, memberManager, voteManager);
