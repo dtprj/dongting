@@ -35,6 +35,7 @@ import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.GroupComponents;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.server.StateMachine;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -62,17 +63,18 @@ public class AppendProcessor extends ReqProcessor {
     public WriteFrame process(ReadFrame rf, ChannelContext channelContext, ReqContext reqContext) {
         AppendRespWriteFrame resp = new AppendRespWriteFrame();
         AppendReqCallback req = (AppendReqCallback) rf.getBody();
+        GroupComponents gc = RaftUtil.getGroupComponents(groupComponents, req.getGroupId());
         int remoteTerm = req.getTerm();
-        RaftStatus raftStatus = this.raftStatus;
+        RaftStatus raftStatus = gc.getRaftStatus();
         int localTerm = raftStatus.getCurrentTerm();
         if (remoteTerm == localTerm) {
             if (raftStatus.getRole() == RaftRole.follower) {
                 RaftUtil.resetElectTimer(raftStatus);
                 RaftUtil.updateLeader(raftStatus, req.getLeaderId());
-                append(req, resp);
+                append(gc, raftStatus, req, resp);
             } else if (raftStatus.getRole() == RaftRole.candidate) {
                 RaftUtil.changeToFollower(raftStatus, req.getLeaderId());
-                append(req, resp);
+                append(gc, raftStatus, req, resp);
             } else {
                 BugLog.getLog().error("leader receive raft append request. term={}, remote={}",
                         remoteTerm, channelContext.getRemoteAddr());
@@ -80,7 +82,7 @@ public class AppendProcessor extends ReqProcessor {
             }
         } else if (remoteTerm > localTerm) {
             RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus, req.getLeaderId(), true);
-            append(req, resp);
+            append(gc, raftStatus, req, resp);
         } else {
             log.debug("receive append request with a smaller term, ignore, remoteTerm={}, localTerm={}", remoteTerm, localTerm);
             resp.setSuccess(false);
@@ -90,14 +92,13 @@ public class AppendProcessor extends ReqProcessor {
         return resp;
     }
 
-    private void append(AppendReqCallback req, AppendRespWriteFrame resp) {
+    private void append(GroupComponents gc, RaftStatus raftStatus, AppendReqCallback req, AppendRespWriteFrame resp) {
         if (raftStatus.isInstallSnapshot()) {
             resp.setSuccess(false);
             resp.setAppendCode(CODE_INSTALL_SNAPSHOT);
             return;
         }
-        voteManager.cancelVote();
-        RaftStatus raftStatus = this.raftStatus;
+        gc.getVoteManager().cancelVote();
         if (req.getPrevLogIndex() != raftStatus.getLastLogIndex() || req.getPrevLogTerm() != raftStatus.getLastLogTerm()) {
             log.info("log not match. prevLogIndex={}, localLastLogIndex={}, prevLogTerm={}, localLastLogTerm={}, leaderId={}",
                     req.getPrevLogIndex(), raftStatus.getLastLogIndex(), req.getPrevLogTerm(), raftStatus.getLastLogTerm(), req.getLeaderId());
@@ -122,7 +123,7 @@ public class AppendProcessor extends ReqProcessor {
             return;
         }
 
-        RaftUtil.append(raftLog, raftStatus, req.getPrevLogIndex(), req.getPrevLogTerm(), logs);
+        RaftUtil.append(gc.getRaftLog(), raftStatus, req.getPrevLogIndex(), req.getPrevLogTerm(), logs);
 
         for (LogItem li : logs) {
             RaftInput raftInput = new RaftInput(li.getBuffer(), null, null, false);
@@ -135,7 +136,7 @@ public class AppendProcessor extends ReqProcessor {
         raftStatus.setLastLogTerm(logs.get(logs.size() - 1).getTerm());
         if (req.getLeaderCommit() > raftStatus.getCommitIndex()) {
             raftStatus.setCommitIndex(Math.min(newIndex, req.getLeaderCommit()));
-            apply(raftStatus);
+            apply(gc, raftStatus);
         } else if (req.getLeaderCommit() < raftStatus.getCommitIndex()) {
             log.warn("leader commitIndex less than local. leaderId={}, leaderTerm={}, leaderCommitIndex={}, localCommitIndex={}",
                     req.getLeaderId(), req.getTerm(), req.getLeaderCommit(), raftStatus.getCommitIndex());
@@ -143,7 +144,7 @@ public class AppendProcessor extends ReqProcessor {
         resp.setSuccess(true);
     }
 
-    private void apply(RaftStatus raftStatus) {
+    private void apply(GroupComponents gc, RaftStatus raftStatus) {
         long diff = raftStatus.getCommitIndex() - raftStatus.getLastApplied();
         PendingMap pendingRequests = raftStatus.getPendingRequests();
         long lastApplied = raftStatus.getLastApplied();
@@ -151,16 +152,16 @@ public class AppendProcessor extends ReqProcessor {
             long index = lastApplied+1;
             RaftTask rt = pendingRequests.get(index);
             if (rt != null) {
-                apply(rt.type, index, rt.input.getLogData());
+                apply(gc.getStateMachine(), rt.type, index, rt.input.getLogData());
                 lastApplied++;
                 diff--;
             } else {
                 int limit = (int) Math.min(diff, 100L);
-                LogItem[] items = RaftUtil.load(raftLog, raftStatus,
+                LogItem[] items = RaftUtil.load(gc.getRaftLog(), raftStatus,
                         index, limit, 16 * 1024 * 1024);
                 int readCount = items.length;
                 for (LogItem item : items) {
-                    apply(item.getType(), index++, item.getBuffer());
+                    apply(gc.getStateMachine(), item.getType(), index++, item.getBuffer());
                 }
                 lastApplied += readCount;
                 diff -= readCount;
@@ -169,7 +170,7 @@ public class AppendProcessor extends ReqProcessor {
         raftStatus.setLastApplied(lastApplied);
     }
 
-    private void apply(int type,long index, ByteBuffer buffer) {
+    private void apply(StateMachine stateMachine, int type, long index, ByteBuffer buffer) {
         if (type != LogItem.TYPE_HEARTBEAT) {
             Object decodedObj = stateMachine.decode(buffer);
             stateMachine.exec(index, decodedObj);

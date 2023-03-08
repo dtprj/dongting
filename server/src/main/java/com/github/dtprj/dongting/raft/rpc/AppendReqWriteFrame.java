@@ -27,12 +27,13 @@ import java.util.List;
  * @author huangli
  */
 //message AppendEntriesReq {
-//  uint32 term = 1;
-//  uint32 leader_id = 2;
-//  fixed64 prev_log_index = 3;
-//  uint32 prev_log_term = 4;
-//  repeated LogItem entries = 5;
-//  fixed64 leader_commit = 6;
+//  uint32 group_id = 1;
+//  uint32 term = 2;
+//  uint32 leader_id = 3;
+//  fixed64 prev_log_index = 4;
+//  uint32 prev_log_term = 5;
+//  repeated LogItem entries = 6;
+//  fixed64 leader_commit = 7;
 //}
 //
 //message LogItem {
@@ -44,6 +45,7 @@ import java.util.List;
 //}
 public class AppendReqWriteFrame extends WriteFrame {
 
+    private int groupId;
     private int term;
     private int leaderId;
     private long prevLogIndex;
@@ -53,15 +55,16 @@ public class AppendReqWriteFrame extends WriteFrame {
 
     @Override
     protected int calcEstimateBodySize() {
-        int x = PbUtil.accurateUnsignedIntSize(1, term)
-                + PbUtil.accurateUnsignedIntSize(2, leaderId)
-                + PbUtil.accurateFix64Size(3, prevLogIndex)
-                + PbUtil.accurateUnsignedIntSize(4, prevLogTerm)
-                + PbUtil.accurateFix64Size(6, leaderCommit);
+        int x = PbUtil.accurateUnsignedIntSize(1, groupId)
+                + PbUtil.accurateUnsignedIntSize(2, term)
+                + PbUtil.accurateUnsignedIntSize(3, leaderId)
+                + PbUtil.accurateFix64Size(4, prevLogIndex)
+                + PbUtil.accurateUnsignedIntSize(5, prevLogTerm)
+                + PbUtil.accurateFix64Size(7, leaderCommit);
         if (logs != null) {
             for (LogItem item : logs) {
                 int itemSize = computeItemSize(item);
-                x += PbUtil.accurateLengthDelimitedSize(5, itemSize, false);
+                x += PbUtil.accurateLengthDelimitedSize(6, itemSize, false);
             }
         }
         return x;
@@ -82,13 +85,14 @@ public class AppendReqWriteFrame extends WriteFrame {
     @Override
     protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
         super.writeBodySize(buf, estimateBodySize());
-        PbUtil.writeUnsignedInt32(buf, 1, term);
-        PbUtil.writeUnsignedInt32(buf, 2, leaderId);
-        PbUtil.writeFix64(buf, 3, prevLogIndex);
-        PbUtil.writeUnsignedInt32(buf, 4, prevLogTerm);
+        PbUtil.writeUnsignedInt32(buf, 1, groupId);
+        PbUtil.writeUnsignedInt32(buf, 2, term);
+        PbUtil.writeUnsignedInt32(buf, 3, leaderId);
+        PbUtil.writeFix64(buf, 4, prevLogIndex);
+        PbUtil.writeUnsignedInt32(buf, 5, prevLogTerm);
         if (logs != null) {
             for (LogItem item : logs) {
-                PbUtil.writeLengthDelimitedPrefix(buf, 5, computeItemSize(item), false);
+                PbUtil.writeLengthDelimitedPrefix(buf, 6, computeItemSize(item), false);
 
                 PbUtil.writeUnsignedInt32(buf, 1, item.getType());
                 PbUtil.writeUnsignedInt32(buf, 2, item.getTerm());
@@ -102,7 +106,11 @@ public class AppendReqWriteFrame extends WriteFrame {
             }
             logs = null;
         }
-        PbUtil.writeFix64(buf, 6, leaderCommit);
+        PbUtil.writeFix64(buf, 7, leaderCommit);
+    }
+
+    public void setGroupId(int groupId) {
+        this.groupId = groupId;
     }
 
     public void setTerm(int term) {

@@ -26,16 +26,18 @@ import java.util.ArrayList;
  * @author huangli
  */
 //message AppendEntriesReq {
-//  uint32 term = 1;
-//  uint32 leader_id = 2;
-//  fixed64 prev_log_index = 3;
-//  uint32 prev_log_term = 4;
-//  repeated LogItem entries = 5;
-//  fixed64 leader_commit = 6;
+//  uint32 group_id = 1;
+//  uint32 term = 2;
+//  uint32 leader_id = 3;
+//  fixed64 prev_log_index = 4;
+//  uint32 prev_log_term = 5;
+//  repeated LogItem entries = 6;
+//  fixed64 leader_commit = 7;
 //}
 //
 public class AppendReqCallback extends PbCallback {
 
+    private int groupId;
     private int term;
     private int leaderId;
     private long prevLogIndex;
@@ -50,12 +52,15 @@ public class AppendReqCallback extends PbCallback {
     public boolean readVarNumber(int index, long value) {
         switch (index) {
             case 1:
-                term = (int) value;
+                groupId = (int) value;
                 break;
             case 2:
+                term = (int) value;
+                break;
+            case 3:
                 leaderId = (int) value;
                 break;
-            case 4:
+            case 5:
                 prevLogTerm = (int) value;
                 break;
         }
@@ -65,10 +70,10 @@ public class AppendReqCallback extends PbCallback {
     @Override
     public boolean readFix64(int index, long value) {
         switch (index) {
-            case 3:
+            case 4:
                 prevLogIndex = value;
                 break;
-            case 6:
+            case 7:
                 leaderCommit = value;
                 break;
         }
@@ -77,7 +82,7 @@ public class AppendReqCallback extends PbCallback {
 
     @Override
     public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
-        if (index == 5) {
+        if (index == 6) {
             PbParser logItemParser;
             if (begin) {
                 logItemParser = parser.createOrGetNestedParserSingle(new LogItemCallback(), len);
@@ -97,6 +102,11 @@ public class AppendReqCallback extends PbCallback {
     @Override
     public AppendReqCallback getResult() {
         return this;
+    }
+
+
+    public int getGroupId() {
+        return groupId;
     }
 
     public int getTerm() {

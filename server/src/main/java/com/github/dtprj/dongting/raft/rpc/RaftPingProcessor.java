@@ -19,13 +19,13 @@ import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.net.ChannelContext;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Decoder;
-import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.GroupComponents;
 
 /**
@@ -44,15 +44,10 @@ public class RaftPingProcessor extends ReqProcessor {
     @Override
     public WriteFrame process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext) {
         RaftPingFrameCallback callback = (RaftPingFrameCallback) frame.getBody();
-        GroupComponents gc = groupComponents.get(callback.groupId);
-        RaftPingWriteFrame resp;
-        if (gc == null) {
-            throw new NetCodeException(CmdCodes.SYS_ERROR, "raft group not found: " + callback.groupId);
-        } else {
-            MemberManager mm = gc.getMemberManager();
-            resp = new RaftPingWriteFrame(gc.getServerConfig().getId(),
-                    gc.getGroupConfig().getGroupId(), mm.getIds());
-        }
+        GroupComponents gc = RaftUtil.getGroupComponents(groupComponents, callback.groupId);
+        MemberManager mm = gc.getMemberManager();
+        RaftPingWriteFrame resp = new RaftPingWriteFrame(gc.getServerConfig().getId(),
+                gc.getGroupConfig().getGroupId(), mm.getIds());
         resp.setRespCode(CmdCodes.SUCCESS);
         return resp;
     }
