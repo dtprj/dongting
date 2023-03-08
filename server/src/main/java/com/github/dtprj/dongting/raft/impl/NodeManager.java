@@ -47,7 +47,7 @@ import java.util.concurrent.TimeUnit;
 public class NodeManager extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(NodeManager.class);
     private final UUID uuid = UUID.randomUUID();
-    private final int nodeId;
+    private final int selfNodeId;
     private final List<RaftNode> allRaftNodes;
     private final NioClient client;
     private final RaftServerConfig config;
@@ -63,13 +63,13 @@ public class NodeManager extends AbstractLifeCircle {
     private static final PbZeroCopyDecoder DECODER = new PbZeroCopyDecoder(ctx -> new NodePingCallback());
 
     public NodeManager(RaftServerConfig config, List<RaftNode> allRaftNodes, NioClient client) {
-        this.nodeId = config.getNodeId();
+        this.selfNodeId = config.getNodeId();
         this.allRaftNodes = allRaftNodes;
         this.client = client;
         this.config = config;
         RaftNode s = null;
         for (RaftNode node : allRaftNodes) {
-            if (node.getNodeId() == nodeId) {
+            if (node.getNodeId() == selfNodeId) {
                 s = node;
                 break;
             }
@@ -107,7 +107,7 @@ public class NodeManager extends AbstractLifeCircle {
 
         for (CompletableFuture<RaftNodeEx> f : futures) {
             RaftNodeEx node = f.join();
-            if (node.getNodeId() == nodeId) {
+            if (node.getNodeId() == selfNodeId) {
                 if (config.isCheckSelf()) {
                     doCheckSelf(node);
                 }
@@ -209,8 +209,8 @@ public class NodeManager extends AbstractLifeCircle {
     // run in io thread
     private boolean whenRpcFinish(ReadFrame rf, RaftNodeEx nodeEx) {
         NodePingCallback callback = (NodePingCallback) rf.getBody();
-        if (nodeEx.getNodeId() != callback.id) {
-            log.error("config fail: node id not match. expect {}, but {}", nodeEx.getNodeId(), callback.id);
+        if (nodeEx.getNodeId() != callback.nodeId) {
+            log.error("config fail: node id not match. expect {}, but {}", nodeEx.getNodeId(), callback.nodeId);
             return false;
         }
         if (self.getNodeId() == nodeEx.getNodeId()) {
@@ -247,7 +247,7 @@ public class NodeManager extends AbstractLifeCircle {
 
         @Override
         protected int calcEstimateBodySize() {
-            return PbUtil.accurateFix32Size(1, nodeId)
+            return PbUtil.accurateFix32Size(1, selfNodeId)
                     + PbUtil.accurateFix64Size(2, uuid.getMostSignificantBits())
                     + PbUtil.accurateFix64Size(3, uuid.getLeastSignificantBits());
         }
@@ -255,14 +255,14 @@ public class NodeManager extends AbstractLifeCircle {
         @Override
         protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
             super.writeBodySize(buf, estimateBodySize());
-            PbUtil.writeFix32(buf, 1, nodeId);
+            PbUtil.writeFix32(buf, 1, selfNodeId);
             PbUtil.writeFix64(buf, 2, uuid.getMostSignificantBits());
             PbUtil.writeFix64(buf, 3, uuid.getLeastSignificantBits());
         }
     }
 
     private static class NodePingCallback extends PbCallback {
-        private int id;
+        private int nodeId;
         private long uuidHigh;
         private long uuidLow;
 
@@ -272,7 +272,7 @@ public class NodeManager extends AbstractLifeCircle {
         @Override
         public boolean readFix32(int index, int value) {
             if (index == 1) {
-                this.id = value;
+                this.nodeId = value;
             }
             return true;
         }

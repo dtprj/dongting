@@ -29,20 +29,20 @@ public class RaftPingWriteFrame extends WriteFrame {
 
     private final int groupId;
     private final int nodeId;
-    private final Set<Integer> groupIds;
+    private final Set<Integer> nodeIdOfMembers;
 
-    public RaftPingWriteFrame(int groupId, int nodeId, Set<Integer> groupIds) {
+    public RaftPingWriteFrame(int groupId, int nodeId, Set<Integer> nodeIdOfMembers) {
         this.groupId = groupId;
         this.nodeId = nodeId;
-        this.groupIds = groupIds;
+        this.nodeIdOfMembers = nodeIdOfMembers;
     }
 
     @Override
     protected int calcEstimateBodySize() {
         int size = PbUtil.accurateFix32Size(1, groupId);
         size += PbUtil.accurateFix32Size(2, nodeId);
-        if (groupIds != null) {
-            for (int id : groupIds) {
+        if (nodeIdOfMembers != null) {
+            for (int id : nodeIdOfMembers) {
                 size += PbUtil.accurateFix32Size(3, id);
             }
         }
@@ -54,8 +54,8 @@ public class RaftPingWriteFrame extends WriteFrame {
         super.writeBodySize(buf, estimateBodySize());
         PbUtil.writeFix32(buf, 1, groupId);
         PbUtil.writeFix32(buf, 2, nodeId);
-        if (groupIds != null) {
-            for (int id : groupIds) {
+        if (nodeIdOfMembers != null) {
+            for (int id : nodeIdOfMembers) {
                 PbUtil.writeFix32(buf, 2, id);
             }
         }

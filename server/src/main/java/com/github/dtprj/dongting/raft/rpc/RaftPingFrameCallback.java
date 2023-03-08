@@ -25,7 +25,7 @@ import java.util.HashSet;
 public class RaftPingFrameCallback extends PbCallback {
     public int groupId;
     public int nodeId;
-    public HashSet<Integer> ids;
+    public HashSet<Integer> nodeIdOfMembers;
 
     @Override
     public boolean readFix32(int index, int value) {
@@ -35,10 +35,10 @@ public class RaftPingFrameCallback extends PbCallback {
         if (index == 2) {
             this.nodeId = value;
         } else if (index == 3) {
-            if (ids == null) {
-                ids = new HashSet<>();
+            if (nodeIdOfMembers == null) {
+                nodeIdOfMembers = new HashSet<>();
             }
-            ids.add(value);
+            nodeIdOfMembers.add(value);
         }
         return true;
     }

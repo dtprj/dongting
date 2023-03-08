@@ -140,25 +140,25 @@ public class RaftServer extends AbstractLifeCircle {
             StateMachine stateMachine = stateMachines.get(i);
             RaftLog raftLog = raftLogs.get(i);
 
-            String[] idsStr = rgc.getIds().split(",");
-            HashSet<Integer> ids = new HashSet<>();
+            String[] idsStr = rgc.getNodeIdOfMembers().split(",");
+            HashSet<Integer> nodeIdOfMembers = new HashSet<>();
             for (String idStr : idsStr) {
                 int id = Integer.parseInt(idStr.trim());
                 if (!allNodeIds.contains(id)) {
                     throw new IllegalArgumentException("group config id not in servers");
                 }
-                if (!ids.add(id)) {
+                if (!nodeIdOfMembers.add(id)) {
                     throw new IllegalArgumentException("duplicated raft member id");
                 }
             }
 
-            int electQuorum = RaftUtil.getElectQuorum(ids.size());
-            int rwQuorum = RaftUtil.getRwQuorum(ids.size());
+            int electQuorum = RaftUtil.getElectQuorum(nodeIdOfMembers.size());
+            int rwQuorum = RaftUtil.getRwQuorum(nodeIdOfMembers.size());
             RaftStatus raftStatus = new RaftStatus(electQuorum, rwQuorum);
             raftStatus.setRaftExecutor(raftExecutor);
 
             MemberManager memberManager = new MemberManager(serverConfig, raftClient, raftExecutor,
-                    raftStatus, rgc.getGroupId(), ids);
+                    raftStatus, rgc.getGroupId(), nodeIdOfMembers);
             Raft raft = new Raft(serverConfig, rgc, raftStatus, raftLog, stateMachine, raftClient, raftExecutor);
             VoteManager voteManager = new VoteManager(serverConfig, rgc, raftStatus, raftClient, raftExecutor, raft);
             RaftGroupThread raftGroupThread = new RaftGroupThread(serverConfig, rgc, raftStatus, raftLog, stateMachine, raftExecutor,

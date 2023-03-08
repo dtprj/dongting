@@ -39,7 +39,7 @@ public class MemberManager {
     private static final DtLog log = DtLogs.getLogger(MemberManager.class);
     private final RaftServerConfig serverConfig;
     private final int groupId;
-    private final Set<Integer> ids;
+    private final Set<Integer> nodeIdOfMembers;
     private final NioClient client;
     private final Executor executor;
     private final RaftStatus raftStatus;
@@ -52,13 +52,13 @@ public class MemberManager {
     private int readyCount;
 
     public MemberManager(RaftServerConfig serverConfig, NioClient client, Executor executor,
-                         RaftStatus raftStatus, int groupId, Set<Integer> ids) {
+                         RaftStatus raftStatus, int groupId, Set<Integer> nodeIdOfMembers) {
         this.serverConfig = serverConfig;
         this.client = client;
         this.executor = executor;
         this.raftStatus = raftStatus;
         this.groupId = groupId;
-        this.ids = ids;
+        this.nodeIdOfMembers = nodeIdOfMembers;
         this.allMembers = raftStatus.getAllMembers();
     }
 
@@ -98,7 +98,7 @@ public class MemberManager {
 
         member.setPinging(true);
         DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        RaftPingWriteFrame f = new RaftPingWriteFrame(groupId, serverConfig.getNodeId(), ids);
+        RaftPingWriteFrame f = new RaftPingWriteFrame(groupId, serverConfig.getNodeId(), nodeIdOfMembers);
         client.sendRequest(raftNodeEx.getPeer(), f, RaftPingProcessor.DECODER, timeout)
                 .whenCompleteAsync((rf, ex) -> processPingResult(raftNodeEx, member, rf, ex, nodeEpochWhenStartPing), executor);
     }
@@ -115,7 +115,7 @@ public class MemberManager {
                 log.error("raft ping error, group not found, groupId={}, remote={}",
                         groupId , raftNodeEx.getHostPort());
                 setReady(member, false);
-            } else if (ids.equals(callback.ids)) {
+            } else if (nodeIdOfMembers.equals(callback.nodeIdOfMembers)) {
                 NodeStatus currentNodeStatus = member.getNode().getStatus();
                 if (currentNodeStatus.isReady() && nodeEpochWhenStartPing == currentNodeStatus.getEpoch()) {
                     log.info("raft ping success, id={}, remote={}", callback.nodeId, raftNodeEx.getHostPort());
@@ -130,7 +130,7 @@ public class MemberManager {
                 }
             } else {
                 log.error("raft ping error, group ids not match: localIds={}, remoteIds={}, remote={}",
-                        ids, callback.ids, raftNodeEx.getHostPort());
+                        nodeIdOfMembers, callback.nodeIdOfMembers, raftNodeEx.getHostPort());
                 setReady(member, false);
             }
         }
@@ -153,7 +153,7 @@ public class MemberManager {
         return memberReadyFuture;
     }
 
-    public Set<Integer> getIds() {
-        return ids;
+    public Set<Integer> getNodeIdOfMembers() {
+        return nodeIdOfMembers;
     }
 }

@@ -17,12 +17,12 @@ syntax = "proto3";
 option java_package = "com.github.dtprj.dongting.raft";
 
 message NodePingReq {
-  fixed32 id = 1;
+  fixed32 node_id = 1;
   fixed64 uuid_high = 2;
   fixed64 uuid_low = 3;
 }
 message NodePingResp {
-  fixed32 id = 1;
+  fixed32 node_id = 1;
   fixed64 uuid_high = 2;
   fixed64 uuid_low = 3;
 }
@@ -30,12 +30,12 @@ message NodePingResp {
 message RaftPingReq {
   fixed32 group_id = 1;
   fixed32 node_id = 2;
-  repeated fixed32 members = 3[packed = false];
+  repeated fixed32 node_id_of_members = 3[packed = false];
 }
 message RaftPingResp {
   fixed32 group_id = 1;
   fixed32 node_id = 2;
-  repeated fixed32 members = 3[packed = false];
+  repeated fixed32 node_id_of_members = 3[packed = false];
 }
 
 message AppendEntriesReq {
