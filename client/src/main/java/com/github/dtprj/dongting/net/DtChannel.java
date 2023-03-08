@@ -362,6 +362,11 @@ class DtChannel extends PbCallback {
             WriteFrame resp;
             try {
                 resp = p.process(req, channelContext, reqContext);
+            } catch (NetCodeException e) {
+                log.warn("ReqProcessor.process fail, command={}, code={}, msg={}",
+                        req.getCommand(), e.getCode(), e.getMessage());
+                writeErrorInIoThread(req, e.getCode(), e.getMessage(), reqContext.getTimeout());
+                return;
             } catch (Throwable e) {
                 log.warn("ReqProcessor.process fail", e);
                 writeErrorInIoThread(req, CmdCodes.BIZ_ERROR, e.toString(), reqContext.getTimeout());
@@ -423,12 +428,6 @@ class DtChannel extends PbCallback {
         resp.setSeq(req.getSeq());
         resp.setMsg(msg);
         subQueue.enqueue(new WriteData(this, resp, timeout));
-    }
-
-    public void writeBizErrorInBizThread(ReadFrame req, String msg, DtTime timeout) {
-        EmptyBodyRespFrame resp = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
-        resp.setMsg(msg);
-        respWriter.writeRespInBizThreads(req, resp, timeout);
     }
 
     public int getAndIncSeq() {
@@ -507,52 +506,56 @@ class ProcessInBizThreadTask implements Runnable {
 
     @Override
     public void run() {
+        WriteFrame resp;
+        ReadFrame req = this.req;
+        DtChannel dtc = this.dtc;
+        boolean decodeSuccess = false;
         try {
-            WriteFrame resp;
-            ReadFrame req = this.req;
-            DtChannel dtc = this.dtc;
-            boolean decodeSuccess = false;
-            try {
-                if (DtChannel.timeout(req, dtc.getProcessContext(), reqContext, null)) {
-                    return;
-                }
-                ReqProcessor processor = this.processor;
-                Decoder decoder = processor.getDecoder();
-                if (!processor.getDecoder().decodeInIoThread()) {
-                    ByteBuffer bodyBuffer = (ByteBuffer) req.getBody();
-                    if (bodyBuffer != null) {
+            if (DtChannel.timeout(req, dtc.getProcessContext(), reqContext, null)) {
+                return;
+            }
+            ReqProcessor processor = this.processor;
+            Decoder decoder = processor.getDecoder();
+            if (!processor.getDecoder().decodeInIoThread()) {
+                ByteBuffer bodyBuffer = (ByteBuffer) req.getBody();
+                if (bodyBuffer != null) {
+                    try {
+                        Object o = decoder.decode(null, bodyBuffer, bodyBuffer.remaining(), true, true);
+                        req.setBody(o);
+                    } finally {
+                        WorkerStatus ws = dtc.getWorkerStatus();
+                        ReleaseBufferTask t = new ReleaseBufferTask(ws.getHeapPool(), bodyBuffer);
                         try {
-                            Object o = decoder.decode(null, bodyBuffer, bodyBuffer.remaining(), true, true);
-                            req.setBody(o);
-                        } finally {
-                            WorkerStatus ws = dtc.getWorkerStatus();
-                            ReleaseBufferTask t = new ReleaseBufferTask(ws.getHeapPool(), bodyBuffer);
-                            try {
-                                ws.getIoQueue().scheduleFromBizThread(t);
-                            } catch (NetException e) {
-                                //ignore
-                            }
+                            ws.getIoQueue().scheduleFromBizThread(t);
+                        } catch (NetException e) {
+                            //ignore
                         }
                     }
                 }
-                decodeSuccess = true;
-                resp = processor.process(req, dtc.getProcessContext(), reqContext);
-            } catch (Throwable e) {
-                if (decodeSuccess) {
-                    log.warn("ReqProcessor.process fail, command={}", req.getCommand(), e);
-                } else {
-                    log.warn("ReqProcessor decode fail, command={}", req.getCommand(), e);
-                }
-                dtc.writeBizErrorInBizThread(req, e.toString(), reqContext.getTimeout());
-                return;
             }
-            if (resp != null) {
-                dtc.getRespWriter().writeRespInBizThreads(req, resp, reqContext.getTimeout());
+            decodeSuccess = true;
+            resp = processor.process(req, dtc.getProcessContext(), reqContext);
+        } catch (NetCodeException e) {
+            log.warn("ReqProcessor.process fail, command={}, code={}, msg={}", req.getCommand(), e.getCode(), e.getMessage());
+            EmptyBodyRespFrame errorResp = new EmptyBodyRespFrame(e.getCode());
+            errorResp.setMsg(e.toString());
+            resp = errorResp;
+        } catch (Throwable e) {
+            if (decodeSuccess) {
+                log.warn("ReqProcessor.process fail, command={}", req.getCommand(), e);
+            } else {
+                log.warn("ReqProcessor decode fail, command={}", req.getCommand(), e);
             }
+            EmptyBodyRespFrame errorResp = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
+            errorResp.setMsg(e.toString());
+            resp = errorResp;
         } finally {
             if (inBytes != null) {
                 inBytes.addAndGet(-frameSize);
             }
+        }
+        if (resp != null) {
+            dtc.getRespWriter().writeRespInBizThreads(req, resp, reqContext.getTimeout());
         }
     }
 }
