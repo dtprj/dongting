@@ -13,12 +13,12 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.server;
+package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.raft.impl.MemberManager;
-import com.github.dtprj.dongting.raft.impl.RaftGroup;
-import com.github.dtprj.dongting.raft.impl.RaftStatus;
-import com.github.dtprj.dongting.raft.impl.VoteManager;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.RaftLog;
+import com.github.dtprj.dongting.raft.server.RaftServerConfig;
+import com.github.dtprj.dongting.raft.server.StateMachine;
 
 /**
  * @author huangli
@@ -26,7 +26,7 @@ import com.github.dtprj.dongting.raft.impl.VoteManager;
 public class GroupComponents {
     private final RaftServerConfig serverConfig;
     private final RaftGroupConfig groupConfig;
-    private final RaftGroup raftGroup;
+    private final RaftGroupThread raftGroupThread;
     private final RaftStatus raftStatus;
     private final MemberManager memberManager;
     private final VoteManager voteManager;
@@ -34,20 +34,20 @@ public class GroupComponents {
     private final StateMachine stateMachine;
 
     public GroupComponents(RaftServerConfig serverConfig, RaftGroupConfig groupConfig,
-                           RaftLog raftLog, StateMachine stateMachine, RaftGroup raftGroup,
+                           RaftLog raftLog, StateMachine stateMachine, RaftGroupThread raftGroupThread,
                            RaftStatus raftStatus, MemberManager memberManager, VoteManager voteManager) {
         this.serverConfig = serverConfig;
         this.groupConfig = groupConfig;
         this.raftLog = raftLog;
         this.stateMachine = stateMachine;
-        this.raftGroup = raftGroup;
+        this.raftGroupThread = raftGroupThread;
         this.raftStatus = raftStatus;
         this.memberManager = memberManager;
         this.voteManager = voteManager;
     }
 
-    public RaftGroup getRaftGroup() {
-        return raftGroup;
+    public RaftGroupThread getRaftGroup() {
+        return raftGroupThread;
     }
 
     public RaftStatus getRaftStatus() {

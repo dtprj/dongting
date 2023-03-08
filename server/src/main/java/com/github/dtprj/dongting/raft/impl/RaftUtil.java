@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.raft.client.RaftException;
-import com.github.dtprj.dongting.raft.server.GroupComponents;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftLog;

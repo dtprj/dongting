@@ -39,8 +39,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-public class RaftGroup extends Thread {
-    private static final DtLog log = DtLogs.getLogger(RaftGroup.class);
+public class RaftGroupThread extends Thread {
+    private static final DtLog log = DtLogs.getLogger(RaftGroupThread.class);
 
     private final Random random = new Random();
 
@@ -62,9 +62,9 @@ public class RaftGroup extends Thread {
 
     private volatile boolean stop;
 
-    public RaftGroup(RaftServerConfig serverConfig, RaftGroupConfig groupConfig, RaftStatus raftStatus,
-                     RaftLog raftLog, StateMachine stateMachine, RaftExecutor executor,
-                     Raft raft, NodeManager nodeManager, MemberManager memberManager, VoteManager voteManager) {
+    public RaftGroupThread(RaftServerConfig serverConfig, RaftGroupConfig groupConfig, RaftStatus raftStatus,
+                           RaftLog raftLog, StateMachine stateMachine, RaftExecutor executor,
+                           Raft raft, NodeManager nodeManager, MemberManager memberManager, VoteManager voteManager) {
         this.config = serverConfig;
         this.groupConfig = groupConfig;
         this.raftStatus = raftStatus;

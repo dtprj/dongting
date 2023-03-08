@@ -31,11 +31,12 @@ import com.github.dtprj.dongting.net.NioConfig;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
 import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.NodeManager;
 import com.github.dtprj.dongting.raft.impl.Raft;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
-import com.github.dtprj.dongting.raft.impl.RaftGroup;
+import com.github.dtprj.dongting.raft.impl.RaftGroupThread;
 import com.github.dtprj.dongting.raft.impl.RaftNode;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
@@ -68,7 +69,7 @@ public class RaftServer extends AbstractLifeCircle {
 
     private IntObjMap<GroupComponents> groupComponentsMap = new IntObjMap<>();
 
-    private final RaftServerConfig config;
+    private final RaftServerConfig serverConfig;
 
     private final NodeManager nodeManager;
 
@@ -95,25 +96,25 @@ public class RaftServer extends AbstractLifeCircle {
         }
     }
 
-    public RaftServer(RaftServerConfig config, List<RaftGroupConfig> groupConfig,
+    public RaftServer(RaftServerConfig serverConfig, List<RaftGroupConfig> groupConfig,
                       List<RaftLog> raftLogs, List<StateMachine> stateMachines) {
-        Objects.requireNonNull(config);
+        Objects.requireNonNull(serverConfig);
         Objects.requireNonNull(groupConfig);
         Objects.requireNonNull(raftLogs);
         Objects.requireNonNull(stateMachines);
-        Objects.requireNonNull(config.getServers());
+        Objects.requireNonNull(serverConfig.getServers());
 
         if (groupConfig.size() != raftLogs.size() || groupConfig.size() != stateMachines.size()) {
             throw new IllegalArgumentException("groupConfig, raftLogs, stateMachines size not match");
         }
 
-        ObjUtil.checkPositive(config.getId(), "id");
-        ObjUtil.checkPositive(config.getRaftPort(), "port");
-        this.config = config;
-        this.maxPendingWrites = config.getMaxPendingWrites();
-        this.maxPendingWriteBytes = config.getMaxPendingWriteBytes();
+        ObjUtil.checkPositive(serverConfig.getId(), "id");
+        ObjUtil.checkPositive(serverConfig.getRaftPort(), "port");
+        this.serverConfig = serverConfig;
+        this.maxPendingWrites = serverConfig.getMaxPendingWrites();
+        this.maxPendingWriteBytes = serverConfig.getMaxPendingWriteBytes();
 
-        List<RaftNode> allRaftServers = RaftUtil.parseServers(config.getServers());
+        List<RaftNode> allRaftServers = RaftUtil.parseServers(serverConfig.getServers());
         HashSet<Integer> allNodeIds = new HashSet<>();
         HashSet<HostPort> allNodeHosts = new HashSet<>();
         for (RaftNode rn : allRaftServers) {
@@ -133,7 +134,7 @@ public class RaftServer extends AbstractLifeCircle {
         setupNioConfig(nioClientConfig);
         raftClient = new NioClient(nioClientConfig);
 
-        nodeManager = new NodeManager(config, allRaftServers, raftClient);
+        nodeManager = new NodeManager(serverConfig, allRaftServers, raftClient);
 
         for (int i = 0; i < groupConfig.size(); i++) {
             RaftGroupConfig rgc = groupConfig.get(i);
@@ -157,18 +158,18 @@ public class RaftServer extends AbstractLifeCircle {
             RaftStatus raftStatus = new RaftStatus(electQuorum, rwQuorum);
             raftStatus.setRaftExecutor(raftExecutor);
 
-            MemberManager memberManager = new MemberManager(config, raftClient, raftExecutor,
+            MemberManager memberManager = new MemberManager(serverConfig, raftClient, raftExecutor,
                     raftStatus, rgc.getGroupId(), ids);
-            Raft raft = new Raft(config, rgc, raftStatus, raftLog, stateMachine, raftClient, raftExecutor);
-            VoteManager voteManager = new VoteManager(config, rgc, raftStatus, raftClient, raftExecutor, raft);
-            RaftGroup raftGroup = new RaftGroup(config, rgc, raftStatus, raftLog, stateMachine, raftExecutor,
+            Raft raft = new Raft(serverConfig, rgc, raftStatus, raftLog, stateMachine, raftClient, raftExecutor);
+            VoteManager voteManager = new VoteManager(serverConfig, rgc, raftStatus, raftClient, raftExecutor, raft);
+            RaftGroupThread raftGroupThread = new RaftGroupThread(serverConfig, rgc, raftStatus, raftLog, stateMachine, raftExecutor,
                     raft, nodeManager, memberManager, voteManager);
-            GroupComponents gc = new GroupComponents(config, rgc,raftLog, stateMachine, raftGroup, raftStatus, memberManager, voteManager);
+            GroupComponents gc = new GroupComponents(serverConfig, rgc,raftLog, stateMachine, raftGroupThread, raftStatus, memberManager, voteManager);
             groupComponentsMap.put(rgc.getGroupId(), gc);
         }
 
         NioServerConfig nioServerConfig = new NioServerConfig();
-        nioServerConfig.setPort(config.getRaftPort());
+        nioServerConfig.setPort(serverConfig.getRaftPort());
         nioServerConfig.setName("RaftServer");
         nioServerConfig.setBizThreads(0);
         nioServerConfig.setIoThreads(1);
@@ -215,9 +216,9 @@ public class RaftServer extends AbstractLifeCircle {
         raftClient.stop();
 
         groupComponentsMap.forEach((groupId, gc) -> {
-            RaftGroup raftGroup = gc.getRaftGroup();
-            raftGroup.requestShutdown();
-            raftGroup.interrupt();
+            RaftGroupThread raftGroupThread = gc.getRaftGroup();
+            raftGroupThread.requestShutdown();
+            raftGroupThread.interrupt();
             return true;
         });
     }
@@ -237,8 +238,8 @@ public class RaftServer extends AbstractLifeCircle {
             throw new RaftException("raft status is error");
         }
         int size = input.size();
-        if (size > config.getMaxBodySize()) {
-            throw new RaftException("request size too large, size=" + size + ", maxBodySize=" + config.getMaxBodySize());
+        if (size > serverConfig.getMaxBodySize()) {
+            throw new RaftException("request size too large, size=" + size + ", maxBodySize=" + serverConfig.getMaxBodySize());
         }
         int currentPendingWrites = (int) PENDING_WRITES.getAndAddRelease(this, 1);
         if (currentPendingWrites >= maxPendingWrites) {
