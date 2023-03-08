@@ -537,7 +537,7 @@ public class NioClientTest {
                 sendSync(5000, client, tick(1000));
                 fail();
             } catch (ExecutionException e) {
-                assertEquals(IllegalStateException.class, e.getCause().getClass());
+                assertEquals(NetException.class, e.getCause().getClass());
             }
 
             client.start();
@@ -550,7 +550,7 @@ public class NioClientTest {
                 sendSync(5000, client, tick(1000));
                 fail();
             } catch (ExecutionException e) {
-                assertEquals(IllegalStateException.class, e.getCause().getClass());
+                assertEquals(NetException.class, e.getCause().getClass());
             }
 
             try {
