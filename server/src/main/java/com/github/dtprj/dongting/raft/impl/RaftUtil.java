@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftLog;
+import com.github.dtprj.dongting.raft.server.RaftNode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -153,14 +154,14 @@ public class RaftUtil {
         raftStatus.setRole(RaftRole.follower);
         if (oldRole == RaftRole.leader) {
             oldPending.forEach((idx, task) -> {
-                HostPort leaderHostPort = getLeader(raftStatus.getCurrentLeader());
+                RaftNode leaderNode = getLeader(raftStatus.getCurrentLeader());
                 if (task.future != null) {
-                    task.future.completeExceptionally(new NotLeaderException(leaderHostPort));
+                    task.future.completeExceptionally(new NotLeaderException(leaderNode));
                 }
                 if (task.nextReaders != null) {
                     task.nextReaders.forEach(readTask -> {
                         if (readTask.future != null) {
-                            readTask.future.completeExceptionally(new NotLeaderException(leaderHostPort));
+                            readTask.future.completeExceptionally(new NotLeaderException(leaderNode));
                         }
                     });
                 }
@@ -207,8 +208,8 @@ public class RaftUtil {
         }
     }
 
-    public static HostPort getLeader(RaftMember leader) {
-        return leader == null ? null : leader.getNode().getHostPort();
+    public static RaftNode getLeader(RaftMember leader) {
+        return leader == null ? null : leader.getNode();
     }
 
     public static void append(RaftLog raftLog, RaftStatus raftStatus, long prevLogIndex,

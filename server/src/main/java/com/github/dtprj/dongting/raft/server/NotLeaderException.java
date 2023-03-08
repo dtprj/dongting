@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.raft.client.RaftException;
 
 /**
@@ -25,16 +24,16 @@ public class NotLeaderException extends RaftException {
     private static final long serialVersionUID = 3514859721941247422L;
 
     // may be null
-    private final HostPort currentLeader;
+    private final RaftNode currentLeader;
 
-    public NotLeaderException(HostPort currentLeader) {
+    public NotLeaderException(RaftNode currentLeader) {
         this.currentLeader = currentLeader;
     }
 
     /**
      * get current known leader, may be null.
      */
-    public HostPort getCurrentLeader() {
+    public RaftNode getCurrentLeader() {
         return currentLeader;
     }
 }
