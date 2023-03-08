@@ -30,11 +30,16 @@ public class GroupComponents {
     private final RaftStatus raftStatus;
     private final MemberManager memberManager;
     private final VoteManager voteManager;
+    private final RaftLog raftLog;
+    private final StateMachine stateMachine;
 
-    public GroupComponents(RaftServerConfig serverConfig, RaftGroupConfig groupConfig, RaftGroup raftGroup,
+    public GroupComponents(RaftServerConfig serverConfig, RaftGroupConfig groupConfig,
+                           RaftLog raftLog, StateMachine stateMachine, RaftGroup raftGroup,
                            RaftStatus raftStatus, MemberManager memberManager, VoteManager voteManager) {
         this.serverConfig = serverConfig;
         this.groupConfig = groupConfig;
+        this.raftLog = raftLog;
+        this.stateMachine = stateMachine;
         this.raftGroup = raftGroup;
         this.raftStatus = raftStatus;
         this.memberManager = memberManager;
@@ -63,5 +68,13 @@ public class GroupComponents {
 
     public RaftGroupConfig getGroupConfig() {
         return groupConfig;
+    }
+
+    public RaftLog getRaftLog() {
+        return raftLog;
+    }
+
+    public StateMachine getStateMachine() {
+        return stateMachine;
     }
 }

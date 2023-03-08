@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.net.ChannelContext;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Decoder;
+import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
@@ -46,7 +47,7 @@ public class RaftPingProcessor extends ReqProcessor {
         GroupComponents gc = groupComponents.get(callback.groupId);
         RaftPingWriteFrame resp;
         if (gc == null) {
-            resp = new RaftPingWriteFrame(0, 0, null);
+            throw new NetCodeException(CmdCodes.SYS_ERROR, "raft group not found: " + callback.groupId);
         } else {
             MemberManager mm = gc.getMemberManager();
             resp = new RaftPingWriteFrame(gc.getServerConfig().getId(),

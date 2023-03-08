@@ -50,9 +50,12 @@ public class AppendProcessor extends ReqProcessor {
     public static final int CODE_CLIENT_REQ_ERROR = 3;
     public static final int CODE_INSTALL_SNAPSHOT = 4;
 
+    private final IntObjMap<GroupComponents> groupComponents;
+
     private static final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder(c -> new AppendReqCallback());
 
     public AppendProcessor(IntObjMap<GroupComponents> groupComponents) {
+        this.groupComponents = groupComponents;
     }
 
     @Override

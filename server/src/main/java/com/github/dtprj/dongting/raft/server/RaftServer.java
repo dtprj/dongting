@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
-import com.github.dtprj.dongting.common.CloseUtil;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.ObjUtil;
@@ -98,16 +97,23 @@ public class RaftServer extends AbstractLifeCircle {
         }
     }
 
-    public RaftServer(RaftServerConfig config, List<RaftGroupConfig> groupConfig, RaftLog raftLog, StateMachine stateMachine) {
+    public RaftServer(RaftServerConfig config, List<RaftGroupConfig> groupConfig,
+                      List<RaftLog> raftLogs, List<StateMachine> stateMachines) {
+        Objects.requireNonNull(config);
+        Objects.requireNonNull(groupConfig);
+        Objects.requireNonNull(raftLogs);
+        Objects.requireNonNull(stateMachines);
         Objects.requireNonNull(config.getServers());
+
+        if (groupConfig.size() != raftLogs.size() || groupConfig.size() != stateMachines.size()) {
+            throw new IllegalArgumentException("groupConfig, raftLogs, stateMachines size not match");
+        }
+
         ObjUtil.checkPositive(config.getId(), "id");
         ObjUtil.checkPositive(config.getRaftPort(), "port");
         this.config = config;
         this.maxPendingWrites = config.getMaxPendingWrites();
         this.maxPendingWriteBytes = config.getMaxPendingWriteBytes();
-
-        LinkedBlockingQueue<Object> queue = new LinkedBlockingQueue<>();
-        RaftExecutor raftExecutor = new RaftExecutor(queue);
 
         List<RaftNode> allRaftServers = RaftUtil.parseServers(config.getServers());
         HashSet<Integer> allNodeIds = new HashSet<>();
@@ -121,6 +127,9 @@ public class RaftServer extends AbstractLifeCircle {
             }
         }
 
+        LinkedBlockingQueue<Object> queue = new LinkedBlockingQueue<>();
+        RaftExecutor raftExecutor = new RaftExecutor(queue);
+
         NioClientConfig nioClientConfig = new NioClientConfig();
         nioClientConfig.setName("RaftClient");
         setupNioConfig(nioClientConfig);
@@ -128,7 +137,11 @@ public class RaftServer extends AbstractLifeCircle {
 
         nodeManager = new NodeManager(config, allRaftServers, raftClient, this::onNodeReadyStatusChange);
 
-        for (RaftGroupConfig rgc : groupConfig) {
+        for (int i = 0; i < groupConfig.size(); i++) {
+            RaftGroupConfig rgc = groupConfig.get(i);
+            StateMachine stateMachine = stateMachines.get(i);
+            RaftLog raftLog = raftLogs.get(i);
+
             String[] idsStr = rgc.getIds().split(",");
             HashSet<Integer> ids = new HashSet<>();
             for (String idStr : idsStr) {
@@ -152,7 +165,7 @@ public class RaftServer extends AbstractLifeCircle {
             VoteManager voteManager = new VoteManager(config, raftStatus, raftClient, raftExecutor, raft);
             RaftGroup raftGroup = new RaftGroup(config, rgc, raftStatus, raftLog, stateMachine, raftExecutor,
                     raft, nodeManager, memberManager, voteManager);
-            GroupComponents gc = new GroupComponents(config, rgc, raftGroup, raftStatus, memberManager, voteManager);
+            GroupComponents gc = new GroupComponents(config, rgc,raftLog, stateMachine, raftGroup, raftStatus, memberManager, voteManager);
             groupComponents.put(rgc.getGroupId(), gc);
         }
 
@@ -164,7 +177,7 @@ public class RaftServer extends AbstractLifeCircle {
         setupNioConfig(nioServerConfig);
         raftServer = new NioServer(nioServerConfig);
         raftServer.register(Commands.RAFT_PING, new RaftPingProcessor(groupComponents), raftExecutor);
-        AppendProcessor ap = new AppendProcessor(groupComponents, raftLog, stateMachine);
+        AppendProcessor ap = new AppendProcessor(groupComponents);
         raftServer.register(Commands.RAFT_APPEND_ENTRIES, ap, raftExecutor);
         raftServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(raftStatus), raftExecutor);
         raftServer.register(Commands.RAFT_INSTALL_SNAPSHOT, new InstallSnapshotProcessor(raftStatus, stateMachine), raftExecutor);
@@ -180,7 +193,10 @@ public class RaftServer extends AbstractLifeCircle {
 
     @Override
     protected void doStart() {
-        raftGroup.init();
+        groupComponents.forEach((groupId, gc) -> {
+            gc.getRaftGroup().init();
+            return true;
+        });
 
         raftServer.start();
         raftClient.start();
@@ -196,22 +212,23 @@ public class RaftServer extends AbstractLifeCircle {
             throw new RaftException(e);
         }
 
-        raftGroup.start();
+        groupComponents.forEach((groupId, gc) -> {
+            gc.getRaftGroup().start();
+            return true;
+        });
     }
 
     @Override
     protected void doStop() {
         raftServer.stop();
         raftClient.stop();
-        raftGroup.requestShutdown();
-        raftGroup.interrupt();
-        try {
-            raftGroup.join(100);
-        } catch (InterruptedException e) {
-            throw new RaftException(e);
-        } finally {
-            CloseUtil.close(raftStatus.getStatusFileLock(), raftStatus.getRandomAccessStatusFile());
-        }
+
+        groupComponents.forEach((groupId, gc) -> {
+            RaftGroup raftGroup = gc.getRaftGroup();
+            raftGroup.requestShutdown();
+            raftGroup.interrupt();
+            return true;
+        });
     }
 
     public CompletableFuture<RaftOutput> submitLinearTask(RaftInput input) throws RaftException {

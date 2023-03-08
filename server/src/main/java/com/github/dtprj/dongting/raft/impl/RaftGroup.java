@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.CloseUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
@@ -101,6 +102,8 @@ public class RaftGroup extends Thread {
             run0();
         } catch (Throwable e) {
             BugLog.getLog().error("raft thread error", e);
+        } finally {
+            CloseUtil.close(raftStatus.getStatusFileLock(), raftStatus.getRandomAccessStatusFile());
         }
     }
 

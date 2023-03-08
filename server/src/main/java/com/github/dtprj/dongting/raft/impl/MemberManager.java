@@ -113,7 +113,7 @@ public class MemberManager {
         } else {
             if (callback.nodeId == 0 && callback.groupId == 0) {
                 log.error("raft ping error, group not found, groupId={}, remote={}",
-                        member.getGroupId() , raftNodeEx.getHostPort());
+                        groupId , raftNodeEx.getHostPort());
                 setReady(member, false);
             } else if (ids.equals(callback.ids)) {
                 NodeStatus currentNodeStatus = member.getNode().getStatus();
