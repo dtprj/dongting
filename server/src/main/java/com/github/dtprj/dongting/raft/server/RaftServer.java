@@ -67,7 +67,7 @@ public class RaftServer extends AbstractLifeCircle {
     private final NioServer raftServer;
     private final NioClient raftClient;
 
-    private IntObjMap<GroupComponents> groupComponentsMap = new IntObjMap<>();
+    private final IntObjMap<GroupComponents> groupComponentsMap = new IntObjMap<>();
 
     private final RaftServerConfig serverConfig;
 
@@ -163,8 +163,8 @@ public class RaftServer extends AbstractLifeCircle {
             Raft raft = new Raft(serverConfig, rgc, raftStatus, raftLog, stateMachine, raftClient, raftExecutor);
             VoteManager voteManager = new VoteManager(serverConfig, rgc, raftStatus, raftClient, raftExecutor, raft);
             RaftGroupThread raftGroupThread = new RaftGroupThread(serverConfig, rgc, raftStatus, raftLog, stateMachine, raftExecutor,
-                    raft, nodeManager, memberManager, voteManager);
-            GroupComponents gc = new GroupComponents(serverConfig, rgc,raftLog, stateMachine, raftGroupThread, raftStatus, memberManager, voteManager);
+                    raft, memberManager, voteManager);
+            GroupComponents gc = new GroupComponents(serverConfig, rgc, raftLog, stateMachine, raftGroupThread, raftStatus, memberManager, voteManager);
             groupComponentsMap.put(rgc.getGroupId(), gc);
         }
 
@@ -203,9 +203,17 @@ public class RaftServer extends AbstractLifeCircle {
 
         nodeManager.start();
         nodeManager.waitReady();
+        log.info("nodeManager is ready");
 
         groupComponentsMap.forEach((groupId, gc) -> {
+            gc.getMemberManager().init(nodeManager.getSelf(), nodeManager.getAllNodesEx());
             gc.getRaftGroup().start();
+            return true;
+        });
+
+        groupComponentsMap.forEach((groupId, gc) -> {
+            gc.getRaftGroup().waitReady();
+            log.info("raft group {} is ready", groupId);
             return true;
         });
     }

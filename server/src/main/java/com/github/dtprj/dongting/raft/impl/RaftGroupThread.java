@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -48,7 +49,6 @@ public class RaftGroupThread extends Thread {
     private final RaftGroupConfig groupConfig;
     private final RaftStatus raftStatus;
     private final Raft raft;
-    private final NodeManager nodeManager;
     private final MemberManager memberManager;
     private final VoteManager voteManager;
     private final StateMachine stateMachine;
@@ -64,13 +64,12 @@ public class RaftGroupThread extends Thread {
 
     public RaftGroupThread(RaftServerConfig serverConfig, RaftGroupConfig groupConfig, RaftStatus raftStatus,
                            RaftLog raftLog, StateMachine stateMachine, RaftExecutor executor,
-                           Raft raft, NodeManager nodeManager, MemberManager memberManager, VoteManager voteManager) {
+                           Raft raft, MemberManager memberManager, VoteManager voteManager) {
         this.config = serverConfig;
         this.groupConfig = groupConfig;
         this.raftStatus = raftStatus;
         this.queue = executor.getQueue();
         this.raft = raft;
-        this.nodeManager = nodeManager;
         this.memberManager = memberManager;
         this.stateMachine = stateMachine;
         this.raftLog = raftLog;
@@ -91,10 +90,20 @@ public class RaftGroupThread extends Thread {
         raftStatus.setLastLogIndex(initResult.getRight());
     }
 
+    public void waitReady() {
+        try {
+            if (memberManager.getMemberReadyFuture() == null) {
+                throw new RaftException("memberManager is not initialized");
+            }
+            memberManager.getMemberReadyFuture().get();
+        } catch (Exception e) {
+            throw new RaftException(e);
+        }
+    }
+
     @Override
     public void run() {
         try {
-            memberManager.init(nodeManager.getSelf(), nodeManager.getAllNodesEx());
             if (raftStatus.getElectQuorum() == 1) {
                 RaftUtil.changeToLeader(raftStatus);
                 raft.sendHeartBeat();
