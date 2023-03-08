@@ -21,7 +21,7 @@ package com.github.dtprj.dongting.raft.server;
 public class RaftServerConfig {
     private String servers;
     private int raftPort;
-    private int id;
+    private int nodeId;
     private long electTimeout = 15 * 1000;
     private long rpcTimeout = 5 * 1000;
     private long connectTimeout = 2000;
@@ -52,12 +52,12 @@ public class RaftServerConfig {
         this.raftPort = raftPort;
     }
 
-    public int getId() {
-        return id;
+    public int getNodeId() {
+        return nodeId;
     }
 
-    public void setId(int id) {
-        this.id = id;
+    public void setNodeId(int nodeId) {
+        this.nodeId = nodeId;
     }
 
     public long getElectTimeout() {

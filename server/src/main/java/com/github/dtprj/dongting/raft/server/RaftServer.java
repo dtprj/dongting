@@ -107,7 +107,7 @@ public class RaftServer extends AbstractLifeCircle {
             throw new IllegalArgumentException("groupConfig, raftLogs, stateMachines size not match");
         }
 
-        ObjUtil.checkPositive(serverConfig.getId(), "id");
+        ObjUtil.checkPositive(serverConfig.getNodeId(), "id");
         ObjUtil.checkPositive(serverConfig.getRaftPort(), "port");
         this.serverConfig = serverConfig;
         this.maxPendingWrites = serverConfig.getMaxPendingWrites();
@@ -117,7 +117,7 @@ public class RaftServer extends AbstractLifeCircle {
         HashSet<Integer> allNodeIds = new HashSet<>();
         HashSet<HostPort> allNodeHosts = new HashSet<>();
         for (RaftNode rn : allRaftServers) {
-            if (!allNodeIds.add(rn.getId())) {
+            if (!allNodeIds.add(rn.getNodeId())) {
                 throw new IllegalArgumentException("duplicate server id");
             }
             if (!allNodeHosts.add(rn.getHostPort())) {

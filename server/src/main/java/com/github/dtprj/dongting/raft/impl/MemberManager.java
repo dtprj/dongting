@@ -98,7 +98,7 @@ public class MemberManager {
 
         member.setPinging(true);
         DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        RaftPingWriteFrame f = new RaftPingWriteFrame(groupId, serverConfig.getId(), ids);
+        RaftPingWriteFrame f = new RaftPingWriteFrame(groupId, serverConfig.getNodeId(), ids);
         client.sendRequest(raftNodeEx.getPeer(), f, RaftPingProcessor.DECODER, timeout)
                 .whenCompleteAsync((rf, ex) -> processPingResult(raftNodeEx, member, rf, ex, nodeEpochWhenStartPing), executor);
     }

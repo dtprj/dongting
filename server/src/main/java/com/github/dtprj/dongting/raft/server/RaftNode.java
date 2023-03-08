@@ -21,16 +21,16 @@ import com.github.dtprj.dongting.net.HostPort;
  * @author huangli
  */
 public class RaftNode {
-    private final int id;
+    private final int nodeId;
     private final HostPort hostPort;
 
-    public RaftNode(int id, HostPort hostPort) {
-        this.id = id;
+    public RaftNode(int nodeId, HostPort hostPort) {
+        this.nodeId = nodeId;
         this.hostPort = hostPort;
     }
 
-    public int getId() {
-        return id;
+    public int getNodeId() {
+        return nodeId;
     }
 
     public HostPort getHostPort() {

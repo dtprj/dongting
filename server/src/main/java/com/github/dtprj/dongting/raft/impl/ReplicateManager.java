@@ -160,7 +160,7 @@ class ReplicateManager {
         req.setCommand(Commands.RAFT_APPEND_ENTRIES);
         req.setGroupId(groupId);
         req.setTerm(raftStatus.getCurrentTerm());
-        req.setLeaderId(config.getId());
+        req.setLeaderId(config.getNodeId());
         req.setLeaderCommit(raftStatus.getCommitIndex());
         req.setPrevLogIndex(prevLogIndex);
         req.setPrevLogTerm(prevLogTerm);
@@ -194,11 +194,11 @@ class ReplicateManager {
                 if (member.isMultiAppend()) {
                     member.setMultiAppend(false);
                     String msg = "append fail. remoteId={}, groupId={}, localTerm={}, reqTerm={}, prevLogIndex={}";
-                    log.warn(msg, member.getNode().getId(), groupId, raftStatus.getCurrentTerm(),
+                    log.warn(msg, member.getNode().getNodeId(), groupId, raftStatus.getCurrentTerm(),
                             reqTerm, prevLogIndex, ex);
                 } else {
                     String msg = "append fail. remoteId={}, groupId={}, localTerm={}, reqTerm={}, prevLogIndex={}, ex={}";
-                    log.warn(msg, member.getNode().getId(), groupId, raftStatus.getCurrentTerm(),
+                    log.warn(msg, member.getNode().getNodeId(), groupId, raftStatus.getCurrentTerm(),
                             reqTerm, prevLogIndex, ex.toString());
                 }
             }
@@ -233,7 +233,7 @@ class ReplicateManager {
         }
         if (member.isInstallSnapshot()) {
             log.info("receive append result when install snapshot, ignore. prevLogIndex={}, prevLogTerm={}, remoteId={}, groupId={}",
-                    prevLogIndex, prevLogTerm, member.getNode().getId(), groupId);
+                    prevLogIndex, prevLogTerm, member.getNode().getNodeId(), groupId);
             return;
         }
         if (body.isSuccess()) {
@@ -249,7 +249,7 @@ class ReplicateManager {
             } else {
                 BugLog.getLog().error("append miss order. old matchIndex={}, append prevLogIndex={}," +
                                 " expectNewMatchIndex={}, remoteId={}, groupId={}, localTerm={}, reqTerm={}, remoteTerm={}",
-                        member.getMatchIndex(), prevLogIndex, expectNewMatchIndex, member.getNode().getId(),
+                        member.getMatchIndex(), prevLogIndex, expectNewMatchIndex, member.getNode().getNodeId(),
                         groupId, raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
             }
         } else if (body.getAppendCode() == AppendProcessor.CODE_LOG_NOT_MATCH) {
@@ -260,14 +260,14 @@ class ReplicateManager {
             BugLog.getLog().error("append fail. appendCode={}, old matchIndex={}, append prevLogIndex={}, " +
                             "expectNewMatchIndex={}, remoteId={}, groupId={}, localTerm={}, reqTerm={}, remoteTerm={}",
                     body.getAppendCode(), member.getMatchIndex(), prevLogIndex, expectNewMatchIndex,
-                    member.getNode().getId(), groupId, raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
+                    member.getNode().getNodeId(), groupId, raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
         }
     }
 
     private void processLogNotMatch(RaftMember member, long prevLogIndex, int prevLogTerm, int reqTerm,
                                     long reqNanos, AppendRespCallback body, RaftStatus raftStatus) {
         log.info("log not match. remoteId={}, groupId={}, matchIndex={}, prevLogIndex={}, prevLogTerm={}, remoteLogTerm={}, remoteLogIndex={}, localTerm={}, reqTerm={}, remoteTerm={}",
-                member.getNode().getId(), groupId, member.getMatchIndex(), prevLogIndex, prevLogTerm, body.getMaxLogTerm(),
+                member.getNode().getNodeId(), groupId, member.getMatchIndex(), prevLogIndex, prevLogTerm, body.getMaxLogTerm(),
                 body.getMaxLogIndex(), raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
         member.setLastConfirm(true, reqNanos);
         member.setMultiAppend(false);
@@ -377,7 +377,7 @@ class ReplicateManager {
             }
             return;
         }
-        log.info("begin install snapshot for member: nodeId={}, groupId={}", member.getNode().getId(), groupId);
+        log.info("begin install snapshot for member: nodeId={}, groupId={}", member.getNode().getNodeId(), groupId);
         si = new SnapshotInfo();
         si.snapshot = pair.getLeft();
         si.iterator = pair.getRight();
@@ -389,7 +389,7 @@ class ReplicateManager {
         InstallSnapshotReq req = new InstallSnapshotReq();
         req.groupId = groupId;
         req.term = raftStatus.getCurrentTerm();
-        req.leaderId = config.getId();
+        req.leaderId = config.getNodeId();
         req.lastIncludedIndex = si.snapshot.getLastIncludedIndex();
         req.lastIncludedTerm = si.snapshot.getLastIncludedTerm();
         req.offset = si.offset;
@@ -413,13 +413,13 @@ class ReplicateManager {
         future.whenCompleteAsync((rf, ex) -> {
             if (req.term != raftStatus.getCurrentTerm()) {
                 log.info("receive outdated append result, term not match. reqTerm={}, currentTerm={}, remoteNode={}, groupId={}",
-                        req.term, raftStatus.getCurrentTerm(), member.getNode().getId(), groupId);
+                        req.term, raftStatus.getCurrentTerm(), member.getNode().getNodeId(), groupId);
                 return;
             }
             pd.decrAndGetPendingRequests(1, bytes);
             if (ex != null) {
                 log.error("send install snapshot fail. remoteNode={}, groupId={}",
-                        member.getNode().getId(), groupId, ex);
+                        member.getNode().getNodeId(), groupId, ex);
                 closeIteratorAndResetStatus(member, si);
                 return;
             }
@@ -428,10 +428,10 @@ class ReplicateManager {
                 return;
             }
             log.info("transfer snapshot data to member. nodeId={}, groupId={}, offset={}",
-                    member.getNode().getId(), groupId, req.offset);
+                    member.getNode().getNodeId(), groupId, req.offset);
             if (req.done) {
                 log.info("install snapshot for member finished success. nodeId={}, groupId={}",
-                        member.getNode().getId(), groupId);
+                        member.getNode().getNodeId(), groupId);
                 closeIteratorAndResetStatus(member, si);
                 member.setInstallSnapshot(false);
                 member.setNextIndex(req.lastIncludedIndex + 1);
