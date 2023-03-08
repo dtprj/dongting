@@ -250,11 +250,11 @@ public class RaftUtil {
         return items;
     }
 
-    public static void onReadyStatusChange(int newReady, CompletableFuture<Void> f, RaftStatus raftStatus) {
+    public static void onReadyStatusChange(int newReady, CompletableFuture<Void> f, int electQuorum) {
         if (f == null) {
             return;
         }
-        if (newReady == raftStatus.getElectQuorum()) {
+        if (newReady == electQuorum) {
             if (!f.isDone()) {
                 f.complete(null);
             }
@@ -268,5 +268,13 @@ public class RaftUtil {
             throw new NetCodeException(CmdCodes.SYS_ERROR, "raft group not found: " + groupId);
         }
         return gc;
+    }
+
+    public static int getElectQuorum(int groupSize) {
+        return groupSize / 2 + 1;
+    }
+
+    public static int getRwQuorum(int groupSize) {
+        return groupSize >= 4 && groupSize % 2 == 0 ? groupSize / 2 : groupSize / 2 + 1;
     }
 }

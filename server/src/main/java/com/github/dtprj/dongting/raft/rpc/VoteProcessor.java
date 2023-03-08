@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.ChannelContext;
@@ -28,6 +29,7 @@ import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.StatusUtil;
+import com.github.dtprj.dongting.raft.server.GroupComponents;
 
 /**
  * @author huangli
@@ -35,26 +37,29 @@ import com.github.dtprj.dongting.raft.impl.StatusUtil;
 public class VoteProcessor extends ReqProcessor {
     private static final DtLog log = DtLogs.getLogger(VoteProcessor.class);
 
-    private final RaftStatus raftStatus;
+    private final IntObjMap<GroupComponents> groupComponentsMap;
 
     private static final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder(c -> new VoteReq.Callback());
 
-    public VoteProcessor(RaftStatus raftStatus) {
-        this.raftStatus = raftStatus;
+    public VoteProcessor(IntObjMap<GroupComponents> groupComponentsMap) {
+        this.groupComponentsMap = groupComponentsMap;
     }
 
     @Override
     public WriteFrame process(ReadFrame rf, ChannelContext channelContext, ReqContext reqContext) {
+        VoteReq voteReq = (VoteReq) rf.getBody();
+        GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, voteReq.getGroupId());
+        RaftStatus raftStatus = gc.getRaftStatus();
+
         RaftUtil.resetElectTimer(raftStatus);
 
-        VoteReq voteReq = (VoteReq) rf.getBody();
         VoteResp resp = new VoteResp();
         int localTerm = raftStatus.getCurrentTerm();
 
         if (voteReq.isPreVote()) {
-            processPreVote(voteReq, resp, localTerm);
+            processPreVote(raftStatus, voteReq, resp, localTerm);
         } else {
-            processVote(voteReq, resp, localTerm);
+            processVote(raftStatus, voteReq, resp, localTerm);
         }
 
         log.info("receive {} request. granted={}. reqTerm={}, localTerm={}",
@@ -65,25 +70,25 @@ public class VoteProcessor extends ReqProcessor {
         return wf;
     }
 
-    private void processPreVote(VoteReq voteReq, VoteResp resp, int localTerm) {
-        if (shouldGrant(voteReq, localTerm)) {
+    private void processPreVote(RaftStatus raftStatus, VoteReq voteReq, VoteResp resp, int localTerm) {
+        if (shouldGrant(raftStatus, voteReq, localTerm)) {
             resp.setVoteGranted(true);
         }
     }
 
-    private void processVote(VoteReq voteReq, VoteResp resp, int localTerm) {
+    private void processVote(RaftStatus raftStatus, VoteReq voteReq, VoteResp resp, int localTerm) {
         if (voteReq.getTerm() > localTerm) {
             RaftUtil.incrTermAndConvertToFollower(voteReq.getTerm(), raftStatus, -1, false);
         }
 
-        if (shouldGrant(voteReq, localTerm)) {
+        if (shouldGrant(raftStatus, voteReq, localTerm)) {
             raftStatus.setVotedFor(voteReq.getCandidateId());
             resp.setVoteGranted(true);
         }
         StatusUtil.updateStatusFile(raftStatus);
     }
 
-    private boolean shouldGrant(VoteReq voteReq, int localTerm) {
+    private boolean shouldGrant(RaftStatus raftStatus, VoteReq voteReq, int localTerm) {
         if (voteReq.getTerm() < localTerm) {
             return false;
         } else {

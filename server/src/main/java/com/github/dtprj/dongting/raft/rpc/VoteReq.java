@@ -24,12 +24,14 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-//  uint32 term = 1;
-//  uint32 candidate_id = 2;
-//  fixed64 last_log_index = 3;
-//  uint32 last_log_term = 4;
-//  unit32 pre_vote = 5;
+//  uint32 group_id = 1;
+//  uint32 term = 2;
+//  uint32 candidate_id = 3;
+//  fixed64 last_log_index = 4;
+//  uint32 last_log_term = 5;
+//  uint32 pre_vote = 6;
 public class VoteReq {
+    private int groupId;
     private int term;
     private int candidateId;
     private long lastLogIndex;
@@ -43,15 +45,18 @@ public class VoteReq {
         public boolean readVarNumber(int index, long value) {
             switch (index) {
                 case 1:
-                    result.term = (int) value;
+                    result.groupId = (int) value;
                     break;
                 case 2:
+                    result.term = (int) value;
+                    break;
+                case 3:
                     result.candidateId = (int) value;
                     break;
-                case 4:
+                case 5:
                     result.lastLogTerm = (int) value;
                     break;
-                case 5:
+                case 6:
                     result.preVote = value == 1;
                     break;
             }
@@ -60,7 +65,7 @@ public class VoteReq {
 
         @Override
         public boolean readFix64(int index, long value) {
-            if (index == 3) {
+            if (index == 4) {
                 result.lastLogIndex = value;
             }
             return true;
@@ -82,21 +87,23 @@ public class VoteReq {
 
         @Override
         protected int calcEstimateBodySize() {
-            return PbUtil.accurateUnsignedLongSize(1, data.term)
-                    + PbUtil.accurateUnsignedIntSize(2, data.candidateId)
-                    + PbUtil.accurateFix64Size(3, data.lastLogIndex)
-                    + PbUtil.accurateUnsignedIntSize(4, data.lastLogTerm)
-                    + PbUtil.accurateUnsignedIntSize(5, data.preVote ? 1 : 0);
+            return PbUtil.accurateUnsignedLongSize(1, data.groupId)
+                    + PbUtil.accurateUnsignedLongSize(2, data.term)
+                    + PbUtil.accurateUnsignedIntSize(3, data.candidateId)
+                    + PbUtil.accurateFix64Size(4, data.lastLogIndex)
+                    + PbUtil.accurateUnsignedIntSize(5, data.lastLogTerm)
+                    + PbUtil.accurateUnsignedIntSize(6, data.preVote ? 1 : 0);
         }
 
         @Override
         protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
             super.writeBodySize(buf, estimateBodySize());
-            PbUtil.writeUnsignedInt32(buf, 1, data.term);
-            PbUtil.writeUnsignedInt32(buf, 2, data.candidateId);
-            PbUtil.writeFix64(buf, 3, data.lastLogIndex);
-            PbUtil.writeUnsignedInt32(buf, 4, data.lastLogTerm);
-            PbUtil.writeUnsignedInt32(buf, 5, data.preVote ? 1 : 0);
+            PbUtil.writeUnsignedInt32(buf, 1, data.groupId);
+            PbUtil.writeUnsignedInt32(buf, 2, data.term);
+            PbUtil.writeUnsignedInt32(buf, 3, data.candidateId);
+            PbUtil.writeFix64(buf, 4, data.lastLogIndex);
+            PbUtil.writeUnsignedInt32(buf, 5, data.lastLogTerm);
+            PbUtil.writeUnsignedInt32(buf, 6, data.preVote ? 1 : 0);
         }
     }
 
@@ -138,5 +145,13 @@ public class VoteReq {
 
     public void setPreVote(boolean preVote) {
         this.preVote = preVote;
+    }
+
+    public int getGroupId() {
+        return groupId;
+    }
+
+    public void setGroupId(int groupId) {
+        this.groupId = groupId;
     }
 }

@@ -68,8 +68,6 @@ public class RaftServer extends AbstractLifeCircle {
 
     private IntObjMap<GroupComponents> groupComponentsMap = new IntObjMap<>();
 
-    private CompletableFuture<Void> nodeReadyFuture;
-
     private final RaftServerConfig config;
 
     private final NodeManager nodeManager;
@@ -135,7 +133,7 @@ public class RaftServer extends AbstractLifeCircle {
         setupNioConfig(nioClientConfig);
         raftClient = new NioClient(nioClientConfig);
 
-        nodeManager = new NodeManager(config, allRaftServers, raftClient, this::onNodeReadyStatusChange);
+        nodeManager = new NodeManager(config, allRaftServers, raftClient);
 
         for (int i = 0; i < groupConfig.size(); i++) {
             RaftGroupConfig rgc = groupConfig.get(i);
@@ -154,15 +152,15 @@ public class RaftServer extends AbstractLifeCircle {
                 }
             }
 
-            int electQuorum = ids.size() / 2 + 1;
-            int rwQuorum = ids.size() >= 4 && ids.size() % 2 == 0 ? ids.size() / 2 : electQuorum;
+            int electQuorum = RaftUtil.getElectQuorum(ids.size());
+            int rwQuorum = RaftUtil.getRwQuorum(ids.size());
             RaftStatus raftStatus = new RaftStatus(electQuorum, rwQuorum);
             raftStatus.setRaftExecutor(raftExecutor);
 
             MemberManager memberManager = new MemberManager(config, raftClient, raftExecutor,
                     raftStatus, rgc.getGroupId(), ids);
             Raft raft = new Raft(config, rgc, raftStatus, raftLog, stateMachine, raftClient, raftExecutor);
-            VoteManager voteManager = new VoteManager(config, raftStatus, raftClient, raftExecutor, raft);
+            VoteManager voteManager = new VoteManager(config, rgc, raftStatus, raftClient, raftExecutor, raft);
             RaftGroup raftGroup = new RaftGroup(config, rgc, raftStatus, raftLog, stateMachine, raftExecutor,
                     raft, nodeManager, memberManager, voteManager);
             GroupComponents gc = new GroupComponents(config, rgc,raftLog, stateMachine, raftGroup, raftStatus, memberManager, voteManager);
@@ -179,7 +177,7 @@ public class RaftServer extends AbstractLifeCircle {
         raftServer.register(Commands.RAFT_PING, new RaftPingProcessor(groupComponentsMap), raftExecutor);
         AppendProcessor ap = new AppendProcessor(groupComponentsMap);
         raftServer.register(Commands.RAFT_APPEND_ENTRIES, ap, raftExecutor);
-        raftServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(raftStatus), raftExecutor);
+        raftServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(groupComponentsMap), raftExecutor);
         raftServer.register(Commands.RAFT_INSTALL_SNAPSHOT, new InstallSnapshotProcessor(groupComponentsMap), raftExecutor);
     }
 
@@ -202,15 +200,8 @@ public class RaftServer extends AbstractLifeCircle {
         raftClient.start();
         raftClient.waitStart();
 
-        nodeReadyFuture = new CompletableFuture<>();
         nodeManager.start();
-        try {
-            nodeReadyFuture.get();
-            nodeReadyFuture = null;
-        } catch (Exception e) {
-            log.error("error during wait node ready", e);
-            throw new RaftException(e);
-        }
+        nodeManager.waitReady();
 
         groupComponentsMap.forEach((groupId, gc) -> {
             gc.getRaftGroup().start();
@@ -231,7 +222,17 @@ public class RaftServer extends AbstractLifeCircle {
         });
     }
 
-    public CompletableFuture<RaftOutput> submitLinearTask(RaftInput input) throws RaftException {
+    private GroupComponents getGroupComponents(int groupId) {
+        GroupComponents gc = groupComponentsMap.get(groupId);
+        if (gc == null) {
+            throw new RaftException("group not found: " + groupId);
+        }
+        return gc;
+    }
+
+    public CompletableFuture<RaftOutput> submitLinearTask(int groupId, RaftInput input) throws RaftException {
+        GroupComponents gc = getGroupComponents(groupId);
+        RaftStatus raftStatus = gc.getRaftStatus();
         if (raftStatus.isError()) {
             throw new RaftException("raft status is error");
         }
@@ -254,7 +255,7 @@ public class RaftServer extends AbstractLifeCircle {
             PENDING_WRITE_BYTES.getAndAddRelease(this, -size);
             throw new RaftException(msg);
         }
-        CompletableFuture<RaftOutput> f = raftGroup.submitRaftTask(input);
+        CompletableFuture<RaftOutput> f = gc.getRaftGroup().submitRaftTask(input);
         registerCallback(f, size);
         return f;
     }
@@ -266,8 +267,10 @@ public class RaftServer extends AbstractLifeCircle {
         });
     }
 
-    public long getLogIndexForRead(DtTime deadline)
+    public long getLogIndexForRead(int groupId, DtTime deadline)
             throws RaftException, InterruptedException, TimeoutException {
+        GroupComponents gc = getGroupComponents(groupId);
+        RaftStatus raftStatus = gc.getRaftStatus();
         if (raftStatus.isError()) {
             throw new RaftException("raft status error");
         }
@@ -289,11 +292,6 @@ public class RaftServer extends AbstractLifeCircle {
             }
         }
         return ss.lastApplied;
-    }
-
-    public void onNodeReadyStatusChange(int oldReady, int newReady) {
-        CompletableFuture<Void> f = nodeReadyFuture;
-        RaftUtil.onReadyStatusChange(newReady, f, raftStatus);
     }
 
 }

@@ -39,7 +39,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
 
 /**
  * @author huangli
@@ -51,7 +50,7 @@ public class NodeManager extends AbstractLifeCircle {
     private final List<RaftNode> allRaftNodes;
     private final NioClient client;
     private final RaftServerConfig config;
-    private final BiConsumer<Integer, Integer> readyListener;
+    private final CompletableFuture<Void> nodeReadyFuture = new CompletableFuture<>();
 
     private RaftNodeEx self;
     private ArrayList<RaftNodeEx> allNodesEx;
@@ -62,13 +61,11 @@ public class NodeManager extends AbstractLifeCircle {
 
     private static final PbZeroCopyDecoder DECODER = new PbZeroCopyDecoder(ctx -> new NodePingCallback());
 
-    public NodeManager(RaftServerConfig config, List<RaftNode> allRaftNodes, NioClient client,
-                       BiConsumer<Integer, Integer> readyListener) {
+    public NodeManager(RaftServerConfig config, List<RaftNode> allRaftNodes, NioClient client) {
         this.id = config.getId();
         this.allRaftNodes = allRaftNodes;
         this.client = client;
         this.config = config;
-        this.readyListener = readyListener;
         RaftNode s = null;
         for (RaftNode node : allRaftNodes) {
             if (node.getId() == id) {
@@ -188,12 +185,11 @@ public class NodeManager extends AbstractLifeCircle {
         if (ready) {
             currentReadyNodes++;
             nodeEx.setStatus(new NodeStatus(true, oldStatus.getEpoch() + 1));
-            readyListener.accept(currentReadyNodes - 1, currentReadyNodes);
         } else {
             currentReadyNodes--;
             nodeEx.setStatus(new NodeStatus(false, oldStatus.getEpoch()));
-            readyListener.accept(currentReadyNodes + 1, currentReadyNodes);
         }
+        RaftUtil.onReadyStatusChange(currentReadyNodes, nodeReadyFuture, RaftUtil.getElectQuorum(allNodesEx.size()));
     }
 
     private CompletableFuture<Boolean> sendNodePing(RaftNodeEx nodeEx) {
@@ -231,6 +227,15 @@ public class NodeManager extends AbstractLifeCircle {
 
     public ArrayList<RaftNodeEx> getAllNodesEx() {
         return allNodesEx;
+    }
+
+    public void waitReady() {
+        try {
+            nodeReadyFuture.get();
+        } catch (Exception e) {
+            log.error("error during wait node ready", e);
+            throw new RaftException(e);
+        }
     }
 
     private class NodePingWriteFrame extends WriteFrame {

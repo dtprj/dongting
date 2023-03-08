@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.raft.rpc.VoteReq;
 import com.github.dtprj.dongting.raft.rpc.VoteResp;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.HashSet;
@@ -41,6 +42,7 @@ public class VoteManager {
     private final NioClient client;
     private final RaftStatus raftStatus;
     private final RaftServerConfig config;
+    private final int groupId;
     private final RaftExecutor raftExecutor;
 
     private static final Decoder RESP_DECODER = new PbZeroCopyDecoder(c -> new VoteResp.Callback());
@@ -51,17 +53,18 @@ public class VoteManager {
     private int currentVoteId;
 
 
-    public VoteManager(RaftServerConfig serverConfig, RaftStatus raftStatus, NioClient client, RaftExecutor executor, Raft raft) {
+    public VoteManager(RaftServerConfig serverConfig, RaftGroupConfig groupConfig, RaftStatus raftStatus, NioClient client, RaftExecutor executor, Raft raft) {
         this.raft = raft;
         this.client = client;
         this.raftStatus = raftStatus;
         this.config = serverConfig;
+        this.groupId = groupConfig.getGroupId();
         this.raftExecutor = executor;
     }
 
     public void cancelVote() {
         if (voting) {
-            log.info("cancel current voting: voteId={}", currentVoteId);
+            log.info("cancel current voting: groupId={}, voteId={}", groupId, currentVoteId);
             voting = false;
             votes = null;
             currentVoteId++;
@@ -110,11 +113,12 @@ public class VoteManager {
 
         if (count >= raftStatus.getElectQuorum()) {
             initStatusForVoting(count);
-            log.info("{} node is ready, start pre vote. term={}, voteId={}",
-                    count, raftStatus.getCurrentTerm(), currentVoteId);
+            log.info("{} node is ready, start pre vote. groupId={}, term={}, voteId={}",
+                    count, groupId, raftStatus.getCurrentTerm(), currentVoteId);
             startPreVote();
         } else if (count < raftStatus.getElectQuorum()) {
-            log.warn("only {} node is ready, can't start pre vote. term={}", count, raftStatus.getCurrentTerm());
+            log.warn("only {} node is ready, can't start pre vote. groupId={}, term={}",
+                    count, groupId, raftStatus.getCurrentTerm());
         }
     }
 
@@ -129,8 +133,9 @@ public class VoteManager {
     private void sendRequest(RaftMember member, boolean preVote, long leaseStartTime) {
         VoteReq req = new VoteReq();
         int currentTerm = raftStatus.getCurrentTerm();
-        req.setCandidateId(config.getId());
+        req.setGroupId(groupId);
         req.setTerm(preVote ? currentTerm + 1 : currentTerm);
+        req.setCandidateId(config.getId());
         req.setLastLogIndex(raftStatus.getLastLogIndex());
         req.setLastLogTerm(raftStatus.getLastLogTerm());
         req.setPreVote(preVote);
@@ -141,7 +146,8 @@ public class VoteManager {
         final int voteIdOfRequest = this.currentVoteId;
 
         CompletableFuture<ReadFrame> f = client.sendRequest(member.getNode().getPeer(), wf, RESP_DECODER, timeout);
-        log.info("send {} request to member {}, term={}, lastLogIndex={}, lastLogTerm={}", preVote ? "pre-vote" : "vote", member.getId(),
+        log.info("send {} request. remoteNode={}, groupId={}, term={}, lastLogIndex={}, lastLogTerm={}",
+                preVote ? "pre-vote" : "vote", member.getNode().getId(), groupId,
                 currentTerm, req.getLastLogIndex(), req.getLastLogTerm());
         if (preVote) {
             f.handleAsync((rf, ex) -> processPreVoteResp(rf, ex, member, req, voteIdOfRequest), raftExecutor);
@@ -159,20 +165,22 @@ public class VoteManager {
             VoteResp preVoteResp = (VoteResp) rf.getBody();
             if (preVoteResp.isVoteGranted() && raftStatus.getRole() == RaftRole.follower
                     && preVoteResp.getTerm() == req.getTerm()) {
-                log.info("receive pre-vote grant success. term={}, remoteId={}", currentTerm, remoteMember.getId());
+                log.info("receive pre-vote grant success. term={}, remoteNode={}, groupId={}",
+                        currentTerm, remoteMember.getNode().getId(), groupId);
                 int oldCount = votes.size();
-                votes.add(remoteMember.getId());
+                votes.add(remoteMember.getNode().getId());
                 int newCount = votes.size();
                 if (newCount > oldCount && newCount == raftStatus.getElectQuorum()) {
-                    log.info("pre-vote success, start elect. term={}", currentTerm);
+                    log.info("pre-vote success, start elect. groupId={}. term={}", groupId, currentTerm);
                     startVote();
                 }
             } else {
-                log.info("receive pre-vote grant fail. term={}, remoteId={}", currentTerm, remoteMember.getId());
+                log.info("receive pre-vote grant fail. term={}, remoteNode={}, groupId={}",
+                        currentTerm, remoteMember.getNode().getId(), groupId);
             }
         } else {
-            log.warn("pre-vote rpc fail. term={}, remoteId={}, error={}",
-                    currentTerm, remoteMember.getId(), ex.toString());
+            log.warn("pre-vote rpc fail. term={}, remoteNode={}, groupId={}, error={}",
+                    currentTerm, remoteMember.getNode().getId(), groupId, ex.toString());
             // don't send more request for simplification
         }
         descPending(voteIdOfRequest);
@@ -183,12 +191,13 @@ public class VoteManager {
     private void startVote() {
         int count = readyCount();
         if (count < raftStatus.getElectQuorum()) {
-            log.warn("only {} node is ready, can't start vote. term={}", count, raftStatus.getCurrentTerm());
+            log.warn("only {} node is ready, can't start vote. groupId={}, term={}",
+                    count, groupId, raftStatus.getCurrentTerm());
             return;
         }
         RaftUtil.resetStatus(raftStatus);
         if (raftStatus.getRole() != RaftRole.candidate) {
-            log.info("change to candidate. oldTerm={}", raftStatus.getCurrentTerm());
+            log.info("change to candidate. groupId={}, oldTerm={}", groupId, raftStatus.getCurrentTerm());
             raftStatus.setRole(RaftRole.candidate);
         }
 
@@ -197,7 +206,7 @@ public class VoteManager {
         initStatusForVoting(raftStatus.getAllMembers().size());
         StatusUtil.updateStatusFile(raftStatus);
 
-        log.info("start vote. newTerm={}, voteId={}", raftStatus.getCurrentTerm(), currentVoteId);
+        log.info("start vote. groupId={}, newTerm={}, voteId={}", groupId, raftStatus.getCurrentTerm(), currentVoteId);
 
         long leaseStartTime = raftStatus.getTs().getNanoTime();
         for (RaftMember member : raftStatus.getAllMembers()) {
@@ -221,8 +230,8 @@ public class VoteManager {
         if (ex == null) {
             processVoteResp(rf, remoteMember, voteReq, leaseStartTime);
         } else {
-            log.warn("vote rpc fail.term={}, remote={}, error={}", voteReq.getTerm(),
-                    remoteMember.getNode().getHostPort(), ex.toString());
+            log.warn("vote rpc fail. groupId={}, term={}, remote={}, error={}",
+                    groupId,  voteReq.getTerm(), remoteMember.getNode().getHostPort(), ex.toString());
             // don't send more request for simplification
         }
         descPending(voteIdOfRequest);
@@ -233,19 +242,19 @@ public class VoteManager {
         VoteResp voteResp = (VoteResp) rf.getBody();
         int remoteTerm = voteResp.getTerm();
         if (remoteTerm < raftStatus.getCurrentTerm()) {
-            log.warn("receive outdated vote resp, ignore, remoteTerm={}, reqTerm={}, remote={}",
-                    voteResp.getTerm(), voteReq.getTerm(), remoteMember.getNode().getHostPort());
+            log.warn("receive outdated vote resp, ignore, remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
+                    voteResp.getTerm(), voteReq.getTerm(), remoteMember.getNode().getId(), groupId);
         } else if (remoteTerm == raftStatus.getCurrentTerm()) {
             if (raftStatus.getRole() == RaftRole.follower) {
-                log.warn("follower receive vote resp, ignore. remoteTerm={}, reqTerm={}, remote={}",
-                        voteResp.getTerm(), voteReq.getTerm(), remoteMember.getNode().getHostPort());
+                log.warn("follower receive vote resp, ignore. remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
+                        voteResp.getTerm(), voteReq.getTerm(), remoteMember.getNode().getId(), groupId);
             } else {
                 int oldCount = votes.size();
-                log.info("receive vote resp, granted={}, remoteTerm={}, reqTerm={}, oldVotes={}, remote={}",
+                log.info("receive vote resp, granted={}, remoteTerm={}, reqTerm={}, oldVotes={}, remoteId={}, groupId={}",
                         voteResp.isVoteGranted(), voteResp.getTerm(),
-                        voteReq.getTerm(), oldCount, remoteMember.getNode().getHostPort());
+                        voteReq.getTerm(), oldCount, remoteMember.getNode().getId(), groupId);
                 if (voteResp.isVoteGranted()) {
-                    votes.add(remoteMember.getId());
+                    votes.add(remoteMember.getNode().getId());
                     remoteMember.setLastConfirm(true, leaseStartTime);
                     int newCount = votes.size();
                     if (newCount > oldCount && newCount == raftStatus.getElectQuorum()) {

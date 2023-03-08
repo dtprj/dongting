@@ -66,11 +66,12 @@ message AppendEntriesResp {
 }
 
 message RequestVoteReq {
-  uint32 term = 1;
-  uint32 candidate_id = 2;
-  fixed64 last_log_index = 3;
-  uint32 last_log_term = 4;
-  uint32 pre_vote = 5;
+  uint32 group_id = 1;
+  uint32 term = 2;
+  uint32 candidate_id = 3;
+  fixed64 last_log_index = 4;
+  uint32 last_log_term = 5;
+  uint32 pre_vote = 6;
 }
 
 message RequestVoteResp {

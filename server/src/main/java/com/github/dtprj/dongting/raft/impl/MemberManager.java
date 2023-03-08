@@ -143,11 +143,10 @@ public class MemberManager {
         member.setReady(ready);
         if (ready) {
             readyCount++;
-            RaftUtil.onReadyStatusChange(readyCount, memberReadyFuture, raftStatus);
         } else {
             readyCount--;
-            RaftUtil.onReadyStatusChange(readyCount, memberReadyFuture, raftStatus);
         }
+        RaftUtil.onReadyStatusChange(readyCount, memberReadyFuture, raftStatus.getElectQuorum());
     }
 
     public CompletableFuture<Void> getMemberReadyFuture() {
