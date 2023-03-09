@@ -90,8 +90,17 @@ class ReplicateManager {
         this.readSnapshotFailTime = ts.getNanoTime() - TimeUnit.SECONDS.toNanos(10);
     }
 
+    public void replicateAfterRaftExec(RaftStatus raftStatus) {
+        for (RaftMember node : raftStatus.getAllMembers()) {
+            if (node.getNode().isSelf()) {
+                continue;
+            }
+            replicate(node);
+        }
+    }
+
     @SuppressWarnings("StatementWithEmptyBody")
-    void replicate(RaftMember member) {
+    private void replicate(RaftMember member) {
         if (raftStatus.getRole() != RaftRole.leader) {
             return;
         }

@@ -143,13 +143,7 @@ public class Raft {
             commitManager.tryCommit(newIndex);
         }
 
-
-        for (RaftMember node : raftStatus.getAllMembers()) {
-            if (node.getNode().isSelf()) {
-                continue;
-            }
-            replicateManager.replicate(node);
-        }
+        replicateManager.replicateAfterRaftExec(raftStatus);
     }
 
     public void sendHeartBeat() {
