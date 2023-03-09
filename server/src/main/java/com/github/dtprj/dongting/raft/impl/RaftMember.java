@@ -20,7 +20,6 @@ package com.github.dtprj.dongting.raft.impl;
  */
 public class RaftMember {
     private final RaftNodeEx node;
-    private boolean self;
     private boolean ready;
     private boolean pinging;
     private boolean multiAppend;
@@ -54,20 +53,12 @@ public class RaftMember {
         return node;
     }
 
-    public boolean isSelf() {
-        return self;
-    }
-
     public boolean isReady() {
         return ready;
     }
 
     public void setReady(boolean ready) {
         this.ready = ready;
-    }
-
-    public void setSelf(boolean self) {
-        this.self = self;
     }
 
     public long getNextIndex() {

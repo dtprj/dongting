@@ -46,7 +46,6 @@ public class MemberManager {
 
     private CompletableFuture<Void> memberReadyFuture;
 
-    private RaftMember self;
     private final List<RaftMember> allMembers;
 
     private int readyCount;
@@ -63,14 +62,10 @@ public class MemberManager {
     }
 
 
-    public void init(RaftNodeEx selfNodeEx, List<RaftNodeEx> allNodes) {
+    public void init(List<RaftNodeEx> allNodes) {
         for (RaftNodeEx node : allNodes) {
             RaftMember m = new RaftMember(node);
             allMembers.add(m);
-            if (selfNodeEx == node) {
-                m.setSelf(true);
-                this.self = m;
-            }
         }
         this.memberReadyFuture = new CompletableFuture<>();
     }

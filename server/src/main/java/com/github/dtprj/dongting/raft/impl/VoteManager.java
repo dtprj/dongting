@@ -124,7 +124,7 @@ public class VoteManager {
 
     private void startPreVote() {
         for (RaftMember member : raftStatus.getAllMembers()) {
-            if (!member.isSelf() && member.isReady()) {
+            if (!member.getNode().isSelf() && member.isReady()) {
                 sendRequest(member, true, 0);
             }
         }
@@ -210,7 +210,7 @@ public class VoteManager {
 
         long leaseStartTime = raftStatus.getTs().getNanoTime();
         for (RaftMember member : raftStatus.getAllMembers()) {
-            if (!member.isSelf()) {
+            if (!member.getNode().isSelf()) {
                 if (member.isReady()) {
                     sendRequest(member, false, leaseStartTime);
                 } else {

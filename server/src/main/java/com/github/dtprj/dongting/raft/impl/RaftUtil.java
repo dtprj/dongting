@@ -78,13 +78,13 @@ public class RaftUtil {
             return false;
         }
         int count = 0;
-        for (RaftMember node : servers) {
-            if (node.isSelf()) {
-                if (recentMatchIndex > node.getMatchIndex()) {
+        for (RaftMember member : servers) {
+            if (member.getNode().isSelf()) {
+                if (recentMatchIndex > member.getMatchIndex()) {
                     return false;
                 }
             }
-            if (node.getMatchIndex() >= recentMatchIndex) {
+            if (member.getMatchIndex() >= recentMatchIndex) {
                 count++;
             }
         }

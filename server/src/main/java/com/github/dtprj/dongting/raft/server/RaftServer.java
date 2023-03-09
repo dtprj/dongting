@@ -205,7 +205,7 @@ public class RaftServer extends AbstractLifeCircle {
         log.info("nodeManager is ready");
 
         groupComponentsMap.forEach((groupId, gc) -> {
-            gc.getMemberManager().init(nodeManager.getSelf(), nodeManager.getAllNodesEx());
+            gc.getMemberManager().init(nodeManager.getAllNodesEx());
             gc.getRaftGroup().start();
             return true;
         });

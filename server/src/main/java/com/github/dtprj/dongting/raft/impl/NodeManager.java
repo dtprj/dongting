@@ -111,6 +111,7 @@ public class NodeManager extends AbstractLifeCircle {
                 if (config.isCheckSelf()) {
                     doCheckSelf(node);
                 }
+                node.setSelf(true);
                 this.self = node;
             }
             allNodesEx.add(f.join());

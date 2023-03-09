@@ -65,7 +65,7 @@ public class Raft {
             return self;
         }
         for (RaftMember node : raftStatus.getAllMembers()) {
-            if (node.isSelf()) {
+            if (node.getNode().isSelf()) {
                 this.self = node;
                 break;
             }
@@ -145,7 +145,7 @@ public class Raft {
 
 
         for (RaftMember node : raftStatus.getAllMembers()) {
-            if (node.isSelf()) {
+            if (node.getNode().isSelf()) {
                 continue;
             }
             replicateManager.replicate(node);

@@ -27,6 +27,7 @@ public class RaftNodeEx extends RaftNode {
     private final Peer peer;
 
     private boolean connecting;
+    private boolean self;
 
     private volatile NodeStatus status = new NodeStatus(false, 0);
 
@@ -53,5 +54,13 @@ public class RaftNodeEx extends RaftNode {
 
     public void setStatus(NodeStatus status) {
         this.status = status;
+    }
+
+    public boolean isSelf() {
+        return self;
+    }
+
+    public void setSelf(boolean self) {
+        this.self = self;
     }
 }
