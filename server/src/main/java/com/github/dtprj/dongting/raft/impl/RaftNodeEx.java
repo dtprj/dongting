@@ -27,12 +27,11 @@ public class RaftNodeEx extends RaftNode {
     private final Peer peer;
 
     private boolean connecting;
-    private boolean self;
 
     private volatile NodeStatus status = new NodeStatus(false, 0);
 
-    public RaftNodeEx(int id, HostPort hostPort, Peer peer) {
-        super(id, hostPort);
+    public RaftNodeEx(int id, HostPort hostPort, boolean self, Peer peer) {
+        super(id, hostPort, self);
         this.peer = peer;
     }
 
@@ -56,11 +55,4 @@ public class RaftNodeEx extends RaftNode {
         this.status = status;
     }
 
-    public boolean isSelf() {
-        return self;
-    }
-
-    public void setSelf(boolean self) {
-        this.self = self;
-    }
 }

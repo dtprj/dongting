@@ -48,12 +48,11 @@ public class NodeManager extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(NodeManager.class);
     private final UUID uuid = UUID.randomUUID();
     private final int selfNodeId;
-    private final List<RaftNode> allRaftNodes;
     private final NioClient client;
     private final RaftServerConfig config;
     private final CompletableFuture<Void> nodeReadyFuture = new CompletableFuture<>();
 
-    private RaftNodeEx self;
+    private List<RaftNode> allRaftNodesOnlyForInit;
     private ArrayList<RaftNodeEx> allNodesEx;
 
     private ScheduledFuture<?> scheduledFuture;
@@ -64,24 +63,14 @@ public class NodeManager extends AbstractLifeCircle {
 
     public NodeManager(RaftServerConfig config, List<RaftNode> allRaftNodes, NioClient client) {
         this.selfNodeId = config.getNodeId();
-        this.allRaftNodes = allRaftNodes;
+        this.allRaftNodesOnlyForInit = allRaftNodes;
         this.client = client;
         this.config = config;
-        RaftNode s = null;
-        for (RaftNode node : allRaftNodes) {
-            if (node.getNodeId() == selfNodeId) {
-                s = node;
-                break;
-            }
-        }
-        if (s == null) {
-            throw new IllegalArgumentException("self node not found");
-        }
     }
 
     private CompletableFuture<RaftNodeEx> add(RaftNode node) {
         return client.addPeer(node.getHostPort()).thenApply(peer
-                -> new RaftNodeEx(node.getNodeId(), node.getHostPort(), peer));
+                -> new RaftNodeEx(node.getNodeId(), node.getHostPort(), node.isSelf(), peer));
     }
 
     @Override
@@ -100,25 +89,24 @@ public class NodeManager extends AbstractLifeCircle {
 
     private void init() {
         ArrayList<CompletableFuture<RaftNodeEx>> futures = new ArrayList<>();
-        for (RaftNode n : allRaftNodes) {
-             futures.add(add(n));
+        for (RaftNode n : allRaftNodesOnlyForInit) {
+            futures.add(add(n));
         }
+        allRaftNodesOnlyForInit = null;
         allNodesEx = new ArrayList<>();
 
         for (CompletableFuture<RaftNodeEx> f : futures) {
             RaftNodeEx node = f.join();
-            if (node.getNodeId() == selfNodeId) {
+            if (node.isSelf()) {
                 if (config.isCheckSelf()) {
                     doCheckSelf(node);
                 }
-                node.setSelf(true);
-                this.self = node;
             }
             allNodesEx.add(f.join());
         }
 
         for (RaftNodeEx nodeEx : allNodesEx) {
-            if (nodeEx != self) {
+            if (!nodeEx.isSelf()) {
                 connectAndPing(nodeEx);
             }
         }
@@ -142,7 +130,7 @@ public class NodeManager extends AbstractLifeCircle {
 
     private void tryConnectAndPingAll() {
         for (RaftNodeEx nodeEx : allNodesEx) {
-            if (nodeEx != self && !nodeEx.isConnecting()) {
+            if (!nodeEx.isSelf() && !nodeEx.isConnecting()) {
                 connectAndPing(nodeEx);
             }
         }
@@ -214,17 +202,20 @@ public class NodeManager extends AbstractLifeCircle {
             log.error("config fail: node id not match. expect {}, but {}", nodeEx.getNodeId(), callback.nodeId);
             return false;
         }
-        if (self.getNodeId() == nodeEx.getNodeId()) {
-            if (uuid.getMostSignificantBits() != callback.uuidHigh || uuid.getLeastSignificantBits() != callback.uuidLow) {
+        boolean uuidMatch = uuid.getMostSignificantBits() == callback.uuidHigh &&
+                uuid.getLeastSignificantBits() == callback.uuidLow;
+        if (nodeEx.isSelf()) {
+            if (!uuidMatch) {
                 log.error("config fail: self node uuid not match");
+                return false;
+            }
+        } else {
+            if (uuidMatch) {
+                log.error("config fail: node uuid match");
                 return false;
             }
         }
         return true;
-    }
-
-    public RaftNodeEx getSelf() {
-        return self;
     }
 
     public ArrayList<RaftNodeEx> getAllNodesEx() {

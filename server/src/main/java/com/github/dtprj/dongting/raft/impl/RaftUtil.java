@@ -41,7 +41,7 @@ public class RaftUtil {
     private static final DtLog log = DtLogs.getLogger(RaftUtil.class);
     public final static ScheduledExecutorService SCHEDULED_SERVICE = Executors.newSingleThreadScheduledExecutor();
 
-    public static List<RaftNode> parseServers(String serversStr) {
+    public static List<RaftNode> parseServers(int selfId, String serversStr) {
         String[] servers = serversStr.split(";");
         if (servers == null || servers.length == 0) {
             throw new RaftException("servers list is empty");
@@ -64,7 +64,8 @@ public class RaftUtil {
                     host = host.substring(1, host.length() - 1);
                 }
                 int port = Integer.parseInt(hostPortStr.substring(x + 1).trim());
-                list.add(new RaftNode(id, new HostPort(host, port)));
+                boolean self = id == selfId;
+                list.add(new RaftNode(id, new HostPort(host, port), self));
             }
             return list;
         } catch (NumberFormatException e) {

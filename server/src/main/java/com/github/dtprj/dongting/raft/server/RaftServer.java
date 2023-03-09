@@ -113,7 +113,7 @@ public class RaftServer extends AbstractLifeCircle {
         this.maxPendingWrites = serverConfig.getMaxPendingWrites();
         this.maxPendingWriteBytes = serverConfig.getMaxPendingWriteBytes();
 
-        List<RaftNode> allRaftServers = RaftUtil.parseServers(serverConfig.getServers());
+        List<RaftNode> allRaftServers = RaftUtil.parseServers(serverConfig.getNodeId(), serverConfig.getServers());
         HashSet<Integer> allNodeIds = new HashSet<>();
         HashSet<HostPort> allNodeHosts = new HashSet<>();
         for (RaftNode rn : allRaftServers) {
