@@ -203,7 +203,7 @@ class ReplicateManager {
         }, raftExecutor);
     }
 
-    private boolean checkTermAndRoleFailed(int reqTerm, int remoteTerm){
+    private boolean checkTermAndRoleFailed(int reqTerm, int remoteTerm) {
         if (remoteTerm > raftStatus.getCurrentTerm()) {
             log.info("find remote term greater than local term. remoteTerm={}, localTerm={}",
                     remoteTerm, raftStatus.getCurrentTerm());
@@ -400,20 +400,21 @@ class ReplicateManager {
         CompletableFuture<ReadFrame> future = client.sendRequest(member.getNode().getPeer(), wf, INSTALL_SNAPSHOT_RESP_DECODER, timeout);
         int bytes = data.remaining();
         si.offset += bytes;
-        registerInstallSnapshotCallback(future, member, si, req, bytes);
+        registerInstallSnapshotCallback(future, member, si, req.term, req.offset, bytes, req.done, req.lastIncludedIndex);
     }
 
     private void registerInstallSnapshotCallback(CompletableFuture<ReadFrame> future, RaftMember member,
-                                                 SnapshotInfo si, InstallSnapshotReq req, int bytes) {
+                                                 SnapshotInfo si, int reqTerm, long reqOffset,
+                                                 int reqBytes, boolean reqDone, long reqLastIncludedIndex) {
         PendingStat pd = member.getPendingStat();
-        pd.incrAndGetPendingRequests(1, bytes);
+        pd.incrAndGetPendingRequests(1, reqBytes);
         future.whenCompleteAsync((rf, ex) -> {
-            if (req.term != raftStatus.getCurrentTerm()) {
+            if (reqTerm != raftStatus.getCurrentTerm()) {
                 log.info("receive outdated append result, term not match. reqTerm={}, currentTerm={}, remoteNode={}, groupId={}",
-                        req.term, raftStatus.getCurrentTerm(), member.getNode().getNodeId(), groupId);
+                        reqTerm, raftStatus.getCurrentTerm(), member.getNode().getNodeId(), groupId);
                 return;
             }
-            pd.decrAndGetPendingRequests(1, bytes);
+            pd.decrAndGetPendingRequests(1, reqBytes);
             if (ex != null) {
                 log.error("send install snapshot fail. remoteNode={}, groupId={}",
                         member.getNode().getNodeId(), groupId, ex);
@@ -421,33 +422,25 @@ class ReplicateManager {
                 return;
             }
             InstallSnapshotResp respBody = (InstallSnapshotResp) rf.getBody();
-            if (checkTermAndRoleFailed(req.term, respBody.term)) {
+            if (checkTermAndRoleFailed(reqTerm, respBody.term)) {
                 return;
             }
             log.info("transfer snapshot data to member. nodeId={}, groupId={}, offset={}",
-                    member.getNode().getNodeId(), groupId, req.offset);
-            if (req.done) {
+                    member.getNode().getNodeId(), groupId, reqOffset);
+            if (reqDone) {
                 log.info("install snapshot for member finished success. nodeId={}, groupId={}",
                         member.getNode().getNodeId(), groupId);
                 closeIteratorAndResetStatus(member, si);
                 member.setInstallSnapshot(false);
-                member.setNextIndex(req.lastIncludedIndex + 1);
+                member.setNextIndex(reqLastIncludedIndex + 1);
             } else {
-                raftExecutor.execute(new InstallSnapshotRunner(member));
+                submitReplicateTask(member);
             }
         }, raftExecutor);
     }
 
-    class InstallSnapshotRunner implements Runnable {
-
-        private final RaftMember member;
-
-        InstallSnapshotRunner(RaftMember member) {
-            this.member = member;
-        }
-        @Override
-        public void run() {
-            replicate(member);
-        }
+    private void submitReplicateTask(RaftMember member) {
+        raftExecutor.execute(() -> replicate(member));
     }
+
 }
