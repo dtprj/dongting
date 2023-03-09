@@ -473,12 +473,15 @@ public class NioClientTest {
             client.disconnect(p1).get();
             client.disconnect(p1).get();
             client.removePeer(p1).get();
-            assertThrows(ExecutionException.class, () -> client.removePeer(p1).get());
-            assertThrows(ExecutionException.class, () -> client.removePeer(p2).get());
+            client.removePeer(p1).get(); //idempotent
+
+
             assertEquals(1, client.getPeers().size());
             sendSync(5000, client, tick(100));
             assertThrows(ExecutionException.class, () -> sendSyncByPeer(5000, client, p1, tick(500)));
             sendSyncByPeer(5000, client, p2, tick(500));
+
+            client.removePeer(p2).get();
         } finally {
             CloseUtil.close(client, server1, server2);
         }

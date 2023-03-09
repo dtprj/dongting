@@ -204,12 +204,11 @@ public class NioClient extends NioNet {
         CompletableFuture<Void> f = new CompletableFuture<>();
         worker.doInIoThread(() -> {
             if (!peers.contains(peer)) {
-                f.completeExceptionally(new NetException("peer not in list"));
+                f.complete(null);
                 return;
             }
             if (peer.getDtChannel() != null) {
-                f.completeExceptionally(new NetException("peer not disconnected"));
-                return;
+                worker.close(peer.getDtChannel());
             }
             peers.remove(peer);
             f.complete(null);

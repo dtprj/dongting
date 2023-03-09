@@ -488,7 +488,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    private void close(DtChannel dtc) {
+    void close(DtChannel dtc) {
         if (dtc.isClosed()) {
             return;
         }
