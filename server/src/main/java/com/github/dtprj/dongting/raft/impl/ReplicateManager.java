@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
-import com.github.dtprj.dongting.net.FrameType;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ReadFrame;
@@ -156,7 +155,6 @@ class ReplicateManager {
 
     private void sendAppendRequest(RaftMember member, long prevLogIndex, int prevLogTerm, List<LogItem> logs, long bytes) {
         AppendReqWriteFrame req = new AppendReqWriteFrame();
-        req.setFrameType(FrameType.TYPE_REQ);
         req.setCommand(Commands.RAFT_APPEND_ENTRIES);
         req.setGroupId(groupId);
         req.setTerm(raftStatus.getCurrentTerm());
@@ -398,7 +396,6 @@ class ReplicateManager {
 
         InstallSnapshotReq.WriteFrame wf = new InstallSnapshotReq.WriteFrame(req);
         wf.setCommand(Commands.RAFT_INSTALL_SNAPSHOT);
-        wf.setFrameType(FrameType.TYPE_REQ);
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
         CompletableFuture<ReadFrame> future = client.sendRequest(member.getNode().getPeer(), wf, INSTALL_SNAPSHOT_RESP_DECODER, timeout);
         int bytes = data.remaining();

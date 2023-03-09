@@ -73,7 +73,6 @@ public class TimeoutTest {
     private CompletableFuture<ReadFrame> send(DtTime timeout) {
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(1));
         wf.setCommand(CMD);
-        wf.setFrameType(FrameType.TYPE_REQ);
         return client.sendRequest(wf, new ByteBufferDecoder(0), timeout);
     }
 

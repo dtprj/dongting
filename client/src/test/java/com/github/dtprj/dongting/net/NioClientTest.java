@@ -273,7 +273,6 @@ public class NioClientTest {
         r.nextBytes(bs);
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.wrap(bs));
         wf.setCommand(Commands.CMD_PING);
-        wf.setFrameType(FrameType.TYPE_REQ);
 
         CompletableFuture<ReadFrame> f = client.sendRequest(wf,
                 decoder, new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
@@ -303,7 +302,6 @@ public class NioClientTest {
         ThreadLocalRandom.current().nextBytes(bs);
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.wrap(bs));
         wf.setCommand(Commands.CMD_PING);
-        wf.setFrameType(FrameType.TYPE_REQ);
 
         CompletableFuture<ReadFrame> f = client.sendRequest(peer, wf,
                 new ByteBufferDecoder(maxBodySize / 2), new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
@@ -326,7 +324,6 @@ public class NioClientTest {
         r.nextBytes(bs);
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.wrap(bs));
         wf.setCommand(Commands.CMD_PING);
-        wf.setFrameType(FrameType.TYPE_REQ);
 
         CompletableFuture<ReadFrame> f = client.sendRequest(wf,
                 new ByteBufferDecoder(maxBodySize / 2), new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
@@ -664,7 +661,6 @@ public class NioClientTest {
                 // decoder fail in biz thread
                 ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(1));
                 wf.setCommand(Commands.CMD_PING);
-                wf.setFrameType(FrameType.TYPE_REQ);
 
                 Decoder decoder = new Decoder() {
                     @Override
@@ -690,7 +686,6 @@ public class NioClientTest {
                 // decoder fail in io thread
                 ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(1));
                 wf.setCommand(Commands.CMD_PING);
-                wf.setFrameType(FrameType.TYPE_REQ);
                 Decoder decoder = new Decoder() {
                     @Override
                     public boolean decodeInIoThread() {

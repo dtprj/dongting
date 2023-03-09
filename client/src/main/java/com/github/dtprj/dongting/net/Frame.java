@@ -50,7 +50,7 @@ public abstract class Frame {
         return frameType;
     }
 
-    public void setFrameType(int frameType) {
+    void setFrameType(int frameType) {
         this.frameType = frameType;
     }
 

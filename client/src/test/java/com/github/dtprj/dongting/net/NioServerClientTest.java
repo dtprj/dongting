@@ -59,7 +59,6 @@ public class NioServerClientTest {
         new Random().nextBytes(buf.array());
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame(buf);
         wf.setCommand(Commands.CMD_PING);
-        wf.setFrameType(FrameType.TYPE_REQ);
 
         CompletableFuture<ReadFrame> f = client.sendRequest(wf, new ByteBufferDecoder(0), new DtTime(1, TimeUnit.SECONDS));
         ReadFrame rf = f.get(1, TimeUnit.SECONDS);
@@ -109,11 +108,9 @@ public class NioServerClientTest {
             // dup seq test
             ByteBufferWriteFrame wf1 = new ByteBufferWriteFrame(SimpleByteBufferPool.EMPTY_BUFFER);
             wf1.setCommand(12345);
-            wf1.setFrameType(FrameType.TYPE_REQ);
 
             ByteBufferWriteFrame wf2 = new ByteBufferWriteFrame(SimpleByteBufferPool.EMPTY_BUFFER);
             wf2.setCommand(12345);
-            wf2.setFrameType(FrameType.TYPE_REQ);
 
             CompletableFuture<ReadFrame> f1 = client.sendRequest(wf1, new ByteBufferDecoder(0), new DtTime(1, TimeUnit.SECONDS));
             Thread.sleep(10);// wait dispatch thread
