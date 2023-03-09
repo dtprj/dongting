@@ -62,7 +62,7 @@ public class NodeManager extends AbstractLifeCircle {
         this.config = config;
     }
 
-    private CompletableFuture<RaftNodeEx> add(RaftNode node) {
+    private CompletableFuture<RaftNodeEx> addToNioClient(RaftNode node) {
         return client.addPeer(node.getHostPort()).thenApply(peer
                 -> new RaftNodeEx(node.getNodeId(), node.getHostPort(), node.isSelf(), peer));
     }
@@ -84,7 +84,7 @@ public class NodeManager extends AbstractLifeCircle {
     private void init() {
         ArrayList<CompletableFuture<RaftNodeEx>> futures = new ArrayList<>();
         for (RaftNode n : allRaftNodesOnlyForInit) {
-            futures.add(add(n));
+            futures.add(addToNioClient(n));
         }
         allRaftNodesOnlyForInit = null;
         allNodesEx = new ArrayList<>();
@@ -108,11 +108,8 @@ public class NodeManager extends AbstractLifeCircle {
 
     private void doCheckSelf(RaftNodeEx nodeEx) {
         try {
-            CompletableFuture<Boolean> f = connectAndPing(nodeEx);
-            boolean result = f.get(config.getConnectTimeout() + config.getRpcTimeout(), TimeUnit.MILLISECONDS);
-            if (!result) {
-                throw new RaftException("self node ping result is false");
-            }
+            CompletableFuture<Void> f = connectAndPing(nodeEx);
+            f.get(config.getConnectTimeout() + config.getRpcTimeout(), TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             throw new RaftException(e);
         } finally {
@@ -130,7 +127,7 @@ public class NodeManager extends AbstractLifeCircle {
         }
     }
 
-    private CompletableFuture<Boolean> connectAndPing(RaftNodeEx nodeEx) {
+    private CompletableFuture<Void> connectAndPing(RaftNodeEx nodeEx) {
         nodeEx.setConnecting(true);
         CompletableFuture<Void> connectFuture;
         PeerStatus peerStatus = nodeEx.getPeer().getStatus();
@@ -141,23 +138,21 @@ public class NodeManager extends AbstractLifeCircle {
             connectFuture = client.connect(nodeEx.getPeer(), deadline);
         } else {
             BugLog.getLog().error("assert false, peer status is connecting");
-            return CompletableFuture.completedFuture(null);
+            connectFuture = CompletableFuture.failedFuture(new RaftException("peer status is connecting"));
         }
         return connectFuture.thenCompose(v -> sendNodePing(nodeEx))
                 // we should set connecting status in schedule thread
-                .handleAsync((v, ex) -> processResult(nodeEx, v, ex), RaftUtil.SCHEDULED_SERVICE);
+                .whenCompleteAsync((v, ex) -> processResult(nodeEx, ex), RaftUtil.SCHEDULED_SERVICE);
     }
 
-    private boolean processResult(RaftNodeEx nodeEx, boolean result, Throwable ex) {
+    private void processResult(RaftNodeEx nodeEx, Throwable ex) {
         nodeEx.setConnecting(false);
         if (ex != null) {
-            log.warn("connect to raft server {} fail: {}",
+            log.warn("ping raft node {} fail: {}",
                     nodeEx.getPeer().getEndPoint(), ex.toString());
             updateNodeStatus(nodeEx, false);
-            return false;
         } else {
-            updateNodeStatus(nodeEx, result);
-            return result;
+            updateNodeStatus(nodeEx, true);
         }
     }
 
@@ -173,44 +168,42 @@ public class NodeManager extends AbstractLifeCircle {
             currentReadyNodes--;
             nodeEx.setStatus(new NodeStatus(false, oldStatus.getEpoch()));
         }
-        RaftUtil.onReadyStatusChange(currentReadyNodes, nodeReadyFuture, RaftUtil.getElectQuorum(allNodesEx.size()));
+        if (!nodeReadyFuture.isDone()) {
+            RaftUtil.onReadyStatusChange(currentReadyNodes, nodeReadyFuture,
+                    RaftUtil.getElectQuorum(allNodesEx.size()));
+        }
     }
 
-    private CompletableFuture<Boolean> sendNodePing(RaftNodeEx nodeEx) {
+    private CompletableFuture<Void> sendNodePing(RaftNodeEx nodeEx) {
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
         CompletableFuture<ReadFrame> f = client.sendRequest(nodeEx.getPeer(),
                 new NodePingWriteFrame(selfNodeId, uuid), NodePingProcessor.DECODER, timeout);
-        return f.handle((rf, ex) -> {
-            if (ex == null) {
-                return whenRpcFinish(rf, nodeEx);
-            } else {
-                log.warn("node ping fail. {}, {}", nodeEx.getPeer().getEndPoint(), ex.getMessage());
-                return false;
-            }
-        });
+        return f.thenAccept(rf -> whenRpcFinish(rf, nodeEx));
     }
 
     // run in io thread
-    private boolean whenRpcFinish(ReadFrame rf, RaftNodeEx nodeEx) {
+    private void whenRpcFinish(ReadFrame rf, RaftNodeEx nodeEx) {
         NodePingCallback callback = (NodePingCallback) rf.getBody();
         if (nodeEx.getNodeId() != callback.nodeId) {
-            log.error("config fail: node id not match. expect {}, but {}", nodeEx.getNodeId(), callback.nodeId);
-            return false;
+            String msg = "config fail: node id not match. expect " + nodeEx.getNodeId() + ", but " + callback.nodeId;
+            log.error(msg);
+            throw new RaftException(msg);
         }
         boolean uuidMatch = uuid.getMostSignificantBits() == callback.uuidHigh &&
                 uuid.getLeastSignificantBits() == callback.uuidLow;
         if (nodeEx.isSelf()) {
             if (!uuidMatch) {
-                log.error("config fail: self node uuid not match");
-                return false;
+                String msg = "config fail: self node uuid not match";
+                log.error(msg);
+                throw new RaftException(msg);
             }
         } else {
             if (uuidMatch) {
-                log.error("config fail: node uuid match");
-                return false;
+                String msg = "config fail: node uuid match";
+                log.error(msg);
+                throw new RaftException(msg);
             }
         }
-        return true;
     }
 
     public ArrayList<RaftNodeEx> getAllNodesEx() {
@@ -224,6 +217,53 @@ public class NodeManager extends AbstractLifeCircle {
             log.error("error during wait node ready", e);
             throw new RaftException(e);
         }
+    }
+
+    private RaftNodeEx find(int nodeId) {
+        for (RaftNodeEx nodeEx : allNodesEx) {
+            if (nodeEx.getNodeId() == nodeId) {
+                return nodeEx;
+            }
+        }
+        return null;
+    }
+
+    public CompletableFuture<RaftNodeEx> addNode(RaftNode node) {
+        CompletableFuture<RaftNodeEx> f = addToNioClient(node);
+        f = f.thenComposeAsync(nodeEx -> {
+            RaftNodeEx existNode = find(nodeEx.getNodeId());
+            if (existNode != null) {
+                return CompletableFuture.completedFuture(existNode);
+            } else {
+                CompletableFuture<Void> pingFuture = connectAndPing(nodeEx);
+                return pingFuture.handleAsync((v, ex) -> {
+                    if (ex == null) {
+                        allNodesEx.add(nodeEx);
+                        processResult(nodeEx, null);
+                        return nodeEx;
+                    } else {
+                        log.error("add node {} fail", nodeEx.getPeer().getEndPoint(), ex);
+                        throw new RaftException(ex);
+                    }
+                }, RaftUtil.SCHEDULED_SERVICE);
+            }
+        }, RaftUtil.SCHEDULED_SERVICE);
+        return f;
+    }
+
+    public CompletableFuture<Void> removeNode(int nodeId) {
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        Runnable r = () -> {
+            // find should run in schedule thread
+            RaftNodeEx existNode = find(nodeId);
+            if (existNode == null) {
+                f.complete(null);
+            } else {
+                client.removePeer(existNode.getPeer()).thenRun(() -> f.complete(null));
+            }
+        };
+        RaftUtil.SCHEDULED_SERVICE.submit(r);
+        return f;
     }
 
     public UUID getUuid() {

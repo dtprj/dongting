@@ -37,6 +37,7 @@ import com.github.dtprj.dongting.raft.impl.NodeManager;
 import com.github.dtprj.dongting.raft.impl.Raft;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 import com.github.dtprj.dongting.raft.impl.RaftGroupThread;
+import com.github.dtprj.dongting.raft.impl.RaftNodeEx;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -314,6 +315,14 @@ public class RaftServer extends AbstractLifeCircle {
             }
         }
         return ss.lastApplied;
+    }
+
+    public CompletableFuture<RaftNodeEx> addNode(RaftNode node) {
+        return nodeManager.addNode(node);
+    }
+
+    public CompletableFuture<Void> removeNode(int nodeId) {
+        return nodeManager.removeNode(nodeId);
     }
 
 }
