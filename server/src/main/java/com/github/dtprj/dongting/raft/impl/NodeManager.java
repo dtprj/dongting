@@ -15,25 +15,21 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.NioClient;
-import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.PeerStatus;
 import com.github.dtprj.dongting.net.ReadFrame;
-import com.github.dtprj.dongting.net.WriteFrame;
-import com.github.dtprj.dongting.pb.PbCallback;
-import com.github.dtprj.dongting.pb.PbUtil;
 import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.rpc.NodePingCallback;
+import com.github.dtprj.dongting.raft.rpc.NodePingProcessor;
+import com.github.dtprj.dongting.raft.rpc.NodePingWriteFrame;
 import com.github.dtprj.dongting.raft.server.RaftNode;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -58,8 +54,6 @@ public class NodeManager extends AbstractLifeCircle {
     private ScheduledFuture<?> scheduledFuture;
 
     private int currentReadyNodes;
-
-    private static final PbZeroCopyDecoder DECODER = new PbZeroCopyDecoder(ctx -> new NodePingCallback());
 
     public NodeManager(RaftServerConfig config, List<RaftNode> allRaftNodes, NioClient client) {
         this.selfNodeId = config.getNodeId();
@@ -184,7 +178,8 @@ public class NodeManager extends AbstractLifeCircle {
 
     private CompletableFuture<Boolean> sendNodePing(RaftNodeEx nodeEx) {
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        CompletableFuture<ReadFrame> f = client.sendRequest(nodeEx.getPeer(), new NodePingWriteFrame(), DECODER, timeout);
+        CompletableFuture<ReadFrame> f = client.sendRequest(nodeEx.getPeer(),
+                new NodePingWriteFrame(selfNodeId, uuid), NodePingProcessor.DECODER, timeout);
         return f.handle((rf, ex) -> {
             if (ex == null) {
                 return whenRpcFinish(rf, nodeEx);
@@ -231,58 +226,7 @@ public class NodeManager extends AbstractLifeCircle {
         }
     }
 
-    private class NodePingWriteFrame extends WriteFrame {
-
-        public NodePingWriteFrame() {
-            setCommand(Commands.RAFT_PING);
-        }
-
-        @Override
-        protected int calcEstimateBodySize() {
-            return PbUtil.accurateFix32Size(1, selfNodeId)
-                    + PbUtil.accurateFix64Size(2, uuid.getMostSignificantBits())
-                    + PbUtil.accurateFix64Size(3, uuid.getLeastSignificantBits());
-        }
-
-        @Override
-        protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
-            super.writeBodySize(buf, estimateBodySize());
-            PbUtil.writeFix32(buf, 1, selfNodeId);
-            PbUtil.writeFix64(buf, 2, uuid.getMostSignificantBits());
-            PbUtil.writeFix64(buf, 3, uuid.getLeastSignificantBits());
-        }
+    public UUID getUuid() {
+        return uuid;
     }
-
-    private static class NodePingCallback extends PbCallback {
-        private int nodeId;
-        private long uuidHigh;
-        private long uuidLow;
-
-        public NodePingCallback() {
-        }
-
-        @Override
-        public boolean readFix32(int index, int value) {
-            if (index == 1) {
-                this.nodeId = value;
-            }
-            return true;
-        }
-
-        @Override
-        public boolean readFix64(int index, long value) {
-            if (index == 2) {
-                this.uuidHigh = value;
-            } else if (index == 3) {
-                this.uuidLow = value;
-            }
-            return true;
-        }
-
-        @Override
-        public Object getResult() {
-            return this;
-        }
-    }
-
 }
