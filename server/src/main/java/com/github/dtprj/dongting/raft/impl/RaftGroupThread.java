@@ -120,7 +120,9 @@ public class RaftGroupThread extends Thread {
         ArrayList<Object> queueData = new ArrayList<>(32);
         boolean poll = true;
         while (!stop) {
-            memberManager.ensureRaftMemberStatus();
+            if (raftStatus.getRole() != RaftRole.observer) {
+                memberManager.ensureRaftMemberStatus();
+            }
 
             try {
                 poll = pollAndRefreshTs(ts, queueData, poll);
@@ -200,14 +202,15 @@ public class RaftGroupThread extends Thread {
         }
         long roundTimeNanos = ts.getNanoTime();
 
+        RaftRole role = raftStatus.getRole();
         if (roundTimeNanos - raftStatus.getHeartbeatTime() > heartbeatIntervalNanos) {
-            if (raftStatus.getRole() == RaftRole.leader) {
+            if (role == RaftRole.leader) {
                 raftStatus.setHeartbeatTime(roundTimeNanos);
                 raft.sendHeartBeat();
                 raftStatus.copyShareStatus();
             }
         }
-        if (raftStatus.getRole() != RaftRole.leader) {
+        if (role == RaftRole.follower || role == RaftRole.candidate) {
             if (roundTimeNanos - raftStatus.getLastElectTime() > electTimeoutNanos + random.nextInt(200)) {
                 voteManager.tryStartPreVote();
                 raftStatus.copyShareStatus();

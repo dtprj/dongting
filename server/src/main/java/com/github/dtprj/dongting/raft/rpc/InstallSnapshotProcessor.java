@@ -62,6 +62,9 @@ public class InstallSnapshotProcessor extends ReqProcessor {
                 RaftUtil.resetElectTimer(raftStatus);
                 RaftUtil.updateLeader(raftStatus, req.leaderId);
                 installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
+            } else if (raftStatus.getRole() == RaftRole.observer) {
+                RaftUtil.updateLeader(raftStatus, req.leaderId);
+                installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
             } else if (raftStatus.getRole() == RaftRole.candidate) {
                 RaftUtil.changeToFollower(raftStatus, req.leaderId);
                 installSnapshot(raftStatus, gc.getStateMachine(), req, resp);

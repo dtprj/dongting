@@ -19,5 +19,5 @@ package com.github.dtprj.dongting.raft.impl;
  * @author huangli
  */
 public enum RaftRole {
-    leader, follower, candidate, learner
+    leader, follower, candidate, observer
 }

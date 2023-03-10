@@ -72,6 +72,9 @@ public class AppendProcessor extends ReqProcessor {
                 RaftUtil.resetElectTimer(raftStatus);
                 RaftUtil.updateLeader(raftStatus, req.getLeaderId());
                 append(gc, raftStatus, req, resp);
+            } else if (raftStatus.getRole() == RaftRole.observer) {
+                RaftUtil.updateLeader(raftStatus, req.getLeaderId());
+                append(gc, raftStatus, req, resp);
             } else if (raftStatus.getRole() == RaftRole.candidate) {
                 RaftUtil.changeToFollower(raftStatus, req.getLeaderId());
                 append(gc, raftStatus, req, resp);

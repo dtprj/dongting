@@ -97,6 +97,13 @@ class ReplicateManager {
             }
             replicate(node);
         }
+        for (RaftMember node : raftStatus.getObservers()) {
+            if (node.getNode().isSelf()) {
+                BugLog.getLog().error("self is observer, groupId: {}", groupId);
+                continue;
+            }
+            replicate(node);
+        }
     }
 
     @SuppressWarnings("StatementWithEmptyBody")

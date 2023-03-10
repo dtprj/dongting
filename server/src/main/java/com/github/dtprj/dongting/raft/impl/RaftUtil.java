@@ -142,32 +142,40 @@ public class RaftUtil {
 
     public static void incrTermAndConvertToFollower(int remoteTerm, RaftStatus raftStatus,
                                                     int newLeaderId, boolean persist) {
-        log.info("update term from {} to {}, change to follower, oldRole={}",
-                raftStatus.getCurrentTerm(), remoteTerm, raftStatus.getRole());
         RaftRole oldRole = raftStatus.getRole();
-        PendingMap oldPending = raftStatus.getPendingRequests();
-        resetStatus(raftStatus);
-        if (newLeaderId > 0) {
-            updateLeader(raftStatus, newLeaderId);
-        }
-        raftStatus.setCurrentTerm(remoteTerm);
-        raftStatus.setVotedFor(0);
-        raftStatus.setRole(RaftRole.follower);
-        if (oldRole == RaftRole.leader) {
-            oldPending.forEach((idx, task) -> {
-                RaftNode leaderNode = getLeader(raftStatus.getCurrentLeader());
-                if (task.future != null) {
-                    task.future.completeExceptionally(new NotLeaderException(leaderNode));
-                }
-                if (task.nextReaders != null) {
-                    task.nextReaders.forEach(readTask -> {
-                        if (readTask.future != null) {
-                            readTask.future.completeExceptionally(new NotLeaderException(leaderNode));
-                        }
-                    });
-                }
-                return true;
-            });
+        if (oldRole != RaftRole.observer) {
+            log.info("update term from {} to {}, change to follower, oldRole={}",
+                    raftStatus.getCurrentTerm(), remoteTerm, raftStatus.getRole());
+            PendingMap oldPending = raftStatus.getPendingRequests();
+            resetStatus(raftStatus);
+            if (newLeaderId > 0) {
+                updateLeader(raftStatus, newLeaderId);
+            }
+            raftStatus.setCurrentTerm(remoteTerm);
+            raftStatus.setVotedFor(0);
+            raftStatus.setRole(RaftRole.follower);
+            if (oldRole == RaftRole.leader) {
+                oldPending.forEach((idx, task) -> {
+                    RaftNode leaderNode = getLeader(raftStatus.getCurrentLeader());
+                    if (task.future != null) {
+                        task.future.completeExceptionally(new NotLeaderException(leaderNode));
+                    }
+                    if (task.nextReaders != null) {
+                        task.nextReaders.forEach(readTask -> {
+                            if (readTask.future != null) {
+                                readTask.future.completeExceptionally(new NotLeaderException(leaderNode));
+                            }
+                        });
+                    }
+                    return true;
+                });
+            }
+        } else {
+            log.info("update term from {} to {}", raftStatus.getCurrentTerm(), remoteTerm);
+            raftStatus.setCurrentTerm(remoteTerm);
+            if (newLeaderId > 0) {
+                updateLeader(raftStatus, newLeaderId);
+            }
         }
         if (persist) {
             StatusUtil.updateStatusFile(raftStatus);

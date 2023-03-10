@@ -245,8 +245,8 @@ public class VoteManager {
             log.warn("receive outdated vote resp, ignore, remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
                     voteResp.getTerm(), voteReq.getTerm(), remoteMember.getNode().getNodeId(), groupId);
         } else if (remoteTerm == raftStatus.getCurrentTerm()) {
-            if (raftStatus.getRole() == RaftRole.follower) {
-                log.warn("follower receive vote resp, ignore. remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
+            if (raftStatus.getRole() != RaftRole.candidate) {
+                log.warn("receive vote resp, not candidate, ignore. remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
                         voteResp.getTerm(), voteReq.getTerm(), remoteMember.getNode().getNodeId(), groupId);
             } else {
                 int oldCount = votes.size();

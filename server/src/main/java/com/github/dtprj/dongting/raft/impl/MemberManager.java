@@ -44,7 +44,7 @@ public class MemberManager {
     private final NioClient client;
     private final Executor executor;
 
-    private final Set<Integer> nodeIdOfLearners;
+    private final Set<Integer> nodeIdOfObservers;
 
     private final List<RaftMember> allMembers;
     private final List<RaftMember> learners;
@@ -53,15 +53,15 @@ public class MemberManager {
 
     public MemberManager(RaftServerConfig serverConfig, NioClient client, Executor executor,
                          RaftStatus raftStatus, int groupId, Set<Integer> nodeIdOfMembers,
-                         Set<Integer> nodeIdOfLearners) {
+                         Set<Integer> nodeIdOfObservers) {
         this.serverConfig = serverConfig;
         this.client = client;
         this.executor = executor;
         this.groupId = groupId;
         this.nodeIdOfMembers = nodeIdOfMembers;
-        this.nodeIdOfLearners = nodeIdOfLearners;
+        this.nodeIdOfObservers = nodeIdOfObservers;
         this.allMembers = raftStatus.getAllMembers();
-        this.learners = raftStatus.getLearners();
+        this.learners = raftStatus.getObservers();
 
         this.eventSource = new EventSource<>(executor);
     }
@@ -72,7 +72,7 @@ public class MemberManager {
             RaftNodeEx node = allNodes.get(nodeId);
             allMembers.add(new RaftMember(node));
         }
-        for (int nodeId : nodeIdOfLearners) {
+        for (int nodeId : nodeIdOfObservers) {
             RaftNodeEx node = allNodes.get(nodeId);
             learners.add(new RaftMember(node));
         }
