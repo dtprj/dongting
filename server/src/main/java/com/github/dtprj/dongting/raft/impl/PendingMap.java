@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.LongObjMap;
+import com.github.dtprj.dongting.log.BugLog;
 
 import java.util.concurrent.TimeUnit;
 
@@ -33,6 +34,10 @@ public class PendingMap extends LongObjMap<RaftTask> {
         RaftTask t = super.put(key, value);
         if (size() == 1) {
             firstKey = key;
+        } else {
+            if (key <= firstKey) {
+                BugLog.getLog().error("key {} is not great than firstKey {}", key, firstKey);
+            }
         }
         pending++;
         pendingBytes += value.input.size();
@@ -41,7 +46,14 @@ public class PendingMap extends LongObjMap<RaftTask> {
 
     @Override
     public RaftTask remove(long key) {
+        if (key > firstKey && firstKey != -1) {
+            BugLog.getLog().error("key {} is greater than firstKey {}", key, firstKey);
+        }
         RaftTask t = super.remove(key);
+        if (t != null) {
+            pending--;
+            pendingBytes -= t.input.size();
+        }
         if (size() == 0) {
             firstKey = -1;
         }
@@ -69,30 +81,23 @@ public class PendingMap extends LongObjMap<RaftTask> {
                 minMatchIndex = Math.min(node.getMatchIndex(), minMatchIndex);
             }
             doClean(raftStatus, maxPending, maxPendingBytes, minMatchIndex);
-        } else if (raftStatus.getRole() == RaftRole.follower) {
-            doClean(raftStatus, maxPending, maxPendingBytes, -1);
+        } else {
+            doClean(raftStatus, maxPending, maxPendingBytes, raftStatus.getLastApplied());
         }
     }
 
-    private void doClean(RaftStatus raftStatus, int maxPending, long maxPendingBytes, long minMatchIndex) {
+    private void doClean(RaftStatus raftStatus, int maxPending, long maxPendingBytes, long boundIndex) {
         long now = raftStatus.getTs().getNanoTime();
-        long lastApplied = raftStatus.getLastApplied();
-
         long k = firstKey;
-        while (k <= lastApplied) {
-            RaftTask task = get(k);
-            if (task == null) {
-                break;
-            }
-            if (k > minMatchIndex && now - task.createTimeNanos < TIMEOUT) {
+        RaftTask task = get(k);
+        while (task != null) {
+            if (k > boundIndex && now - task.createTimeNanos < TIMEOUT) {
                 if (pending <= maxPending && pendingBytes <= maxPendingBytes) {
                     break;
                 }
             }
             remove(k);
-            pending--;
-            pendingBytes -= task.input.size();
-            k++;
+            task = get(++k);
         }
     }
 }
