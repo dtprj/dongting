@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.NioClient;
@@ -42,45 +43,61 @@ public class MemberManager {
     private final Set<Integer> nodeIdOfMembers;
     private final NioClient client;
     private final Executor executor;
-    private final RaftStatus raftStatus;
 
-    private CompletableFuture<Void> memberReadyFuture;
+    private final Set<Integer> nodeIdOfLearners;
 
     private final List<RaftMember> allMembers;
+    private final List<RaftMember> learners;
+
+    private final EventSource<Integer> eventSource;
 
     private int readyCount;
 
     public MemberManager(RaftServerConfig serverConfig, NioClient client, Executor executor,
-                         RaftStatus raftStatus, int groupId, Set<Integer> nodeIdOfMembers) {
+                         RaftStatus raftStatus, int groupId, Set<Integer> nodeIdOfMembers,
+                         Set<Integer> nodeIdOfLearners) {
         this.serverConfig = serverConfig;
         this.client = client;
         this.executor = executor;
-        this.raftStatus = raftStatus;
         this.groupId = groupId;
         this.nodeIdOfMembers = nodeIdOfMembers;
+        this.nodeIdOfLearners = nodeIdOfLearners;
         this.allMembers = raftStatus.getAllMembers();
+        this.learners = raftStatus.getLearners();
+
+        this.eventSource = new EventSource<>(executor);
     }
 
 
-    public void init(List<RaftNodeEx> allNodes) {
-        for (RaftNodeEx node : allNodes) {
-            RaftMember m = new RaftMember(node);
-            allMembers.add(m);
+    public void init(IntObjMap<RaftNodeEx> allNodes) {
+        for (int nodeId : nodeIdOfMembers) {
+            RaftNodeEx node = allNodes.get(nodeId);
+            allMembers.add(new RaftMember(node));
         }
-        this.memberReadyFuture = new CompletableFuture<>();
+        for (int nodeId : nodeIdOfLearners) {
+            RaftNodeEx node = allNodes.get(nodeId);
+            learners.add(new RaftMember(node));
+        }
     }
 
     public void ensureRaftMemberStatus() {
         for (RaftMember member : allMembers) {
-            RaftNodeEx node = member.getNode();
-            NodeStatus nodeStatus = node.getStatus();
-            if (!nodeStatus.isReady()) {
-                setReady(member, false);
-            } else if (nodeStatus.getEpoch() != member.getEpoch()) {
-                setReady(member, false);
-                if (!member.isPinging()) {
-                    raftPing(node, member, nodeStatus.getEpoch());
-                }
+            check(member);
+        }
+        for (RaftMember member : learners) {
+            check(member);
+        }
+    }
+
+    private void check(RaftMember member) {
+        RaftNodeEx node = member.getNode();
+        NodeStatus nodeStatus = node.getStatus();
+        if (!nodeStatus.isReady()) {
+            setReady(member, false);
+        } else if (nodeStatus.getEpoch() != member.getEpoch()) {
+            setReady(member, false);
+            if (!member.isPinging()) {
+                raftPing(node, member, nodeStatus.getEpoch());
             }
         }
     }
@@ -108,7 +125,7 @@ public class MemberManager {
         } else {
             if (callback.nodeId == 0 && callback.groupId == 0) {
                 log.error("raft ping error, group not found, groupId={}, remote={}",
-                        groupId , raftNodeEx.getHostPort());
+                        groupId, raftNodeEx.getHostPort());
                 setReady(member, false);
             } else if (nodeIdOfMembers.equals(callback.nodeIdOfMembers)) {
                 NodeStatus currentNodeStatus = member.getNode().getStatus();
@@ -141,14 +158,14 @@ public class MemberManager {
         } else {
             readyCount--;
         }
-        RaftUtil.onReadyStatusChange(readyCount, memberReadyFuture, raftStatus.getElectQuorum());
-    }
-
-    public CompletableFuture<Void> getMemberReadyFuture() {
-        return memberReadyFuture;
+        eventSource.fireInExecutorThread();
     }
 
     public Set<Integer> getNodeIdOfMembers() {
         return nodeIdOfMembers;
+    }
+
+    public CompletableFuture<Void> createReadyFuture(int targetReadyCount) {
+        return eventSource.registerInOtherThreads(() -> readyCount >= targetReadyCount);
     }
 }

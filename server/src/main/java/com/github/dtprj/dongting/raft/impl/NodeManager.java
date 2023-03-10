@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -46,10 +47,10 @@ public class NodeManager extends AbstractLifeCircle {
     private final int selfNodeId;
     private final NioClient client;
     private final RaftServerConfig config;
-    private final CompletableFuture<Void> nodeReadyFuture = new CompletableFuture<>();
+    private final EventSource eventSource;
 
     private List<RaftNode> allRaftNodesOnlyForInit;
-    private ArrayList<RaftNodeEx> allNodesEx;
+    private IntObjMap<RaftNodeEx> allNodesEx;
 
     private ScheduledFuture<?> scheduledFuture;
 
@@ -60,6 +61,8 @@ public class NodeManager extends AbstractLifeCircle {
         this.allRaftNodesOnlyForInit = allRaftNodes;
         this.client = client;
         this.config = config;
+
+        this.eventSource = new EventSource(RaftUtil.SCHEDULED_SERVICE);
     }
 
     private CompletableFuture<RaftNodeEx> addToNioClient(RaftNode node) {
@@ -87,7 +90,7 @@ public class NodeManager extends AbstractLifeCircle {
             futures.add(addToNioClient(n));
         }
         allRaftNodesOnlyForInit = null;
-        allNodesEx = new ArrayList<>();
+        allNodesEx = new IntObjMap<>(futures.size() * 2, 0.75f);
 
         for (CompletableFuture<RaftNodeEx> f : futures) {
             RaftNodeEx node = f.join();
@@ -96,14 +99,16 @@ public class NodeManager extends AbstractLifeCircle {
                     doCheckSelf(node);
                 }
             }
-            allNodesEx.add(f.join());
+            RaftNodeEx nodeEx = f.join();
+            allNodesEx.put(nodeEx.getNodeId(), nodeEx);
         }
 
-        for (RaftNodeEx nodeEx : allNodesEx) {
+        allNodesEx.forEach((nodeId, nodeEx)->{
             if (!nodeEx.isSelf()) {
                 connectAndPing(nodeEx);
             }
-        }
+            return true;
+        });
     }
 
     private void doCheckSelf(RaftNodeEx nodeEx) {
@@ -120,11 +125,12 @@ public class NodeManager extends AbstractLifeCircle {
     }
 
     private void tryConnectAndPingAll() {
-        for (RaftNodeEx nodeEx : allNodesEx) {
+        allNodesEx.forEach((nodeId, nodeEx)->{
             if (!nodeEx.isSelf() && !nodeEx.isConnecting()) {
                 connectAndPing(nodeEx);
             }
-        }
+            return true;
+        });
     }
 
     private CompletableFuture<Void> connectAndPing(RaftNodeEx nodeEx) {
@@ -168,10 +174,7 @@ public class NodeManager extends AbstractLifeCircle {
             currentReadyNodes--;
             nodeEx.setStatus(new NodeStatus(false, oldStatus.getEpoch()));
         }
-        if (!nodeReadyFuture.isDone()) {
-            RaftUtil.onReadyStatusChange(currentReadyNodes, nodeReadyFuture,
-                    RaftUtil.getElectQuorum(allNodesEx.size()));
-        }
+        eventSource.fireInExecutorThread();
     }
 
     private CompletableFuture<Void> sendNodePing(RaftNodeEx nodeEx) {
@@ -206,39 +209,30 @@ public class NodeManager extends AbstractLifeCircle {
         }
     }
 
-    public ArrayList<RaftNodeEx> getAllNodesEx() {
+    public IntObjMap<RaftNodeEx> getAllNodesEx() {
         return allNodesEx;
     }
 
-    public void waitReady() {
+    public void waitReady(int targetReadyCount) {
         try {
-            nodeReadyFuture.get();
+            CompletableFuture<Void> f = eventSource.registerInOtherThreads(() -> currentReadyNodes >= targetReadyCount);
+            f.get();
         } catch (Exception e) {
-            log.error("error during wait node ready", e);
             throw new RaftException(e);
         }
-    }
-
-    private RaftNodeEx find(int nodeId) {
-        for (RaftNodeEx nodeEx : allNodesEx) {
-            if (nodeEx.getNodeId() == nodeId) {
-                return nodeEx;
-            }
-        }
-        return null;
     }
 
     public CompletableFuture<RaftNodeEx> addNode(RaftNode node) {
         CompletableFuture<RaftNodeEx> f = addToNioClient(node);
         f = f.thenComposeAsync(nodeEx -> {
-            RaftNodeEx existNode = find(nodeEx.getNodeId());
+            RaftNodeEx existNode = allNodesEx.get(nodeEx.getNodeId());
             if (existNode != null) {
                 return CompletableFuture.completedFuture(existNode);
             } else {
                 CompletableFuture<Void> pingFuture = connectAndPing(nodeEx);
                 return pingFuture.handleAsync((v, ex) -> {
                     if (ex == null) {
-                        allNodesEx.add(nodeEx);
+                        allNodesEx.put(nodeEx.getNodeId(), nodeEx);
                         processResult(nodeEx, null);
                         return nodeEx;
                     } else {
@@ -255,7 +249,7 @@ public class NodeManager extends AbstractLifeCircle {
         CompletableFuture<Void> f = new CompletableFuture<>();
         Runnable r = () -> {
             // find should run in schedule thread
-            RaftNodeEx existNode = find(nodeId);
+            RaftNodeEx existNode = allNodesEx.get(nodeId);
             if (existNode == null) {
                 f.complete(null);
             } else {

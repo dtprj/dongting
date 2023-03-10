@@ -90,12 +90,9 @@ public class RaftGroupThread extends Thread {
         raftStatus.setLastLogIndex(initResult.getRight());
     }
 
-    public void waitReady() {
+    public void waitReady(int targetReadyCount) {
         try {
-            if (memberManager.getMemberReadyFuture() == null) {
-                throw new RaftException("memberManager is not initialized");
-            }
-            memberManager.getMemberReadyFuture().get();
+            memberManager.createReadyFuture(targetReadyCount).get();
         } catch (Exception e) {
             throw new RaftException(e);
         }

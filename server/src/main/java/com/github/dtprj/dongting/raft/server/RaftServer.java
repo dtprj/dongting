@@ -165,18 +165,15 @@ public class RaftServer extends AbstractLifeCircle {
             StateMachine stateMachine = stateMachines.get(i);
             RaftLog raftLog = raftLogs.get(i);
 
-            String[] idsStr = rgc.getNodeIdOfMembers().split(",");
+            Objects.requireNonNull(rgc.getNodeIdOfMembers());
+
             HashSet<Integer> nodeIdOfMembers = new HashSet<>();
-            for (String idStr : idsStr) {
-                int id = Integer.parseInt(idStr.trim());
-                if (!allNodeIds.contains(id)) {
-                    throw new IllegalArgumentException("member id " + id + " not in server list: groupId=" + rgc.getGroupId());
-                }
-                if (!nodeIdOfMembers.add(id)) {
-                    throw new IllegalArgumentException("duplicated raft member id " + id + ".  groupId=" + rgc.getGroupId());
-                }
+            parseMemberIds(allNodeIds, nodeIdOfMembers, rgc.getNodeIdOfMembers(), rgc.getGroupId());
+            HashSet<Integer> nodeIdOfLearners = new HashSet<>();
+            if (rgc.getNodeIdOfLearners() != null) {
+                parseMemberIds(allNodeIds, nodeIdOfLearners, rgc.getNodeIdOfLearners(), rgc.getGroupId());
             }
-            if (!nodeIdOfMembers.contains(serverConfig.getNodeId())) {
+            if (!nodeIdOfMembers.contains(serverConfig.getNodeId()) && !nodeIdOfLearners.contains(serverConfig.getNodeId())) {
                 throw new IllegalArgumentException("self id not found in group members list: " + serverConfig.getNodeId());
             }
 
@@ -186,13 +183,26 @@ public class RaftServer extends AbstractLifeCircle {
             raftStatus.setRaftExecutor(raftExecutor);
 
             MemberManager memberManager = new MemberManager(serverConfig, raftClient, raftExecutor,
-                    raftStatus, rgc.getGroupId(), nodeIdOfMembers);
+                    raftStatus, rgc.getGroupId(), nodeIdOfMembers, nodeIdOfLearners);
             Raft raft = new Raft(serverConfig, rgc, raftStatus, raftLog, stateMachine, raftClient, raftExecutor);
             VoteManager voteManager = new VoteManager(serverConfig, rgc, raftStatus, raftClient, raftExecutor, raft);
             RaftGroupThread raftGroupThread = new RaftGroupThread(serverConfig, rgc, raftStatus, raftLog, stateMachine, raftExecutor,
                     raft, memberManager, voteManager);
             GroupComponents gc = new GroupComponents(serverConfig, rgc, raftLog, stateMachine, raftGroupThread, raftStatus, memberManager, voteManager);
             groupComponentsMap.put(rgc.getGroupId(), gc);
+        }
+    }
+
+    private static void parseMemberIds(HashSet<Integer> allNodeIds, HashSet<Integer> nodeIdOfMembers, String str, int groupId) {
+        String[] membersStr = str.split(",");
+        for (String idStr : membersStr) {
+            int id = Integer.parseInt(idStr.trim());
+            if (!allNodeIds.contains(id)) {
+                throw new IllegalArgumentException("member id " + id + " not in server list: groupId=" + groupId);
+            }
+            if (!nodeIdOfMembers.add(id)) {
+                throw new IllegalArgumentException("duplicated raft member id " + id + ".  groupId=" + groupId);
+            }
         }
     }
 
@@ -216,7 +226,7 @@ public class RaftServer extends AbstractLifeCircle {
         raftClient.waitStart();
 
         nodeManager.start();
-        nodeManager.waitReady();
+        nodeManager.waitReady(RaftUtil.getElectQuorum(nodeManager.getAllNodesEx().size()));
         log.info("nodeManager is ready");
 
         groupComponentsMap.forEach((groupId, gc) -> {
@@ -226,7 +236,7 @@ public class RaftServer extends AbstractLifeCircle {
         });
 
         groupComponentsMap.forEach((groupId, gc) -> {
-            gc.getRaftGroup().waitReady();
+            gc.getRaftGroup().waitReady(gc.getRaftStatus().getElectQuorum());
             log.info("raft group {} is ready", groupId);
             return true;
         });

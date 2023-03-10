@@ -50,6 +50,7 @@ public class RaftStatus {
     private final int electQuorum;
     private final int rwQuorum;
     private final List<RaftMember> allMembers = new ArrayList<>();
+    private final List<RaftMember> learners = new ArrayList<>();
 
     private PendingMap pendingRequests;
     private long firstCommitIndexOfCurrentTerm;
@@ -220,6 +221,10 @@ public class RaftStatus {
 
     public List<RaftMember> getAllMembers() {
         return allMembers;
+    }
+
+    public List<RaftMember> getLearners() {
+        return learners;
     }
 
     public PendingMap getPendingRequests() {

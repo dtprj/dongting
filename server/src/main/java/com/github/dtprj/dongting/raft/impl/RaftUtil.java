@@ -256,17 +256,6 @@ public class RaftUtil {
         return items;
     }
 
-    public static void onReadyStatusChange(int newReady, CompletableFuture<Void> f, int electQuorum) {
-        if (f == null) {
-            return;
-        }
-        if (newReady == electQuorum) {
-            if (!f.isDone()) {
-                f.complete(null);
-            }
-        }
-    }
-
     public static GroupComponents getGroupComponents(IntObjMap<GroupComponents> groupComponentsMap, int groupId) {
         GroupComponents gc = groupComponentsMap.get(groupId);
         if (gc == null) {
