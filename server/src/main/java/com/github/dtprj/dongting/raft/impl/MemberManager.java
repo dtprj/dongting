@@ -51,8 +51,6 @@ public class MemberManager {
 
     private final EventSource<Integer> eventSource;
 
-    private int readyCount;
-
     public MemberManager(RaftServerConfig serverConfig, NioClient client, Executor executor,
                          RaftStatus raftStatus, int groupId, Set<Integer> nodeIdOfMembers,
                          Set<Integer> nodeIdOfLearners) {
@@ -153,12 +151,17 @@ public class MemberManager {
             return;
         }
         member.setReady(ready);
-        if (ready) {
-            readyCount++;
-        } else {
-            readyCount--;
-        }
         eventSource.fireInExecutorThread();
+    }
+
+    private int getReadyCount(List<RaftMember> list) {
+        int count = 0;
+        for (RaftMember m : list) {
+            if (m.isReady()) {
+                count++;
+            }
+        }
+        return count;
     }
 
     public Set<Integer> getNodeIdOfMembers() {
@@ -166,6 +169,6 @@ public class MemberManager {
     }
 
     public CompletableFuture<Void> createReadyFuture(int targetReadyCount) {
-        return eventSource.registerInOtherThreads(() -> readyCount >= targetReadyCount);
+        return eventSource.registerInOtherThreads(() -> getReadyCount(allMembers) >= targetReadyCount);
     }
 }

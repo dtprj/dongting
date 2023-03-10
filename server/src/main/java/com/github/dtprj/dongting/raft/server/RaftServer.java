@@ -173,6 +173,11 @@ public class RaftServer extends AbstractLifeCircle {
             if (rgc.getNodeIdOfLearners() != null) {
                 parseMemberIds(allNodeIds, nodeIdOfLearners, rgc.getNodeIdOfLearners(), rgc.getGroupId());
             }
+            for (int id : nodeIdOfMembers) {
+                if (nodeIdOfLearners.contains(id)) {
+                    throw new IllegalArgumentException("member and learner has same node: " + id);
+                }
+            }
             if (!nodeIdOfMembers.contains(serverConfig.getNodeId()) && !nodeIdOfLearners.contains(serverConfig.getNodeId())) {
                 throw new IllegalArgumentException("self id not found in group members list: " + serverConfig.getNodeId());
             }
