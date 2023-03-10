@@ -86,9 +86,10 @@ public class RaftStatus {
         }
     }
 
-    public RaftStatus(int electQuorum, int rwQuorum) {
+    public RaftStatus(int electQuorum, int rwQuorum, RaftRole initRole) {
         this.electQuorum = electQuorum;
         this.rwQuorum = rwQuorum;
+        this.role = initRole;
         lastElectTime = ts.getNanoTime();
         heartbeatTime = ts.getNanoTime();
     }

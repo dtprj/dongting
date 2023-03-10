@@ -178,13 +178,14 @@ public class RaftServer extends AbstractLifeCircle {
                     throw new IllegalArgumentException("member and observer has same node: " + id);
                 }
             }
-            if (!nodeIdOfMembers.contains(serverConfig.getNodeId()) && !nodeIdOfObservers.contains(serverConfig.getNodeId())) {
-                throw new IllegalArgumentException("self id not found in group members list: " + serverConfig.getNodeId());
+            boolean isMember = nodeIdOfMembers.contains(serverConfig.getNodeId());
+            if (!isMember && !nodeIdOfObservers.contains(serverConfig.getNodeId())) {
+                throw new IllegalArgumentException("self id not found in group members/observers list: " + serverConfig.getNodeId());
             }
 
             int electQuorum = RaftUtil.getElectQuorum(nodeIdOfMembers.size());
             int rwQuorum = RaftUtil.getRwQuorum(nodeIdOfMembers.size());
-            RaftStatus raftStatus = new RaftStatus(electQuorum, rwQuorum);
+            RaftStatus raftStatus = new RaftStatus(electQuorum, rwQuorum, isMember ? RaftRole.follower : RaftRole.observer);
             raftStatus.setRaftExecutor(raftExecutor);
 
             MemberManager memberManager = new MemberManager(serverConfig, raftClient, raftExecutor,
