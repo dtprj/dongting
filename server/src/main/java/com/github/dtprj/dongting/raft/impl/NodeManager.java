@@ -47,6 +47,7 @@ public class NodeManager extends AbstractLifeCircle {
     private final int selfNodeId;
     private final NioClient client;
     private final RaftServerConfig config;
+    private final IntObjMap<GroupComponents> groupComponentsMap;
     private final EventSource eventSource;
 
     private List<RaftNode> allRaftNodesOnlyForInit;
@@ -56,11 +57,12 @@ public class NodeManager extends AbstractLifeCircle {
 
     private int currentReadyNodes;
 
-    public NodeManager(RaftServerConfig config, List<RaftNode> allRaftNodes, NioClient client) {
+    public NodeManager(RaftServerConfig config, List<RaftNode> allRaftNodes, NioClient client, IntObjMap<GroupComponents> groupComponentsMap) {
         this.selfNodeId = config.getNodeId();
         this.allRaftNodesOnlyForInit = allRaftNodes;
         this.client = client;
         this.config = config;
+        this.groupComponentsMap = groupComponentsMap;
 
         this.eventSource = new EventSource(RaftUtil.SCHEDULED_SERVICE);
     }
@@ -72,7 +74,7 @@ public class NodeManager extends AbstractLifeCircle {
 
     @Override
     protected void doStart() {
-        init();
+        initNodes();
         this.scheduledFuture = RaftUtil.SCHEDULED_SERVICE.scheduleWithFixedDelay(
                 this::tryConnectAndPingAll, 5, 2, TimeUnit.SECONDS);
     }
@@ -84,7 +86,7 @@ public class NodeManager extends AbstractLifeCircle {
         }
     }
 
-    private void init() {
+    private void initNodes() {
         ArrayList<CompletableFuture<RaftNodeEx>> futures = new ArrayList<>();
         for (RaftNode n : allRaftNodesOnlyForInit) {
             futures.add(addToNioClient(n));
@@ -103,7 +105,19 @@ public class NodeManager extends AbstractLifeCircle {
             allNodesEx.put(nodeEx.getNodeId(), nodeEx);
         }
 
-        allNodesEx.forEach((nodeId, nodeEx)->{
+        groupComponentsMap.forEach((groupId, gc) -> {
+            for (int nodeId : gc.getMemberManager().getNodeIdOfMembers()) {
+                RaftNodeEx nodeEx = allNodesEx.get(nodeId);
+                nodeEx.setUseCount(nodeEx.getUseCount() + 1);
+            }
+            for (int nodeId : gc.getMemberManager().getNodeIdOfObservers()) {
+                RaftNodeEx nodeEx = allNodesEx.get(nodeId);
+                nodeEx.setUseCount(nodeEx.getUseCount() + 1);
+            }
+            return true;
+        });
+
+        allNodesEx.forEach((nodeId, nodeEx) -> {
             if (!nodeEx.isSelf()) {
                 connectAndPing(nodeEx);
             }
@@ -125,7 +139,7 @@ public class NodeManager extends AbstractLifeCircle {
     }
 
     private void tryConnectAndPingAll() {
-        allNodesEx.forEach((nodeId, nodeEx)->{
+        allNodesEx.forEach((nodeId, nodeEx) -> {
             if (!nodeEx.isSelf() && !nodeEx.isConnecting()) {
                 connectAndPing(nodeEx);
             }
@@ -253,7 +267,11 @@ public class NodeManager extends AbstractLifeCircle {
             if (existNode == null) {
                 f.complete(null);
             } else {
-                client.removePeer(existNode.getPeer()).thenRun(() -> f.complete(null));
+                if (existNode.getUseCount() == 0) {
+                    client.removePeer(existNode.getPeer()).thenRun(() -> f.complete(null));
+                } else {
+                    f.completeExceptionally(new RaftException("node is using"));
+                }
             }
         };
         RaftUtil.SCHEDULED_SERVICE.submit(r);

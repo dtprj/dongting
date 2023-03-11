@@ -138,9 +138,8 @@ public class RaftServer extends AbstractLifeCircle {
         setupNioConfig(nioClientConfig);
         raftClient = new NioClient(nioClientConfig);
 
-        nodeManager = new NodeManager(serverConfig, allRaftServers, raftClient);
-
         createRaftGroups(serverConfig, groupConfig, raftLogs, stateMachines, allNodeIds, raftExecutor);
+        nodeManager = new NodeManager(serverConfig, allRaftServers, raftClient, groupComponentsMap);
 
         NioServerConfig nioServerConfig = new NioServerConfig();
         nioServerConfig.setPort(serverConfig.getRaftPort());

@@ -168,6 +168,10 @@ public class MemberManager {
         return nodeIdOfMembers;
     }
 
+    public Set<Integer> getNodeIdOfObservers() {
+        return nodeIdOfObservers;
+    }
+
     public CompletableFuture<Void> createReadyFuture(int targetReadyCount) {
         return eventSource.registerInOtherThreads(() -> getReadyCount(allMembers) >= targetReadyCount);
     }

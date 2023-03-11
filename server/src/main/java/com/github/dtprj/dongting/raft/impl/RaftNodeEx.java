@@ -30,9 +30,19 @@ public class RaftNodeEx extends RaftNode {
 
     private volatile NodeStatus status = new NodeStatus(false, 0);
 
+    private int useCount;
+
     public RaftNodeEx(int id, HostPort hostPort, boolean self, Peer peer) {
         super(id, hostPort, self);
         this.peer = peer;
+    }
+
+    public int getUseCount() {
+        return useCount;
+    }
+
+    public void setUseCount(int useCount) {
+        this.useCount = useCount;
     }
 
     public Peer getPeer() {
