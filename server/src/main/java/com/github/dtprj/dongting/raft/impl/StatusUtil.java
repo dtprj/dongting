@@ -39,8 +39,10 @@ import java.util.zip.CRC32C;
 public class StatusUtil {
     private static final DtLog log = DtLogs.getLogger(StatusUtil.class);
 
-    private static final int fileLength = 512;
-    private static final int crcHexLength = 8;
+    private static final int FILE_LENGTH = 512;
+    private static final int CRC_HEX_LENGTH = 8;
+    private static final int CONTENT_START_POS = CRC_HEX_LENGTH + 2;
+    private static final int CONTENT_LENGTH = FILE_LENGTH - CONTENT_START_POS;
     private static final String currentTermKey = "currentTerm";
     private static final String votedForKey = "votedFor";
 
@@ -67,31 +69,28 @@ public class StatusUtil {
             lock = statusChannel.lock();
             if (!create) {
                 log.info("loading status file: {}", file.getPath());
-                if (file.length() != fileLength) {
+                if (file.length() != FILE_LENGTH) {
                     throw new RaftException("bad status file length: " + file.length());
                 }
-                ByteBuffer buf = ByteBuffer.allocate(fileLength);
-                if (statusChannel.read(buf) != fileLength) {
-                    throw new RaftException("read length not " + fileLength);
+                ByteBuffer buf = ByteBuffer.allocate(FILE_LENGTH);
+                if (statusChannel.read(buf) != FILE_LENGTH) {
+                    throw new RaftException("read length not " + FILE_LENGTH);
                 }
-                buf.flip();
-                byte[] bytes = new byte[fileLength - crcHexLength];
-                buf.get(bytes);
+                byte[] bytes = buf.array();
 
                 CRC32C crc32c = new CRC32C();
-                crc32c.update(bytes);
+
+                crc32c.update(bytes, CONTENT_START_POS, CONTENT_LENGTH);
                 int expectCrc = (int) crc32c.getValue();
 
-                byte[] crcBytes = new byte[crcHexLength];
-                buf.get(crcBytes);
-                int actualCrc = Integer.parseInt(new String(crcBytes, StandardCharsets.UTF_8), 16);
+                int actualCrc = Integer.parseInt(new String(bytes, 0, 8, StandardCharsets.UTF_8), 16);
 
                 if (actualCrc != expectCrc) {
                     throw new RaftException("bad status file crc: " + actualCrc + ", expect: " + expectCrc);
                 }
 
                 Properties p = new Properties();
-                p.load(new StringReader(new String(bytes, StandardCharsets.UTF_8)));
+                p.load(new StringReader(new String(bytes, CONTENT_START_POS, CONTENT_LENGTH, StandardCharsets.UTF_8)));
 
                 raftStatus.setCurrentTerm(Integer.parseInt(p.getProperty(currentTermKey).trim()));
                 raftStatus.setVotedFor(Integer.parseInt(p.getProperty(votedForKey).trim()));
@@ -129,18 +128,18 @@ public class StatusUtil {
             ByteArrayOutputStream bos = new ByteArrayOutputStream(64);
             p.store(bos, null);
             byte[] propertiesBytes = bos.toByteArray();
-            byte[] fileContent = new byte[fileLength];
-            System.arraycopy(propertiesBytes, 0, fileContent, 0, propertiesBytes.length);
-            Arrays.fill(fileContent, propertiesBytes.length, fileLength - crcHexLength, (byte) ' ');
-            fileContent[fileLength - 1 - crcHexLength] = '\n';
-            fileContent[fileLength - 1 - crcHexLength - 1] = '\r';
+            byte[] fileContent = new byte[FILE_LENGTH];
+            Arrays.fill(fileContent, (byte)' ');
+            System.arraycopy(propertiesBytes, 0, fileContent, CONTENT_START_POS, propertiesBytes.length);
+            fileContent[CONTENT_START_POS - 2] = '\r';
+            fileContent[CONTENT_START_POS - 1] = '\n';
 
             CRC32C crc32c = new CRC32C();
-            crc32c.update(fileContent, 0, fileLength - crcHexLength);
+            crc32c.update(fileContent, CONTENT_START_POS, CONTENT_LENGTH);
             int crc = (int) crc32c.getValue();
             String crcHex = String.format("%08x", crc);
             byte[] crcBytes = crcHex.getBytes(StandardCharsets.UTF_8);
-            System.arraycopy(crcBytes, 0, fileContent, fileLength - crcHexLength, crcHexLength);
+            System.arraycopy(crcBytes, 0, fileContent, 0, CRC_HEX_LENGTH);
             ByteBuffer buf = ByteBuffer.wrap(fileContent);
             channel.write(buf);
             channel.force(false);
