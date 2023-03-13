@@ -30,7 +30,6 @@ import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -41,7 +40,7 @@ public class MemberManager {
     private final RaftServerConfig serverConfig;
     private final int groupId;
     private final NioClient client;
-    private final Executor executor;
+    private final RaftExecutor executor;
 
     private final Set<Integer> nodeIdOfMembers;
     private final Set<Integer> nodeIdOfObservers;
@@ -51,7 +50,7 @@ public class MemberManager {
 
     private final EventSource<Integer> eventSource;
 
-    public MemberManager(RaftServerConfig serverConfig, NioClient client, Executor executor,
+    public MemberManager(RaftServerConfig serverConfig, NioClient client, RaftExecutor executor,
                          RaftStatus raftStatus, int groupId, Set<Integer> nodeIdOfMembers,
                          Set<Integer> nodeIdOfObservers) {
         this.serverConfig = serverConfig;
@@ -116,7 +115,7 @@ public class MemberManager {
     private void processPingResult(RaftNodeEx raftNodeEx, RaftMember member,
                                    ReadFrame rf, Throwable ex, int nodeEpochWhenStartPing) {
         RaftPingFrameCallback callback = (RaftPingFrameCallback) rf.getBody();
-        member.setPinging(false);
+        executor.schedule(() -> member.setPinging(false), 1000);
         if (ex != null) {
             log.warn("raft ping fail, remote={}", raftNodeEx.getHostPort(), ex);
             setReady(member, false);
