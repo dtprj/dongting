@@ -40,14 +40,14 @@ public class MemberManager {
     private static final DtLog log = DtLogs.getLogger(MemberManager.class);
     private final RaftServerConfig serverConfig;
     private final int groupId;
-    private final Set<Integer> nodeIdOfMembers;
     private final NioClient client;
     private final Executor executor;
 
+    private final Set<Integer> nodeIdOfMembers;
     private final Set<Integer> nodeIdOfObservers;
 
     private final List<RaftMember> allMembers;
-    private final List<RaftMember> learners;
+    private final List<RaftMember> observers;
 
     private final EventSource<Integer> eventSource;
 
@@ -61,7 +61,7 @@ public class MemberManager {
         this.nodeIdOfMembers = nodeIdOfMembers;
         this.nodeIdOfObservers = nodeIdOfObservers;
         this.allMembers = raftStatus.getAllMembers();
-        this.learners = raftStatus.getObservers();
+        this.observers = raftStatus.getObservers();
 
         this.eventSource = new EventSource<>(executor);
     }
@@ -74,7 +74,7 @@ public class MemberManager {
         }
         for (int nodeId : nodeIdOfObservers) {
             RaftNodeEx node = allNodes.get(nodeId);
-            learners.add(new RaftMember(node));
+            observers.add(new RaftMember(node));
         }
     }
 
@@ -82,7 +82,7 @@ public class MemberManager {
         for (RaftMember member : allMembers) {
             check(member);
         }
-        for (RaftMember member : learners) {
+        for (RaftMember member : observers) {
             check(member);
         }
     }
@@ -108,7 +108,7 @@ public class MemberManager {
 
         member.setPinging(true);
         DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        RaftPingWriteFrame f = new RaftPingWriteFrame(groupId, serverConfig.getNodeId(), nodeIdOfMembers);
+        RaftPingWriteFrame f = new RaftPingWriteFrame(groupId, serverConfig.getNodeId(), nodeIdOfMembers, nodeIdOfObservers);
         client.sendRequest(raftNodeEx.getPeer(), f, RaftPingProcessor.DECODER, timeout)
                 .whenCompleteAsync((rf, ex) -> processPingResult(raftNodeEx, member, rf, ex, nodeEpochWhenStartPing), executor);
     }
@@ -125,7 +125,7 @@ public class MemberManager {
                 log.error("raft ping error, group not found, groupId={}, remote={}",
                         groupId, raftNodeEx.getHostPort());
                 setReady(member, false);
-            } else if (nodeIdOfMembers.equals(callback.nodeIdOfMembers)) {
+            } else if (nodeIdOfMembers.equals(callback.nodeIdOfMembers) && nodeIdOfObservers.equals(callback.nodeIdOfObservers)) {
                 NodeStatus currentNodeStatus = member.getNode().getStatus();
                 if (currentNodeStatus.isReady() && nodeEpochWhenStartPing == currentNodeStatus.getEpoch()) {
                     log.info("raft ping success, id={}, remote={}", callback.nodeId, raftNodeEx.getHostPort());
@@ -139,8 +139,8 @@ public class MemberManager {
                     setReady(member, false);
                 }
             } else {
-                log.error("raft ping error, group ids not match: localIds={}, remoteIds={}, remote={}",
-                        nodeIdOfMembers, callback.nodeIdOfMembers, raftNodeEx.getHostPort());
+                log.error("raft ping error, group ids not match: remote={}, localIds={}, remoteIds={}, localObservers={}, remoteObservers={}",
+                        raftNodeEx, nodeIdOfMembers, callback.nodeIdOfMembers, nodeIdOfObservers, callback.nodeIdOfObservers);
                 setReady(member, false);
             }
         }

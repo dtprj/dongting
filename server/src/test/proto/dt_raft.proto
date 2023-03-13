@@ -31,11 +31,13 @@ message RaftPingReq {
   fixed32 group_id = 1;
   fixed32 node_id = 2;
   repeated fixed32 node_id_of_members = 3[packed = false];
+  repeated fixed32 node_id_of_observers = 4[packed = false];
 }
 message RaftPingResp {
   fixed32 group_id = 1;
   fixed32 node_id = 2;
   repeated fixed32 node_id_of_members = 3[packed = false];
+  repeated fixed32 node_id_of_observers = 4[packed = false];
 }
 
 message AppendEntriesReq {

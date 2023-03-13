@@ -25,6 +25,8 @@ public class RaftNode {
     private final HostPort hostPort;
     private final boolean self;
 
+    private String str;
+
     public RaftNode(int nodeId, HostPort hostPort, boolean self) {
         this.nodeId = nodeId;
         this.hostPort = hostPort;
@@ -43,4 +45,11 @@ public class RaftNode {
         return self;
     }
 
+    @Override
+    public String toString() {
+        if (str == null) {
+            str = nodeId + "@" + hostPort;
+        }
+        return str;
+    }
 }

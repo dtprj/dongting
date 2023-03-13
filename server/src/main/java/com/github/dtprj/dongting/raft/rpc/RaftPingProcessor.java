@@ -47,7 +47,7 @@ public class RaftPingProcessor extends ReqProcessor {
         GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, callback.groupId);
         MemberManager mm = gc.getMemberManager();
         RaftPingWriteFrame resp = new RaftPingWriteFrame(gc.getServerConfig().getNodeId(),
-                gc.getGroupConfig().getGroupId(), mm.getNodeIdOfMembers());
+                gc.getGroupConfig().getGroupId(), mm.getNodeIdOfMembers(), mm.getNodeIdOfObservers());
         resp.setRespCode(CmdCodes.SUCCESS);
         return resp;
     }

@@ -30,11 +30,13 @@ public class RaftPingWriteFrame extends WriteFrame {
     private final int groupId;
     private final int nodeId;
     private final Set<Integer> nodeIdOfMembers;
+    private final Set<Integer> nodeIdOfObservers;
 
-    public RaftPingWriteFrame(int groupId, int nodeId, Set<Integer> nodeIdOfMembers) {
+    public RaftPingWriteFrame(int groupId, int nodeId, Set<Integer> nodeIdOfMembers, Set<Integer> nodeIdOfObservers) {
         this.groupId = groupId;
         this.nodeId = nodeId;
         this.nodeIdOfMembers = nodeIdOfMembers;
+        this.nodeIdOfObservers = nodeIdOfObservers;
     }
 
     @Override
@@ -44,6 +46,11 @@ public class RaftPingWriteFrame extends WriteFrame {
         if (nodeIdOfMembers != null) {
             for (int id : nodeIdOfMembers) {
                 size += PbUtil.accurateFix32Size(3, id);
+            }
+        }
+        if (nodeIdOfObservers != null) {
+            for (int id : nodeIdOfObservers) {
+                size += PbUtil.accurateFix32Size(4, id);
             }
         }
         return size;
@@ -56,6 +63,11 @@ public class RaftPingWriteFrame extends WriteFrame {
         PbUtil.writeFix32(buf, 2, nodeId);
         if (nodeIdOfMembers != null) {
             for (int id : nodeIdOfMembers) {
+                PbUtil.writeFix32(buf, 2, id);
+            }
+        }
+        if (nodeIdOfObservers != null) {
+            for (int id : nodeIdOfObservers) {
                 PbUtil.writeFix32(buf, 2, id);
             }
         }
