@@ -64,6 +64,18 @@ public class NodeManager extends AbstractLifeCircle {
         this.config = config;
         this.groupComponentsMap = groupComponentsMap;
 
+        groupComponentsMap.forEach((groupId, gc) -> {
+            for (int nodeId : gc.getMemberManager().getNodeIdOfMembers()) {
+                RaftNodeEx nodeEx = allNodesEx.get(nodeId);
+                nodeEx.setUseCount(nodeEx.getUseCount() + 1);
+            }
+            for (int nodeId : gc.getMemberManager().getNodeIdOfObservers()) {
+                RaftNodeEx nodeEx = allNodesEx.get(nodeId);
+                nodeEx.setUseCount(nodeEx.getUseCount() + 1);
+            }
+            return true;
+        });
+
         this.eventSource = new EventSource(RaftUtil.SCHEDULED_SERVICE);
     }
 
@@ -104,18 +116,6 @@ public class NodeManager extends AbstractLifeCircle {
             RaftNodeEx nodeEx = f.join();
             allNodesEx.put(nodeEx.getNodeId(), nodeEx);
         }
-
-        groupComponentsMap.forEach((groupId, gc) -> {
-            for (int nodeId : gc.getMemberManager().getNodeIdOfMembers()) {
-                RaftNodeEx nodeEx = allNodesEx.get(nodeId);
-                nodeEx.setUseCount(nodeEx.getUseCount() + 1);
-            }
-            for (int nodeId : gc.getMemberManager().getNodeIdOfObservers()) {
-                RaftNodeEx nodeEx = allNodesEx.get(nodeId);
-                nodeEx.setUseCount(nodeEx.getUseCount() + 1);
-            }
-            return true;
-        });
 
         allNodesEx.forEach((nodeId, nodeEx) -> {
             if (!nodeEx.isSelf()) {
