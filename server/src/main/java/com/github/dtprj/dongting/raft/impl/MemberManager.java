@@ -38,6 +38,7 @@ import java.util.concurrent.TimeUnit;
 public class MemberManager {
     private static final DtLog log = DtLogs.getLogger(MemberManager.class);
     private final RaftServerConfig serverConfig;
+    private final RaftStatus raftStatus;
     private final int groupId;
     private final NioClient client;
     private final RaftExecutor executor;
@@ -56,6 +57,7 @@ public class MemberManager {
         this.serverConfig = serverConfig;
         this.client = client;
         this.executor = executor;
+        this.raftStatus = raftStatus;
         this.groupId = groupId;
         this.nodeIdOfMembers = nodeIdOfMembers;
         this.nodeIdOfObservers = nodeIdOfObservers;
@@ -173,5 +175,17 @@ public class MemberManager {
 
     public CompletableFuture<Void> createReadyFuture(int targetReadyCount) {
         return eventSource.registerInOtherThreads(() -> getReadyCount(allMembers) >= targetReadyCount);
+    }
+
+    public boolean checkLeader(int nodeId) {
+        RaftMember leader = raftStatus.getCurrentLeader();
+        if (leader != null && leader.getNode().getNodeId() == nodeId) {
+            return true;
+        }
+        return checkMember(nodeId);
+    }
+
+    public boolean checkMember(int nodeId) {
+        return nodeIdOfMembers.contains(nodeId);
     }
 }

@@ -49,21 +49,24 @@ public class VoteProcessor extends ReqProcessor {
     public WriteFrame process(ReadFrame rf, ChannelContext channelContext, ReqContext reqContext) {
         VoteReq voteReq = (VoteReq) rf.getBody();
         GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, voteReq.getGroupId());
-        RaftStatus raftStatus = gc.getRaftStatus();
-
-        RaftUtil.resetElectTimer(raftStatus);
-
         VoteResp resp = new VoteResp();
-        int localTerm = raftStatus.getCurrentTerm();
-
-        if (voteReq.isPreVote()) {
-            processPreVote(raftStatus, voteReq, resp, localTerm);
+        RaftStatus raftStatus = gc.getRaftStatus();
+        if (gc.getMemberManager().checkMember(voteReq.getCandidateId())) {
+            RaftUtil.resetElectTimer(raftStatus);
+            int localTerm = raftStatus.getCurrentTerm();
+            if (voteReq.isPreVote()) {
+                processPreVote(raftStatus, voteReq, resp, localTerm);
+            } else {
+                processVote(raftStatus, voteReq, resp, localTerm);
+            }
+            log.info("receive {} request. granted={}. reqTerm={}, localTerm={}",
+                    voteReq.isPreVote() ? "pre-vote" : "vote", resp.isVoteGranted(), voteReq.getTerm(), localTerm);
         } else {
-            processVote(raftStatus, voteReq, resp, localTerm);
+            resp.setVoteGranted(false);
+            log.warn("receive vote request from unknown member. remoteId={}, group={}, remote={}",
+                    voteReq.getCandidateId(), voteReq.getGroupId(), channelContext.getRemoteAddr());
         }
 
-        log.info("receive {} request. granted={}. reqTerm={}, localTerm={}",
-                voteReq.isPreVote() ? "pre-vote" : "vote", resp.isVoteGranted(), voteReq.getTerm(), localTerm);
         resp.setTerm(raftStatus.getCurrentTerm());
         VoteResp.WriteFrame wf = new VoteResp.WriteFrame(resp);
         wf.setRespCode(CmdCodes.SUCCESS);
@@ -84,8 +87,8 @@ public class VoteProcessor extends ReqProcessor {
         if (shouldGrant(raftStatus, voteReq, localTerm)) {
             raftStatus.setVotedFor(voteReq.getCandidateId());
             resp.setVoteGranted(true);
+            StatusUtil.updateStatusFile(raftStatus);
         }
-        StatusUtil.updateStatusFile(raftStatus);
     }
 
     private boolean shouldGrant(RaftStatus raftStatus, VoteReq voteReq, int localTerm) {

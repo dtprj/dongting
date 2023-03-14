@@ -50,6 +50,7 @@ public class AppendProcessor extends ReqProcessor {
     public static final int CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT = 2;
     public static final int CODE_CLIENT_REQ_ERROR = 3;
     public static final int CODE_INSTALL_SNAPSHOT = 4;
+    public static final int CODE_NOT_MEMBER_IN_GROUP = 5;
 
     private final IntObjMap<GroupComponents> groupComponentsMap;
 
@@ -64,32 +65,40 @@ public class AppendProcessor extends ReqProcessor {
         AppendRespWriteFrame resp = new AppendRespWriteFrame();
         AppendReqCallback req = (AppendReqCallback) rf.getBody();
         GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, req.getGroupId());
-        int remoteTerm = req.getTerm();
         RaftStatus raftStatus = gc.getRaftStatus();
-        int localTerm = raftStatus.getCurrentTerm();
-        if (remoteTerm == localTerm) {
-            if (raftStatus.getRole() == RaftRole.follower) {
-                RaftUtil.resetElectTimer(raftStatus);
-                RaftUtil.updateLeader(raftStatus, req.getLeaderId());
-                append(gc, raftStatus, req, resp);
-            } else if (raftStatus.getRole() == RaftRole.observer) {
-                RaftUtil.updateLeader(raftStatus, req.getLeaderId());
-                append(gc, raftStatus, req, resp);
-            } else if (raftStatus.getRole() == RaftRole.candidate) {
-                RaftUtil.changeToFollower(raftStatus, req.getLeaderId());
+        if (gc.getMemberManager().checkLeader(req.getLeaderId())) {
+            int remoteTerm = req.getTerm();
+            int localTerm = raftStatus.getCurrentTerm();
+            if (remoteTerm == localTerm) {
+                if (raftStatus.getRole() == RaftRole.follower) {
+                    RaftUtil.resetElectTimer(raftStatus);
+                    RaftUtil.updateLeader(raftStatus, req.getLeaderId());
+                    append(gc, raftStatus, req, resp);
+                } else if (raftStatus.getRole() == RaftRole.observer) {
+                    RaftUtil.updateLeader(raftStatus, req.getLeaderId());
+                    append(gc, raftStatus, req, resp);
+                } else if (raftStatus.getRole() == RaftRole.candidate) {
+                    RaftUtil.changeToFollower(raftStatus, req.getLeaderId());
+                    append(gc, raftStatus, req, resp);
+                } else {
+                    BugLog.getLog().error("leader receive raft append request. term={}, remote={}",
+                            remoteTerm, channelContext.getRemoteAddr());
+                    resp.setSuccess(false);
+                }
+            } else if (remoteTerm > localTerm) {
+                RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus, req.getLeaderId(), true);
                 append(gc, raftStatus, req, resp);
             } else {
-                BugLog.getLog().error("leader receive raft append request. term={}, remote={}",
-                        remoteTerm, channelContext.getRemoteAddr());
+                log.debug("receive append request with a smaller term, ignore, remoteTerm={}, localTerm={}", remoteTerm, localTerm);
                 resp.setSuccess(false);
             }
-        } else if (remoteTerm > localTerm) {
-            RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus, req.getLeaderId(), true);
-            append(gc, raftStatus, req, resp);
         } else {
-            log.debug("receive append request with a smaller term, ignore, remoteTerm={}, localTerm={}", remoteTerm, localTerm);
+            log.warn("receive append request from a non-member, ignore, remoteId={}, group={}, remote={}",
+                    req.getLeaderId(), req.getGroupId(), channelContext.getRemoteAddr());
             resp.setSuccess(false);
+            resp.setAppendCode(CODE_NOT_MEMBER_IN_GROUP);
         }
+
         resp.setTerm(raftStatus.getCurrentTerm());
         resp.setRespCode(CmdCodes.SUCCESS);
         return resp;

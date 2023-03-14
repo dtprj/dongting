@@ -56,30 +56,38 @@ public class InstallSnapshotProcessor extends ReqProcessor {
         InstallSnapshotResp.WriteFrame respFrame = new InstallSnapshotResp.WriteFrame(resp);
         int remoteTerm = req.term;
         RaftStatus raftStatus = gc.getRaftStatus();
-        int localTerm = raftStatus.getCurrentTerm();
-        if (remoteTerm == localTerm) {
-            if (raftStatus.getRole() == RaftRole.follower) {
-                RaftUtil.resetElectTimer(raftStatus);
-                RaftUtil.updateLeader(raftStatus, req.leaderId);
-                installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
-            } else if (raftStatus.getRole() == RaftRole.observer) {
-                RaftUtil.updateLeader(raftStatus, req.leaderId);
-                installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
-            } else if (raftStatus.getRole() == RaftRole.candidate) {
-                RaftUtil.changeToFollower(raftStatus, req.leaderId);
+
+        if (gc.getMemberManager().checkLeader(req.leaderId)) {
+            int localTerm = raftStatus.getCurrentTerm();
+            if (remoteTerm == localTerm) {
+                if (raftStatus.getRole() == RaftRole.follower) {
+                    RaftUtil.resetElectTimer(raftStatus);
+                    RaftUtil.updateLeader(raftStatus, req.leaderId);
+                    installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
+                } else if (raftStatus.getRole() == RaftRole.observer) {
+                    RaftUtil.updateLeader(raftStatus, req.leaderId);
+                    installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
+                } else if (raftStatus.getRole() == RaftRole.candidate) {
+                    RaftUtil.changeToFollower(raftStatus, req.leaderId);
+                    installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
+                } else {
+                    BugLog.getLog().error("leader receive raft install snapshot request. term={}, remote={}",
+                            remoteTerm, channelContext.getRemoteAddr());
+                    resp.success = false;
+                }
+            } else if (remoteTerm > localTerm) {
+                RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus, req.leaderId, true);
                 installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
             } else {
-                BugLog.getLog().error("leader receive raft install snapshot request. term={}, remote={}",
-                        remoteTerm, channelContext.getRemoteAddr());
+                log.debug("receive raft install snapshot request with a smaller term, ignore, remoteTerm={}, localTerm={}", remoteTerm, localTerm);
                 resp.success = false;
             }
-        } else if (remoteTerm > localTerm) {
-            RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus, req.leaderId, true);
-            installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
         } else {
-            log.debug("receive raft install snapshot request with a smaller term, ignore, remoteTerm={}, localTerm={}", remoteTerm, localTerm);
             resp.success = false;
+            log.warn("receive raft install snapshot request from a non-member, ignore. remoteId={}, group={}, remote={}",
+                    req.leaderId, req.groupId, channelContext.getRemoteAddr());
         }
+
         resp.term = raftStatus.getCurrentTerm();
         respFrame.setRespCode(CmdCodes.SUCCESS);
         return respFrame;
