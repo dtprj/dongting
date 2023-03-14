@@ -33,6 +33,7 @@ import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
@@ -270,11 +271,99 @@ public class NodeManager extends AbstractLifeCircle {
                 if (existNode.getUseCount() == 0) {
                     client.removePeer(existNode.getPeer()).thenRun(() -> f.complete(null));
                 } else {
-                    f.completeExceptionally(new RaftException("node is using"));
+                    f.completeExceptionally(new RaftException("node is using, current ref count: " + existNode.getUseCount()));
                 }
             }
         };
         RaftUtil.SCHEDULED_SERVICE.submit(r);
+        return f;
+    }
+
+    public CompletableFuture<Void> prepareJointConsensus(int groupId, Set<Integer> members, Set<Integer> observers) {
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        RaftUtil.SCHEDULED_SERVICE.submit(() -> {
+            for (Integer nodeId : members) {
+                if (allNodesEx.get(nodeId) == null) {
+                    f.completeExceptionally(new RaftException("node not exist: " + nodeId));
+                    return;
+                }
+            }
+            if (observers != null) {
+                for (Integer nodeId : observers) {
+                    if (allNodesEx.get(nodeId) == null) {
+                        f.completeExceptionally(new RaftException("node not exist: " + nodeId));
+                        return;
+                    }
+                }
+            }
+            GroupComponents gc = groupComponentsMap.get(groupId);
+            if (gc == null) {
+                f.completeExceptionally(new RaftException("group not exist: " + groupId));
+                return;
+            }
+            if (gc.isInChange()) {
+                f.completeExceptionally(new RaftException("raft group in change: " + groupId));
+                return;
+            }
+
+            // now begin update
+            for (Integer nodeId : members) {
+                RaftNodeEx nodeEx = allNodesEx.get(nodeId);
+                nodeEx.setUseCount(nodeEx.getUseCount() + 1);
+            }
+            if (observers != null) {
+                for (Integer nodeId : observers) {
+                    RaftNodeEx nodeEx = allNodesEx.get(nodeId);
+                    nodeEx.setUseCount(nodeEx.getUseCount() + 1);
+                }
+            }
+            gc.setInChange(true);
+            gc.getMemberManager().prepareJointConsensus(members, observers)
+                    .thenRun(() -> f.complete(null));
+        });
+        return f;
+    }
+
+    public CompletableFuture<Void> dropJointConsensus(int groupId) {
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        RaftUtil.SCHEDULED_SERVICE.submit(() -> {
+            GroupComponents gc = groupComponentsMap.get(groupId);
+            if (gc == null || !gc.isInChange()) {
+                f.complete(null);
+                return;
+            }
+            gc.getMemberManager().dropJointConsensus().thenAcceptAsync(
+                    ids -> finishChange(f, gc, ids), RaftUtil.SCHEDULED_SERVICE);
+        });
+        return f;
+    }
+
+    private void finishChange(CompletableFuture<Void> f, GroupComponents gc, Set<Integer> ids) {
+        for (Integer nodeId : ids) {
+            RaftNodeEx nodeEx = allNodesEx.get(nodeId);
+            if (nodeEx != null) {
+                nodeEx.setUseCount(nodeEx.getUseCount() - 1);
+            }
+        }
+        gc.setInChange(false);
+        f.complete(null);
+    }
+
+    public CompletableFuture<Void> commitJointConsensus(int groupId) {
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        RaftUtil.SCHEDULED_SERVICE.submit(() -> {
+            GroupComponents gc = groupComponentsMap.get(groupId);
+            if (gc == null) {
+                f.completeExceptionally(new RaftException("group not exist: " + groupId));
+                return;
+            }
+            if (!gc.isInChange()) {
+                f.completeExceptionally(new RaftException("raft group not in change: " + groupId));
+                return;
+            }
+            gc.getMemberManager().commitJointConsensus().thenAcceptAsync(
+                    ids -> finishChange(f, gc, ids), RaftUtil.SCHEDULED_SERVICE);
+        });
         return f;
     }
 

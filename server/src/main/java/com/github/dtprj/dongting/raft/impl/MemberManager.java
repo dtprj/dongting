@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.raft.rpc.RaftPingProcessor;
 import com.github.dtprj.dongting.raft.rpc.RaftPingWriteFrame;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -43,13 +44,16 @@ public class MemberManager {
     private final NioClient client;
     private final RaftExecutor executor;
 
-    private final Set<Integer> nodeIdOfMembers;
-    private final Set<Integer> nodeIdOfObservers;
+    private Set<Integer> nodeIdOfMembers;
+    private Set<Integer> nodeIdOfObservers;
+
+    private Set<Integer> jointConsensusMembers;
+    private Set<Integer> jointConsensusObservers;
 
     private final List<RaftMember> allMembers;
     private final List<RaftMember> observers;
 
-    private final EventSource<Integer> eventSource;
+    private final EventSource eventSource;
 
     public MemberManager(RaftServerConfig serverConfig, NioClient client, RaftExecutor executor,
                          RaftStatus raftStatus, int groupId, Set<Integer> nodeIdOfMembers,
@@ -64,7 +68,7 @@ public class MemberManager {
         this.allMembers = raftStatus.getAllMembers();
         this.observers = raftStatus.getObservers();
 
-        this.eventSource = new EventSource<>(executor);
+        this.eventSource = new EventSource(executor);
     }
 
 
@@ -187,5 +191,56 @@ public class MemberManager {
 
     public boolean checkMember(int nodeId) {
         return nodeIdOfMembers.contains(nodeId);
+    }
+
+    private CompletableFuture<Void> run(Runnable runnable) {
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        executor.execute(() -> {
+            runnable.run();
+            f.complete(null);
+        });
+        return f;
+    }
+
+    public CompletableFuture<Void> prepareJointConsensus(Set<Integer> members, Set<Integer> observers) {
+        return run(() -> {
+            this.jointConsensusMembers = new HashSet<>(members);
+            if (observers != null) {
+                this.jointConsensusObservers = new HashSet<>(observers);
+            }
+        });
+    }
+
+    public CompletableFuture<Set<Integer>> dropJointConsensus() {
+        CompletableFuture<Set<Integer>> f = new CompletableFuture<>();
+        executor.execute(() -> {
+            HashSet<Integer> ids = new HashSet<>();
+            if (jointConsensusMembers != null) {
+                ids.addAll(jointConsensusMembers);
+            }
+            if (jointConsensusObservers != null) {
+                ids.addAll(jointConsensusObservers);
+            }
+            this.jointConsensusMembers = null;
+            this.jointConsensusObservers = null;
+            f.complete(ids);
+        });
+        return f;
+    }
+
+    public CompletableFuture<Set<Integer>> commitJointConsensus() {
+        CompletableFuture<Set<Integer>> f = new CompletableFuture<>();
+        executor.execute(() -> {
+            HashSet<Integer> ids = new HashSet<>(nodeIdOfMembers);
+            if (nodeIdOfObservers != null) {
+                ids.addAll(nodeIdOfObservers);
+            }
+            this.nodeIdOfMembers = jointConsensusMembers;
+            this.nodeIdOfObservers = jointConsensusObservers;
+            this.jointConsensusMembers = null;
+            this.jointConsensusObservers = null;
+            f.complete(ids);
+        });
+        return f;
     }
 }

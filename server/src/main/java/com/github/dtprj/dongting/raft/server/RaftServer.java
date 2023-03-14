@@ -54,6 +54,7 @@ import java.lang.invoke.VarHandle;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -268,6 +269,7 @@ public class RaftServer extends AbstractLifeCircle {
         return gc;
     }
 
+    @SuppressWarnings("unused")
     public CompletableFuture<RaftOutput> submitLinearTask(int groupId, RaftInput input) throws RaftException {
         GroupComponents gc = getGroupComponents(groupId);
         RaftStatus raftStatus = gc.getRaftStatus();
@@ -305,6 +307,7 @@ public class RaftServer extends AbstractLifeCircle {
         });
     }
 
+    @SuppressWarnings("unused")
     public long getLogIndexForRead(int groupId, DtTime deadline)
             throws RaftException, InterruptedException, TimeoutException {
         GroupComponents gc = getGroupComponents(groupId);
@@ -332,12 +335,52 @@ public class RaftServer extends AbstractLifeCircle {
         return ss.lastApplied;
     }
 
+    /**
+     * This method is idempotent. When future complete the new node is connected.
+     * If the node is already in node list and connected, the future complete normally immediately.
+     */
+    @SuppressWarnings("unused")
     public CompletableFuture<RaftNodeEx> addNode(RaftNode node) {
         return nodeManager.addNode(node);
     }
 
+    /**
+     * If the node is node in node list, the future complete normally immediately.
+     * If the reference count of the node is not 0, the future complete exceptionally.
+     */
+    @SuppressWarnings("unused")
     public CompletableFuture<Void> removeNode(int nodeId) {
         return nodeManager.removeNode(nodeId);
+    }
+
+    /**
+     * this method should invoke on all nodes by admin tools.
+     */
+    @SuppressWarnings("unused")
+    public CompletableFuture<Void> prepareJointConsensus(int groupId, Set<Integer> members, Set<Integer> observers) {
+        Objects.requireNonNull(members);
+        if (members.size() == 0) {
+            throw new IllegalArgumentException("members is empty");
+        }
+        // node state change in scheduler thread, member state change in raft thread
+        return nodeManager.prepareJointConsensus(groupId, members, observers);
+    }
+
+    /**
+     * This method is idempotent.
+     * This method should invoke on all nodes by admin tools.
+     */
+    @SuppressWarnings("unused")
+    public CompletableFuture<Void> dropJointConsensus(int groupId) {
+        return nodeManager.dropJointConsensus(groupId);
+    }
+
+    /**
+     * this method should invoke on all nodes by admin tools.
+     */
+    @SuppressWarnings("unused")
+    public CompletableFuture<Void> commitJointConsensus(int groupId) {
+        return nodeManager.commitJointConsensus(groupId);
     }
 
 }

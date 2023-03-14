@@ -24,6 +24,11 @@ import com.github.dtprj.dongting.raft.server.StateMachine;
  * @author huangli
  */
 public class GroupComponents {
+
+    // access in schedule thread
+    private boolean inChange;
+
+
     private final RaftServerConfig serverConfig;
     private final RaftGroupConfig groupConfig;
     private final RaftGroupThread raftGroupThread;
@@ -44,6 +49,14 @@ public class GroupComponents {
         this.raftStatus = raftStatus;
         this.memberManager = memberManager;
         this.voteManager = voteManager;
+    }
+
+    public boolean isInChange() {
+        return inChange;
+    }
+
+    public void setInChange(boolean inChange) {
+        this.inChange = inChange;
     }
 
     public RaftGroupThread getRaftGroup() {
