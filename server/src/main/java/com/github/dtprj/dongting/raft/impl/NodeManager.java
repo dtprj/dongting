@@ -71,11 +71,9 @@ public class NodeManager extends AbstractLifeCircle {
                 RaftNodeEx nodeEx = allNodesEx.get(nodeId);
                 nodeEx.setUseCount(nodeEx.getUseCount() + 1);
             }
-            if (mm.getNodeIdOfObservers() != null) {
-                for (int nodeId : mm.getNodeIdOfObservers()) {
-                    RaftNodeEx nodeEx = allNodesEx.get(nodeId);
-                    nodeEx.setUseCount(nodeEx.getUseCount() + 1);
-                }
+            for (int nodeId : mm.getNodeIdOfObservers()) {
+                RaftNodeEx nodeEx = allNodesEx.get(nodeId);
+                nodeEx.setUseCount(nodeEx.getUseCount() + 1);
             }
             return true;
         });

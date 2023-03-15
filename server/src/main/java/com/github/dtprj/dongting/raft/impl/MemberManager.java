@@ -28,8 +28,10 @@ import com.github.dtprj.dongting.raft.rpc.RaftPingWriteFrame;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -65,7 +67,8 @@ public class MemberManager {
         this.raftStatus = raftStatus;
         this.groupId = groupId;
         this.nodeIdOfMembers = nodeIdOfMembers;
-        this.nodeIdOfObservers = nodeIdOfObservers;
+        this.nodeIdOfObservers = Objects.requireNonNullElse(nodeIdOfObservers, Collections.emptySet());
+
         this.allMembers = raftStatus.getAllMembers();
         this.observers = raftStatus.getObservers();
 
@@ -78,11 +81,9 @@ public class MemberManager {
             RaftNodeEx node = allNodes.get(nodeId);
             allMembers.add(new RaftMember(node));
         }
-        if (nodeIdOfObservers != null) {
-            for (int nodeId : nodeIdOfObservers) {
-                RaftNodeEx node = allNodes.get(nodeId);
-                observers.add(new RaftMember(node));
-            }
+        for (int nodeId : nodeIdOfObservers) {
+            RaftNodeEx node = allNodes.get(nodeId);
+            observers.add(new RaftMember(node));
         }
     }
 
@@ -226,6 +227,8 @@ public class MemberManager {
             this.jointConsensusMembers = new HashSet<>(members);
             if (observers != null) {
                 this.jointConsensusObservers = new HashSet<>(observers);
+            } else {
+                this.jointConsensusObservers = Collections.emptySet();
             }
         });
     }
@@ -233,13 +236,13 @@ public class MemberManager {
     public CompletableFuture<Set<Integer>> dropJointConsensus() {
         CompletableFuture<Set<Integer>> f = new CompletableFuture<>();
         executor.execute(() -> {
-            HashSet<Integer> ids = new HashSet<>();
-            if (jointConsensusMembers != null) {
-                ids.addAll(jointConsensusMembers);
+            if (jointConsensusMembers == null || jointConsensusObservers == null) {
+                f.completeExceptionally(new IllegalStateException("joint consensus not prepared"));
+                return;
             }
-            if (jointConsensusObservers != null) {
-                ids.addAll(jointConsensusObservers);
-            }
+            HashSet<Integer> ids = new HashSet<>(jointConsensusMembers);
+            ids.addAll(jointConsensusObservers);
+
             this.jointConsensusMembers = null;
             this.jointConsensusObservers = null;
             f.complete(ids);
@@ -250,10 +253,14 @@ public class MemberManager {
     public CompletableFuture<Set<Integer>> commitJointConsensus() {
         CompletableFuture<Set<Integer>> f = new CompletableFuture<>();
         executor.execute(() -> {
-            HashSet<Integer> ids = new HashSet<>(nodeIdOfMembers);
-            if (nodeIdOfObservers != null) {
-                ids.addAll(nodeIdOfObservers);
+            if (jointConsensusMembers == null || jointConsensusObservers == null) {
+                f.completeExceptionally(new IllegalStateException("joint consensus not prepared"));
+                return;
             }
+
+            HashSet<Integer> ids = new HashSet<>(nodeIdOfMembers);
+            ids.addAll(nodeIdOfObservers);
+
             this.nodeIdOfMembers = jointConsensusMembers;
             this.nodeIdOfObservers = jointConsensusObservers;
             this.jointConsensusMembers = null;
