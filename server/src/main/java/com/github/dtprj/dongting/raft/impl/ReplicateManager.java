@@ -90,14 +90,21 @@ class ReplicateManager {
         this.readSnapshotFailTime = ts.getNanoTime() - TimeUnit.SECONDS.toNanos(10);
     }
 
+    @SuppressWarnings("ForLoopReplaceableByWhile")
     public void replicateAfterRaftExec(RaftStatus raftStatus) {
-        for (RaftMember node : raftStatus.getAllMembers()) {
+        List<RaftMember> list = raftStatus.getAllMembers();
+        int len = list.size();
+        for (int i = 0; i < len; i++) {
+            RaftMember node = list.get(i);
             if (node.getNode().isSelf()) {
                 continue;
             }
             replicate(node);
         }
-        for (RaftMember node : raftStatus.getObservers()) {
+        list = raftStatus.getObservers();
+        len = list.size();
+        for (int i = 0; i < len; i++) {
+            RaftMember node = list.get(i);
             if (node.getNode().isSelf()) {
                 BugLog.getLog().error("self is observer, groupId: {}", groupId);
                 continue;
@@ -127,6 +134,7 @@ class ReplicateManager {
         }
     }
 
+    @SuppressWarnings("ForLoopReplaceableByForEach")
     private void doReplicate(RaftMember member, boolean tryMatch) {
         long nextIndex = member.getNextIndex();
         long lastLogIndex = raftStatus.getLastLogIndex();
@@ -162,9 +170,9 @@ class ReplicateManager {
 
         LogItem firstItem = items[0];
         long bytes = 0;
-        for (LogItem i : items) {
-            bytes += i.getBuffer() == null ? 0 : i.getBuffer().remaining();
-
+        for (int i = 0; i < items.length; i++) {
+            LogItem item = items[i];
+            bytes += item.getBuffer() == null ? 0 : item.getBuffer().remaining();
         }
         sendAppendRequest(member, firstItem.getIndex() - 1, firstItem.getPrevLogTerm(), Arrays.asList(items), bytes);
     }

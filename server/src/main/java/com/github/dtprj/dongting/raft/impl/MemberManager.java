@@ -87,10 +87,15 @@ public class MemberManager {
     }
 
     public void ensureRaftMemberStatus() {
-        for (RaftMember member : allMembers) {
-            check(member);
-        }
-        for (RaftMember member : observers) {
+        ensureRaftMemberStatus(allMembers);
+        ensureRaftMemberStatus(observers);
+    }
+
+    @SuppressWarnings("ForLoopReplaceableByForEach")
+    private void ensureRaftMemberStatus(List<RaftMember> list) {
+        int len = list.size();
+        for (int i = 0; i < len; i++) {
+            RaftMember member = list.get(i);
             check(member);
         }
     }

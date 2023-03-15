@@ -73,6 +73,7 @@ public class Raft {
         return self;
     }
 
+    @SuppressWarnings("ForLoopReplaceableByForEach")
     public void raftExec(List<RaftTask> inputs) {
         RaftStatus raftStatus = this.raftStatus;
         if (raftStatus.getRole() != RaftRole.leader) {
@@ -91,7 +92,8 @@ public class Raft {
         int oldTerm = raftStatus.getLastLogTerm();
         int currentTerm = raftStatus.getCurrentTerm();
         PendingMap pending = raftStatus.getPendingRequests();
-        for (RaftTask rt : inputs) {
+        for (int i = 0; i < inputs.size(); i++) {
+            RaftTask rt = inputs.get(i);
             RaftInput input = rt.input;
 
             if (input.getDeadline().isTimeout(ts)) {

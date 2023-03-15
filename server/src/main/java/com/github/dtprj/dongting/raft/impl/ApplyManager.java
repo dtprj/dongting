@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.StateMachine;
 
+import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -39,12 +40,15 @@ class ApplyManager {
     }
 
 
+    @SuppressWarnings("ForLoopReplaceableByForEach")
     public void execChain(long index, RaftTask rt) {
         exec(index, rt);
-        if (rt.nextReaders == null) {
+        ArrayList<RaftTask> nextReaders = rt.nextReaders;
+        if (nextReaders == null) {
             return;
         }
-        for (RaftTask readerTask : rt.nextReaders) {
+        for (int i = 0; i < nextReaders.size(); i++) {
+            RaftTask readerTask = nextReaders.get(i);
             exec(index, readerTask);
         }
     }

@@ -73,13 +73,15 @@ public class RaftUtil {
         }
     }
 
+    @SuppressWarnings("ForLoopReplaceableByForEach")
     public static boolean needCommit(long currentCommitIndex, long recentMatchIndex,
                                      List<RaftMember> servers, int rwQuorum) {
         if (recentMatchIndex < currentCommitIndex) {
             return false;
         }
         int count = 0;
-        for (RaftMember member : servers) {
+        for (int i = 0; i < servers.size(); i++) {
+            RaftMember member = servers.get(i);
             if (member.getNode().isSelf()) {
                 if (recentMatchIndex > member.getMatchIndex()) {
                     return false;
@@ -92,9 +94,13 @@ public class RaftUtil {
         return count >= rwQuorum;
     }
 
+    @SuppressWarnings("ForLoopReplaceableByForEach")
     public static void updateLease(long currentReqNanos, RaftStatus raftStatus) {
         int order = 0;
-        for (RaftMember node : raftStatus.getAllMembers()) {
+        List<RaftMember> allMembers = raftStatus.getAllMembers();
+        int len = allMembers.size();
+        for (int i = 0; i < len; i++) {
+            RaftMember node = allMembers.get(i);
             if (!node.isHasLastConfirmReqNanos()) {
                 continue;
             }

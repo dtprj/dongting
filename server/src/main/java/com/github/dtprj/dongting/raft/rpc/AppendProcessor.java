@@ -104,6 +104,7 @@ public class AppendProcessor extends ReqProcessor {
         return resp;
     }
 
+    @SuppressWarnings("ForLoopReplaceableByForEach")
     private void append(GroupComponents gc, RaftStatus raftStatus, AppendReqCallback req, AppendRespWriteFrame resp) {
         if (raftStatus.isInstallSnapshot()) {
             resp.setSuccess(false);
@@ -137,7 +138,8 @@ public class AppendProcessor extends ReqProcessor {
 
         RaftUtil.append(gc.getRaftLog(), raftStatus, req.getPrevLogIndex(), req.getPrevLogTerm(), logs);
 
-        for (LogItem li : logs) {
+        for (int i = 0; i < logs.size(); i++) {
+            LogItem li = logs.get(i);
             RaftInput raftInput = new RaftInput(li.getBuffer(), null, null, false);
             RaftTask task = new RaftTask(raftStatus.getTs(), li.getType(), raftInput, null);
             raftStatus.getPendingRequests().put(li.getIndex(), task);
@@ -156,6 +158,7 @@ public class AppendProcessor extends ReqProcessor {
         resp.setSuccess(true);
     }
 
+    @SuppressWarnings("ForLoopReplaceableByForEach")
     private void apply(GroupComponents gc, RaftStatus raftStatus) {
         long diff = raftStatus.getCommitIndex() - raftStatus.getLastApplied();
         PendingMap pendingRequests = raftStatus.getPendingRequests();
@@ -172,7 +175,8 @@ public class AppendProcessor extends ReqProcessor {
                 LogItem[] items = RaftUtil.load(gc.getRaftLog(), raftStatus,
                         index, limit, 16 * 1024 * 1024);
                 int readCount = items.length;
-                for (LogItem item : items) {
+                for (int i = 0; i < readCount; i++) {
+                    LogItem item = items[i];
                     apply(gc.getStateMachine(), item.getType(), index++, item.getBuffer());
                 }
                 lastApplied += readCount;
