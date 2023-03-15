@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.raft.rpc.RaftPingProcessor;
 import com.github.dtprj.dongting.raft.rpc.RaftPingWriteFrame;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -77,9 +78,11 @@ public class MemberManager {
             RaftNodeEx node = allNodes.get(nodeId);
             allMembers.add(new RaftMember(node));
         }
-        for (int nodeId : nodeIdOfObservers) {
-            RaftNodeEx node = allNodes.get(nodeId);
-            observers.add(new RaftMember(node));
+        if (nodeIdOfObservers != null) {
+            for (int nodeId : nodeIdOfObservers) {
+                RaftNodeEx node = allNodes.get(nodeId);
+                observers.add(new RaftMember(node));
+            }
         }
     }
 
@@ -130,7 +133,7 @@ public class MemberManager {
                 log.error("raft ping error, group not found, groupId={}, remote={}",
                         groupId, raftNodeEx.getHostPort());
                 setReady(member, false);
-            } else if (nodeIdOfMembers.equals(callback.nodeIdOfMembers) && nodeIdOfObservers.equals(callback.nodeIdOfObservers)) {
+            } else if (checkMembers(callback)) {
                 NodeStatus currentNodeStatus = member.getNode().getStatus();
                 if (currentNodeStatus.isReady() && nodeEpochWhenStartPing == currentNodeStatus.getEpoch()) {
                     log.info("raft ping success, id={}, remote={}", callback.nodeId, raftNodeEx.getHostPort());
@@ -149,6 +152,17 @@ public class MemberManager {
                 setReady(member, false);
             }
         }
+    }
+
+    private boolean checkMembers(RaftPingFrameCallback callback) {
+        return eq(nodeIdOfMembers, callback.nodeIdOfMembers) && eq(nodeIdOfObservers, callback.nodeIdOfObservers);
+    }
+
+    private boolean eq(Collection<?> c1, Collection<?> c2) {
+        if (c1 == null) {
+            return c2 == null;
+        }
+        return c1.equals(c2);
     }
 
     public void setReady(RaftMember member, boolean ready) {
@@ -190,7 +204,7 @@ public class MemberManager {
     }
 
     public boolean checkMember(int nodeId) {
-        return nodeIdOfMembers.contains(nodeId);
+        return nodeIdOfMembers.contains(nodeId) || jointConsensusMembers != null && jointConsensusMembers.contains(nodeId);
     }
 
     private CompletableFuture<Void> run(Runnable runnable) {

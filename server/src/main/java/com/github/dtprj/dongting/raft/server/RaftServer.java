@@ -169,17 +169,21 @@ public class RaftServer extends AbstractLifeCircle {
 
             HashSet<Integer> nodeIdOfMembers = new HashSet<>();
             parseMemberIds(allNodeIds, nodeIdOfMembers, rgc.getNodeIdOfMembers(), rgc.getGroupId());
-            HashSet<Integer> nodeIdOfObservers = new HashSet<>();
+            HashSet<Integer> nodeIdOfObservers = null;
             if (rgc.getNodeIdOfObservers() != null) {
+                nodeIdOfObservers = new HashSet<>();
                 parseMemberIds(allNodeIds, nodeIdOfObservers, rgc.getNodeIdOfObservers(), rgc.getGroupId());
             }
-            for (int id : nodeIdOfMembers) {
-                if (nodeIdOfObservers.contains(id)) {
-                    throw new IllegalArgumentException("member and observer has same node: " + id);
+            if (nodeIdOfObservers != null) {
+                for (int id : nodeIdOfMembers) {
+                    if (nodeIdOfObservers.contains(id)) {
+                        throw new IllegalArgumentException("member and observer has same node: " + id);
+                    }
                 }
             }
             boolean isMember = nodeIdOfMembers.contains(serverConfig.getNodeId());
-            if (!isMember && !nodeIdOfObservers.contains(serverConfig.getNodeId())) {
+            boolean isObserver = nodeIdOfObservers != null && nodeIdOfObservers.contains(serverConfig.getNodeId());
+            if (!isMember && !isObserver) {
                 throw new IllegalArgumentException("self id not found in group members/observers list: " + serverConfig.getNodeId());
             }
 

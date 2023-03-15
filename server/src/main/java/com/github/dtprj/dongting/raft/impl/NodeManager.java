@@ -66,13 +66,16 @@ public class NodeManager extends AbstractLifeCircle {
         this.groupComponentsMap = groupComponentsMap;
 
         groupComponentsMap.forEach((groupId, gc) -> {
-            for (int nodeId : gc.getMemberManager().getNodeIdOfMembers()) {
+            MemberManager mm = gc.getMemberManager();
+            for (int nodeId : mm.getNodeIdOfMembers()) {
                 RaftNodeEx nodeEx = allNodesEx.get(nodeId);
                 nodeEx.setUseCount(nodeEx.getUseCount() + 1);
             }
-            for (int nodeId : gc.getMemberManager().getNodeIdOfObservers()) {
-                RaftNodeEx nodeEx = allNodesEx.get(nodeId);
-                nodeEx.setUseCount(nodeEx.getUseCount() + 1);
+            if (mm.getNodeIdOfObservers() != null) {
+                for (int nodeId : mm.getNodeIdOfObservers()) {
+                    RaftNodeEx nodeEx = allNodesEx.get(nodeId);
+                    nodeEx.setUseCount(nodeEx.getUseCount() + 1);
+                }
             }
             return true;
         });
