@@ -43,7 +43,7 @@ public class RaftUtil {
 
     public static List<RaftNode> parseServers(int selfId, String serversStr) {
         String[] servers = serversStr.split(";");
-        if (servers == null || servers.length == 0) {
+        if (servers.length == 0) {
             throw new RaftException("servers list is empty");
         }
         try {
@@ -251,6 +251,7 @@ public class RaftUtil {
                     raftStatus.setError(true);
                 }
                 try {
+                    //noinspection BusyWait
                     Thread.sleep(sleepMillis);
                 } catch (InterruptedException ex) {
                     throw new RaftException(ex);
