@@ -56,8 +56,9 @@ public class MemberManager {
 
     private final List<RaftMember> members;
     private final List<RaftMember> observers;
-    private final List<RaftMember> jointConsensusMembers;
-    private final List<RaftMember> jointConsensusObservers;
+
+    private List<RaftMember> jointConsensusMembers = Collections.emptyList();
+    private List<RaftMember> jointConsensusObservers = Collections.emptyList();
 
     private final EventSource eventSource;
 
@@ -74,8 +75,6 @@ public class MemberManager {
 
         this.members = raftStatus.getMembers();
         this.observers = raftStatus.getObservers();
-        this.jointConsensusMembers = raftStatus.getJointConsensusMembers();
-        this.jointConsensusObservers = raftStatus.getJointConsensusObservers();
 
         this.eventSource = new EventSource(executor);
     }
@@ -249,12 +248,9 @@ public class MemberManager {
                 RaftMember m = currentNodes.get(node.getNodeId());
                 newObservers.add(Objects.requireNonNullElseGet(m, () -> new RaftMember(node)));
             }
-            jointConsensusMembers.clear();
-            jointConsensusMembers.addAll(newMembers);
-            jointConsensusObservers.clear();
-            jointConsensusObservers.addAll(newObservers);
-
-            nodeIdOfJointConsensusMembers = ids;
+            this.jointConsensusMembers = newMembers;
+            this.jointConsensusObservers = newObservers;
+            this.nodeIdOfJointConsensusMembers = ids;
         });
     }
 
@@ -271,8 +267,8 @@ public class MemberManager {
             }
 
             this.nodeIdOfJointConsensusMembers = Collections.emptySet();
-            this.jointConsensusMembers.clear();
-            this.jointConsensusObservers.clear();
+            this.jointConsensusMembers = Collections.emptyList();
+            this.jointConsensusObservers = Collections.emptyList();
             f.complete(ids);
         });
         return f;
@@ -293,7 +289,6 @@ public class MemberManager {
             this.nodeIdOfObservers = jointConsensusObservers.stream()
                     .map(m -> m.getNode().getNodeId())
                     .collect(Collectors.toSet());
-            this.nodeIdOfJointConsensusMembers = Collections.emptySet();
 
             this.members.clear();
             this.members.addAll(jointConsensusMembers);
@@ -301,8 +296,9 @@ public class MemberManager {
             this.observers.clear();
             this.observers.addAll(jointConsensusObservers);
 
-            this.jointConsensusMembers.clear();
-            this.jointConsensusObservers.clear();
+            this.nodeIdOfJointConsensusMembers = Collections.emptySet();
+            this.jointConsensusMembers = Collections.emptyList();
+            this.jointConsensusObservers = Collections.emptyList();
             f.complete(ids);
         });
         return f;
