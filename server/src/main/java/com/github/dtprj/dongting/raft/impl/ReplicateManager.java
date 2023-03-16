@@ -92,25 +92,24 @@ class ReplicateManager {
 
     @SuppressWarnings("ForLoopReplaceableByWhile")
     public void replicateAfterRaftExec(RaftStatus raftStatus) {
-        List<RaftMember> list = raftStatus.getAllMembers();
+        List<RaftMember> list = raftStatus.getMembers();
         int len = list.size();
         for (int i = 0; i < len; i++) {
-            RaftMember node = list.get(i);
-            if (node.getNode().isSelf()) {
-                continue;
-            }
-            replicate(node);
+            replicate(list, i);
         }
         list = raftStatus.getObservers();
         len = list.size();
         for (int i = 0; i < len; i++) {
-            RaftMember node = list.get(i);
-            if (node.getNode().isSelf()) {
-                BugLog.getLog().error("self is observer, groupId: {}", groupId);
-                continue;
-            }
-            replicate(node);
+            replicate(list, i);
         }
+    }
+
+    private void replicate(List<RaftMember> list, int i) {
+        RaftMember node = list.get(i);
+        if (node.getNode().isSelf()) {
+            return;
+        }
+        replicate(node);
     }
 
     @SuppressWarnings("StatementWithEmptyBody")

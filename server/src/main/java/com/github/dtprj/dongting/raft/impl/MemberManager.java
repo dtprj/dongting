@@ -69,7 +69,7 @@ public class MemberManager {
         this.nodeIdOfMembers = nodeIdOfMembers;
         this.nodeIdOfObservers = Objects.requireNonNullElse(nodeIdOfObservers, Collections.emptySet());
 
-        this.allMembers = raftStatus.getAllMembers();
+        this.allMembers = raftStatus.getMembers();
         this.observers = raftStatus.getObservers();
 
         this.eventSource = new EventSource(executor);

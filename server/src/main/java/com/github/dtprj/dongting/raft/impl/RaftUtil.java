@@ -97,7 +97,7 @@ public class RaftUtil {
     @SuppressWarnings("ForLoopReplaceableByForEach")
     public static void updateLease(long currentReqNanos, RaftStatus raftStatus) {
         int order = 0;
-        List<RaftMember> allMembers = raftStatus.getAllMembers();
+        List<RaftMember> allMembers = raftStatus.getMembers();
         int len = allMembers.size();
         for (int i = 0; i < len; i++) {
             RaftMember node = allMembers.get(i);
@@ -125,7 +125,7 @@ public class RaftUtil {
         raftStatus.setLeaseStartNanos(0);
         raftStatus.setPendingRequests(new PendingMap());
         raftStatus.setCurrentLeader(null);
-        for (RaftMember node : raftStatus.getAllMembers()) {
+        for (RaftMember node : raftStatus.getMembers()) {
             node.setMatchIndex(0);
             node.setNextIndex(0);
             node.setPendingStat(new PendingStat());
@@ -201,7 +201,7 @@ public class RaftUtil {
         log.info("change to leader. term={}", raftStatus.getCurrentTerm());
         resetStatus(raftStatus);
         raftStatus.setRole(RaftRole.leader);
-        for (RaftMember node : raftStatus.getAllMembers()) {
+        for (RaftMember node : raftStatus.getMembers()) {
             node.setNextIndex(raftStatus.getLastLogIndex() + 1);
         }
     }
@@ -212,7 +212,7 @@ public class RaftUtil {
             return;
         }
         boolean found = false;
-        for (RaftMember node : raftStatus.getAllMembers()) {
+        for (RaftMember node : raftStatus.getMembers()) {
             if (node.getNode().getNodeId() == leaderId) {
                 raftStatus.setCurrentLeader(node);
                 found = true;

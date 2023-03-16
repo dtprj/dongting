@@ -64,7 +64,7 @@ public class Raft {
         if (self != null) {
             return self;
         }
-        for (RaftMember node : raftStatus.getAllMembers()) {
+        for (RaftMember node : raftStatus.getMembers()) {
             if (node.getNode().isSelf()) {
                 this.self = node;
                 break;
