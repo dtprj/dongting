@@ -32,6 +32,7 @@ import com.github.dtprj.dongting.raft.server.RaftNode;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -280,23 +281,9 @@ public class NodeManager extends AbstractLifeCircle {
         return f;
     }
 
-    public CompletableFuture<Void> prepareJointConsensus(int groupId, Set<Integer> members, Set<Integer> observers) {
+    public CompletableFuture<Void> prepareJointConsensus(int groupId, Set<Integer> memberIds, Set<Integer> observerIds) {
         CompletableFuture<Void> f = new CompletableFuture<>();
         RaftUtil.SCHEDULED_SERVICE.submit(() -> {
-            for (Integer nodeId : members) {
-                if (allNodesEx.get(nodeId) == null) {
-                    f.completeExceptionally(new RaftException("node not exist: " + nodeId));
-                    return;
-                }
-            }
-            if (observers != null) {
-                for (Integer nodeId : observers) {
-                    if (allNodesEx.get(nodeId) == null) {
-                        f.completeExceptionally(new RaftException("node not exist: " + nodeId));
-                        return;
-                    }
-                }
-            }
             GroupComponents gc = groupComponentsMap.get(groupId);
             if (gc == null) {
                 f.completeExceptionally(new RaftException("group not exist: " + groupId));
@@ -307,19 +294,46 @@ public class NodeManager extends AbstractLifeCircle {
                 return;
             }
 
-            // now begin update
-            for (Integer nodeId : members) {
-                RaftNodeEx nodeEx = allNodesEx.get(nodeId);
-                nodeEx.setUseCount(nodeEx.getUseCount() + 1);
-            }
-            if (observers != null) {
-                for (Integer nodeId : observers) {
-                    RaftNodeEx nodeEx = allNodesEx.get(nodeId);
-                    nodeEx.setUseCount(nodeEx.getUseCount() + 1);
+            List<RaftNodeEx> memberNodes = new ArrayList<>(memberIds.size());
+            for (Integer nodeId : memberIds) {
+                if (allNodesEx.get(nodeId) == null) {
+                    f.completeExceptionally(new RaftException("node not exist: " + nodeId));
+                    return;
+                } else {
+                    memberNodes.add(allNodesEx.get(nodeId));
                 }
             }
+            List<RaftNodeEx> observerNodes;
+            if (observerIds != null) {
+                observerNodes = new ArrayList<>(observerIds.size());
+                for (Integer nodeId : observerIds) {
+                    if (allNodesEx.get(nodeId) == null) {
+                        f.completeExceptionally(new RaftException("node not exist: " + nodeId));
+                        return;
+                    } else {
+                        observerNodes.add(allNodesEx.get(nodeId));
+                    }
+                }
+            } else {
+                observerNodes = Collections.emptyList();
+            }
+
+            for (RaftNodeEx nodeEx : observerNodes) {
+                if (observerIds.contains(nodeEx.getNodeId())) {
+                    f.completeExceptionally(new RaftException("node is both member and observer: " + nodeEx.getNodeId()));
+                    return;
+                }
+            }
+
+            // now begin update
+            for (RaftNodeEx nodeEx : memberNodes) {
+                nodeEx.setUseCount(nodeEx.getUseCount() + 1);
+            }
+            for (RaftNodeEx nodeEx : observerNodes) {
+                nodeEx.setUseCount(nodeEx.getUseCount() + 1);
+            }
             gc.setInChange(true);
-            gc.getMemberManager().prepareJointConsensus(members, observers)
+            gc.getMemberManager().prepareJointConsensus(memberNodes, observerNodes)
                     .thenRun(() -> f.complete(null));
         });
         return f;

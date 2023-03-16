@@ -169,8 +169,12 @@ public class RaftServer extends AbstractLifeCircle {
 
             HashSet<Integer> nodeIdOfMembers = new HashSet<>();
             parseMemberIds(allNodeIds, nodeIdOfMembers, rgc.getNodeIdOfMembers(), rgc.getGroupId());
+            if (nodeIdOfMembers.size() == 0) {
+                throw new IllegalArgumentException("no member in group: " + rgc.getGroupId());
+            }
+
             HashSet<Integer> nodeIdOfObservers = null;
-            if (rgc.getNodeIdOfObservers() != null) {
+            if (rgc.getNodeIdOfObservers() != null && rgc.getNodeIdOfObservers().trim().length() > 0) {
                 nodeIdOfObservers = new HashSet<>();
                 parseMemberIds(allNodeIds, nodeIdOfObservers, rgc.getNodeIdOfObservers(), rgc.getGroupId());
             }

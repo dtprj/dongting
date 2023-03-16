@@ -51,6 +51,8 @@ public class RaftStatus {
     private final int rwQuorum;
     private final List<RaftMember> members = new ArrayList<>();
     private final List<RaftMember> observers = new ArrayList<>();
+    private final List<RaftMember> jointConsensusMembers = new ArrayList<>();
+    private final List<RaftMember> jointConsensusObservers = new ArrayList<>();
 
     private PendingMap pendingRequests;
     private long firstCommitIndexOfCurrentTerm;
@@ -226,6 +228,14 @@ public class RaftStatus {
 
     public List<RaftMember> getObservers() {
         return observers;
+    }
+
+    public List<RaftMember> getJointConsensusMembers() {
+        return jointConsensusMembers;
+    }
+
+    public List<RaftMember> getJointConsensusObservers() {
+        return jointConsensusObservers;
     }
 
     public PendingMap getPendingRequests() {
