@@ -90,26 +90,17 @@ class ReplicateManager {
         this.readSnapshotFailTime = ts.getNanoTime() - TimeUnit.SECONDS.toNanos(10);
     }
 
-    @SuppressWarnings("ForLoopReplaceableByWhile")
+    @SuppressWarnings("ForLoopReplaceableByForEach")
     public void replicateAfterRaftExec(RaftStatus raftStatus) {
-        List<RaftMember> list = raftStatus.getMembers();
+        List<RaftMember> list = raftStatus.getReplicateList();
         int len = list.size();
         for (int i = 0; i < len; i++) {
-            replicate(list, i);
+            RaftMember node = list.get(i);
+            if (node.getNode().isSelf()) {
+                continue;
+            }
+            replicate(node);
         }
-        list = raftStatus.getObservers();
-        len = list.size();
-        for (int i = 0; i < len; i++) {
-            replicate(list, i);
-        }
-    }
-
-    private void replicate(List<RaftMember> list, int i) {
-        RaftMember node = list.get(i);
-        if (node.getNode().isSelf()) {
-            return;
-        }
-        replicate(node);
     }
 
     @SuppressWarnings("StatementWithEmptyBody")

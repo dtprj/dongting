@@ -36,7 +36,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 /**
  * @author huangli
@@ -52,11 +51,11 @@ public class MemberManager {
     private Set<Integer> nodeIdOfMembers;
     private Set<Integer> nodeIdOfObservers;
 
-    private Set<Integer> nodeIdOfJointConsensusMembers = Collections.emptySet();
-
     private final List<RaftMember> members;
-    private final List<RaftMember> observers;
+    private List<RaftMember> observers;
+    private final List<RaftMember> replicateList;
 
+    private Set<Integer> nodeIdOfJointConsensusMembers = Collections.emptySet();
     private List<RaftMember> jointConsensusMembers = Collections.emptyList();
     private List<RaftMember> jointConsensusObservers = Collections.emptyList();
 
@@ -74,33 +73,54 @@ public class MemberManager {
         this.nodeIdOfObservers = Objects.requireNonNullElse(nodeIdOfObservers, Collections.emptySet());
 
         this.members = raftStatus.getMembers();
-        this.observers = raftStatus.getObservers();
+        this.replicateList = raftStatus.getReplicateList();
 
         this.eventSource = new EventSource(executor);
     }
 
-
     public void init(IntObjMap<RaftNodeEx> allNodes) {
         for (int nodeId : nodeIdOfMembers) {
-            RaftNodeEx node = allNodes.get(nodeId);
-            members.add(new RaftMember(node));
+            RaftMember m = new RaftMember(allNodes.get(nodeId));
+            members.add(m);
         }
-        for (int nodeId : nodeIdOfObservers) {
-            RaftNodeEx node = allNodes.get(nodeId);
-            observers.add(new RaftMember(node));
+        if (nodeIdOfObservers.size() > 0) {
+            observers = new ArrayList<>();
+            for (int nodeId : nodeIdOfObservers) {
+                RaftMember m = new RaftMember(allNodes.get(nodeId));
+                observers.add(m);
+            }
         }
+        computeDuplicatedData();
     }
 
-    public void ensureRaftMemberStatus() {
-        ensureRaftMemberStatus(members);
-        ensureRaftMemberStatus(observers);
+    private void computeDuplicatedData(){
+        replicateList.clear();
+        Set<Integer> memberIds = new HashSet<>();
+        Set<Integer> observerIds = new HashSet<>();
+        Set<Integer> jointMemberIds = new HashSet<>();
+        for (RaftMember m : members) {
+            replicateList.add(m);
+            memberIds.add(m.getNode().getNodeId());
+        }
+        for (RaftMember m : observers) {
+            replicateList.add(m);
+            observerIds.add(m.getNode().getNodeId());
+        }
+        for (RaftMember m : jointConsensusMembers) {
+            replicateList.add(m);
+            jointMemberIds.add(m.getNode().getNodeId());
+        }
+        this.nodeIdOfMembers = memberIds;
+        this.nodeIdOfObservers = observerIds.size() == 0 ? Collections.emptySet() : observerIds;
+        this.nodeIdOfJointConsensusMembers = jointMemberIds.size() == 0 ? Collections.emptySet() : jointMemberIds;
     }
 
     @SuppressWarnings("ForLoopReplaceableByForEach")
-    private void ensureRaftMemberStatus(List<RaftMember> list) {
-        int len = list.size();
+    public void ensureRaftMemberStatus() {
+        List<RaftMember> replicateList = this.replicateList;
+        int len = replicateList.size();
         for (int i = 0; i < len; i++) {
-            RaftMember member = list.get(i);
+            RaftMember member = replicateList.get(i);
             check(member);
         }
     }
@@ -217,19 +237,14 @@ public class MemberManager {
         return nodeIdOfMembers.contains(nodeId) || nodeIdOfJointConsensusMembers != null && nodeIdOfJointConsensusMembers.contains(nodeId);
     }
 
-    private CompletableFuture<Void> run(Runnable runnable) {
+    public CompletableFuture<Void> prepareJointConsensus(List<RaftNodeEx> newMemberNodes, List<RaftNodeEx> newObserverNodes) {
         CompletableFuture<Void> f = new CompletableFuture<>();
         executor.execute(() -> {
-            runnable.run();
-            f.complete(null);
-        });
-        return f;
-    }
+            if (nodeIdOfJointConsensusMembers.size() != 0 || jointConsensusObservers.size() != 0 || jointConsensusMembers.size() != 0) {
+                f.completeExceptionally(new IllegalStateException("joint consensus is prepared"));
+                return;
+            }
 
-    public CompletableFuture<Void> prepareJointConsensus(List<RaftNodeEx> newMemberNodes, List<RaftNodeEx> newObserverNodes) {
-        return run(() -> {
-            List<RaftMember> newMembers = new ArrayList<>();
-            List<RaftMember> newObservers = new ArrayList<>();
             IntObjMap<RaftMember> currentNodes = new IntObjMap<>();
             for (RaftMember m : members) {
                 currentNodes.put(m.getNode().getNodeId(), m);
@@ -238,9 +253,9 @@ public class MemberManager {
                 currentNodes.put(m.getNode().getNodeId(), m);
             }
 
-            HashSet<Integer> ids = new HashSet<>();
+            List<RaftMember> newMembers = new ArrayList<>();
+            List<RaftMember> newObservers = new ArrayList<>();
             for (RaftNodeEx node : newMemberNodes) {
-                ids.add(node.getNodeId());
                 RaftMember m = currentNodes.get(node.getNodeId());
                 newMembers.add(Objects.requireNonNullElseGet(m, () -> new RaftMember(node)));
             }
@@ -250,8 +265,12 @@ public class MemberManager {
             }
             this.jointConsensusMembers = newMembers;
             this.jointConsensusObservers = newObservers;
-            this.nodeIdOfJointConsensusMembers = ids;
+
+            computeDuplicatedData();
+
+            f.complete(null);
         });
+        return f;
     }
 
     public CompletableFuture<Set<Integer>> dropJointConsensus() {
@@ -262,13 +281,13 @@ public class MemberManager {
                 return;
             }
             HashSet<Integer> ids = new HashSet<>(nodeIdOfJointConsensusMembers);
-            for(RaftMember m : jointConsensusObservers) {
+            for (RaftMember m : jointConsensusObservers) {
                 ids.add(m.getNode().getNodeId());
             }
 
-            this.nodeIdOfJointConsensusMembers = Collections.emptySet();
             this.jointConsensusMembers = Collections.emptyList();
             this.jointConsensusObservers = Collections.emptyList();
+            computeDuplicatedData();
             f.complete(ids);
         });
         return f;
@@ -285,20 +304,15 @@ public class MemberManager {
             HashSet<Integer> ids = new HashSet<>(nodeIdOfMembers);
             ids.addAll(nodeIdOfObservers);
 
-            this.nodeIdOfMembers = nodeIdOfJointConsensusMembers;
-            this.nodeIdOfObservers = jointConsensusObservers.stream()
-                    .map(m -> m.getNode().getNodeId())
-                    .collect(Collectors.toSet());
-
             this.members.clear();
             this.members.addAll(jointConsensusMembers);
 
             this.observers.clear();
             this.observers.addAll(jointConsensusObservers);
 
-            this.nodeIdOfJointConsensusMembers = Collections.emptySet();
             this.jointConsensusMembers = Collections.emptyList();
             this.jointConsensusObservers = Collections.emptyList();
+            computeDuplicatedData();
             f.complete(ids);
         });
         return f;
