@@ -56,7 +56,7 @@ public class MemberManager {
     private final List<RaftMember> replicateList;
 
     private Set<Integer> nodeIdOfJointConsensusMembers = Collections.emptySet();
-    private List<RaftMember> jointConsensusMembers = Collections.emptyList();
+    private final List<RaftMember> jointConsensusMembers;
     private List<RaftMember> jointConsensusObservers = Collections.emptyList();
 
     private final EventSource eventSource;
@@ -73,6 +73,7 @@ public class MemberManager {
         this.nodeIdOfObservers = Objects.requireNonNullElse(nodeIdOfObservers, Collections.emptySet());
 
         this.members = raftStatus.getMembers();
+        this.jointConsensusMembers = raftStatus.getJointConsensusMembers();
         this.replicateList = raftStatus.getReplicateList();
 
         this.eventSource = new EventSource(executor);
@@ -263,7 +264,7 @@ public class MemberManager {
                 RaftMember m = currentNodes.get(node.getNodeId());
                 newObservers.add(Objects.requireNonNullElseGet(m, () -> new RaftMember(node)));
             }
-            this.jointConsensusMembers = newMembers;
+            this.jointConsensusMembers.addAll(newMembers);
             this.jointConsensusObservers = newObservers;
 
             computeDuplicatedData();
@@ -285,7 +286,7 @@ public class MemberManager {
                 ids.add(m.getNode().getNodeId());
             }
 
-            this.jointConsensusMembers = Collections.emptyList();
+            this.jointConsensusMembers.clear();
             this.jointConsensusObservers = Collections.emptyList();
             computeDuplicatedData();
             f.complete(ids);
@@ -310,7 +311,7 @@ public class MemberManager {
             this.observers.clear();
             this.observers.addAll(jointConsensusObservers);
 
-            this.jointConsensusMembers = Collections.emptyList();
+            this.jointConsensusMembers.clear();
             this.jointConsensusObservers = Collections.emptyList();
             computeDuplicatedData();
             f.complete(ids);

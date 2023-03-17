@@ -43,9 +43,7 @@ class CommitManager {
     void tryCommit(long recentMatchIndex) {
         RaftStatus raftStatus = this.raftStatus;
 
-        boolean needCommit = RaftUtil.needCommit(raftStatus.getCommitIndex(), recentMatchIndex,
-                raftStatus.getMembers(), raftStatus.getRwQuorum());
-        if (!needCommit) {
+        if (!needCommit(recentMatchIndex, raftStatus)) {
             return;
         }
         // leader can only commit log in current term, see raft paper 5.4.2
@@ -84,5 +82,15 @@ class CommitManager {
             raftStatus.getFirstCommitOfApplied().complete(null);
             raftStatus.setFirstCommitOfApplied(null);
         }
+    }
+
+    private static boolean needCommit(long recentMatchIndex, RaftStatus raftStatus) {
+        boolean needCommit = RaftUtil.needCommit(raftStatus.getCommitIndex(), recentMatchIndex,
+                raftStatus.getMembers(), raftStatus.getRwQuorum());
+        if (needCommit && raftStatus.getJointConsensusMembers().size() > 0) {
+            needCommit = RaftUtil.needCommit(raftStatus.getCommitIndex(), recentMatchIndex,
+                    raftStatus.getJointConsensusMembers(), raftStatus.getRwQuorum());
+        }
+        return needCommit;
     }
 }

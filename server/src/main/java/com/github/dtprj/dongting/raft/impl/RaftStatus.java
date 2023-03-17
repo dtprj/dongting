@@ -50,6 +50,7 @@ public class RaftStatus {
     private final int electQuorum;
     private final int rwQuorum;
     private final List<RaftMember> members = new ArrayList<>();
+    private final List<RaftMember> jointConsensusMembers = new ArrayList<>();
     private final List<RaftMember> replicateList = new ArrayList<>();
 
     private PendingMap pendingRequests;
@@ -222,6 +223,10 @@ public class RaftStatus {
 
     public List<RaftMember> getMembers() {
         return members;
+    }
+
+    public List<RaftMember> getJointConsensusMembers() {
+        return jointConsensusMembers;
     }
 
     public List<RaftMember> getReplicateList() {
