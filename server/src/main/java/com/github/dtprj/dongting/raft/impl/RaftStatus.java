@@ -23,8 +23,8 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -49,9 +49,16 @@ public class RaftStatus {
     private final Timestamp ts = new Timestamp();
     private final int electQuorum;
     private final int rwQuorum;
-    private final List<RaftMember> members = new ArrayList<>();
-    private final List<RaftMember> jointConsensusMembers = new ArrayList<>();
-    private final List<RaftMember> replicateList = new ArrayList<>();
+
+    private List<RaftMember> members;
+    private List<RaftMember> observers;
+    private List<RaftMember> jointConsensusMembers;
+
+    private Set<Integer> nodeIdOfMembers;
+    private Set<Integer> nodeIdOfObservers;
+    private Set<Integer> nodeIdOfJointConsensusMembers;
+
+    private List<RaftMember> replicateList;
 
     private PendingMap pendingRequests;
     private long firstCommitIndexOfCurrentTerm;
@@ -225,12 +232,56 @@ public class RaftStatus {
         return members;
     }
 
+    public void setMembers(List<RaftMember> members) {
+        this.members = members;
+    }
+
+    public List<RaftMember> getObservers() {
+        return observers;
+    }
+
+    public void setObservers(List<RaftMember> observers) {
+        this.observers = observers;
+    }
+
     public List<RaftMember> getJointConsensusMembers() {
         return jointConsensusMembers;
     }
 
+    public void setJointConsensusMembers(List<RaftMember> jointConsensusMembers) {
+        this.jointConsensusMembers = jointConsensusMembers;
+    }
+
+    public Set<Integer> getNodeIdOfMembers() {
+        return nodeIdOfMembers;
+    }
+
+    public void setNodeIdOfMembers(Set<Integer> nodeIdOfMembers) {
+        this.nodeIdOfMembers = nodeIdOfMembers;
+    }
+
+    public Set<Integer> getNodeIdOfObservers() {
+        return nodeIdOfObservers;
+    }
+
+    public void setNodeIdOfObservers(Set<Integer> nodeIdOfObservers) {
+        this.nodeIdOfObservers = nodeIdOfObservers;
+    }
+
+    public Set<Integer> getNodeIdOfJointConsensusMembers() {
+        return nodeIdOfJointConsensusMembers;
+    }
+
+    public void setNodeIdOfJointConsensusMembers(Set<Integer> nodeIdOfJointConsensusMembers) {
+        this.nodeIdOfJointConsensusMembers = nodeIdOfJointConsensusMembers;
+    }
+
     public List<RaftMember> getReplicateList() {
         return replicateList;
+    }
+
+    public void setReplicateList(List<RaftMember> replicateList) {
+        this.replicateList = replicateList;
     }
 
     public PendingMap getPendingRequests() {

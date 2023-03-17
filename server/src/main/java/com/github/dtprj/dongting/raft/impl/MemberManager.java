@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IntObjMap;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.NioClient;
@@ -28,14 +29,15 @@ import com.github.dtprj.dongting.raft.rpc.RaftPingWriteFrame;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptySet;
 
 /**
  * @author huangli
@@ -48,16 +50,7 @@ public class MemberManager {
     private final NioClient client;
     private final RaftExecutor executor;
 
-    private Set<Integer> nodeIdOfMembers;
-    private Set<Integer> nodeIdOfObservers;
-
-    private final List<RaftMember> members;
-    private List<RaftMember> observers;
-    private final List<RaftMember> replicateList;
-
-    private Set<Integer> nodeIdOfJointConsensusMembers = Collections.emptySet();
-    private final List<RaftMember> jointConsensusMembers;
-    private List<RaftMember> jointConsensusObservers = Collections.emptyList();
+    private List<RaftMember> jointConsensusObservers;
 
     private final EventSource eventSource;
 
@@ -69,56 +62,57 @@ public class MemberManager {
         this.executor = executor;
         this.raftStatus = raftStatus;
         this.groupId = groupId;
-        this.nodeIdOfMembers = nodeIdOfMembers;
-        this.nodeIdOfObservers = Objects.requireNonNullElse(nodeIdOfObservers, Collections.emptySet());
-
-        this.members = raftStatus.getMembers();
-        this.jointConsensusMembers = raftStatus.getJointConsensusMembers();
-        this.replicateList = raftStatus.getReplicateList();
+        raftStatus.setNodeIdOfMembers(nodeIdOfMembers);
+        raftStatus.setNodeIdOfObservers(Objects.requireNonNullElse(nodeIdOfObservers, emptySet()));
 
         this.eventSource = new EventSource(executor);
     }
 
     public void init(IntObjMap<RaftNodeEx> allNodes) {
-        for (int nodeId : nodeIdOfMembers) {
+        for (int nodeId : raftStatus.getNodeIdOfMembers()) {
             RaftMember m = new RaftMember(allNodes.get(nodeId));
-            members.add(m);
+            raftStatus.getMembers().add(m);
         }
-        if (nodeIdOfObservers.size() > 0) {
-            observers = new ArrayList<>();
-            for (int nodeId : nodeIdOfObservers) {
+        if (raftStatus.getNodeIdOfObservers().size() > 0) {
+            List<RaftMember> observers = new ArrayList<>();
+            for (int nodeId : raftStatus.getNodeIdOfObservers()) {
                 RaftMember m = new RaftMember(allNodes.get(nodeId));
                 observers.add(m);
             }
+            raftStatus.setObservers(observers);
+        } else {
+            raftStatus.setObservers(emptyList());
         }
+        raftStatus.setJointConsensusMembers(emptyList());
         computeDuplicatedData();
     }
 
-    private void computeDuplicatedData(){
-        replicateList.clear();
+    private void computeDuplicatedData() {
+        ArrayList<RaftMember> replicateList = new ArrayList<>();
         Set<Integer> memberIds = new HashSet<>();
         Set<Integer> observerIds = new HashSet<>();
         Set<Integer> jointMemberIds = new HashSet<>();
-        for (RaftMember m : members) {
+        for (RaftMember m : raftStatus.getMembers()) {
             replicateList.add(m);
             memberIds.add(m.getNode().getNodeId());
         }
-        for (RaftMember m : observers) {
+        for (RaftMember m : raftStatus.getObservers()) {
             replicateList.add(m);
             observerIds.add(m.getNode().getNodeId());
         }
-        for (RaftMember m : jointConsensusMembers) {
+        for (RaftMember m : raftStatus.getJointConsensusMembers()) {
             replicateList.add(m);
             jointMemberIds.add(m.getNode().getNodeId());
         }
-        this.nodeIdOfMembers = memberIds;
-        this.nodeIdOfObservers = observerIds.size() == 0 ? Collections.emptySet() : observerIds;
-        this.nodeIdOfJointConsensusMembers = jointMemberIds.size() == 0 ? Collections.emptySet() : jointMemberIds;
+        raftStatus.setReplicateList(replicateList);
+        raftStatus.setNodeIdOfMembers(memberIds);
+        raftStatus.setNodeIdOfObservers(observerIds.size() == 0 ? emptySet() : observerIds);
+        raftStatus.setNodeIdOfJointConsensusMembers(jointMemberIds.size() == 0 ? emptySet() : jointMemberIds);
     }
 
     @SuppressWarnings("ForLoopReplaceableByForEach")
     public void ensureRaftMemberStatus() {
-        List<RaftMember> replicateList = this.replicateList;
+        List<RaftMember> replicateList = raftStatus.getReplicateList();
         int len = replicateList.size();
         for (int i = 0; i < len; i++) {
             RaftMember member = replicateList.get(i);
@@ -147,7 +141,8 @@ public class MemberManager {
 
         member.setPinging(true);
         DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        RaftPingWriteFrame f = new RaftPingWriteFrame(groupId, serverConfig.getNodeId(), nodeIdOfMembers, nodeIdOfObservers);
+        RaftPingWriteFrame f = new RaftPingWriteFrame(groupId, serverConfig.getNodeId(),
+                raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers());
         client.sendRequest(raftNodeEx.getPeer(), f, RaftPingProcessor.DECODER, timeout)
                 .whenCompleteAsync((rf, ex) -> processPingResult(raftNodeEx, member, rf, ex, nodeEpochWhenStartPing), executor);
     }
@@ -164,7 +159,8 @@ public class MemberManager {
                 log.error("raft ping error, group not found, groupId={}, remote={}",
                         groupId, raftNodeEx.getHostPort());
                 setReady(member, false);
-            } else if (checkMembers(callback)) {
+            } else if (raftStatus.getNodeIdOfMembers().equals(callback.nodeIdOfMembers)
+                    && raftStatus.getNodeIdOfObservers().equals(callback.nodeIdOfObservers)) {
                 NodeStatus currentNodeStatus = member.getNode().getStatus();
                 if (currentNodeStatus.isReady() && nodeEpochWhenStartPing == currentNodeStatus.getEpoch()) {
                     log.info("raft ping success, id={}, remote={}", callback.nodeId, raftNodeEx.getHostPort());
@@ -179,21 +175,10 @@ public class MemberManager {
                 }
             } else {
                 log.error("raft ping error, group ids not match: remote={}, localIds={}, remoteIds={}, localObservers={}, remoteObservers={}",
-                        raftNodeEx, nodeIdOfMembers, callback.nodeIdOfMembers, nodeIdOfObservers, callback.nodeIdOfObservers);
+                        raftNodeEx, raftStatus.getNodeIdOfMembers(), callback.nodeIdOfMembers, raftStatus.getNodeIdOfObservers(), callback.nodeIdOfObservers);
                 setReady(member, false);
             }
         }
-    }
-
-    private boolean checkMembers(RaftPingFrameCallback callback) {
-        return eq(nodeIdOfMembers, callback.nodeIdOfMembers) && eq(nodeIdOfObservers, callback.nodeIdOfObservers);
-    }
-
-    private boolean eq(Collection<?> c1, Collection<?> c2) {
-        if (c1 == null) {
-            return c2 == null;
-        }
-        return c1.equals(c2);
     }
 
     public void setReady(RaftMember member, boolean ready) {
@@ -214,16 +199,8 @@ public class MemberManager {
         return count;
     }
 
-    public Set<Integer> getNodeIdOfMembers() {
-        return nodeIdOfMembers;
-    }
-
-    public Set<Integer> getNodeIdOfObservers() {
-        return nodeIdOfObservers;
-    }
-
     public CompletableFuture<Void> createReadyFuture(int targetReadyCount) {
-        return eventSource.registerInOtherThreads(() -> getReadyCount(members) >= targetReadyCount);
+        return eventSource.registerInOtherThreads(() -> getReadyCount(raftStatus.getMembers()) >= targetReadyCount);
     }
 
     public boolean checkLeader(int nodeId) {
@@ -235,22 +212,29 @@ public class MemberManager {
     }
 
     public boolean checkMember(int nodeId) {
-        return nodeIdOfMembers.contains(nodeId) || nodeIdOfJointConsensusMembers != null && nodeIdOfJointConsensusMembers.contains(nodeId);
+        return raftStatus.getNodeIdOfMembers().contains(nodeId) || raftStatus.getNodeIdOfJointConsensusMembers().contains(nodeId);
+    }
+
+    private boolean hasPreparedState(){
+        return raftStatus.getNodeIdOfJointConsensusMembers().size() != 0
+                || jointConsensusObservers.size() != 0
+                || raftStatus.getJointConsensusMembers().size() != 0;
     }
 
     public CompletableFuture<Void> prepareJointConsensus(List<RaftNodeEx> newMemberNodes, List<RaftNodeEx> newObserverNodes) {
         CompletableFuture<Void> f = new CompletableFuture<>();
         executor.execute(() -> {
-            if (nodeIdOfJointConsensusMembers.size() != 0 || jointConsensusObservers.size() != 0 || jointConsensusMembers.size() != 0) {
+            if (hasPreparedState()) {
+                BugLog.getLog().error("joint consensus is prepared");
                 f.completeExceptionally(new IllegalStateException("joint consensus is prepared"));
                 return;
             }
 
             IntObjMap<RaftMember> currentNodes = new IntObjMap<>();
-            for (RaftMember m : members) {
+            for (RaftMember m : raftStatus.getMembers()) {
                 currentNodes.put(m.getNode().getNodeId(), m);
             }
-            for (RaftMember m : observers) {
+            for (RaftMember m : raftStatus.getMembers()) {
                 currentNodes.put(m.getNode().getNodeId(), m);
             }
 
@@ -264,7 +248,7 @@ public class MemberManager {
                 RaftMember m = currentNodes.get(node.getNodeId());
                 newObservers.add(Objects.requireNonNullElseGet(m, () -> new RaftMember(node)));
             }
-            this.jointConsensusMembers.addAll(newMembers);
+            raftStatus.setJointConsensusMembers(newMembers);
             this.jointConsensusObservers = newObservers;
 
             computeDuplicatedData();
@@ -277,17 +261,18 @@ public class MemberManager {
     public CompletableFuture<Set<Integer>> dropJointConsensus() {
         CompletableFuture<Set<Integer>> f = new CompletableFuture<>();
         executor.execute(() -> {
-            if (nodeIdOfJointConsensusMembers.size() == 0 || jointConsensusObservers.size() == 0 || jointConsensusMembers.size() == 0) {
+            if (!hasPreparedState()) {
+                BugLog.getLog().error("joint consensus not prepared");
                 f.completeExceptionally(new IllegalStateException("joint consensus not prepared"));
                 return;
             }
-            HashSet<Integer> ids = new HashSet<>(nodeIdOfJointConsensusMembers);
+            HashSet<Integer> ids = new HashSet<>(raftStatus.getNodeIdOfJointConsensusMembers());
             for (RaftMember m : jointConsensusObservers) {
                 ids.add(m.getNode().getNodeId());
             }
 
-            this.jointConsensusMembers.clear();
-            this.jointConsensusObservers = Collections.emptyList();
+            raftStatus.setJointConsensusMembers(emptyList());
+            this.jointConsensusObservers = emptyList();
             computeDuplicatedData();
             f.complete(ids);
         });
@@ -297,22 +282,20 @@ public class MemberManager {
     public CompletableFuture<Set<Integer>> commitJointConsensus() {
         CompletableFuture<Set<Integer>> f = new CompletableFuture<>();
         executor.execute(() -> {
-            if (nodeIdOfJointConsensusMembers.size() == 0 || jointConsensusObservers.size() == 0 || jointConsensusMembers.size() == 0) {
+            if (!hasPreparedState()) {
+                BugLog.getLog().error("joint consensus not prepared");
                 f.completeExceptionally(new IllegalStateException("joint consensus not prepared"));
                 return;
             }
 
-            HashSet<Integer> ids = new HashSet<>(nodeIdOfMembers);
-            ids.addAll(nodeIdOfObservers);
+            HashSet<Integer> ids = new HashSet<>(raftStatus.getNodeIdOfMembers());
+            ids.addAll(raftStatus.getNodeIdOfObservers());
 
-            this.members.clear();
-            this.members.addAll(jointConsensusMembers);
+            raftStatus.setMembers(raftStatus.getJointConsensusMembers());
+            raftStatus.setObservers(jointConsensusObservers);
 
-            this.observers.clear();
-            this.observers.addAll(jointConsensusObservers);
-
-            this.jointConsensusMembers.clear();
-            this.jointConsensusObservers = Collections.emptyList();
+            raftStatus.setJointConsensusMembers(emptyList());
+            this.jointConsensusObservers = emptyList();
             computeDuplicatedData();
             f.complete(ids);
         });

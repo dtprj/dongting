@@ -52,11 +52,11 @@ public class VoteProcessor extends ReqProcessor {
         VoteResp resp = new VoteResp();
         RaftStatus raftStatus = gc.getRaftStatus();
         if (gc.getMemberManager().checkMember(voteReq.getCandidateId())) {
-            RaftUtil.resetElectTimer(raftStatus);
             int localTerm = raftStatus.getCurrentTerm();
             if (voteReq.isPreVote()) {
                 processPreVote(raftStatus, voteReq, resp, localTerm);
             } else {
+                RaftUtil.resetElectTimer(raftStatus);
                 processVote(raftStatus, voteReq, resp, localTerm);
             }
             log.info("receive {} request. granted={}. reqTerm={}, localTerm={}",
@@ -98,11 +98,9 @@ public class VoteProcessor extends ReqProcessor {
             if (raftStatus.getVotedFor() == 0 || raftStatus.getVotedFor() == voteReq.getCandidateId()) {
                 if (voteReq.getLastLogTerm() > raftStatus.getLastLogTerm()) {
                     return true;
-                } else if (voteReq.getLastLogTerm() == raftStatus.getLastLogTerm()
-                        && voteReq.getLastLogIndex() >= raftStatus.getLastLogIndex()) {
-                    return true;
                 } else {
-                    return false;
+                    return voteReq.getLastLogTerm() == raftStatus.getLastLogTerm()
+                            && voteReq.getLastLogIndex() >= raftStatus.getLastLogIndex();
                 }
             } else {
                 return false;
