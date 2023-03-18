@@ -53,19 +53,18 @@ public class MemberManager {
     private List<RaftMember> jointConsensusObservers;
 
     private final EventSource eventSource;
+    private final EventBus eventBus;
 
     public MemberManager(RaftServerConfig serverConfig, NioClient client, RaftExecutor executor,
-                         RaftStatus raftStatus, int groupId, Set<Integer> nodeIdOfMembers,
-                         Set<Integer> nodeIdOfObservers) {
+                         RaftStatus raftStatus, int groupId, EventBus eventBus) {
         this.serverConfig = serverConfig;
         this.client = client;
         this.executor = executor;
         this.raftStatus = raftStatus;
         this.groupId = groupId;
-        raftStatus.setNodeIdOfMembers(nodeIdOfMembers);
-        raftStatus.setNodeIdOfObservers(Objects.requireNonNullElse(nodeIdOfObservers, emptySet()));
 
         this.eventSource = new EventSource(executor);
+        this.eventBus = eventBus;
     }
 
     public void init(IntObjMap<RaftNodeEx> allNodes) {
@@ -208,14 +207,18 @@ public class MemberManager {
         if (leader != null && leader.getNode().getNodeId() == nodeId) {
             return true;
         }
-        return checkMember(nodeId);
-    }
-
-    public boolean checkMember(int nodeId) {
         return raftStatus.getNodeIdOfMembers().contains(nodeId) || raftStatus.getNodeIdOfJointConsensusMembers().contains(nodeId);
     }
 
-    private boolean hasPreparedState(){
+    public static boolean validCandidate(RaftStatus raftStatus, int nodeId) {
+        if (raftStatus.getNodeIdOfJointConsensusMembers().size() > 0) {
+            return raftStatus.getNodeIdOfJointConsensusMembers().contains(nodeId);
+        } else {
+            return raftStatus.getNodeIdOfMembers().contains(nodeId);
+        }
+    }
+
+    private boolean hasPreparedState() {
         return raftStatus.getNodeIdOfJointConsensusMembers().size() != 0
                 || jointConsensusObservers.size() != 0
                 || raftStatus.getJointConsensusMembers().size() != 0;
@@ -253,6 +256,7 @@ public class MemberManager {
 
             computeDuplicatedData();
 
+            eventBus.fire(EventType.cancelVote, null);
             f.complete(null);
         });
         return f;
@@ -274,6 +278,7 @@ public class MemberManager {
             raftStatus.setJointConsensusMembers(emptyList());
             this.jointConsensusObservers = emptyList();
             computeDuplicatedData();
+            eventBus.fire(EventType.cancelVote, null);
             f.complete(ids);
         });
         return f;
@@ -297,6 +302,7 @@ public class MemberManager {
             raftStatus.setJointConsensusMembers(emptyList());
             this.jointConsensusObservers = emptyList();
             computeDuplicatedData();
+            eventBus.fire(EventType.cancelVote, null);
             f.complete(ids);
         });
         return f;

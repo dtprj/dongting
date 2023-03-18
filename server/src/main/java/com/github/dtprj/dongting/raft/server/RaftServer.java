@@ -31,6 +31,7 @@ import com.github.dtprj.dongting.net.NioConfig;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
 import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.impl.EventBus;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.NodeManager;
@@ -51,6 +52,7 @@ import com.github.dtprj.dongting.raft.rpc.VoteProcessor;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -167,26 +169,29 @@ public class RaftServer extends AbstractLifeCircle {
 
             Objects.requireNonNull(rgc.getNodeIdOfMembers());
 
+            EventBus eventBus = new EventBus();
+
             HashSet<Integer> nodeIdOfMembers = new HashSet<>();
             parseMemberIds(allNodeIds, nodeIdOfMembers, rgc.getNodeIdOfMembers(), rgc.getGroupId());
             if (nodeIdOfMembers.size() == 0) {
                 throw new IllegalArgumentException("no member in group: " + rgc.getGroupId());
             }
 
-            HashSet<Integer> nodeIdOfObservers = null;
+            Set<Integer> nodeIdOfObservers;
             if (rgc.getNodeIdOfObservers() != null && rgc.getNodeIdOfObservers().trim().length() > 0) {
                 nodeIdOfObservers = new HashSet<>();
                 parseMemberIds(allNodeIds, nodeIdOfObservers, rgc.getNodeIdOfObservers(), rgc.getGroupId());
-            }
-            if (nodeIdOfObservers != null) {
                 for (int id : nodeIdOfMembers) {
                     if (nodeIdOfObservers.contains(id)) {
                         throw new IllegalArgumentException("member and observer has same node: " + id);
                     }
                 }
+            } else {
+                nodeIdOfObservers = Collections.emptySet();
             }
+
             boolean isMember = nodeIdOfMembers.contains(serverConfig.getNodeId());
-            boolean isObserver = nodeIdOfObservers != null && nodeIdOfObservers.contains(serverConfig.getNodeId());
+            boolean isObserver = nodeIdOfObservers.contains(serverConfig.getNodeId());
             if (!isMember && !isObserver) {
                 throw new IllegalArgumentException("self id not found in group members/observers list: " + serverConfig.getNodeId());
             }
@@ -195,19 +200,23 @@ public class RaftServer extends AbstractLifeCircle {
             int rwQuorum = RaftUtil.getRwQuorum(nodeIdOfMembers.size());
             RaftStatus raftStatus = new RaftStatus(electQuorum, rwQuorum, isMember ? RaftRole.follower : RaftRole.observer);
             raftStatus.setRaftExecutor(raftExecutor);
+            raftStatus.setNodeIdOfMembers(nodeIdOfMembers);
+            raftStatus.setNodeIdOfObservers(nodeIdOfObservers);
 
             MemberManager memberManager = new MemberManager(serverConfig, raftClient, raftExecutor,
-                    raftStatus, rgc.getGroupId(), nodeIdOfMembers, nodeIdOfObservers);
+                    raftStatus, rgc.getGroupId(), eventBus);
             Raft raft = new Raft(serverConfig, rgc, raftStatus, raftLog, stateMachine, raftClient, raftExecutor);
             VoteManager voteManager = new VoteManager(serverConfig, rgc, raftStatus, raftClient, raftExecutor, raft);
+            eventBus.register(voteManager);
             RaftGroupThread raftGroupThread = new RaftGroupThread(serverConfig, rgc, raftStatus, raftLog, stateMachine, raftExecutor,
                     raft, memberManager, voteManager);
-            GroupComponents gc = new GroupComponents(serverConfig, rgc, raftLog, stateMachine, raftGroupThread, raftStatus, memberManager, voteManager);
+            GroupComponents gc = new GroupComponents(serverConfig, rgc, raftLog, stateMachine, raftGroupThread,
+                    raftStatus, memberManager, voteManager);
             groupComponentsMap.put(rgc.getGroupId(), gc);
         }
     }
 
-    private static void parseMemberIds(HashSet<Integer> allNodeIds, HashSet<Integer> nodeIdOfMembers, String str, int groupId) {
+    private static void parseMemberIds(Set<Integer> allNodeIds, Set<Integer> nodeIdOfMembers, String str, int groupId) {
         String[] membersStr = str.split(",");
         for (String idStr : membersStr) {
             int id = Integer.parseInt(idStr.trim());

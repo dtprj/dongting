@@ -29,7 +29,10 @@ import com.github.dtprj.dongting.raft.server.RaftNode;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -309,5 +312,12 @@ public class RaftUtil {
 
     public static int getRwQuorum(int groupSize) {
         return groupSize >= 4 && groupSize % 2 == 0 ? groupSize / 2 : groupSize / 2 + 1;
+    }
+
+    public static <T> Set<T> union(Collection<T> c1, Collection<T> c2) {
+        HashSet<T> set = new HashSet<>();
+        set.addAll(c1);
+        set.addAll(c2);
+        return set;
     }
 }

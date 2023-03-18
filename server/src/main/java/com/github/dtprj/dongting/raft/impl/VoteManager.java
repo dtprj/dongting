@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
@@ -28,15 +29,18 @@ import com.github.dtprj.dongting.raft.rpc.VoteResp;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 
 /**
  * @author huangli
  */
-public class VoteManager {
+public class VoteManager implements BiConsumer<EventType, Object> {
 
     private static final DtLog log = DtLogs.getLogger(VoteManager.class);
     private final Raft raft;
@@ -53,7 +57,6 @@ public class VoteManager {
     private int votePendingCount;
     private int currentVoteId;
 
-
     public VoteManager(RaftServerConfig serverConfig, RaftGroupConfig groupConfig, RaftStatus raftStatus,
                        NioClient client, RaftExecutor executor, Raft raft) {
         this.raft = raft;
@@ -62,6 +65,13 @@ public class VoteManager {
         this.config = serverConfig;
         this.groupId = groupConfig.getGroupId();
         this.raftExecutor = executor;
+    }
+
+    @Override
+    public void accept(EventType eventType, Object o) {
+        if (eventType == EventType.cancelVote) {
+            cancelVote();
+        }
     }
 
     public void cancelVote() {
@@ -92,9 +102,9 @@ public class VoteManager {
         }
     }
 
-    private int readyCount() {
+    private int readyCount(Collection<RaftMember> list) {
         int count = 0;
-        for (RaftMember member : raftStatus.getMembers()) {
+        for (RaftMember member : list) {
             if (member.isReady()) {
                 // include self
                 count++;
@@ -103,29 +113,51 @@ public class VoteManager {
         return count;
     }
 
+    private boolean readyNodeNotEnough(List<RaftMember> list, boolean preVote, boolean jointConsensus) {
+        if (list.size() == 0) {
+            // for joint consensus, if no member, return true
+            return false;
+        }
+        int count = readyCount(list);
+        if (count < RaftUtil.getElectQuorum(list.size())) {
+            log.warn("{} only {} node is ready, can't start {}. groupId={}, term={}",
+                    jointConsensus ? "[joint consensus]" : "", count,
+                    preVote ? "pre-vote" : "vote", groupId, raftStatus.getCurrentTerm());
+            return true;
+        }
+        return false;
+    }
+
     public void tryStartPreVote() {
         if (voting) {
             return;
         }
-        int count = readyCount();
+        if (!MemberManager.validCandidate(raftStatus, config.getNodeId())) {
+            log.info("not valid candidate, can't start pre vote. groupId={}, term={}",
+                    groupId, raftStatus.getCurrentTerm());
+            return;
+        }
 
         // move last elect time 1 seconds, prevent pre-vote too frequently if failed
         long newLastElectTime = raftStatus.getLastElectTime() + TimeUnit.SECONDS.toNanos(1);
         raftStatus.setLastElectTime(newLastElectTime);
 
-        if (count >= raftStatus.getElectQuorum()) {
-            initStatusForVoting(count);
-            log.info("{} node is ready, start pre vote. groupId={}, term={}, voteId={}",
-                    count, groupId, raftStatus.getCurrentTerm(), currentVoteId);
-            startPreVote();
-        } else if (count < raftStatus.getElectQuorum()) {
-            log.warn("only {} node is ready, can't start pre vote. groupId={}, term={}",
-                    count, groupId, raftStatus.getCurrentTerm());
+        if (readyNodeNotEnough(raftStatus.getMembers(), true, false)) {
+            return;
         }
+        if (readyNodeNotEnough(raftStatus.getJointConsensusMembers(), true, true)) {
+            return;
+        }
+
+        Set<RaftMember> voter = RaftUtil.union(raftStatus.getMembers(), raftStatus.getJointConsensusMembers());
+        initStatusForVoting(readyCount(voter));
+        log.info("node ready, start pre vote. groupId={}, term={}, voteId={}",
+                groupId, raftStatus.getCurrentTerm(), currentVoteId);
+        startPreVote(voter);
     }
 
-    private void startPreVote() {
-        for (RaftMember member : raftStatus.getMembers()) {
+    private void startPreVote(Set<RaftMember> voter) {
+        for (RaftMember member : voter) {
             if (!member.getNode().isSelf() && member.isReady()) {
                 sendRequest(member, true, 0);
             }
@@ -158,8 +190,23 @@ public class VoteManager {
         }
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
+    private boolean checkCandidate() {
+        if (MemberManager.validCandidate(raftStatus, config.getNodeId())) {
+            return true;
+        } else {
+            BugLog.getLog().error("not valid candidate, cancel vote. groupId={}, term={}",
+                    groupId, raftStatus.getCurrentTerm());
+            cancelVote();
+            return false;
+        }
+    }
+
     private Object processPreVoteResp(ReadFrame rf, Throwable ex, RaftMember remoteMember, VoteReq req, int voteIdOfRequest) {
         if (voteIdOfRequest != currentVoteId) {
+            return null;
+        }
+        if (!checkCandidate()) {
             return null;
         }
         int currentTerm = raftStatus.getCurrentTerm();
@@ -216,10 +263,12 @@ public class VoteManager {
     }
 
     private void startVote() {
-        int count = readyCount();
-        if (count < raftStatus.getElectQuorum()) {
-            log.warn("only {} node is ready, can't start vote. groupId={}, term={}",
-                    count, groupId, raftStatus.getCurrentTerm());
+        if (readyNodeNotEnough(raftStatus.getMembers(), false, false)) {
+            cancelVote();
+            return;
+        }
+        if (readyNodeNotEnough(raftStatus.getJointConsensusMembers(), false, true)) {
+            cancelVote();
             return;
         }
         RaftUtil.resetStatus(raftStatus);
@@ -228,9 +277,11 @@ public class VoteManager {
             raftStatus.setRole(RaftRole.candidate);
         }
 
+        Set<RaftMember> voter = RaftUtil.union(raftStatus.getMembers(), raftStatus.getJointConsensusMembers());
+
         raftStatus.setCurrentTerm(raftStatus.getCurrentTerm() + 1);
         raftStatus.setVotedFor(config.getNodeId());
-        initStatusForVoting(raftStatus.getMembers().size());
+        initStatusForVoting(voter.size());
         StatusUtil.updateStatusFile(raftStatus);
 
         log.info("start vote. groupId={}, newTerm={}, voteId={}", groupId, raftStatus.getCurrentTerm(), currentVoteId);
@@ -252,6 +303,9 @@ public class VoteManager {
     private Object processVoteResp(ReadFrame rf, Throwable ex, RaftMember remoteMember,
                                    VoteReq voteReq, int voteIdOfRequest, long leaseStartTime) {
         if (voteIdOfRequest != currentVoteId) {
+            return null;
+        }
+        if (!checkCandidate()) {
             return null;
         }
         if (ex == null) {

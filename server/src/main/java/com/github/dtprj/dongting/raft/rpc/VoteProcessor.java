@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
+import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.StatusUtil;
@@ -51,7 +52,7 @@ public class VoteProcessor extends ReqProcessor {
         GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, voteReq.getGroupId());
         VoteResp resp = new VoteResp();
         RaftStatus raftStatus = gc.getRaftStatus();
-        if (gc.getMemberManager().checkMember(voteReq.getCandidateId())) {
+        if (MemberManager.validCandidate(raftStatus, voteReq.getCandidateId())) {
             int localTerm = raftStatus.getCurrentTerm();
             if (voteReq.isPreVote()) {
                 processPreVote(raftStatus, voteReq, resp, localTerm);
