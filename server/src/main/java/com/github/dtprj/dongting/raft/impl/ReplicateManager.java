@@ -250,8 +250,8 @@ class ReplicateManager {
         }
         if (body.isSuccess()) {
             if (member.getMatchIndex() <= prevLogIndex) {
-                member.setLastConfirm(true, reqNanos);
-                RaftUtil.updateLease(reqNanos, raftStatus);
+                member.setLastConfirmReqNanos(reqNanos);
+                RaftUtil.updateLease(raftStatus);
                 member.setMatchIndex(expectNewMatchIndex);
                 member.setMultiAppend(true);
                 commitManager.tryCommit(expectNewMatchIndex);
@@ -281,9 +281,9 @@ class ReplicateManager {
         log.info("log not match. remoteId={}, groupId={}, matchIndex={}, prevLogIndex={}, prevLogTerm={}, remoteLogTerm={}, remoteLogIndex={}, localTerm={}, reqTerm={}, remoteTerm={}",
                 member.getNode().getNodeId(), groupId, member.getMatchIndex(), prevLogIndex, prevLogTerm, body.getMaxLogTerm(),
                 body.getMaxLogIndex(), raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
-        member.setLastConfirm(true, reqNanos);
+        member.setLastConfirmReqNanos(reqNanos);
         member.setMultiAppend(false);
-        RaftUtil.updateLease(reqNanos, raftStatus);
+        RaftUtil.updateLease(raftStatus);
         if (body.getTerm() == raftStatus.getCurrentTerm() && reqTerm == raftStatus.getCurrentTerm()) {
             member.setNextIndex(body.getMaxLogIndex() + 1);
             replicate(member);

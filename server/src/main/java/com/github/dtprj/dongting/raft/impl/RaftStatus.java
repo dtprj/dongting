@@ -69,6 +69,7 @@ public class RaftStatus {
     private long electTimeoutNanos; // shared
 
     private long leaseStartNanos; // shared
+    private long[] leaseComputeArray = new long[0];
 
     private long lastElectTime;
     private long heartbeatTime;
@@ -374,5 +375,17 @@ public class RaftStatus {
 
     public void setStatusFile(File statusFile) {
         this.statusFile = statusFile;
+    }
+
+    public long[] getLeaseComputeArray() {
+        return leaseComputeArray;
+    }
+
+    public void setLeaseComputeArray(long[] leaseComputeArray) {
+        this.leaseComputeArray = leaseComputeArray;
+    }
+
+    public long getLeaseStartNanos() {
+        return leaseStartNanos;
     }
 }

@@ -244,7 +244,7 @@ public class VoteManager {
                     descPending(currentVoteId);
                 }
             } else {
-                member.setLastConfirm(true, leaseStartTime);
+                member.setLastConfirmReqNanos(leaseStartTime);
             }
         }
     }
@@ -281,12 +281,12 @@ public class VoteManager {
                         voteReq.getTerm(), remoteMember.getNode().getNodeId(), groupId);
                 if (voteResp.isVoteGranted()) {
                     votes.add(remoteMember.getNode().getNodeId());
-                    remoteMember.setLastConfirm(true, leaseStartTime);
+                    remoteMember.setLastConfirmReqNanos(leaseStartTime);
 
                     if (voteSuccess(remoteMember.getNode().getNodeId(), false)) {
                         log.info("vote success, change to leader. groupId={}, term={}", groupId, raftStatus.getCurrentTerm());
                         RaftUtil.changeToLeader(raftStatus);
-                        RaftUtil.updateLease(leaseStartTime, raftStatus);
+                        RaftUtil.updateLease(raftStatus);
                         cancelVote();
                         raft.sendHeartBeat();
                     }

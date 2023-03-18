@@ -29,7 +29,6 @@ public class RaftMember {
     private PendingStat pendingStat;
 
     private long lastConfirmReqNanos;
-    private boolean hasLastConfirmReqNanos;
 
     private boolean installSnapshot;
     private SnapshotInfo snapshotInfo;
@@ -42,12 +41,9 @@ public class RaftMember {
         this.node = node;
     }
 
-    public void setLastConfirm(boolean hasLastConfirmReqNanos, long lastConfirmReqNanos) {
-        this.hasLastConfirmReqNanos = hasLastConfirmReqNanos;
+    public void setLastConfirmReqNanos(long lastConfirmReqNanos) {
         this.lastConfirmReqNanos = lastConfirmReqNanos;
     }
-
-    //-------------------------getter and setters-------------------------------
 
     public RaftNodeEx getNode() {
         return node;
@@ -95,10 +91,6 @@ public class RaftMember {
 
     public long getLastConfirmReqNanos() {
         return lastConfirmReqNanos;
-    }
-
-    public boolean isHasLastConfirmReqNanos() {
-        return hasLastConfirmReqNanos;
     }
 
     public boolean isInstallSnapshot() {

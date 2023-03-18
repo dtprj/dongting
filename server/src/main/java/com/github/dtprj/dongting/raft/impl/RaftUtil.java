@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftNode;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -94,23 +95,45 @@ public class RaftUtil {
         return count >= rwQuorum;
     }
 
-    @SuppressWarnings("ForLoopReplaceableByForEach")
-    public static void updateLease(long currentReqNanos, RaftStatus raftStatus) {
-        int order = 0;
-        List<RaftMember> allMembers = raftStatus.getMembers();
-        int len = allMembers.size();
+    public static void updateLease(RaftStatus raftStatus) {
+        long leaseStartTime = computeLease(raftStatus, raftStatus.getElectQuorum(), raftStatus.getMembers());
+        List<RaftMember> jointMembers = raftStatus.getJointConsensusMembers();
+        if (jointMembers.size() > 0) {
+            long lease2 = computeLease(raftStatus, RaftUtil.getElectQuorum(jointMembers.size()), jointMembers);
+            if (lease2 - leaseStartTime < 0) {
+                leaseStartTime = lease2;
+            }
+        }
+        if (leaseStartTime != raftStatus.getLeaseStartNanos()) {
+            raftStatus.setLeaseStartNanos(leaseStartTime);
+        }
+    }
+
+    /**
+     * test if currentReqNanos is the X(X=quorum)th large value in list(lastConfirmReqNanos).
+     */
+    private static long computeLease(RaftStatus raftStatus, int quorum, List<RaftMember> list) {
+        int len = list.size();
+        if (len == 1) {
+            return list.get(0).getLastConfirmReqNanos();
+        }
+        long[] arr = raftStatus.getLeaseComputeArray();
+        if (arr.length < len) {
+            arr = new long[len];
+            raftStatus.setLeaseComputeArray(arr);
+        }
         for (int i = 0; i < len; i++) {
-            RaftMember node = allMembers.get(i);
-            if (!node.isHasLastConfirmReqNanos()) {
-                continue;
-            }
-            if (currentReqNanos - node.getLastConfirmReqNanos() <= 0) {
-                order++;
+            RaftMember m = list.get(i);
+            arr[i] = m.getLastConfirmReqNanos();
+        }
+        for (int i = 0; i < quorum; i++) {
+            if (arr[i] - arr[i + 1] < 0) {
+                long tmp = arr[i];
+                arr[i] = arr[i + 1];
+                arr[i + 1] = tmp;
             }
         }
-        if (raftStatus.getRwQuorum() == order) {
-            raftStatus.setLeaseStartNanos(currentReqNanos);
-        }
+        return arr[quorum];
     }
 
     public static void resetElectTimer(RaftStatus raftStatus) {
@@ -129,7 +152,7 @@ public class RaftUtil {
             node.setMatchIndex(0);
             node.setNextIndex(0);
             node.setPendingStat(new PendingStat());
-            node.setLastConfirm(false, 0);
+            node.setLastConfirmReqNanos(raftStatus.getTs().getNanoTime() - Duration.ofDays(1).toNanos());
             node.setMultiAppend(false);
             node.setInstallSnapshot(false);
             if (node.getSnapshotInfo() != null) {

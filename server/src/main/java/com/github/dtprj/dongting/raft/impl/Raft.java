@@ -137,11 +137,11 @@ public class Raft {
         RaftMember self = getSelf();
         self.setNextIndex(newIndex + 1);
         self.setMatchIndex(newIndex);
-        self.setLastConfirm(true, ts.getNanoTime());
+        self.setLastConfirmReqNanos(ts.getNanoTime());
 
         // for single node mode
         if (raftStatus.getRwQuorum() == 1) {
-            RaftUtil.updateLease(ts.getNanoTime(), raftStatus);
+            RaftUtil.updateLease(raftStatus);
             commitManager.tryCommit(newIndex);
         }
 
