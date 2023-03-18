@@ -50,7 +50,7 @@ public class NodeManager extends AbstractLifeCircle {
     private final NioClient client;
     private final RaftServerConfig config;
     private final IntObjMap<GroupComponents> groupComponentsMap;
-    private final EventSource eventSource;
+    private final FutureEventSource futureEventSource;
 
     private List<RaftNode> allRaftNodesOnlyForInit;
     private IntObjMap<RaftNodeEx> allNodesEx;
@@ -78,7 +78,7 @@ public class NodeManager extends AbstractLifeCircle {
             return true;
         });
 
-        this.eventSource = new EventSource(RaftUtil.SCHEDULED_SERVICE);
+        this.futureEventSource = new FutureEventSource(RaftUtil.SCHEDULED_SERVICE);
     }
 
     private CompletableFuture<RaftNodeEx> addToNioClient(RaftNode node) {
@@ -190,7 +190,7 @@ public class NodeManager extends AbstractLifeCircle {
             currentReadyNodes--;
             nodeEx.setStatus(new NodeStatus(false, oldStatus.getEpoch()));
         }
-        eventSource.fireInExecutorThread();
+        futureEventSource.fireInExecutorThread();
     }
 
     private CompletableFuture<Void> sendNodePing(RaftNodeEx nodeEx) {
@@ -231,7 +231,7 @@ public class NodeManager extends AbstractLifeCircle {
 
     public void waitReady(int targetReadyCount) {
         try {
-            CompletableFuture<Void> f = eventSource.registerInOtherThreads(() -> currentReadyNodes >= targetReadyCount);
+            CompletableFuture<Void> f = futureEventSource.registerInOtherThreads(() -> currentReadyNodes >= targetReadyCount);
             f.get();
         } catch (Exception e) {
             throw new RaftException(e);

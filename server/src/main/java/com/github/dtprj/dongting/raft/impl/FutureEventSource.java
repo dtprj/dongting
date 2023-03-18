@@ -26,11 +26,11 @@ import java.util.function.Supplier;
 /**
  * @author huangli
  */
-class EventSource {
+class FutureEventSource {
     private final Executor executor;
     protected final LinkedList<Pair<CompletableFuture<Void>, Supplier<Boolean>>> listeners = new LinkedList<>();
 
-    public EventSource(Executor executor) {
+    public FutureEventSource(Executor executor) {
         this.executor = executor;
     }
 

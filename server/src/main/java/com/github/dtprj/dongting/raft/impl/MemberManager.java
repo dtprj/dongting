@@ -52,7 +52,7 @@ public class MemberManager {
 
     private List<RaftMember> jointConsensusObservers;
 
-    private final EventSource eventSource;
+    private final FutureEventSource futureEventSource;
     private final EventBus eventBus;
 
     public MemberManager(RaftServerConfig serverConfig, NioClient client, RaftExecutor executor,
@@ -63,7 +63,7 @@ public class MemberManager {
         this.raftStatus = raftStatus;
         this.groupId = groupId;
 
-        this.eventSource = new EventSource(executor);
+        this.futureEventSource = new FutureEventSource(executor);
         this.eventBus = eventBus;
     }
 
@@ -185,7 +185,7 @@ public class MemberManager {
             return;
         }
         member.setReady(ready);
-        eventSource.fireInExecutorThread();
+        futureEventSource.fireInExecutorThread();
     }
 
     private int getReadyCount(List<RaftMember> list) {
@@ -199,7 +199,7 @@ public class MemberManager {
     }
 
     public CompletableFuture<Void> createReadyFuture(int targetReadyCount) {
-        return eventSource.registerInOtherThreads(() -> getReadyCount(raftStatus.getMembers()) >= targetReadyCount);
+        return futureEventSource.registerInOtherThreads(() -> getReadyCount(raftStatus.getMembers()) >= targetReadyCount);
     }
 
     public boolean checkLeader(int nodeId) {
