@@ -57,6 +57,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -374,13 +375,13 @@ public class RaftServer extends AbstractLifeCircle {
      * this method should invoke on all nodes by admin tools.
      */
     @SuppressWarnings("unused")
-    public CompletableFuture<Void> prepareJointConsensus(int groupId, Set<Integer> members, Set<Integer> observers) {
+    public CompletableFuture<Void> prepareJointConsensus(UUID changeId, int groupId, Set<Integer> members, Set<Integer> observers) {
         Objects.requireNonNull(members);
         if (members.size() == 0) {
             throw new IllegalArgumentException("members is empty");
         }
         // node state change in scheduler thread, member state change in raft thread
-        return nodeManager.prepareJointConsensus(groupId, members, observers);
+        return nodeManager.prepareJointConsensus(groupId, members, observers, changeId);
     }
 
     /**
@@ -388,16 +389,16 @@ public class RaftServer extends AbstractLifeCircle {
      * This method should invoke on all nodes by admin tools.
      */
     @SuppressWarnings("unused")
-    public CompletableFuture<Void> dropJointConsensus(int groupId) {
-        return nodeManager.dropJointConsensus(groupId);
+    public CompletableFuture<Void> dropJointConsensus(UUID changeId, int groupId) {
+        return nodeManager.dropJointConsensus(groupId, changeId);
     }
 
     /**
      * this method should invoke on all nodes by admin tools.
      */
     @SuppressWarnings("unused")
-    public CompletableFuture<Void> commitJointConsensus(int groupId) {
-        return nodeManager.commitJointConsensus(groupId);
+    public CompletableFuture<Void> commitJointConsensus(UUID changeId, int groupId) {
+        return nodeManager.commitJointConsensus(groupId, changeId);
     }
 
 }

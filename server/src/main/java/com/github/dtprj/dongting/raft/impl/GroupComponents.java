@@ -20,13 +20,15 @@ import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.server.StateMachine;
 
+import java.util.UUID;
+
 /**
  * @author huangli
  */
 public class GroupComponents {
 
     // access in schedule thread
-    private boolean inChange;
+    private UUID changeId;
 
 
     private final RaftServerConfig serverConfig;
@@ -51,12 +53,12 @@ public class GroupComponents {
         this.voteManager = voteManager;
     }
 
-    public boolean isInChange() {
-        return inChange;
+    public UUID getChangeId() {
+        return changeId;
     }
 
-    public void setInChange(boolean inChange) {
-        this.inChange = inChange;
+    public void setChangeId(UUID changeId) {
+        this.changeId = changeId;
     }
 
     public RaftGroupThread getRaftGroup() {

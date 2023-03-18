@@ -280,7 +280,8 @@ public class NodeManager extends AbstractLifeCircle {
         return f;
     }
 
-    public CompletableFuture<Void> prepareJointConsensus(int groupId, Set<Integer> memberIds, Set<Integer> observerIds) {
+    public CompletableFuture<Void> prepareJointConsensus(int groupId, Set<Integer> memberIds,
+                                                         Set<Integer> observerIds, UUID changeId) {
         CompletableFuture<Void> f = new CompletableFuture<>();
         RaftUtil.SCHEDULED_SERVICE.submit(() -> {
             GroupComponents gc = groupComponentsMap.get(groupId);
@@ -288,8 +289,13 @@ public class NodeManager extends AbstractLifeCircle {
                 f.completeExceptionally(new RaftException("group not exist: " + groupId));
                 return;
             }
-            if (gc.isInChange()) {
-                f.completeExceptionally(new RaftException("raft group in change: " + groupId));
+            if (gc.getChangeId() != null) {
+                if (gc.getChangeId().equals(changeId)) {
+                    log.warn("duplicate prepare, ignore, groupId={}, changeId={}", groupId, changeId);
+                    f.complete(null);
+                } else {
+                    f.completeExceptionally(new RaftException("raft group in change: " + groupId + ",changeId=" + gc.getChangeId()));
+                }
                 return;
             }
 
@@ -331,25 +337,48 @@ public class NodeManager extends AbstractLifeCircle {
             for (RaftNodeEx nodeEx : observerNodes) {
                 nodeEx.setUseCount(nodeEx.getUseCount() + 1);
             }
-            gc.setInChange(true);
+            gc.setChangeId(changeId);
             gc.getMemberManager().prepareJointConsensus(memberNodes, observerNodes)
                     .thenRun(() -> f.complete(null));
         });
         return f;
     }
 
-    public CompletableFuture<Void> dropJointConsensus(int groupId) {
+    public CompletableFuture<Void> dropJointConsensus(int groupId, UUID changeId) {
         CompletableFuture<Void> f = new CompletableFuture<>();
         RaftUtil.SCHEDULED_SERVICE.submit(() -> {
             GroupComponents gc = groupComponentsMap.get(groupId);
-            if (gc == null || !gc.isInChange()) {
-                f.complete(null);
+            if (checkStatusFail(groupId, changeId, f, gc)) {
                 return;
             }
             gc.getMemberManager().dropJointConsensus().thenAcceptAsync(
                     ids -> finishChange(f, gc, ids), RaftUtil.SCHEDULED_SERVICE);
         });
         return f;
+    }
+
+    private static boolean checkStatusFail(int groupId, UUID changeId, CompletableFuture<Void> f, GroupComponents gc) {
+        if (gc == null) {
+            log.error("group id not found, ignore drop: {}", groupId);
+            f.completeExceptionally(new RaftException("group not exist: " + groupId));
+            return true;
+        }
+        if (changeId == null) {
+            log.warn("change id is null, so do not check, change forcefully");
+            return false;
+        }
+        if (gc.getChangeId() == null) {
+            // idempotent, don't complete exceptionally
+            log.warn("group not in change, ignore drop: {}", groupId);
+            f.complete(null);
+            return true;
+        }
+        if (!gc.getChangeId().equals(changeId)) {
+            log.error("change id not match, current: {}, request: {}", gc.getChangeId(), changeId);
+            f.completeExceptionally(new RaftException("change id not match, current: " + gc.getChangeId() + ", request: " + changeId));
+            return true;
+        }
+        return false;
     }
 
     private void finishChange(CompletableFuture<Void> f, GroupComponents gc, Set<Integer> ids) {
@@ -359,20 +388,15 @@ public class NodeManager extends AbstractLifeCircle {
                 nodeEx.setUseCount(nodeEx.getUseCount() - 1);
             }
         }
-        gc.setInChange(false);
+        gc.setChangeId(null);
         f.complete(null);
     }
 
-    public CompletableFuture<Void> commitJointConsensus(int groupId) {
+    public CompletableFuture<Void> commitJointConsensus(int groupId, UUID changeId) {
         CompletableFuture<Void> f = new CompletableFuture<>();
         RaftUtil.SCHEDULED_SERVICE.submit(() -> {
             GroupComponents gc = groupComponentsMap.get(groupId);
-            if (gc == null) {
-                f.completeExceptionally(new RaftException("group not exist: " + groupId));
-                return;
-            }
-            if (!gc.isInChange()) {
-                f.completeExceptionally(new RaftException("raft group not in change: " + groupId));
+            if (checkStatusFail(groupId, changeId, f, gc)) {
                 return;
             }
             gc.getMemberManager().commitJointConsensus().thenAcceptAsync(
