@@ -25,7 +25,6 @@ import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
-import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 
 /**
@@ -45,9 +44,9 @@ public class RaftPingProcessor extends ReqProcessor {
     public WriteFrame process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext) {
         RaftPingFrameCallback callback = (RaftPingFrameCallback) frame.getBody();
         GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, callback.groupId);
-        MemberManager mm = gc.getMemberManager();
         RaftPingWriteFrame resp = new RaftPingWriteFrame(gc.getServerConfig().getNodeId(),
-                gc.getGroupConfig().getGroupId(), mm.getNodeIdOfMembers(), mm.getNodeIdOfObservers());
+                gc.getGroupConfig().getGroupId(), gc.getRaftStatus().getNodeIdOfMembers(),
+                gc.getRaftStatus().getNodeIdOfObservers());
         resp.setRespCode(CmdCodes.SUCCESS);
         return resp;
     }
