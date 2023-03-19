@@ -116,7 +116,8 @@ public class RaftGroupThread extends Thread {
     private void run0() {
         Timestamp ts = raftStatus.getTs();
         long lastCleanTime = ts.getNanoTime();
-        ArrayList<RaftTask> tasks = new ArrayList<>(32);
+        ArrayList<RaftTask> rwTasks = new ArrayList<>(32);
+        ArrayList<Runnable> runnables = new ArrayList<>(32);
         ArrayList<Object> queueData = new ArrayList<>(32);
         boolean poll = true;
         while (!stop) {
@@ -129,7 +130,7 @@ public class RaftGroupThread extends Thread {
             } catch (InterruptedException e) {
                 return;
             }
-            if (!process(tasks, queueData)) {
+            if (!process(rwTasks, runnables, queueData)) {
                 return;
             }
             if (queueData.size() > 0) {
@@ -145,28 +146,33 @@ public class RaftGroupThread extends Thread {
         }
     }
 
-    private boolean process(ArrayList<RaftTask> tasks, ArrayList<Object> queueData) {
+    private boolean process(ArrayList<RaftTask> rwTasks, ArrayList<Runnable> runnables, ArrayList<Object> queueData) {
         RaftStatus raftStatus = this.raftStatus;
-        for (Object o : queueData) {
+        int len = queueData.size();
+        for (int i = 0; i < len; i++) {
+            Object o = queueData.get(i);
             if (o instanceof RaftTask) {
-                tasks.add((RaftTask) o);
+                rwTasks.add((RaftTask) o);
             } else if (o instanceof Runnable) {
-                if (tasks.size() > 0) {
-                    raft.raftExec(tasks);
-                    tasks.clear();
-                    raftStatus.copyShareStatus();
-                }
-                ((Runnable) o).run();
-                raftStatus.copyShareStatus();
+                runnables.add((Runnable) o);
             } else {
                 BugLog.getLog().error("type error: {}", o.getClass());
                 return false;
             }
         }
 
-        if (tasks.size() > 0) {
-            raft.raftExec(tasks);
-            tasks.clear();
+        // the sequence of RaftTask and Runnable is reordered, but it will not affect the linearizability
+        if (rwTasks.size() > 0) {
+            raft.raftExec(rwTasks);
+            rwTasks.clear();
+            raftStatus.copyShareStatus();
+        }
+        len = runnables.size();
+        if (len > 0) {
+            for (int i = 0; i < len; i++) {
+                runnables.get(i).run();
+            }
+            runnables.clear();
             raftStatus.copyShareStatus();
         }
         return true;

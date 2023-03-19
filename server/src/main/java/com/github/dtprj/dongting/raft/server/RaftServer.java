@@ -60,7 +60,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -134,8 +133,7 @@ public class RaftServer extends AbstractLifeCircle {
             throw new IllegalArgumentException("self id not found in servers list: " + serverConfig.getNodeId());
         }
 
-        LinkedBlockingQueue<Object> queue = new LinkedBlockingQueue<>();
-        RaftExecutor raftExecutor = new RaftExecutor(queue);
+        RaftExecutor raftExecutor = new RaftExecutor();
 
         NioClientConfig nioClientConfig = new NioClientConfig();
         nioClientConfig.setName("RaftClient");

@@ -23,10 +23,9 @@ import java.util.concurrent.TimeUnit;
  * @author huangli
  */
 public class RaftExecutor implements Executor {
-    private final LinkedBlockingQueue<Object> queue;
+    private final LinkedBlockingQueue<Object> queue = new LinkedBlockingQueue<>();
 
-    public RaftExecutor(LinkedBlockingQueue<Object> queue) {
-        this.queue = queue;
+    public RaftExecutor() {
     }
 
     public void schedule(Runnable runnable, long delayMillis) {
