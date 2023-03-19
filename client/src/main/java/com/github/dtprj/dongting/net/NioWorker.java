@@ -36,7 +36,6 @@ import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -203,15 +202,23 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
+    private int compare(Pair<Long, WriteData> a, Pair<Long, WriteData> b) {
+        // we only need keep order in same connection, so we only use lower 32 bits.
+        // the lower 32 bits may overflow, so we use subtraction to compare, can't use < or >
+        return a.getLeft().intValue() - b.getLeft().intValue();
+    }
+
     private void finishPendingReq() {
         List<Pair<Long, WriteData>> tempList = new ArrayList<>(pendingOutgoingRequests.size());
         pendingOutgoingRequests.forEach((key, value) -> {
-            tempList.add(new Pair<>(key, value));
+            if (value.getFuture() != null) {
+                tempList.add(new Pair<>(key, value));
+            }
             // return false to remove it
             return false;
         });
         // sort to keep fail order
-        tempList.sort(Comparator.comparingLong(Pair::getLeft));
+        tempList.sort(this::compare);
         for (Pair<Long, WriteData> p : tempList) {
             p.getRight().getFuture().completeExceptionally(new NetException("client closed"));
         }
@@ -507,15 +514,21 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
         closeChannel0(dtc.getChannel());
         if (config.isFinishPendingImmediatelyWhenChannelClose()) {
+            ArrayList<Pair<Long, WriteData>> list = new ArrayList<>();
             pendingOutgoingRequests.forEach((key, wd) -> {
                 if (wd.getDtc() == dtc) {
                     if (wd.getFuture() != null) {
-                        wd.getFuture().completeExceptionally(new NetException("channel closed"));
+                        list.add(new Pair<>(key, wd));
                     }
                     return false;
                 }
                 return true;
             });
+            // sort to keep fail order
+            list.sort(this::compare);
+            for (Pair<Long, WriteData> p : list) {
+                p.getRight().getFuture().completeExceptionally(new NetException("channel closed"));
+            }
         }
         dtc.getSubQueue().cleanSubQueue();
     }
