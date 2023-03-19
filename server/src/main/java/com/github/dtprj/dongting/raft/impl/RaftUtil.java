@@ -151,7 +151,7 @@ public class RaftUtil {
         raftStatus.setLeaseStartNanos(0);
         raftStatus.setPendingRequests(new PendingMap());
         raftStatus.setCurrentLeader(null);
-        for (RaftMember node : raftStatus.getMembers()) {
+        for (RaftMember node : raftStatus.getReplicateList()) {
             node.setMatchIndex(0);
             node.setNextIndex(0);
             node.setPendingStat(new PendingStat());
@@ -227,7 +227,7 @@ public class RaftUtil {
         log.info("change to leader. term={}", raftStatus.getCurrentTerm());
         resetStatus(raftStatus);
         raftStatus.setRole(RaftRole.leader);
-        for (RaftMember node : raftStatus.getMembers()) {
+        for (RaftMember node : raftStatus.getReplicateList()) {
             node.setNextIndex(raftStatus.getLastLogIndex() + 1);
         }
     }
@@ -242,6 +242,14 @@ public class RaftUtil {
             if (node.getNode().getNodeId() == leaderId) {
                 raftStatus.setCurrentLeader(node);
                 found = true;
+            }
+        }
+        if (!found) {
+            for (RaftMember node : raftStatus.getJointConsensusMembers()) {
+                if (node.getNode().getNodeId() == leaderId) {
+                    raftStatus.setCurrentLeader(node);
+                    found = true;
+                }
             }
         }
         if (!found) {

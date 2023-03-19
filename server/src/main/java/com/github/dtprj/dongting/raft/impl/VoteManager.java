@@ -287,7 +287,7 @@ public class VoteManager implements BiConsumer<EventType, Object> {
         log.info("start vote. groupId={}, newTerm={}, voteId={}", groupId, raftStatus.getCurrentTerm(), currentVoteId);
 
         long leaseStartTime = raftStatus.getTs().getNanoTime();
-        for (RaftMember member : raftStatus.getMembers()) {
+        for (RaftMember member : voter) {
             if (!member.getNode().isSelf()) {
                 if (member.isReady()) {
                     sendRequest(member, false, leaseStartTime);

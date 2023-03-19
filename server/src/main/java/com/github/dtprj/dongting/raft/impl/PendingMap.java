@@ -77,6 +77,7 @@ public class PendingMap extends LongObjMap<RaftTask> {
         }
         if (raftStatus.getRole() == RaftRole.leader) {
             long minMatchIndex = Long.MAX_VALUE;
+            // TODO joint consensus
             for (RaftMember node : raftStatus.getMembers()) {
                 minMatchIndex = Math.min(node.getMatchIndex(), minMatchIndex);
             }

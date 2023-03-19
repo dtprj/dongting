@@ -60,6 +60,8 @@ public class Raft {
                 stateMachine, client, executor, commitManager);
    }
 
+
+   // TODO check if self not in members
     private RaftMember getSelf() {
         if (self != null) {
             return self;

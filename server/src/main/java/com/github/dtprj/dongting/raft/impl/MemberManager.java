@@ -237,7 +237,7 @@ public class MemberManager {
             for (RaftMember m : raftStatus.getMembers()) {
                 currentNodes.put(m.getNode().getNodeId(), m);
             }
-            for (RaftMember m : raftStatus.getMembers()) {
+            for (RaftMember m : raftStatus.getObservers()) {
                 currentNodes.put(m.getNode().getNodeId(), m);
             }
 
