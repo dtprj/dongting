@@ -54,12 +54,11 @@ public class Raft {
         this.raftLog = raftLog;
         this.ts = raftStatus.getTs();
 
-        this.applyManager = new ApplyManager(stateMachine, ts);
-        this.commitManager = new CommitManager(raftStatus, raftLog, stateMachine, applyManager);
+        this.applyManager = new ApplyManager(raftLog, stateMachine, ts);
+        this.commitManager = new CommitManager(raftStatus, raftLog, applyManager);
         this.replicateManager = new ReplicateManager(serverConfig, groupConfig, raftStatus, raftLog,
                 stateMachine, client, executor, commitManager);
    }
-
 
    // TODO check if self not in members
     private RaftMember getSelf() {
@@ -155,6 +154,10 @@ public class Raft {
         RaftInput input = new RaftInput(null, null, deadline, false);
         RaftTask rt = new RaftTask(ts, LogItem.TYPE_HEARTBEAT, input, null);
         raftExec(Collections.singletonList(rt));
+    }
+
+    public ApplyManager getApplyManager() {
+        return applyManager;
     }
 
 }

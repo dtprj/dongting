@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.StateMachine;
 
@@ -29,19 +30,55 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-class ApplyManager {
+public class ApplyManager {
 
+    private final RaftLog raftLog;
     private final StateMachine stateMachine;
     private final Timestamp ts;
 
-    ApplyManager(StateMachine stateMachine, Timestamp ts) {
+    ApplyManager(RaftLog raftLog, StateMachine stateMachine, Timestamp ts) {
+        this.raftLog = raftLog;
         this.stateMachine = stateMachine;
         this.ts = ts;
     }
 
+    public void apply(long commitIndex, RaftStatus raftStatus) {
+        long lastApplied = raftStatus.getLastApplied();
+        long diff = commitIndex - lastApplied;
+        while (diff > 0) {
+            long index = lastApplied + 1;
+            RaftTask rt = raftStatus.getPendingRequests().get(index);
+            if (rt == null) {
+                int limit = (int) Math.min(diff, 100L);
+                LogItem[] items = RaftUtil.load(raftLog, raftStatus,
+                        index, limit, 16 * 1024 * 1024);
+                int readCount = items.length;
+                for (int i = 0; i < readCount; i++) {
+                    LogItem item = items[i];
+                    RaftInput input;
+                    if (item.getType() != LogItem.TYPE_HEARTBEAT) {
+                        Object o = stateMachine.decode(item.getBuffer());
+                        input = new RaftInput(item.getBuffer(), o, null, false);
+                    } else {
+                        input = new RaftInput(item.getBuffer(), null, null, false);
+                    }
+                    rt = new RaftTask(ts, item.getType(), input, null);
+                    execChain(index + i, rt);
+                }
+                lastApplied += readCount;
+                diff -= readCount;
+            } else {
+                execChain(index, rt);
+                lastApplied++;
+                diff--;
+            }
+        }
+
+        raftStatus.setLastApplied(commitIndex);
+    }
 
     @SuppressWarnings("ForLoopReplaceableByForEach")
-    public void execChain(long index, RaftTask rt) {
+    private void execChain(long index, RaftTask rt) {
         exec(index, rt);
         ArrayList<RaftTask> nextReaders = rt.nextReaders;
         if (nextReaders == null) {

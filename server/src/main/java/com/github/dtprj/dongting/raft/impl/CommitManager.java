@@ -15,11 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftLog;
-import com.github.dtprj.dongting.raft.server.StateMachine;
 
 /**
  * @author huangli
@@ -28,16 +24,12 @@ class CommitManager {
 
     private final RaftStatus raftStatus;
     private final RaftLog raftLog;
-    private final StateMachine stateMachine;
     private final ApplyManager applyManager;
-    private final Timestamp ts;
 
-    CommitManager(RaftStatus raftStatus, RaftLog raftLog, StateMachine stateMachine, ApplyManager applyManager) {
+    CommitManager(RaftStatus raftStatus, RaftLog raftLog, ApplyManager applyManager) {
         this.raftStatus = raftStatus;
         this.raftLog = raftLog;
-        this.stateMachine = stateMachine;
         this.applyManager = applyManager;
-        this.ts = raftStatus.getTs();
     }
 
     void tryCommit(long recentMatchIndex) {
@@ -59,25 +51,7 @@ class CommitManager {
             }
         }
         raftStatus.setCommitIndex(recentMatchIndex);
-
-        for (long i = raftStatus.getLastApplied() + 1; i <= recentMatchIndex; i++) {
-            RaftTask rt = raftStatus.getPendingRequests().get(i);
-            if (rt == null) {
-                LogItem item = RaftUtil.load(raftLog, raftStatus, i, 1, 0)[0];
-
-                RaftInput input;
-                if (item.getType() != LogItem.TYPE_HEARTBEAT) {
-                    Object o = stateMachine.decode(item.getBuffer());
-                    input = new RaftInput(item.getBuffer(), o, null, false);
-                } else {
-                    input = new RaftInput(item.getBuffer(), null, null, false);
-                }
-                rt = new RaftTask(ts, item.getType(), input, null);
-            }
-            applyManager.execChain(i, rt);
-        }
-
-        raftStatus.setLastApplied(recentMatchIndex);
+        applyManager.apply(recentMatchIndex, raftStatus);
         if (needNotify) {
             raftStatus.getFirstCommitOfApplied().complete(null);
             raftStatus.setFirstCommitOfApplied(null);

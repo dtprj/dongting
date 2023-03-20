@@ -27,16 +27,13 @@ import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
-import com.github.dtprj.dongting.raft.impl.PendingMap;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftInput;
-import com.github.dtprj.dongting.raft.server.StateMachine;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 
 /**
@@ -147,47 +144,12 @@ public class AppendProcessor extends AbstractProcessor {
         raftStatus.setLastLogTerm(logs.get(logs.size() - 1).getTerm());
         if (req.getLeaderCommit() > raftStatus.getCommitIndex()) {
             raftStatus.setCommitIndex(Math.min(newIndex, req.getLeaderCommit()));
-            apply(gc, raftStatus);
+            gc.getRaft().getApplyManager().apply(raftStatus.getCommitIndex(), raftStatus);
         } else if (req.getLeaderCommit() < raftStatus.getCommitIndex()) {
             log.warn("leader commitIndex less than local. leaderId={}, leaderTerm={}, leaderCommitIndex={}, localCommitIndex={}",
                     req.getLeaderId(), req.getTerm(), req.getLeaderCommit(), raftStatus.getCommitIndex());
         }
         resp.setSuccess(true);
-    }
-
-    @SuppressWarnings("ForLoopReplaceableByForEach")
-    private void apply(GroupComponents gc, RaftStatus raftStatus) {
-        long diff = raftStatus.getCommitIndex() - raftStatus.getLastApplied();
-        PendingMap pendingRequests = raftStatus.getPendingRequests();
-        long lastApplied = raftStatus.getLastApplied();
-        while (diff > 0) {
-            long index = lastApplied+1;
-            RaftTask rt = pendingRequests.get(index);
-            if (rt != null) {
-                apply(gc.getStateMachine(), rt.type, index, rt.input.getLogData());
-                lastApplied++;
-                diff--;
-            } else {
-                int limit = (int) Math.min(diff, 100L);
-                LogItem[] items = RaftUtil.load(gc.getRaftLog(), raftStatus,
-                        index, limit, 16 * 1024 * 1024);
-                int readCount = items.length;
-                for (int i = 0; i < readCount; i++) {
-                    LogItem item = items[i];
-                    apply(gc.getStateMachine(), item.getType(), index++, item.getBuffer());
-                }
-                lastApplied += readCount;
-                diff -= readCount;
-            }
-        }
-        raftStatus.setLastApplied(lastApplied);
-    }
-
-    private void apply(StateMachine stateMachine, int type, long index, ByteBuffer buffer) {
-        if (type != LogItem.TYPE_HEARTBEAT) {
-            Object decodedObj = stateMachine.decode(buffer);
-            stateMachine.exec(index, decodedObj);
-        }
     }
 
     @Override

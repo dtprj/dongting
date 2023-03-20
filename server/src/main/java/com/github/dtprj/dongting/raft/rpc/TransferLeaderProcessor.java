@@ -68,8 +68,8 @@ public class TransferLeaderProcessor extends AbstractProcessor {
                     req.groupId, req.logIndex, raftStatus.getLastLogIndex());
             throw new NetCodeException(CmdCodes.BIZ_ERROR, "transfer leader fail, logIndex check fail");
         }
-        // TODO apply to commit index
         raftStatus.setCommitIndex(req.logIndex);
+        gc.getRaft().getApplyManager().apply(req.logIndex, raftStatus);
         RaftUtil.changeToLeader(raftStatus);
         gc.getVoteManager().cancelVote();
         gc.getRaft().sendHeartBeat();
