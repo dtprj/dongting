@@ -42,6 +42,7 @@ public class CloseTest {
     private volatile boolean received;
 
     private void setup(int sleepTime, boolean finishWhenClose, int cleanInterval) {
+        received = false;
         NioServerConfig serverConfig = new NioServerConfig();
         serverConfig.setPort(9000);
         server = new NioServer(serverConfig);
