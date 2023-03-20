@@ -25,7 +25,6 @@ import com.github.dtprj.dongting.net.Decoder;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
-import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.PendingMap;
@@ -43,7 +42,7 @@ import java.util.ArrayList;
 /**
  * @author huangli
  */
-public class AppendProcessor extends ReqProcessor {
+public class AppendProcessor extends AbstractProcessor {
     private static final DtLog log = DtLogs.getLogger(AppendProcessor.class);
 
     public static final int CODE_LOG_NOT_MATCH = 1;
@@ -52,12 +51,10 @@ public class AppendProcessor extends ReqProcessor {
     public static final int CODE_INSTALL_SNAPSHOT = 4;
     public static final int CODE_NOT_MEMBER_IN_GROUP = 5;
 
-    private final IntObjMap<GroupComponents> groupComponentsMap;
-
     private static final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder(c -> new AppendReqCallback());
 
     public AppendProcessor(IntObjMap<GroupComponents> groupComponentsMap) {
-        this.groupComponentsMap = groupComponentsMap;
+        super(groupComponentsMap);
     }
 
     @Override

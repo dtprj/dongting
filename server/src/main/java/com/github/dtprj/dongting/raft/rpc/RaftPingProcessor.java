@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.net.Decoder;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
-import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -30,14 +29,12 @@ import com.github.dtprj.dongting.raft.impl.RaftUtil;
 /**
  * @author huangli
  */
-public class RaftPingProcessor extends ReqProcessor {
+public class RaftPingProcessor extends AbstractProcessor {
     public static final PbZeroCopyDecoder DECODER = new PbZeroCopyDecoder(context ->
             new RaftPingFrameCallback());
 
-    private final IntObjMap<GroupComponents> groupComponentsMap;
-
     public RaftPingProcessor(IntObjMap<GroupComponents> groupComponentsMap) {
-        this.groupComponentsMap = groupComponentsMap;
+        super(groupComponentsMap);
     }
 
     @Override

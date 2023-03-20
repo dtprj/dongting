@@ -209,8 +209,16 @@ public class RaftServer extends AbstractLifeCircle {
             eventBus.register(voteManager);
             RaftGroupThread raftGroupThread = new RaftGroupThread(serverConfig, rgc, raftStatus, raftLog, stateMachine, raftExecutor,
                     raft, memberManager, voteManager);
-            GroupComponents gc = new GroupComponents(serverConfig, rgc, raftLog, stateMachine, raftGroupThread,
-                    raftStatus, memberManager, voteManager);
+            GroupComponents gc = new GroupComponents();
+            gc.setServerConfig(serverConfig);
+            gc.setGroupConfig(rgc);
+            gc.setRaftLog(raftLog);
+            gc.setStateMachine(stateMachine);
+            gc.setRaftGroupThread(raftGroupThread);
+            gc.setRaftStatus(raftStatus);
+            gc.setMemberManager(memberManager);
+            gc.setVoteManager(voteManager);
+
             groupComponentsMap.put(rgc.getGroupId(), gc);
         }
     }
@@ -240,7 +248,7 @@ public class RaftServer extends AbstractLifeCircle {
     @Override
     protected void doStart() {
         groupComponentsMap.forEach((groupId, gc) -> {
-            gc.getRaftGroup().init();
+            gc.getRaftGroupThread().init();
             return true;
         });
 
@@ -254,12 +262,12 @@ public class RaftServer extends AbstractLifeCircle {
 
         groupComponentsMap.forEach((groupId, gc) -> {
             gc.getMemberManager().init(nodeManager.getAllNodesEx());
-            gc.getRaftGroup().start();
+            gc.getRaftGroupThread().start();
             return true;
         });
 
         groupComponentsMap.forEach((groupId, gc) -> {
-            gc.getRaftGroup().waitReady(gc.getRaftStatus().getElectQuorum());
+            gc.getRaftGroupThread().waitReady(gc.getRaftStatus().getElectQuorum());
             log.info("raft group {} is ready", groupId);
             return true;
         });
@@ -271,7 +279,7 @@ public class RaftServer extends AbstractLifeCircle {
         raftClient.stop();
 
         groupComponentsMap.forEach((groupId, gc) -> {
-            RaftGroupThread raftGroupThread = gc.getRaftGroup();
+            RaftGroupThread raftGroupThread = gc.getRaftGroupThread();
             raftGroupThread.requestShutdown();
             raftGroupThread.interrupt();
             return true;
@@ -312,7 +320,7 @@ public class RaftServer extends AbstractLifeCircle {
             PENDING_WRITE_BYTES.getAndAddRelease(this, -size);
             throw new RaftException(msg);
         }
-        CompletableFuture<RaftOutput> f = gc.getRaftGroup().submitRaftTask(input);
+        CompletableFuture<RaftOutput> f = gc.getRaftGroupThread().submitRaftTask(input);
         registerCallback(f, size);
         return f;
     }

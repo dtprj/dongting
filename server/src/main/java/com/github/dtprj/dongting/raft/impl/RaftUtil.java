@@ -309,7 +309,7 @@ public class RaftUtil {
         GroupComponents gc = groupComponentsMap.get(groupId);
         if (gc == null) {
             log.error("raft group not found: {}", groupId);
-            throw new NetCodeException(CmdCodes.SYS_ERROR, "raft group not found: " + groupId);
+            throw new NetCodeException(CmdCodes.BIZ_ERROR, "raft group not found: " + groupId);
         }
         return gc;
     }

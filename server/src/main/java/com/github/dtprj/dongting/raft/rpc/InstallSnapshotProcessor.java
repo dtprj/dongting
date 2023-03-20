@@ -25,7 +25,6 @@ import com.github.dtprj.dongting.net.Decoder;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
-import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
@@ -36,16 +35,14 @@ import com.github.dtprj.dongting.raft.server.StateMachine;
 /**
  * @author huangli
  */
-public class InstallSnapshotProcessor extends ReqProcessor {
+public class InstallSnapshotProcessor extends AbstractProcessor {
 
     private static final DtLog log = DtLogs.getLogger(InstallSnapshotProcessor.class);
 
     private static final Decoder DECODER = new PbZeroCopyDecoder(c -> new InstallSnapshotReq.Callback());
-    private final IntObjMap<GroupComponents> groupComponentsMap;
-
 
     public InstallSnapshotProcessor(IntObjMap<GroupComponents> groupComponentsMap) {
-        this.groupComponentsMap = groupComponentsMap;
+        super(groupComponentsMap);
     }
 
     @Override
