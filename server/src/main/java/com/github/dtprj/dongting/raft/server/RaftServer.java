@@ -133,14 +133,12 @@ public class RaftServer extends AbstractLifeCircle {
             throw new IllegalArgumentException("self id not found in servers list: " + serverConfig.getNodeId());
         }
 
-        RaftExecutor raftExecutor = new RaftExecutor();
-
         NioClientConfig nioClientConfig = new NioClientConfig();
         nioClientConfig.setName("RaftClient");
         setupNioConfig(nioClientConfig);
         raftClient = new NioClient(nioClientConfig);
 
-        createRaftGroups(serverConfig, groupConfig, raftLogs, stateMachines, allNodeIds, raftExecutor);
+        createRaftGroups(serverConfig, groupConfig, raftLogs, stateMachines, allNodeIds);
         nodeManager = new NodeManager(serverConfig, allRaftServers, raftClient, groupComponentsMap);
 
         NioServerConfig nioServerConfig = new NioServerConfig();
@@ -151,16 +149,15 @@ public class RaftServer extends AbstractLifeCircle {
         setupNioConfig(nioServerConfig);
         raftServer = new NioServer(nioServerConfig);
         raftServer.register(Commands.NODE_PING, new NodePingProcessor(serverConfig.getNodeId(), nodeManager.getUuid()));
-        raftServer.register(Commands.RAFT_PING, new RaftPingProcessor(groupComponentsMap), raftExecutor);
-        AppendProcessor ap = new AppendProcessor(groupComponentsMap);
-        raftServer.register(Commands.RAFT_APPEND_ENTRIES, ap, raftExecutor);
-        raftServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(groupComponentsMap), raftExecutor);
-        raftServer.register(Commands.RAFT_INSTALL_SNAPSHOT, new InstallSnapshotProcessor(groupComponentsMap), raftExecutor);
+        raftServer.register(Commands.RAFT_PING, new RaftPingProcessor(groupComponentsMap));
+        raftServer.register(Commands.RAFT_APPEND_ENTRIES, new AppendProcessor(groupComponentsMap));
+        raftServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(groupComponentsMap));
+        raftServer.register(Commands.RAFT_INSTALL_SNAPSHOT, new InstallSnapshotProcessor(groupComponentsMap));
     }
 
     private void createRaftGroups(RaftServerConfig serverConfig, List<RaftGroupConfig> groupConfig,
                                   List<RaftLog> raftLogs, List<StateMachine> stateMachines,
-                                  HashSet<Integer> allNodeIds, RaftExecutor raftExecutor) {
+                                  HashSet<Integer> allNodeIds) {
         for (int i = 0; i < groupConfig.size(); i++) {
             RaftGroupConfig rgc = groupConfig.get(i);
             StateMachine stateMachine = stateMachines.get(i);
@@ -198,6 +195,7 @@ public class RaftServer extends AbstractLifeCircle {
             int electQuorum = RaftUtil.getElectQuorum(nodeIdOfMembers.size());
             int rwQuorum = RaftUtil.getRwQuorum(nodeIdOfMembers.size());
             RaftStatus raftStatus = new RaftStatus(electQuorum, rwQuorum, isMember ? RaftRole.follower : RaftRole.observer);
+            RaftExecutor raftExecutor = new RaftExecutor();
             raftStatus.setRaftExecutor(raftExecutor);
             raftStatus.setNodeIdOfMembers(nodeIdOfMembers);
             raftStatus.setNodeIdOfObservers(nodeIdOfObservers);
@@ -218,6 +216,7 @@ public class RaftServer extends AbstractLifeCircle {
             gc.setRaftStatus(raftStatus);
             gc.setMemberManager(memberManager);
             gc.setVoteManager(voteManager);
+            gc.setRaftExecutor(raftExecutor);
 
             groupComponentsMap.put(rgc.getGroupId(), gc);
         }

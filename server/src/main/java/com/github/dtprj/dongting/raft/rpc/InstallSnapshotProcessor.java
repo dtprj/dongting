@@ -24,7 +24,6 @@ import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Decoder;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ReadFrame;
-import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
@@ -46,9 +45,13 @@ public class InstallSnapshotProcessor extends AbstractProcessor {
     }
 
     @Override
-    public WriteFrame process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext) {
+    protected int getGroupId(ReadFrame frame) {
+        return ((InstallSnapshotReq) frame.getBody()).groupId;
+    }
+
+    @Override
+    protected WriteFrame doProcess(ReadFrame frame, ChannelContext channelContext, GroupComponents gc) {
         InstallSnapshotReq req = (InstallSnapshotReq) frame.getBody();
-        GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, req.groupId);
         InstallSnapshotResp resp = new InstallSnapshotResp();
         InstallSnapshotResp.WriteFrame respFrame = new InstallSnapshotResp.WriteFrame(resp);
         int remoteTerm = req.term;

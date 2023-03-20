@@ -23,8 +23,6 @@ import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Decoder;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ReadFrame;
-import com.github.dtprj.dongting.net.ReqContext;
-import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
@@ -35,21 +33,23 @@ import com.github.dtprj.dongting.raft.impl.StatusUtil;
 /**
  * @author huangli
  */
-public class VoteProcessor extends ReqProcessor {
+public class VoteProcessor extends AbstractProcessor {
     private static final DtLog log = DtLogs.getLogger(VoteProcessor.class);
-
-    private final IntObjMap<GroupComponents> groupComponentsMap;
 
     private static final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder(c -> new VoteReq.Callback());
 
     public VoteProcessor(IntObjMap<GroupComponents> groupComponentsMap) {
-        this.groupComponentsMap = groupComponentsMap;
+        super(groupComponentsMap);
     }
 
     @Override
-    public WriteFrame process(ReadFrame rf, ChannelContext channelContext, ReqContext reqContext) {
+    protected int getGroupId(ReadFrame frame) {
+        return ((VoteReq) frame.getBody()).getGroupId();
+    }
+
+    @Override
+    protected WriteFrame doProcess(ReadFrame rf, ChannelContext channelContext, GroupComponents gc) {
         VoteReq voteReq = (VoteReq) rf.getBody();
-        GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, voteReq.getGroupId());
         VoteResp resp = new VoteResp();
         RaftStatus raftStatus = gc.getRaftStatus();
         if (MemberManager.validCandidate(raftStatus, voteReq.getCandidateId())) {

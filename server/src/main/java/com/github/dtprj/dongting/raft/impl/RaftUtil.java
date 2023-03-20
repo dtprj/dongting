@@ -15,12 +15,9 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.HostPort;
-import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
@@ -303,15 +300,6 @@ public class RaftUtil {
                     ", limit=" + limit + ", bytesLimit=" + bytesLimit);
         }
         return items;
-    }
-
-    public static GroupComponents getGroupComponents(IntObjMap<GroupComponents> groupComponentsMap, int groupId) {
-        GroupComponents gc = groupComponentsMap.get(groupId);
-        if (gc == null) {
-            log.error("raft group not found: {}", groupId);
-            throw new NetCodeException(CmdCodes.BIZ_ERROR, "raft group not found: " + groupId);
-        }
-        return gc;
     }
 
     public static int getElectQuorum(int groupSize) {

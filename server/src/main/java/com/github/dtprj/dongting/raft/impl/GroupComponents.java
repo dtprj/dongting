@@ -40,6 +40,7 @@ public class GroupComponents {
     private RaftLog raftLog;
     private StateMachine stateMachine;
     private Raft raft;
+    private RaftExecutor raftExecutor;
 
     public GroupComponents() {
     }
@@ -116,7 +117,13 @@ public class GroupComponents {
         this.stateMachine = stateMachine;
     }
 
+    public RaftExecutor getRaftExecutor() {
+        return raftExecutor;
+    }
 
+    public void setRaftExecutor(RaftExecutor raftExecutor) {
+        this.raftExecutor = raftExecutor;
+    }
 
     public Raft getRaft() {
         return raft;

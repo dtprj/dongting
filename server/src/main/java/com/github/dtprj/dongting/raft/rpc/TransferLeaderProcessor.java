@@ -25,7 +25,6 @@ import com.github.dtprj.dongting.net.EmptyBodyRespFrame;
 import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ReadFrame;
-import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
@@ -46,9 +45,13 @@ public class TransferLeaderProcessor extends AbstractProcessor {
     }
 
     @Override
-    public WriteFrame process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext) {
+    protected int getGroupId(ReadFrame frame) {
+        return ((TransferLeaderReq) frame.getBody()).groupId;
+    }
+
+    @Override
+    protected WriteFrame doProcess(ReadFrame frame, ChannelContext channelContext, GroupComponents gc) {
         TransferLeaderReq req = (TransferLeaderReq) frame.getBody();
-        GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, req.groupId);
         RaftStatus raftStatus = gc.getRaftStatus();
         if (raftStatus.getRole() != RaftRole.follower) {
             log.error("transfer leader fail, not follower, groupId={}, role={}", req.groupId, raftStatus.getRole());

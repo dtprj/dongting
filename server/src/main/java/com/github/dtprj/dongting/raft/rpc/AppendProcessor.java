@@ -24,7 +24,6 @@ import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Decoder;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ReadFrame;
-import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
@@ -55,10 +54,14 @@ public class AppendProcessor extends AbstractProcessor {
     }
 
     @Override
-    public WriteFrame process(ReadFrame rf, ChannelContext channelContext, ReqContext reqContext) {
+    protected int getGroupId(ReadFrame frame) {
+        return ((AppendReqCallback) frame.getBody()).getGroupId();
+    }
+
+    @Override
+    protected WriteFrame doProcess(ReadFrame rf, ChannelContext channelContext, GroupComponents gc) {
         AppendRespWriteFrame resp = new AppendRespWriteFrame();
         AppendReqCallback req = (AppendReqCallback) rf.getBody();
-        GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, req.getGroupId());
         RaftStatus raftStatus = gc.getRaftStatus();
         if (gc.getMemberManager().checkLeader(req.getLeaderId())) {
             int remoteTerm = req.getTerm();
