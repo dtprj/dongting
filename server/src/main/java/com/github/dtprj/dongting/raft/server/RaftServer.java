@@ -361,7 +361,7 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     /**
-     * This method is idempotent. When future complete the new node is connected.
+     * ADMIN API. This method is idempotent. When future complete the new node is connected.
      * If the node is already in node list and connected, the future complete normally immediately.
      */
     @SuppressWarnings("unused")
@@ -370,7 +370,7 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     /**
-     * If the node is node in node list, the future complete normally immediately.
+     * ADMIN API. If the node is node in node list, the future complete normally immediately.
      * If the reference count of the node is not 0, the future complete exceptionally.
      */
     @SuppressWarnings("unused")
@@ -379,7 +379,7 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     /**
-     * this method should invoke on all nodes by admin tools.
+     * ADMIN API. This method is idempotent.
      */
     @SuppressWarnings("unused")
     public CompletableFuture<Void> prepareJointConsensus(UUID changeId, int groupId, Set<Integer> members, Set<Integer> observers) {
@@ -392,8 +392,7 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     /**
-     * This method is idempotent.
-     * This method should invoke on all nodes by admin tools.
+     * ADMIN API. This method is idempotent.
      */
     @SuppressWarnings("unused")
     public CompletableFuture<Void> dropJointConsensus(UUID changeId, int groupId) {
@@ -401,13 +400,16 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     /**
-     * this method should invoke on all nodes by admin tools.
+     * ADMIN API. This method is idempotent.
      */
     @SuppressWarnings("unused")
     public CompletableFuture<Void> commitJointConsensus(UUID changeId, int groupId) {
         return nodeManager.commitJointConsensus(groupId, changeId);
     }
 
+    /**
+     * ADMIN API.
+     */
     @SuppressWarnings("unused")
     public CompletableFuture<Void> transferLeadership(int groupId, int nodeId, long timeoutMillis) {
         CompletableFuture<Void> f = new CompletableFuture<>();
