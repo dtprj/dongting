@@ -157,7 +157,7 @@ public class NioClientTest {
             }
             CloseUtil.close(ss);
             // if no sleep, GitHub action fails: Bind Address already in use (Bind failed)
-            Thread.sleep(1);
+            Thread.sleep(tick(1));
         }
     }
 
