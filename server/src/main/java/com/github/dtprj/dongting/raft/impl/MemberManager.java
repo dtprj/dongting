@@ -23,9 +23,11 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.PeerStatus;
 import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.rpc.RaftPingFrameCallback;
 import com.github.dtprj.dongting.raft.rpc.RaftPingProcessor;
 import com.github.dtprj.dongting.raft.rpc.RaftPingWriteFrame;
+import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.ArrayList;
@@ -307,4 +309,58 @@ public class MemberManager {
         });
         return f;
     }
+
+    public void transferLeadership(int nodeId, CompletableFuture<Void> f, DtTime deadline) {
+        Runnable r = () -> {
+            if (raftStatus.getRole() != RaftRole.leader) {
+                raftStatus.setHoldRequest(false);
+                f.completeExceptionally(new NotLeaderException(RaftUtil.getLeader(raftStatus.getCurrentLeader())));
+                return;
+            }
+            RaftMember newLeader = null;
+            for (RaftMember m : raftStatus.getMembers()) {
+                if (m.getNode().getNodeId() == nodeId) {
+                    newLeader = m;
+                    break;
+                }
+            }
+            if (newLeader == null) {
+                for (RaftMember m : raftStatus.getJointConsensusMembers()) {
+                    if (m.getNode().getNodeId() == nodeId) {
+                        newLeader = m;
+                        break;
+                    }
+                }
+            }
+            if (newLeader == null) {
+                raftStatus.setHoldRequest(false);
+                f.completeExceptionally(new RaftException("nodeId not found: " + nodeId));
+                return;
+            }
+            if (deadline.isTimeout()) {
+                raftStatus.setHoldRequest(false);
+                f.completeExceptionally(new RaftException("transfer leader timeout"));
+                return;
+            }
+            if (f.isCancelled()) {
+                raftStatus.setHoldRequest(false);
+                return;
+            }
+
+            boolean lastLogCommit = raftStatus.getCommitIndex() == raftStatus.getLastLogIndex();
+            boolean newLeaderHasLastLog = newLeader.getMatchIndex() == raftStatus.getLastLogIndex();
+
+            if (newLeader.isReady() && lastLogCommit && newLeaderHasLastLog) {
+                // TODO send transfer leader request
+                raftStatus.setHoldRequest(false);
+                RaftUtil.changeToFollower(raftStatus, newLeader.getNode().getNodeId());
+            } else {
+                // retry
+                transferLeadership(nodeId, f, deadline);
+            }
+        };
+        executor.schedule(r, 3);
+    }
+
+
 }

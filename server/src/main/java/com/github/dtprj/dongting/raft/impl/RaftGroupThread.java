@@ -163,9 +163,11 @@ public class RaftGroupThread extends Thread {
 
         // the sequence of RaftTask and Runnable is reordered, but it will not affect the linearizability
         if (rwTasks.size() > 0) {
-            raft.raftExec(rwTasks);
-            rwTasks.clear();
-            raftStatus.copyShareStatus();
+            if(!raftStatus.isHoldRequest()){
+                raft.raftExec(rwTasks);
+                rwTasks.clear();
+                raftStatus.copyShareStatus();
+            }
         }
         len = runnables.size();
         if (len > 0) {

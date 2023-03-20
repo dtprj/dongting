@@ -85,6 +85,8 @@ public class RaftStatus {
     private RaftExecutor raftExecutor;
     private boolean saving;
 
+    private boolean holdRequest;
+
     private static final VarHandle ERROR;
 
     static {
@@ -387,5 +389,13 @@ public class RaftStatus {
 
     public long getLeaseStartNanos() {
         return leaseStartNanos;
+    }
+
+    public boolean isHoldRequest() {
+        return holdRequest;
+    }
+
+    public void setHoldRequest(boolean holdRequest) {
+        this.holdRequest = holdRequest;
     }
 }

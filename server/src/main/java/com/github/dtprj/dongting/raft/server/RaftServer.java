@@ -400,4 +400,14 @@ public class RaftServer extends AbstractLifeCircle {
         return nodeManager.commitJointConsensus(groupId, changeId);
     }
 
+    @SuppressWarnings("unused")
+    public CompletableFuture<Void> transferLeadership(int groupId, int nodeId, long timeoutMillis) {
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        DtTime deadline = new DtTime(timeoutMillis, TimeUnit.MILLISECONDS);
+        GroupComponents gc = getGroupComponents(groupId);
+        gc.getRaftStatus().setHoldRequest(true);
+        gc.getMemberManager().transferLeadership(nodeId, f, deadline);
+        return f;
+    }
+
 }
