@@ -45,7 +45,6 @@ public class Raft {
     private final RaftLog raftLog;
     private final RaftStatus raftStatus;
 
-    private RaftMember self;
     private final Timestamp ts;
 
     public Raft(RaftServerConfig serverConfig, RaftGroupConfig groupConfig, RaftStatus raftStatus,
@@ -59,20 +58,6 @@ public class Raft {
         this.replicateManager = new ReplicateManager(serverConfig, groupConfig, raftStatus, raftLog,
                 stateMachine, client, executor, commitManager);
    }
-
-   // TODO check if self not in members
-    private RaftMember getSelf() {
-        if (self != null) {
-            return self;
-        }
-        for (RaftMember node : raftStatus.getMembers()) {
-            if (node.getNode().isSelf()) {
-                this.self = node;
-                break;
-            }
-        }
-        return self;
-    }
 
     @SuppressWarnings("ForLoopReplaceableByForEach")
     public void raftExec(List<RaftTask> inputs) {
@@ -135,7 +120,7 @@ public class Raft {
         raftStatus.setLastLogTerm(currentTerm);
         raftStatus.setLastLogIndex(newIndex);
 
-        RaftMember self = getSelf();
+        RaftMember self = raftStatus.getSelf();
         self.setNextIndex(newIndex + 1);
         self.setMatchIndex(newIndex);
         self.setLastConfirmReqNanos(ts.getNanoTime());

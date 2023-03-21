@@ -50,6 +50,7 @@ public class RaftStatus {
     private final int electQuorum;
     private final int rwQuorum;
 
+    private RaftMember self;
     private List<RaftMember> members;
     private List<RaftMember> observers;
     private List<RaftMember> jointConsensusMembers;
@@ -397,5 +398,13 @@ public class RaftStatus {
 
     public void setHoldRequest(boolean holdRequest) {
         this.holdRequest = holdRequest;
+    }
+
+    public RaftMember getSelf() {
+        return self;
+    }
+
+    public void setSelf(RaftMember self) {
+        this.self = self;
     }
 }

@@ -76,6 +76,7 @@ public class MemberManager {
             if (node.isSelf()) {
                 m.setReady(true);
                 m.setEpoch(node.getStatus().getEpoch());
+                raftStatus.setSelf(m);
             }
             raftStatus.getMembers().add(m);
         }
@@ -87,6 +88,7 @@ public class MemberManager {
                 if (node.isSelf()) {
                     m.setReady(true);
                     m.setEpoch(node.getStatus().getEpoch());
+                    raftStatus.setSelf(m);
                     raftStatus.setRole(RaftRole.observer);
                 }
                 observers.add(m);
