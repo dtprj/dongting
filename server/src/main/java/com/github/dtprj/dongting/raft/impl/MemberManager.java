@@ -52,6 +52,7 @@ public class MemberManager {
     private final NioClient client;
     private final RaftExecutor executor;
 
+    private boolean hasPrepareState;
     private List<RaftMember> jointConsensusObservers;
 
     private final FutureEventSource futureEventSource;
@@ -118,8 +119,8 @@ public class MemberManager {
             replicateList.add(m);
             jointMemberIds.add(m.getNode().getNodeId());
         }
-        raftStatus.setReplicateList(replicateList);
-        raftStatus.setNodeIdOfMembers(memberIds);
+        raftStatus.setReplicateList(replicateList.size() == 0 ? emptyList() : replicateList);
+        raftStatus.setNodeIdOfMembers(memberIds.size() == 0 ? emptySet() : memberIds);
         raftStatus.setNodeIdOfObservers(observerIds.size() == 0 ? emptySet() : observerIds);
         raftStatus.setNodeIdOfJointConsensusMembers(jointMemberIds.size() == 0 ? emptySet() : jointMemberIds);
     }
@@ -245,20 +246,15 @@ public class MemberManager {
         }
     }
 
-    private boolean hasPreparedState() {
-        return raftStatus.getNodeIdOfJointConsensusMembers().size() != 0
-                || jointConsensusObservers.size() != 0
-                || raftStatus.getJointConsensusMembers().size() != 0;
-    }
-
     public CompletableFuture<Void> prepareJointConsensus(List<RaftNodeEx> newMemberNodes, List<RaftNodeEx> newObserverNodes) {
         CompletableFuture<Void> f = new CompletableFuture<>();
         executor.execute(() -> {
-            if (hasPreparedState()) {
+            if (hasPrepareState) {
                 BugLog.getLog().error("joint consensus is prepared");
                 f.completeExceptionally(new IllegalStateException("joint consensus is prepared"));
                 return;
             }
+            hasPrepareState = true;
 
             IntObjMap<RaftMember> currentNodes = new IntObjMap<>();
             for (RaftMember m : raftStatus.getMembers()) {
@@ -292,7 +288,7 @@ public class MemberManager {
     public CompletableFuture<Set<Integer>> dropJointConsensus() {
         CompletableFuture<Set<Integer>> f = new CompletableFuture<>();
         executor.execute(() -> {
-            if (!hasPreparedState()) {
+            if (!hasPrepareState) {
                 BugLog.getLog().error("joint consensus not prepared");
                 f.completeExceptionally(new IllegalStateException("joint consensus not prepared"));
                 return;
@@ -314,7 +310,7 @@ public class MemberManager {
     public CompletableFuture<Set<Integer>> commitJointConsensus() {
         CompletableFuture<Set<Integer>> f = new CompletableFuture<>();
         executor.execute(() -> {
-            if (!hasPreparedState()) {
+            if (!hasPrepareState) {
                 BugLog.getLog().error("joint consensus not prepared");
                 f.completeExceptionally(new IllegalStateException("joint consensus not prepared"));
                 return;

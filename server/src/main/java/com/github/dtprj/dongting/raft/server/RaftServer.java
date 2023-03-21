@@ -383,9 +383,7 @@ public class RaftServer extends AbstractLifeCircle {
     @SuppressWarnings("unused")
     public CompletableFuture<Void> prepareJointConsensus(UUID changeId, int groupId, Set<Integer> members, Set<Integer> observers) {
         Objects.requireNonNull(members);
-        if (members.size() == 0) {
-            throw new IllegalArgumentException("members is empty");
-        }
+        Objects.requireNonNull(observers);
         // node state change in scheduler thread, member state change in raft thread
         return nodeManager.prepareJointConsensus(groupId, members, observers, changeId);
     }

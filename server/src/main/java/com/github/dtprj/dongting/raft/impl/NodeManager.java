@@ -32,7 +32,6 @@ import com.github.dtprj.dongting.raft.server.RaftNode;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -309,18 +308,15 @@ public class NodeManager extends AbstractLifeCircle {
                 }
             }
             List<RaftNodeEx> observerNodes;
-            if (observerIds != null) {
-                observerNodes = new ArrayList<>(observerIds.size());
-                for (Integer nodeId : observerIds) {
-                    if (allNodesEx.get(nodeId) == null) {
-                        f.completeExceptionally(new RaftException("node not exist: " + nodeId));
-                        return;
-                    } else {
-                        observerNodes.add(allNodesEx.get(nodeId));
-                    }
+
+            observerNodes = new ArrayList<>(observerIds.size());
+            for (Integer nodeId : observerIds) {
+                if (allNodesEx.get(nodeId) == null) {
+                    f.completeExceptionally(new RaftException("node not exist: " + nodeId));
+                    return;
+                } else {
+                    observerNodes.add(allNodesEx.get(nodeId));
                 }
-            } else {
-                observerNodes = Collections.emptyList();
             }
 
             for (RaftNodeEx nodeEx : observerNodes) {
