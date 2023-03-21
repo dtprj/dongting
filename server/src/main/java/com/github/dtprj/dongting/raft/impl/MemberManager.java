@@ -71,13 +71,24 @@ public class MemberManager {
 
     public void init(IntObjMap<RaftNodeEx> allNodes) {
         for (int nodeId : raftStatus.getNodeIdOfMembers()) {
-            RaftMember m = new RaftMember(allNodes.get(nodeId));
+            RaftNodeEx node = allNodes.get(nodeId);
+            RaftMember m = new RaftMember(node);
+            if (node.isSelf()) {
+                m.setReady(true);
+                m.setEpoch(node.getStatus().getEpoch());
+            }
             raftStatus.getMembers().add(m);
         }
         if (raftStatus.getNodeIdOfObservers().size() > 0) {
             List<RaftMember> observers = new ArrayList<>();
             for (int nodeId : raftStatus.getNodeIdOfObservers()) {
-                RaftMember m = new RaftMember(allNodes.get(nodeId));
+                RaftNodeEx node = allNodes.get(nodeId);
+                RaftMember m = new RaftMember(node);
+                if (node.isSelf()) {
+                    m.setReady(true);
+                    m.setEpoch(node.getStatus().getEpoch());
+                    raftStatus.setRole(RaftRole.observer);
+                }
                 observers.add(m);
             }
             raftStatus.setObservers(observers);
@@ -208,7 +219,12 @@ public class MemberManager {
     }
 
     public CompletableFuture<Void> createReadyFuture(int targetReadyCount) {
-        return futureEventSource.registerInOtherThreads(() -> getReadyCount(raftStatus.getMembers()) >= targetReadyCount);
+        return futureEventSource.registerInOtherThreads(() -> {
+            if (raftStatus.getMembers().size() == 0) {
+                return true;
+            }
+            return getReadyCount(raftStatus.getMembers()) >= targetReadyCount;
+        });
     }
 
     public boolean checkLeader(int nodeId) {
