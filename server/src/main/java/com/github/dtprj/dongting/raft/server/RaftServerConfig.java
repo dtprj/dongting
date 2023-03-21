@@ -35,6 +35,7 @@ public class RaftServerConfig {
     private long maxPendingWriteBytes = 256 * 1024 * 1024;
 
     private boolean checkSelf = true;
+    private boolean staticConfig = true;
 
     public String getServers() {
         return servers;
@@ -146,5 +147,13 @@ public class RaftServerConfig {
 
     public void setCheckSelf(boolean checkSelf) {
         this.checkSelf = checkSelf;
+    }
+
+    public boolean isStaticConfig() {
+        return staticConfig;
+    }
+
+    public void setStaticConfig(boolean staticConfig) {
+        this.staticConfig = staticConfig;
     }
 }

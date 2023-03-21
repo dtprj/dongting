@@ -157,11 +157,10 @@ public class MemberManager {
             setReady(member, false);
         } else {
             if (callback.nodeId == 0 && callback.groupId == 0) {
-                log.error("raft ping error, group not found, groupId={}, remote={}",
+                log.error("raft ping error, groupId or nodeId not found, groupId={}, remote={}",
                         groupId, raftNodeEx.getHostPort());
                 setReady(member, false);
-            } else if (raftStatus.getNodeIdOfMembers().equals(callback.nodeIdOfMembers)
-                    && raftStatus.getNodeIdOfObservers().equals(callback.nodeIdOfObservers)) {
+            } else if (checkRemoteConfig(callback)) {
                 NodeStatus currentNodeStatus = member.getNode().getStatus();
                 if (currentNodeStatus.isReady() && nodeEpochWhenStartPing == currentNodeStatus.getEpoch()) {
                     log.info("raft ping success, id={}, remote={}", callback.nodeId, raftNodeEx.getHostPort());
@@ -180,6 +179,14 @@ public class MemberManager {
                 setReady(member, false);
             }
         }
+    }
+
+    private boolean checkRemoteConfig(RaftPingFrameCallback callback) {
+        if (serverConfig.isStaticConfig()) {
+            return raftStatus.getNodeIdOfMembers().equals(callback.nodeIdOfMembers)
+                    && raftStatus.getNodeIdOfObservers().equals(callback.nodeIdOfObservers);
+        }
+        return false;
     }
 
     public void setReady(RaftMember member, boolean ready) {

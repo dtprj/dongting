@@ -169,7 +169,7 @@ public class RaftServer extends AbstractLifeCircle {
 
             HashSet<Integer> nodeIdOfMembers = new HashSet<>();
             parseMemberIds(allNodeIds, nodeIdOfMembers, rgc.getNodeIdOfMembers(), rgc.getGroupId());
-            if (nodeIdOfMembers.size() == 0) {
+            if (nodeIdOfMembers.size() == 0 && serverConfig.isStaticConfig()) {
                 throw new IllegalArgumentException("no member in group: " + rgc.getGroupId());
             }
 
@@ -188,7 +188,7 @@ public class RaftServer extends AbstractLifeCircle {
 
             boolean isMember = nodeIdOfMembers.contains(serverConfig.getNodeId());
             boolean isObserver = nodeIdOfObservers.contains(serverConfig.getNodeId());
-            if (!isMember && !isObserver) {
+            if (!isMember && !isObserver && serverConfig.isStaticConfig()) {
                 throw new IllegalArgumentException("self id not found in group members/observers list: " + serverConfig.getNodeId());
             }
 
