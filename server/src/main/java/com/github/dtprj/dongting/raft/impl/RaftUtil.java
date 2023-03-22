@@ -169,19 +169,13 @@ public class RaftUtil {
         }
     }
 
-    public static void incrTerm(int remoteTerm, RaftStatus raftStatus,
-                                int newLeaderId, boolean persist) {
+    public static void incrTerm(int remoteTerm, RaftStatus raftStatus, int newLeaderId) {
         RaftRole oldRole = raftStatus.getRole();
         if (oldRole != RaftRole.observer) {
             log.info("update term from {} to {}, change to follower, oldRole={}",
                     raftStatus.getCurrentTerm(), remoteTerm, raftStatus.getRole());
             PendingMap oldPending = raftStatus.getPendingRequests();
             resetStatus(raftStatus);
-            if (newLeaderId > 0) {
-                updateLeader(raftStatus, newLeaderId);
-            }
-            raftStatus.setCurrentTerm(remoteTerm);
-            raftStatus.setVotedFor(0);
             raftStatus.setRole(RaftRole.follower);
             if (oldRole == RaftRole.leader) {
                 oldPending.forEach((idx, task) -> {
@@ -201,14 +195,15 @@ public class RaftUtil {
             }
         } else {
             log.info("update term from {} to {}", raftStatus.getCurrentTerm(), remoteTerm);
-            raftStatus.setCurrentTerm(remoteTerm);
-            if (newLeaderId > 0) {
-                updateLeader(raftStatus, newLeaderId);
-            }
+            resetStatus(raftStatus);
         }
-        if (persist) {
-            StatusUtil.updateStatusFile(raftStatus);
+        if (newLeaderId > 0) {
+            updateLeader(raftStatus, newLeaderId);
         }
+        raftStatus.setCurrentTerm(remoteTerm);
+        raftStatus.setVotedFor(0);
+        StatusUtil.updateStatusFile(raftStatus);
+
     }
 
     public static void changeToFollower(RaftStatus raftStatus, int leaderId) {

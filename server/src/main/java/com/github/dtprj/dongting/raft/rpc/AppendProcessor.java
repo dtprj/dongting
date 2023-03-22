@@ -83,7 +83,7 @@ public class AppendProcessor extends AbstractProcessor {
                     resp.setSuccess(false);
                 }
             } else if (remoteTerm > localTerm) {
-                RaftUtil.incrTerm(remoteTerm, raftStatus, req.getLeaderId(), true);
+                RaftUtil.incrTerm(remoteTerm, raftStatus, req.getLeaderId());
                 append(gc, raftStatus, req, resp);
             } else {
                 log.debug("receive append request with a smaller term, ignore, remoteTerm={}, localTerm={}", remoteTerm, localTerm);
