@@ -169,8 +169,8 @@ public class RaftUtil {
         }
     }
 
-    public static void incrTermAndConvertToFollower(int remoteTerm, RaftStatus raftStatus,
-                                                    int newLeaderId, boolean persist) {
+    public static void incrTerm(int remoteTerm, RaftStatus raftStatus,
+                                int newLeaderId, boolean persist) {
         RaftRole oldRole = raftStatus.getRole();
         if (oldRole != RaftRole.observer) {
             log.info("update term from {} to {}, change to follower, oldRole={}",

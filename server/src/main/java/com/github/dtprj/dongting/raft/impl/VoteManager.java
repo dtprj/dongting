@@ -347,7 +347,7 @@ public class VoteManager implements BiConsumer<EventType, Object> {
                 }
             }
         } else {
-            RaftUtil.incrTermAndConvertToFollower(remoteTerm, raftStatus, -1, true);
+            RaftUtil.incrTerm(remoteTerm, raftStatus, -1, true);
         }
     }
 }

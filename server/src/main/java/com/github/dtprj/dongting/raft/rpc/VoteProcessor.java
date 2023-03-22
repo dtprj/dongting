@@ -82,7 +82,7 @@ public class VoteProcessor extends AbstractProcessor {
 
     private void processVote(RaftStatus raftStatus, VoteReq voteReq, VoteResp resp, int localTerm) {
         if (voteReq.getTerm() > localTerm) {
-            RaftUtil.incrTermAndConvertToFollower(voteReq.getTerm(), raftStatus, -1, false);
+            RaftUtil.incrTerm(voteReq.getTerm(), raftStatus, -1, false);
         }
 
         if (shouldGrant(raftStatus, voteReq, localTerm)) {
