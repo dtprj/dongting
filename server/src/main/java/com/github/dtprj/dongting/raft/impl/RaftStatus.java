@@ -61,7 +61,7 @@ public class RaftStatus {
 
     private List<RaftMember> replicateList;
 
-    private PendingMap pendingRequests;
+    private PendingMap pendingRequests = new PendingMap();
     private long firstCommitIndexOfCurrentTerm;
     private CompletableFuture<Void> firstCommitOfApplied; // shared
 

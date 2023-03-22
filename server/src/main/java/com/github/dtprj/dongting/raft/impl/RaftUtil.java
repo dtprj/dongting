@@ -220,6 +220,15 @@ public class RaftUtil {
         raftStatus.setRole(RaftRole.follower);
     }
 
+    public static void changeToObserver(RaftStatus raftStatus, int leaderId) {
+        log.info("change to observer. term={}, oldRole={}", raftStatus.getCurrentTerm(), raftStatus.getRole());
+        resetStatus(raftStatus);
+        if (leaderId > 0) {
+            updateLeader(raftStatus, leaderId);
+        }
+        raftStatus.setRole(RaftRole.observer);
+    }
+
     public static void changeToLeader(RaftStatus raftStatus) {
         log.info("change to leader. term={}", raftStatus.getCurrentTerm());
         resetStatus(raftStatus);

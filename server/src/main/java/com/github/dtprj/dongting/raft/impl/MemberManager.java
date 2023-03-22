@@ -33,7 +33,6 @@ import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -75,9 +74,7 @@ public class MemberManager {
             RaftNodeEx node = allNodes.get(nodeId);
             RaftMember m = new RaftMember(node);
             if (node.isSelf()) {
-                m.setReady(true);
-                m.setEpoch(node.getStatus().getEpoch());
-                raftStatus.setSelf(m);
+                initSelf(node, m, RaftRole.follower);
             }
             raftStatus.getMembers().add(m);
         }
@@ -87,10 +84,7 @@ public class MemberManager {
                 RaftNodeEx node = allNodes.get(nodeId);
                 RaftMember m = new RaftMember(node);
                 if (node.isSelf()) {
-                    m.setReady(true);
-                    m.setEpoch(node.getStatus().getEpoch());
-                    raftStatus.setSelf(m);
-                    raftStatus.setRole(RaftRole.observer);
+                    initSelf(node, m, RaftRole.observer);
                 }
                 observers.add(m);
             }
@@ -100,6 +94,13 @@ public class MemberManager {
         }
         raftStatus.setJointConsensusMembers(emptyList());
         computeDuplicatedData();
+    }
+
+    private void initSelf(RaftNodeEx node, RaftMember m, RaftRole role) {
+        m.setReady(true);
+        m.setEpoch(node.getStatus().getEpoch());
+        raftStatus.setSelf(m);
+        raftStatus.setRole(role);
     }
 
     private void computeDuplicatedData() {
@@ -268,11 +269,23 @@ public class MemberManager {
             List<RaftMember> newObservers = new ArrayList<>();
             for (RaftNodeEx node : newMemberNodes) {
                 RaftMember m = currentNodes.get(node.getNodeId());
-                newMembers.add(Objects.requireNonNullElseGet(m, () -> new RaftMember(node)));
+                if (m == null) {
+                    m = new RaftMember(node);
+                    if (node.getNodeId() == serverConfig.getNodeId()) {
+                        initSelf(node, m, RaftRole.follower);
+                    }
+                }
+                newMembers.add(m);
             }
             for (RaftNodeEx node : newObserverNodes) {
                 RaftMember m = currentNodes.get(node.getNodeId());
-                newObservers.add(Objects.requireNonNullElseGet(m, () -> new RaftMember(node)));
+                if (m == null) {
+                    m = new RaftMember(node);
+                    if (node.getNodeId() == serverConfig.getNodeId()) {
+                        initSelf(node, m, RaftRole.observer);
+                    }
+                }
+                newObservers.add(m);
             }
             raftStatus.setJointConsensusMembers(newMembers);
             this.jointConsensusObservers = newObservers;
@@ -301,6 +314,14 @@ public class MemberManager {
             raftStatus.setJointConsensusMembers(emptyList());
             this.jointConsensusObservers = emptyList();
             computeDuplicatedData();
+
+            int selfId = serverConfig.getNodeId();
+            if (!raftStatus.getNodeIdOfMembers().contains(selfId)) {
+                if (raftStatus.getRole() != RaftRole.observer) {
+                    RaftUtil.changeToObserver(raftStatus, -1);
+                }
+            }
+
             eventBus.fire(EventType.cancelVote, null);
             f.complete(ids);
         });
@@ -325,6 +346,14 @@ public class MemberManager {
             raftStatus.setJointConsensusMembers(emptyList());
             this.jointConsensusObservers = emptyList();
             computeDuplicatedData();
+
+            int selfId = serverConfig.getNodeId();
+            if (raftStatus.getNodeIdOfMembers().contains(selfId)) {
+                if (raftStatus.getRole() != RaftRole.observer) {
+                    RaftUtil.changeToObserver(raftStatus, -1);
+                }
+            }
+
             eventBus.fire(EventType.cancelVote, null);
             f.complete(ids);
         });
