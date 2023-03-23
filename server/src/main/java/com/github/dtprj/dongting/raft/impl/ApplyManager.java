@@ -56,7 +56,7 @@ public class ApplyManager {
                 for (int i = 0; i < readCount; i++) {
                     LogItem item = items[i];
                     RaftInput input;
-                    if (item.getType() != LogItem.TYPE_HEARTBEAT) {
+                    if (item.getType() == LogItem.TYPE_NORMAL) {
                         Object o = stateMachine.decode(item.getBuffer());
                         input = new RaftInput(item.getBuffer(), o, null, false);
                     } else {
@@ -91,7 +91,7 @@ public class ApplyManager {
     }
 
     public void exec(long index, RaftTask rt) {
-        if (rt.type == LogItem.TYPE_HEARTBEAT) {
+        if (rt.type != LogItem.TYPE_NORMAL) {
             return;
         }
         RaftInput input = rt.input;
