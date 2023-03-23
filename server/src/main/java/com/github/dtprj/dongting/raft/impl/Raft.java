@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
@@ -25,39 +24,47 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftNode;
-import com.github.dtprj.dongting.raft.server.RaftServerConfig;
-import com.github.dtprj.dongting.raft.server.StateMachine;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * @author huangli
  */
-public class Raft {
+public class Raft implements BiConsumer<EventType, Object> {
 
     private final ReplicateManager replicateManager;
     private final ApplyManager applyManager;
     private final CommitManager commitManager;
 
     private final RaftLog raftLog;
+    private final RaftGroupConfig groupConfig;
     private final RaftStatus raftStatus;
 
     private final Timestamp ts;
 
-    public Raft(RaftServerConfig serverConfig, RaftGroupConfig groupConfig, RaftStatus raftStatus,
-                RaftLog raftLog, StateMachine stateMachine, NioClient client, RaftExecutor executor) {
+    public Raft(RaftGroupConfig groupConfig, RaftStatus raftStatus, RaftLog raftLog, ApplyManager applyManager,
+                 CommitManager commitManager, ReplicateManager replicateManager) {
+        this.groupConfig = groupConfig;
         this.raftStatus = raftStatus;
         this.raftLog = raftLog;
         this.ts = raftStatus.getTs();
 
-        this.applyManager = new ApplyManager(raftLog, stateMachine, ts);
-        this.commitManager = new CommitManager(raftStatus, raftLog, applyManager);
-        this.replicateManager = new ReplicateManager(serverConfig, groupConfig, raftStatus, raftLog,
-                stateMachine, client, executor, commitManager);
-   }
+        this.applyManager = applyManager;
+        this.commitManager = commitManager;
+        this.replicateManager = replicateManager;
+    }
+
+    @Override
+    public void accept(EventType eventType, Object o) {
+        if (eventType == EventType.raftExec) {
+            raftExec((List<RaftTask>) o);
+        }
+    }
 
     @SuppressWarnings("ForLoopReplaceableByForEach")
     public void raftExec(List<RaftTask> inputs) {
@@ -82,7 +89,7 @@ public class Raft {
             RaftTask rt = inputs.get(i);
             RaftInput input = rt.input;
 
-            if (input.getDeadline().isTimeout(ts)) {
+            if (input.getDeadline() != null && input.getDeadline().isTimeout(ts)) {
                 rt.future.completeExceptionally(new RaftExecTimeoutException("timeout "
                         + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms"));
                 continue;
@@ -141,8 +148,8 @@ public class Raft {
         raftExec(Collections.singletonList(rt));
     }
 
-    public ApplyManager getApplyManager() {
-        return applyManager;
+    public Consumer<List<RaftTask>> raftTaskConsumer() {
+        return this::raftExec;
     }
 
 }

@@ -31,6 +31,8 @@ import com.github.dtprj.dongting.net.NioConfig;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
 import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.impl.ApplyManager;
+import com.github.dtprj.dongting.raft.impl.CommitManager;
 import com.github.dtprj.dongting.raft.impl.EventBus;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
@@ -42,6 +44,7 @@ import com.github.dtprj.dongting.raft.impl.RaftNodeEx;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.impl.ReplicateManager;
 import com.github.dtprj.dongting.raft.impl.ShareStatus;
 import com.github.dtprj.dongting.raft.impl.VoteManager;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
@@ -57,7 +60,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -140,6 +142,10 @@ public class RaftServer extends AbstractLifeCircle {
 
         createRaftGroups(serverConfig, groupConfig, raftLogs, stateMachines, allNodeIds);
         nodeManager = new NodeManager(serverConfig, allRaftServers, raftClient, groupComponentsMap);
+        groupComponentsMap.forEach((id, gc) -> {
+            gc.getEventBus().register(nodeManager);
+            return true;
+        });
 
         NioServerConfig nioServerConfig = new NioServerConfig();
         nioServerConfig.setPort(serverConfig.getRaftPort());
@@ -199,14 +205,22 @@ public class RaftServer extends AbstractLifeCircle {
             raftStatus.setRaftExecutor(raftExecutor);
             raftStatus.setNodeIdOfMembers(nodeIdOfMembers);
             raftStatus.setNodeIdOfObservers(nodeIdOfObservers);
+            raftStatus.setGroupId(rgc.getGroupId());
 
             MemberManager memberManager = new MemberManager(serverConfig, raftClient, raftExecutor,
-                    raftStatus, rgc.getGroupId(), eventBus);
-            Raft raft = new Raft(serverConfig, rgc, raftStatus, raftLog, stateMachine, raftClient, raftExecutor);
+                    raftStatus, eventBus);
+            ApplyManager applyManager = new ApplyManager(raftLog, stateMachine, raftStatus, eventBus);
+            CommitManager commitManager = new CommitManager(raftStatus, raftLog, applyManager);
+            ReplicateManager replicateManager = new ReplicateManager(serverConfig, rgc, raftStatus, raftLog,
+                    stateMachine, raftClient, raftExecutor, commitManager);
+
+            Raft raft = new Raft(rgc, raftStatus, raftLog, applyManager, commitManager, replicateManager);
             VoteManager voteManager = new VoteManager(serverConfig, rgc, raftStatus, raftClient, raftExecutor, raft);
-            eventBus.register(voteManager);
             RaftGroupThread raftGroupThread = new RaftGroupThread(serverConfig, rgc, raftStatus, raftLog, stateMachine, raftExecutor,
                     raft, memberManager, voteManager);
+
+            eventBus.register(voteManager);
+
             GroupComponents gc = new GroupComponents();
             gc.setServerConfig(serverConfig);
             gc.setGroupConfig(rgc);
@@ -217,6 +231,10 @@ public class RaftServer extends AbstractLifeCircle {
             gc.setMemberManager(memberManager);
             gc.setVoteManager(voteManager);
             gc.setRaftExecutor(raftExecutor);
+            gc.setApplyManager(applyManager);
+            gc.setCommitManager(commitManager);
+            gc.setReplicateManager(replicateManager);
+            gc.setEventBus(eventBus);
 
             groupComponentsMap.put(rgc.getGroupId(), gc);
         }
@@ -381,27 +399,27 @@ public class RaftServer extends AbstractLifeCircle {
      * ADMIN API. This method is idempotent.
      */
     @SuppressWarnings("unused")
-    public CompletableFuture<Void> prepareJointConsensus(UUID changeId, int groupId, Set<Integer> members, Set<Integer> observers) {
+    public CompletableFuture<Void> leaderPrepareJointConsensus(int groupId, Set<Integer> members, Set<Integer> observers) {
         Objects.requireNonNull(members);
         Objects.requireNonNull(observers);
         // node state change in scheduler thread, member state change in raft thread
-        return nodeManager.prepareJointConsensus(groupId, members, observers, changeId);
+        return nodeManager.leaderPrepareJointConsensus(groupId, members, observers);
     }
 
     /**
      * ADMIN API. This method is idempotent.
      */
     @SuppressWarnings("unused")
-    public CompletableFuture<Void> dropJointConsensus(UUID changeId, int groupId) {
-        return nodeManager.dropJointConsensus(groupId, changeId);
+    public CompletableFuture<Void> dropJointConsensus(int groupId) {
+        return nodeManager.dropJointConsensus(groupId);
     }
 
     /**
      * ADMIN API. This method is idempotent.
      */
     @SuppressWarnings("unused")
-    public CompletableFuture<Void> commitJointConsensus(UUID changeId, int groupId) {
-        return nodeManager.commitJointConsensus(groupId, changeId);
+    public CompletableFuture<Void> commitJointConsensus(int groupId) {
+        return nodeManager.commitJointConsensus(groupId);
     }
 
     /**

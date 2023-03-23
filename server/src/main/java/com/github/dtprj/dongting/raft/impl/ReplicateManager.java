@@ -47,7 +47,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-class ReplicateManager {
+public class ReplicateManager {
 
     private static final DtLog log = DtLogs.getLogger(ReplicateManager.class);
 
@@ -70,7 +70,7 @@ class ReplicateManager {
     private static final PbZeroCopyDecoder APPEND_RESP_DECODER = new PbZeroCopyDecoder(c -> new AppendRespCallback());
     private static final PbZeroCopyDecoder INSTALL_SNAPSHOT_RESP_DECODER = new PbZeroCopyDecoder(c -> new InstallSnapshotResp.Callback());
 
-    ReplicateManager(RaftServerConfig config, RaftGroupConfig groupConfig, RaftStatus raftStatus,
+    public ReplicateManager(RaftServerConfig config, RaftGroupConfig groupConfig, RaftStatus raftStatus,
                      RaftLog raftLog, StateMachine stateMachine, NioClient client, RaftExecutor executor,
                      CommitManager commitManager) {
         this.groupId = groupConfig.getGroupId();

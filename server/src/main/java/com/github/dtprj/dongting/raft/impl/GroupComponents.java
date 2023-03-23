@@ -20,16 +20,10 @@ import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.server.StateMachine;
 
-import java.util.UUID;
-
 /**
  * @author huangli
  */
 public class GroupComponents {
-
-    // access in schedule thread
-    private UUID changeId;
-
 
     private RaftServerConfig serverConfig;
     private RaftGroupConfig groupConfig;
@@ -41,16 +35,12 @@ public class GroupComponents {
     private StateMachine stateMachine;
     private Raft raft;
     private RaftExecutor raftExecutor;
+    private ReplicateManager replicateManager;
+    private ApplyManager applyManager;
+    private CommitManager commitManager;
+    private EventBus eventBus;
 
     public GroupComponents() {
-    }
-
-    public UUID getChangeId() {
-        return changeId;
-    }
-
-    public void setChangeId(UUID changeId) {
-        this.changeId = changeId;
     }
 
     public RaftGroupThread getRaftGroupThread() {
@@ -131,5 +121,37 @@ public class GroupComponents {
 
     public void setRaft(Raft raft) {
         this.raft = raft;
+    }
+
+    public ReplicateManager getReplicateManager() {
+        return replicateManager;
+    }
+
+    public void setReplicateManager(ReplicateManager replicateManager) {
+        this.replicateManager = replicateManager;
+    }
+
+    public ApplyManager getApplyManager() {
+        return applyManager;
+    }
+
+    public void setApplyManager(ApplyManager applyManager) {
+        this.applyManager = applyManager;
+    }
+
+    public CommitManager getCommitManager() {
+        return commitManager;
+    }
+
+    public void setCommitManager(CommitManager commitManager) {
+        this.commitManager = commitManager;
+    }
+
+    public EventBus getEventBus() {
+        return eventBus;
+    }
+
+    public void setEventBus(EventBus eventBus) {
+        this.eventBus = eventBus;
     }
 }

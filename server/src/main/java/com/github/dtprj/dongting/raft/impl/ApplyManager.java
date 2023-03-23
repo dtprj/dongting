@@ -16,6 +16,8 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -23,23 +25,33 @@ import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.StateMachine;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+
+import static java.util.Collections.emptySet;
 
 /**
  * @author huangli
  */
 public class ApplyManager {
+    private static final DtLog log = DtLogs.getLogger(ApplyManager.class);
 
     private final RaftLog raftLog;
     private final StateMachine stateMachine;
     private final Timestamp ts;
+    private final EventBus eventBus;
+    private final RaftStatus raftStatus;
 
-    ApplyManager(RaftLog raftLog, StateMachine stateMachine, Timestamp ts) {
+    public ApplyManager(RaftLog raftLog, StateMachine stateMachine, RaftStatus raftStatus, EventBus eventBus) {
         this.raftLog = raftLog;
         this.stateMachine = stateMachine;
-        this.ts = ts;
+        this.ts = raftStatus.getTs();
+        this.raftStatus = raftStatus;
+        this.eventBus = eventBus;
     }
 
     public void apply(long commitIndex, RaftStatus raftStatus) {
@@ -91,12 +103,22 @@ public class ApplyManager {
     }
 
     public void exec(long index, RaftTask rt) {
-        if (rt.type != LogItem.TYPE_NORMAL) {
-            return;
+        switch (rt.type) {
+            case LogItem.TYPE_NORMAL:
+                execNormal(index, rt);
+                break;
+            case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
+                doPrepare(rt.input.getLogData());
+                break;
+            default:
+                break;
         }
+    }
+
+    private void execNormal(long index, RaftTask rt) {
         RaftInput input = rt.input;
         CompletableFuture<RaftOutput> future = rt.future;
-        if (input.isReadOnly() && input.getDeadline().isTimeout(ts)) {
+        if (input.isReadOnly() && input.getDeadline() != null && input.getDeadline().isTimeout(ts)) {
             if (future != null) {
                 future.completeExceptionally(new RaftExecTimeoutException("timeout "
                         + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms"));
@@ -117,6 +139,39 @@ public class ApplyManager {
                 throw e;
             }
         }
+    }
 
+    private void doPrepare(ByteBuffer logData) {
+        byte[] data = new byte[logData.remaining()];
+        logData.get(data);
+        String dataStr = new String(data);
+        String[] fields = dataStr.split(";");
+        Set<Integer> oldMembers = parseSet(fields[0]);
+        Set<Integer> oldObservers = parseSet(fields[1]);
+        Set<Integer> newMembers = parseSet(fields[2]);
+        Set<Integer> newObservers = parseSet(fields[3]);
+        if (!oldMembers.equals(raftStatus.getNodeIdOfMembers())) {
+            log.error("oldMembers not match, oldMembers={}, currentMembers={}, groupId={}",
+                    oldMembers, raftStatus.getNodeIdOfMembers(), raftStatus.getGroupId());
+        }
+        if (!oldObservers.equals(raftStatus.getNodeIdOfObservers())) {
+            log.error("oldObservers not match, oldObservers={}, currentObservers={}, groupId={}",
+                    oldObservers, raftStatus.getNodeIdOfObservers(), raftStatus.getGroupId());
+        }
+        Object[] args = new Object[]{raftStatus.getGroupId(), raftStatus.getNodeIdOfJointConsensusMembers(),
+                raftStatus.getNodeIdOfJointObservers(), newMembers, oldMembers};
+        eventBus.fire(EventType.prepareConfChange, args);
+    }
+
+    public Set<Integer> parseSet(String s) {
+        if (s.length() == 0) {
+            return emptySet();
+        }
+        String[] fields = s.split(",");
+        Set<Integer> set = new HashSet<>();
+        for (String f : fields) {
+            set.add(Integer.parseInt(f));
+        }
+        return set;
     }
 }

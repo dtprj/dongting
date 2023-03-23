@@ -27,10 +27,15 @@ import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.rpc.RaftPingFrameCallback;
 import com.github.dtprj.dongting.raft.rpc.RaftPingProcessor;
 import com.github.dtprj.dongting.raft.rpc.RaftPingWriteFrame;
+import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
+import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -51,19 +56,16 @@ public class MemberManager {
     private final NioClient client;
     private final RaftExecutor executor;
 
-    private boolean hasPrepareState;
-    private List<RaftMember> jointConsensusObservers;
-
     private final FutureEventSource futureEventSource;
     private final EventBus eventBus;
 
     public MemberManager(RaftServerConfig serverConfig, NioClient client, RaftExecutor executor,
-                         RaftStatus raftStatus, int groupId, EventBus eventBus) {
+                         RaftStatus raftStatus, EventBus eventBus) {
         this.serverConfig = serverConfig;
         this.client = client;
         this.executor = executor;
         this.raftStatus = raftStatus;
-        this.groupId = groupId;
+        this.groupId = raftStatus.getGroupId();
 
         this.futureEventSource = new FutureEventSource(executor);
         this.eventBus = eventBus;
@@ -108,6 +110,7 @@ public class MemberManager {
         Set<Integer> memberIds = new HashSet<>();
         Set<Integer> observerIds = new HashSet<>();
         Set<Integer> jointMemberIds = new HashSet<>();
+        Set<Integer> jointObserverIds = new HashSet<>();
         for (RaftMember m : raftStatus.getMembers()) {
             replicateList.add(m);
             memberIds.add(m.getNode().getNodeId());
@@ -120,10 +123,14 @@ public class MemberManager {
             replicateList.add(m);
             jointMemberIds.add(m.getNode().getNodeId());
         }
+        for (RaftMember m : raftStatus.getJointConsensusObservers()) {
+            jointObserverIds.add(m.getNode().getNodeId());
+        }
         raftStatus.setReplicateList(replicateList.size() == 0 ? emptyList() : replicateList);
         raftStatus.setNodeIdOfMembers(memberIds.size() == 0 ? emptySet() : memberIds);
         raftStatus.setNodeIdOfObservers(observerIds.size() == 0 ? emptySet() : observerIds);
         raftStatus.setNodeIdOfJointConsensusMembers(jointMemberIds.size() == 0 ? emptySet() : jointMemberIds);
+        raftStatus.setNodeIdOfJointObservers(jointObserverIds.size() == 0 ? emptySet() : jointObserverIds);
     }
 
     @SuppressWarnings("ForLoopReplaceableByForEach")
@@ -247,57 +254,6 @@ public class MemberManager {
         }
     }
 
-    public CompletableFuture<Void> prepareJointConsensus(List<RaftNodeEx> newMemberNodes, List<RaftNodeEx> newObserverNodes) {
-        CompletableFuture<Void> f = new CompletableFuture<>();
-        executor.execute(() -> {
-            if (hasPrepareState) {
-                BugLog.getLog().error("joint consensus is prepared");
-                f.completeExceptionally(new IllegalStateException("joint consensus is prepared"));
-                return;
-            }
-            hasPrepareState = true;
-
-            IntObjMap<RaftMember> currentNodes = new IntObjMap<>();
-            for (RaftMember m : raftStatus.getMembers()) {
-                currentNodes.put(m.getNode().getNodeId(), m);
-            }
-            for (RaftMember m : raftStatus.getObservers()) {
-                currentNodes.put(m.getNode().getNodeId(), m);
-            }
-
-            List<RaftMember> newMembers = new ArrayList<>();
-            List<RaftMember> newObservers = new ArrayList<>();
-            for (RaftNodeEx node : newMemberNodes) {
-                RaftMember m = currentNodes.get(node.getNodeId());
-                if (m == null) {
-                    m = new RaftMember(node);
-                    if (node.getNodeId() == serverConfig.getNodeId()) {
-                        initSelf(node, m, RaftRole.follower);
-                    }
-                }
-                newMembers.add(m);
-            }
-            for (RaftNodeEx node : newObserverNodes) {
-                RaftMember m = currentNodes.get(node.getNodeId());
-                if (m == null) {
-                    m = new RaftMember(node);
-                    if (node.getNodeId() == serverConfig.getNodeId()) {
-                        initSelf(node, m, RaftRole.observer);
-                    }
-                }
-                newObservers.add(m);
-            }
-            raftStatus.setJointConsensusMembers(newMembers);
-            this.jointConsensusObservers = newObservers;
-
-            computeDuplicatedData();
-
-            eventBus.fire(EventType.cancelVote, null);
-            f.complete(null);
-        });
-        return f;
-    }
-
     public CompletableFuture<Set<Integer>> dropJointConsensus() {
         CompletableFuture<Set<Integer>> f = new CompletableFuture<>();
         executor.execute(() -> {
@@ -412,5 +368,85 @@ public class MemberManager {
         executor.schedule(r, 3);
     }
 
+    public void leaderPrepareJointConsensus(Set<Integer> newMemberNodes, Set<Integer> newObserverNodes,
+                                            CompletableFuture<Void> f) {
+        if (raftStatus.getRole() != RaftRole.leader) {
+            log.error("leaderPrepareJointConsensus fail, not leader, role={}, groupId={}",
+                    raftStatus.getRole(), groupId);
+            f.completeExceptionally(new RaftException("not leader"));
+        }
+        CompletableFuture<RaftOutput> outputFuture = new CompletableFuture<>();
+        RaftInput input = new RaftInput(getInputData(newMemberNodes, newObserverNodes), null, null, false);
+        RaftTask rt = new RaftTask(raftStatus.getTs(), LogItem.TYPE_PREPARE_CONFIG_CHANGE, input, outputFuture);
+        eventBus.fire(EventType.raftExec, Collections.singletonList(rt));
 
+        outputFuture.whenComplete((v, ex) -> {
+            if (ex != null) {
+                f.completeExceptionally(ex);
+            } else {
+                f.complete(null);
+            }
+        });
+    }
+
+    private ByteBuffer getInputData(Set<Integer> newMemberNodes, Set<Integer> newObserverNodes) {
+        StringBuilder sb = new StringBuilder(64);
+        appendSet(sb, raftStatus.getNodeIdOfMembers());
+        appendSet(sb, raftStatus.getNodeIdOfObservers());
+        appendSet(sb, newMemberNodes);
+        appendSet(sb, newObserverNodes);
+        sb.deleteCharAt(sb.length() - 1);
+        return ByteBuffer.wrap(sb.toString().getBytes());
+    }
+
+    private void appendSet(StringBuilder sb, Set<Integer> set) {
+        if (set.size() > 0) {
+            for (int nodeId : set) {
+                sb.append(nodeId).append(',');
+            }
+            sb.deleteCharAt(sb.length() - 1);
+        }
+        sb.append(';');
+    }
+
+
+    public void doPrepare(List<RaftNodeEx> newMemberNodes, List<RaftNodeEx> newObserverNodes) {
+        IntObjMap<RaftMember> currentNodes = new IntObjMap<>();
+        for (RaftMember m : raftStatus.getMembers()) {
+            currentNodes.put(m.getNode().getNodeId(), m);
+        }
+        for (RaftMember m : raftStatus.getObservers()) {
+            currentNodes.put(m.getNode().getNodeId(), m);
+        }
+
+        List<RaftMember> newMembers = new ArrayList<>();
+        List<RaftMember> newObservers = new ArrayList<>();
+        for (RaftNodeEx node : newMemberNodes) {
+            RaftMember m = currentNodes.get(node.getNodeId());
+            if (m == null) {
+                m = new RaftMember(node);
+                if (node.getNodeId() == serverConfig.getNodeId()) {
+                    initSelf(node, m, RaftRole.follower);
+                }
+            }
+            newMembers.add(m);
+        }
+        for (RaftNodeEx node : newObserverNodes) {
+            RaftMember m = currentNodes.get(node.getNodeId());
+            if (m == null) {
+                m = new RaftMember(node);
+                if (node.getNodeId() == serverConfig.getNodeId()) {
+                    initSelf(node, m, RaftRole.observer);
+                }
+            }
+            newObservers.add(m);
+        }
+        raftStatus.setJointConsensusMembers(newMembers);
+        raftStatus.setJointConsensusObservers(newObservers);
+
+        computeDuplicatedData();
+
+        eventBus.fire(EventType.cancelVote, null);
+
+    }
 }

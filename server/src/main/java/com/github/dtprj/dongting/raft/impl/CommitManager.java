@@ -20,13 +20,13 @@ import com.github.dtprj.dongting.raft.server.RaftLog;
 /**
  * @author huangli
  */
-class CommitManager {
+public class CommitManager {
 
     private final RaftStatus raftStatus;
     private final RaftLog raftLog;
     private final ApplyManager applyManager;
 
-    CommitManager(RaftStatus raftStatus, RaftLog raftLog, ApplyManager applyManager) {
+    public CommitManager(RaftStatus raftStatus, RaftLog raftLog, ApplyManager applyManager) {
         this.raftStatus = raftStatus;
         this.raftLog = raftLog;
         this.applyManager = applyManager;

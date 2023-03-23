@@ -23,6 +23,9 @@ import java.nio.ByteBuffer;
 public class LogItem {
     public static final int TYPE_NORMAL = 0;
     public static final int TYPE_HEARTBEAT = 1;
+    public static final int TYPE_PREPARE_CONFIG_CHANGE = 2;
+    public static final int TYPE_DROP_CONFIG_CHANGE = 3;
+    public static final int TYPE_COMMIT_CONFIG_CHANGE = 4;
 
     private int type;
     private int term;

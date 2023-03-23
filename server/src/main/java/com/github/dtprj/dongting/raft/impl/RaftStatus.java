@@ -40,6 +40,8 @@ public class RaftStatus {
     private long commitIndex;
     private long lastApplied; // shared
 
+    private int groupId;
+
     @SuppressWarnings({"unused"})
     private boolean error;
     private boolean installSnapshot;
@@ -54,10 +56,12 @@ public class RaftStatus {
     private List<RaftMember> members;
     private List<RaftMember> observers;
     private List<RaftMember> jointConsensusMembers;
+    private List<RaftMember> jointConsensusObservers;
 
     private Set<Integer> nodeIdOfMembers;
     private Set<Integer> nodeIdOfObservers;
     private Set<Integer> nodeIdOfJointConsensusMembers;
+    private Set<Integer> nodeIdOfJointObservers;
 
     private List<RaftMember> replicateList;
 
@@ -406,5 +410,29 @@ public class RaftStatus {
 
     public void setSelf(RaftMember self) {
         this.self = self;
+    }
+
+    public int getGroupId() {
+        return groupId;
+    }
+
+    public void setGroupId(int groupId) {
+        this.groupId = groupId;
+    }
+
+    public Set<Integer> getNodeIdOfJointObservers() {
+        return nodeIdOfJointObservers;
+    }
+
+    public void setNodeIdOfJointObservers(Set<Integer> nodeIdOfJointObservers) {
+        this.nodeIdOfJointObservers = nodeIdOfJointObservers;
+    }
+
+    public List<RaftMember> getJointConsensusObservers() {
+        return jointConsensusObservers;
+    }
+
+    public void setJointConsensusObservers(List<RaftMember> jointConsensusObservers) {
+        this.jointConsensusObservers = jointConsensusObservers;
     }
 }
