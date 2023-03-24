@@ -209,7 +209,7 @@ public class RaftServer extends AbstractLifeCircle {
 
             MemberManager memberManager = new MemberManager(serverConfig, raftClient, raftExecutor,
                     raftStatus, eventBus);
-            ApplyManager applyManager = new ApplyManager(raftLog, stateMachine, raftStatus, eventBus);
+            ApplyManager applyManager = new ApplyManager(serverConfig.getNodeId(), raftLog, stateMachine, raftStatus, eventBus);
             CommitManager commitManager = new CommitManager(raftStatus, raftLog, applyManager);
             ReplicateManager replicateManager = new ReplicateManager(serverConfig, rgc, raftStatus, raftLog,
                     stateMachine, raftClient, raftExecutor, commitManager);
@@ -410,8 +410,8 @@ public class RaftServer extends AbstractLifeCircle {
      * ADMIN API. This method is idempotent.
      */
     @SuppressWarnings("unused")
-    public CompletableFuture<Void> dropJointConsensus(int groupId) {
-        return nodeManager.dropJointConsensus(groupId);
+    public CompletableFuture<Void> leaderAbortJointConsensus(int groupId) {
+        return nodeManager.leaderAbortJointConsensus(groupId);
     }
 
     /**

@@ -19,5 +19,5 @@ package com.github.dtprj.dongting.raft.impl;
  * @author huangli
  */
 public enum EventType {
-    cancelVote, prepareConfChange, raftExec
+    cancelVote, prepareConfChange, abortConfChange, commitConfChange , raftExec
 }

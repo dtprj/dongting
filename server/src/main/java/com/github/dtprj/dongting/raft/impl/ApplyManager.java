@@ -32,6 +32,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 
 /**
@@ -40,13 +41,15 @@ import static java.util.Collections.emptySet;
 public class ApplyManager {
     private static final DtLog log = DtLogs.getLogger(ApplyManager.class);
 
+    private final int selfNodeId;
     private final RaftLog raftLog;
     private final StateMachine stateMachine;
     private final Timestamp ts;
     private final EventBus eventBus;
     private final RaftStatus raftStatus;
 
-    public ApplyManager(RaftLog raftLog, StateMachine stateMachine, RaftStatus raftStatus, EventBus eventBus) {
+    public ApplyManager(int selfNodeId, RaftLog raftLog, StateMachine stateMachine, RaftStatus raftStatus, EventBus eventBus) {
+        this.selfNodeId = selfNodeId;
         this.raftLog = raftLog;
         this.stateMachine = stateMachine;
         this.ts = raftStatus.getTs();
@@ -97,6 +100,9 @@ public class ApplyManager {
                 break;
             case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
                 doPrepare(rt.input.getLogData());
+                break;
+            case LogItem.TYPE_DROP_CONFIG_CHANGE:
+                doAbort();
                 break;
             default:
                 // heartbeat etc.
@@ -170,5 +176,23 @@ public class ApplyManager {
             set.add(Integer.parseInt(f));
         }
         return set;
+    }
+
+    private void doAbort() {
+        HashSet<Integer> ids = new HashSet<>(raftStatus.getNodeIdOfJointConsensusMembers());
+        for (RaftMember m : raftStatus.getJointConsensusObservers()) {
+            ids.add(m.getNode().getNodeId());
+        }
+
+        raftStatus.setJointConsensusMembers(emptyList());
+        raftStatus.setJointConsensusObservers(emptyList());
+        MemberManager.computeDuplicatedData(raftStatus);
+
+        if (!raftStatus.getNodeIdOfMembers().contains(selfNodeId)) {
+            if (raftStatus.getRole() != RaftRole.observer) {
+                RaftUtil.changeToObserver(raftStatus, -1);
+            }
+        }
+        eventBus.fire(EventType.abortConfChange, ids);
     }
 }

@@ -95,7 +95,7 @@ public class MemberManager {
             raftStatus.setObservers(emptyList());
         }
         raftStatus.setJointConsensusMembers(emptyList());
-        computeDuplicatedData();
+        computeDuplicatedData(raftStatus);
     }
 
     private void initSelf(RaftNodeEx node, RaftMember m, RaftRole role) {
@@ -105,7 +105,7 @@ public class MemberManager {
         raftStatus.setRole(role);
     }
 
-    private void computeDuplicatedData() {
+    static void computeDuplicatedData(RaftStatus raftStatus) {
         ArrayList<RaftMember> replicateList = new ArrayList<>();
         Set<Integer> memberIds = new HashSet<>();
         Set<Integer> observerIds = new HashSet<>();
@@ -254,36 +254,6 @@ public class MemberManager {
         }
     }
 
-    public CompletableFuture<Set<Integer>> dropJointConsensus() {
-        CompletableFuture<Set<Integer>> f = new CompletableFuture<>();
-        executor.execute(() -> {
-            if (!hasPrepareState) {
-                BugLog.getLog().error("joint consensus not prepared");
-                f.completeExceptionally(new IllegalStateException("joint consensus not prepared"));
-                return;
-            }
-            HashSet<Integer> ids = new HashSet<>(raftStatus.getNodeIdOfJointConsensusMembers());
-            for (RaftMember m : jointConsensusObservers) {
-                ids.add(m.getNode().getNodeId());
-            }
-
-            raftStatus.setJointConsensusMembers(emptyList());
-            this.jointConsensusObservers = emptyList();
-            computeDuplicatedData();
-
-            int selfId = serverConfig.getNodeId();
-            if (!raftStatus.getNodeIdOfMembers().contains(selfId)) {
-                if (raftStatus.getRole() != RaftRole.observer) {
-                    RaftUtil.changeToObserver(raftStatus, -1);
-                }
-            }
-
-            eventBus.fire(EventType.cancelVote, null);
-            f.complete(ids);
-        });
-        return f;
-    }
-
     public CompletableFuture<Set<Integer>> commitJointConsensus() {
         CompletableFuture<Set<Integer>> f = new CompletableFuture<>();
         executor.execute(() -> {
@@ -301,7 +271,7 @@ public class MemberManager {
 
             raftStatus.setJointConsensusMembers(emptyList());
             this.jointConsensusObservers = emptyList();
-            computeDuplicatedData();
+            computeDuplicatedData(raftStatus);
 
             int selfId = serverConfig.getNodeId();
             if (raftStatus.getNodeIdOfMembers().contains(selfId)) {
@@ -368,16 +338,29 @@ public class MemberManager {
         executor.schedule(r, 3);
     }
 
-    public void leaderPrepareJointConsensus(Set<Integer> newMemberNodes, Set<Integer> newObserverNodes,
-                                            CompletableFuture<Void> f) {
+    private void leaderConfigChange(int type, ByteBuffer data, CompletableFuture<Void> f) {
         if (raftStatus.getRole() != RaftRole.leader) {
-            log.error("leaderPrepareJointConsensus fail, not leader, role={}, groupId={}",
-                    raftStatus.getRole(), groupId);
+            String stageStr;
+            switch (type) {
+                case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
+                    stageStr = "prepare";
+                    break;
+                case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
+                    stageStr = "commit";
+                    break;
+                case LogItem.TYPE_DROP_CONFIG_CHANGE:
+                    stageStr = "abort";
+                    break;
+                default:
+                    throw new IllegalArgumentException(String.valueOf(type));
+            }
+            log.error("leader config change {}, not leader, role={}, groupId={}",
+                    stageStr, raftStatus.getRole(), groupId);
             f.completeExceptionally(new RaftException("not leader"));
         }
         CompletableFuture<RaftOutput> outputFuture = new CompletableFuture<>();
-        RaftInput input = new RaftInput(getInputData(newMemberNodes, newObserverNodes), null, null, false);
-        RaftTask rt = new RaftTask(raftStatus.getTs(), LogItem.TYPE_PREPARE_CONFIG_CHANGE, input, outputFuture);
+        RaftInput input = new RaftInput(data, null, null, false);
+        RaftTask rt = new RaftTask(raftStatus.getTs(), type, input, outputFuture);
         eventBus.fire(EventType.raftExec, Collections.singletonList(rt));
 
         outputFuture.whenComplete((v, ex) -> {
@@ -387,6 +370,11 @@ public class MemberManager {
                 f.complete(null);
             }
         });
+    }
+
+    public void leaderPrepareJointConsensus(Set<Integer> newMemberNodes, Set<Integer> newObserverNodes,
+                                            CompletableFuture<Void> f) {
+        leaderConfigChange(LogItem.TYPE_PREPARE_CONFIG_CHANGE, getInputData(newMemberNodes, newObserverNodes), f);
     }
 
     private ByteBuffer getInputData(Set<Integer> newMemberNodes, Set<Integer> newObserverNodes) {
@@ -444,9 +432,14 @@ public class MemberManager {
         raftStatus.setJointConsensusMembers(newMembers);
         raftStatus.setJointConsensusObservers(newObservers);
 
-        computeDuplicatedData();
+        computeDuplicatedData(raftStatus);
 
         eventBus.fire(EventType.cancelVote, null);
 
     }
+
+    public void leaderAbortJointConsensus(CompletableFuture<Void> f) {
+        leaderConfigChange(LogItem.TYPE_DROP_CONFIG_CHANGE, null, f);
+    }
+
 }

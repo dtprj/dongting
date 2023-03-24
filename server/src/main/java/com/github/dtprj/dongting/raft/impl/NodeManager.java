@@ -88,16 +88,21 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
      */
     @Override
     public void accept(EventType eventType, Object o) {
-        if (eventType == EventType.prepareConfChange) {
-            Object[] args = (Object[]) o;
-            int groupId = (Integer) args[0];
-            Set<Integer> oldJointMembers = (Set<Integer>) args[1];
-            Set<Integer> oldJointObservers = (Set<Integer>) args[2];
-            Set<Integer> newMembers = (Set<Integer>) args[3];
-            Set<Integer> newObservers = (Set<Integer>) args[3];
+        RaftUtil.SCHEDULED_SERVICE.execute(() -> {
+            if (eventType == EventType.prepareConfChange) {
+                Object[] args = (Object[]) o;
+                int groupId = (Integer) args[0];
+                Set<Integer> oldPrepareMembers = (Set<Integer>) args[1];
+                Set<Integer> oldPrepareObservers = (Set<Integer>) args[2];
+                Set<Integer> newMembers = (Set<Integer>) args[3];
+                Set<Integer> newObservers = (Set<Integer>) args[3];
+                doPrepare(groupId, oldPrepareMembers, oldPrepareObservers, newMembers, newObservers);
+            } else if (eventType == EventType.abortConfChange) {
+                doAbort((Set<Integer>) o);
+            } else if (eventType == EventType.commitConfChange) {
 
-            doPrepare(groupId, oldJointMembers, oldJointObservers, newMembers, newObservers);
-        }
+            }
+        });
     }
 
     private CompletableFuture<RaftNodeEx> addToNioClient(RaftNode node) {
@@ -310,12 +315,11 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
                         throw new RaftException("node is both member and observer: " + nodeId);
                     }
                 }
-                GroupComponents gc = getGroupComponents(groupId, memberIds, observerIds);
+                GroupComponents gc = getGroupComponents(groupId);
                 checkNodeIdSet(groupId, memberIds);
                 checkNodeIdSet(groupId, observerIds);
-                gc.getRaftExecutor().execute(() -> {
-                    gc.getMemberManager().leaderPrepareJointConsensus(memberIds, observerIds, f);
-                });
+                gc.getRaftExecutor().execute(() -> gc.getMemberManager()
+                        .leaderPrepareJointConsensus(memberIds, observerIds, f));
             } catch (Throwable e) {
                 f.completeExceptionally(e);
             }
@@ -323,7 +327,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         return f;
     }
 
-    private GroupComponents getGroupComponents(int groupId, Set<Integer> memberIds, Set<Integer> observerIds) {
+    private GroupComponents getGroupComponents(int groupId) {
         GroupComponents gc = groupComponentsMap.get(groupId);
         if (gc == null) {
             log.error("group not exist: {}", groupId);
@@ -345,89 +349,57 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         return memberNodes;
     }
 
-    /**
-     * run in raft thread
-     */
-    private void doPrepare(int groupId, Set<Integer> oldJointMemberIds, Set<Integer> oldJointObserverIds,
+    private void doPrepare(int groupId, Set<Integer> oldPrepareMemberIds, Set<Integer> oldPrepareObserverIds,
                            Set<Integer> newMembers, Set<Integer> newObservers) {
-        RaftUtil.SCHEDULED_SERVICE.submit(() -> {
-            GroupComponents gc = null;
-            try {
-                gc = getGroupComponents(groupId, newMembers, newObservers);
-                List<RaftNodeEx> newMemberNodes = checkNodeIdSet(groupId, newMembers);
-                List<RaftNodeEx> newObserverNodes = checkNodeIdSet(groupId, newObservers);
-                processUseCount(oldJointMemberIds, -1);
-                processUseCount(oldJointObserverIds, -1);
-                processUseCount(newMembers, 1);
-                processUseCount(newObservers, 1);
-                MemberManager memberManager = gc.getMemberManager();
-                gc.getRaftExecutor().execute(() -> memberManager.doPrepare(newMemberNodes, newObserverNodes));
-            } catch (Throwable e) {
-                log.error("prepare fail", e);
-                if (gc != null) {
-                    RaftStatus raftStatus = gc.getRaftStatus();
-                    // TODO not set error status immediately, the apply manager may apply some logs after prepare log
-                    gc.getRaftExecutor().execute(() -> {
-                        raftStatus.setError(true);
-                    });
-                }
+        GroupComponents gc = null;
+        try {
+            gc = getGroupComponents(groupId);
+            List<RaftNodeEx> newMemberNodes = checkNodeIdSet(groupId, newMembers);
+            List<RaftNodeEx> newObserverNodes = checkNodeIdSet(groupId, newObservers);
+            processUseCount(oldPrepareMemberIds, -1);
+            processUseCount(oldPrepareObserverIds, -1);
+            processUseCount(newMembers, 1);
+            processUseCount(newObservers, 1);
+            MemberManager memberManager = gc.getMemberManager();
+            gc.getRaftExecutor().execute(() -> memberManager.doPrepare(newMemberNodes, newObserverNodes));
+        } catch (Throwable e) {
+            log.error("prepare fail", e);
+            if (gc != null) {
+                RaftStatus raftStatus = gc.getRaftStatus();
+                // TODO not set error status immediately, the apply manager may apply some logs after prepare log
+                gc.getRaftExecutor().execute(() -> {
+                    raftStatus.setError(true);
+                });
             }
-        });
+        }
     }
 
     private void processUseCount(Collection<Integer> nodeIds, int delta) {
         for (int nodeId : nodeIds) {
             RaftNodeEx nodeEx = allNodesEx.get(nodeId);
-            nodeEx.setUseCount(nodeEx.getUseCount() + delta);
+            if (nodeEx != null) {
+                nodeEx.setUseCount(nodeEx.getUseCount() + delta);
+            } else {
+                log.error("node not exist: nodeId={}", nodeId);
+            }
         }
     }
 
-    public CompletableFuture<Void> dropJointConsensus(int groupId, UUID changeId) {
+    public CompletableFuture<Void> leaderAbortJointConsensus(int groupId) {
         CompletableFuture<Void> f = new CompletableFuture<>();
         RaftUtil.SCHEDULED_SERVICE.submit(() -> {
-            GroupComponents gc = groupComponentsMap.get(groupId);
-            if (checkStatusFail(groupId, changeId, f, gc)) {
-                return;
+            try {
+                GroupComponents gc = getGroupComponents(groupId);
+                gc.getRaftExecutor().execute(() -> gc.getMemberManager().leaderAbortJointConsensus(f));
+            } catch (Throwable e) {
+                f.completeExceptionally(e);
             }
-            gc.getMemberManager().dropJointConsensus().thenAcceptAsync(
-                    ids -> finishChange(f, gc, ids), RaftUtil.SCHEDULED_SERVICE);
         });
         return f;
     }
 
-    private static boolean checkStatusFail(int groupId, UUID changeId, CompletableFuture<Void> f, GroupComponents gc) {
-        if (gc == null) {
-            log.error("group id not found, ignore drop: {}", groupId);
-            f.completeExceptionally(new RaftException("group not exist: " + groupId));
-            return true;
-        }
-        if (changeId == null) {
-            log.warn("change id is null, so do not check, change forcefully");
-            return false;
-        }
-        if (gc.getChangeId() == null) {
-            // idempotent, don't complete exceptionally
-            log.warn("group not in change, ignore drop: {}", groupId);
-            f.complete(null);
-            return true;
-        }
-        if (!gc.getChangeId().equals(changeId)) {
-            log.error("change id not match, current: {}, request: {}", gc.getChangeId(), changeId);
-            f.completeExceptionally(new RaftException("change id not match, current: " + gc.getChangeId() + ", request: " + changeId));
-            return true;
-        }
-        return false;
-    }
-
-    private void finishChange(CompletableFuture<Void> f, GroupComponents gc, Set<Integer> ids) {
-        for (Integer nodeId : ids) {
-            RaftNodeEx nodeEx = allNodesEx.get(nodeId);
-            if (nodeEx != null) {
-                nodeEx.setUseCount(nodeEx.getUseCount() - 1);
-            }
-        }
-        gc.setChangeId(null);
-        f.complete(null);
+    private void doAbort(Set<Integer> ids) {
+        processUseCount(ids, -1);
     }
 
     public CompletableFuture<Void> commitJointConsensus(int groupId, UUID changeId) {
