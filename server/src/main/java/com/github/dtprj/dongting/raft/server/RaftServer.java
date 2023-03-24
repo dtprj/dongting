@@ -403,7 +403,9 @@ public class RaftServer extends AbstractLifeCircle {
         Objects.requireNonNull(members);
         Objects.requireNonNull(observers);
         // node state change in scheduler thread, member state change in raft thread
-        return nodeManager.leaderPrepareJointConsensus(groupId, members, observers);
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        RaftUtil.SCHEDULED_SERVICE.execute(() -> nodeManager.leaderPrepareJointConsensus(f, groupId, members, observers));
+        return f;
     }
 
     /**
@@ -411,15 +413,19 @@ public class RaftServer extends AbstractLifeCircle {
      */
     @SuppressWarnings("unused")
     public CompletableFuture<Void> leaderAbortJointConsensus(int groupId) {
-        return nodeManager.leaderAbortJointConsensus(groupId);
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        RaftUtil.SCHEDULED_SERVICE.execute(() -> nodeManager.leaderAbortJointConsensus(f, groupId));
+        return f;
     }
 
     /**
      * ADMIN API. This method is idempotent.
      */
     @SuppressWarnings("unused")
-    public CompletableFuture<Void> commitJointConsensus(int groupId) {
-        return nodeManager.commitJointConsensus(groupId);
+    public CompletableFuture<Void> leaderCommitJointConsensus(int groupId) {
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        RaftUtil.SCHEDULED_SERVICE.execute(() -> nodeManager.leaderCommitJointConsensus(f, groupId));
+        return f;
     }
 
     /**

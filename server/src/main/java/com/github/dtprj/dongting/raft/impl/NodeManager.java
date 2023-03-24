@@ -86,6 +86,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
     /**
      * run in raft thread.
      */
+    @SuppressWarnings("unchecked")
     @Override
     public void accept(EventType eventType, Object o) {
         RaftUtil.SCHEDULED_SERVICE.execute(() -> {
@@ -100,7 +101,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
             } else if (eventType == EventType.abortConfChange) {
                 doAbort((Set<Integer>) o);
             } else if (eventType == EventType.commitConfChange) {
-
+                doCommit((Set<Integer>) o);
             }
         });
     }
@@ -304,27 +305,23 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         return f;
     }
 
-    public CompletableFuture<Void> leaderPrepareJointConsensus(int groupId, Set<Integer> memberIds,
-                                                               Set<Integer> observerIds) {
-        CompletableFuture<Void> f = new CompletableFuture<>();
-        RaftUtil.SCHEDULED_SERVICE.submit(() -> {
-            try {
-                for (int nodeId : memberIds) {
-                    if (observerIds.contains(nodeId)) {
-                        log.error("node is both member and observer: nodeId={}, groupId={}", nodeId, groupId);
-                        throw new RaftException("node is both member and observer: " + nodeId);
-                    }
+    public void leaderPrepareJointConsensus(CompletableFuture<Void> f, int groupId, Set<Integer> memberIds,
+                                            Set<Integer> observerIds) {
+        try {
+            for (int nodeId : memberIds) {
+                if (observerIds.contains(nodeId)) {
+                    log.error("node is both member and observer: nodeId={}, groupId={}", nodeId, groupId);
+                    throw new RaftException("node is both member and observer: " + nodeId);
                 }
-                GroupComponents gc = getGroupComponents(groupId);
-                checkNodeIdSet(groupId, memberIds);
-                checkNodeIdSet(groupId, observerIds);
-                gc.getRaftExecutor().execute(() -> gc.getMemberManager()
-                        .leaderPrepareJointConsensus(memberIds, observerIds, f));
-            } catch (Throwable e) {
-                f.completeExceptionally(e);
             }
-        });
-        return f;
+            GroupComponents gc = getGroupComponents(groupId);
+            checkNodeIdSet(groupId, memberIds);
+            checkNodeIdSet(groupId, observerIds);
+            gc.getRaftExecutor().execute(() -> gc.getMemberManager()
+                    .leaderPrepareJointConsensus(memberIds, observerIds, f));
+        } catch (Throwable e) {
+            f.completeExceptionally(e);
+        }
     }
 
     private GroupComponents getGroupComponents(int groupId) {
@@ -367,9 +364,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
             if (gc != null) {
                 RaftStatus raftStatus = gc.getRaftStatus();
                 // TODO not set error status immediately, the apply manager may apply some logs after prepare log
-                gc.getRaftExecutor().execute(() -> {
-                    raftStatus.setError(true);
-                });
+                gc.getRaftExecutor().execute(() -> raftStatus.setError(true));
             }
         }
     }
@@ -385,34 +380,30 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         }
     }
 
-    public CompletableFuture<Void> leaderAbortJointConsensus(int groupId) {
-        CompletableFuture<Void> f = new CompletableFuture<>();
-        RaftUtil.SCHEDULED_SERVICE.submit(() -> {
-            try {
-                GroupComponents gc = getGroupComponents(groupId);
-                gc.getRaftExecutor().execute(() -> gc.getMemberManager().leaderAbortJointConsensus(f));
-            } catch (Throwable e) {
-                f.completeExceptionally(e);
-            }
-        });
-        return f;
+    public void leaderAbortJointConsensus(CompletableFuture<Void> f, int groupId) {
+        try {
+            GroupComponents gc = getGroupComponents(groupId);
+            gc.getRaftExecutor().execute(() -> gc.getMemberManager().leaderAbortJointConsensus(f));
+        } catch (Throwable e) {
+            f.completeExceptionally(e);
+        }
     }
 
     private void doAbort(Set<Integer> ids) {
         processUseCount(ids, -1);
     }
 
-    public CompletableFuture<Void> commitJointConsensus(int groupId, UUID changeId) {
-        CompletableFuture<Void> f = new CompletableFuture<>();
-        RaftUtil.SCHEDULED_SERVICE.submit(() -> {
-            GroupComponents gc = groupComponentsMap.get(groupId);
-            if (checkStatusFail(groupId, changeId, f, gc)) {
-                return;
-            }
-            gc.getMemberManager().commitJointConsensus().thenAcceptAsync(
-                    ids -> finishChange(f, gc, ids), RaftUtil.SCHEDULED_SERVICE);
-        });
-        return f;
+    public void leaderCommitJointConsensus(CompletableFuture<Void> f, int groupId) {
+        try {
+            GroupComponents gc = getGroupComponents(groupId);
+            gc.getRaftExecutor().execute(() -> gc.getMemberManager().leaderCommitJointConsensus(f));
+        } catch (Throwable e) {
+            f.completeExceptionally(e);
+        }
+    }
+
+    private void doCommit(Set<Integer> ids) {
+        processUseCount(ids, -1);
     }
 
     public UUID getUuid() {

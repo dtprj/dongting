@@ -104,6 +104,9 @@ public class ApplyManager {
             case LogItem.TYPE_DROP_CONFIG_CHANGE:
                 doAbort();
                 break;
+            case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
+                doCommit();
+                break;
             default:
                 // heartbeat etc.
                 break;
@@ -194,5 +197,25 @@ public class ApplyManager {
             }
         }
         eventBus.fire(EventType.abortConfChange, ids);
+    }
+
+    private void doCommit() {
+        HashSet<Integer> ids = new HashSet<>(raftStatus.getNodeIdOfMembers());
+        ids.addAll(raftStatus.getNodeIdOfObservers());
+
+        raftStatus.setMembers(raftStatus.getJointConsensusMembers());
+        raftStatus.setObservers(raftStatus.getJointConsensusObservers());
+
+        raftStatus.setJointConsensusMembers(emptyList());
+        raftStatus.setJointConsensusObservers(emptyList());
+        MemberManager.computeDuplicatedData(raftStatus);
+
+        if (raftStatus.getNodeIdOfMembers().contains(selfNodeId)) {
+            if (raftStatus.getRole() != RaftRole.observer) {
+                RaftUtil.changeToObserver(raftStatus, -1);
+            }
+        }
+
+        eventBus.fire(EventType.commitConfChange, ids);
     }
 }

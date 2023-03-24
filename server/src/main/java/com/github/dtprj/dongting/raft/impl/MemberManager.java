@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IntObjMap;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.NioClient;
@@ -254,38 +253,6 @@ public class MemberManager {
         }
     }
 
-    public CompletableFuture<Set<Integer>> commitJointConsensus() {
-        CompletableFuture<Set<Integer>> f = new CompletableFuture<>();
-        executor.execute(() -> {
-            if (!hasPrepareState) {
-                BugLog.getLog().error("joint consensus not prepared");
-                f.completeExceptionally(new IllegalStateException("joint consensus not prepared"));
-                return;
-            }
-
-            HashSet<Integer> ids = new HashSet<>(raftStatus.getNodeIdOfMembers());
-            ids.addAll(raftStatus.getNodeIdOfObservers());
-
-            raftStatus.setMembers(raftStatus.getJointConsensusMembers());
-            raftStatus.setObservers(jointConsensusObservers);
-
-            raftStatus.setJointConsensusMembers(emptyList());
-            this.jointConsensusObservers = emptyList();
-            computeDuplicatedData(raftStatus);
-
-            int selfId = serverConfig.getNodeId();
-            if (raftStatus.getNodeIdOfMembers().contains(selfId)) {
-                if (raftStatus.getRole() != RaftRole.observer) {
-                    RaftUtil.changeToObserver(raftStatus, -1);
-                }
-            }
-
-            eventBus.fire(EventType.cancelVote, null);
-            f.complete(ids);
-        });
-        return f;
-    }
-
     public void transferLeadership(int nodeId, CompletableFuture<Void> f, DtTime deadline) {
         Runnable r = () -> {
             if (raftStatus.getRole() != RaftRole.leader) {
@@ -440,6 +407,10 @@ public class MemberManager {
 
     public void leaderAbortJointConsensus(CompletableFuture<Void> f) {
         leaderConfigChange(LogItem.TYPE_DROP_CONFIG_CHANGE, null, f);
+    }
+
+    public void leaderCommitJointConsensus(CompletableFuture<Void> f) {
+        leaderConfigChange(LogItem.TYPE_COMMIT_CONFIG_CHANGE, null, f);
     }
 
 }
