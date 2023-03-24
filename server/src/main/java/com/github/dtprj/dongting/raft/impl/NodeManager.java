@@ -83,6 +83,9 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         this.futureEventSource = new FutureEventSource(RaftUtil.SCHEDULED_SERVICE);
     }
 
+    /**
+     * run in raft thread.
+     */
     @Override
     public void accept(EventType eventType, Object o) {
         if (eventType == EventType.prepareConfChange) {
@@ -301,7 +304,13 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         CompletableFuture<Void> f = new CompletableFuture<>();
         RaftUtil.SCHEDULED_SERVICE.submit(() -> {
             try {
-                GroupComponents gc = prepareCheck(groupId, memberIds, observerIds);
+                for (int nodeId : memberIds) {
+                    if (observerIds.contains(nodeId)) {
+                        log.error("node is both member and observer: nodeId={}, groupId={}", nodeId, groupId);
+                        throw new RaftException("node is both member and observer: " + nodeId);
+                    }
+                }
+                GroupComponents gc = getGroupComponents(groupId, memberIds, observerIds);
                 checkNodeIdSet(groupId, memberIds);
                 checkNodeIdSet(groupId, observerIds);
                 gc.getRaftExecutor().execute(() -> {
@@ -314,13 +323,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         return f;
     }
 
-    private GroupComponents prepareCheck(int groupId, Set<Integer> memberIds, Set<Integer> observerIds) {
-        for (int nodeId : memberIds) {
-            if (observerIds.contains(nodeId)) {
-                log.error("node is both member and observer: nodeId={}, groupId={}", nodeId, groupId);
-                throw new RaftException("node is both member and observer: " + nodeId);
-            }
-        }
+    private GroupComponents getGroupComponents(int groupId, Set<Integer> memberIds, Set<Integer> observerIds) {
         GroupComponents gc = groupComponentsMap.get(groupId);
         if (gc == null) {
             log.error("group not exist: {}", groupId);
@@ -342,20 +345,32 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         return memberNodes;
     }
 
+    /**
+     * run in raft thread
+     */
     private void doPrepare(int groupId, Set<Integer> oldJointMemberIds, Set<Integer> oldJointObserverIds,
                            Set<Integer> newMembers, Set<Integer> newObservers) {
         RaftUtil.SCHEDULED_SERVICE.submit(() -> {
+            GroupComponents gc = null;
             try {
-                GroupComponents gc = prepareCheck(groupId, newMembers, newObservers);
+                gc = getGroupComponents(groupId, newMembers, newObservers);
                 List<RaftNodeEx> newMemberNodes = checkNodeIdSet(groupId, newMembers);
                 List<RaftNodeEx> newObserverNodes = checkNodeIdSet(groupId, newObservers);
                 processUseCount(oldJointMemberIds, -1);
                 processUseCount(oldJointObserverIds, -1);
                 processUseCount(newMembers, 1);
                 processUseCount(newObservers, 1);
-                gc.getRaftExecutor().execute(() -> gc.getMemberManager().doPrepare(newMemberNodes, newObserverNodes));
+                MemberManager memberManager = gc.getMemberManager();
+                gc.getRaftExecutor().execute(() -> memberManager.doPrepare(newMemberNodes, newObserverNodes));
             } catch (Throwable e) {
                 log.error("prepare fail", e);
+                if (gc != null) {
+                    RaftStatus raftStatus = gc.getRaftStatus();
+                    // TODO not set error status immediately, the apply manager may apply some logs after prepare log
+                    gc.getRaftExecutor().execute(() -> {
+                        raftStatus.setError(true);
+                    });
+                }
             }
         });
     }
