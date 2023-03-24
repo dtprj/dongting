@@ -97,7 +97,7 @@ public class RaftUtil {
 
     public static void updateLease(RaftStatus raftStatus) {
         long leaseStartTime = computeLease(raftStatus, raftStatus.getElectQuorum(), raftStatus.getMembers());
-        List<RaftMember> jointMembers = raftStatus.getJointConsensusMembers();
+        List<RaftMember> jointMembers = raftStatus.getPreparedMembers();
         if (jointMembers.size() > 0) {
             long lease2 = computeLease(raftStatus, RaftUtil.getElectQuorum(jointMembers.size()), jointMembers);
             if (lease2 - leaseStartTime < 0) {
@@ -246,7 +246,7 @@ public class RaftUtil {
             }
         }
         if (!found) {
-            for (RaftMember node : raftStatus.getJointConsensusMembers()) {
+            for (RaftMember node : raftStatus.getPreparedMembers()) {
                 if (node.getNode().getNodeId() == leaderId) {
                     raftStatus.setCurrentLeader(node);
                     found = true;

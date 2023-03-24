@@ -164,8 +164,8 @@ public class ApplyManager {
             log.error("oldObservers not match, oldObservers={}, currentObservers={}, groupId={}",
                     oldObservers, raftStatus.getNodeIdOfObservers(), raftStatus.getGroupId());
         }
-        Object[] args = new Object[]{raftStatus.getGroupId(), raftStatus.getNodeIdOfJointConsensusMembers(),
-                raftStatus.getNodeIdOfJointObservers(), newMembers, newObservers};
+        Object[] args = new Object[]{raftStatus.getGroupId(), raftStatus.getNodeIdOfPreparedMembers(),
+                raftStatus.getNodeIdOfPreparedObservers(), newMembers, newObservers};
         eventBus.fire(EventType.prepareConfChange, args);
     }
 
@@ -182,13 +182,13 @@ public class ApplyManager {
     }
 
     private void doAbort() {
-        HashSet<Integer> ids = new HashSet<>(raftStatus.getNodeIdOfJointConsensusMembers());
-        for (RaftMember m : raftStatus.getJointConsensusObservers()) {
+        HashSet<Integer> ids = new HashSet<>(raftStatus.getNodeIdOfPreparedMembers());
+        for (RaftMember m : raftStatus.getPreparedObservers()) {
             ids.add(m.getNode().getNodeId());
         }
 
-        raftStatus.setJointConsensusMembers(emptyList());
-        raftStatus.setJointConsensusObservers(emptyList());
+        raftStatus.setPreparedMembers(emptyList());
+        raftStatus.setPreparedObservers(emptyList());
         MemberManager.computeDuplicatedData(raftStatus);
 
         if (!raftStatus.getNodeIdOfMembers().contains(selfNodeId)) {
@@ -203,11 +203,11 @@ public class ApplyManager {
         HashSet<Integer> ids = new HashSet<>(raftStatus.getNodeIdOfMembers());
         ids.addAll(raftStatus.getNodeIdOfObservers());
 
-        raftStatus.setMembers(raftStatus.getJointConsensusMembers());
-        raftStatus.setObservers(raftStatus.getJointConsensusObservers());
+        raftStatus.setMembers(raftStatus.getPreparedMembers());
+        raftStatus.setObservers(raftStatus.getPreparedObservers());
 
-        raftStatus.setJointConsensusMembers(emptyList());
-        raftStatus.setJointConsensusObservers(emptyList());
+        raftStatus.setPreparedMembers(emptyList());
+        raftStatus.setPreparedObservers(emptyList());
         MemberManager.computeDuplicatedData(raftStatus);
 
         if (raftStatus.getNodeIdOfMembers().contains(selfNodeId)) {

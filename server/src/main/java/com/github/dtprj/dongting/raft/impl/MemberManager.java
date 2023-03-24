@@ -93,7 +93,7 @@ public class MemberManager {
         } else {
             raftStatus.setObservers(emptyList());
         }
-        raftStatus.setJointConsensusMembers(emptyList());
+        raftStatus.setPreparedMembers(emptyList());
         computeDuplicatedData(raftStatus);
     }
 
@@ -118,18 +118,18 @@ public class MemberManager {
             replicateList.add(m);
             observerIds.add(m.getNode().getNodeId());
         }
-        for (RaftMember m : raftStatus.getJointConsensusMembers()) {
+        for (RaftMember m : raftStatus.getPreparedMembers()) {
             replicateList.add(m);
             jointMemberIds.add(m.getNode().getNodeId());
         }
-        for (RaftMember m : raftStatus.getJointConsensusObservers()) {
+        for (RaftMember m : raftStatus.getPreparedObservers()) {
             jointObserverIds.add(m.getNode().getNodeId());
         }
         raftStatus.setReplicateList(replicateList.size() == 0 ? emptyList() : replicateList);
         raftStatus.setNodeIdOfMembers(memberIds.size() == 0 ? emptySet() : memberIds);
         raftStatus.setNodeIdOfObservers(observerIds.size() == 0 ? emptySet() : observerIds);
-        raftStatus.setNodeIdOfJointConsensusMembers(jointMemberIds.size() == 0 ? emptySet() : jointMemberIds);
-        raftStatus.setNodeIdOfJointObservers(jointObserverIds.size() == 0 ? emptySet() : jointObserverIds);
+        raftStatus.setNodeIdOfPreparedMembers(jointMemberIds.size() == 0 ? emptySet() : jointMemberIds);
+        raftStatus.setNodeIdOfPreparedObservers(jointObserverIds.size() == 0 ? emptySet() : jointObserverIds);
     }
 
     @SuppressWarnings("ForLoopReplaceableByForEach")
@@ -242,12 +242,12 @@ public class MemberManager {
         if (leader != null && leader.getNode().getNodeId() == nodeId) {
             return true;
         }
-        return raftStatus.getNodeIdOfMembers().contains(nodeId) || raftStatus.getNodeIdOfJointConsensusMembers().contains(nodeId);
+        return raftStatus.getNodeIdOfMembers().contains(nodeId) || raftStatus.getNodeIdOfPreparedMembers().contains(nodeId);
     }
 
     public static boolean validCandidate(RaftStatus raftStatus, int nodeId) {
-        if (raftStatus.getNodeIdOfJointConsensusMembers().size() > 0) {
-            return raftStatus.getNodeIdOfJointConsensusMembers().contains(nodeId);
+        if (raftStatus.getNodeIdOfPreparedMembers().size() > 0) {
+            return raftStatus.getNodeIdOfPreparedMembers().contains(nodeId);
         } else {
             return raftStatus.getNodeIdOfMembers().contains(nodeId);
         }
@@ -268,7 +268,7 @@ public class MemberManager {
                 }
             }
             if (newLeader == null) {
-                for (RaftMember m : raftStatus.getJointConsensusMembers()) {
+                for (RaftMember m : raftStatus.getPreparedMembers()) {
                     if (m.getNode().getNodeId() == nodeId) {
                         newLeader = m;
                         break;
@@ -396,8 +396,8 @@ public class MemberManager {
             }
             newObservers.add(m);
         }
-        raftStatus.setJointConsensusMembers(newMembers);
-        raftStatus.setJointConsensusObservers(newObservers);
+        raftStatus.setPreparedMembers(newMembers);
+        raftStatus.setPreparedObservers(newObservers);
 
         computeDuplicatedData(raftStatus);
 

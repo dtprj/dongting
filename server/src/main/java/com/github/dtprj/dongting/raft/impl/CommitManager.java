@@ -61,9 +61,9 @@ public class CommitManager {
     private static boolean needCommit(long recentMatchIndex, RaftStatus raftStatus) {
         boolean needCommit = RaftUtil.needCommit(raftStatus.getCommitIndex(), recentMatchIndex,
                 raftStatus.getMembers(), raftStatus.getRwQuorum());
-        if (needCommit && raftStatus.getJointConsensusMembers().size() > 0) {
+        if (needCommit && raftStatus.getPreparedMembers().size() > 0) {
             needCommit = RaftUtil.needCommit(raftStatus.getCommitIndex(), recentMatchIndex,
-                    raftStatus.getJointConsensusMembers(), raftStatus.getRwQuorum());
+                    raftStatus.getPreparedMembers(), raftStatus.getRwQuorum());
         }
         return needCommit;
     }

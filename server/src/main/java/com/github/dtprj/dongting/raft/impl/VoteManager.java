@@ -145,11 +145,11 @@ public class VoteManager implements BiConsumer<EventType, Object> {
         if (readyNodeNotEnough(raftStatus.getMembers(), true, false)) {
             return;
         }
-        if (readyNodeNotEnough(raftStatus.getJointConsensusMembers(), true, true)) {
+        if (readyNodeNotEnough(raftStatus.getPreparedMembers(), true, true)) {
             return;
         }
 
-        Set<RaftMember> voter = RaftUtil.union(raftStatus.getMembers(), raftStatus.getJointConsensusMembers());
+        Set<RaftMember> voter = RaftUtil.union(raftStatus.getMembers(), raftStatus.getPreparedMembers());
         initStatusForVoting(readyCount(voter));
         log.info("node ready, start pre vote. groupId={}, term={}, voteId={}",
                 groupId, raftStatus.getCurrentTerm(), currentVoteId);
@@ -250,12 +250,12 @@ public class VoteManager implements BiConsumer<EventType, Object> {
         }
         int quorum = raftStatus.getElectQuorum();
         int voteCount = getVoteCount(raftStatus.getNodeIdOfMembers(), votes);
-        if (raftStatus.getJointConsensusMembers().size() == 0) {
+        if (raftStatus.getPreparedMembers().size() == 0) {
             log.info("[{}] {} get {} grant of {}", preVote ? "pre-vote" : "vote", groupId, voteCount, quorum);
             return voteCount >= quorum;
         } else {
-            int jointQuorum = RaftUtil.getElectQuorum(raftStatus.getJointConsensusMembers().size());
-            int jointVoteCount = getVoteCount(raftStatus.getNodeIdOfJointConsensusMembers(), votes);
+            int jointQuorum = RaftUtil.getElectQuorum(raftStatus.getPreparedMembers().size());
+            int jointVoteCount = getVoteCount(raftStatus.getNodeIdOfPreparedMembers(), votes);
             log.info("[{}] {} get {} grant of {}, joint consensus get {} grant of {}", groupId,
                     preVote ? "pre-vote" : "vote", voteCount, quorum, jointVoteCount, jointQuorum);
             return voteCount >= quorum && jointVoteCount >= jointQuorum;
@@ -267,7 +267,7 @@ public class VoteManager implements BiConsumer<EventType, Object> {
             cancelVote();
             return;
         }
-        if (readyNodeNotEnough(raftStatus.getJointConsensusMembers(), false, true)) {
+        if (readyNodeNotEnough(raftStatus.getPreparedMembers(), false, true)) {
             cancelVote();
             return;
         }
@@ -277,7 +277,7 @@ public class VoteManager implements BiConsumer<EventType, Object> {
             raftStatus.setRole(RaftRole.candidate);
         }
 
-        Set<RaftMember> voter = RaftUtil.union(raftStatus.getMembers(), raftStatus.getJointConsensusMembers());
+        Set<RaftMember> voter = RaftUtil.union(raftStatus.getMembers(), raftStatus.getPreparedMembers());
 
         raftStatus.setCurrentTerm(raftStatus.getCurrentTerm() + 1);
         raftStatus.setVotedFor(config.getNodeId());

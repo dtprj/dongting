@@ -55,13 +55,13 @@ public class RaftStatus {
     private RaftMember self;
     private List<RaftMember> members;
     private List<RaftMember> observers;
-    private List<RaftMember> jointConsensusMembers;
-    private List<RaftMember> jointConsensusObservers;
+    private List<RaftMember> preparedMembers;
+    private List<RaftMember> preparedObservers;
 
     private Set<Integer> nodeIdOfMembers;
     private Set<Integer> nodeIdOfObservers;
-    private Set<Integer> nodeIdOfJointConsensusMembers;
-    private Set<Integer> nodeIdOfJointObservers;
+    private Set<Integer> nodeIdOfPreparedMembers;
+    private Set<Integer> nodeIdOfPreparedObservers;
 
     private List<RaftMember> replicateList;
 
@@ -252,12 +252,12 @@ public class RaftStatus {
         this.observers = observers;
     }
 
-    public List<RaftMember> getJointConsensusMembers() {
-        return jointConsensusMembers;
+    public List<RaftMember> getPreparedMembers() {
+        return preparedMembers;
     }
 
-    public void setJointConsensusMembers(List<RaftMember> jointConsensusMembers) {
-        this.jointConsensusMembers = jointConsensusMembers;
+    public void setPreparedMembers(List<RaftMember> preparedMembers) {
+        this.preparedMembers = preparedMembers;
     }
 
     public Set<Integer> getNodeIdOfMembers() {
@@ -276,12 +276,12 @@ public class RaftStatus {
         this.nodeIdOfObservers = nodeIdOfObservers;
     }
 
-    public Set<Integer> getNodeIdOfJointConsensusMembers() {
-        return nodeIdOfJointConsensusMembers;
+    public Set<Integer> getNodeIdOfPreparedMembers() {
+        return nodeIdOfPreparedMembers;
     }
 
-    public void setNodeIdOfJointConsensusMembers(Set<Integer> nodeIdOfJointConsensusMembers) {
-        this.nodeIdOfJointConsensusMembers = nodeIdOfJointConsensusMembers;
+    public void setNodeIdOfPreparedMembers(Set<Integer> nodeIdOfPreparedMembers) {
+        this.nodeIdOfPreparedMembers = nodeIdOfPreparedMembers;
     }
 
     public List<RaftMember> getReplicateList() {
@@ -420,19 +420,19 @@ public class RaftStatus {
         this.groupId = groupId;
     }
 
-    public Set<Integer> getNodeIdOfJointObservers() {
-        return nodeIdOfJointObservers;
+    public Set<Integer> getNodeIdOfPreparedObservers() {
+        return nodeIdOfPreparedObservers;
     }
 
-    public void setNodeIdOfJointObservers(Set<Integer> nodeIdOfJointObservers) {
-        this.nodeIdOfJointObservers = nodeIdOfJointObservers;
+    public void setNodeIdOfPreparedObservers(Set<Integer> nodeIdOfPreparedObservers) {
+        this.nodeIdOfPreparedObservers = nodeIdOfPreparedObservers;
     }
 
-    public List<RaftMember> getJointConsensusObservers() {
-        return jointConsensusObservers;
+    public List<RaftMember> getPreparedObservers() {
+        return preparedObservers;
     }
 
-    public void setJointConsensusObservers(List<RaftMember> jointConsensusObservers) {
-        this.jointConsensusObservers = jointConsensusObservers;
+    public void setPreparedObservers(List<RaftMember> preparedObservers) {
+        this.preparedObservers = preparedObservers;
     }
 }
