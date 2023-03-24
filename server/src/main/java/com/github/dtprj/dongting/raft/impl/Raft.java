@@ -106,7 +106,7 @@ public class Raft implements BiConsumer<EventType, Object> {
             } else {
                 // read
                 if (newIndex <= raftStatus.getLastApplied()) {
-                    applyManager.exec(newIndex, rt);
+                    applyManager.execNormal(newIndex, rt);
                 } else {
                     RaftTask newTask = pending.get(newIndex);
                     if (newTask == null) {

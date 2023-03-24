@@ -91,18 +91,6 @@ public class ApplyManager {
 
     @SuppressWarnings("ForLoopReplaceableByForEach")
     private void execChain(long index, RaftTask rt) {
-        exec(index, rt);
-        ArrayList<RaftTask> nextReaders = rt.nextReaders;
-        if (nextReaders == null) {
-            return;
-        }
-        for (int i = 0; i < nextReaders.size(); i++) {
-            RaftTask readerTask = nextReaders.get(i);
-            exec(index, readerTask);
-        }
-    }
-
-    public void exec(long index, RaftTask rt) {
         switch (rt.type) {
             case LogItem.TYPE_NORMAL:
                 execNormal(index, rt);
@@ -111,11 +99,20 @@ public class ApplyManager {
                 doPrepare(rt.input.getLogData());
                 break;
             default:
+                // heartbeat etc.
                 break;
+        }
+        ArrayList<RaftTask> nextReaders = rt.nextReaders;
+        if (nextReaders == null) {
+            return;
+        }
+        for (int i = 0; i < nextReaders.size(); i++) {
+            RaftTask readerTask = nextReaders.get(i);
+            execNormal(index, readerTask);
         }
     }
 
-    private void execNormal(long index, RaftTask rt) {
+    public void execNormal(long index, RaftTask rt) {
         RaftInput input = rt.input;
         CompletableFuture<RaftOutput> future = rt.future;
         if (input.isReadOnly() && input.getDeadline() != null && input.getDeadline().isTimeout(ts)) {
@@ -159,7 +156,7 @@ public class ApplyManager {
                     oldObservers, raftStatus.getNodeIdOfObservers(), raftStatus.getGroupId());
         }
         Object[] args = new Object[]{raftStatus.getGroupId(), raftStatus.getNodeIdOfJointConsensusMembers(),
-                raftStatus.getNodeIdOfJointObservers(), newMembers, oldMembers};
+                raftStatus.getNodeIdOfJointObservers(), newMembers, newObservers};
         eventBus.fire(EventType.prepareConfChange, args);
     }
 
