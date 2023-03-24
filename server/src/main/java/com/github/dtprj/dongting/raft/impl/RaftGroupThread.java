@@ -205,6 +205,9 @@ public class RaftGroupThread extends Thread {
 
     private void idle(Timestamp ts) {
         RaftStatus raftStatus = this.raftStatus;
+        if (raftStatus.isError()) {
+            return;
+        }
         if (raftStatus.getElectQuorum() == 1) {
             return;
         }

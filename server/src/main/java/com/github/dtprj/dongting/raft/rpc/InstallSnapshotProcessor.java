@@ -57,7 +57,9 @@ public class InstallSnapshotProcessor extends AbstractProcessor {
         int remoteTerm = req.term;
         RaftStatus raftStatus = gc.getRaftStatus();
 
-        if (gc.getMemberManager().checkLeader(req.leaderId)) {
+        if (raftStatus.isError()) {
+            resp.success = false;
+        } else if (gc.getMemberManager().checkLeader(req.leaderId)) {
             int localTerm = raftStatus.getCurrentTerm();
             if (remoteTerm == localTerm) {
                 if (raftStatus.getRole() == RaftRole.follower) {

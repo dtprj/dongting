@@ -46,6 +46,7 @@ public class AppendProcessor extends AbstractProcessor {
     public static final int CODE_CLIENT_REQ_ERROR = 3;
     public static final int CODE_INSTALL_SNAPSHOT = 4;
     public static final int CODE_NOT_MEMBER_IN_GROUP = 5;
+    public static final int CODE_ERROR_STATE = 6;
 
     private static final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder(c -> new AppendReqCallback());
 
@@ -63,7 +64,10 @@ public class AppendProcessor extends AbstractProcessor {
         AppendRespWriteFrame resp = new AppendRespWriteFrame();
         AppendReqCallback req = (AppendReqCallback) rf.getBody();
         RaftStatus raftStatus = gc.getRaftStatus();
-        if (gc.getMemberManager().checkLeader(req.getLeaderId())) {
+        if (raftStatus.isError()) {
+            resp.setSuccess(false);
+            resp.setAppendCode(CODE_ERROR_STATE);
+        } else if (gc.getMemberManager().checkLeader(req.getLeaderId())) {
             int remoteTerm = req.getTerm();
             int localTerm = raftStatus.getCurrentTerm();
             if (remoteTerm == localTerm) {
