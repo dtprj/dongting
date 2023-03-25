@@ -202,6 +202,10 @@ public class ApplyManager {
     private void doCommit() {
         HashSet<Integer> ids = new HashSet<>(raftStatus.getNodeIdOfMembers());
         ids.addAll(raftStatus.getNodeIdOfObservers());
+        if (raftStatus.getPreparedMembers().size() == 0) {
+            log.error("preparedMembers is empty, groupId={}", raftStatus.getGroupId());
+            return;
+        }
 
         raftStatus.setMembers(raftStatus.getPreparedMembers());
         raftStatus.setObservers(raftStatus.getPreparedObservers());
