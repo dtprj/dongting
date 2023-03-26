@@ -92,6 +92,8 @@ public class RaftStatus {
 
     private boolean holdRequest;
 
+    private ApplyManager.ApplyState applyState;
+
     private static final VarHandle ERROR;
 
     static {
@@ -434,5 +436,13 @@ public class RaftStatus {
 
     public void setPreparedObservers(List<RaftMember> preparedObservers) {
         this.preparedObservers = preparedObservers;
+    }
+
+    public ApplyManager.ApplyState getApplyState() {
+        return applyState;
+    }
+
+    public void setApplyState(ApplyManager.ApplyState applyState) {
+        this.applyState = applyState;
     }
 }

@@ -39,7 +39,6 @@ public class CommitManager {
             return;
         }
         // leader can only commit log in current term, see raft paper 5.4.2
-        boolean needNotify = false;
         if (raftStatus.getFirstCommitIndexOfCurrentTerm() <= 0) {
             int t = RaftUtil.doWithSyncRetry(() -> raftLog.getTermOf(recentMatchIndex),
                     raftStatus, 1000, "RaftLog.getTermOf fail");
@@ -47,12 +46,11 @@ public class CommitManager {
                 return;
             } else {
                 raftStatus.setFirstCommitIndexOfCurrentTerm(recentMatchIndex);
-                needNotify = true;
             }
         }
         raftStatus.setCommitIndex(recentMatchIndex);
-        applyManager.apply(recentMatchIndex, raftStatus);
-        if (needNotify) {
+        applyManager.apply(raftStatus);
+        if (raftStatus.getFirstCommitOfApplied() != null) {
             raftStatus.getFirstCommitOfApplied().complete(null);
             raftStatus.setFirstCommitOfApplied(null);
         }

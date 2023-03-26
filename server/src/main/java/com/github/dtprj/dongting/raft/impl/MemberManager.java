@@ -365,7 +365,13 @@ public class MemberManager {
     }
 
 
-    public void doPrepare(List<RaftNodeEx> newMemberNodes, List<RaftNodeEx> newObserverNodes) {
+    public void doPrepare(List<RaftNodeEx> newMemberNodes, List<RaftNodeEx> newObserverNodes, Throwable ex) {
+        raftStatus.setApplyState(ApplyManager.ApplyState.waitingFinished);
+        if (ex != null) {
+            raftStatus.setError(true);
+            return;
+        }
+
         IntObjMap<RaftMember> currentNodes = new IntObjMap<>();
         for (RaftMember m : raftStatus.getMembers()) {
             currentNodes.put(m.getNode().getNodeId(), m);

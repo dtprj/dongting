@@ -91,13 +91,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
     public void accept(EventType eventType, Object o) {
         RaftUtil.SCHEDULED_SERVICE.execute(() -> {
             if (eventType == EventType.prepareConfChange) {
-                Object[] args = (Object[]) o;
-                int groupId = (Integer) args[0];
-                Set<Integer> oldPrepareMembers = (Set<Integer>) args[1];
-                Set<Integer> oldPrepareObservers = (Set<Integer>) args[2];
-                Set<Integer> newMembers = (Set<Integer>) args[3];
-                Set<Integer> newObservers = (Set<Integer>) args[3];
-                doPrepare(groupId, oldPrepareMembers, oldPrepareObservers, newMembers, newObservers);
+                doPrepare((Object[]) o);
             } else if (eventType == EventType.abortConfChange) {
                 doAbort((Set<Integer>) o);
             } else if (eventType == EventType.commitConfChange) {
@@ -346,25 +340,29 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         return memberNodes;
     }
 
-    private void doPrepare(int groupId, Set<Integer> oldPrepareMemberIds, Set<Integer> oldPrepareObserverIds,
-                           Set<Integer> newMembers, Set<Integer> newObservers) {
+    @SuppressWarnings("unchecked")
+    private void doPrepare(Object[] args) {
         GroupComponents gc = null;
         try {
+            int groupId = (Integer) args[0];
+            Set<Integer> oldPrepareMembers = (Set<Integer>) args[1];
+            Set<Integer> oldPrepareObservers = (Set<Integer>) args[2];
+            Set<Integer> newMembers = (Set<Integer>) args[3];
+            Set<Integer> newObservers = (Set<Integer>) args[3];
             gc = getGroupComponents(groupId);
             List<RaftNodeEx> newMemberNodes = checkNodeIdSet(groupId, newMembers);
             List<RaftNodeEx> newObserverNodes = checkNodeIdSet(groupId, newObservers);
-            processUseCount(oldPrepareMemberIds, -1);
-            processUseCount(oldPrepareObserverIds, -1);
+            processUseCount(oldPrepareMembers, -1);
+            processUseCount(oldPrepareObservers, -1);
             processUseCount(newMembers, 1);
             processUseCount(newObservers, 1);
             MemberManager memberManager = gc.getMemberManager();
-            gc.getRaftExecutor().execute(() -> memberManager.doPrepare(newMemberNodes, newObserverNodes));
+            gc.getRaftExecutor().execute(() -> memberManager.doPrepare(newMemberNodes, newObserverNodes, null));
         } catch (Throwable e) {
             log.error("prepare fail", e);
             if (gc != null) {
-                RaftStatus raftStatus = gc.getRaftStatus();
-                // TODO not set error status immediately, the apply manager may apply some logs after prepare log
-                gc.getRaftExecutor().execute(() -> raftStatus.setError(true));
+                MemberManager memberManager = gc.getMemberManager();
+                gc.getRaftExecutor().execute(() -> memberManager.doPrepare(null, null, e));
             }
         }
     }

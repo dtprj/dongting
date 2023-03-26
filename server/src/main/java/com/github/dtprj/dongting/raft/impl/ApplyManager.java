@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.server.LogItem;
@@ -39,6 +40,10 @@ import static java.util.Collections.emptySet;
  * @author huangli
  */
 public class ApplyManager {
+    public enum ApplyState {
+        notWaiting, waiting, waitingFinished
+    }
+
     private static final DtLog log = DtLogs.getLogger(ApplyManager.class);
 
     private final int selfNodeId;
@@ -57,49 +62,61 @@ public class ApplyManager {
         this.eventBus = eventBus;
     }
 
-    public void apply(long commitIndex, RaftStatus raftStatus) {
-        long lastApplied = raftStatus.getLastApplied();
-        long diff = commitIndex - lastApplied;
+    public void apply(RaftStatus raftStatus) {
+        if (raftStatus.getApplyState() == ApplyState.waiting) {
+            return;
+        }
+        long diff = raftStatus.getCommitIndex() - raftStatus.getLastApplied();
         while (diff > 0) {
-            long index = lastApplied + 1;
+            long index = raftStatus.getLastApplied() + 1;
             RaftTask rt = raftStatus.getPendingRequests().get(index);
             if (rt == null) {
                 int limit = (int) Math.min(diff, 100L);
                 LogItem[] items = RaftUtil.load(raftLog, raftStatus,
                         index, limit, 16 * 1024 * 1024);
                 int readCount = items.length;
-                for (int i = 0; i < readCount; i++) {
+                for (int i = 0; i < readCount; i++, index++) {
                     LogItem item = items[i];
-                    RaftInput input;
-                    if (item.getType() == LogItem.TYPE_NORMAL) {
-                        Object o = stateMachine.decode(item.getBuffer());
-                        input = new RaftInput(item.getBuffer(), o, null, false);
-                    } else {
-                        input = new RaftInput(item.getBuffer(), null, null, false);
+                    rt = buildRaftTask(item);
+                    if (!execChain(index, rt)) {
+                        return;
                     }
-                    rt = new RaftTask(ts, item.getType(), input, null);
-                    execChain(index + i, rt);
+
+                    raftStatus.setLastApplied(index);
+                    diff--;
                 }
-                lastApplied += readCount;
-                diff -= readCount;
             } else {
-                execChain(index, rt);
-                lastApplied++;
+                if (!execChain(index, rt)) {
+                    return;
+                }
+                raftStatus.setLastApplied(index);
                 diff--;
             }
         }
-
-        raftStatus.setLastApplied(commitIndex);
     }
 
-    @SuppressWarnings("ForLoopReplaceableByForEach")
-    private void execChain(long index, RaftTask rt) {
+    private RaftTask buildRaftTask(LogItem item) {
+        RaftInput input;
+        if (item.getType() == LogItem.TYPE_NORMAL) {
+            Object o = stateMachine.decode(item.getBuffer());
+            input = new RaftInput(item.getBuffer(), o, null, false);
+        } else {
+            input = new RaftInput(item.getBuffer(), null, null, false);
+        }
+        return new RaftTask(ts, item.getType(), input, null);
+    }
+
+    @SuppressWarnings({"ForLoopReplaceableByForEach", "BooleanMethodIsAlwaysInverted"})
+    private boolean execChain(long index, RaftTask rt) {
         switch (rt.type) {
             case LogItem.TYPE_NORMAL:
                 execNormal(index, rt);
                 break;
             case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
                 doPrepare(rt.input.getLogData());
+                if (raftStatus.getApplyState() == ApplyState.waiting) {
+                    return false;
+                }
                 break;
             case LogItem.TYPE_DROP_CONFIG_CHANGE:
                 doAbort();
@@ -113,12 +130,13 @@ public class ApplyManager {
         }
         ArrayList<RaftTask> nextReaders = rt.nextReaders;
         if (nextReaders == null) {
-            return;
+            return true;
         }
         for (int i = 0; i < nextReaders.size(); i++) {
             RaftTask readerTask = nextReaders.get(i);
             execNormal(index, readerTask);
         }
+        return true;
     }
 
     public void execNormal(long index, RaftTask rt) {
@@ -148,25 +166,32 @@ public class ApplyManager {
     }
 
     private void doPrepare(ByteBuffer logData) {
-        byte[] data = new byte[logData.remaining()];
-        logData.get(data);
-        String dataStr = new String(data);
-        String[] fields = dataStr.split(";");
-        Set<Integer> oldMembers = parseSet(fields[0]);
-        Set<Integer> oldObservers = parseSet(fields[1]);
-        Set<Integer> newMembers = parseSet(fields[2]);
-        Set<Integer> newObservers = parseSet(fields[3]);
-        if (!oldMembers.equals(raftStatus.getNodeIdOfMembers())) {
-            log.error("oldMembers not match, oldMembers={}, currentMembers={}, groupId={}",
-                    oldMembers, raftStatus.getNodeIdOfMembers(), raftStatus.getGroupId());
+        if (raftStatus.getApplyState() == ApplyState.waiting) {
+            byte[] data = new byte[logData.remaining()];
+            logData.get(data);
+            String dataStr = new String(data);
+            String[] fields = dataStr.split(";");
+            Set<Integer> oldMembers = parseSet(fields[0]);
+            Set<Integer> oldObservers = parseSet(fields[1]);
+            Set<Integer> newMembers = parseSet(fields[2]);
+            Set<Integer> newObservers = parseSet(fields[3]);
+            if (!oldMembers.equals(raftStatus.getNodeIdOfMembers())) {
+                log.error("oldMembers not match, oldMembers={}, currentMembers={}, groupId={}",
+                        oldMembers, raftStatus.getNodeIdOfMembers(), raftStatus.getGroupId());
+            }
+            if (!oldObservers.equals(raftStatus.getNodeIdOfObservers())) {
+                log.error("oldObservers not match, oldObservers={}, currentObservers={}, groupId={}",
+                        oldObservers, raftStatus.getNodeIdOfObservers(), raftStatus.getGroupId());
+            }
+            Object[] args = new Object[]{raftStatus.getGroupId(), raftStatus.getNodeIdOfPreparedMembers(),
+                    raftStatus.getNodeIdOfPreparedObservers(), newMembers, newObservers};
+            eventBus.fire(EventType.prepareConfChange, args);
+            raftStatus.setApplyState(ApplyState.waiting);
+        } else if (raftStatus.getApplyState() == ApplyState.waitingFinished) {
+            raftStatus.setApplyState(ApplyState.waitingFinished);
+        } else {
+            BugLog.getLog().error("apply manager doPrepare waitingState={}", raftStatus.getApplyState());
         }
-        if (!oldObservers.equals(raftStatus.getNodeIdOfObservers())) {
-            log.error("oldObservers not match, oldObservers={}, currentObservers={}, groupId={}",
-                    oldObservers, raftStatus.getNodeIdOfObservers(), raftStatus.getGroupId());
-        }
-        Object[] args = new Object[]{raftStatus.getGroupId(), raftStatus.getNodeIdOfPreparedMembers(),
-                raftStatus.getNodeIdOfPreparedObservers(), newMembers, newObservers};
-        eventBus.fire(EventType.prepareConfChange, args);
     }
 
     public Set<Integer> parseSet(String s) {
