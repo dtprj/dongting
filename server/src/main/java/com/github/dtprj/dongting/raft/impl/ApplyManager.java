@@ -52,6 +52,7 @@ public class ApplyManager {
     private final Timestamp ts;
     private final EventBus eventBus;
     private final RaftStatus raftStatus;
+    private boolean configChanging = false;
 
     public ApplyManager(int selfNodeId, RaftLog raftLog, StateMachine stateMachine, RaftStatus raftStatus, EventBus eventBus) {
         this.selfNodeId = selfNodeId;
@@ -166,6 +167,7 @@ public class ApplyManager {
     }
 
     private void doPrepare(ByteBuffer logData) {
+        configChanging = true;
         if (raftStatus.getApplyState() == ApplyState.waiting) {
             byte[] data = new byte[logData.remaining()];
             logData.get(data);
@@ -188,7 +190,7 @@ public class ApplyManager {
             eventBus.fire(EventType.prepareConfChange, args);
             raftStatus.setApplyState(ApplyState.waiting);
         } else if (raftStatus.getApplyState() == ApplyState.waitingFinished) {
-            raftStatus.setApplyState(ApplyState.waitingFinished);
+            raftStatus.setApplyState(ApplyState.notWaiting);
         } else {
             BugLog.getLog().error("apply manager doPrepare waitingState={}", raftStatus.getApplyState());
         }
@@ -211,6 +213,10 @@ public class ApplyManager {
         for (RaftMember m : raftStatus.getPreparedObservers()) {
             ids.add(m.getNode().getNodeId());
         }
+        if (ids.size() == 0) {
+            configChanging = false;
+            return;
+        }
 
         raftStatus.setPreparedMembers(emptyList());
         raftStatus.setPreparedObservers(emptyList());
@@ -222,15 +228,16 @@ public class ApplyManager {
             }
         }
         eventBus.fire(EventType.abortConfChange, ids);
+        configChanging = false;
     }
 
     private void doCommit() {
-        HashSet<Integer> ids = new HashSet<>(raftStatus.getNodeIdOfMembers());
-        ids.addAll(raftStatus.getNodeIdOfObservers());
-        if (raftStatus.getPreparedMembers().size() == 0) {
-            log.error("preparedMembers is empty, groupId={}", raftStatus.getGroupId());
+        if (!configChanging) {
+            log.warn("no prepared config change, ignore commit, groupId={}", raftStatus.getGroupId());
             return;
         }
+        HashSet<Integer> ids = new HashSet<>(raftStatus.getNodeIdOfMembers());
+        ids.addAll(raftStatus.getNodeIdOfObservers());
 
         raftStatus.setMembers(raftStatus.getPreparedMembers());
         raftStatus.setObservers(raftStatus.getPreparedObservers());
@@ -246,5 +253,6 @@ public class ApplyManager {
         }
 
         eventBus.fire(EventType.commitConfChange, ids);
+        configChanging = false;
     }
 }
