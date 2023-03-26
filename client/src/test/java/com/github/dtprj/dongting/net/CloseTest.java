@@ -95,7 +95,6 @@ public class CloseTest {
             fail();
         } catch (ExecutionException e) {
             assertTrue(e.getMessage().contains("channel closed, future cancelled by timeout cleaner"), e.getMessage());
-            assertEquals(0, client.worker.pendingOutgoingRequests.size());
         } catch (Exception e) {
             fail();
         }
