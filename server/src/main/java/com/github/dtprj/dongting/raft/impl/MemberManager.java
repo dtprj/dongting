@@ -95,6 +95,11 @@ public class MemberManager {
         }
         raftStatus.setPreparedMembers(emptyList());
         computeDuplicatedData(raftStatus);
+        if (!raftStatus.getNodeIdOfMembers().contains(serverConfig.getNodeId())
+                && !raftStatus.getNodeIdOfObservers().contains(serverConfig.getNodeId())) {
+            raftStatus.setSelf(null);
+            raftStatus.setRole(RaftRole.observer);
+        }
     }
 
     private void initSelf(RaftNodeEx node, RaftMember m, RaftRole role) {

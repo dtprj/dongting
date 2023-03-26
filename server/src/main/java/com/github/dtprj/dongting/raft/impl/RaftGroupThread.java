@@ -101,7 +101,7 @@ public class RaftGroupThread extends Thread {
     @Override
     public void run() {
         try {
-            if (raftStatus.getElectQuorum() == 1) {
+            if (raftStatus.getElectQuorum() == 1 && raftStatus.getNodeIdOfMembers().contains(config.getNodeId())) {
                 RaftUtil.changeToLeader(raftStatus);
                 raft.sendHeartBeat();
             }
