@@ -151,7 +151,7 @@ public class AppendProcessor extends AbstractProcessor {
         raftStatus.setLastLogTerm(logs.get(logs.size() - 1).getTerm());
         if (req.getLeaderCommit() > raftStatus.getCommitIndex()) {
             raftStatus.setCommitIndex(Math.min(newIndex, req.getLeaderCommit()));
-            gc.getApplyManager().apply(raftStatus.getCommitIndex(), raftStatus);
+            gc.getApplyManager().apply(raftStatus);
         } else if (req.getLeaderCommit() < raftStatus.getCommitIndex()) {
             log.warn("leader commitIndex less than local. leaderId={}, leaderTerm={}, leaderCommitIndex={}, localCommitIndex={}",
                     req.getLeaderId(), req.getTerm(), req.getLeaderCommit(), raftStatus.getCommitIndex());
