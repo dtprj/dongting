@@ -65,6 +65,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author huangli
@@ -92,6 +93,7 @@ public class RaftServer extends AbstractLifeCircle {
 
     private final Timestamp readTimestamp = new Timestamp();
 
+    private final AtomicBoolean change = new AtomicBoolean(false);
 
     static {
         try {
@@ -387,16 +389,38 @@ public class RaftServer extends AbstractLifeCircle {
         return gc.getRaftGroupThread();
     }
 
+    private void doChange(Runnable runnable) {
+        checkStatus();
+        if (change.compareAndSet(false, true)) {
+            try {
+                runnable.run();
+            } catch (RaftException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new RaftException(e);
+            } finally {
+                change.set(false);
+            }
+        } else {
+            throw new RaftException("raft server in changing");
+        }
+    }
+
     /**
      * ADMIN API. This method is idempotent. When future complete the new node is connected.
      * If the node is already in node list and connected, the future complete normally immediately.
      */
     @SuppressWarnings("unused")
-    public CompletableFuture<RaftNodeEx> addNode(RaftNode node) {
-        checkStatus();
-        CompletableFuture<RaftNodeEx> f = nodeManager.addToNioClient(node);
-        f = f.thenComposeAsync(nodeManager::addNode, RaftUtil.SCHEDULED_SERVICE);
-        return f;
+    public void addNode(RaftNode node) {
+        doChange(() -> {
+            CompletableFuture<RaftNodeEx> f = nodeManager.addToNioClient(node);
+            f = f.thenComposeAsync(nodeManager::addNode, RaftUtil.SCHEDULED_SERVICE);
+            try {
+                f.get();
+            } catch (Exception e) {
+                throw new RaftException(e);
+            }
+        });
     }
 
     /**
@@ -404,11 +428,16 @@ public class RaftServer extends AbstractLifeCircle {
      * If the reference count of the node is not 0, the future complete exceptionally.
      */
     @SuppressWarnings("unused")
-    public CompletableFuture<Void> removeNode(int nodeId) {
-        checkStatus();
-        CompletableFuture<Void> f = new CompletableFuture<>();
-        RaftUtil.SCHEDULED_SERVICE.submit(() -> nodeManager.removeNode(nodeId, f));
-        return f;
+    public void removeNode(int nodeId) {
+        doChange(() -> {
+            try {
+                CompletableFuture<Void> f = new CompletableFuture<>();
+                RaftUtil.SCHEDULED_SERVICE.submit(() -> nodeManager.removeNode(nodeId, f));
+                f.get();
+            } catch (Exception e) {
+                throw new RaftException(e);
+            }
+        });
     }
 
     /**
@@ -416,28 +445,30 @@ public class RaftServer extends AbstractLifeCircle {
      */
     @SuppressWarnings("unused")
     public void addGroup(RaftGroupConfig groupConfig, RaftLog raftLog, StateMachine stateMachine) {
-        checkStatus();
-        CompletableFuture<GroupComponents> f = new CompletableFuture<>();
-        RaftUtil.SCHEDULED_SERVICE.execute(() -> {
+        doChange(() -> {
             try {
-                GroupComponents gc = createRaftGroup(serverConfig, nodeManager.getAllNodeIds(),
-                        groupConfig, stateMachine, raftLog);
+                CompletableFuture<GroupComponents> f = new CompletableFuture<>();
+                RaftUtil.SCHEDULED_SERVICE.execute(() -> {
+                    try {
+                        GroupComponents gc = createRaftGroup(serverConfig, nodeManager.getAllNodeIds(),
+                                groupConfig, stateMachine, raftLog);
+                        gc.getMemberManager().init(nodeManager.getAllNodesEx());
+                        f.complete(gc);
+                    } catch (Exception e) {
+                        f.completeExceptionally(e);
+                    }
+                });
+
+                GroupComponents gc = f.get(5, TimeUnit.SECONDS);
+                gc.getRaftGroupThread().init();
+
                 gc.getMemberManager().init(nodeManager.getAllNodesEx());
-                f.complete(gc);
+                gc.getRaftGroupThread().start();
+                groupComponentsMap.put(groupConfig.getGroupId(), gc);
             } catch (Exception e) {
-                f.completeExceptionally(e);
+                throw new RaftException(e);
             }
         });
-        try {
-            GroupComponents gc = f.get(5, TimeUnit.SECONDS);
-            gc.getRaftGroupThread().init();
-
-            gc.getMemberManager().init(nodeManager.getAllNodesEx());
-            gc.getRaftGroupThread().start();
-            groupComponentsMap.put(groupConfig.getGroupId(), gc);
-        } catch (Exception e) {
-            throw new RaftException(e);
-        }
     }
 
     /**
@@ -445,14 +476,15 @@ public class RaftServer extends AbstractLifeCircle {
      */
     @SuppressWarnings("unused")
     public void removeGroup(int groupId) {
-        checkStatus();
-        GroupComponents gc = groupComponentsMap.get(groupId);
-        if (gc == null) {
-            log.warn("removeGroup failed: group not exist, groupId={}", groupId);
-            return;
-        }
-        gc.getRaftGroupThread().requestShutdown();
-        groupComponentsMap.remove(groupId);
+        doChange(() -> {
+            GroupComponents gc = groupComponentsMap.get(groupId);
+            if (gc == null) {
+                log.warn("removeGroup failed: group not exist, groupId={}", groupId);
+                return;
+            }
+            gc.getRaftGroupThread().requestShutdown();
+            groupComponentsMap.remove(groupId);
+        });
     }
 
     /**
