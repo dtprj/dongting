@@ -148,6 +148,8 @@ public class RaftGroupThread extends Thread {
                 lastCleanTime = ts.getNanoTime();
             }
         }
+        stateMachine.shutdown();
+        raftLog.shutdown();
     }
 
     private boolean process(ArrayList<RaftTask> rwTasks, ArrayList<Runnable> runnables, ArrayList<Object> queueData) {
@@ -167,7 +169,7 @@ public class RaftGroupThread extends Thread {
 
         // the sequence of RaftTask and Runnable is reordered, but it will not affect the linearizability
         if (rwTasks.size() > 0) {
-            if(!raftStatus.isHoldRequest()){
+            if (!raftStatus.isHoldRequest()) {
                 raft.raftExec(rwTasks);
                 rwTasks.clear();
                 raftStatus.copyShareStatus();
@@ -200,11 +202,8 @@ public class RaftGroupThread extends Thread {
     }
 
     public void requestShutdown() {
-        Runnable r = () -> {
-            raftExecutor.setStop(true);
-            log.info("request raft thread shutdown");
-        };
-        queue.offer(r);
+        raftExecutor.setStop(true);
+        log.info("request raft thread shutdown");
     }
 
     private void idle(Timestamp ts) {

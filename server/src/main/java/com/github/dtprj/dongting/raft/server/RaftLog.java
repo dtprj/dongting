@@ -26,6 +26,8 @@ public interface RaftLog {
 
     Pair<Integer, Long> init();
 
+    void shutdown();
+
     void append(long prevLogIndex, int prevLogTerm, List<LogItem> logs);
 
     /**

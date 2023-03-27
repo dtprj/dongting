@@ -26,6 +26,8 @@ import java.util.Iterator;
 public interface StateMachine {
     void init(RaftLog raftLog);
 
+    void shutdown();
+
     Object decode(ByteBuffer logData);
 
     Object exec(long index, Object input);
