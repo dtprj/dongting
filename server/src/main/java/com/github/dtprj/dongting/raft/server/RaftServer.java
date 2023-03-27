@@ -381,6 +381,12 @@ public class RaftServer extends AbstractLifeCircle {
         return ss.lastApplied;
     }
 
+    @SuppressWarnings("unused")
+    public Thread getRaftGroupThread(int groupId) {
+        GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, groupId);
+        return gc.getRaftGroupThread();
+    }
+
     /**
      * ADMIN API. This method is idempotent. When future complete the new node is connected.
      * If the node is already in node list and connected, the future complete normally immediately.
