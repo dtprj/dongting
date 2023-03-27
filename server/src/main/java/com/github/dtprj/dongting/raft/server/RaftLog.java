@@ -22,11 +22,9 @@ import java.util.List;
 /**
  * @author huangli
  */
-public interface RaftLog {
+public interface RaftLog extends AutoCloseable {
 
     Pair<Integer, Long> init();
-
-    void shutdown();
 
     void append(long prevLogIndex, int prevLogTerm, List<LogItem> logs);
 

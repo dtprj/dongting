@@ -111,7 +111,10 @@ public class RaftGroupThread extends Thread {
         } catch (Throwable e) {
             BugLog.getLog().error("raft thread error", e);
         } finally {
-            CloseUtil.close(raftStatus.getStatusFileLock(), raftStatus.getRandomAccessStatusFile());
+            CloseUtil.close(raftStatus.getStatusFileLock());
+            CloseUtil.close(raftStatus.getRandomAccessStatusFile());
+            CloseUtil.close(stateMachine);
+            CloseUtil.close(raftLog);
         }
     }
 
@@ -146,8 +149,6 @@ public class RaftGroupThread extends Thread {
                 lastCleanTime = ts.getNanoTime();
             }
         }
-        stateMachine.shutdown();
-        raftLog.shutdown();
     }
 
     private boolean process(ArrayList<RaftTask> rwTasks, ArrayList<Runnable> runnables, ArrayList<Object> queueData) {

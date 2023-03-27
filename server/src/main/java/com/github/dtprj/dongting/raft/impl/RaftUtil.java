@@ -288,6 +288,9 @@ public class RaftUtil {
                 try {
                     //noinspection BusyWait
                     Thread.sleep(sleepMillis);
+                    if (raftStatus.isStop()) {
+                        throw new RaftException("raft group is stopped");
+                    }
                 } catch (InterruptedException ex) {
                     throw new RaftException(ex);
                 }

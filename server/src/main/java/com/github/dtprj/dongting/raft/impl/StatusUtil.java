@@ -119,6 +119,9 @@ public class StatusUtil {
                 // prevent concurrent saving or saving actions more and more
                 return;
             }
+            if (raftStatus.isStop()) {
+                return;
+            }
             raftStatus.setSaving(true);
             FileChannel channel = raftStatus.getStatusChannel();
             channel.position(0);
@@ -129,7 +132,7 @@ public class StatusUtil {
             p.store(bos, null);
             byte[] propertiesBytes = bos.toByteArray();
             byte[] fileContent = new byte[FILE_LENGTH];
-            Arrays.fill(fileContent, (byte)' ');
+            Arrays.fill(fileContent, (byte) ' ');
             System.arraycopy(propertiesBytes, 0, fileContent, CONTENT_START_POS, propertiesBytes.length);
             fileContent[CONTENT_START_POS - 2] = '\r';
             fileContent[CONTENT_START_POS - 1] = '\n';

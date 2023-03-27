@@ -23,10 +23,8 @@ import java.util.Iterator;
 /**
  * @author huangli
  */
-public interface StateMachine {
+public interface StateMachine extends AutoCloseable {
     void init(RaftLog raftLog);
-
-    void shutdown();
 
     Object decode(ByteBuffer logData);
 
