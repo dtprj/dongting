@@ -383,17 +383,22 @@ public class RaftServer extends AbstractLifeCircle {
      */
     @SuppressWarnings("unused")
     public CompletableFuture<RaftNodeEx> addNode(RaftNode node) {
-        return nodeManager.addNode(node);
+        CompletableFuture<RaftNodeEx> f = nodeManager.addToNioClient(node);
+        f = f.thenComposeAsync(nodeManager::addNode, RaftUtil.SCHEDULED_SERVICE);
+        return f;
     }
 
     /**
-     * ADMIN API. If the node is node in node list, the future complete normally immediately.
+     * ADMIN API. This method is idempotent. If the node is node in node list, the future complete normally immediately.
      * If the reference count of the node is not 0, the future complete exceptionally.
      */
     @SuppressWarnings("unused")
     public CompletableFuture<Void> removeNode(int nodeId) {
-        return nodeManager.removeNode(nodeId);
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        RaftUtil.SCHEDULED_SERVICE.submit(() -> nodeManager.removeNode(nodeId, f));
+        return f;
     }
+
 
     /**
      * ADMIN API. This method is idempotent.

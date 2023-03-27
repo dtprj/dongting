@@ -100,7 +100,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         });
     }
 
-    private CompletableFuture<RaftNodeEx> addToNioClient(RaftNode node) {
+    public CompletableFuture<RaftNodeEx> addToNioClient(RaftNode node) {
         return client.addPeer(node.getHostPort()).thenApply(peer
                 -> new RaftNodeEx(node.getNodeId(), node.getHostPort(), node.isSelf(), peer));
     }
@@ -257,46 +257,36 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         }
     }
 
-    public CompletableFuture<RaftNodeEx> addNode(RaftNode node) {
-        CompletableFuture<RaftNodeEx> f = addToNioClient(node);
-        f = f.thenComposeAsync(nodeEx -> {
-            RaftNodeEx existNode = allNodesEx.get(nodeEx.getNodeId());
-            if (existNode != null) {
-                return CompletableFuture.completedFuture(existNode);
-            } else {
-                CompletableFuture<Void> pingFuture = connectAndPing(nodeEx);
-                return pingFuture.handleAsync((v, ex) -> {
-                    if (ex == null) {
-                        allNodesEx.put(nodeEx.getNodeId(), nodeEx);
-                        processResult(nodeEx, null);
-                        return nodeEx;
-                    } else {
-                        log.error("add node {} fail", nodeEx.getPeer().getEndPoint(), ex);
-                        throw new RaftException(ex);
-                    }
-                }, RaftUtil.SCHEDULED_SERVICE);
-            }
-        }, RaftUtil.SCHEDULED_SERVICE);
-        return f;
+    public CompletableFuture<RaftNodeEx> addNode(RaftNodeEx nodeEx) {
+        RaftNodeEx existNode = allNodesEx.get(nodeEx.getNodeId());
+        if (existNode != null) {
+            return CompletableFuture.completedFuture(existNode);
+        } else {
+            CompletableFuture<Void> pingFuture = connectAndPing(nodeEx);
+            return pingFuture.handleAsync((v, ex) -> {
+                if (ex == null) {
+                    allNodesEx.put(nodeEx.getNodeId(), nodeEx);
+                    processResult(nodeEx, null);
+                    return nodeEx;
+                } else {
+                    log.error("add node {} fail", nodeEx.getPeer().getEndPoint(), ex);
+                    throw new RaftException(ex);
+                }
+            }, RaftUtil.SCHEDULED_SERVICE);
+        }
     }
 
-    public CompletableFuture<Void> removeNode(int nodeId) {
-        CompletableFuture<Void> f = new CompletableFuture<>();
-        Runnable r = () -> {
-            // find should run in schedule thread
-            RaftNodeEx existNode = allNodesEx.get(nodeId);
-            if (existNode == null) {
-                f.complete(null);
+    public void removeNode(int nodeId, CompletableFuture<Void> f) {
+        RaftNodeEx existNode = allNodesEx.get(nodeId);
+        if (existNode == null) {
+            f.complete(null);
+        } else {
+            if (existNode.getUseCount() == 0) {
+                client.removePeer(existNode.getPeer()).thenRun(() -> f.complete(null));
             } else {
-                if (existNode.getUseCount() == 0) {
-                    client.removePeer(existNode.getPeer()).thenRun(() -> f.complete(null));
-                } else {
-                    f.completeExceptionally(new RaftException("node is using, current ref count: " + existNode.getUseCount()));
-                }
+                f.completeExceptionally(new RaftException("node is using, current ref count: " + existNode.getUseCount()));
             }
-        };
-        RaftUtil.SCHEDULED_SERVICE.submit(r);
-        return f;
+        }
     }
 
     public void leaderPrepareJointConsensus(CompletableFuture<Void> f, int groupId, Set<Integer> memberIds,
