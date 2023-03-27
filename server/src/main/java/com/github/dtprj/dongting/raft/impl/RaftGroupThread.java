@@ -90,9 +90,13 @@ public class RaftGroupThread extends Thread {
         raftStatus.setLastLogIndex(initResult.getRight());
     }
 
-    public void waitReady(int targetReadyCount) {
+    public void waitReady() {
+        int electQuorum = raftStatus.getElectQuorum();
+        if (electQuorum <= 1) {
+            return;
+        }
         try {
-            memberManager.createReadyFuture(targetReadyCount).get();
+            memberManager.createReadyFuture(electQuorum).get();
         } catch (Exception e) {
             throw new RaftException(e);
         }
@@ -208,7 +212,7 @@ public class RaftGroupThread extends Thread {
         if (raftStatus.isError()) {
             return;
         }
-        if (raftStatus.getElectQuorum() == 1) {
+        if (raftStatus.getElectQuorum() <= 1) {
             return;
         }
         long roundTimeNanos = ts.getNanoTime();

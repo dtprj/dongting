@@ -206,9 +206,7 @@ public class RaftServer extends AbstractLifeCircle {
             throw new IllegalArgumentException("self id not found in group members/observers list: " + serverConfig.getNodeId());
         }
 
-        int electQuorum = RaftUtil.getElectQuorum(nodeIdOfMembers.size());
-        int rwQuorum = RaftUtil.getRwQuorum(nodeIdOfMembers.size());
-        RaftStatus raftStatus = new RaftStatus(electQuorum, rwQuorum, isMember ? RaftRole.follower : RaftRole.observer);
+        RaftStatus raftStatus = new RaftStatus();
         RaftExecutor raftExecutor = new RaftExecutor();
         raftStatus.setRaftExecutor(raftExecutor);
         raftStatus.setNodeIdOfMembers(nodeIdOfMembers);
@@ -290,7 +288,7 @@ public class RaftServer extends AbstractLifeCircle {
         });
 
         groupComponentsMap.forEach((groupId, gc) -> {
-            gc.getRaftGroupThread().waitReady(gc.getRaftStatus().getElectQuorum());
+            gc.getRaftGroupThread().waitReady();
             log.info("raft group {} is ready", groupId);
             return true;
         });

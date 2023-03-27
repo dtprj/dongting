@@ -49,8 +49,8 @@ public class RaftStatus {
     private RaftRole role; // shared
     private RaftMember currentLeader; // shared
     private final Timestamp ts = new Timestamp();
-    private final int electQuorum;
-    private final int rwQuorum;
+    private int electQuorum;
+    private int rwQuorum;
 
     private RaftMember self;
     private List<RaftMember> members;
@@ -104,10 +104,7 @@ public class RaftStatus {
         }
     }
 
-    public RaftStatus(int electQuorum, int rwQuorum, RaftRole initRole) {
-        this.electQuorum = electQuorum;
-        this.rwQuorum = rwQuorum;
-        this.role = initRole;
+    public RaftStatus() {
         lastElectTime = ts.getNanoTime();
         heartbeatTime = ts.getNanoTime();
     }
@@ -204,6 +201,14 @@ public class RaftStatus {
 
     public int getRwQuorum() {
         return rwQuorum;
+    }
+
+    public void setElectQuorum(int electQuorum) {
+        this.electQuorum = electQuorum;
+    }
+
+    public void setRwQuorum(int rwQuorum) {
+        this.rwQuorum = rwQuorum;
     }
 
     public long getHeartbeatTime() {

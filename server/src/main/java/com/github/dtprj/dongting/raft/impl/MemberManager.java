@@ -135,6 +135,9 @@ public class MemberManager {
         raftStatus.setNodeIdOfObservers(observerIds.size() == 0 ? emptySet() : observerIds);
         raftStatus.setNodeIdOfPreparedMembers(jointMemberIds.size() == 0 ? emptySet() : jointMemberIds);
         raftStatus.setNodeIdOfPreparedObservers(jointObserverIds.size() == 0 ? emptySet() : jointObserverIds);
+
+        raftStatus.setElectQuorum(RaftUtil.getElectQuorum(raftStatus.getMembers().size()));
+        raftStatus.setRwQuorum(RaftUtil.getRwQuorum(raftStatus.getMembers().size()));
     }
 
     @SuppressWarnings("ForLoopReplaceableByForEach")
