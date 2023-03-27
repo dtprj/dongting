@@ -54,4 +54,9 @@ public interface RaftLog {
      * if there is no such term, return -1.
      */
     int findLastTermLessThan(int term);
+
+    /**
+     * delete logs before the index(included), this method may invoke by other thread.
+     */
+    void truncate(long index);
 }
