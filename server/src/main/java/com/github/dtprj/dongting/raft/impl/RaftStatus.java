@@ -19,8 +19,6 @@ import com.github.dtprj.dongting.common.Timestamp;
 
 import java.io.File;
 import java.io.RandomAccessFile;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.util.List;
@@ -42,8 +40,10 @@ public class RaftStatus {
 
     private int groupId;
 
-    @SuppressWarnings({"unused"})
-    private boolean error;
+    private volatile ShareStatus shareStatus;
+    private volatile boolean error;
+    private volatile boolean stop;
+
     private boolean installSnapshot;
 
     private RaftRole role; // shared
@@ -70,7 +70,6 @@ public class RaftStatus {
     private CompletableFuture<Void> firstCommitOfApplied; // shared
 
     private boolean shareStatusUpdated;
-    private volatile ShareStatus shareStatus;
     private long electTimeoutNanos; // shared
 
     private long leaseStartNanos; // shared
@@ -93,16 +92,6 @@ public class RaftStatus {
     private boolean holdRequest;
 
     private ApplyManager.ApplyState applyState;
-
-    private static final VarHandle ERROR;
-
-    static {
-        try {
-            ERROR = MethodHandles.lookup().findVarHandle(RaftStatus.class, "error", boolean.class);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     public RaftStatus() {
         lastElectTime = ts.getNanoTime();
@@ -153,15 +142,23 @@ public class RaftStatus {
         this.shareStatusUpdated = true;
     }
 
+    //------------------------- simple getters and setters--------------------------------
+
     public boolean isError() {
-        return (boolean) ERROR.getAcquire(this);
+        return error;
     }
 
     public void setError(boolean errorState) {
-        ERROR.setRelease(this, errorState);
+        this.error = errorState;
     }
 
-    //------------------------- simple getters and setters--------------------------------
+    public boolean isStop() {
+        return stop;
+    }
+
+    public void setStop(boolean stop) {
+        this.stop = stop;
+    }
 
     public int getCurrentTerm() {
         return currentTerm;

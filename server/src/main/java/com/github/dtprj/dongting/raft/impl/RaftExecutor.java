@@ -25,8 +25,6 @@ import java.util.concurrent.TimeUnit;
 public class RaftExecutor implements Executor {
     private final LinkedBlockingQueue<Object> queue = new LinkedBlockingQueue<>();
 
-    private volatile boolean stop = false;
-
     public RaftExecutor() {
     }
 
@@ -51,11 +49,4 @@ public class RaftExecutor implements Executor {
         return queue;
     }
 
-    public boolean isStop() {
-        return stop;
-    }
-
-    public void setStop(boolean stop) {
-        this.stop = stop;
-    }
 }

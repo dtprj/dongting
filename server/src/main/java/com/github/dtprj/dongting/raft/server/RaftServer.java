@@ -322,7 +322,7 @@ public class RaftServer extends AbstractLifeCircle {
         if (raftStatus.isError()) {
             throw new RaftException("raft status is error");
         }
-        if (gc.getRaftExecutor().isStop()) {
+        if (gc.getRaftStatus().isStop()) {
             throw new RaftException("raft group thread is stop");
         }
         int size = input.size();
@@ -364,7 +364,7 @@ public class RaftServer extends AbstractLifeCircle {
         if (raftStatus.isError()) {
             throw new RaftException("raft status error");
         }
-        if (gc.getRaftExecutor().isStop()) {
+        if (gc.getRaftStatus().isStop()) {
             throw new RaftException("raft group thread is stop");
         }
         ShareStatus ss = raftStatus.getShareStatus();

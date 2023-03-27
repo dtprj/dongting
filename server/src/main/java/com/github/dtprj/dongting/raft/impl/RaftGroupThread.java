@@ -48,7 +48,6 @@ public class RaftGroupThread extends Thread {
     private final RaftServerConfig config;
     private final RaftGroupConfig groupConfig;
     private final RaftStatus raftStatus;
-    private final RaftExecutor raftExecutor;
     private final Raft raft;
     private final MemberManager memberManager;
     private final VoteManager voteManager;
@@ -68,7 +67,6 @@ public class RaftGroupThread extends Thread {
         this.groupConfig = groupConfig;
         this.raftStatus = raftStatus;
         this.queue = raftExecutor.getQueue();
-        this.raftExecutor = raftExecutor;
         this.raft = raft;
         this.memberManager = memberManager;
         this.stateMachine = stateMachine;
@@ -124,7 +122,7 @@ public class RaftGroupThread extends Thread {
         ArrayList<Runnable> runnables = new ArrayList<>(32);
         ArrayList<Object> queueData = new ArrayList<>(32);
         boolean poll = true;
-        while (!raftExecutor.isStop()) {
+        while (!raftStatus.isStop()) {
             if (raftStatus.getRole() != RaftRole.observer) {
                 memberManager.ensureRaftMemberStatus();
             }
@@ -202,7 +200,7 @@ public class RaftGroupThread extends Thread {
     }
 
     public void requestShutdown() {
-        raftExecutor.setStop(true);
+        raftStatus.setStop(true);
         log.info("request raft thread shutdown");
     }
 

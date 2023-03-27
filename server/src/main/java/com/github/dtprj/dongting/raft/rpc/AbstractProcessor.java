@@ -26,7 +26,6 @@ import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.GroupComponentsMap;
-import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 
 /**
  * @author huangli
@@ -55,13 +54,13 @@ abstract class AbstractProcessor extends ReqProcessor {
             wf.setMsg("raft group not found: " + groupId);
             return wf;
         }
-        RaftExecutor executor = gc.getRaftExecutor();
-        if (executor.isStop()) {
+
+        if (gc.getRaftStatus().isStop()) {
             EmptyBodyRespFrame wf = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
             wf.setMsg("raft group is stopped: " + groupId);
             return wf;
         } else {
-            executor.execute(() -> process(frame, channelContext, reqContext, gc));
+            gc.getRaftExecutor().execute(() -> process(frame, channelContext, reqContext, gc));
             return null;
         }
     }
