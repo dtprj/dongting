@@ -26,7 +26,6 @@ import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.raft.rpc.VoteReq;
 import com.github.dtprj.dongting.raft.rpc.VoteResp;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.Collection;
@@ -57,13 +56,13 @@ public class VoteManager implements BiConsumer<EventType, Object> {
     private int votePendingCount;
     private int currentVoteId;
 
-    public VoteManager(RaftServerConfig serverConfig, RaftGroupConfig groupConfig, RaftStatus raftStatus,
+    public VoteManager(RaftServerConfig serverConfig, int groupId, RaftStatus raftStatus,
                        NioClient client, RaftExecutor executor, Raft raft) {
         this.raft = raft;
         this.client = client;
         this.raftStatus = raftStatus;
         this.config = serverConfig;
-        this.groupId = groupConfig.getGroupId();
+        this.groupId = groupId;
         this.raftExecutor = executor;
     }
 

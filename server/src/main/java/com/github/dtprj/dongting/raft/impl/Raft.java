@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftNode;
@@ -42,14 +41,12 @@ public class Raft implements BiConsumer<EventType, Object> {
     private final CommitManager commitManager;
 
     private final RaftLog raftLog;
-    private final RaftGroupConfig groupConfig;
     private final RaftStatus raftStatus;
 
     private final Timestamp ts;
 
-    public Raft(RaftGroupConfig groupConfig, RaftStatus raftStatus, RaftLog raftLog, ApplyManager applyManager,
+    public Raft(RaftStatus raftStatus, RaftLog raftLog, ApplyManager applyManager,
                  CommitManager commitManager, ReplicateManager replicateManager) {
-        this.groupConfig = groupConfig;
         this.raftStatus = raftStatus;
         this.raftLog = raftLog;
         this.ts = raftStatus.getTs();
