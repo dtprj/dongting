@@ -44,7 +44,8 @@ public abstract class AbstractLifeCircle implements LifeCircle {
     public final synchronized void stop() {
         if (status == LifeStatus.stopped) {
             return;
-        } else if (status == LifeStatus.running) {
+        }
+        if (status == LifeStatus.running) {
             status = LifeStatus.stopping;
             doStop();
             status = LifeStatus.stopped;
