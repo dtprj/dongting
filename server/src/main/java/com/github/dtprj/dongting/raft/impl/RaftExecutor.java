@@ -25,6 +25,8 @@ import java.util.concurrent.TimeUnit;
 public class RaftExecutor implements Executor {
     private final LinkedBlockingQueue<Object> queue = new LinkedBlockingQueue<>();
 
+    private volatile boolean stop = false;
+
     public RaftExecutor() {
     }
 
@@ -34,7 +36,7 @@ public class RaftExecutor implements Executor {
         } else {
             // ScheduledExecutorService just for schedule, the runnable will be executed in the RaftThread
             RaftExecutor executor = this;
-            Runnable wrapper = () ->  executor.execute(runnable);
+            Runnable wrapper = () -> executor.execute(runnable);
             RaftUtil.SCHEDULED_SERVICE.schedule(wrapper, delayMillis, TimeUnit.MILLISECONDS);
         }
     }
@@ -47,5 +49,13 @@ public class RaftExecutor implements Executor {
 
     public LinkedBlockingQueue<Object> getQueue() {
         return queue;
+    }
+
+    public boolean isStop() {
+        return stop;
+    }
+
+    public void setStop(boolean stop) {
+        this.stop = stop;
     }
 }

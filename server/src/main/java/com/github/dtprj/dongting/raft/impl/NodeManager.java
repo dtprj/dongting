@@ -310,6 +310,10 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
                 }
             }
             GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, groupId);
+            if (gc.getRaftExecutor().isStop()) {
+                f.completeExceptionally(new RaftException("group is stopped"));
+                return;
+            }
             checkNodeIdSet(groupId, memberIds);
             checkNodeIdSet(groupId, observerIds);
             gc.getRaftExecutor().execute(() -> gc.getMemberManager()
@@ -373,6 +377,10 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
     public void leaderAbortJointConsensus(CompletableFuture<Void> f, int groupId) {
         try {
             GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, groupId);
+            if (gc.getRaftExecutor().isStop()) {
+                f.completeExceptionally(new RaftException("group is stopped"));
+                return;
+            }
             gc.getRaftExecutor().execute(() -> gc.getMemberManager().leaderAbortJointConsensus(f));
         } catch (Throwable e) {
             f.completeExceptionally(e);
@@ -386,6 +394,10 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
     public void leaderCommitJointConsensus(CompletableFuture<Void> f, int groupId) {
         try {
             GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, groupId);
+            if (gc.getRaftExecutor().isStop()) {
+                f.completeExceptionally(new RaftException("group is stopped"));
+                return;
+            }
             gc.getRaftExecutor().execute(() -> gc.getMemberManager().leaderCommitJointConsensus(f));
         } catch (Throwable e) {
             f.completeExceptionally(e);

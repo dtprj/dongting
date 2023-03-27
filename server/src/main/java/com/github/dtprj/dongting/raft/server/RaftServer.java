@@ -317,11 +317,13 @@ public class RaftServer extends AbstractLifeCircle {
 
     @SuppressWarnings("unused")
     public CompletableFuture<RaftOutput> submitLinearTask(int groupId, RaftInput input) throws RaftException {
-        checkStatus();
         GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, groupId);
         RaftStatus raftStatus = gc.getRaftStatus();
         if (raftStatus.isError()) {
             throw new RaftException("raft status is error");
+        }
+        if (gc.getRaftExecutor().isStop()) {
+            throw new RaftException("raft group thread is stop");
         }
         int size = input.size();
         if (size > serverConfig.getMaxBodySize()) {
@@ -357,11 +359,13 @@ public class RaftServer extends AbstractLifeCircle {
     @SuppressWarnings("unused")
     public long getLogIndexForRead(int groupId, DtTime deadline)
             throws RaftException, InterruptedException, TimeoutException {
-        checkStatus();
         GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, groupId);
         RaftStatus raftStatus = gc.getRaftStatus();
         if (raftStatus.isError()) {
             throw new RaftException("raft status error");
+        }
+        if (gc.getRaftExecutor().isStop()) {
+            throw new RaftException("raft group thread is stop");
         }
         ShareStatus ss = raftStatus.getShareStatus();
         readTimestamp.refresh(1);

@@ -48,6 +48,7 @@ public class RaftGroupThread extends Thread {
     private final RaftServerConfig config;
     private final RaftGroupConfig groupConfig;
     private final RaftStatus raftStatus;
+    private final RaftExecutor raftExecutor;
     private final Raft raft;
     private final MemberManager memberManager;
     private final VoteManager voteManager;
@@ -60,15 +61,14 @@ public class RaftGroupThread extends Thread {
     // TODO optimise blocking queue
     private final LinkedBlockingQueue<Object> queue;
 
-    private volatile boolean stop;
-
     public RaftGroupThread(RaftServerConfig serverConfig, RaftGroupConfig groupConfig, RaftStatus raftStatus,
-                           RaftLog raftLog, StateMachine stateMachine, RaftExecutor executor,
+                           RaftLog raftLog, StateMachine stateMachine, RaftExecutor raftExecutor,
                            Raft raft, MemberManager memberManager, VoteManager voteManager) {
         this.config = serverConfig;
         this.groupConfig = groupConfig;
         this.raftStatus = raftStatus;
-        this.queue = executor.getQueue();
+        this.queue = raftExecutor.getQueue();
+        this.raftExecutor = raftExecutor;
         this.raft = raft;
         this.memberManager = memberManager;
         this.stateMachine = stateMachine;
@@ -124,7 +124,7 @@ public class RaftGroupThread extends Thread {
         ArrayList<Runnable> runnables = new ArrayList<>(32);
         ArrayList<Object> queueData = new ArrayList<>(32);
         boolean poll = true;
-        while (!stop) {
+        while (!raftExecutor.isStop()) {
             if (raftStatus.getRole() != RaftRole.observer) {
                 memberManager.ensureRaftMemberStatus();
             }
@@ -201,7 +201,7 @@ public class RaftGroupThread extends Thread {
 
     public void requestShutdown() {
         Runnable r = () -> {
-            stop = true;
+            raftExecutor.setStop(true);
             log.info("request raft thread shutdown");
         };
         queue.offer(r);
