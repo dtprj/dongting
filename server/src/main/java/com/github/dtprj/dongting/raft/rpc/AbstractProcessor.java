@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.ChannelContext;
@@ -26,6 +25,7 @@ import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
+import com.github.dtprj.dongting.raft.impl.GroupComponentsMap;
 
 /**
  * @author huangli
@@ -33,9 +33,9 @@ import com.github.dtprj.dongting.raft.impl.GroupComponents;
 abstract class AbstractProcessor extends ReqProcessor {
     private static final DtLog log = DtLogs.getLogger(AbstractProcessor.class);
 
-    protected final IntObjMap<GroupComponents> groupComponentsMap;
+    protected final GroupComponentsMap groupComponentsMap;
 
-    public AbstractProcessor(IntObjMap<GroupComponents> groupComponentsMap) {
+    public AbstractProcessor(GroupComponentsMap groupComponentsMap) {
         this.groupComponentsMap = groupComponentsMap;
     }
 

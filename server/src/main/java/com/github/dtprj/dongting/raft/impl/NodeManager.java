@@ -50,7 +50,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
     private final int selfNodeId;
     private final NioClient client;
     private final RaftServerConfig config;
-    private final IntObjMap<GroupComponents> groupComponentsMap;
+    private final GroupComponentsMap groupComponentsMap;
     private final FutureEventSource futureEventSource;
 
     private List<RaftNode> allRaftNodesOnlyForInit;
@@ -61,7 +61,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
     private int currentReadyNodes;
 
     public NodeManager(RaftServerConfig config, List<RaftNode> allRaftNodes, NioClient client,
-                       IntObjMap<GroupComponents> groupComponentsMap) {
+                       GroupComponentsMap groupComponentsMap) {
         this.selfNodeId = config.getNodeId();
         this.allRaftNodesOnlyForInit = allRaftNodes;
         this.client = client;
@@ -298,7 +298,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
                     throw new RaftException("node is both member and observer: " + nodeId);
                 }
             }
-            GroupComponents gc = getGroupComponents(groupId);
+            GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, groupId);
             checkNodeIdSet(groupId, memberIds);
             checkNodeIdSet(groupId, observerIds);
             gc.getRaftExecutor().execute(() -> gc.getMemberManager()
@@ -306,15 +306,6 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         } catch (Throwable e) {
             f.completeExceptionally(e);
         }
-    }
-
-    private GroupComponents getGroupComponents(int groupId) {
-        GroupComponents gc = groupComponentsMap.get(groupId);
-        if (gc == null) {
-            log.error("group not exist: {}", groupId);
-            throw new RaftException("group not exist: " + groupId);
-        }
-        return gc;
     }
 
     private List<RaftNodeEx> checkNodeIdSet(int groupId, Set<Integer> nodeIds) {
@@ -339,7 +330,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
             Set<Integer> oldPrepareObservers = (Set<Integer>) args[2];
             Set<Integer> newMembers = (Set<Integer>) args[3];
             Set<Integer> newObservers = (Set<Integer>) args[3];
-            gc = getGroupComponents(groupId);
+            gc = RaftUtil.getGroupComponents(groupComponentsMap, groupId);
             List<RaftNodeEx> newMemberNodes = checkNodeIdSet(groupId, newMembers);
             List<RaftNodeEx> newObserverNodes = checkNodeIdSet(groupId, newObservers);
             processUseCount(oldPrepareMembers, -1);
@@ -370,7 +361,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
 
     public void leaderAbortJointConsensus(CompletableFuture<Void> f, int groupId) {
         try {
-            GroupComponents gc = getGroupComponents(groupId);
+            GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, groupId);
             gc.getRaftExecutor().execute(() -> gc.getMemberManager().leaderAbortJointConsensus(f));
         } catch (Throwable e) {
             f.completeExceptionally(e);
@@ -383,7 +374,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
 
     public void leaderCommitJointConsensus(CompletableFuture<Void> f, int groupId) {
         try {
-            GroupComponents gc = getGroupComponents(groupId);
+            GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, groupId);
             gc.getRaftExecutor().execute(() -> gc.getMemberManager().leaderCommitJointConsensus(f));
         } catch (Throwable e) {
             f.completeExceptionally(e);

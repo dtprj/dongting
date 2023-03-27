@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -26,6 +25,7 @@ import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
+import com.github.dtprj.dongting.raft.impl.GroupComponentsMap;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
@@ -50,7 +50,7 @@ public class AppendProcessor extends AbstractProcessor {
 
     private static final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder(c -> new AppendReqCallback());
 
-    public AppendProcessor(IntObjMap<GroupComponents> groupComponentsMap) {
+    public AppendProcessor(GroupComponentsMap groupComponentsMap) {
         super(groupComponentsMap);
     }
 

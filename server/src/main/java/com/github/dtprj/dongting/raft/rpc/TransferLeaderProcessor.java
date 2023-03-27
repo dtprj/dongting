@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.ChannelContext;
@@ -27,6 +26,7 @@ import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
+import com.github.dtprj.dongting.raft.impl.GroupComponentsMap;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -40,7 +40,7 @@ public class TransferLeaderProcessor extends AbstractProcessor {
 
     private static final Decoder DECODER = new PbZeroCopyDecoder(context -> new TransferLeaderReq.Callback());
 
-    public TransferLeaderProcessor(IntObjMap<GroupComponents> groupComponentsMap) {
+    public TransferLeaderProcessor(GroupComponentsMap groupComponentsMap) {
         super(groupComponentsMap);
     }
 

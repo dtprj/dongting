@@ -30,4 +30,5 @@ public interface Commands {
     int RAFT_PING = 101;
     int RAFT_REQUEST_VOTE = 102;
     int RAFT_INSTALL_SNAPSHOT = 103;
+    int RAFT_LEADER_TRANSFER = 104;
 }

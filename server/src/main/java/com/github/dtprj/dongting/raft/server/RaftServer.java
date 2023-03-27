@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.ObjUtil;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
@@ -35,6 +34,7 @@ import com.github.dtprj.dongting.raft.impl.ApplyManager;
 import com.github.dtprj.dongting.raft.impl.CommitManager;
 import com.github.dtprj.dongting.raft.impl.EventBus;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
+import com.github.dtprj.dongting.raft.impl.GroupComponentsMap;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.NodeManager;
 import com.github.dtprj.dongting.raft.impl.Raft;
@@ -51,6 +51,7 @@ import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.InstallSnapshotProcessor;
 import com.github.dtprj.dongting.raft.rpc.NodePingProcessor;
 import com.github.dtprj.dongting.raft.rpc.RaftPingProcessor;
+import com.github.dtprj.dongting.raft.rpc.TransferLeaderProcessor;
 import com.github.dtprj.dongting.raft.rpc.VoteProcessor;
 
 import java.lang.invoke.MethodHandles;
@@ -73,7 +74,7 @@ public class RaftServer extends AbstractLifeCircle {
     private final NioServer raftServer;
     private final NioClient raftClient;
 
-    private final IntObjMap<GroupComponents> groupComponentsMap = new IntObjMap<>();
+    private final GroupComponentsMap groupComponentsMap = new GroupComponentsMap();
 
     private final RaftServerConfig serverConfig;
 
@@ -159,6 +160,7 @@ public class RaftServer extends AbstractLifeCircle {
         raftServer.register(Commands.RAFT_APPEND_ENTRIES, new AppendProcessor(groupComponentsMap));
         raftServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(groupComponentsMap));
         raftServer.register(Commands.RAFT_INSTALL_SNAPSHOT, new InstallSnapshotProcessor(groupComponentsMap));
+        raftServer.register(Commands.RAFT_LEADER_TRANSFER, new TransferLeaderProcessor(groupComponentsMap));
     }
 
     private void createRaftGroups(RaftServerConfig serverConfig, List<RaftGroupConfig> groupConfig,
@@ -303,17 +305,9 @@ public class RaftServer extends AbstractLifeCircle {
         });
     }
 
-    private GroupComponents getGroupComponents(int groupId) {
-        GroupComponents gc = groupComponentsMap.get(groupId);
-        if (gc == null) {
-            throw new RaftException("group not found: " + groupId);
-        }
-        return gc;
-    }
-
     @SuppressWarnings("unused")
     public CompletableFuture<RaftOutput> submitLinearTask(int groupId, RaftInput input) throws RaftException {
-        GroupComponents gc = getGroupComponents(groupId);
+        GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, groupId);
         RaftStatus raftStatus = gc.getRaftStatus();
         if (raftStatus.isError()) {
             throw new RaftException("raft status is error");
@@ -352,7 +346,7 @@ public class RaftServer extends AbstractLifeCircle {
     @SuppressWarnings("unused")
     public long getLogIndexForRead(int groupId, DtTime deadline)
             throws RaftException, InterruptedException, TimeoutException {
-        GroupComponents gc = getGroupComponents(groupId);
+        GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, groupId);
         RaftStatus raftStatus = gc.getRaftStatus();
         if (raftStatus.isError()) {
             throw new RaftException("raft status error");
@@ -440,7 +434,7 @@ public class RaftServer extends AbstractLifeCircle {
     public CompletableFuture<Void> transferLeadership(int groupId, int nodeId, long timeoutMillis) {
         CompletableFuture<Void> f = new CompletableFuture<>();
         DtTime deadline = new DtTime(timeoutMillis, TimeUnit.MILLISECONDS);
-        GroupComponents gc = getGroupComponents(groupId);
+        GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, groupId);
         gc.getRaftStatus().setHoldRequest(true);
         gc.getMemberManager().transferLeadership(nodeId, f, deadline);
         return f;
