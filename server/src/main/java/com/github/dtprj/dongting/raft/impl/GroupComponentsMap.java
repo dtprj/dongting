@@ -41,4 +41,7 @@ public class GroupComponentsMap {
         map.forEach(visitor);
     }
 
+    public void remove(int groupId) {
+        map.remove(groupId);
+    }
 }

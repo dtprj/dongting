@@ -170,76 +170,80 @@ public class RaftServer extends AbstractLifeCircle {
             RaftGroupConfig rgc = groupConfig.get(i);
             StateMachine stateMachine = stateMachines.get(i);
             RaftLog raftLog = raftLogs.get(i);
-
-            Objects.requireNonNull(rgc.getNodeIdOfMembers());
-
-            EventBus eventBus = new EventBus();
-
-            HashSet<Integer> nodeIdOfMembers = new HashSet<>();
-            parseMemberIds(allNodeIds, nodeIdOfMembers, rgc.getNodeIdOfMembers(), rgc.getGroupId());
-            if (nodeIdOfMembers.size() == 0 && serverConfig.isStaticConfig()) {
-                throw new IllegalArgumentException("no member in group: " + rgc.getGroupId());
-            }
-
-            Set<Integer> nodeIdOfObservers;
-            if (rgc.getNodeIdOfObservers() != null && rgc.getNodeIdOfObservers().trim().length() > 0) {
-                nodeIdOfObservers = new HashSet<>();
-                parseMemberIds(allNodeIds, nodeIdOfObservers, rgc.getNodeIdOfObservers(), rgc.getGroupId());
-                for (int id : nodeIdOfMembers) {
-                    if (nodeIdOfObservers.contains(id)) {
-                        throw new IllegalArgumentException("member and observer has same node: " + id);
-                    }
-                }
-            } else {
-                nodeIdOfObservers = Collections.emptySet();
-            }
-
-            boolean isMember = nodeIdOfMembers.contains(serverConfig.getNodeId());
-            boolean isObserver = nodeIdOfObservers.contains(serverConfig.getNodeId());
-            if (!isMember && !isObserver && serverConfig.isStaticConfig()) {
-                throw new IllegalArgumentException("self id not found in group members/observers list: " + serverConfig.getNodeId());
-            }
-
-            int electQuorum = RaftUtil.getElectQuorum(nodeIdOfMembers.size());
-            int rwQuorum = RaftUtil.getRwQuorum(nodeIdOfMembers.size());
-            RaftStatus raftStatus = new RaftStatus(electQuorum, rwQuorum, isMember ? RaftRole.follower : RaftRole.observer);
-            RaftExecutor raftExecutor = new RaftExecutor();
-            raftStatus.setRaftExecutor(raftExecutor);
-            raftStatus.setNodeIdOfMembers(nodeIdOfMembers);
-            raftStatus.setNodeIdOfObservers(nodeIdOfObservers);
-            raftStatus.setGroupId(rgc.getGroupId());
-
-            MemberManager memberManager = new MemberManager(serverConfig, raftClient, raftExecutor,
-                    raftStatus, eventBus);
-            ApplyManager applyManager = new ApplyManager(serverConfig.getNodeId(), raftLog, stateMachine, raftStatus, eventBus);
-            CommitManager commitManager = new CommitManager(raftStatus, raftLog, applyManager);
-            ReplicateManager replicateManager = new ReplicateManager(serverConfig, rgc.getGroupId(), raftStatus, raftLog,
-                    stateMachine, raftClient, raftExecutor, commitManager);
-
-            Raft raft = new Raft(raftStatus, raftLog, applyManager, commitManager, replicateManager);
-            VoteManager voteManager = new VoteManager(serverConfig, rgc.getGroupId(), raftStatus, raftClient, raftExecutor, raft);
-            RaftGroupThread raftGroupThread = new RaftGroupThread(serverConfig, rgc, raftStatus, raftLog, stateMachine, raftExecutor,
-                    raft, memberManager, voteManager);
-
-            eventBus.register(voteManager);
-
-            GroupComponents gc = new GroupComponents();
-            gc.setServerConfig(serverConfig);
-            gc.setGroupConfig(rgc);
-            gc.setRaftLog(raftLog);
-            gc.setStateMachine(stateMachine);
-            gc.setRaftGroupThread(raftGroupThread);
-            gc.setRaftStatus(raftStatus);
-            gc.setMemberManager(memberManager);
-            gc.setVoteManager(voteManager);
-            gc.setRaftExecutor(raftExecutor);
-            gc.setApplyManager(applyManager);
-            gc.setCommitManager(commitManager);
-            gc.setReplicateManager(replicateManager);
-            gc.setEventBus(eventBus);
-
+            GroupComponents gc = createRaftGroup(serverConfig, allNodeIds, rgc, stateMachine, raftLog);
             groupComponentsMap.put(rgc.getGroupId(), gc);
         }
+    }
+
+    private GroupComponents createRaftGroup(RaftServerConfig serverConfig, Set<Integer> allNodeIds,
+                                            RaftGroupConfig rgc, StateMachine stateMachine, RaftLog raftLog) {
+        Objects.requireNonNull(rgc.getNodeIdOfMembers());
+
+        EventBus eventBus = new EventBus();
+
+        HashSet<Integer> nodeIdOfMembers = new HashSet<>();
+        parseMemberIds(allNodeIds, nodeIdOfMembers, rgc.getNodeIdOfMembers(), rgc.getGroupId());
+        if (nodeIdOfMembers.size() == 0 && serverConfig.isStaticConfig()) {
+            throw new IllegalArgumentException("no member in group: " + rgc.getGroupId());
+        }
+
+        Set<Integer> nodeIdOfObservers;
+        if (rgc.getNodeIdOfObservers() != null && rgc.getNodeIdOfObservers().trim().length() > 0) {
+            nodeIdOfObservers = new HashSet<>();
+            parseMemberIds(allNodeIds, nodeIdOfObservers, rgc.getNodeIdOfObservers(), rgc.getGroupId());
+            for (int id : nodeIdOfMembers) {
+                if (nodeIdOfObservers.contains(id)) {
+                    throw new IllegalArgumentException("member and observer has same node: " + id);
+                }
+            }
+        } else {
+            nodeIdOfObservers = Collections.emptySet();
+        }
+
+        boolean isMember = nodeIdOfMembers.contains(serverConfig.getNodeId());
+        boolean isObserver = nodeIdOfObservers.contains(serverConfig.getNodeId());
+        if (!isMember && !isObserver && serverConfig.isStaticConfig()) {
+            throw new IllegalArgumentException("self id not found in group members/observers list: " + serverConfig.getNodeId());
+        }
+
+        int electQuorum = RaftUtil.getElectQuorum(nodeIdOfMembers.size());
+        int rwQuorum = RaftUtil.getRwQuorum(nodeIdOfMembers.size());
+        RaftStatus raftStatus = new RaftStatus(electQuorum, rwQuorum, isMember ? RaftRole.follower : RaftRole.observer);
+        RaftExecutor raftExecutor = new RaftExecutor();
+        raftStatus.setRaftExecutor(raftExecutor);
+        raftStatus.setNodeIdOfMembers(nodeIdOfMembers);
+        raftStatus.setNodeIdOfObservers(nodeIdOfObservers);
+        raftStatus.setGroupId(rgc.getGroupId());
+
+        MemberManager memberManager = new MemberManager(serverConfig, raftClient, raftExecutor,
+                raftStatus, eventBus);
+        ApplyManager applyManager = new ApplyManager(serverConfig.getNodeId(), raftLog, stateMachine, raftStatus, eventBus);
+        CommitManager commitManager = new CommitManager(raftStatus, raftLog, applyManager);
+        ReplicateManager replicateManager = new ReplicateManager(serverConfig, rgc.getGroupId(), raftStatus, raftLog,
+                stateMachine, raftClient, raftExecutor, commitManager);
+
+        Raft raft = new Raft(raftStatus, raftLog, applyManager, commitManager, replicateManager);
+        VoteManager voteManager = new VoteManager(serverConfig, rgc.getGroupId(), raftStatus, raftClient, raftExecutor, raft);
+        RaftGroupThread raftGroupThread = new RaftGroupThread(serverConfig, rgc, raftStatus, raftLog, stateMachine, raftExecutor,
+                raft, memberManager, voteManager);
+
+        eventBus.register(voteManager);
+
+        GroupComponents gc = new GroupComponents();
+        gc.setServerConfig(serverConfig);
+        gc.setGroupConfig(rgc);
+        gc.setRaftLog(raftLog);
+        gc.setStateMachine(stateMachine);
+        gc.setRaftGroupThread(raftGroupThread);
+        gc.setRaftStatus(raftStatus);
+        gc.setMemberManager(memberManager);
+        gc.setVoteManager(voteManager);
+        gc.setRaftExecutor(raftExecutor);
+        gc.setApplyManager(applyManager);
+        gc.setCommitManager(commitManager);
+        gc.setReplicateManager(replicateManager);
+        gc.setEventBus(eventBus);
+        return gc;
     }
 
     private static void parseMemberIds(Set<Integer> allNodeIds, Set<Integer> nodeIdOfMembers, String str, int groupId) {
@@ -305,8 +309,15 @@ public class RaftServer extends AbstractLifeCircle {
         });
     }
 
+    private void checkStatus() {
+        if (status != LifeStatus.running) {
+            throw new RaftException("raft server is not running");
+        }
+    }
+
     @SuppressWarnings("unused")
     public CompletableFuture<RaftOutput> submitLinearTask(int groupId, RaftInput input) throws RaftException {
+        checkStatus();
         GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, groupId);
         RaftStatus raftStatus = gc.getRaftStatus();
         if (raftStatus.isError()) {
@@ -346,6 +357,7 @@ public class RaftServer extends AbstractLifeCircle {
     @SuppressWarnings("unused")
     public long getLogIndexForRead(int groupId, DtTime deadline)
             throws RaftException, InterruptedException, TimeoutException {
+        checkStatus();
         GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, groupId);
         RaftStatus raftStatus = gc.getRaftStatus();
         if (raftStatus.isError()) {
@@ -377,6 +389,7 @@ public class RaftServer extends AbstractLifeCircle {
      */
     @SuppressWarnings("unused")
     public CompletableFuture<RaftNodeEx> addNode(RaftNode node) {
+        checkStatus();
         CompletableFuture<RaftNodeEx> f = nodeManager.addToNioClient(node);
         f = f.thenComposeAsync(nodeManager::addNode, RaftUtil.SCHEDULED_SERVICE);
         return f;
@@ -388,11 +401,55 @@ public class RaftServer extends AbstractLifeCircle {
      */
     @SuppressWarnings("unused")
     public CompletableFuture<Void> removeNode(int nodeId) {
+        checkStatus();
         CompletableFuture<Void> f = new CompletableFuture<>();
         RaftUtil.SCHEDULED_SERVICE.submit(() -> nodeManager.removeNode(nodeId, f));
         return f;
     }
 
+    /**
+     * ADMIN API.
+     */
+    @SuppressWarnings("unused")
+    public void addGroup(RaftGroupConfig groupConfig, RaftLog raftLog, StateMachine stateMachine) {
+        checkStatus();
+        CompletableFuture<GroupComponents> f = new CompletableFuture<>();
+        RaftUtil.SCHEDULED_SERVICE.execute(() -> {
+            try {
+                GroupComponents gc = createRaftGroup(serverConfig, nodeManager.getAllNodeIds(),
+                        groupConfig, stateMachine, raftLog);
+                gc.getMemberManager().init(nodeManager.getAllNodesEx());
+                f.complete(gc);
+            } catch (Exception e) {
+                f.completeExceptionally(e);
+            }
+        });
+        try {
+            GroupComponents gc = f.get(5, TimeUnit.SECONDS);
+            gc.getRaftGroupThread().init();
+
+            gc.getMemberManager().init(nodeManager.getAllNodesEx());
+            gc.getRaftGroupThread().start();
+            groupComponentsMap.put(groupConfig.getGroupId(), gc);
+        } catch (Exception e) {
+            throw new RaftException(e);
+        }
+    }
+
+    /**
+     * ADMIN API. This method is idempotent.
+     */
+    @SuppressWarnings("unused")
+    public void removeGroup(int groupId) {
+        checkStatus();
+        GroupComponents gc = groupComponentsMap.get(groupId);
+        if (gc == null) {
+            log.warn("removeGroup failed: group not exist, groupId={}", groupId);
+            return;
+        }
+        gc.getRaftGroupThread().requestShutdown();
+        groupComponentsMap.remove(groupId);
+    }
 
     /**
      * ADMIN API. This method is idempotent.
@@ -401,6 +458,7 @@ public class RaftServer extends AbstractLifeCircle {
     public CompletableFuture<Void> leaderPrepareJointConsensus(int groupId, Set<Integer> members, Set<Integer> observers) {
         Objects.requireNonNull(members);
         Objects.requireNonNull(observers);
+        checkStatus();
         // node state change in scheduler thread, member state change in raft thread
         CompletableFuture<Void> f = new CompletableFuture<>();
         RaftUtil.SCHEDULED_SERVICE.execute(() -> nodeManager.leaderPrepareJointConsensus(f, groupId, members, observers));
@@ -412,6 +470,7 @@ public class RaftServer extends AbstractLifeCircle {
      */
     @SuppressWarnings("unused")
     public CompletableFuture<Void> leaderAbortJointConsensus(int groupId) {
+        checkStatus();
         CompletableFuture<Void> f = new CompletableFuture<>();
         RaftUtil.SCHEDULED_SERVICE.execute(() -> nodeManager.leaderAbortJointConsensus(f, groupId));
         return f;
@@ -422,6 +481,7 @@ public class RaftServer extends AbstractLifeCircle {
      */
     @SuppressWarnings("unused")
     public CompletableFuture<Void> leaderCommitJointConsensus(int groupId) {
+        checkStatus();
         CompletableFuture<Void> f = new CompletableFuture<>();
         RaftUtil.SCHEDULED_SERVICE.execute(() -> nodeManager.leaderCommitJointConsensus(f, groupId));
         return f;
@@ -432,6 +492,7 @@ public class RaftServer extends AbstractLifeCircle {
      */
     @SuppressWarnings("unused")
     public CompletableFuture<Void> transferLeadership(int groupId, int nodeId, long timeoutMillis) {
+        checkStatus();
         CompletableFuture<Void> f = new CompletableFuture<>();
         DtTime deadline = new DtTime(timeoutMillis, TimeUnit.MILLISECONDS);
         GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, groupId);

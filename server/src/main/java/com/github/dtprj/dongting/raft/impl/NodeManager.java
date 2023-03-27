@@ -33,6 +33,7 @@ import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -246,6 +247,16 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
 
     public IntObjMap<RaftNodeEx> getAllNodesEx() {
         return allNodesEx;
+    }
+
+    // create new set since this method invoke occasionally
+    public Set<Integer> getAllNodeIds() {
+        HashSet<Integer> ids = new HashSet<>();
+        allNodesEx.forEach((nodeId, nodeEx) -> {
+            ids.add(nodeId);
+            return true;
+        });
+        return ids;
     }
 
     public void waitReady(int targetReadyCount) {
