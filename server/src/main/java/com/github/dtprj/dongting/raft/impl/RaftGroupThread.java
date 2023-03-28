@@ -82,10 +82,19 @@ public class RaftGroupThread extends Thread {
     public void init() {
         StatusUtil.initStatusFileChannel(groupConfig.getDataDir(), groupConfig.getStatusFile(), raftStatus);
 
+        long index = stateMachine.initFromLatestSnapshot();
+        log.info("load snapshot to index {}, groupId={}", index, groupConfig.getGroupId());
         Pair<Integer, Long> initResult = raftLog.init();
-        stateMachine.init(raftLog);
+        log.info("init raft log, maxTerm={}, maxIndex={}, groupId={}",
+                initResult.getLeft(), initResult.getRight(), groupConfig.getGroupId());
         raftStatus.setLastLogTerm(initResult.getLeft());
         raftStatus.setLastLogIndex(initResult.getRight());
+        if (raftStatus.getLastLogIndex() < index) {
+            log.error("raft log index {} is less than snapshot index {}", raftStatus.getLastLogIndex(), index);
+            throw new RaftException("raft log index is less than snapshot index");
+        }
+        raftStatus.setCommitIndex(index);
+        raftStatus.setLastApplied(index);
     }
 
     public void waitReady() {

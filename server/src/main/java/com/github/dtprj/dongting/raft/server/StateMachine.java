@@ -24,15 +24,13 @@ import java.util.Iterator;
  * @author huangli
  */
 public interface StateMachine extends AutoCloseable {
-    void init(RaftLog raftLog);
+    long initFromLatestSnapshot();
 
     Object decode(ByteBuffer logData);
 
     Object exec(long index, Object input);
 
     void installSnapshot(boolean start, boolean finish, ByteBuffer data);
-
-    Snapshot findLatestSnapshot();
 
     Pair<Snapshot, Iterator<ByteBuffer>> openLatestSnapshotIterator();
 
