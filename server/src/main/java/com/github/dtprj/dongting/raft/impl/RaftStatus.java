@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.common.Timestamp;
 
 import java.io.File;
-import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.util.List;
@@ -82,7 +81,6 @@ public class RaftStatus {
     private int lastLogTerm;
 
     private File statusFile;
-    private RandomAccessFile randomAccessStatusFile;
     private FileChannel statusChannel;
     private FileLock statusFileLock;
 
@@ -338,14 +336,6 @@ public class RaftStatus {
 
     public void setInstallSnapshot(boolean installSnapshot) {
         this.installSnapshot = installSnapshot;
-    }
-
-    public RandomAccessFile getRandomAccessStatusFile() {
-        return randomAccessStatusFile;
-    }
-
-    public void setRandomAccessStatusFile(RandomAccessFile randomAccessStatusFile) {
-        this.randomAccessStatusFile = randomAccessStatusFile;
     }
 
     public FileChannel getStatusChannel() {

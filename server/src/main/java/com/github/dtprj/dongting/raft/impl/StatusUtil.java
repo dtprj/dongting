@@ -23,12 +23,12 @@ import com.github.dtprj.dongting.raft.client.RaftException;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.io.StringReader;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Properties;
 import java.util.zip.CRC32C;
@@ -47,8 +47,8 @@ public class StatusUtil {
     private static final String votedForKey = "votedFor";
 
     public static void initStatusFileChannel(String dataDir, String filename, RaftStatus raftStatus) {
-        RandomAccessFile statusFile = null;
         FileLock lock = null;
+        FileChannel statusChannel = null;
         try {
             File dir = new File(dataDir);
             if (!dir.exists()) {
@@ -64,8 +64,8 @@ public class StatusUtil {
                     throw new RaftException("create status file failed: " + file.getPath());
                 }
             }
-            statusFile = new RandomAccessFile(file, "rw");
-            FileChannel statusChannel = statusFile.getChannel();
+            statusChannel = FileChannel.open(file.toPath(),
+                    StandardOpenOption.READ, StandardOpenOption.WRITE);
             lock = statusChannel.lock();
             if (!create) {
                 log.info("loading status file: {}", file.getPath());
@@ -97,15 +97,14 @@ public class StatusUtil {
             }
 
             raftStatus.setStatusFile(file);
-            raftStatus.setRandomAccessStatusFile(statusFile);
             raftStatus.setStatusChannel(statusChannel);
             raftStatus.setStatusFileLock(lock);
-        } catch (IOException e) {
-            CloseUtil.close(lock, statusFile);
-            throw new RaftException(e);
         } catch (RaftException e) {
-            CloseUtil.close(lock, statusFile);
+            CloseUtil.close(lock, statusChannel);
             throw e;
+        } catch (Exception e) {
+            CloseUtil.close(lock, statusChannel);
+            throw new RaftException(e);
         }
     }
 
