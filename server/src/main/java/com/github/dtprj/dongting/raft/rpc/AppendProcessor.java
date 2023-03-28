@@ -82,19 +82,20 @@ public class AppendProcessor extends AbstractProcessor {
                     RaftUtil.changeToFollower(raftStatus, req.getLeaderId());
                     append(gc, raftStatus, req, resp);
                 } else {
-                    BugLog.getLog().error("leader receive raft append request. term={}, remote={}",
-                            remoteTerm, channelContext.getRemoteAddr());
+                    BugLog.getLog().error("leader receive raft append request. term={}, remote={}, groupId={}",
+                            remoteTerm, channelContext.getRemoteAddr(), raftStatus.getGroupId());
                     resp.setSuccess(false);
                 }
             } else if (remoteTerm > localTerm) {
                 RaftUtil.incrTerm(remoteTerm, raftStatus, req.getLeaderId());
                 append(gc, raftStatus, req, resp);
             } else {
-                log.debug("receive append request with a smaller term, ignore, remoteTerm={}, localTerm={}", remoteTerm, localTerm);
+                log.debug("receive append request with a smaller term, ignore, remoteTerm={}, localTerm={}, groupId={}",
+                        remoteTerm, localTerm, raftStatus.getGroupId());
                 resp.setSuccess(false);
             }
         } else {
-            log.warn("receive append request from a non-member, ignore, remoteId={}, group={}, remote={}",
+            log.warn("receive append request from a non-member, ignore, remoteId={}, groupId={}, remote={}",
                     req.getLeaderId(), req.getGroupId(), channelContext.getRemoteAddr());
             resp.setSuccess(false);
             resp.setAppendCode(CODE_NOT_MEMBER_IN_GROUP);
@@ -114,8 +115,9 @@ public class AppendProcessor extends AbstractProcessor {
         }
         gc.getVoteManager().cancelVote();
         if (req.getPrevLogIndex() != raftStatus.getLastLogIndex() || req.getPrevLogTerm() != raftStatus.getLastLogTerm()) {
-            log.info("log not match. prevLogIndex={}, localLastLogIndex={}, prevLogTerm={}, localLastLogTerm={}, leaderId={}",
-                    req.getPrevLogIndex(), raftStatus.getLastLogIndex(), req.getPrevLogTerm(), raftStatus.getLastLogTerm(), req.getLeaderId());
+            log.info("log not match. prevLogIndex={}, localLastLogIndex={}, prevLogTerm={}, localLastLogTerm={}, leaderId={}, groupId={}",
+                    req.getPrevLogIndex(), raftStatus.getLastLogIndex(), req.getPrevLogTerm(),
+                    raftStatus.getLastLogTerm(), req.getLeaderId(), raftStatus.getGroupId());
             resp.setSuccess(false);
             resp.setAppendCode(CODE_LOG_NOT_MATCH);
             resp.setMaxLogIndex(raftStatus.getLastLogIndex());
@@ -123,8 +125,8 @@ public class AppendProcessor extends AbstractProcessor {
             return;
         }
         if (req.getPrevLogIndex() < raftStatus.getCommitIndex()) {
-            BugLog.getLog().error("leader append request prevLogIndex less than local commit index. leaderId={}, prevLogIndex={}, commitIndex={}",
-                    req.getLeaderId(), req.getPrevLogIndex(), raftStatus.getCommitIndex());
+            BugLog.getLog().error("leader append request prevLogIndex less than local commit index. leaderId={}, prevLogIndex={}, commitIndex={}, groupId={}",
+                    req.getLeaderId(), req.getPrevLogIndex(), raftStatus.getCommitIndex(), raftStatus.getGroupId());
             resp.setSuccess(false);
             resp.setAppendCode(CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT);
             return;
@@ -153,8 +155,8 @@ public class AppendProcessor extends AbstractProcessor {
             raftStatus.setCommitIndex(Math.min(newIndex, req.getLeaderCommit()));
             gc.getApplyManager().apply(raftStatus);
         } else if (req.getLeaderCommit() < raftStatus.getCommitIndex()) {
-            log.warn("leader commitIndex less than local. leaderId={}, leaderTerm={}, leaderCommitIndex={}, localCommitIndex={}",
-                    req.getLeaderId(), req.getTerm(), req.getLeaderCommit(), raftStatus.getCommitIndex());
+            log.info("leader commitIndex less than local, maybe leader restart recently. leaderId={}, leaderTerm={}, leaderCommitIndex={}, localCommitIndex={}, groupId={}",
+                    req.getLeaderId(), req.getTerm(), req.getLeaderCommit(), raftStatus.getCommitIndex(), raftStatus.getGroupId());
         }
         resp.setSuccess(true);
     }
