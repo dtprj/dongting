@@ -19,10 +19,10 @@ import com.github.dtprj.dongting.common.CloseUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.log.FileUtil;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.IOException;
 import java.io.StringReader;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -50,13 +50,7 @@ public class StatusUtil {
         FileLock lock = null;
         FileChannel statusChannel = null;
         try {
-            File dir = new File(dataDir);
-            if (!dir.exists()) {
-                if (!dir.mkdirs()) {
-                    throw new RaftException("make dir failed: " + dir.getPath());
-                }
-                log.info("make dir: {}", dir.getPath());
-            }
+            File dir = FileUtil.ensureDir(dataDir);
             File file = new File(dir, filename);
             boolean create = !file.exists();
             if (create) {
@@ -148,7 +142,7 @@ public class StatusUtil {
             raftStatus.setSaving(false);
             log.info("{}saving raft status file success: {}", firstTry ? "" : "retry ",
                     raftStatus.getStatusFile().getName());
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.error("update status file failed, firstTry after 1000ms, file={}",
                     raftStatus.getStatusFile().getPath(), e);
             raftStatus.getRaftExecutor().schedule(() -> updateStatusFileImpl(raftStatus, false), 1000);
