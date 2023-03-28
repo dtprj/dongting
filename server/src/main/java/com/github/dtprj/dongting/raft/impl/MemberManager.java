@@ -250,15 +250,12 @@ public class MemberManager {
         if (leader != null && leader.getNode().getNodeId() == nodeId) {
             return true;
         }
-        return raftStatus.getNodeIdOfMembers().contains(nodeId) || raftStatus.getNodeIdOfPreparedMembers().contains(nodeId);
+        return validCandidate(raftStatus, nodeId);
     }
 
     public static boolean validCandidate(RaftStatus raftStatus, int nodeId) {
-        if (raftStatus.getNodeIdOfPreparedMembers().size() > 0) {
-            return raftStatus.getNodeIdOfPreparedMembers().contains(nodeId);
-        } else {
-            return raftStatus.getNodeIdOfMembers().contains(nodeId);
-        }
+        return raftStatus.getNodeIdOfMembers().contains(nodeId)
+                || raftStatus.getNodeIdOfPreparedMembers().contains(nodeId);
     }
 
     public void transferLeadership(int nodeId, CompletableFuture<Void> f, DtTime deadline) {
