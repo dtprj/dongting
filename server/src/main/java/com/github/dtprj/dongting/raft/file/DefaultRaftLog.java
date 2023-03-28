@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.log;
+package com.github.dtprj.dongting.raft.file;
 
 import com.github.dtprj.dongting.common.CloseUtil;
 import com.github.dtprj.dongting.common.Pair;

@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.log;
+package com.github.dtprj.dongting.raft.file;
 
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -37,7 +37,7 @@ public class FileUtil {
         return ensureDir(dir);
     }
 
-    private static File ensureDir(File dir) {
+    public static File ensureDir(File dir) {
         if (!dir.exists()) {
             if (!dir.mkdirs()) {
                 throw new RaftException("make dir failed: " + dir.getPath());

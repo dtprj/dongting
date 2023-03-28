@@ -16,10 +16,8 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.raft.file.StatusFile;
 
-import java.io.File;
-import java.nio.channels.FileChannel;
-import java.nio.channels.FileLock;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -80,9 +78,7 @@ public class RaftStatus {
     private long lastLogIndex;
     private int lastLogTerm;
 
-    private File statusFile;
-    private FileChannel statusChannel;
-    private FileLock statusFileLock;
+    private StatusFile statusFile;
 
     private RaftExecutor raftExecutor;
     private boolean saving;
@@ -338,22 +334,6 @@ public class RaftStatus {
         this.installSnapshot = installSnapshot;
     }
 
-    public FileChannel getStatusChannel() {
-        return statusChannel;
-    }
-
-    public void setStatusChannel(FileChannel statusChannel) {
-        this.statusChannel = statusChannel;
-    }
-
-    public FileLock getStatusFileLock() {
-        return statusFileLock;
-    }
-
-    public void setStatusFileLock(FileLock statusFileLock) {
-        this.statusFileLock = statusFileLock;
-    }
-
     public RaftExecutor getRaftExecutor() {
         return raftExecutor;
     }
@@ -370,11 +350,11 @@ public class RaftStatus {
         this.saving = saving;
     }
 
-    public File getStatusFile() {
+    public StatusFile getStatusFile() {
         return statusFile;
     }
 
-    public void setStatusFile(File statusFile) {
+    public void setStatusFile(StatusFile statusFile) {
         this.statusFile = statusFile;
     }
 

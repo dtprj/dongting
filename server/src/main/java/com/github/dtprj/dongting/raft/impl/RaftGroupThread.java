@@ -120,8 +120,7 @@ public class RaftGroupThread extends Thread {
         } catch (Throwable e) {
             BugLog.getLog().error("raft thread error", e);
         } finally {
-            CloseUtil.close(raftStatus.getStatusFileLock());
-            CloseUtil.close(raftStatus.getStatusChannel());
+            CloseUtil.close(raftStatus.getStatusFile());
             CloseUtil.close(stateMachine);
             CloseUtil.close(raftLog);
         }
