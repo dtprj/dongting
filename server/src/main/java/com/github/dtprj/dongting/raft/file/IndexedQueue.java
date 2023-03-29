@@ -18,14 +18,14 @@ package com.github.dtprj.dongting.raft.file;
 /**
  * @author huangli
  */
-class IndexedDeque<T> {
+class IndexedQueue<T> {
     private Object[] elements;
     private int readIndex;
     private int writeIndex;
     private int size;
     private static final int DEFAULT_INITIAL_CAPACITY = 16;
 
-    public IndexedDeque() {
+    public IndexedQueue() {
         elements = new Object[DEFAULT_INITIAL_CAPACITY];
     }
 

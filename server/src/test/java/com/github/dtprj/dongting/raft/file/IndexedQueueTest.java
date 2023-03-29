@@ -24,12 +24,12 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 /**
  * @author huangli
  */
-public class IndexedDequeTest {
-    private IndexedDeque<Integer> deque;
+public class IndexedQueueTest {
+    private IndexedQueue<Integer> deque;
 
     @BeforeEach
     public void setUp() {
-        deque = new IndexedDeque<>();
+        deque = new IndexedQueue<>();
     }
 
     @Test
