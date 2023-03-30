@@ -49,6 +49,7 @@ public class CommitManager {
             }
         }
         raftStatus.setCommitIndex(recentMatchIndex);
+        StatusUtil.tryPersist(raftStatus);
         applyManager.apply(raftStatus);
         if (raftStatus.getFirstCommitOfApplied() != null) {
             raftStatus.getFirstCommitOfApplied().complete(null);

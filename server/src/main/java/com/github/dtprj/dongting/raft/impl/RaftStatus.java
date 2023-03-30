@@ -87,6 +87,8 @@ public class RaftStatus {
 
     private ApplyManager.ApplyState applyState;
 
+    private long persistNanos;
+
     public RaftStatus() {
         lastElectTime = ts.getNanoTime();
         heartbeatTime = ts.getNanoTime();
@@ -416,5 +418,13 @@ public class RaftStatus {
 
     public void setApplyState(ApplyManager.ApplyState applyState) {
         this.applyState = applyState;
+    }
+
+    public long getPersistNanos() {
+        return persistNanos;
+    }
+
+    public void setPersistNanos(long persistNanos) {
+        this.persistNanos = persistNanos;
     }
 }
