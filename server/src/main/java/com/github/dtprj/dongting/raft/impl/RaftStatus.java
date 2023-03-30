@@ -81,7 +81,7 @@ public class RaftStatus {
     private StatusFile statusFile;
 
     private RaftExecutor raftExecutor;
-    private boolean saving;
+    private boolean retrying;
 
     private boolean holdRequest;
 
@@ -344,12 +344,12 @@ public class RaftStatus {
         this.raftExecutor = raftExecutor;
     }
 
-    public boolean isSaving() {
-        return saving;
+    public boolean isRetrying() {
+        return retrying;
     }
 
-    public void setSaving(boolean saving) {
-        this.saving = saving;
+    public void setRetrying(boolean retrying) {
+        this.retrying = retrying;
     }
 
     public StatusFile getStatusFile() {

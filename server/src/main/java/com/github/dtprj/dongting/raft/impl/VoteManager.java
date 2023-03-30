@@ -281,7 +281,7 @@ public class VoteManager implements BiConsumer<EventType, Object> {
         raftStatus.setCurrentTerm(raftStatus.getCurrentTerm() + 1);
         raftStatus.setVotedFor(config.getNodeId());
         initStatusForVoting(voter.size());
-        StatusUtil.updateStatusFile(raftStatus);
+        StatusUtil.persist(raftStatus);
 
         log.info("start vote. groupId={}, newTerm={}, voteId={}", groupId, raftStatus.getCurrentTerm(), currentVoteId);
 

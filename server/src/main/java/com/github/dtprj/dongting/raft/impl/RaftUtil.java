@@ -202,7 +202,7 @@ public class RaftUtil {
         }
         raftStatus.setCurrentTerm(remoteTerm);
         raftStatus.setVotedFor(0);
-        StatusUtil.updateStatusFile(raftStatus);
+        StatusUtil.persist(raftStatus);
 
     }
 

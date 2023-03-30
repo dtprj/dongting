@@ -88,7 +88,7 @@ public class VoteProcessor extends AbstractProcessor {
         if (shouldGrant(raftStatus, voteReq, localTerm)) {
             raftStatus.setVotedFor(voteReq.getCandidateId());
             resp.setVoteGranted(true);
-            StatusUtil.updateStatusFile(raftStatus);
+            StatusUtil.persist(raftStatus);
         }
     }
 

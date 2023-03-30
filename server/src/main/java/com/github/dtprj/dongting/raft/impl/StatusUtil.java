@@ -46,32 +46,31 @@ public class StatusUtil {
         raftStatus.setCommitIndex(Long.parseLong(p.getProperty(COMMIT_INDEX_KEY, "0")));
     }
 
-    public static void updateStatusFile(RaftStatus raftStatus) {
-        if (raftStatus.isSaving()) {
-            // prevent concurrent saving or saving actions more and more
-            return;
-        }
+    public static void persist(RaftStatus raftStatus) {
         if (raftStatus.isStop()) {
             return;
         }
-        raftStatus.setSaving(true);
+
         StatusFile sf = raftStatus.getStatusFile();
 
         sf.getProperties().setProperty(CURRENT_TERM_KEY, String.valueOf(raftStatus.getCurrentTerm()));
         sf.getProperties().setProperty(VOTED_FOR_KEY, String.valueOf(raftStatus.getVotedFor()));
         sf.getProperties().setProperty(COMMIT_INDEX_KEY, String.valueOf(raftStatus.getCommitIndex()));
 
-        if (sf.update()) {
-            raftStatus.setSaving(false);
-        } else {
-            raftStatus.getRaftExecutor().schedule(() -> updateStatusFile(raftStatus), 1000);
+        if (!sf.update() && !raftStatus.isRetrying()) {
+            // prevent concurrent saving or saving actions more and more
+            raftStatus.setRetrying(true);
+            raftStatus.getRaftExecutor().schedule(() -> {
+                raftStatus.setRetrying(false);
+                persist(raftStatus);
+            }, 1000);
         }
     }
 
     public static void tryPersist(RaftStatus raftStatus) {
         Timestamp ts = raftStatus.getTs();
         if (ts.getNanoTime() - raftStatus.getPersistNanos() > PERSIST_INTERVAL) {
-            updateStatusFile(raftStatus);
+            persist(raftStatus);
             raftStatus.setPersistNanos(ts.getNanoTime());
         }
     }

@@ -123,12 +123,14 @@ public class StatusFile implements AutoCloseable {
             byte[] crcBytes = crcHex.getBytes(StandardCharsets.UTF_8);
             System.arraycopy(crcBytes, 0, fileContent, 0, CRC_HEX_LENGTH);
             ByteBuffer buf = ByteBuffer.wrap(fileContent);
-            channel.write(buf);
+            while (buf.hasRemaining()) {
+                channel.write(buf);
+            }
             channel.force(false);
             log.info("saving status file success: {}", file.getPath());
             return true;
         } catch (Exception e) {
-            log.error("update status file failed, retry after 1000ms, file={}", file.getPath(), e);
+            log.error("update status file failed. file={}", file.getPath(), e);
             return false;
         }
     }
