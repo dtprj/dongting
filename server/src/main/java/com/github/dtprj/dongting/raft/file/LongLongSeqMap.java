@@ -108,5 +108,20 @@ public class LongLongSeqMap {
 
         data = newData;
     }
+
+    public void truncate(long key) {
+        if (key < firstKey || key > lastKey) {
+            throw new IllegalArgumentException("Invalid key to truncate");
+        }
+        while (lastKey >= key) {
+            data[idx(lastKey, data.length)] = 0;
+            lastKey--;
+            size--;
+        }
+        if (size == 0) {
+            firstKey = -1;
+            lastKey = -1;
+        }
+    }
 }
 

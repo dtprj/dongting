@@ -159,4 +159,71 @@ public class LongLongSeqMapTest {
 
         assertThrows(IllegalArgumentException.class, () -> map.put(3, 400));
     }
+
+    @Test
+    public void testTruncate() {
+        for (long i = 0; i < 10; i++) {
+            map.put(i, i * 100);
+        }
+
+        map.truncate(6);
+        assertEquals(6, map.size());
+        assertEquals(0, map.getFirstKey());
+        assertEquals(5, map.getLastKey());
+
+        for (long i = 0; i <= 5; i++) {
+            assertEquals(i * 100, map.get(i));
+        }
+    }
+
+    @Test
+    public void testTruncate2() {
+        for (long i = 0; i < 8; i++) {
+            map.put(i, i * 100);
+        }
+        map.remove(2);
+        map.put(8, 800);
+        map.put(9, 900);
+
+        map.truncate(4);
+        assertEquals(2, map.size());
+        assertEquals(2, map.getFirstKey());
+        assertEquals(3, map.getLastKey());
+
+        assertEquals(200, map.get(2));
+        assertEquals(300, map.get(3));
+    }
+
+    @Test
+    public void testTruncateWithInvalidKey() {
+        for (long i = 0; i < 10; i++) {
+            map.put(i, i * 100);
+        }
+
+        assertThrows(IllegalArgumentException.class, () -> map.truncate(10));
+    }
+
+    @Test
+    public void testTruncateAtFirstKey() {
+        for (long i = 0; i < 10; i++) {
+            map.put(i, i * 100);
+        }
+
+        map.truncate(0);
+        assertEquals(0, map.size());
+        assertEquals(-1, map.getFirstKey());
+        assertEquals(-1, map.getLastKey());
+    }
+
+    @Test
+    public void testTruncateAtLastKey() {
+        for (long i = 0; i < 10; i++) {
+            map.put(i, i * 100);
+        }
+
+        map.truncate(9);
+        assertEquals(9, map.size());
+        assertEquals(0, map.getFirstKey());
+        assertEquals(8, map.getLastKey());
+    }
 }
