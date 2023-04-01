@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.Pair;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -24,9 +25,16 @@ import java.util.List;
  */
 public interface RaftLog extends AutoCloseable {
 
-    Pair<Integer, Long> init();
+    /**
+     * the commit index may not latest, but it ensures that logs at index(<=commitIndex) never be re-write.
+     */
+    Pair<Integer, Long> init(long commitIndex) throws IOException;
 
-    void append(long prevLogIndex, int prevLogTerm, List<LogItem> logs);
+    /**
+     * Batch append logs. In some conditions, the commitIndex may be smaller than commitIndex
+     * in previous append invoke, but it ensures that logs at index(<=commitIndex) never be re-write.
+     */
+    void append(long prevLogIndex, int prevLogTerm, long commitIndex, List<LogItem> logs) throws IOException;
 
     /**
      * load logs.
@@ -36,25 +44,25 @@ public interface RaftLog extends AutoCloseable {
      * @param bytesLimit max bytes of logs to return, 0 means no limit
      * @return return log items, don't return null or empty array
      */
-    LogItem[] load(long index, int limit, long bytesLimit);
+    LogItem[] load(long index, int limit, long bytesLimit) throws IOException;
 
     /**
      * if there is no such index, return -1.
      */
-    int getTermOf(long index);
+    int getTermOf(long index) throws IOException;
 
     /**
      * if there is no such term, return -1.
      */
-    long findMaxIndexByTerm(int term);
+    long findMaxIndexByTerm(int term) throws IOException;
 
     /**
      * if there is no such term, return -1.
      */
-    int findLastTermLessThan(int term);
+    int findLastTermLessThan(int term) throws IOException;
 
     /**
      * delete logs before the index(included), this method may invoke by other thread.
      */
-    void truncate(long index);
+    void truncate(long index) throws IOException;
 }

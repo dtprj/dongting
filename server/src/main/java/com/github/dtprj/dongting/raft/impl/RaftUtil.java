@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftNode;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -265,8 +266,12 @@ public class RaftUtil {
     public static void append(RaftLog raftLog, RaftStatus raftStatus, long prevLogIndex,
                               int prevLogTerm, ArrayList<LogItem> logs) {
         RaftUtil.doWithSyncRetry(() -> {
-            raftLog.append(prevLogIndex, prevLogTerm, logs);
-            return null;
+            try {
+                raftLog.append(prevLogIndex, prevLogTerm, raftStatus.getCommitIndex(), logs);
+                return null;
+            } catch (IOException e) {
+                throw new RaftException(e);
+            }
         }, raftStatus, 1000, "raft log append error");
     }
 
@@ -300,8 +305,14 @@ public class RaftUtil {
 
     public static LogItem[] load(RaftLog raftLog, RaftStatus raftStatus, long index, int limit, long bytesLimit) {
         LogItem[] items;
-        items = doWithSyncRetry(() -> raftLog.load(index, limit, bytesLimit),
-                raftStatus, 1000, "raft log load error");
+        Supplier<LogItem[]> callback = () -> {
+            try {
+                return raftLog.load(index, limit, bytesLimit);
+            } catch (IOException e) {
+                throw new RaftException(e);
+            }
+        };
+        items = doWithSyncRetry(callback, raftStatus, 1000, "raft log load error");
         if (items == null || items.length == 0) {
             throw new RaftException("can't load raft log, result is null or empty. index=" + index +
                     ", limit=" + limit + ", bytesLimit=" + bytesLimit);

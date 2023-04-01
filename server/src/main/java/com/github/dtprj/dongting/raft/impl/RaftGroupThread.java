@@ -80,21 +80,29 @@ public class RaftGroupThread extends Thread {
     }
 
     public void init() {
-        StatusUtil.initStatusFileChannel(groupConfig.getDataDir(), groupConfig.getStatusFile(), raftStatus);
+        try {
+            StatusUtil.initStatusFileChannel(groupConfig.getDataDir(), groupConfig.getStatusFile(), raftStatus);
+            long stateMachineLatestIndex = stateMachine.initFromLatestSnapshot();
+            log.info("load snapshot to stateMachineLatestIndex {}, groupId={}", stateMachineLatestIndex, groupConfig.getGroupId());
+            if (stateMachineLatestIndex > raftStatus.getCommitIndex()) {
+                raftStatus.setCommitIndex(stateMachineLatestIndex);
+            }
 
-        long index = stateMachine.initFromLatestSnapshot();
-        log.info("load snapshot to index {}, groupId={}", index, groupConfig.getGroupId());
-        Pair<Integer, Long> initResult = raftLog.init();
-        log.info("init raft log, maxTerm={}, maxIndex={}, groupId={}",
-                initResult.getLeft(), initResult.getRight(), groupConfig.getGroupId());
-        raftStatus.setLastLogTerm(initResult.getLeft());
-        raftStatus.setLastLogIndex(initResult.getRight());
-        if (raftStatus.getLastLogIndex() < index) {
-            log.error("raft log index {} is less than snapshot index {}", raftStatus.getLastLogIndex(), index);
-            throw new RaftException("raft log index is less than snapshot index");
+            Pair<Integer, Long> initResult = raftLog.init(raftStatus.getCommitIndex());
+            log.info("init raft log, maxTerm={}, maxIndex={}, groupId={}",
+                    initResult.getLeft(), initResult.getRight(), groupConfig.getGroupId());
+            raftStatus.setLastLogTerm(initResult.getLeft());
+            raftStatus.setLastLogIndex(initResult.getRight());
+            if (raftStatus.getLastLogIndex() < stateMachineLatestIndex) {
+                log.error("raft log stateMachineLatestIndex {} is less than snapshot index {}", raftStatus.getLastLogIndex(), stateMachineLatestIndex);
+                throw new RaftException("raft log stateMachineLatestIndex is less than snapshot index");
+            }
+            raftStatus.setLastApplied(stateMachineLatestIndex);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RaftException(e);
         }
-        raftStatus.setCommitIndex(index);
-        raftStatus.setLastApplied(index);
     }
 
     public void waitReady() {

@@ -15,22 +15,19 @@
  */
 package com.github.dtprj.dongting.raft.file;
 
-import java.nio.channels.FileChannel;
+import java.util.concurrent.Executor;
 
 /**
  * @author huangli
  */
-class LogFile {
-    final long startIndex;
-    final FileChannel channel;
-    final long endIndex;
-    boolean finished;
-    int writePosition;
-    long lastUpdateMillis;
+public class LogFileQueue extends FileQueue {
+    private static final long MAX_LOG_FILE_SIZE = 1024 * 1024 * 1024;
+    public LogFileQueue(Executor ioExecutor) {
+        super(ioExecutor);
+    }
 
-    public LogFile(long startIndex, long endIndex, FileChannel channel) {
-        this.startIndex = startIndex;
-        this.endIndex = endIndex;
-        this.channel = channel;
+    @Override
+    protected long getFileSize() {
+        return MAX_LOG_FILE_SIZE;
     }
 }

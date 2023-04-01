@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.AppendReqWriteFrame;
 import com.github.dtprj.dongting.raft.rpc.AppendRespCallback;
@@ -42,6 +43,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -311,13 +313,25 @@ public class ReplicateManager {
     }
 
     private long findMaxIndexByTerm(int term) {
-        return RaftUtil.doWithSyncRetry(() -> raftLog.findMaxIndexByTerm(term),
-                raftStatus, 1000, "findMaxIndexByTerm fail");
+        Supplier<Long> callback = () -> {
+            try {
+                return raftLog.findMaxIndexByTerm(term);
+            } catch (Exception ex) {
+                throw new RaftException(ex);
+            }
+        };
+        return RaftUtil.doWithSyncRetry(callback, raftStatus, 1000, "findMaxIndexByTerm fail");
     }
 
     private int findLastTermLessThan(int term) {
-        return RaftUtil.doWithSyncRetry(() -> raftLog.findLastTermLessThan(term),
-                raftStatus, 1000, "findLastTermLessThan fail");
+        Supplier<Integer> callback = () -> {
+            try {
+                return raftLog.findLastTermLessThan(term);
+            } catch (Exception ex) {
+                throw new RaftException(ex);
+            }
+        };
+        return RaftUtil.doWithSyncRetry(callback, raftStatus, 1000, "findLastTermLessThan fail");
     }
 
     private void initInstallSnapshot(RaftMember member) {

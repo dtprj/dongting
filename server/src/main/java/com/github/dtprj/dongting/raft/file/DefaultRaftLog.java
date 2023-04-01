@@ -15,8 +15,9 @@
  */
 package com.github.dtprj.dongting.raft.file;
 
-import com.github.dtprj.dongting.common.CloseUtil;
 import com.github.dtprj.dongting.common.Pair;
+import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
@@ -26,78 +27,56 @@ import com.github.dtprj.dongting.raft.server.RaftLog;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.channels.FileChannel;
-import java.nio.file.StandardOpenOption;
-import java.util.ArrayDeque;
+import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.concurrent.Executor;
 
 /**
  * @author huangli
  */
 public class DefaultRaftLog implements RaftLog {
     private static final DtLog log = DtLogs.getLogger(DefaultRaftLog.class);
-    private static final long MAX_LOG_FILE_SIZE = 1024 * 1024 * 1024;
-    private static final int IDX_FILE_SIZE_STEP = 1024 * 1024;
 
     private final RaftGroupConfig groupConfig;
-    private ArrayDeque<LogFile> logFiles = new ArrayDeque<>();
-    private ArrayDeque<LogFile> idxFiles = new ArrayDeque<>();
-    private long checkPoint;
+    private final Timestamp ts;
+    private final Executor ioExecutor;
+    private LogFileQueue logFiles;
+    private IdxFileQueue idxFiles;
+    private ByteBuffer buffer = ByteBuffer.allocateDirect(128 * 1024);
 
-    public DefaultRaftLog(RaftGroupConfig groupConfig) {
+    public DefaultRaftLog(RaftGroupConfig groupConfig, Timestamp ts, Executor ioExecutor) {
         this.groupConfig = groupConfig;
+        this.ts = ts;
+        this.ioExecutor = ioExecutor;
     }
 
     @Override
-    public Pair<Integer, Long> init() {
-        try {
-            File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
-            File logDir = FileUtil.ensureDir(dataDir, "log");
-            File[] files = logDir.listFiles();
-            Pattern logPattern = Pattern.compile("^(\\d{20})\\.log$");
-            Pattern idxPattern = Pattern.compile("^(\\d{20})\\.idx$");
-            for (File f : files) {
-                if (!f.isFile()) {
-                    continue;
-                }
-                if (buildLogFile(logPattern, f, logFiles)) {
-                    continue;
-                }
-                buildLogFile(idxPattern, f, idxFiles);
-            }
-            return null;
-        } catch (IOException e) {
-            throw new RaftException(e);
-        }
-    }
-
-    private boolean buildLogFile(Pattern logPattern, File f, ArrayDeque<LogFile> queue) throws IOException {
-        Matcher matcher = logPattern.matcher(f.getName());
-        if (matcher.matches()) {
-            long index = Long.parseLong(matcher.group(1));
-            log.info("load file: {}", f.getPath());
-            FileChannel channel = FileChannel.open(f.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
-            queue.addLast(new LogFile(index, channel));
-            return true;
-        }
-        return false;
+    public Pair<Integer, Long> init(long commitIndex) throws IOException {
+        File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
+        logFiles = new LogFileQueue(ioExecutor);
+        idxFiles = new IdxFileQueue(ioExecutor);
+        logFiles.init(FileUtil.ensureDir(dataDir, "log"));
+        idxFiles.init(FileUtil.ensureDir(dataDir, "idx"));
+        return null;
     }
 
     @Override
     public void close() throws Exception {
-        for (LogFile logFile : logFiles) {
-            CloseUtil.close(logFile.channel);
-        }
-        for (LogFile logFile : idxFiles) {
-            CloseUtil.close(logFile.channel);
-        }
+        logFiles.close();
+        idxFiles.close();
     }
 
     @Override
-    public void append(long prevLogIndex, int prevLogTerm, List<LogItem> logs) {
-
+    public void append(long prevLogIndex, int prevLogTerm, long commitIndex, List<LogItem> logs) throws IOException {
+        if (logs == null || logs.size() == 0) {
+            BugLog.getLog().error("append log with empty logs");
+            return;
+        }
+        long firstIndex = logs.get(0).getIndex();
+        long dataPosition = idxFiles.findLogPosByItemIndex(firstIndex);
+        if (dataPosition <= 0) {
+            throw new RaftException("log data position not found by item index: " + firstIndex);
+        }
     }
 
     @Override

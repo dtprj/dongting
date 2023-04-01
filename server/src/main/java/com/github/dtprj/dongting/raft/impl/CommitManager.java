@@ -15,7 +15,12 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.server.RaftLog;
+
+import java.io.IOException;
+import java.util.Iterator;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -40,8 +45,14 @@ public class CommitManager {
         }
         // leader can only commit log in current term, see raft paper 5.4.2
         if (raftStatus.getFirstCommitIndexOfCurrentTerm() <= 0) {
-            int t = RaftUtil.doWithSyncRetry(() -> raftLog.getTermOf(recentMatchIndex),
-                    raftStatus, 1000, "RaftLog.getTermOf fail");
+            Supplier<Integer> callback = () -> {
+                try {
+                    return raftLog.getTermOf(recentMatchIndex);
+                } catch (IOException e) {
+                    throw new RaftException(e);
+                }
+            };
+            int t = RaftUtil.doWithSyncRetry(callback, raftStatus, 1000, "RaftLog.getTermOf fail");
             if (t != raftStatus.getCurrentTerm()) {
                 return;
             } else {
