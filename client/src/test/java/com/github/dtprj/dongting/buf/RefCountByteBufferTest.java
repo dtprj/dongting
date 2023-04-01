@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.buf;
 
 import com.github.dtprj.dongting.common.DtException;
+import com.github.dtprj.dongting.common.Timestamp;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -26,7 +27,7 @@ public class RefCountByteBufferTest {
 
     @Test
     public void testCreate1() {
-        SimpleByteBufferPool pool = new SimpleByteBufferPool(false);
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(new Timestamp(), false);
         RefCountByteBuffer refCountByteBuffer = RefCountByteBuffer.create(pool, 127, 128);
         refCountByteBuffer.retain();
         refCountByteBuffer.release();
@@ -37,7 +38,7 @@ public class RefCountByteBufferTest {
 
     @Test
     public void testCreate2() {
-        SimpleByteBufferPool pool = new SimpleByteBufferPool(false);
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(new Timestamp(), false);
         RefCountByteBuffer refCountByteBuffer = RefCountByteBuffer.create(pool, 128, 128);
         refCountByteBuffer.retain();
         refCountByteBuffer.release();
@@ -47,7 +48,7 @@ public class RefCountByteBufferTest {
 
     @Test
     public void testCreatePlain1() {
-        SimpleByteBufferPool pool = new SimpleByteBufferPool(false);
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(new Timestamp(), false);
         RefCountByteBuffer refCountByteBuffer = RefCountByteBuffer.createPlain(pool, 127, 128);
         refCountByteBuffer.retain();
         refCountByteBuffer.release();
@@ -58,7 +59,7 @@ public class RefCountByteBufferTest {
 
     @Test
     public void testCreatePlain2() {
-        SimpleByteBufferPool pool = new SimpleByteBufferPool(false);
+        SimpleByteBufferPool pool = new SimpleByteBufferPool(new Timestamp(), false);
         RefCountByteBuffer refCountByteBuffer = RefCountByteBuffer.createPlain(pool, 128, 128);
         refCountByteBuffer.retain();
         refCountByteBuffer.release();

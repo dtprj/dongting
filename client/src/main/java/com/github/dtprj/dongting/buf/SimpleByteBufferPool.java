@@ -50,7 +50,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     private final long[] statReleaseCount;
     private final long[] statReleaseHitCount;
 
-    private long currentNanos = System.nanoTime();
+    private Timestamp ts;
 
     public static final int[] DEFAULT_BUF_SIZE = new int[]{1024, 2048, 4096, 8192, 16 * 1024,
             32 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 512 * 1024, 1024 * 1024, 2 * 1024 * 1024,
@@ -66,18 +66,19 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
     public static final long DEFAULT_TIME_OUT_MILLIS = 10 * 1000;
 
-    public SimpleByteBufferPool(boolean direct, int threshold) {
-        this(direct, threshold, DEFAULT_BUF_SIZE, DEFAULT_MIN_COUNT, DEFAULT_MAX_COUNT, 10 * 1000);
+    public SimpleByteBufferPool(Timestamp ts, boolean direct, int threshold) {
+        this(ts, direct, threshold, DEFAULT_BUF_SIZE, DEFAULT_MIN_COUNT, DEFAULT_MAX_COUNT, 10 * 1000);
     }
 
-    public SimpleByteBufferPool(boolean direct) {
-        this(direct, DEFAULT_THRESHOLD, DEFAULT_BUF_SIZE, DEFAULT_MIN_COUNT, DEFAULT_MAX_COUNT, 10 * 1000);
+    public SimpleByteBufferPool(Timestamp ts, boolean direct) {
+        this(ts, direct, DEFAULT_THRESHOLD, DEFAULT_BUF_SIZE, DEFAULT_MIN_COUNT, DEFAULT_MAX_COUNT, 10 * 1000);
     }
 
-    public SimpleByteBufferPool(boolean direct, int threshold, int[] bufSizes, int[] minCount, int[] maxCount, long timeoutMillis) {
+    public SimpleByteBufferPool(Timestamp ts, boolean direct, int threshold, int[] bufSizes, int[] minCount, int[] maxCount, long timeoutMillis) {
         Objects.requireNonNull(bufSizes);
         Objects.requireNonNull(minCount);
         Objects.requireNonNull(maxCount);
+        this.ts = ts;
         int bufferTypeCount = bufSizes.length;
         if (bufferTypeCount != minCount.length || bufferTypeCount != maxCount.length) {
             throw new IllegalArgumentException();
@@ -203,14 +204,14 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         // return it to pool
         buf.clear();
         bufferStack[topIndex] = buf;
-        this.returnTimes[stackIndex][topIndex] = currentNanos;
+        this.returnTimes[stackIndex][topIndex] = ts.getNanoTime();
 
         topIndex = topIndex + 1 >= stackCapacity ? 0 : topIndex + 1;
         topIndices[stackIndex] = topIndex;
         stackSizes[stackIndex]++;
     }
 
-    public void clean(Timestamp ts) {
+    public void clean() {
         ByteBuffer[][] bufferStacks = this.bufferStacks;
         long[][] returnTimes = this.returnTimes;
         int[] bottomIndices = this.bottomIndices;
@@ -240,10 +241,6 @@ public class SimpleByteBufferPool extends ByteBufferPool {
             bottomIndices[stackIndex] = bottom;
             stackSizes[stackIndex] = size;
         }
-    }
-
-    public void refreshCurrentNanos(Timestamp ts) {
-        this.currentNanos = ts.getNanoTime();
     }
 
     public String formatStat() {
@@ -310,4 +307,13 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         sb.deleteCharAt(sb.length() - 1);
     }
 
+    // for unit test
+    void setTs(Timestamp ts) {
+        this.ts = ts;
+    }
+
+    // for unit test
+    Timestamp getTs() {
+        return this.ts;
+    }
 }

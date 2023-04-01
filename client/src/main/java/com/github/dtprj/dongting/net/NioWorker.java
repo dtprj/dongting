@@ -107,11 +107,11 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             this.ioQueue = new IoQueue(channelsList);
         }
 
-        this.directPool = new SimpleByteBufferPool(true, 64,
+        this.directPool = new SimpleByteBufferPool(timestamp, true, 64,
                 config.getBufPoolSize(), config.getBufPoolMinCount(),
                 config.getBufPoolMaxCount(), config.getBufPoolTimeout());
 
-        this.heapPool = new SimpleByteBufferPool(false, 64,
+        this.heapPool = new SimpleByteBufferPool(timestamp, false, 64,
                 config.getBufPoolSize(), config.getBufPoolMinCount(),
                 config.getBufPoolMaxCount(), config.getBufPoolTimeout());
 
@@ -161,10 +161,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     // TODO shrink channels map if the it's internal array is too large
                     cleanTimeoutReq(ts);
                     cleanTimeoutConnect(ts);
-                    directPool.refreshCurrentNanos(ts);
-                    heapPool.refreshCurrentNanos(ts);
-                    directPool.clean(ts);
-                    heapPool.clean(ts);
+                    directPool.clean();
+                    heapPool.clean();
                     lastCleanNano = ts.getNanoTime();
                 }
             } catch (Throwable e) {

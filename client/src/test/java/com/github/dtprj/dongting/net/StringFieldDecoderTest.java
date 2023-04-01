@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
+import com.github.dtprj.dongting.common.Timestamp;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -34,7 +35,7 @@ public class StringFieldDecoderTest {
 
     @Test
     public void test() {
-        decoder = new StringFieldDecoder(new SimpleByteBufferPool(false));
+        decoder = new StringFieldDecoder(new SimpleByteBufferPool(new Timestamp(), false));
         bytes = new byte[33 * 1024];
         byte c = 'a';
         for (int i = 0; i < bytes.length; i++) {
