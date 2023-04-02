@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.file;
 
+import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
 
 /**

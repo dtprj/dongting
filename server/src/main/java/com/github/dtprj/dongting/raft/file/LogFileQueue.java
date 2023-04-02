@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.file;
 
+import java.io.File;
 import java.util.concurrent.Executor;
 
 /**
@@ -22,12 +23,19 @@ import java.util.concurrent.Executor;
  */
 public class LogFileQueue extends FileQueue {
     private static final long MAX_LOG_FILE_SIZE = 1024 * 1024 * 1024;
-    public LogFileQueue(Executor ioExecutor) {
-        super(ioExecutor);
+    public LogFileQueue(File dir, Executor ioExecutor) {
+        super(dir, ioExecutor);
     }
 
     @Override
     protected long getFileSize() {
         return MAX_LOG_FILE_SIZE;
     }
+
+    @Override
+    protected long getWritePos() {
+        return 0;
+    }
+
+
 }

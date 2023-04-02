@@ -53,10 +53,10 @@ public class DefaultRaftLog implements RaftLog {
     @Override
     public Pair<Integer, Long> init(long commitIndex) throws IOException {
         File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
-        logFiles = new LogFileQueue(ioExecutor);
-        idxFiles = new IdxFileQueue(ioExecutor);
-        logFiles.init(FileUtil.ensureDir(dataDir, "log"));
-        idxFiles.init(FileUtil.ensureDir(dataDir, "idx"));
+        logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), ioExecutor);
+        idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), ioExecutor);
+        logFiles.init();
+        idxFiles.init();
         return null;
     }
 

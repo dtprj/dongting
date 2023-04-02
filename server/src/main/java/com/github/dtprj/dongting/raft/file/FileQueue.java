@@ -15,15 +15,18 @@
  */
 package com.github.dtprj.dongting.raft.file;
 
+import com.github.dtprj.dongting.common.CloseUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -35,18 +38,24 @@ abstract class FileQueue {
     private static final DtLog log = DtLogs.getLogger(FileQueue.class);
     private static final Pattern PATTERN = Pattern.compile("^(\\d{20})$");
     protected final IndexedQueue<LogFile> queue = new IndexedQueue<>();
+    protected final File dir;
     protected final Executor ioExecutor;
 
     protected long queueStartPosition;
     protected long queueEndPosition;
 
-    public FileQueue(Executor ioExecutor) {
+    protected CompletableFuture<LogFile> allocateFuture;
+
+    public FileQueue(File dir, Executor ioExecutor) {
+        this.dir = dir;
         this.ioExecutor = ioExecutor;
     }
 
     protected abstract long getFileSize();
 
-    public void init(File dir) throws IOException {
+    protected abstract long getWritePos();
+
+    public void init() throws IOException {
         File[] files = dir.listFiles();
         Arrays.sort(files);
         for (File f : files) {
@@ -84,6 +93,59 @@ abstract class FileQueue {
         long fileStartPos = filePos / getFileSize();
         int index = (int) ((fileStartPos - queueStartPosition) / getFileSize());
         return queue.get(index);
+    }
+
+    protected void tryAllocate() {
+        if (getWritePos() >= queueEndPosition - getFileSize()) {
+            if (allocateFuture == null) {
+                allocateFuture = allocate(queueEndPosition);
+            } else {
+                if (allocateFuture.isDone()) {
+                    processAllocResult();
+                }
+            }
+        }
+    }
+
+    protected void processAllocResult() {
+        try {
+            LogFile newFile = allocateFuture.get();
+            queue.addLast(newFile);
+            queueEndPosition = newFile.endIndex;
+        } catch (Throwable e) {
+            log.error("allocate file error", e);
+        } finally {
+            allocateFuture = null;
+        }
+    }
+
+    protected void ensureWritePosReady(){
+        while (getWritePos() >= queueEndPosition) {
+            if (allocateFuture != null) {
+                processAllocResult();
+            } else {
+                log.error("allocate future is null");
+                tryAllocate();
+                processAllocResult();
+            }
+        }
+    }
+
+    private CompletableFuture<LogFile> allocate(long currentEndPosition) {
+        return CompletableFuture.supplyAsync(() -> {
+            RandomAccessFile raf = null;
+            try {
+                File f = new File(dir, String.valueOf(currentEndPosition));
+                raf = new RandomAccessFile(f, "rw");
+                raf.setLength(getFileSize());
+                FileChannel channel = FileChannel.open(f.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
+                return new LogFile(currentEndPosition, currentEndPosition + getFileSize(), channel);
+            } catch (IOException e) {
+                throw new RaftException(e);
+            } finally {
+                CloseUtil.close(raf);
+            }
+        }, ioExecutor);
     }
 
     public void close() {
