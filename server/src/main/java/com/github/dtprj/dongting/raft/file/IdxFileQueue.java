@@ -34,7 +34,8 @@ import java.util.concurrent.Executor;
 public class IdxFileQueue extends FileQueue {
     private static final DtLog log = DtLogs.getLogger(IdxFileQueue.class);
     private static final int ITEM_LEN = 8;
-    private static final int IDX_FILE_SIZE = 8 * 1024 * 1024; //should divisible by FLUSH_ITEMS
+    private static final int ITEMS_PER_FILE = 1024 * 1024;
+    private static final int IDX_FILE_SIZE = ITEM_LEN * ITEMS_PER_FILE; //should divisible by FLUSH_ITEMS
     private static final int MAX_CACHE_ITEMS = 16 * 1024;
     private static final int FLUSH_ITEMS = MAX_CACHE_ITEMS / 2;
     private static final int REMOVE_ITEMS = 512;
@@ -117,6 +118,7 @@ public class IdxFileQueue extends FileQueue {
             BugLog.getLog().error("index is too small : firstIndex={}, index={}", firstIndex, itemIndex);
             throw new RaftException("index is too small");
         }
+        LongLongSeqMap cache = this.cache;
         if (itemIndex < nextIndex) {
             cache.truncate(itemIndex);
         }
@@ -125,7 +127,7 @@ public class IdxFileQueue extends FileQueue {
         }
         cache.put(itemIndex, dataPosition);
         nextIndex = itemIndex + 1;
-        if (cache.getLastKey() - persistIndex >= FLUSH_ITEMS) {
+        if (cache.getLastKey() - persistIndex >= FLUSH_ITEMS || (cache.getLastKey() + 1) % FLUSH_ITEMS == 0) {
             writeAndFlush();
         }
     }
@@ -140,12 +142,17 @@ public class IdxFileQueue extends FileQueue {
                 persistIndex = persistIndexAfterWrite;
             } catch (Exception e) {
                 // TODO process error
+            } finally {
+                writeFuture = null;
             }
         }
+        ByteBuffer writeBuffer = this.writeBuffer;
+        LongLongSeqMap cache = this.cache;
         writeBuffer.clear();
         long index = persistIndex + 1;
         long startPos = indexToPos(index);
-        for (int i = 0; i < FLUSH_ITEMS && index <= cache.getLastKey(); i++, index++) {
+        long lastKey = cache.getLastKey();
+        for (int i = 0; i < FLUSH_ITEMS && index <= lastKey; i++, index++) {
             long value = cache.get(index);
             writeBuffer.putLong(value);
         }
