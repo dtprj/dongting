@@ -71,7 +71,7 @@ abstract class FileQueue {
                 long startIndex = Long.parseLong(matcher.group(1));
                 log.info("load file: {}", f.getPath());
                 FileChannel channel = FileChannel.open(f.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
-                queue.addLast(new LogFile(startIndex, startIndex + getFileSize(), channel));
+                queue.addLast(new LogFile(startIndex, startIndex + getFileSize(), channel, f.getPath()));
                 if (startIndex != 0) {
                     queueStartPosition = Math.min(queueStartPosition, startIndex);
                 }
@@ -139,7 +139,7 @@ abstract class FileQueue {
                 raf = new RandomAccessFile(f, "rw");
                 raf.setLength(getFileSize());
                 FileChannel channel = FileChannel.open(f.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
-                return new LogFile(currentEndPosition, currentEndPosition + getFileSize(), channel);
+                return new LogFile(currentEndPosition, currentEndPosition + getFileSize(), channel, f.getPath());
             } catch (IOException e) {
                 throw new RaftException(e);
             } finally {

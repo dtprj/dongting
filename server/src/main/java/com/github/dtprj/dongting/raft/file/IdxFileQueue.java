@@ -23,7 +23,6 @@ import com.github.dtprj.dongting.raft.client.RaftException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -45,9 +44,9 @@ public class IdxFileQueue extends FileQueue {
     private long nextIndex;
     private long firstIndex;
 
-    private int writeBufferOffset;
-    private int writeBufferLen;
     private final ByteBuffer writeBuffer = ByteBuffer.allocateDirect(FLUSH_ITEMS * ITEM_LEN);
+    private LogFile currentWriteFile;
+    private long currentWriteFilePos;
     private CompletableFuture<Void> writeFuture;
     private long persistIndexAfterWrite;
 
@@ -127,12 +126,12 @@ public class IdxFileQueue extends FileQueue {
         }
         cache.put(itemIndex, dataPosition);
         nextIndex = itemIndex + 1;
-        if (cache.getLastKey() - persistIndex >= FLUSH_ITEMS || (cache.getLastKey() + 1) % FLUSH_ITEMS == 0) {
+        if ((itemIndex + 1) % FLUSH_ITEMS == 0) {
             writeAndFlush();
         }
     }
 
-    private void writeAndFlush() throws IOException {
+    private void writeAndFlush() {
         ensureWritePosReady();
         // pre allocate
         tryAllocate();
@@ -140,9 +139,22 @@ public class IdxFileQueue extends FileQueue {
             try {
                 writeFuture.get();
                 persistIndex = persistIndexAfterWrite;
-            } catch (Exception e) {
-                // TODO process error
+            } catch (InterruptedException e) {
+                log.info("write index interrupted: {}", currentWriteFile.pathname);
+                return;
+            } catch (ExecutionException e) {
+                log.error("write idx file failed: {}", currentWriteFile.pathname, e);
+                if (e.getCause() instanceof RaftException) {
+                    RaftException re = (RaftException) e.getCause();
+                    if (re.getCause() instanceof IOException) {
+                        retryWrite();
+                    }
+                }
+                throw new RaftException(e);
             } finally {
+                currentWriteFile = null;
+                currentWriteFilePos = 0;
+                persistIndexAfterWrite = 0;
                 writeFuture = null;
             }
         }
@@ -157,18 +169,40 @@ public class IdxFileQueue extends FileQueue {
             writeBuffer.putLong(value);
         }
         writeBuffer.flip();
-        LogFile logFile = getLogFile(startPos);
-        long posOfFile = startPos % IDX_FILE_SIZE;
-        writeFuture = writeTask(logFile.channel, posOfFile);
+
+        currentWriteFile = getLogFile(startPos);
+        currentWriteFilePos = startPos % IDX_FILE_SIZE;
         persistIndexAfterWrite = index - 1;
+        writeBuffer.mark();
+        writeFuture = submitWriteTask();
     }
 
-    private CompletableFuture<Void> writeTask(FileChannel channel, long posOfFile) {
+    private void retryWrite() {
+        while (true) {
+            try {
+                writeBuffer.reset();
+                doWrite();
+                break;
+            } catch (IOException e) {
+                log.error("retry write idx file failed, file={}, message: {}",
+                        currentWriteFile.pathname, e.getMessage());
+            }
+        }
+    }
+
+    private void doWrite() throws IOException {
+        while (writeBuffer.hasRemaining()) {
+            //noinspection ResultOfMethodCallIgnored
+            currentWriteFile.channel.write(writeBuffer, currentWriteFilePos);
+        }
+        currentWriteFile.channel.force(false);
+    }
+
+    private CompletableFuture<Void> submitWriteTask() {
         return CompletableFuture.runAsync(() -> {
             try {
-                channel.write(writeBuffer, posOfFile);
-                channel.force(false);
-            } catch (Exception e) {
+                doWrite();
+            } catch (IOException e) {
                 throw new RaftException(e);
             }
         }, ioExecutor);

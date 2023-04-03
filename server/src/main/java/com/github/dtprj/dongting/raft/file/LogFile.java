@@ -24,14 +24,16 @@ import java.nio.channels.FileChannel;
 class LogFile {
     final long startIndex;
     final FileChannel channel;
+    final String pathname;
     final long endIndex;
     boolean finished;
     int writePosition;
     long lastUpdateMillis;
 
-    public LogFile(long startIndex, long endIndex, FileChannel channel) {
+    public LogFile(long startIndex, long endIndex, FileChannel channel, String pathname) {
         this.startIndex = startIndex;
         this.endIndex = endIndex;
         this.channel = channel;
+        this.pathname = pathname;
     }
 }
