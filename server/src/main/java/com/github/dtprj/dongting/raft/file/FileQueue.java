@@ -101,17 +101,23 @@ abstract class FileQueue {
                 allocateFuture = allocate(queueEndPosition);
             } else {
                 if (allocateFuture.isDone()) {
-                    processAllocResult();
+                    LogFile newFile = allocateFuture.join();
+                    queue.addLast(newFile);
+                    queueEndPosition = newFile.endIndex;
+                    allocateFuture = null;
                 }
             }
         }
     }
 
-    protected void processAllocResult() {
+    private void processAllocResult() throws InterruptedException {
         try {
             LogFile newFile = allocateFuture.get();
             queue.addLast(newFile);
             queueEndPosition = newFile.endIndex;
+        } catch (InterruptedException e) {
+            log.info("interrupted while allocate file");
+            throw e;
         } catch (Throwable e) {
             log.error("allocate file error", e);
         } finally {
@@ -119,15 +125,20 @@ abstract class FileQueue {
         }
     }
 
-    protected void ensureWritePosReady(){
-        while (getWritePos() >= queueEndPosition) {
-            if (allocateFuture != null) {
-                processAllocResult();
-            } else {
-                log.error("allocate future is null");
-                tryAllocate();
-                processAllocResult();
+    protected boolean ensureWritePosReady() {
+        try {
+            while (getWritePos() >= queueEndPosition) {
+                if (allocateFuture != null) {
+                    processAllocResult();
+                } else {
+                    log.error("allocate future is null");
+                    tryAllocate();
+                    processAllocResult();
+                }
             }
+            return true;
+        } catch (InterruptedException e) {
+            return false;
         }
     }
 

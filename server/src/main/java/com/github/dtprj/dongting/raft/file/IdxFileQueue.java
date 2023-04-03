@@ -126,13 +126,15 @@ public class IdxFileQueue extends FileQueue {
         }
         cache.put(itemIndex, dataPosition);
         nextIndex = itemIndex + 1;
-        if ((itemIndex + 1) % FLUSH_ITEMS == 0) {
+        if ((itemIndex + 1) % FLUSH_ITEMS == 0 || itemIndex - persistIndex >= FLUSH_ITEMS) {
             writeAndFlush();
         }
     }
 
     private void writeAndFlush() {
-        ensureWritePosReady();
+        if (!ensureWritePosReady()) {
+            return;
+        }
         // pre allocate
         tryAllocate();
         if (writeFuture != null) {
@@ -165,6 +167,10 @@ public class IdxFileQueue extends FileQueue {
         long startPos = indexToPos(index);
         long lastKey = cache.getLastKey();
         for (int i = 0; i < FLUSH_ITEMS && index <= lastKey; i++, index++) {
+            if (index % FLUSH_ITEMS == 0 && i != 0) {
+                // don't pass end of file or sections
+                break;
+            }
             long value = cache.get(index);
             writeBuffer.putLong(value);
         }
