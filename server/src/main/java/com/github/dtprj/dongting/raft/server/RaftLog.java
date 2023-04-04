@@ -25,16 +25,13 @@ import java.util.List;
  */
 public interface RaftLog extends AutoCloseable {
 
-    /**
-     * the commit index may not latest, but it ensures that logs at index(<=commitIndex) never be re-write.
-     */
-    Pair<Integer, Long> init(long commitIndex) throws IOException;
+    Pair<Integer, Long> init() throws IOException;
 
     /**
      * Batch append logs. In some conditions, the commitIndex may be smaller than commitIndex
      * in previous append invoke, but it ensures that logs at index(<=commitIndex) never be re-write.
      */
-    void append(long prevLogIndex, int prevLogTerm, long commitIndex, List<LogItem> logs) throws IOException;
+    void append(long commitIndex, List<LogItem> logs) throws IOException;
 
     /**
      * load logs.

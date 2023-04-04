@@ -35,8 +35,8 @@ public class LogFileQueue extends FileQueue {
     private static final long LOG_FILE_SIZE = 1024 * 1024 * 1024;
 
     private static final int FILE_HEADER_SIZE = 512;
-    // crc32c 4 bytes, type 1 byte, term 4 bytes, prevLogTerm 4 bytes, index 8 bytes
-    private static final int ITEM_HEADER_SIZE = 4 + 1 + 4 + 4 + 8;
+    // crc32c 4 bytes, len 4 bytes, type 1 byte, term 4 bytes, prevLogTerm 4 bytes, index 8 bytes
+    private static final int ITEM_HEADER_SIZE = 4 + 4 + 1 + 4 + 4 + 8;
 
     private final ByteBuffer buffer = ByteBuffer.allocateDirect(128 * 1024);
     private final CRC32C crc32c = new CRC32C();
@@ -62,6 +62,9 @@ public class LogFileQueue extends FileQueue {
         header.putInt(FILE_MAGIC);
         // file version
         header.putInt(1);
+        header.flip();
+        channel.write(header);
+        channel.force(false);
     }
 
     public void append(List<LogItem> logs) throws IOException {
@@ -89,6 +92,7 @@ public class LogFileQueue extends FileQueue {
 
             int crcPos = buffer.position();
             buffer.putInt(0);
+            buffer.putInt(dataBuffer.remaining() + ITEM_HEADER_SIZE);
             buffer.put((byte) log.getType());
             buffer.putInt(log.getTerm());
             buffer.putInt(log.getPrevLogTerm());

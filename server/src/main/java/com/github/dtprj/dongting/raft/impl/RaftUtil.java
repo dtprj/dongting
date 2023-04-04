@@ -263,11 +263,10 @@ public class RaftUtil {
         return leader == null ? null : leader.getNode();
     }
 
-    public static void append(RaftLog raftLog, RaftStatus raftStatus, long prevLogIndex,
-                              int prevLogTerm, ArrayList<LogItem> logs) {
+    public static void append(RaftLog raftLog, RaftStatus raftStatus, ArrayList<LogItem> logs) {
         RaftUtil.doWithSyncRetry(() -> {
             try {
-                raftLog.append(prevLogIndex, prevLogTerm, raftStatus.getCommitIndex(), logs);
+                raftLog.append(raftStatus.getCommitIndex(), logs);
                 return null;
             } catch (IOException e) {
                 throw new RaftException(e);

@@ -139,7 +139,7 @@ public class AppendProcessor extends AbstractProcessor {
             return;
         }
 
-        RaftUtil.append(gc.getRaftLog(), raftStatus, req.getPrevLogIndex(), req.getPrevLogTerm(), logs);
+        RaftUtil.append(gc.getRaftLog(), raftStatus, logs);
 
         for (int i = 0; i < logs.size(); i++) {
             LogItem li = logs.get(i);

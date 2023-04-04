@@ -29,10 +29,6 @@ public class StatusUtil {
 
     private static final String CURRENT_TERM_KEY = "currentTerm";
     private static final String VOTED_FOR_KEY = "votedFor";
-    private static final String COMMIT_INDEX_KEY = "votedFor";
-
-    // 10 seconds
-    private static final long PERSIST_INTERVAL = 10L * 1000 * 1000 * 1000;
 
     public static void initStatusFileChannel(String dataDir, String filename, RaftStatus raftStatus) {
         File dir = FileUtil.ensureDir(dataDir);
@@ -43,7 +39,6 @@ public class StatusUtil {
         Properties p = sf.getProperties();
         raftStatus.setCurrentTerm(Integer.parseInt(p.getProperty(CURRENT_TERM_KEY, "0")));
         raftStatus.setVotedFor(Integer.parseInt(p.getProperty(VOTED_FOR_KEY, "0")));
-        raftStatus.setCommitIndex(Long.parseLong(p.getProperty(COMMIT_INDEX_KEY, "0")));
     }
 
     public static void persist(RaftStatus raftStatus) {
@@ -55,7 +50,6 @@ public class StatusUtil {
 
         sf.getProperties().setProperty(CURRENT_TERM_KEY, String.valueOf(raftStatus.getCurrentTerm()));
         sf.getProperties().setProperty(VOTED_FOR_KEY, String.valueOf(raftStatus.getVotedFor()));
-        sf.getProperties().setProperty(COMMIT_INDEX_KEY, String.valueOf(raftStatus.getCommitIndex()));
 
         if (!sf.update() && !raftStatus.isRetrying()) {
             // prevent concurrent saving or saving actions more and more
@@ -67,11 +61,4 @@ public class StatusUtil {
         }
     }
 
-    public static void tryPersist(RaftStatus raftStatus) {
-        Timestamp ts = raftStatus.getTs();
-        if (ts.getNanoTime() - raftStatus.getPersistNanos() > PERSIST_INTERVAL) {
-            persist(raftStatus);
-            raftStatus.setPersistNanos(ts.getNanoTime());
-        }
-    }
 }

@@ -51,7 +51,7 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public Pair<Integer, Long> init(long commitIndex) throws IOException {
+    public Pair<Integer, Long> init() throws IOException {
         File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
         logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), ioExecutor);
         idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), ioExecutor);
@@ -67,16 +67,13 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public void append(long prevLogIndex, int prevLogTerm, long commitIndex, List<LogItem> logs) throws IOException {
+    public void append(long commitIndex, List<LogItem> logs) throws IOException {
         if (logs == null || logs.size() == 0) {
             BugLog.getLog().error("append log with empty logs");
             return;
         }
         long firstIndex = logs.get(0).getIndex();
         ObjUtil.checkPositive(firstIndex, "firstIndex");
-        if (prevLogIndex != firstIndex - 1) {
-            throw new RaftException("prev log index not match firstIndex -1: " + prevLogIndex + " vs " + firstIndex);
-        }
         if (firstIndex == idxFiles.getNextIndex()) {
             logFiles.append(logs);
         } else if (firstIndex < idxFiles.getNextIndex()) {

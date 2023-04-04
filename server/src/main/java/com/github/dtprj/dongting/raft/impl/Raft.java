@@ -119,7 +119,7 @@ public class Raft implements BiConsumer<EventType, Object> {
             return;
         }
 
-        RaftUtil.append(raftLog, raftStatus, oldIndex, oldTerm, logs);
+        RaftUtil.append(raftLog, raftStatus, logs);
 
         raftStatus.setLastLogTerm(currentTerm);
         raftStatus.setLastLogIndex(newIndex);

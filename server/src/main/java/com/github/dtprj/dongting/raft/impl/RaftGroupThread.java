@@ -88,7 +88,7 @@ public class RaftGroupThread extends Thread {
                 raftStatus.setCommitIndex(stateMachineLatestIndex);
             }
 
-            Pair<Integer, Long> initResult = raftLog.init(raftStatus.getCommitIndex());
+            Pair<Integer, Long> initResult = raftLog.init();
             log.info("init raft log, maxTerm={}, maxIndex={}, groupId={}",
                     initResult.getLeft(), initResult.getRight(), groupConfig.getGroupId());
             raftStatus.setLastLogTerm(initResult.getLeft());
