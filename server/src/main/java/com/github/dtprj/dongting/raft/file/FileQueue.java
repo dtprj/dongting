@@ -101,10 +101,15 @@ abstract class FileQueue {
                 allocateFuture = allocate(queueEndPosition);
             } else {
                 if (allocateFuture.isDone()) {
-                    LogFile newFile = allocateFuture.join();
-                    queue.addLast(newFile);
-                    queueEndPosition = newFile.endIndex;
-                    allocateFuture = null;
+                    try {
+                        LogFile newFile = allocateFuture.join();
+                        queue.addLast(newFile);
+                        queueEndPosition = newFile.endIndex;
+                    } catch (Exception e) {
+                        log.error("allocate file error", e);
+                    } finally {
+                        allocateFuture = null;
+                    }
                 }
             }
         }
@@ -126,8 +131,12 @@ abstract class FileQueue {
     }
 
     protected boolean ensureWritePosReady() {
+        return ensureWritePosReady(getWritePos());
+    }
+
+    protected boolean ensureWritePosReady(long pos) {
         try {
-            while (getWritePos() >= queueEndPosition) {
+            while (pos >= queueEndPosition) {
                 if (allocateFuture != null) {
                     processAllocResult();
                 } else {
@@ -136,6 +145,8 @@ abstract class FileQueue {
                     processAllocResult();
                 }
             }
+            // pre allocate next file
+            tryAllocate();
             return true;
         } catch (InterruptedException e) {
             return false;
@@ -145,18 +156,29 @@ abstract class FileQueue {
     private CompletableFuture<LogFile> allocate(long currentEndPosition) {
         return CompletableFuture.supplyAsync(() -> {
             RandomAccessFile raf = null;
+            FileChannel channel = null;
             try {
                 File f = new File(dir, String.valueOf(currentEndPosition));
                 raf = new RandomAccessFile(f, "rw");
                 raf.setLength(getFileSize());
-                FileChannel channel = FileChannel.open(f.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
+                channel = FileChannel.open(f.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
+                afterFileAllocated(f, channel);
                 return new LogFile(currentEndPosition, currentEndPosition + getFileSize(), channel, f.getPath());
             } catch (IOException e) {
+                if (channel != null) {
+                    CloseUtil.close(channel);
+                }
                 throw new RaftException(e);
             } finally {
                 CloseUtil.close(raf);
             }
         }, ioExecutor);
+    }
+
+    /**
+     * this method will be called in ioExecutor
+     */
+    protected void afterFileAllocated(File f, FileChannel channel) throws IOException {
     }
 
     public void close() {

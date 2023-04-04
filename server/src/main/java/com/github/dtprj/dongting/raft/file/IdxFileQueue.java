@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.file;
 
+import com.github.dtprj.dongting.common.ObjUtil;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -23,6 +24,7 @@ import com.github.dtprj.dongting.raft.client.RaftException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -104,6 +106,23 @@ public class IdxFileQueue extends FileQueue {
         return buffer.getLong();
     }
 
+    public long truncateTail(long index) throws IOException {
+        ObjUtil.checkPositive(index, "index");
+        if (index < firstIndex) {
+            throw new RaftException("truncateTail index is too small: " + index);
+        }
+        long value = findLogPosByItemIndex(index);
+        cache.truncate(index);
+        nextIndex = index;
+        if (persistIndex >= index) {
+            persistIndex = index - 1;
+        }
+        if (writeFuture != null) {
+            writeFuture.cancel(false);
+        }
+        return value;
+    }
+
     private void checkIndex(long index) {
         if (index > nextIndex) {
             BugLog.getLog().error("index is too large : lastIndex={}, index={}", nextIndex, index);
@@ -135,12 +154,13 @@ public class IdxFileQueue extends FileQueue {
         if (!ensureWritePosReady()) {
             return;
         }
-        // pre allocate
-        tryAllocate();
         if (writeFuture != null) {
             try {
                 writeFuture.get();
                 persistIndex = persistIndexAfterWrite;
+            } catch (CancellationException e) {
+                log.info("previous write canceled");
+                // don't return
             } catch (InterruptedException e) {
                 log.info("write index interrupted: {}", currentWriteFile.pathname);
                 return;
@@ -212,5 +232,9 @@ public class IdxFileQueue extends FileQueue {
                 throw new RaftException(e);
             }
         }, ioExecutor);
+    }
+
+    public long getNextIndex() {
+        return nextIndex;
     }
 }

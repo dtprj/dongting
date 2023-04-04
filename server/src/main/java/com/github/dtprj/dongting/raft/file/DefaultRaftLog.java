@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.file;
 
+import com.github.dtprj.dongting.common.ObjUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
@@ -42,7 +43,6 @@ public class DefaultRaftLog implements RaftLog {
     private final Executor ioExecutor;
     private LogFileQueue logFiles;
     private IdxFileQueue idxFiles;
-    private ByteBuffer buffer = ByteBuffer.allocateDirect(128 * 1024);
 
     public DefaultRaftLog(RaftGroupConfig groupConfig, Timestamp ts, Executor ioExecutor) {
         this.groupConfig = groupConfig;
@@ -73,9 +73,18 @@ public class DefaultRaftLog implements RaftLog {
             return;
         }
         long firstIndex = logs.get(0).getIndex();
-        long dataPosition = idxFiles.findLogPosByItemIndex(firstIndex);
-        if (dataPosition <= 0) {
-            throw new RaftException("log data position not found by item index: " + firstIndex);
+        ObjUtil.checkPositive(firstIndex, "firstIndex");
+        if (prevLogIndex != firstIndex - 1) {
+            throw new RaftException("prev log index not match firstIndex -1: " + prevLogIndex + " vs " + firstIndex);
+        }
+        if (firstIndex == idxFiles.getNextIndex()) {
+            logFiles.append(logs);
+        } else if (firstIndex < idxFiles.getNextIndex()) {
+            long dataPosition = idxFiles.truncateTail(firstIndex);
+            logFiles.truncateTail(dataPosition);
+            logFiles.append(logs);
+        } else {
+            throw new RaftException("bad index: " + firstIndex);
         }
     }
 
