@@ -55,7 +55,9 @@ abstract class FileQueue {
 
     protected abstract long getWritePos();
 
-    public void init() throws IOException {
+    protected abstract int getFileLenShiftBits();
+
+    protected void init() throws IOException {
         File[] files = dir.listFiles();
         Arrays.sort(files);
         for (File f : files) {
@@ -78,20 +80,10 @@ abstract class FileQueue {
                 queueEndPosition = Math.max(queueEndPosition, startIndex + getFileSize() - 1);
             }
         }
-        for (int i = 0; i < queue.size(); i++) {
-            LogFile lf = queue.get(i);
-            if (lf.startIndex % getFileSize() != 0) {
-                throw new RaftException("file start index error: " + lf.startIndex);
-            }
-            if (i != 0 && lf.startIndex != queue.get(i - 1).endIndex) {
-                throw new RaftException("not follow previous file " + lf.startIndex);
-            }
-        }
     }
 
     protected LogFile getLogFile(long filePos) {
-        long fileStartPos = filePos / getFileSize();
-        int index = (int) ((fileStartPos - queueStartPosition) / getFileSize());
+        int index = (int) ((filePos - queueStartPosition) >>> getFileLenShiftBits());
         return queue.get(index);
     }
 

@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.function.Supplier;
 
 /**

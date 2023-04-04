@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.file;
 
+import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.ObjUtil;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -36,13 +37,18 @@ public class IdxFileQueue extends FileQueue {
     private static final DtLog log = DtLogs.getLogger(IdxFileQueue.class);
     private static final int ITEM_LEN = 8;
     private static final int ITEMS_PER_FILE = 1024 * 1024;
-    private static final int IDX_FILE_SIZE = ITEM_LEN * ITEMS_PER_FILE; //should divisible by FLUSH_ITEMS
-    private static final int MAX_CACHE_ITEMS = 16 * 1024;
-    private static final int FLUSH_ITEMS = MAX_CACHE_ITEMS / 2;
     private static final int REMOVE_ITEMS = 512;
+    private static final int MAX_CACHE_ITEMS = 16 * 1024;
+
+    private static final int IDX_FILE_SIZE = ITEM_LEN * ITEMS_PER_FILE; //should divisible by FLUSH_ITEMS
+    private static final int FILE_LEN_MASK = IDX_FILE_SIZE - 1;
+    private static final int FILE_LEN_SHIFT_BITS = BitUtil.zeroCountOfBinary(IDX_FILE_SIZE);
+
+    private static final int FLUSH_ITEMS = MAX_CACHE_ITEMS / 2;
+    private static final int FLUSH_ITEMS_MAST = FLUSH_ITEMS - 1;
     private final LongLongSeqMap cache = new LongLongSeqMap();
 
-    private long persistIndex;
+    private long nextPersistIndex;
     private long nextIndex;
     private long firstIndex;
 
@@ -63,8 +69,17 @@ public class IdxFileQueue extends FileQueue {
 
     public void init(long persistIndex) throws IOException {
         super.init();
-        this.persistIndex = persistIndex;
-        this.nextIndex = persistIndex + 1;
+        for (int i = 0; i < queue.size(); i++) {
+            LogFile lf = queue.get(i);
+            if ((lf.startIndex & FILE_LEN_MASK) != 0) {
+                throw new RaftException("file start index error: " + lf.startIndex);
+            }
+            if (i != 0 && lf.startIndex != queue.get(i - 1).endIndex) {
+                throw new RaftException("not follow previous file " + lf.startIndex);
+            }
+        }
+        this.nextPersistIndex = persistIndex;
+        this.nextIndex = persistIndex;
         this.firstIndex = posToIndex(queueStartPosition);
         tryAllocate();
     }
@@ -73,6 +88,11 @@ public class IdxFileQueue extends FileQueue {
     @Override
     protected long getWritePos() {
         return indexToPos(nextIndex);
+    }
+
+    @Override
+    public int getFileLenShiftBits() {
+        return FILE_LEN_SHIFT_BITS;
     }
 
     private static long indexToPos(long index) {
@@ -95,7 +115,7 @@ public class IdxFileQueue extends FileQueue {
             return result;
         }
         long pos = indexToPos(itemIndex);
-        long filePos = pos % IDX_FILE_SIZE;
+        long filePos = pos & FILE_LEN_MASK;
         LogFile lf = getLogFile(pos);
         // TODO reuse it
         ByteBuffer buffer = ByteBuffer.allocate(8);
@@ -114,11 +134,12 @@ public class IdxFileQueue extends FileQueue {
         long value = findLogPosByItemIndex(index);
         cache.truncate(index);
         nextIndex = index;
-        if (persistIndex >= index) {
-            persistIndex = index - 1;
+        if (nextPersistIndex > index) {
+            nextPersistIndex = index;
         }
-        if (writeFuture != null) {
+        if (writeFuture != null && persistIndexAfterWrite > index) {
             writeFuture.cancel(false);
+            persistIndexAfterWrite = 0;
         }
         return value;
     }
@@ -145,7 +166,7 @@ public class IdxFileQueue extends FileQueue {
         }
         cache.put(itemIndex, dataPosition);
         nextIndex = itemIndex + 1;
-        if ((itemIndex + 1) % FLUSH_ITEMS == 0 || itemIndex - persistIndex >= FLUSH_ITEMS) {
+        if ((nextIndex & FLUSH_ITEMS_MAST) == 0) {
             writeAndFlush();
         }
     }
@@ -157,7 +178,9 @@ public class IdxFileQueue extends FileQueue {
         if (writeFuture != null) {
             try {
                 writeFuture.get();
-                persistIndex = persistIndexAfterWrite;
+                if (persistIndexAfterWrite > 0) {
+                    nextPersistIndex = persistIndexAfterWrite;
+                }
             } catch (CancellationException e) {
                 log.info("previous write canceled");
                 // don't return
@@ -183,11 +206,11 @@ public class IdxFileQueue extends FileQueue {
         ByteBuffer writeBuffer = this.writeBuffer;
         LongLongSeqMap cache = this.cache;
         writeBuffer.clear();
-        long index = persistIndex + 1;
+        long index = nextPersistIndex;
         long startPos = indexToPos(index);
         long lastKey = cache.getLastKey();
         for (int i = 0; i < FLUSH_ITEMS && index <= lastKey; i++, index++) {
-            if (index % FLUSH_ITEMS == 0 && i != 0) {
+            if ((index & FLUSH_ITEMS_MAST) == 0 && i != 0) {
                 // don't pass end of file or sections
                 break;
             }
@@ -197,8 +220,8 @@ public class IdxFileQueue extends FileQueue {
         writeBuffer.flip();
 
         currentWriteFile = getLogFile(startPos);
-        currentWriteFilePos = startPos % IDX_FILE_SIZE;
-        persistIndexAfterWrite = index - 1;
+        currentWriteFilePos = startPos & FILE_LEN_MASK;
+        persistIndexAfterWrite = index;
         writeBuffer.mark();
         writeFuture = submitWriteTask();
     }

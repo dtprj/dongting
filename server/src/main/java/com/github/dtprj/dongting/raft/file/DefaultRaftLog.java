@@ -37,12 +37,16 @@ import java.util.concurrent.Executor;
  */
 public class DefaultRaftLog implements RaftLog {
     private static final DtLog log = DtLogs.getLogger(DefaultRaftLog.class);
+    private static final String RAFT_LOG_POS_KEY = "raftLogPos";
+    private static final String INDEX_POS_KEY = "indexPos";
 
     private final RaftGroupConfig groupConfig;
     private final Timestamp ts;
     private final Executor ioExecutor;
     private LogFileQueue logFiles;
     private IdxFileQueue idxFiles;
+    private long knownMaxCommitIndex;
+    private StatusFile checkpointFile;
 
     public DefaultRaftLog(RaftGroupConfig groupConfig, Timestamp ts, Executor ioExecutor) {
         this.groupConfig = groupConfig;
@@ -53,10 +57,14 @@ public class DefaultRaftLog implements RaftLog {
     @Override
     public Pair<Integer, Long> init() throws IOException {
         File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
+        checkpointFile = new StatusFile(new File(dataDir, "checkpoint"));
+        checkpointFile.init();
+        long raftLogPos = Long.parseLong(checkpointFile.getProperties().getProperty(RAFT_LOG_POS_KEY, "0"));
+        long indexPos = Long.parseLong(checkpointFile.getProperties().getProperty(INDEX_POS_KEY, "0"));
         logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), ioExecutor);
         idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), ioExecutor);
-        logFiles.init();
-        idxFiles.init();
+        logFiles.init(raftLogPos);
+        idxFiles.init(indexPos);
         return null;
     }
 
@@ -72,6 +80,7 @@ public class DefaultRaftLog implements RaftLog {
             BugLog.getLog().error("append log with empty logs");
             return;
         }
+        knownMaxCommitIndex = Math.max(knownMaxCommitIndex, commitIndex);
         long firstIndex = logs.get(0).getIndex();
         ObjUtil.checkPositive(firstIndex, "firstIndex");
         if (firstIndex == idxFiles.getNextIndex()) {

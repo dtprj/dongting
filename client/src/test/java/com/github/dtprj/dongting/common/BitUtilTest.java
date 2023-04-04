@@ -18,18 +18,33 @@ package com.github.dtprj.dongting.common;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 /**
  * @author huangli
  */
 public class BitUtilTest {
     @Test
     public void testNextHighestPowerOfTwo() {
-        Assertions.assertEquals(0, BitUtil.nextHighestPowerOfTwo(0));
-        Assertions.assertEquals(1, BitUtil.nextHighestPowerOfTwo(1));
-        Assertions.assertEquals(2, BitUtil.nextHighestPowerOfTwo(2));
-        Assertions.assertEquals(4, BitUtil.nextHighestPowerOfTwo(3));
-        Assertions.assertEquals(4, BitUtil.nextHighestPowerOfTwo(4));
-        Assertions.assertEquals(64, BitUtil.nextHighestPowerOfTwo(52));
-        Assertions.assertEquals(1 << 30, BitUtil.nextHighestPowerOfTwo((1 << 30) - 1));
+        assertEquals(0, BitUtil.nextHighestPowerOfTwo(0));
+        assertEquals(1, BitUtil.nextHighestPowerOfTwo(1));
+        assertEquals(2, BitUtil.nextHighestPowerOfTwo(2));
+        assertEquals(4, BitUtil.nextHighestPowerOfTwo(3));
+        assertEquals(4, BitUtil.nextHighestPowerOfTwo(4));
+        assertEquals(64, BitUtil.nextHighestPowerOfTwo(52));
+        assertEquals(1 << 30, BitUtil.nextHighestPowerOfTwo((1 << 30) - 1));
+    }
+
+    @Test
+    public void testZeroCountOfBinary() {
+        assertThrows(IllegalArgumentException.class, () -> BitUtil.zeroCountOfBinary(0));
+        assertThrows(IllegalArgumentException.class, () -> BitUtil.zeroCountOfBinary(3));
+        assertThrows(IllegalArgumentException.class, () -> BitUtil.zeroCountOfBinary(1024 * 1024 * 1024 + 1));
+        assertEquals(0, BitUtil.zeroCountOfBinary(1));
+        assertEquals(1, BitUtil.zeroCountOfBinary(2));
+        assertEquals(2, BitUtil.zeroCountOfBinary(4));
+        assertEquals(3, BitUtil.zeroCountOfBinary(8));
+        assertEquals(30, BitUtil.zeroCountOfBinary(1024 * 1024 * 1024));
     }
 }

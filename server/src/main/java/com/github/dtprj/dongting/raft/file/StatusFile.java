@@ -124,6 +124,7 @@ public class StatusFile implements AutoCloseable {
             System.arraycopy(crcBytes, 0, fileContent, 0, CRC_HEX_LENGTH);
             ByteBuffer buf = ByteBuffer.wrap(fileContent);
             while (buf.hasRemaining()) {
+                //noinspection ResultOfMethodCallIgnored
                 channel.write(buf);
             }
             channel.force(false);

@@ -15,7 +15,9 @@
  */
 package com.github.dtprj.dongting.raft.file;
 
+import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.ObjUtil;
+import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 
 import java.io.File;
@@ -32,7 +34,9 @@ import java.util.zip.CRC32C;
 public class LogFileQueue extends FileQueue {
     private static final int FILE_MAGIC = 0x7C3FA7B6;
 
-    private static final long LOG_FILE_SIZE = 1024 * 1024 * 1024;
+    private static final int LOG_FILE_SIZE = 1024 * 1024 * 1024;
+    private static final int FILE_LEN_MASK = LOG_FILE_SIZE - 1;
+    private static final int FILE_LEN_SHIFT_BITS = BitUtil.zeroCountOfBinary(LOG_FILE_SIZE);
 
     private static final int FILE_HEADER_SIZE = 512;
     // crc32c 4 bytes, len 4 bytes, type 1 byte, term 4 bytes, prevLogTerm 4 bytes, index 8 bytes
@@ -52,6 +56,11 @@ public class LogFileQueue extends FileQueue {
     }
 
     @Override
+    public int getFileLenShiftBits() {
+        return FILE_LEN_SHIFT_BITS;
+    }
+
+    @Override
     protected long getWritePos() {
         return writePos;
     }
@@ -67,6 +76,13 @@ public class LogFileQueue extends FileQueue {
         channel.force(false);
     }
 
+    public void init(long nextPos) throws IOException {
+        super.init();
+        for (int i = 0; i < queue.size(); i++) {
+            LogFile lf = queue.get(i);
+        }
+    }
+
     public void append(List<LogItem> logs) throws IOException {
         ensureWritePosReady();
         ByteBuffer buffer = this.buffer;
@@ -75,12 +91,12 @@ public class LogFileQueue extends FileQueue {
         LogFile file = getLogFile(pos);
         for (LogItem log : logs) {
             ByteBuffer dataBuffer = log.getBuffer();
-            long posOfFile = (pos + buffer.position()) % LOG_FILE_SIZE;
+            long posOfFile = (pos + buffer.position()) & FILE_LEN_MASK;
             // if posOfFile == 0, it means last item exactly fill the file
             if (posOfFile == 0 || LOG_FILE_SIZE - posOfFile < ITEM_HEADER_SIZE + dataBuffer.remaining()) {
                 pos = writeAndClearBuffer(buffer, file, pos);
                 if (posOfFile != 0) {
-                    pos = (pos % LOG_FILE_SIZE + 1) * LOG_FILE_SIZE;
+                    pos = ((pos >>> FILE_LEN_SHIFT_BITS) + 1) << FILE_LEN_SHIFT_BITS;
                 }
                 ensureWritePosReady(pos);
                 file = getLogFile(pos);
