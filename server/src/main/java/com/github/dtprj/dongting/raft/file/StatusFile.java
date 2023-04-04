@@ -105,8 +105,6 @@ public class StatusFile implements AutoCloseable {
 
     public boolean update() {
         try {
-            channel.position(0);
-
             ByteArrayOutputStream bos = new ByteArrayOutputStream(128);
             properties.store(bos, null);
             byte[] propertiesBytes = bos.toByteArray();
@@ -123,6 +121,8 @@ public class StatusFile implements AutoCloseable {
             byte[] crcBytes = crcHex.getBytes(StandardCharsets.UTF_8);
             System.arraycopy(crcBytes, 0, fileContent, 0, CRC_HEX_LENGTH);
             ByteBuffer buf = ByteBuffer.wrap(fileContent);
+
+            channel.position(0);
             while (buf.hasRemaining()) {
                 //noinspection ResultOfMethodCallIgnored
                 channel.write(buf);

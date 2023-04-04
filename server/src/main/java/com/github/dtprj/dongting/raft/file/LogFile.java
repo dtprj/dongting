@@ -15,24 +15,20 @@
  */
 package com.github.dtprj.dongting.raft.file;
 
-import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
 
 /**
  * @author huangli
  */
 class LogFile {
-    final long startIndex;
+    final long startPos;
     final FileChannel channel;
     final String pathname;
-    final long endIndex;
-    boolean finished;
-    int writePosition;
-    long lastUpdateMillis;
+    final long endPos;
 
-    public LogFile(long startIndex, long endIndex, FileChannel channel, String pathname) {
-        this.startIndex = startIndex;
-        this.endIndex = endIndex;
+    public LogFile(long startPos, long endPos, FileChannel channel, String pathname) {
+        this.startPos = startPos;
+        this.endPos = endPos;
         this.channel = channel;
         this.pathname = pathname;
     }

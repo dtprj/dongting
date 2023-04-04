@@ -17,13 +17,17 @@ package com.github.dtprj.dongting.raft.file;
 
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.ObjUtil;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.zip.CRC32C;
@@ -32,15 +36,26 @@ import java.util.zip.CRC32C;
  * @author huangli
  */
 public class LogFileQueue extends FileQueue {
+    private static final DtLog log = DtLogs.getLogger(LogFileQueue.class);
+
     private static final int FILE_MAGIC = 0x7C3FA7B6;
+    private static final short MAJOR_VERSION = 1;
+    private static final short MINOR_VERSION = 0;
 
     private static final int LOG_FILE_SIZE = 1024 * 1024 * 1024;
     private static final int FILE_LEN_MASK = LOG_FILE_SIZE - 1;
     private static final int FILE_LEN_SHIFT_BITS = BitUtil.zeroCountOfBinary(LOG_FILE_SIZE);
 
     private static final int FILE_HEADER_SIZE = 512;
-    // crc32c 4 bytes, len 4 bytes, type 1 byte, term 4 bytes, prevLogTerm 4 bytes, index 8 bytes
-    private static final int ITEM_HEADER_SIZE = 4 + 4 + 1 + 4 + 4 + 8;
+
+    // crc32c 4 bytes
+    // total len 4 bytes
+    // head len 2 bytes
+    // type 1 byte
+    // term 4 bytes
+    // prevLogTerm 4 bytes
+    // index 8 bytes
+    private static final short ITEM_HEADER_SIZE = 4 + 4 + 2 + 1 + 4 + 4 + 8;
 
     private final ByteBuffer buffer = ByteBuffer.allocateDirect(128 * 1024);
     private final CRC32C crc32c = new CRC32C();
@@ -69,18 +84,61 @@ public class LogFileQueue extends FileQueue {
     protected void afterFileAllocated(File f, FileChannel channel) throws IOException {
         ByteBuffer header = ByteBuffer.allocateDirect(8);
         header.putInt(FILE_MAGIC);
-        // file version
-        header.putInt(1);
+        header.putShort(MAJOR_VERSION);
+        header.putShort(MINOR_VERSION);
         header.flip();
-        channel.write(header);
+        channel.position(0);
+        while (header.hasRemaining()) {
+            channel.write(header);
+        }
         channel.force(false);
     }
 
-    public void init(long nextPos) throws IOException {
-        super.init();
-        for (int i = 0; i < queue.size(); i++) {
-            LogFile lf = queue.get(i);
+    @Override
+    protected void doInit(long persistIndex) throws IOException {
+        ByteBuffer buffer = ByteBuffer.allocate(FILE_HEADER_SIZE);
+        ArrayList<LogFile> tempList = new ArrayList<>(queue.size());
+        while (queue.size() > 0) {
+            tempList.add(queue.removeFirst());
         }
+        for (LogFile lf : tempList) {
+            FileChannel channel = lf.channel;
+            if (channel.size() < FILE_HEADER_SIZE) {
+                log.warn("file {} size is illegal({}). ignore it.", lf.pathname, channel.size());
+                break;
+            }
+            buffer.clear();
+            channel.position(0);
+            while (buffer.hasRemaining()) {
+                channel.read(buffer);
+            }
+            buffer.flip();
+            if (buffer.getInt() != FILE_MAGIC) {
+                log.warn("file {} magic is illegal. ignore it.", lf.pathname, buffer.getInt());
+                break;
+            }
+            short majorVersion = buffer.getShort();
+            if (majorVersion > MAJOR_VERSION) {
+                log.error("unsupported major version: {}, {}", majorVersion, lf.pathname);
+                throw new RaftException("unsupported major version: " + majorVersion);
+            }
+            if (persistIndex < lf.endPos) {
+                writePos = restoreFile(persistIndex, lf);
+                if (writePos < lf.endPos) {
+                    if (writePos > lf.startPos) {
+                        queue.addLast(lf);
+                    }
+                    break;
+                }
+            } else {
+                writePos = lf.endPos;
+            }
+            queue.addLast(lf);
+        }
+    }
+
+    private long restoreFile(long persistIndex, LogFile lf) {
+        return 0;
     }
 
     public void append(List<LogItem> logs) throws IOException {
@@ -106,14 +164,7 @@ public class LogFileQueue extends FileQueue {
                 pos = writeAndClearBuffer(buffer, file, pos);
             }
 
-            int crcPos = buffer.position();
-            buffer.putInt(0);
-            buffer.putInt(dataBuffer.remaining() + ITEM_HEADER_SIZE);
-            buffer.put((byte) log.getType());
-            buffer.putInt(log.getTerm());
-            buffer.putInt(log.getPrevLogTerm());
-            buffer.putLong(log.getIndex());
-            updateCrc(buffer, dataBuffer, crcPos);
+            writeHeader(buffer, dataBuffer, log);
 
             while (dataBuffer.hasRemaining()) {
                 buffer.put(dataBuffer);
@@ -127,7 +178,23 @@ public class LogFileQueue extends FileQueue {
         this.writePos = pos;
     }
 
-    private void updateCrc(ByteBuffer buffer, ByteBuffer dataBuffer, int crcPos) {
+    private void writeHeader(ByteBuffer buffer, ByteBuffer dataBuffer, LogItem log) {
+        // crc32c 4 bytes
+        // total len 4 bytes
+        // head len 2 bytes
+        // type 1 byte
+        // term 4 bytes
+        // prevLogTerm 4 bytes
+        // index 8 bytes
+        int crcPos = buffer.position();
+        buffer.putInt(0);
+        buffer.putInt(dataBuffer.remaining() + ITEM_HEADER_SIZE);
+        buffer.putShort(ITEM_HEADER_SIZE);
+        buffer.put((byte) log.getType());
+        buffer.putInt(log.getTerm());
+        buffer.putInt(log.getPrevLogTerm());
+        buffer.putLong(log.getIndex());
+
         CRC32C crc32c = this.crc32c;
         crc32c.reset();
 
@@ -155,8 +222,10 @@ public class LogFileQueue extends FileQueue {
         }
         buffer.flip();
         int x = buffer.remaining();
+        FileChannel channel = file.channel;
+        channel.position(filePos);
         while (buffer.hasRemaining()) {
-            file.channel.write(buffer, filePos);
+            channel.write(buffer);
         }
         buffer.clear();
         return filePos + x;

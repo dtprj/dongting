@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.raft.client.RaftException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -67,21 +68,11 @@ public class IdxFileQueue extends FileQueue {
         return IDX_FILE_SIZE;
     }
 
-    public void init(long persistIndex) throws IOException {
-        super.init();
-        for (int i = 0; i < queue.size(); i++) {
-            LogFile lf = queue.get(i);
-            if ((lf.startIndex & FILE_LEN_MASK) != 0) {
-                throw new RaftException("file start index error: " + lf.startIndex);
-            }
-            if (i != 0 && lf.startIndex != queue.get(i - 1).endIndex) {
-                throw new RaftException("not follow previous file " + lf.startIndex);
-            }
-        }
+    @Override
+    protected void doInit(long persistIndex) throws IOException {
         this.nextPersistIndex = persistIndex;
         this.nextIndex = persistIndex;
         this.firstIndex = posToIndex(queueStartPosition);
-        tryAllocate();
     }
 
 
@@ -240,11 +231,14 @@ public class IdxFileQueue extends FileQueue {
     }
 
     private void doWrite() throws IOException {
+        FileChannel channel = currentWriteFile.channel;
+        channel.position(currentWriteFilePos);
+        ByteBuffer writeBuffer = this.writeBuffer;
         while (writeBuffer.hasRemaining()) {
             //noinspection ResultOfMethodCallIgnored
-            currentWriteFile.channel.write(writeBuffer, currentWriteFilePos);
+            channel.write(writeBuffer);
         }
-        currentWriteFile.channel.force(false);
+        channel.force(false);
     }
 
     private CompletableFuture<Void> submitWriteTask() {

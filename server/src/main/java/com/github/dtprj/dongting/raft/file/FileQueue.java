@@ -57,7 +57,15 @@ abstract class FileQueue {
 
     protected abstract int getFileLenShiftBits();
 
-    protected void init() throws IOException {
+    protected abstract void doInit(long persistPos) throws IOException;
+
+    /**
+     * this method will be called in ioExecutor
+     */
+    protected void afterFileAllocated(File f, FileChannel channel) throws IOException {
+    }
+
+    public void init(long persistPos) throws IOException {
         File[] files = dir.listFiles();
         Arrays.sort(files);
         for (File f : files) {
@@ -70,16 +78,29 @@ abstract class FileQueue {
                     log.error("file size error: {}, size={}", f.getPath(), f.length());
                     throw new RaftException("file size error");
                 }
-                long startIndex = Long.parseLong(matcher.group(1));
+                long startPos = Long.parseLong(matcher.group(1));
                 log.info("load file: {}", f.getPath());
                 FileChannel channel = FileChannel.open(f.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
-                queue.addLast(new LogFile(startIndex, startIndex + getFileSize(), channel, f.getPath()));
-                if (startIndex != 0) {
-                    queueStartPosition = Math.min(queueStartPosition, startIndex);
-                }
-                queueEndPosition = Math.max(queueEndPosition, startIndex + getFileSize() - 1);
+                queue.addLast(new LogFile(startPos, startPos + getFileSize(), channel, f.getPath()));
             }
         }
+        for (int i = 0; i < queue.size(); i++) {
+            LogFile lf = queue.get(i);
+            if ((lf.startPos & (getFileSize() - 1)) != 0) {
+                throw new RaftException("file start index error: " + lf.startPos);
+            }
+            if (i != 0 && lf.startPos != queue.get(i - 1).endPos) {
+                throw new RaftException("not follow previous file " + lf.startPos);
+            }
+        }
+
+        doInit(persistPos);
+
+        if (queue.size() > 0) {
+            queueStartPosition = queue.get(0).startPos;
+            queueEndPosition = queue.get(queue.size() - 1).endPos;
+        }
+        tryAllocate();
     }
 
     protected LogFile getLogFile(long filePos) {
@@ -87,7 +108,7 @@ abstract class FileQueue {
         return queue.get(index);
     }
 
-    protected void tryAllocate() {
+    private void tryAllocate() {
         if (getWritePos() >= queueEndPosition - getFileSize()) {
             if (allocateFuture == null) {
                 allocateFuture = allocate(queueEndPosition);
@@ -96,7 +117,7 @@ abstract class FileQueue {
                     try {
                         LogFile newFile = allocateFuture.join();
                         queue.addLast(newFile);
-                        queueEndPosition = newFile.endIndex;
+                        queueEndPosition = newFile.endPos;
                     } catch (Exception e) {
                         log.error("allocate file error", e);
                     } finally {
@@ -111,7 +132,7 @@ abstract class FileQueue {
         try {
             LogFile newFile = allocateFuture.get();
             queue.addLast(newFile);
-            queueEndPosition = newFile.endIndex;
+            queueEndPosition = newFile.endPos;
         } catch (InterruptedException e) {
             log.info("interrupted while allocate file");
             throw e;
@@ -165,12 +186,6 @@ abstract class FileQueue {
                 CloseUtil.close(raf);
             }
         }, ioExecutor);
-    }
-
-    /**
-     * this method will be called in ioExecutor
-     */
-    protected void afterFileAllocated(File f, FileChannel channel) throws IOException {
     }
 
     public void close() {
