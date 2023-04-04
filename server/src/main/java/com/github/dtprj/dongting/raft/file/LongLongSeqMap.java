@@ -90,7 +90,7 @@ public class LongLongSeqMap {
     }
 
     private int idx(long key, int len) {
-        return (int) (key % len);
+        return (int) (key & (len - 1));
     }
 
     private void resize() {

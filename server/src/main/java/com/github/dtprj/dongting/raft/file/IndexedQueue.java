@@ -20,19 +20,21 @@ package com.github.dtprj.dongting.raft.file;
  */
 class IndexedQueue<T> {
     private Object[] elements;
+    private int len;
     private int readIndex;
     private int writeIndex;
     private int size;
     private static final int DEFAULT_INITIAL_CAPACITY = 16;
 
     public IndexedQueue() {
-        elements = new Object[DEFAULT_INITIAL_CAPACITY];
+        len = DEFAULT_INITIAL_CAPACITY;
+        elements = new Object[len];
     }
 
     public void addLast(T element) {
         ensureCapacity();
         elements[writeIndex] = element;
-        writeIndex = (writeIndex + 1) % elements.length;
+        writeIndex = (writeIndex + 1) & (len - 1);
         size++;
     }
 
@@ -44,7 +46,7 @@ class IndexedQueue<T> {
 
         T element = (T) elements[readIndex];
         elements[readIndex] = null;
-        readIndex = (readIndex + 1) % elements.length;
+        readIndex = (readIndex + 1) & (len - 1);
         size--;
         return element;
     }
@@ -55,7 +57,7 @@ class IndexedQueue<T> {
             throw new IndexOutOfBoundsException("Index out of range");
         }
 
-        int position = (readIndex + index) % elements.length;
+        int position = (readIndex + index) & (len - 1);
         return (T) elements[position];
     }
 
@@ -64,17 +66,18 @@ class IndexedQueue<T> {
     }
 
     private void ensureCapacity() {
-        if (size == elements.length) {
-            int newSize = elements.length * 2;
+        if (size == len) {
+            int newSize = len * 2;
             Object[] newElements = new Object[newSize];
 
-            int firstPartSize = elements.length - readIndex;
+            int firstPartSize = len - readIndex;
             int secondPartSize = writeIndex;
 
             System.arraycopy(elements, readIndex, newElements, 0, firstPartSize);
             System.arraycopy(elements, 0, newElements, firstPartSize, secondPartSize);
 
             elements = newElements;
+            len = newSize;
             readIndex = 0;
             writeIndex = size;
         }
