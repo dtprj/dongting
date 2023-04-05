@@ -72,8 +72,13 @@ public class DefaultRaftLog implements RaftLog {
         } else {
             commitIndexPos = 0;
         }
-        logFiles.restore(knownMaxCommitIndex, commitIndexPos);
-        return null;
+        int lastTerm = logFiles.restore(knownMaxCommitIndex, commitIndexPos);
+        if (idxFiles.getNextIndex() == 1) {
+            return new Pair<>(0, 0L);
+        } else {
+            long lastIndex = idxFiles.getNextIndex() - 1;
+            return new Pair<>(lastTerm, lastIndex);
+        }
     }
 
     @Override

@@ -43,7 +43,7 @@ class Restorer {
     private int currentItemLen = 0;
 
     long previousIndex = 0;
-    long previousTerm = 0;
+    int previousTerm = 0;
 
     public Restorer(IdxOps idxOps, long commitIndex, long commitIndexPos) {
         this.idxOps = idxOps;

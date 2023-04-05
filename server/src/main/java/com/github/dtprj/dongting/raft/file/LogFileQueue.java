@@ -26,7 +26,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.zip.CRC32C;
@@ -97,24 +96,13 @@ public class LogFileQueue extends FileQueue {
         channel.force(false);
     }
 
-    public void restore(long commitIndex, long commitIndexPos) throws IOException {
+    public int restore(long commitIndex, long commitIndexPos) throws IOException {
         ByteBuffer fileHeaderBuffer = ByteBuffer.allocate(FILE_HEADER_SIZE);
-        ArrayList<LogFile> tempList = new ArrayList<>(queue.size());
-        while (queue.size() > 0) {
-            tempList.add(queue.removeFirst());
-        }
         log.info("restore from {}, {}", commitIndex, commitIndexPos);
         Restorer restorer = new Restorer(idxOps, commitIndex, commitIndexPos);
-        for (LogFile lf : tempList) {
+        for (int i = 0; i < queue.size(); i++) {
+            LogFile lf = queue.get(i);
             FileChannel channel = lf.channel;
-            if (channel.size() < FILE_HEADER_SIZE) {
-                if (commitIndexPos < lf.startPos) {
-                    log.warn("file {} size is illegal({}). ignore it.", lf.pathname, channel.size());
-                    break;
-                } else {
-                    throw new RaftException("file size is illegal " + lf.pathname);
-                }
-            }
             fileHeaderBuffer.clear();
             channel.position(0);
             while (fileHeaderBuffer.hasRemaining()) {
@@ -144,15 +132,18 @@ public class LogFileQueue extends FileQueue {
             } else {
                 writePos = lf.endPos;
             }
-            queue.addLast(lf);
         }
         if (queue.size() > 0) {
+            if (commitIndexPos >= queue.get(queue.size() - 1).endPos) {
+                throw new RaftException("commitIndexPos is illegal. " + commitIndexPos);
+            }
             log.info("restore finished. lastTerm={}, lastIndex={}, lastPos={}, lastFile={}",
                     restorer.previousTerm, restorer.previousIndex, writePos, queue.get(queue.size() - 1).pathname);
         }
         if (writePos == 0) {
             writePos = FILE_HEADER_SIZE;
         }
+        return restorer.previousTerm;
     }
 
     static void updateCrc(CRC32C crc32c, ByteBuffer buf, int startPos, int len) {

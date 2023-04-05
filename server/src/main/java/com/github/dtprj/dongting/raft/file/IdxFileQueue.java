@@ -134,6 +134,7 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     private void checkIndex(long index) {
+        ObjUtil.checkPositive(index, "index");
         if (index > nextIndex) {
             BugLog.getLog().error("index is too large : lastIndex={}, index={}", nextIndex, index);
             throw new RaftException("index is too large");

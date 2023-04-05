@@ -65,6 +65,10 @@ abstract class FileQueue {
 
     public void init() throws IOException {
         File[] files = dir.listFiles();
+        if (files == null || files.length == 0) {
+            tryAllocate();
+            return;
+        }
         Arrays.sort(files);
         for (File f : files) {
             if (!f.isFile()) {
@@ -72,9 +76,9 @@ abstract class FileQueue {
             }
             Matcher matcher = PATTERN.matcher(f.getName());
             if (matcher.matches()) {
-                if (f.length() > getFileSize()) {
-                    log.error("file size error: {}, size={}", f.getPath(), f.length());
-                    throw new RaftException("file size error");
+                if (f.length() != getFileSize()) {
+                    log.warn("file size error: {}, size={}", f.getPath(), f.length());
+                    break;
                 }
                 long startPos = Long.parseLong(matcher.group(1));
                 log.info("load file: {}", f.getPath());
