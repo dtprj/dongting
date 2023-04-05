@@ -57,15 +57,13 @@ abstract class FileQueue {
 
     protected abstract int getFileLenShiftBits();
 
-    protected abstract void doInit(long persistPos) throws IOException;
-
     /**
      * this method will be called in ioExecutor
      */
     protected void afterFileAllocated(File f, FileChannel channel) throws IOException {
     }
 
-    public void init(long persistPos) throws IOException {
+    public void init() throws IOException {
         File[] files = dir.listFiles();
         Arrays.sort(files);
         for (File f : files) {
@@ -93,8 +91,6 @@ abstract class FileQueue {
                 throw new RaftException("not follow previous file " + lf.startPos);
             }
         }
-
-        doInit(persistPos);
 
         if (queue.size() > 0) {
             queueStartPosition = queue.get(0).startPos;

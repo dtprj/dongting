@@ -24,7 +24,6 @@ import com.github.dtprj.dongting.raft.server.LogItem;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
@@ -43,10 +42,12 @@ public class LogFileQueue extends FileQueue {
     private static final short MINOR_VERSION = 0;
 
     private static final int LOG_FILE_SIZE = 1024 * 1024 * 1024;
-    private static final int FILE_LEN_MASK = LOG_FILE_SIZE - 1;
+    static final int FILE_LEN_MASK = LOG_FILE_SIZE - 1;
     private static final int FILE_LEN_SHIFT_BITS = BitUtil.zeroCountOfBinary(LOG_FILE_SIZE);
 
-    private static final int FILE_HEADER_SIZE = 512;
+    static final int FILE_HEADER_SIZE = 512;
+
+    private final IdxOps idxOps;
 
     // crc32c 4 bytes
     // total len 4 bytes
@@ -55,14 +56,15 @@ public class LogFileQueue extends FileQueue {
     // term 4 bytes
     // prevLogTerm 4 bytes
     // index 8 bytes
-    private static final short ITEM_HEADER_SIZE = 4 + 4 + 2 + 1 + 4 + 4 + 8;
+    static final short ITEM_HEADER_SIZE = 4 + 4 + 2 + 1 + 4 + 4 + 8;
 
     private final ByteBuffer buffer = ByteBuffer.allocateDirect(128 * 1024);
     private final CRC32C crc32c = new CRC32C();
     private long writePos;
 
-    public LogFileQueue(File dir, Executor ioExecutor) {
+    public LogFileQueue(File dir, Executor ioExecutor,IdxOps idxOps) {
         super(dir, ioExecutor);
+        this.idxOps = idxOps;
     }
 
     @Override
@@ -94,18 +96,22 @@ public class LogFileQueue extends FileQueue {
         channel.force(false);
     }
 
-    @Override
-    protected void doInit(long persistIndex) throws IOException {
+    public void restore(long commitIndex, long commitIndexPos) throws IOException {
         ByteBuffer buffer = ByteBuffer.allocate(FILE_HEADER_SIZE);
         ArrayList<LogFile> tempList = new ArrayList<>(queue.size());
         while (queue.size() > 0) {
             tempList.add(queue.removeFirst());
         }
+        Restorer restorer = new Restorer(idxOps, commitIndex, commitIndexPos);
         for (LogFile lf : tempList) {
             FileChannel channel = lf.channel;
             if (channel.size() < FILE_HEADER_SIZE) {
-                log.warn("file {} size is illegal({}). ignore it.", lf.pathname, channel.size());
-                break;
+                if (commitIndexPos < lf.startPos) {
+                    log.warn("file {} size is illegal({}). ignore it.", lf.pathname, channel.size());
+                    break;
+                } else {
+                    throw new RaftException("file size is illegal " + lf.pathname);
+                }
             }
             buffer.clear();
             channel.position(0);
@@ -114,16 +120,20 @@ public class LogFileQueue extends FileQueue {
             }
             buffer.flip();
             if (buffer.getInt() != FILE_MAGIC) {
-                log.warn("file {} magic is illegal. ignore it.", lf.pathname, buffer.getInt());
-                break;
+                if (commitIndexPos < lf.startPos) {
+                    log.warn("file {} magic is illegal. ignore it.", lf.pathname, buffer.getInt());
+                    break;
+                } else {
+                    throw new RaftException("file magic is illegal " + lf.pathname);
+                }
             }
             short majorVersion = buffer.getShort();
             if (majorVersion > MAJOR_VERSION) {
                 log.error("unsupported major version: {}, {}", majorVersion, lf.pathname);
                 throw new RaftException("unsupported major version: " + majorVersion);
             }
-            if (persistIndex < lf.endPos) {
-                writePos = restoreFile(persistIndex, lf);
+            if (commitIndexPos < lf.endPos) {
+                writePos += restorer.restoreFile(buffer, lf);
                 if (writePos < lf.endPos) {
                     if (writePos > lf.startPos) {
                         queue.addLast(lf);
@@ -137,8 +147,14 @@ public class LogFileQueue extends FileQueue {
         }
     }
 
-    private long restoreFile(long persistIndex, LogFile lf) {
-        return 0;
+    static void updateCrc(CRC32C crc32c, ByteBuffer buf, int startPos, int len) {
+        int oldPos = buf.position();
+        int oldLimit = buf.limit();
+        buf.limit(startPos + len);
+        buf.position(startPos);
+        crc32c.update(buf);
+        buf.limit(oldLimit);
+        buf.position(oldPos);
     }
 
     public void append(List<LogItem> logs) throws IOException {

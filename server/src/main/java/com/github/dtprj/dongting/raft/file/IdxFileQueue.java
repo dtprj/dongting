@@ -34,7 +34,7 @@ import java.util.concurrent.Executor;
 /**
  * @author huangli
  */
-public class IdxFileQueue extends FileQueue {
+public class IdxFileQueue extends FileQueue implements IdxOps {
     private static final DtLog log = DtLogs.getLogger(IdxFileQueue.class);
     private static final int ITEM_LEN = 8;
     private static final int ITEMS_PER_FILE = 1024 * 1024;
@@ -68,13 +68,11 @@ public class IdxFileQueue extends FileQueue {
         return IDX_FILE_SIZE;
     }
 
-    @Override
-    protected void doInit(long persistIndex) throws IOException {
-        this.nextPersistIndex = persistIndex;
-        this.nextIndex = persistIndex;
+    public void initWithCommitIndex(long commitIndex) {
+        this.nextPersistIndex = commitIndex + 1;
+        this.nextIndex = commitIndex + 1;
         this.firstIndex = posToIndex(queueStartPosition);
     }
-
 
     @Override
     protected long getWritePos() {
@@ -142,6 +140,7 @@ public class IdxFileQueue extends FileQueue {
         }
     }
 
+    @Override
     public void put(long itemIndex, long dataPosition) throws IOException {
         checkIndex(itemIndex);
         if (itemIndex < firstIndex) {

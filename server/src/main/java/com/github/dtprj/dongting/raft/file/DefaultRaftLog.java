@@ -31,14 +31,15 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 
 /**
  * @author huangli
  */
 public class DefaultRaftLog implements RaftLog {
     private static final DtLog log = DtLogs.getLogger(DefaultRaftLog.class);
-    private static final String RAFT_LOG_POS_KEY = "raftLogPos";
-    private static final String INDEX_POS_KEY = "indexPos";
+    private static final String KNOWN_MAX_COMMIT_INDEX_KEY = "knownMaxCommitIndex";
 
     private final RaftGroupConfig groupConfig;
     private final Timestamp ts;
@@ -59,12 +60,19 @@ public class DefaultRaftLog implements RaftLog {
         File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
         checkpointFile = new StatusFile(new File(dataDir, "checkpoint"));
         checkpointFile.init();
-        long raftLogPos = Long.parseLong(checkpointFile.getProperties().getProperty(RAFT_LOG_POS_KEY, "0"));
-        long indexPos = Long.parseLong(checkpointFile.getProperties().getProperty(INDEX_POS_KEY, "0"));
-        logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), ioExecutor);
+        knownMaxCommitIndex = Long.parseLong(checkpointFile.getProperties().getProperty(KNOWN_MAX_COMMIT_INDEX_KEY, "0"));
         idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), ioExecutor);
-        logFiles.init(raftLogPos);
-        idxFiles.init(indexPos);
+        logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), ioExecutor, idxFiles);
+        logFiles.init();
+        idxFiles.init();
+        idxFiles.initWithCommitIndex(knownMaxCommitIndex);
+        long commitIndexPos;
+        if (knownMaxCommitIndex > 0) {
+            commitIndexPos = idxFiles.findLogPosByItemIndex(knownMaxCommitIndex);
+        } else {
+            commitIndexPos = 0;
+        }
+        logFiles.restore(knownMaxCommitIndex, commitIndexPos);
         return null;
     }
 
