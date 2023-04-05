@@ -45,7 +45,7 @@ public class LogFileQueue extends FileQueue {
     static final int FILE_LEN_MASK = LOG_FILE_SIZE - 1;
     private static final int FILE_LEN_SHIFT_BITS = BitUtil.zeroCountOfBinary(LOG_FILE_SIZE);
 
-    static final int FILE_HEADER_SIZE = 512;
+    static final int FILE_HEADER_SIZE = 4096;
 
     private final IdxOps idxOps;
 
@@ -62,7 +62,7 @@ public class LogFileQueue extends FileQueue {
     private final CRC32C crc32c = new CRC32C();
     private long writePos;
 
-    public LogFileQueue(File dir, Executor ioExecutor,IdxOps idxOps) {
+    public LogFileQueue(File dir, Executor ioExecutor, IdxOps idxOps) {
         super(dir, ioExecutor);
         this.idxOps = idxOps;
     }
@@ -91,17 +91,19 @@ public class LogFileQueue extends FileQueue {
         header.flip();
         channel.position(0);
         while (header.hasRemaining()) {
+            //noinspection ResultOfMethodCallIgnored
             channel.write(header);
         }
         channel.force(false);
     }
 
     public void restore(long commitIndex, long commitIndexPos) throws IOException {
-        ByteBuffer buffer = ByteBuffer.allocate(FILE_HEADER_SIZE);
+        ByteBuffer fileHeaderBuffer = ByteBuffer.allocate(FILE_HEADER_SIZE);
         ArrayList<LogFile> tempList = new ArrayList<>(queue.size());
         while (queue.size() > 0) {
             tempList.add(queue.removeFirst());
         }
+        log.info("restore from {}, {}", commitIndex, commitIndexPos);
         Restorer restorer = new Restorer(idxOps, commitIndex, commitIndexPos);
         for (LogFile lf : tempList) {
             FileChannel channel = lf.channel;
@@ -113,37 +115,43 @@ public class LogFileQueue extends FileQueue {
                     throw new RaftException("file size is illegal " + lf.pathname);
                 }
             }
-            buffer.clear();
+            fileHeaderBuffer.clear();
             channel.position(0);
-            while (buffer.hasRemaining()) {
-                channel.read(buffer);
+            while (fileHeaderBuffer.hasRemaining()) {
+                channel.read(fileHeaderBuffer);
             }
-            buffer.flip();
-            if (buffer.getInt() != FILE_MAGIC) {
+            fileHeaderBuffer.flip();
+            if (fileHeaderBuffer.getInt() != FILE_MAGIC) {
                 if (commitIndexPos < lf.startPos) {
-                    log.warn("file {} magic is illegal. ignore it.", lf.pathname, buffer.getInt());
+                    log.warn("file {} magic is illegal. ignore it.", lf.pathname, fileHeaderBuffer.getInt());
                     break;
                 } else {
                     throw new RaftException("file magic is illegal " + lf.pathname);
                 }
             }
-            short majorVersion = buffer.getShort();
+            short majorVersion = fileHeaderBuffer.getShort();
             if (majorVersion > MAJOR_VERSION) {
                 log.error("unsupported major version: {}, {}", majorVersion, lf.pathname);
                 throw new RaftException("unsupported major version: " + majorVersion);
             }
             if (commitIndexPos < lf.endPos) {
-                writePos += restorer.restoreFile(buffer, lf);
-                if (writePos < lf.endPos) {
-                    if (writePos > lf.startPos) {
-                        queue.addLast(lf);
-                    }
+                long pos = restorer.restoreFile(this.buffer, lf);
+                if (pos <= FILE_HEADER_SIZE) {
                     break;
+                } else {
+                    writePos = lf.startPos + pos;
                 }
             } else {
                 writePos = lf.endPos;
             }
             queue.addLast(lf);
+        }
+        if (queue.size() > 0) {
+            log.info("restore finished. lastTerm={}, lastIndex={}, lastPos={}, lastFile={}",
+                    restorer.previousTerm, restorer.previousIndex, writePos, queue.get(queue.size() - 1).pathname);
+        }
+        if (writePos == 0) {
+            writePos = FILE_HEADER_SIZE;
         }
     }
 
@@ -170,6 +178,7 @@ public class LogFileQueue extends FileQueue {
             if (posOfFile == 0 || LOG_FILE_SIZE - posOfFile < ITEM_HEADER_SIZE + dataBuffer.remaining()) {
                 pos = writeAndClearBuffer(buffer, file, pos);
                 if (posOfFile != 0) {
+                    // roll to next file
                     pos = ((pos >>> FILE_LEN_SHIFT_BITS) + 1) << FILE_LEN_SHIFT_BITS;
                 }
                 ensureWritePosReady(pos);
@@ -180,6 +189,7 @@ public class LogFileQueue extends FileQueue {
                 pos = writeAndClearBuffer(buffer, file, pos);
             }
 
+            long startPos = pos;
             writeHeader(buffer, dataBuffer, log);
 
             while (dataBuffer.hasRemaining()) {
@@ -188,6 +198,7 @@ public class LogFileQueue extends FileQueue {
                     pos = writeAndClearBuffer(buffer, file, pos);
                 }
             }
+            idxOps.put(log.getIndex(), startPos);
         }
         pos = writeAndClearBuffer(buffer, file, pos);
         file.channel.force(false);

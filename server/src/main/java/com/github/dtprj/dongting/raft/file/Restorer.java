@@ -34,16 +34,16 @@ class Restorer {
     private final long commitIndex;
     private final long commitIndexPos;
 
-    private boolean checkCommitIndex;
+    private boolean commitIndexChecked;
 
-    private long posOfFile;
+    private long itemStartPosOfFile;
     private boolean readHeader = true;
     private int crc = 0;
     private int bodyRestLen = 0;
     private int currentItemLen = 0;
 
-    private long previousIndex = 0;
-    private long previousTerm = 0;
+    long previousIndex = 0;
+    long previousTerm = 0;
 
     public Restorer(IdxOps idxOps, long commitIndex, long commitIndexPos) {
         this.idxOps = idxOps;
@@ -52,33 +52,39 @@ class Restorer {
     }
 
     public long restoreFile(ByteBuffer buffer, LogFile lf) throws IOException {
+        log.info("try restore file {}", lf.pathname);
         if (commitIndexPos >= lf.startPos) {
             // check from commitIndexPos
-            posOfFile = commitIndexPos & LogFileQueue.FILE_LEN_MASK;
-            if (posOfFile < LogFileQueue.FILE_HEADER_SIZE) {
+            itemStartPosOfFile = commitIndexPos & LogFileQueue.FILE_LEN_MASK;
+            if (itemStartPosOfFile < LogFileQueue.FILE_HEADER_SIZE) {
                 throw new RaftException("commitIndexPos is invalid. file=" + lf.pathname + ", pos=" + commitIndexPos);
             }
         } else {
             // check full file
-            posOfFile = LogFileQueue.FILE_HEADER_SIZE;
+            itemStartPosOfFile = LogFileQueue.FILE_HEADER_SIZE;
         }
         FileChannel channel = lf.channel;
-        channel.position(posOfFile);
-        while (channel.position() < channel.size()) {
-            buffer.clear();
-            while (buffer.hasRemaining() && channel.position() < channel.size()) {
-                channel.read(buffer);
+        channel.position(itemStartPosOfFile);
+        long rest = lf.endPos - itemStartPosOfFile;
+        buffer.clear();
+        while (rest > 0) {
+            while (buffer.hasRemaining() && rest > 0) {
+                rest -= channel.read(buffer);
             }
             buffer.flip();
             if (restore(buffer, lf)) {
-                if (buffer.hasRemaining()) {
-                    channel.position(channel.position() - buffer.remaining());
+                if (buffer.remaining() == 0) {
+                    buffer.clear();
+                } else {
+                    ByteBuffer temp = buffer.slice();
+                    buffer.clear();
+                    buffer.put(temp);
                 }
             } else {
                 break;
             }
         }
-        return posOfFile;
+        return itemStartPosOfFile;
     }
 
     private boolean restore(ByteBuffer buf, LogFile lf) throws IOException {
@@ -91,37 +97,47 @@ class Restorer {
                 crc = buf.getInt();
                 int totalLen = buf.getInt();
                 short headLen = buf.getShort();
-                buf.get();//type
+                byte type = buf.get();//type
                 int term = buf.getInt();
                 int prevLogTerm = buf.getInt();
                 long index = buf.getLong();
-                if (totalLen < headLen) {
-                    log.error("totalLen<headLen. file={}, itemStartPos={}", lf.pathname, posOfFile);
-                    return false;
-                }
-                if (checkCommitIndex) {
+
+                if (commitIndexChecked) {
                     if (this.previousTerm != prevLogTerm) {
-                        log.warn("prevLogTerm not match. file={}, itemStartPos={}, {}!={}",
-                                lf.pathname, posOfFile, this.previousTerm, prevLogTerm);
+                        if (prevLogTerm == 0 && crc == 0) {
+                            log.info("reach end of file. file={}, pos={}", lf.pathname, itemStartPosOfFile);
+                        } else {
+                            log.warn("prevLogTerm not match. file={}, itemStartPos={}, {}!={}",
+                                    lf.pathname, itemStartPosOfFile, this.previousTerm, prevLogTerm);
+                        }
                         return false;
                     }
                     if (this.previousIndex + 1 != index) {
                         log.warn("index not match. file={}, itemStartPos={}, {}!={}",
-                                lf.pathname, posOfFile, this.previousIndex + 1, index);
+                                lf.pathname, itemStartPosOfFile, this.previousIndex + 1, index);
                         return false;
                     }
                     if (term < this.previousTerm) {
                         log.warn("term not match. file={}, itemStartPos={}, {}<{}",
-                                lf.pathname, posOfFile, term, this.previousTerm);
+                                lf.pathname, itemStartPosOfFile, term, this.previousTerm);
                         return false;
                     }
                 } else {
                     if (index != commitIndex) {
-                        throw new RaftException("commitIndex not match. file=" + lf.pathname + ", pos=" + posOfFile);
+                        throw new RaftException("commitIndex not match. file=" + lf.pathname + ", pos=" + itemStartPosOfFile);
+                    }
+                    if (totalLen <= 0 || headLen <= 0 || type < 0 || term <= 0 || prevLogTerm < 0) {
+                        throw new RaftException("bad item. file=" + lf.pathname + ", pos=" + itemStartPosOfFile);
                     }
                 }
+
                 this.previousTerm = term;
                 this.previousIndex = index;
+
+                if (totalLen < headLen) {
+                    log.error("totalLen<headLen. file={}, itemStartPos={}", lf.pathname, itemStartPosOfFile);
+                    return false;
+                }
 
                 crc32c.reset();
                 LogFileQueue.updateCrc(crc32c, buf, startPos + 4, LogFileQueue.ITEM_HEADER_SIZE - 4);
@@ -133,21 +149,15 @@ class Restorer {
                 if (buf.remaining() >= bodyRestLen) {
                     LogFileQueue.updateCrc(crc32c, buf, buf.position(), bodyRestLen);
                     buf.position(buf.position() + bodyRestLen);
-                    int realCrc = (int) crc32c.getValue();
                     if (crc == crc32c.getValue()) {
-                        posOfFile += currentItemLen;
-                        if (checkCommitIndex) {
-                            idxOps.put(this.previousIndex, lf.startPos + posOfFile);
+                        itemStartPosOfFile += currentItemLen;
+                        if (commitIndexChecked) {
+                            idxOps.put(this.previousIndex, lf.startPos + itemStartPosOfFile);
                         } else {
-                            checkCommitIndex = true;
+                            commitIndexChecked = true;
                         }
                     } else {
-                        if (realCrc == 0) {
-                            log.info("Restore complete. The last file is {}, last itemIndex={}, lastTerm={}",
-                                    lf.pathname);
-                        } else {
-                            log.error("crc32c not match. file={}, itemStartPos={}", lf.pathname, posOfFile);
-                        }
+                        log.warn("crc32c not match. file={}, itemStartPos={}", lf.pathname, itemStartPosOfFile);
                         return false;
                     }
                     readHeader = true;
