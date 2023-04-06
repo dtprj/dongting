@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -44,15 +45,18 @@ public class DefaultRaftLog implements RaftLog {
     private final RaftGroupConfig groupConfig;
     private final Timestamp ts;
     private final Executor ioExecutor;
+    private final Supplier<Boolean> stopIndicator;
     private LogFileQueue logFiles;
     private IdxFileQueue idxFiles;
     private long knownMaxCommitIndex;
     private StatusFile checkpointFile;
 
-    public DefaultRaftLog(RaftGroupConfig groupConfig, Timestamp ts, Executor ioExecutor) {
+    public DefaultRaftLog(RaftGroupConfig groupConfig, Timestamp ts,
+                          Executor ioExecutor, Supplier<Boolean> stopIndicator) {
         this.groupConfig = groupConfig;
         this.ts = ts;
         this.ioExecutor = ioExecutor;
+        this.stopIndicator = stopIndicator;
     }
 
     @Override
@@ -61,7 +65,7 @@ public class DefaultRaftLog implements RaftLog {
         checkpointFile = new StatusFile(new File(dataDir, "checkpoint"));
         checkpointFile.init();
         knownMaxCommitIndex = Long.parseLong(checkpointFile.getProperties().getProperty(KNOWN_MAX_COMMIT_INDEX_KEY, "0"));
-        idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), ioExecutor);
+        idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), ioExecutor, stopIndicator);
         logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), ioExecutor, idxFiles);
         logFiles.init();
         idxFiles.init();
@@ -82,7 +86,7 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         logFiles.close();
         idxFiles.close();
     }

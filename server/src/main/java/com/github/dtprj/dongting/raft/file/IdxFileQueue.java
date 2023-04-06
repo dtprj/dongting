@@ -30,6 +30,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -48,6 +49,7 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
     private static final int FLUSH_ITEMS = MAX_CACHE_ITEMS / 2;
     private static final int FLUSH_ITEMS_MAST = FLUSH_ITEMS - 1;
     private final LongLongSeqMap cache = new LongLongSeqMap();
+    private final Supplier<Boolean> stopIndicator;
 
     private long nextPersistIndex;
     private long nextIndex;
@@ -57,8 +59,9 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
 
     private WriteTask writeTask;
 
-    public IdxFileQueue(File dir, Executor ioExecutor) {
+    public IdxFileQueue(File dir, Executor ioExecutor, Supplier<Boolean> stopIndicator) {
         super(dir, ioExecutor);
+        this.stopIndicator = stopIndicator;
     }
 
     @Override
@@ -158,7 +161,7 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         }
     }
 
-    private void writeAndFlush() throws IOException {
+    private void writeAndFlush() {
         if (!ensureWritePosReady()) {
             return;
         }
@@ -241,27 +244,39 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         if (writeTask == null) {
             return true;
         }
-        while(true) {
+        long sleep = 0;
+        //noinspection LoopStatementThatDoesntLoop
+        while (true) {
             try {
-                writeTask.future.get();
-                if (writeTask.persistIndexAfterWrite > 0) {
-                    nextPersistIndex = writeTask.persistIndexAfterWrite;
+                if (stopIndicator.get()) {
+                    return false;
                 }
-                return true;
-            } catch (CancellationException e) {
-                log.info("previous write canceled");
-                return true;
+                try {
+                    writeTask.future.get();
+                    if (writeTask.persistIndexAfterWrite > 0) {
+                        nextPersistIndex = writeTask.persistIndexAfterWrite;
+                    }
+                    return true;
+                } catch (CancellationException e) {
+                    log.info("previous write canceled");
+                    return true;
+                } catch (ExecutionException e) {
+                    log.error("write idx file failed: {}", writeTask.logFile.pathname, e);
+                    if (e.getCause() instanceof IOException) {
+                        if (stopIndicator.get()) {
+                            return false;
+                        } else {
+                            Thread.sleep(1000);
+                            writeTask.retryWrite();
+                        }
+                    }
+                    throw new RaftException(e);
+                } finally {
+                    this.writeTask = null;
+                }
             } catch (InterruptedException e) {
                 log.info("write index interrupted: {}", writeTask.logFile.pathname);
                 return false;
-            } catch (ExecutionException e) {
-                log.error("write idx file failed: {}", writeTask.logFile.pathname, e);
-                if (e.getCause() instanceof IOException) {
-                    writeTask.retryWrite();
-                }
-                throw new RaftException(e);
-            } finally {
-                this.writeTask = null;
             }
         }
     }
