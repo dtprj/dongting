@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.file;
 
+import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.FileChannel;
 
 /**
@@ -22,11 +23,11 @@ import java.nio.channels.FileChannel;
  */
 class LogFile {
     final long startPos;
-    final FileChannel channel;
+    final AsynchronousFileChannel channel;
     final String pathname;
     final long endPos;
 
-    public LogFile(long startPos, long endPos, FileChannel channel, String pathname) {
+    public LogFile(long startPos, long endPos, AsynchronousFileChannel channel, String pathname) {
         this.startPos = startPos;
         this.endPos = endPos;
         this.channel = channel;

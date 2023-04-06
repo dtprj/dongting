@@ -25,9 +25,10 @@ import com.github.dtprj.dongting.raft.server.LogItem;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
+import java.nio.channels.AsynchronousFileChannel;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Future;
 import java.util.zip.CRC32C;
 
 /**
@@ -40,7 +41,7 @@ public class LogFileQueue extends FileQueue {
     private static final short MAJOR_VERSION = 1;
     private static final short MINOR_VERSION = 0;
 
-    private static final int LOG_FILE_SIZE = 1024 * 1024 * 1024;
+    static final int LOG_FILE_SIZE = 1024 * 1024 * 1024;
     static final int FILE_LEN_MASK = LOG_FILE_SIZE - 1;
     private static final int FILE_LEN_SHIFT_BITS = BitUtil.zeroCountOfBinary(LOG_FILE_SIZE);
 
@@ -82,16 +83,16 @@ public class LogFileQueue extends FileQueue {
     }
 
     @Override
-    protected void afterFileAllocated(File f, FileChannel channel) throws IOException {
+    protected void afterFileAllocated(File f, AsynchronousFileChannel channel) throws Exception {
         ByteBuffer header = ByteBuffer.allocateDirect(8);
         header.putInt(FILE_MAGIC);
         header.putShort(MAJOR_VERSION);
         header.putShort(MINOR_VERSION);
         header.flip();
-        channel.position(0);
-        while (header.hasRemaining()) {
-            //noinspection ResultOfMethodCallIgnored
-            channel.write(header);
+        int x = header.remaining();
+        while (x > 0) {
+            Future<Integer> future = channel.write(header, 0);
+            x -= future.get();
         }
         channel.force(false);
     }
@@ -102,12 +103,9 @@ public class LogFileQueue extends FileQueue {
         Restorer restorer = new Restorer(idxOps, commitIndex, commitIndexPos);
         for (int i = 0; i < queue.size(); i++) {
             LogFile lf = queue.get(i);
-            FileChannel channel = lf.channel;
+            AsynchronousFileChannel channel = lf.channel;
             fileHeaderBuffer.clear();
-            channel.position(0);
-            while (fileHeaderBuffer.hasRemaining()) {
-                channel.read(fileHeaderBuffer);
-            }
+            FileUtil.syncReadFull(channel, fileHeaderBuffer, 0);
             fileHeaderBuffer.flip();
             if (fileHeaderBuffer.getInt() != FILE_MAGIC) {
                 if (commitIndexPos < lf.startPos) {
@@ -239,14 +237,9 @@ public class LogFileQueue extends FileQueue {
             return filePos;
         }
         buffer.flip();
-        int x = buffer.remaining();
-        FileChannel channel = file.channel;
-        channel.position(filePos);
-        while (buffer.hasRemaining()) {
-            channel.write(buffer);
-        }
+        filePos = FileUtil.syncWriteFull(file.channel, buffer, filePos);
         buffer.clear();
-        return filePos + x;
+        return filePos;
     }
 
     public void truncateTail(long dataPosition) {

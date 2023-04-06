@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.raft.client.RaftException;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.FileChannel;
 import java.util.zip.CRC32C;
 
@@ -63,13 +64,13 @@ class Restorer {
             // check full file
             itemStartPosOfFile = LogFileQueue.FILE_HEADER_SIZE;
         }
-        FileChannel channel = lf.channel;
-        channel.position(itemStartPosOfFile);
-        long rest = lf.endPos - itemStartPosOfFile;
+        AsynchronousFileChannel channel = lf.channel;
+        long readPos = itemStartPosOfFile;
         buffer.clear();
-        while (rest > 0) {
-            while (buffer.hasRemaining() && rest > 0) {
-                rest -= channel.read(buffer);
+        while (readPos < LogFileQueue.LOG_FILE_SIZE) {
+            int read = FileUtil.syncRead(channel, buffer, readPos);
+            if (read <= 0) {
+                continue;
             }
             buffer.flip();
             if (restore(buffer, lf)) {

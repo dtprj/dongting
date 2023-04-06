@@ -25,7 +25,7 @@ import com.github.dtprj.dongting.raft.client.RaftException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
+import java.nio.channels.CompletionHandler;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -54,10 +54,8 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
     private long firstIndex;
 
     private final ByteBuffer writeBuffer = ByteBuffer.allocateDirect(FLUSH_ITEMS * ITEM_LEN);
-    private LogFile currentWriteFile;
-    private long currentWriteFilePos;
-    private CompletableFuture<Void> writeFuture;
-    private long persistIndexAfterWrite;
+
+    private WriteTask writeTask;
 
     public IdxFileQueue(File dir, Executor ioExecutor) {
         super(dir, ioExecutor);
@@ -108,9 +106,7 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         LogFile lf = getLogFile(pos);
         // TODO reuse it
         ByteBuffer buffer = ByteBuffer.allocate(8);
-        while (buffer.hasRemaining()) {
-            lf.channel.read(buffer, filePos);
-        }
+        FileUtil.syncRead(lf.channel, buffer, filePos);
         buffer.flip();
         return buffer.getLong();
     }
@@ -126,9 +122,9 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         if (nextPersistIndex > index) {
             nextPersistIndex = index;
         }
-        if (writeFuture != null && persistIndexAfterWrite > index) {
-            writeFuture.cancel(false);
-            persistIndexAfterWrite = 0;
+        if (writeTask != null && writeTask.persistIndexAfterWrite > index) {
+            writeTask.future.cancel(false);
+            writeTask.persistIndexAfterWrite = 0;
         }
         return value;
     }
@@ -162,37 +158,12 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         }
     }
 
-    private void writeAndFlush() {
+    private void writeAndFlush() throws IOException {
         if (!ensureWritePosReady()) {
             return;
         }
-        if (writeFuture != null) {
-            try {
-                writeFuture.get();
-                if (persistIndexAfterWrite > 0) {
-                    nextPersistIndex = persistIndexAfterWrite;
-                }
-            } catch (CancellationException e) {
-                log.info("previous write canceled");
-                // don't return
-            } catch (InterruptedException e) {
-                log.info("write index interrupted: {}", currentWriteFile.pathname);
-                return;
-            } catch (ExecutionException e) {
-                log.error("write idx file failed: {}", currentWriteFile.pathname, e);
-                if (e.getCause() instanceof RaftException) {
-                    RaftException re = (RaftException) e.getCause();
-                    if (re.getCause() instanceof IOException) {
-                        retryWrite();
-                    }
-                }
-                throw new RaftException(e);
-            } finally {
-                currentWriteFile = null;
-                currentWriteFilePos = 0;
-                persistIndexAfterWrite = 0;
-                writeFuture = null;
-            }
+        if (!ensureLastWriteFinish()) {
+            return;
         }
         ByteBuffer writeBuffer = this.writeBuffer;
         LongLongSeqMap cache = this.cache;
@@ -210,45 +181,89 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         }
         writeBuffer.flip();
 
-        currentWriteFile = getLogFile(startPos);
-        currentWriteFilePos = startPos & FILE_LEN_MASK;
-        persistIndexAfterWrite = index;
+        writeTask = new WriteTask();
+        WriteTask writeTask = this.writeTask;
+        writeTask.logFile = getLogFile(startPos);
+        writeTask.writeStartPosOfFile = startPos & FILE_LEN_MASK;
+        writeTask.currentWritePosOfFile = writeTask.writeStartPosOfFile;
+        writeTask.persistIndexAfterWrite = index;
+        writeTask.future = new CompletableFuture<>();
+        writeTask.writeBuffer = writeBuffer;
         writeBuffer.mark();
-        writeFuture = submitWriteTask();
+        writeTask.doWrite();
     }
 
-    private void retryWrite() {
-        while (true) {
-            try {
-                writeBuffer.reset();
+    private static class WriteTask implements CompletionHandler<Integer, Void> {
+        LogFile logFile;
+        long writeStartPosOfFile;
+        long currentWritePosOfFile;
+        CompletableFuture<Void> future;
+        long persistIndexAfterWrite;
+        ByteBuffer writeBuffer;
+
+        private void doWrite() {
+            logFile.channel.write(writeBuffer, currentWritePosOfFile, null, this);
+        }
+
+        private void retryWrite() {
+            writeBuffer.reset();
+            currentWritePosOfFile = writeStartPosOfFile;
+            future = new CompletableFuture<>();
+            doWrite();
+        }
+
+        @Override
+        public void completed(Integer result, Void attachment) {
+            if (future.isCancelled()) {
+                return;
+            }
+            if (writeBuffer.hasRemaining()) {
+                currentWritePosOfFile += result;
                 doWrite();
-                break;
-            } catch (IOException e) {
-                log.error("retry write idx file failed, file={}, message: {}",
-                        currentWriteFile.pathname, e.getMessage());
+            } else {
+                try {
+                    logFile.channel.force(false);
+                    future.complete(null);
+                } catch (Throwable e) {
+                    future.completeExceptionally(e);
+                }
             }
         }
-    }
 
-    private void doWrite() throws IOException {
-        FileChannel channel = currentWriteFile.channel;
-        channel.position(currentWriteFilePos);
-        ByteBuffer writeBuffer = this.writeBuffer;
-        while (writeBuffer.hasRemaining()) {
-            //noinspection ResultOfMethodCallIgnored
-            channel.write(writeBuffer);
+        @Override
+        public void failed(Throwable exc, Void attachment) {
+            future.completeExceptionally(exc);
         }
-        channel.force(false);
     }
 
-    private CompletableFuture<Void> submitWriteTask() {
-        return CompletableFuture.runAsync(() -> {
+    private boolean ensureLastWriteFinish() {
+        WriteTask writeTask = this.writeTask;
+        if (writeTask == null) {
+            return true;
+        }
+        while(true) {
             try {
-                doWrite();
-            } catch (IOException e) {
+                writeTask.future.get();
+                if (writeTask.persistIndexAfterWrite > 0) {
+                    nextPersistIndex = writeTask.persistIndexAfterWrite;
+                }
+                return true;
+            } catch (CancellationException e) {
+                log.info("previous write canceled");
+                return true;
+            } catch (InterruptedException e) {
+                log.info("write index interrupted: {}", writeTask.logFile.pathname);
+                return false;
+            } catch (ExecutionException e) {
+                log.error("write idx file failed: {}", writeTask.logFile.pathname, e);
+                if (e.getCause() instanceof IOException) {
+                    writeTask.retryWrite();
+                }
                 throw new RaftException(e);
+            } finally {
+                this.writeTask = null;
             }
-        }, ioExecutor);
+        }
     }
 
     public long getNextIndex() {

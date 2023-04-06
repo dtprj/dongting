@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.raft.client.RaftException;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
@@ -60,7 +61,7 @@ abstract class FileQueue {
     /**
      * this method will be called in ioExecutor
      */
-    protected void afterFileAllocated(File f, FileChannel channel) throws IOException {
+    protected void afterFileAllocated(File f, AsynchronousFileChannel channel) throws Exception {
     }
 
     public void init() throws IOException {
@@ -82,7 +83,7 @@ abstract class FileQueue {
                 }
                 long startPos = Long.parseLong(matcher.group(1));
                 log.info("load file: {}", f.getPath());
-                FileChannel channel = FileChannel.open(f.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
+                AsynchronousFileChannel channel = AsynchronousFileChannel.open(f.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
                 queue.addLast(new LogFile(startPos, startPos + getFileSize(), channel, f.getPath()));
             }
         }
@@ -169,15 +170,15 @@ abstract class FileQueue {
     private CompletableFuture<LogFile> allocate(long currentEndPosition) {
         return CompletableFuture.supplyAsync(() -> {
             RandomAccessFile raf = null;
-            FileChannel channel = null;
+            AsynchronousFileChannel channel = null;
             try {
                 File f = new File(dir, String.valueOf(currentEndPosition));
                 raf = new RandomAccessFile(f, "rw");
                 raf.setLength(getFileSize());
-                channel = FileChannel.open(f.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
+                channel = AsynchronousFileChannel.open(f.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
                 afterFileAllocated(f, channel);
                 return new LogFile(currentEndPosition, currentEndPosition + getFileSize(), channel, f.getPath());
-            } catch (IOException e) {
+            } catch (Exception e) {
                 if (channel != null) {
                     CloseUtil.close(channel);
                 }

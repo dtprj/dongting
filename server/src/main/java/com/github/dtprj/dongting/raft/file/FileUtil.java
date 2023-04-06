@@ -20,6 +20,11 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.AsynchronousFileChannel;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 /**
  * @author huangli
@@ -45,5 +50,39 @@ public class FileUtil {
             log.info("make dir: {}", dir.getPath());
         }
         return dir;
+    }
+
+    public static void syncReadFull(AsynchronousFileChannel c, ByteBuffer buf, long pos) throws IOException {
+        while (buf.hasRemaining()) {
+            Future<Integer> f = c.read(buf, pos);
+            pos += getResult(f);
+        }
+    }
+
+    public static int syncRead(AsynchronousFileChannel c, ByteBuffer buf, long pos) throws IOException {
+        Future<Integer> f = c.read(buf, pos);
+        return getResult(f);
+    }
+
+    private static int getResult(Future<Integer> f) throws IOException {
+        try {
+            return f.get();
+        } catch (InterruptedException e) {
+            throw new RaftException(e);
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof IOException) {
+                throw (IOException) e.getCause();
+            } else {
+                throw new RaftException(e.getCause());
+            }
+        }
+    }
+
+    public static long syncWriteFull(AsynchronousFileChannel c, ByteBuffer buf, long pos) throws IOException {
+        while (buf.hasRemaining()) {
+            Future<Integer> f = c.write(buf, pos);
+            pos += getResult(f);
+        }
+        return pos;
     }
 }
