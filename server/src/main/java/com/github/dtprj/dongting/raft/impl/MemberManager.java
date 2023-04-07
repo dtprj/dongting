@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.EmptyBodyRespFrame;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.PeerStatus;
 import com.github.dtprj.dongting.net.ReadFrame;
@@ -26,6 +27,7 @@ import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.rpc.RaftPingFrameCallback;
 import com.github.dtprj.dongting.raft.rpc.RaftPingProcessor;
 import com.github.dtprj.dongting.raft.rpc.RaftPingWriteFrame;
+import com.github.dtprj.dongting.raft.rpc.TransferLeaderReq;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -299,9 +301,25 @@ public class MemberManager {
             boolean newLeaderHasLastLog = newLeader.getMatchIndex() == raftStatus.getLastLogIndex();
 
             if (newLeader.isReady() && lastLogCommit && newLeaderHasLastLog) {
-                // TODO send transfer leader request
                 raftStatus.setHoldRequest(false);
                 RaftUtil.changeToFollower(raftStatus, newLeader.getNode().getNodeId());
+                TransferLeaderReq req = new TransferLeaderReq();
+                req.term = raftStatus.getCurrentTerm();
+                req.logIndex = raftStatus.getLastLogIndex();
+                req.oldLeaderId = serverConfig.getNodeId();
+                req.groupId = groupId;
+                TransferLeaderReq.WriteFrame frame = new TransferLeaderReq.WriteFrame(req);
+                client.sendRequest(newLeader.getNode().getPeer(), frame,
+                        null, new DtTime(5, TimeUnit.SECONDS))
+                        .whenComplete((rf, ex) -> {
+                            if (ex != null) {
+                                log.error("transfer leader failed, groupId={}", groupId, ex);
+                                f.completeExceptionally(ex);
+                            } else {
+                                log.info("transfer leader success, groupId={}", groupId);
+                                f.complete(null);
+                            }
+                        });
             } else {
                 // retry
                 transferLeadership(nodeId, f, deadline);

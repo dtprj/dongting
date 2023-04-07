@@ -128,18 +128,18 @@ public abstract class NioNet extends AbstractLifeCircle {
             future = future.whenComplete((rf, ex) -> semaphore.release());
         }
         return future.thenApply(frame -> {
-                    if (frame.getRespCode() != CmdCodes.SUCCESS) {
-                        throw new NetCodeException(frame.getRespCode(), frame.getMsg());
-                    }
-                    if (!decoder.decodeInIoThread()) {
-                        ByteBuffer buf = (ByteBuffer) frame.getBody();
-                        if (buf != null) {
-                            Object body = decoder.decode(null, buf, buf.remaining(), true, true);
-                            frame.setBody(body);
-                        }
-                    }
-                    return frame;
-                });
+            if (frame.getRespCode() != CmdCodes.SUCCESS) {
+                throw new NetCodeException(frame.getRespCode(), frame.getMsg());
+            }
+            if (decoder != null && !decoder.decodeInIoThread()) {
+                ByteBuffer buf = (ByteBuffer) frame.getBody();
+                if (buf != null) {
+                    Object body = decoder.decode(null, buf, buf.remaining(), true, true);
+                    frame.setBody(body);
+                }
+            }
+            return frame;
+        });
     }
 
     protected <T> CompletableFuture<T> errorFuture(Throwable e) {

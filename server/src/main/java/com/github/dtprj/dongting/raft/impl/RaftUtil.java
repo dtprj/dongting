@@ -149,6 +149,7 @@ public class RaftUtil {
         raftStatus.setLeaseStartNanos(0);
         raftStatus.setPendingRequests(new PendingMap());
         raftStatus.setCurrentLeader(null);
+        raftStatus.setHoldRequest(false);
         for (RaftMember node : raftStatus.getReplicateList()) {
             node.setMatchIndex(0);
             node.setNextIndex(0);

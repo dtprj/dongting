@@ -210,7 +210,7 @@ class DtChannel extends PbCallback {
         // the body field should encode as last field
         Decoder decoder = initRelatedDataForFrame(true);
         if (decoder == null) {
-            return false;
+            return true;
         }
 
         boolean decodeInIoThread = decoder.decodeInIoThread();
@@ -516,7 +516,7 @@ class ProcessInBizThreadTask implements Runnable {
             }
             ReqProcessor processor = this.processor;
             Decoder decoder = processor.getDecoder();
-            if (!processor.getDecoder().decodeInIoThread()) {
+            if (decoder != null && !decoder.decodeInIoThread()) {
                 ByteBuffer bodyBuffer = (ByteBuffer) req.getBody();
                 if (bodyBuffer != null) {
                     try {
@@ -528,7 +528,7 @@ class ProcessInBizThreadTask implements Runnable {
                         try {
                             ws.getIoQueue().scheduleFromBizThread(t);
                         } catch (NetException e) {
-                            //ignore
+                            log.warn("schedule ReleaseBufferTask fail: {}", e.toString());
                         }
                     }
                 }
