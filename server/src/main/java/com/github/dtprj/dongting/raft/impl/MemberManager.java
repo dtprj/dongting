@@ -387,10 +387,11 @@ public class MemberManager {
     }
 
 
-    public void doPrepare(List<RaftNodeEx> newMemberNodes, List<RaftNodeEx> newObserverNodes, Throwable ex) {
-        raftStatus.setApplyState(ApplyManager.ApplyState.waitingFinished);
+    public void doPrepare(List<RaftNodeEx> newMemberNodes, List<RaftNodeEx> newObserverNodes,
+                          Throwable ex, Runnable callback) {
         if (ex != null) {
             raftStatus.setError(true);
+            callback.run();
             return;
         }
 
@@ -430,6 +431,7 @@ public class MemberManager {
         computeDuplicatedData(raftStatus);
 
         eventBus.fire(EventType.cancelVote, null);
+        callback.run();
 
     }
 

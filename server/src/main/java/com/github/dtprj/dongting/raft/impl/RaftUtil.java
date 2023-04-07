@@ -282,23 +282,6 @@ public class RaftUtil {
         }
     }
 
-    public static LogItem[] load(RaftLog raftLog, RaftStatus raftStatus, long index, int limit, long bytesLimit) {
-        LogItem[] items;
-        Supplier<LogItem[]> callback = () -> {
-            try {
-                return raftLog.load(index, limit, bytesLimit);
-            } catch (IOException e) {
-                throw new RaftException(e);
-            }
-        };
-        items = doWithSyncRetry(callback, raftStatus, 1000, "raft log load error");
-        if (items == null || items.length == 0) {
-            throw new RaftException("can't load raft log, result is null or empty. index=" + index +
-                    ", limit=" + limit + ", bytesLimit=" + bytesLimit);
-        }
-        return items;
-    }
-
     public static int getElectQuorum(int groupSize) {
         return groupSize / 2 + 1;
     }

@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.server.LogItem;
@@ -32,6 +31,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
@@ -40,10 +40,6 @@ import static java.util.Collections.emptySet;
  * @author huangli
  */
 public class ApplyManager {
-    public enum ApplyState {
-        notWaiting, waiting, waitingFinished
-    }
-
     private static final DtLog log = DtLogs.getLogger(ApplyManager.class);
 
     private final int selfNodeId;
@@ -53,6 +49,8 @@ public class ApplyManager {
     private final EventBus eventBus;
     private final RaftStatus raftStatus;
     private boolean configChanging = false;
+
+    private boolean waiting;
 
     public ApplyManager(int selfNodeId, RaftLog raftLog, StateMachine stateMachine, RaftStatus raftStatus, EventBus eventBus) {
         this.selfNodeId = selfNodeId;
@@ -64,7 +62,7 @@ public class ApplyManager {
     }
 
     public void apply(RaftStatus raftStatus) {
-        if (raftStatus.getApplyState() == ApplyState.waiting) {
+        if (waiting) {
             return;
         }
         long diff = raftStatus.getCommitIndex() - raftStatus.getLastApplied();
@@ -72,20 +70,13 @@ public class ApplyManager {
             long index = raftStatus.getLastApplied() + 1;
             RaftTask rt = raftStatus.getPendingRequests().get(index);
             if (rt == null) {
+                waiting = true;
                 int limit = (int) Math.min(diff, 100L);
-                LogItem[] items = RaftUtil.load(raftLog, raftStatus,
-                        index, limit, 16 * 1024 * 1024);
-                int readCount = items.length;
-                for (int i = 0; i < readCount; i++, index++) {
-                    LogItem item = items[i];
-                    rt = buildRaftTask(item);
-                    if (!execChain(index, rt)) {
-                        return;
-                    }
-
-                    raftStatus.setLastApplied(index);
-                    diff--;
-                }
+                Supplier<CompletableFuture<LogItem[]>> s = () -> raftLog.load(index, limit, 16 * 1024 * 1024);
+                AsyncRetryTask<LogItem[]> task = new AsyncRetryTask<>(s, raftStatus, "load raft log failed");
+                task.exec();
+                task.getFinalResult().thenAcceptAsync(this::resumeAfterLoad, raftStatus.getRaftExecutor());
+                return;
             } else {
                 if (!execChain(index, rt)) {
                     return;
@@ -94,6 +85,21 @@ public class ApplyManager {
                 diff--;
             }
         }
+    }
+
+    private void resumeAfterLoad(LogItem[] items) {
+        waiting = false;
+        int readCount = items.length;
+        //noinspection ForLoopReplaceableByForEach
+        for (int i = 0; i < readCount; i++) {
+            LogItem item = items[i];
+            RaftTask rt = buildRaftTask(item);
+            if (!execChain(item.getIndex(), rt)) {
+                return;
+            }
+            raftStatus.setLastApplied(item.getIndex());
+        }
+        apply(raftStatus);
     }
 
     private RaftTask buildRaftTask(LogItem item) {
@@ -114,30 +120,47 @@ public class ApplyManager {
                 execNormal(index, rt);
                 break;
             case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
-                doPrepare(rt.input.getLogData());
-                if (raftStatus.getApplyState() == ApplyState.waiting) {
-                    return false;
-                }
-                break;
+                doPrepare(index, rt);
+                return false;
             case LogItem.TYPE_DROP_CONFIG_CHANGE:
                 doAbort();
+                notifyConfigChange(index, rt);
                 break;
             case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
                 doCommit();
+                notifyConfigChange(index, rt);
                 break;
             default:
                 // heartbeat etc.
                 break;
         }
+        execReaders(index, rt);
+        return true;
+    }
+
+    private void resumeAfterPrepare(long index, RaftTask rt) {
+        waiting = false;
+        notifyConfigChange(index, rt);
+        raftStatus.setLastApplied(index);
+        execReaders(index, rt);
+        apply(raftStatus);
+    }
+
+    private void notifyConfigChange(long index, RaftTask rt) {
+        if (rt.future != null) {
+            rt.future.complete(new RaftOutput(index, null));
+        }
+    }
+
+    private void execReaders(long index, RaftTask rt) {
         ArrayList<RaftTask> nextReaders = rt.nextReaders;
         if (nextReaders == null) {
-            return true;
+            return;
         }
         for (int i = 0; i < nextReaders.size(); i++) {
             RaftTask readerTask = nextReaders.get(i);
             execNormal(index, readerTask);
         }
-        return true;
     }
 
     public void execNormal(long index, RaftTask rt) {
@@ -166,35 +189,34 @@ public class ApplyManager {
         }
     }
 
-    private void doPrepare(ByteBuffer logData) {
+    private void doPrepare(long index, RaftTask rt) {
         configChanging = true;
-        if (raftStatus.getApplyState() == ApplyState.notWaiting) {
-            byte[] data = new byte[logData.remaining()];
-            logData.get(data);
-            String dataStr = new String(data);
-            String[] fields = dataStr.split(";");
-            Set<Integer> oldMembers = parseSet(fields[0]);
-            Set<Integer> oldObservers = parseSet(fields[1]);
-            Set<Integer> newMembers = parseSet(fields[2]);
-            Set<Integer> newObservers = parseSet(fields[3]);
-            if (!oldMembers.equals(raftStatus.getNodeIdOfMembers())) {
-                log.error("oldMembers not match, oldMembers={}, currentMembers={}, groupId={}",
-                        oldMembers, raftStatus.getNodeIdOfMembers(), raftStatus.getGroupId());
-            }
-            if (!oldObservers.equals(raftStatus.getNodeIdOfObservers())) {
-                log.error("oldObservers not match, oldObservers={}, currentObservers={}, groupId={}",
-                        oldObservers, raftStatus.getNodeIdOfObservers(), raftStatus.getGroupId());
-            }
-            Object[] args = new Object[]{raftStatus.getGroupId(), raftStatus.getNodeIdOfPreparedMembers(),
-                    raftStatus.getNodeIdOfPreparedObservers(), newMembers, newObservers};
-            eventBus.fire(EventType.prepareConfChange, args);
-            raftStatus.setApplyState(ApplyState.waiting);
-        } else if (raftStatus.getApplyState() == ApplyState.waitingFinished) {
-            raftStatus.setApplyState(ApplyState.notWaiting);
-        } else {
-            BugLog.getLog().error("apply manager doPrepare waitingState={}", raftStatus.getApplyState());
+
+        ByteBuffer logData = rt.input.getLogData();
+        byte[] data = new byte[logData.remaining()];
+        logData.get(data);
+        String dataStr = new String(data);
+        String[] fields = dataStr.split(";");
+        Set<Integer> oldMembers = parseSet(fields[0]);
+        Set<Integer> oldObservers = parseSet(fields[1]);
+        Set<Integer> newMembers = parseSet(fields[2]);
+        Set<Integer> newObservers = parseSet(fields[3]);
+        if (!oldMembers.equals(raftStatus.getNodeIdOfMembers())) {
+            log.error("oldMembers not match, oldMembers={}, currentMembers={}, groupId={}",
+                    oldMembers, raftStatus.getNodeIdOfMembers(), raftStatus.getGroupId());
         }
+        if (!oldObservers.equals(raftStatus.getNodeIdOfObservers())) {
+            log.error("oldObservers not match, oldObservers={}, currentObservers={}, groupId={}",
+                    oldObservers, raftStatus.getNodeIdOfObservers(), raftStatus.getGroupId());
+        }
+
+        Runnable callback = () -> resumeAfterPrepare(index, rt);
+        Object[] args = new Object[]{raftStatus.getGroupId(), raftStatus.getNodeIdOfPreparedMembers(),
+                raftStatus.getNodeIdOfPreparedObservers(), newMembers, newObservers, callback};
+        waiting = true;
+        eventBus.fire(EventType.prepareConfChange, args);
     }
+
 
     public Set<Integer> parseSet(String s) {
         if (s.length() == 0) {

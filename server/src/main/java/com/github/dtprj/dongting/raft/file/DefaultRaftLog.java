@@ -28,11 +28,9 @@ import com.github.dtprj.dongting.raft.server.RaftLog;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 /**
@@ -112,8 +110,8 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public LogItem[] load(long index, int limit, long bytesLimit) {
-        return new LogItem[0];
+    public CompletableFuture<LogItem[]> load(long index, int limit, long bytesLimit) {
+        return null;
     }
 
     @Override

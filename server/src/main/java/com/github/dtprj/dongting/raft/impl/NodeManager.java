@@ -306,7 +306,8 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
             for (int nodeId : memberIds) {
                 if (observerIds.contains(nodeId)) {
                     log.error("node is both member and observer: nodeId={}, groupId={}", nodeId, groupId);
-                    throw new RaftException("node is both member and observer: " + nodeId);
+                    f.completeExceptionally(new RaftException("node is both member and observer: " + nodeId));
+                    return;
                 }
             }
             GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, groupId);
@@ -339,12 +340,14 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
     @SuppressWarnings("unchecked")
     private void doPrepare(Object[] args) {
         GroupComponents gc = null;
+        Runnable callback = (Runnable) args[5];
         try {
             int groupId = (Integer) args[0];
             Set<Integer> oldPrepareMembers = (Set<Integer>) args[1];
             Set<Integer> oldPrepareObservers = (Set<Integer>) args[2];
             Set<Integer> newMembers = (Set<Integer>) args[3];
-            Set<Integer> newObservers = (Set<Integer>) args[3];
+            Set<Integer> newObservers = (Set<Integer>) args[4];
+
             gc = RaftUtil.getGroupComponents(groupComponentsMap, groupId);
             List<RaftNodeEx> newMemberNodes = checkNodeIdSet(groupId, newMembers);
             List<RaftNodeEx> newObserverNodes = checkNodeIdSet(groupId, newObservers);
@@ -353,12 +356,13 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
             processUseCount(newMembers, 1);
             processUseCount(newObservers, 1);
             MemberManager memberManager = gc.getMemberManager();
-            gc.getRaftExecutor().execute(() -> memberManager.doPrepare(newMemberNodes, newObserverNodes, null));
+            gc.getRaftExecutor().execute(() -> memberManager.doPrepare(newMemberNodes, newObserverNodes, null, callback));
         } catch (Throwable e) {
             log.error("prepare fail", e);
             if (gc != null) {
                 MemberManager memberManager = gc.getMemberManager();
-                gc.getRaftExecutor().execute(() -> memberManager.doPrepare(null, null, e));
+                gc.getRaftExecutor().execute(() -> memberManager.doPrepare(
+                        null, null, e, callback));
             }
         }
     }

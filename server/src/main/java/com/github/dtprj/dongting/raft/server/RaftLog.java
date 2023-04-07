@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.Pair;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * @author huangli
@@ -41,7 +42,7 @@ public interface RaftLog extends AutoCloseable {
      * @param bytesLimit max bytes of logs to return, 0 means no limit
      * @return return log items, don't return null or empty array
      */
-    LogItem[] load(long index, int limit, long bytesLimit) throws IOException;
+    CompletableFuture<LogItem[]> load(long index, int limit, long bytesLimit);
 
     /**
      * if there is no such index, return -1.
