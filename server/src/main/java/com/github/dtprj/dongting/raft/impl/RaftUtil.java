@@ -75,27 +75,6 @@ public class RaftUtil {
         }
     }
 
-    @SuppressWarnings("ForLoopReplaceableByForEach")
-    public static boolean needCommit(long currentCommitIndex, long recentMatchIndex,
-                                     List<RaftMember> servers, int rwQuorum) {
-        if (recentMatchIndex < currentCommitIndex) {
-            return false;
-        }
-        int count = 0;
-        for (int i = 0; i < servers.size(); i++) {
-            RaftMember member = servers.get(i);
-            if (member.getNode().isSelf()) {
-                if (recentMatchIndex > member.getMatchIndex()) {
-                    return false;
-                }
-            }
-            if (member.getMatchIndex() >= recentMatchIndex) {
-                count++;
-            }
-        }
-        return count >= rwQuorum;
-    }
-
     public static void updateLease(RaftStatus raftStatus) {
         long leaseStartTime = computeLease(raftStatus, raftStatus.getElectQuorum(), raftStatus.getMembers());
         List<RaftMember> jointMembers = raftStatus.getPreparedMembers();

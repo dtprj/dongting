@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -36,7 +37,7 @@ public class CommitManager {
         this.applyManager = applyManager;
     }
 
-    void tryCommit(long recentMatchIndex) {
+    public void tryCommit(long recentMatchIndex) {
         RaftStatus raftStatus = this.raftStatus;
 
         if (!needCommit(recentMatchIndex, raftStatus)) {
@@ -67,12 +68,34 @@ public class CommitManager {
     }
 
     private static boolean needCommit(long recentMatchIndex, RaftStatus raftStatus) {
-        boolean needCommit = RaftUtil.needCommit(raftStatus.getCommitIndex(), recentMatchIndex,
+        boolean needCommit = needCommit(raftStatus.getCommitIndex(), recentMatchIndex,
                 raftStatus.getMembers(), raftStatus.getRwQuorum());
         if (needCommit && raftStatus.getPreparedMembers().size() > 0) {
-            needCommit = RaftUtil.needCommit(raftStatus.getCommitIndex(), recentMatchIndex,
+            needCommit = needCommit(raftStatus.getCommitIndex(), recentMatchIndex,
                     raftStatus.getPreparedMembers(), raftStatus.getRwQuorum());
         }
         return needCommit;
+    }
+
+
+    @SuppressWarnings("ForLoopReplaceableByForEach")
+    public static boolean needCommit(long currentCommitIndex, long recentMatchIndex,
+                                     List<RaftMember> servers, int rwQuorum) {
+        if (recentMatchIndex < currentCommitIndex) {
+            return false;
+        }
+        int count = 0;
+        for (int i = 0; i < servers.size(); i++) {
+            RaftMember member = servers.get(i);
+            if (member.getNode().isSelf()) {
+                if (recentMatchIndex > member.getMatchIndex()) {
+                    return false;
+                }
+            }
+            if (member.getMatchIndex() >= recentMatchIndex) {
+                count++;
+            }
+        }
+        return count >= rwQuorum;
     }
 }
