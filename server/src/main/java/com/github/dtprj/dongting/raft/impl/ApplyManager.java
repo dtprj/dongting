@@ -168,7 +168,7 @@ public class ApplyManager {
 
     private void doPrepare(ByteBuffer logData) {
         configChanging = true;
-        if (raftStatus.getApplyState() == ApplyState.waiting) {
+        if (raftStatus.getApplyState() == ApplyState.notWaiting) {
             byte[] data = new byte[logData.remaining()];
             logData.get(data);
             String dataStr = new String(data);
