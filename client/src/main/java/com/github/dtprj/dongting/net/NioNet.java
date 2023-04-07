@@ -41,7 +41,7 @@ public abstract class NioNet extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(NioNet.class);
     private final NioConfig config;
     final Semaphore semaphore;
-    protected final NioStatus nioStatus;
+    final NioStatus nioStatus;
     protected volatile ExecutorService bizExecutor;
 
     public NioNet(NioConfig config) {
@@ -83,7 +83,7 @@ public abstract class NioNet extends AbstractLifeCircle {
                 " but decoder.decodeInIoThread==false. command=" + cmd);
     }
 
-    protected CompletableFuture<ReadFrame> sendRequest(NioWorker worker, Peer peer, WriteFrame request,
+    CompletableFuture<ReadFrame> sendRequest(NioWorker worker, Peer peer, WriteFrame request,
                                                        Decoder decoder, DtTime timeout) {
         request.setFrameType(FrameType.TYPE_REQ);
         ObjUtil.checkPositive(request.getCommand(), "request.command");
@@ -170,7 +170,7 @@ public abstract class NioNet extends AbstractLifeCircle {
         });
     }
 
-    protected void forceStopWorker(NioWorker worker) {
+    void forceStopWorker(NioWorker worker) {
         try {
             worker.stop();
         } catch (Exception e) {
