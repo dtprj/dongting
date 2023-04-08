@@ -75,4 +75,5 @@ public class Snapshot {
     public void setLastIncludedTerm(int lastIncludedTerm) {
         this.lastIncludedTerm = lastIncludedTerm;
     }
+
 }

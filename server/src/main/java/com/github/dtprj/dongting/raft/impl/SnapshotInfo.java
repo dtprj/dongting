@@ -18,15 +18,13 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.raft.server.Snapshot;
 import com.github.dtprj.dongting.raft.server.StateMachine;
 
-import java.nio.ByteBuffer;
-import java.util.Iterator;
-
 /**
  * @author huangli
  */
 class SnapshotInfo {
     Snapshot snapshot;
-    Iterator<ByteBuffer> iterator;
     long offset;
+    int replicateEpoch;
+    boolean readFinished;
     StateMachine stateMachine;
 }

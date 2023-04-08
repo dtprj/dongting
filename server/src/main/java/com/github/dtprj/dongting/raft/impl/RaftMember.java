@@ -44,6 +44,12 @@ public class RaftMember {
         this.node = node;
     }
 
+    public void incrReplicateEpoch(int reqEpoch) {
+        if (reqEpoch == replicateEpoch) {
+            replicateEpoch++;
+        }
+    }
+
     public void setLastConfirmReqNanos(long lastConfirmReqNanos) {
         this.lastConfirmReqNanos = lastConfirmReqNanos;
     }
@@ -140,7 +146,4 @@ public class RaftMember {
         return replicateEpoch;
     }
 
-    public void setReplicateEpoch(int replicateEpoch) {
-        this.replicateEpoch = replicateEpoch;
-    }
 }

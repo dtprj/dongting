@@ -136,13 +136,13 @@ public class RaftUtil {
             member.setLastConfirmReqNanos(raftStatus.getTs().getNanoTime() - Duration.ofDays(1).toNanos());
             member.setMultiAppend(false);
             member.setInstallSnapshot(false);
-            member.setReplicateEpoch(member.getReplicateEpoch() + 1);
+            member.incrReplicateEpoch(member.getReplicateEpoch());
             member.setWaiting(false);
             if (member.getSnapshotInfo() != null) {
                 try {
                     SnapshotInfo si = member.getSnapshotInfo();
-                    if (si.iterator != null) {
-                        si.stateMachine.closeIterator(si.iterator);
+                    if (si != null) {
+                        si.stateMachine.closeSnapshot(si.snapshot);
                     }
                 } catch (Exception e) {
                     log.error("close snapshot error", e);

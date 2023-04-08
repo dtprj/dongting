@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -39,10 +38,10 @@ import com.github.dtprj.dongting.raft.server.StateMachine;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -66,7 +65,7 @@ public class ReplicateManager {
     private final int restItemsToStartReplicate;
     private final long maxReplicateBytes;
 
-    private long readSnapshotFailTime;
+    private long installSnapshotFailTime;
 
     private static final PbZeroCopyDecoder APPEND_RESP_DECODER = new PbZeroCopyDecoder(c -> new AppendRespCallback());
     private static final PbZeroCopyDecoder INSTALL_SNAPSHOT_RESP_DECODER = new PbZeroCopyDecoder(c -> new InstallSnapshotResp.Callback());
@@ -88,7 +87,7 @@ public class ReplicateManager {
         this.maxReplicateBytes = config.getMaxReplicateBytes();
         this.restItemsToStartReplicate = (int) (maxReplicateItems * 0.1);
 
-        this.readSnapshotFailTime = ts.getNanoTime() - TimeUnit.SECONDS.toNanos(10);
+        this.installSnapshotFailTime = ts.getNanoTime() - TimeUnit.SECONDS.toNanos(10);
     }
 
     @SuppressWarnings("ForLoopReplaceableByForEach")
@@ -128,7 +127,6 @@ public class ReplicateManager {
         }
     }
 
-    @SuppressWarnings("ForLoopReplaceableByForEach")
     private void doReplicate(RaftMember member) {
         long nextIndex = member.getNextIndex();
         long lastLogIndex = raftStatus.getLastLogIndex();
@@ -166,26 +164,27 @@ public class ReplicateManager {
             member.setWaiting(true);
             task.exec();
             task.getFinalResult().thenAcceptAsync(
-                    result -> resumeAfterLoad(member.getReplicateEpoch(), member, result),
+                    result -> resumeAfterLogLoad(member.getReplicateEpoch(), member, result),
                     raftStatus.getRaftExecutor());
         }
     }
 
-    private void resumeAfterLoad(int repEpoch, RaftMember member, LogItem[] items) {
+    private void resumeAfterLogLoad(int repEpoch, RaftMember member, LogItem[] items) {
         member.setWaiting(false);
-        if (repEpoch != member.getReplicateEpoch()) {
+        if (epochNotMatch(member, repEpoch)) {
             log.info("replicate epoch changed, ignore load result");
             return;
         }
         if (!member.isReady()) {
             return;
         }
-        if(member.isInstallSnapshot()){
+        if (member.isInstallSnapshot()) {
             return;
         }
-        if(member.isMultiAppend()) {
+        if (member.isMultiAppend()) {
             sendAppendRequest(member, items);
         } else {
+            //noinspection StatementWithEmptyBody
             if (member.getPendingStat().getPendingRequests() == 0) {
                 sendAppendRequest(member, items);
             } else {
@@ -197,6 +196,7 @@ public class ReplicateManager {
     private void sendAppendRequest(RaftMember member, LogItem[] items) {
         LogItem firstItem = items[0];
         long bytes = 0;
+        //noinspection ForLoopReplaceableByForEach
         for (int i = 0; i < items.length; i++) {
             LogItem item = items[i];
             bytes += item.getBuffer() == null ? 0 : item.getBuffer().remaining();
@@ -237,16 +237,15 @@ public class ReplicateManager {
                         reqTerm, raftStatus.getCurrentTerm());
                 return;
             }
+            if (epochNotMatch(member, repEpoch)) {
+                log.info("receive outdated append result, replicateEpoch not match. ignore.");
+                return;
+            }
             ps.decrAndGetPendingRequests(count, bytes);
             if (ex == null) {
-                if (repEpoch != member.getReplicateEpoch()) {
-                    log.info("receive outdated append result, replicateEpoch not match. reqEpoch={}, currentEpoch={}",
-                            repEpoch, member.getReplicateEpoch());
-                    return;
-                }
-                processAppendResult(member, rf, prevLogIndex, prevLogTerm, reqTerm, reqNanos, count);
+                processAppendResult(member, rf, prevLogIndex, prevLogTerm, reqTerm, reqNanos, count, repEpoch);
             } else {
-                member.setReplicateEpoch(member.getReplicateEpoch() + 1);
+                member.incrReplicateEpoch(repEpoch);
                 if (member.isMultiAppend()) {
                     member.setMultiAppend(false);
                     String msg = "append fail. remoteId={}, groupId={}, localTerm={}, reqTerm={}, prevLogIndex={}";
@@ -279,7 +278,7 @@ public class ReplicateManager {
 
     // in raft thread
     private void processAppendResult(RaftMember member, ReadFrame rf, long prevLogIndex,
-                                     int prevLogTerm, int reqTerm, long reqNanos, int count) {
+                                     int prevLogTerm, int reqTerm, long reqNanos, int count, int reqEpoch) {
         long expectNewMatchIndex = prevLogIndex + count;
         AppendRespCallback body = (AppendRespCallback) rf.getBody();
         RaftStatus raftStatus = this.raftStatus;
@@ -309,6 +308,7 @@ public class ReplicateManager {
                         groupId, raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
             }
         } else if (body.getAppendCode() == AppendProcessor.CODE_LOG_NOT_MATCH) {
+            member.incrReplicateEpoch(reqEpoch);
             processLogNotMatch(member, prevLogIndex, prevLogTerm, reqTerm, reqNanos, body, raftStatus);
         } else if (body.getAppendCode() == AppendProcessor.CODE_INSTALL_SNAPSHOT) {
             log.error("remote member is installing snapshot, prevLogIndex={}", prevLogIndex);
@@ -328,7 +328,6 @@ public class ReplicateManager {
         member.setLastConfirmReqNanos(reqNanos);
         member.setMultiAppend(false);
         RaftUtil.updateLease(raftStatus);
-        member.setReplicateEpoch(member.getReplicateEpoch() + 1);
         if (body.getTerm() == raftStatus.getCurrentTerm() && reqTerm == raftStatus.getCurrentTerm()) {
             member.setNextIndex(body.getMaxLogIndex() + 1);
             replicate(member);
@@ -346,11 +345,11 @@ public class ReplicateManager {
                         replicate(member);
                     } else {
                         log.error("can't find max index of term to replicate: {}. may truncated recently?", t);
-                        initInstallSnapshot(member);
+                        beginInstallSnapshot(member);
                     }
                 } else {
                     log.warn("can't find local term to replicate. follower maxTerm={}", body.getMaxLogTerm());
-                    initInstallSnapshot(member);
+                    beginInstallSnapshot(member);
                 }
             }
         }
@@ -378,11 +377,13 @@ public class ReplicateManager {
         return RaftUtil.doWithSyncRetry(callback, raftStatus, 1000, "findLastTermLessThan fail");
     }
 
-    private void initInstallSnapshot(RaftMember member) {
+    private void beginInstallSnapshot(RaftMember member) {
         if (!member.isInstallSnapshot()) {
             member.setInstallSnapshot(true);
             member.setPendingStat(new PendingStat());
             installSnapshot(member);
+        } else {
+            BugLog.getLog().error("member is installing snapshot, ignore");
         }
     }
 
@@ -392,26 +393,56 @@ public class ReplicateManager {
         if (si == null) {
             return;
         }
+        if (si.readFinished) {
+            return;
+        }
         if (member.getPendingStat().getPendingBytes() >= maxReplicateBytes) {
             return;
         }
-        ByteBuffer data;
+        int reqEpoch = member.getReplicateEpoch();
         try {
-            data = si.iterator.next();
+            member.setWaiting(true);
+            CompletableFuture<ByteBuffer> future = stateMachine.readNext(si.snapshot);
+            future.whenCompleteAsync(resumeAfterSnapshotLoad(member, si, reqEpoch), raftExecutor);
         } catch (Exception e) {
-            readSnapshotFailTime = raftStatus.getTs().getNanoTime();
-            log.error("read snapshot fail", e);
-            closeIteratorAndResetStatus(member, si);
-            return;
+            processInstallSnapshotError(member, si, e, reqEpoch);
         }
-        sendInstallSnapshotReq(member, si, data);
     }
 
-    private void closeIteratorAndResetStatus(RaftMember member, SnapshotInfo si) {
+    private BiConsumer<ByteBuffer, Throwable> resumeAfterSnapshotLoad(RaftMember member, SnapshotInfo si, int reqEpoch) {
+        return (data, ex) -> {
+            member.setWaiting(false);
+            if (ex != null) {
+                processInstallSnapshotError(member, si, ex, reqEpoch);
+                return;
+            }
+            if (epochNotMatch(member, reqEpoch)) {
+                log.info("epoch not match, ignore loaded snapshot.");
+                return;
+            }
+            sendInstallSnapshotReq(member, si, data);
+            installSnapshot(member);
+        };
+    }
+
+    private boolean epochNotMatch(RaftMember member, int reqEpoch) {
+        return reqEpoch != member.getReplicateEpoch();
+    }
+
+    private void processInstallSnapshotError(RaftMember member, SnapshotInfo si, Throwable e, int reqEpoch) {
+        installSnapshotFailTime = raftStatus.getTs().getNanoTime();
+        member.incrReplicateEpoch(reqEpoch);
+        log.error("install snapshot fail", e);
+        closeSnapshotAndResetStatus(member, si);
+    }
+
+    private void closeSnapshotAndResetStatus(RaftMember member, SnapshotInfo si) {
         try {
-            stateMachine.closeIterator(si.iterator);
-        } catch (Throwable e1) {
-            log.error("close snapshot fail", e1);
+            if (si != null) {
+                stateMachine.closeSnapshot(si.snapshot);
+            }
+        } catch (Throwable e) {
+            log.error("close snapshot fail", e);
         }
         member.setSnapshotInfo(null);
         member.setPendingStat(new PendingStat());
@@ -422,38 +453,28 @@ public class ReplicateManager {
         if (si != null) {
             return;
         }
-        long diff = raftStatus.getTs().getNanoTime() - readSnapshotFailTime;
+        long diff = raftStatus.getTs().getNanoTime() - installSnapshotFailTime;
         if (TimeUnit.NANOSECONDS.toMillis(diff) < 1000) {
             return;
         }
-        Pair<Snapshot, Iterator<ByteBuffer>> pair;
         try {
-            pair = stateMachine.openLatestSnapshotIterator();
-            if (pair == null || pair.getLeft() == null || pair.getRight() == null) {
-                readSnapshotFailTime = raftStatus.getTs().getNanoTime();
-                log.error("open recent snapshot fail, something is null");
+            Snapshot snapshot = stateMachine.openLatestSnapshot();
+            if (snapshot == null) {
+                installSnapshotFailTime = raftStatus.getTs().getNanoTime();
+                log.error("open recent snapshot fail, return null");
                 return;
             }
+            log.info("begin install snapshot for member: nodeId={}, groupId={}", member.getNode().getNodeId(), groupId);
+            si = new SnapshotInfo();
+            si.snapshot = snapshot;
+            si.offset = 0;
+            si.replicateEpoch = member.getReplicateEpoch();
+            si.stateMachine = stateMachine;
+            member.setSnapshotInfo(si);
         } catch (Exception e) {
-            readSnapshotFailTime = raftStatus.getTs().getNanoTime();
+            installSnapshotFailTime = raftStatus.getTs().getNanoTime();
             log.error("open recent snapshot fail", e);
-            return;
         }
-        if (!pair.getRight().hasNext()) {
-            BugLog.getLog().error("open recent snapshot fail, iterator has no data");
-            try {
-                stateMachine.closeIterator(pair.getRight());
-            } catch (Throwable e) {
-                log.error("close snapshot fail", e);
-            }
-            return;
-        }
-        log.info("begin install snapshot for member: nodeId={}, groupId={}", member.getNode().getNodeId(), groupId);
-        si = new SnapshotInfo();
-        si.snapshot = pair.getLeft();
-        si.iterator = pair.getRight();
-        si.offset = 0;
-        member.setSnapshotInfo(si);
     }
 
     private void sendInstallSnapshotReq(RaftMember member, SnapshotInfo si, ByteBuffer data) {
@@ -465,13 +486,17 @@ public class ReplicateManager {
         req.lastIncludedTerm = si.snapshot.getLastIncludedTerm();
         req.offset = si.offset;
         req.data = data;
-        req.done = !si.iterator.hasNext();
+        req.done = data == null || !data.hasRemaining();
+
+        if (req.done) {
+            si.readFinished = true;
+        }
 
         InstallSnapshotReq.WriteFrame wf = new InstallSnapshotReq.WriteFrame(req);
         wf.setCommand(Commands.RAFT_INSTALL_SNAPSHOT);
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
         CompletableFuture<ReadFrame> future = client.sendRequest(member.getNode().getPeer(), wf, INSTALL_SNAPSHOT_RESP_DECODER, timeout);
-        int bytes = data.remaining();
+        int bytes = data == null ? 0 : data.remaining();
         si.offset += bytes;
         registerInstallSnapshotCallback(future, member, si, req.term, req.offset, bytes, req.done, req.lastIncludedIndex);
     }
@@ -481,17 +506,22 @@ public class ReplicateManager {
                                                  int reqBytes, boolean reqDone, long reqLastIncludedIndex) {
         PendingStat pd = member.getPendingStat();
         pd.incrAndGetPendingRequests(1, reqBytes);
+        int reqEpoch = member.getReplicateEpoch();
         future.whenCompleteAsync((rf, ex) -> {
             if (reqTerm != raftStatus.getCurrentTerm()) {
                 log.info("receive outdated append result, term not match. reqTerm={}, currentTerm={}, remoteNode={}, groupId={}",
                         reqTerm, raftStatus.getCurrentTerm(), member.getNode().getNodeId(), groupId);
                 return;
             }
+            if (epochNotMatch(member, reqEpoch)) {
+                log.info("epoch not match, ignore install snapshot response.");
+                return;
+            }
             pd.decrAndGetPendingRequests(1, reqBytes);
             if (ex != null) {
                 log.error("send install snapshot fail. remoteNode={}, groupId={}",
                         member.getNode().getNodeId(), groupId, ex);
-                closeIteratorAndResetStatus(member, si);
+                processInstallSnapshotError(member, si, ex, reqEpoch);
                 return;
             }
             InstallSnapshotResp respBody = (InstallSnapshotResp) rf.getBody();
@@ -503,7 +533,7 @@ public class ReplicateManager {
             if (reqDone) {
                 log.info("install snapshot for member finished success. nodeId={}, groupId={}",
                         member.getNode().getNodeId(), groupId);
-                closeIteratorAndResetStatus(member, si);
+                closeSnapshotAndResetStatus(member, si);
                 member.setInstallSnapshot(false);
                 member.setNextIndex(reqLastIncludedIndex + 1);
             }

@@ -15,10 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.common.Pair;
-
 import java.nio.ByteBuffer;
-import java.util.Iterator;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * @author huangli
@@ -32,7 +30,9 @@ public interface StateMachine extends AutoCloseable {
 
     void installSnapshot(boolean start, boolean finish, ByteBuffer data);
 
-    Pair<Snapshot, Iterator<ByteBuffer>> openLatestSnapshotIterator();
+    Snapshot openLatestSnapshot();
 
-    void closeIterator(Iterator<ByteBuffer> iterator);
+    CompletableFuture<ByteBuffer> readNext(Snapshot snapshot);
+
+    void closeSnapshot(Snapshot snapshot);
 }
