@@ -24,7 +24,8 @@ public class RaftMember {
     private boolean pinging;
     private boolean multiAppend;
 
-    private int epoch;
+    private int nodeEpoch;
+    private int replicateEpoch;
 
     private PendingStat pendingStat;
 
@@ -36,6 +37,8 @@ public class RaftMember {
     // volatile state on leaders
     private long nextIndex;
     private long matchIndex;
+
+    private boolean waiting;
 
     public RaftMember(RaftNodeEx node) {
         this.node = node;
@@ -117,11 +120,27 @@ public class RaftMember {
         this.pendingStat = pendingStat;
     }
 
-    public int getEpoch() {
-        return epoch;
+    public int getNodeEpoch() {
+        return nodeEpoch;
     }
 
-    public void setEpoch(int epoch) {
-        this.epoch = epoch;
+    public void setNodeEpoch(int nodeEpoch) {
+        this.nodeEpoch = nodeEpoch;
+    }
+
+    public boolean isWaiting() {
+        return waiting;
+    }
+
+    public void setWaiting(boolean waiting) {
+        this.waiting = waiting;
+    }
+
+    public int getReplicateEpoch() {
+        return replicateEpoch;
+    }
+
+    public void setReplicateEpoch(int replicateEpoch) {
+        this.replicateEpoch = replicateEpoch;
     }
 }

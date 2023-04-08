@@ -105,7 +105,7 @@ public class MemberManager {
 
     private void initSelf(RaftNodeEx node, RaftMember m, RaftRole role) {
         m.setReady(true);
-        m.setEpoch(node.getStatus().getEpoch());
+        m.setNodeEpoch(node.getStatus().getEpoch());
         raftStatus.setSelf(m);
         raftStatus.setRole(role);
     }
@@ -156,7 +156,7 @@ public class MemberManager {
         NodeStatus nodeStatus = node.getStatus();
         if (!nodeStatus.isReady()) {
             setReady(member, false);
-        } else if (nodeStatus.getEpoch() != member.getEpoch()) {
+        } else if (nodeStatus.getEpoch() != member.getNodeEpoch()) {
             setReady(member, false);
             if (!member.isPinging()) {
                 raftPing(node, member, nodeStatus.getEpoch());
@@ -195,7 +195,7 @@ public class MemberManager {
                 if (currentNodeStatus.isReady() && nodeEpochWhenStartPing == currentNodeStatus.getEpoch()) {
                     log.info("raft ping success, id={}, remote={}", callback.nodeId, raftNodeEx.getHostPort());
                     setReady(member, true);
-                    member.setEpoch(nodeEpochWhenStartPing);
+                    member.setNodeEpoch(nodeEpochWhenStartPing);
                 } else {
                     log.warn("raft ping success but current node status not match. "
                                     + "id={}, remoteHost={}, nodeReady={}, nodeEpoch={}, pingEpoch={}",

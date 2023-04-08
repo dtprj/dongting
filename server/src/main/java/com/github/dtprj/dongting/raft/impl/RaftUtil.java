@@ -129,16 +129,18 @@ public class RaftUtil {
         raftStatus.setPendingRequests(new PendingMap());
         raftStatus.setCurrentLeader(null);
         raftStatus.setHoldRequest(false);
-        for (RaftMember node : raftStatus.getReplicateList()) {
-            node.setMatchIndex(0);
-            node.setNextIndex(0);
-            node.setPendingStat(new PendingStat());
-            node.setLastConfirmReqNanos(raftStatus.getTs().getNanoTime() - Duration.ofDays(1).toNanos());
-            node.setMultiAppend(false);
-            node.setInstallSnapshot(false);
-            if (node.getSnapshotInfo() != null) {
+        for (RaftMember member : raftStatus.getReplicateList()) {
+            member.setMatchIndex(0);
+            member.setNextIndex(0);
+            member.setPendingStat(new PendingStat());
+            member.setLastConfirmReqNanos(raftStatus.getTs().getNanoTime() - Duration.ofDays(1).toNanos());
+            member.setMultiAppend(false);
+            member.setInstallSnapshot(false);
+            member.setReplicateEpoch(member.getReplicateEpoch() + 1);
+            member.setWaiting(false);
+            if (member.getSnapshotInfo() != null) {
                 try {
-                    SnapshotInfo si = node.getSnapshotInfo();
+                    SnapshotInfo si = member.getSnapshotInfo();
                     if (si.iterator != null) {
                         si.stateMachine.closeIterator(si.iterator);
                     }
@@ -146,7 +148,7 @@ public class RaftUtil {
                     log.error("close snapshot error", e);
                 }
             }
-            node.setSnapshotInfo(null);
+            member.setSnapshotInfo(null);
         }
     }
 

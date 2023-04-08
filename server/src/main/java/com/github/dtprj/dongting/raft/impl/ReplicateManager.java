@@ -71,9 +71,9 @@ public class ReplicateManager {
     private static final PbZeroCopyDecoder APPEND_RESP_DECODER = new PbZeroCopyDecoder(c -> new AppendRespCallback());
     private static final PbZeroCopyDecoder INSTALL_SNAPSHOT_RESP_DECODER = new PbZeroCopyDecoder(c -> new InstallSnapshotResp.Callback());
 
-    public ReplicateManager(RaftServerConfig config, int groupId, RaftStatus raftStatus,
-                     RaftLog raftLog, StateMachine stateMachine, NioClient client, RaftExecutor executor,
-                     CommitManager commitManager) {
+    public ReplicateManager(RaftServerConfig config, int groupId, RaftStatus raftStatus, RaftLog raftLog,
+                            StateMachine stateMachine, NioClient client, RaftExecutor executor,
+                            CommitManager commitManager) {
         this.groupId = groupId;
         this.raftStatus = raftStatus;
         this.config = config;
@@ -112,13 +112,16 @@ public class ReplicateManager {
         if (!member.isReady()) {
             return;
         }
+        if (member.isWaiting()) {
+            return;
+        }
         if (member.isInstallSnapshot()) {
             installSnapshot(member);
         } else if (member.isMultiAppend()) {
-            doReplicate(member, false);
+            doReplicate(member);
         } else {
             if (member.getPendingStat().getPendingRequests() == 0) {
-                doReplicate(member, true);
+                doReplicate(member);
             } else {
                 // waiting all pending request complete
             }
@@ -126,7 +129,7 @@ public class ReplicateManager {
     }
 
     @SuppressWarnings("ForLoopReplaceableByForEach")
-    private void doReplicate(RaftMember member, boolean tryMatch) {
+    private void doReplicate(RaftMember member) {
         long nextIndex = member.getNextIndex();
         long lastLogIndex = raftStatus.getLastLogIndex();
         if (lastLogIndex < nextIndex) {
@@ -145,7 +148,7 @@ public class ReplicateManager {
             return;
         }
 
-        int limit = tryMatch ? 1 : rest;
+        int limit = member.isMultiAppend() ? rest : 1;
 
         RaftTask first = raftStatus.getPendingRequests().get(nextIndex);
         LogItem[] items;
@@ -155,10 +158,43 @@ public class ReplicateManager {
                 RaftTask t = raftStatus.getPendingRequests().get(nextIndex + i);
                 items[i] = t.item;
             }
+            sendAppendRequest(member, items);
         } else {
-            items = RaftUtil.load(raftLog, raftStatus, nextIndex, limit, config.getReplicateLoadBytesLimit());
+            Supplier<CompletableFuture<LogItem[]>> s = () ->
+                    raftLog.load(nextIndex, limit, config.getReplicateLoadBytesLimit());
+            AsyncRetryTask<LogItem[]> task = new AsyncRetryTask<>(s, raftStatus, "load raft log failed");
+            member.setWaiting(true);
+            task.exec();
+            task.getFinalResult().thenAcceptAsync(
+                    result -> resumeAfterLoad(member.getReplicateEpoch(), member, result),
+                    raftStatus.getRaftExecutor());
         }
+    }
 
+    private void resumeAfterLoad(int repEpoch, RaftMember member, LogItem[] items) {
+        member.setWaiting(false);
+        if (repEpoch != member.getReplicateEpoch()) {
+            log.info("replicate epoch changed, ignore load result");
+            return;
+        }
+        if (!member.isReady()) {
+            return;
+        }
+        if(member.isInstallSnapshot()){
+            return;
+        }
+        if(member.isMultiAppend()) {
+            sendAppendRequest(member, items);
+        } else {
+            if (member.getPendingStat().getPendingRequests() == 0) {
+                sendAppendRequest(member, items);
+            } else {
+                // waiting all pending request complete
+            }
+        }
+    }
+
+    private void sendAppendRequest(RaftMember member, LogItem[] items) {
         LogItem firstItem = items[0];
         long bytes = 0;
         for (int i = 0; i < items.length; i++) {
@@ -194,6 +230,7 @@ public class ReplicateManager {
         // if PendingStat is reset, we should not invoke decrAndGetPendingRequests() on new instance
         PendingStat ps = member.getPendingStat();
         ps.incrAndGetPendingRequests(count, bytes);
+        int repEpoch = member.getReplicateEpoch();
         f.whenCompleteAsync((rf, ex) -> {
             if (reqTerm != raftStatus.getCurrentTerm()) {
                 log.info("receive outdated append result, term not match. reqTerm={}, currentTerm={}",
@@ -202,8 +239,14 @@ public class ReplicateManager {
             }
             ps.decrAndGetPendingRequests(count, bytes);
             if (ex == null) {
+                if (repEpoch != member.getReplicateEpoch()) {
+                    log.info("receive outdated append result, replicateEpoch not match. reqEpoch={}, currentEpoch={}",
+                            repEpoch, member.getReplicateEpoch());
+                    return;
+                }
                 processAppendResult(member, rf, prevLogIndex, prevLogTerm, reqTerm, reqNanos, count);
             } else {
+                member.setReplicateEpoch(member.getReplicateEpoch() + 1);
                 if (member.isMultiAppend()) {
                     member.setMultiAppend(false);
                     String msg = "append fail. remoteId={}, groupId={}, localTerm={}, reqTerm={}, prevLogIndex={}";
@@ -245,7 +288,7 @@ public class ReplicateManager {
             return;
         }
         if (member.isInstallSnapshot()) {
-            log.info("receive append result when install snapshot, ignore. prevLogIndex={}, prevLogTerm={}, remoteId={}, groupId={}",
+            BugLog.getLog().error("receive append result when install snapshot, ignore. prevLogIndex={}, prevLogTerm={}, remoteId={}, groupId={}",
                     prevLogIndex, prevLogTerm, member.getNode().getNodeId(), groupId);
             return;
         }
@@ -268,7 +311,7 @@ public class ReplicateManager {
         } else if (body.getAppendCode() == AppendProcessor.CODE_LOG_NOT_MATCH) {
             processLogNotMatch(member, prevLogIndex, prevLogTerm, reqTerm, reqNanos, body, raftStatus);
         } else if (body.getAppendCode() == AppendProcessor.CODE_INSTALL_SNAPSHOT) {
-            initInstallSnapshot(member);
+            log.error("remote member is installing snapshot, prevLogIndex={}", prevLogIndex);
         } else {
             BugLog.getLog().error("append fail. appendCode={}, old matchIndex={}, append prevLogIndex={}, " +
                             "expectNewMatchIndex={}, remoteId={}, groupId={}, localTerm={}, reqTerm={}, remoteTerm={}",
@@ -285,6 +328,7 @@ public class ReplicateManager {
         member.setLastConfirmReqNanos(reqNanos);
         member.setMultiAppend(false);
         RaftUtil.updateLease(raftStatus);
+        member.setReplicateEpoch(member.getReplicateEpoch() + 1);
         if (body.getTerm() == raftStatus.getCurrentTerm() && reqTerm == raftStatus.getCurrentTerm()) {
             member.setNextIndex(body.getMaxLogIndex() + 1);
             replicate(member);
@@ -335,9 +379,11 @@ public class ReplicateManager {
     }
 
     private void initInstallSnapshot(RaftMember member) {
-        member.setInstallSnapshot(true);
-        member.setPendingStat(new PendingStat());
-        installSnapshot(member);
+        if (!member.isInstallSnapshot()) {
+            member.setInstallSnapshot(true);
+            member.setPendingStat(new PendingStat());
+            installSnapshot(member);
+        }
     }
 
     private void installSnapshot(RaftMember member) {
@@ -460,14 +506,10 @@ public class ReplicateManager {
                 closeIteratorAndResetStatus(member, si);
                 member.setInstallSnapshot(false);
                 member.setNextIndex(reqLastIncludedIndex + 1);
-            } else {
-                submitReplicateTask(member);
             }
-        }, raftExecutor);
-    }
+            replicate(member);
 
-    private void submitReplicateTask(RaftMember member) {
-        raftExecutor.execute(() -> replicate(member));
+        }, raftExecutor);
     }
 
 }
