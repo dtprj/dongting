@@ -77,16 +77,11 @@ public class TransferLeaderProcessor extends AbstractProcessor {
         }
         raftStatus.setCommitIndex(req.logIndex);
         gc.getApplyManager().apply(raftStatus);
-        if (raftStatus.getCommitIndex() == raftStatus.getLastApplied()) {
-            RaftUtil.changeToLeader(raftStatus);
-            gc.getVoteManager().cancelVote();
-            gc.getRaft().sendHeartBeat();
-            return new EmptyBodyRespFrame(CmdCodes.SUCCESS);
-        } else {
-            EmptyBodyRespFrame respFrame = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
-            respFrame.setMsg("apply index not catch up commit index");
-            return respFrame;
-        }
+
+        RaftUtil.changeToLeader(raftStatus);
+        gc.getVoteManager().cancelVote();
+        gc.getRaft().sendHeartBeat();
+        return new EmptyBodyRespFrame(CmdCodes.SUCCESS);
     }
 
     @Override
