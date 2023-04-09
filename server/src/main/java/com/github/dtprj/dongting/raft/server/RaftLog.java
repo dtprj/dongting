@@ -45,11 +45,6 @@ public interface RaftLog extends AutoCloseable {
     CompletableFuture<LogItem[]> load(long index, int limit, long bytesLimit);
 
     /**
-     * if there is no such index, return -1.
-     */
-    int getTermOf(long index) throws IOException;
-
-    /**
      * if there is no such term, return -1.
      */
     long findMaxIndexByTerm(int term) throws IOException;

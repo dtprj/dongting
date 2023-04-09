@@ -15,12 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.raft.client.RaftException;
-import com.github.dtprj.dongting.raft.server.RaftLog;
-
-import java.io.IOException;
 import java.util.List;
-import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -28,12 +23,10 @@ import java.util.function.Supplier;
 public class CommitManager {
 
     private final RaftStatus raftStatus;
-    private final RaftLog raftLog;
     private final ApplyManager applyManager;
 
-    public CommitManager(RaftStatus raftStatus, RaftLog raftLog, ApplyManager applyManager) {
+    public CommitManager(RaftStatus raftStatus, ApplyManager applyManager) {
         this.raftStatus = raftStatus;
-        this.raftLog = raftLog;
         this.applyManager = applyManager;
     }
 
@@ -44,20 +37,8 @@ public class CommitManager {
             return;
         }
         // leader can only commit log in current term, see raft paper 5.4.2
-        if (raftStatus.getFirstCommitIndexOfCurrentTerm() <= 0) {
-            Supplier<Integer> callback = () -> {
-                try {
-                    return raftLog.getTermOf(recentMatchIndex);
-                } catch (IOException e) {
-                    throw new RaftException(e);
-                }
-            };
-            int t = RaftUtil.doWithSyncRetry(callback, raftStatus, 1000, "RaftLog.getTermOf fail");
-            if (t != raftStatus.getCurrentTerm()) {
-                return;
-            } else {
-                raftStatus.setFirstCommitIndexOfCurrentTerm(recentMatchIndex);
-            }
+        if (recentMatchIndex < raftStatus.getCommitIndex()) {
+            return;
         }
         raftStatus.setCommitIndex(recentMatchIndex);
         applyManager.apply(raftStatus);
