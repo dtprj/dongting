@@ -24,7 +24,6 @@ import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ReadFrame;
-import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.AppendReqWriteFrame;
 import com.github.dtprj.dongting.raft.rpc.AppendRespCallback;
@@ -178,9 +177,6 @@ public class ReplicateManager {
         if (!member.isReady()) {
             return;
         }
-        if (member.isInstallSnapshot()) {
-            return;
-        }
         if (member.isMultiAppend()) {
             sendAppendRequest(member, items);
         } else {
@@ -332,49 +328,31 @@ public class ReplicateManager {
             member.setNextIndex(body.getMaxLogIndex() + 1);
             replicate(member);
         } else {
-            long idx = findMaxIndexByTerm(body.getMaxLogTerm());
-            if (idx > 0) {
-                member.setNextIndex(Math.min(body.getMaxLogIndex(), idx) + 1);
-                replicate(member);
-            } else {
-                int t = findLastTermLessThan(body.getMaxLogTerm());
-                if (t > 0) {
-                    idx = findMaxIndexByTerm(t);
-                    if (idx > 0) {
-                        member.setNextIndex(Math.min(body.getMaxLogIndex(), idx) + 1);
-                        replicate(member);
-                    } else {
-                        log.error("can't find max index of term to replicate: {}. may truncated recently?", t);
-                        beginInstallSnapshot(member);
-                    }
-                } else {
-                    log.warn("can't find local term to replicate. follower maxTerm={}", body.getMaxLogTerm());
-                    beginInstallSnapshot(member);
-                }
-            }
+            member.setWaiting(true);
+            int reqEpoch = member.getReplicateEpoch();
+            raftLog.nextIndexToReplicate(body.getMaxLogTerm(), body.getMaxLogIndex())
+                    .whenCompleteAsync(resumeAfterFindIndex(member, reqEpoch, body.getMaxLogIndex()), raftExecutor);
         }
     }
 
-    private long findMaxIndexByTerm(int term) {
-        Supplier<Long> callback = () -> {
-            try {
-                return raftLog.findMaxIndexByTerm(term);
-            } catch (Exception ex) {
-                throw new RaftException(ex);
+    private BiConsumer<Long, Throwable> resumeAfterFindIndex(RaftMember member, int reqEpoch, long remoteMayIndex) {
+        return (nextIndex, ex) -> {
+            member.setWaiting(false);
+            if (epochNotMatch(member, reqEpoch)) {
+                log.info("epoch not match. ignore result of nextIndexToReplicate call");
+                return;
+            }
+            if (ex == null) {
+                if (nextIndex > 0) {
+                    member.setNextIndex(Math.min(nextIndex, remoteMayIndex));
+                    replicate(member);
+                } else {
+                    beginInstallSnapshot(member);
+                }
+            } else {
+                log.error("nextIndexToReplicate fail", ex);
             }
         };
-        return RaftUtil.doWithSyncRetry(callback, raftStatus, 1000, "findMaxIndexByTerm fail");
-    }
-
-    private int findLastTermLessThan(int term) {
-        Supplier<Integer> callback = () -> {
-            try {
-                return raftLog.findLastTermLessThan(term);
-            } catch (Exception ex) {
-                throw new RaftException(ex);
-            }
-        };
-        return RaftUtil.doWithSyncRetry(callback, raftStatus, 1000, "findLastTermLessThan fail");
     }
 
     private void beginInstallSnapshot(RaftMember member) {
@@ -417,7 +395,13 @@ public class ReplicateManager {
                 return;
             }
             if (epochNotMatch(member, reqEpoch)) {
-                log.info("epoch not match, ignore loaded snapshot.");
+                log.info("epoch not match, abort install snapshot.");
+                closeSnapshotAndResetStatus(member, si);
+                return;
+            }
+            if (!member.isReady()) {
+                log.info("member is not ready, abort install snapshot.");
+                closeSnapshotAndResetStatus(member, si);
                 return;
             }
             sendInstallSnapshotReq(member, si, data);

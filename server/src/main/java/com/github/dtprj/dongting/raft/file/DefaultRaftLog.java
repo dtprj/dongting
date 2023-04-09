@@ -115,13 +115,8 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public long findMaxIndexByTerm(int term) {
-        return 0;
-    }
-
-    @Override
-    public int findLastTermLessThan(int term) {
-        return 0;
+    public CompletableFuture<Long> nextIndexToReplicate(int remoteMaxTerm, long remoteMaxIndex) {
+        return null;
     }
 
     @Override
