@@ -61,10 +61,6 @@ public class CommitManager {
         }
         raftStatus.setCommitIndex(recentMatchIndex);
         applyManager.apply(raftStatus);
-        if (raftStatus.getFirstCommitOfApplied() != null) {
-            raftStatus.getFirstCommitOfApplied().complete(null);
-            raftStatus.setFirstCommitOfApplied(null);
-        }
     }
 
     private static boolean needCommit(long recentMatchIndex, RaftStatus raftStatus) {

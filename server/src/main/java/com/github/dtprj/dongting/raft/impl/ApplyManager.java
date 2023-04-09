@@ -51,6 +51,7 @@ public class ApplyManager {
     private boolean configChanging = false;
 
     private boolean waiting;
+    private long appliedIndex;
 
     public ApplyManager(int selfNodeId, RaftLog raftLog, StateMachine stateMachine, RaftStatus raftStatus, EventBus eventBus) {
         this.selfNodeId = selfNodeId;
@@ -65,9 +66,12 @@ public class ApplyManager {
         if (waiting) {
             return;
         }
-        long diff = raftStatus.getCommitIndex() - raftStatus.getLastApplied();
+        if (appliedIndex < raftStatus.getLastApplied()) {
+            appliedIndex = raftStatus.getLastApplied();
+        }
+        long diff = raftStatus.getCommitIndex() - appliedIndex;
         while (diff > 0) {
-            long index = raftStatus.getLastApplied() + 1;
+            long index = appliedIndex + 1;
             RaftTask rt = raftStatus.getPendingRequests().get(index);
             if (rt == null) {
                 waiting = true;
@@ -78,10 +82,8 @@ public class ApplyManager {
                 task.getFinalResult().thenAcceptAsync(this::resumeAfterLoad, raftStatus.getRaftExecutor());
                 return;
             } else {
-                if (!execChain(index, rt)) {
-                    return;
-                }
-                raftStatus.setLastApplied(index);
+                execChain(index, rt);
+                appliedIndex++;
                 diff--;
             }
         }
@@ -94,11 +96,9 @@ public class ApplyManager {
         for (int i = 0; i < readCount; i++) {
             LogItem item = items[i];
             RaftTask rt = buildRaftTask(item);
-            if (!execChain(item.getIndex(), rt)) {
-                return;
-            }
-            raftStatus.setLastApplied(item.getIndex());
+            execChain(item.getIndex(), rt);
         }
+        appliedIndex += readCount;
         apply(raftStatus);
     }
 
@@ -114,14 +114,14 @@ public class ApplyManager {
     }
 
     @SuppressWarnings({"ForLoopReplaceableByForEach", "BooleanMethodIsAlwaysInverted"})
-    private boolean execChain(long index, RaftTask rt) {
+    private void execChain(long index, RaftTask rt) {
         switch (rt.type) {
             case LogItem.TYPE_NORMAL:
-                execNormal(index, rt);
-                break;
+                execWrite(index, rt);
+                return;
             case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
                 doPrepare(index, rt);
-                return false;
+                return;
             case LogItem.TYPE_DROP_CONFIG_CHANGE:
                 doAbort();
                 notifyConfigChange(index, rt);
@@ -134,8 +134,8 @@ public class ApplyManager {
                 // heartbeat etc.
                 break;
         }
+        raftStatus.setLastApplied(index);
         execReaders(index, rt);
-        return true;
     }
 
     private void resumeAfterPrepare(long index, RaftTask rt) {
@@ -159,33 +159,47 @@ public class ApplyManager {
         }
         for (int i = 0; i < nextReaders.size(); i++) {
             RaftTask readerTask = nextReaders.get(i);
-            execNormal(index, readerTask);
+            execRead(index, readerTask);
         }
     }
 
-    public void execNormal(long index, RaftTask rt) {
+    private void execWrite(long index, RaftTask rt) {
         RaftInput input = rt.input;
         CompletableFuture<RaftOutput> future = rt.future;
-        if (input.isReadOnly() && input.getDeadline() != null && input.getDeadline().isTimeout(ts)) {
-            if (future != null) {
-                future.completeExceptionally(new RaftExecTimeoutException("timeout "
-                        + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms"));
+        stateMachine.exec(index, input).whenCompleteAsync((r, e) -> {
+            if (e != null) {
+                log.warn("exec write failed. {}", e.toString());
+                future.completeExceptionally(e);
+            } else {
+                future.complete(new RaftOutput(index, r));
             }
-            return;
+            if (raftStatus.getFirstCommitOfApplied() != null) {
+                raftStatus.getFirstCommitOfApplied().complete(null);
+                raftStatus.setFirstCommitOfApplied(null);
+            }
+            raftStatus.setLastApplied(index);
+        }, raftStatus.getRaftExecutor());
+        execReaders(index, rt);
+    }
+
+    public void execRead(long index, RaftTask rt) {
+        RaftInput input = rt.input;
+        CompletableFuture<RaftOutput> future = rt.future;
+        if (input.getDeadline() != null && input.getDeadline().isTimeout(ts)) {
+            future.completeExceptionally(new RaftExecTimeoutException("timeout "
+                    + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms"));
         }
         try {
-            Object result = stateMachine.exec(index, input);
-            if (future != null) {
-                future.complete(new RaftOutput(index, result));
-            }
-        } catch (RuntimeException e) {
-            if (input.isReadOnly()) {
-                if (future != null) {
+            // no need run in raft thread
+            stateMachine.exec(index, input).whenComplete((r, e) -> {
+                if (e != null) {
                     future.completeExceptionally(e);
+                } else {
+                    future.complete(new RaftOutput(index, r));
                 }
-            } else {
-                throw e;
-            }
+            });
+        } catch (Exception e) {
+            future.completeExceptionally(e);
         }
     }
 

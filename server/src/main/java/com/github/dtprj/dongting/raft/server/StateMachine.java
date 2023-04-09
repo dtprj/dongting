@@ -26,7 +26,7 @@ public interface StateMachine extends AutoCloseable {
 
     Object decode(ByteBuffer logData);
 
-    Object exec(long index, Object input);
+    CompletableFuture<Object> exec(long index, Object input);
 
     void installSnapshot(boolean start, boolean finish, ByteBuffer data);
 
