@@ -3,6 +3,4 @@ module dongting.server {
     requires transitive dongting.client.java11;
 
     exports com.github.dtprj.dongting.raft.server;
-    exports com.github.dtprj.dongting.raft.impl;
-    exports com.github.dtprj.dongting.raft.rpc;
 }
