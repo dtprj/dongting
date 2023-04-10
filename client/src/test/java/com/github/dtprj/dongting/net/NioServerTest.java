@@ -593,7 +593,7 @@ public class NioServerTest {
             @Override
             public WriteFrame process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext) {
                 Thread t = new Thread(() -> {
-                    RefCountBufWriteFrame resp = new RefCountBufWriteFrame((RefByteBuffer) frame.getBody());
+                    RefBufWriteFrame resp = new RefBufWriteFrame((RefByteBuffer) frame.getBody());
                     resp.setRespCode(CmdCodes.SUCCESS);
                     channelContext.getRespWriter().writeRespInBizThreads(frame, resp, new DtTime(1, TimeUnit.SECONDS));
                 });

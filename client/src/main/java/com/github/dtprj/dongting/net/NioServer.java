@@ -225,7 +225,7 @@ public class NioServer extends NioNet implements Runnable {
 
         @Override
         public WriteFrame process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext) {
-            RefCountBufWriteFrame resp = new RefCountBufWriteFrame((RefByteBuffer) frame.getBody());
+            RefBufWriteFrame resp = new RefBufWriteFrame((RefByteBuffer) frame.getBody());
             resp.setRespCode(CmdCodes.SUCCESS);
             return resp;
         }

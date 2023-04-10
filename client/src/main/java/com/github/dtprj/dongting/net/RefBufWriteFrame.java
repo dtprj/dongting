@@ -25,11 +25,11 @@ import java.nio.ByteBuffer;
  * @author huangli
  */
 @SuppressWarnings("FieldMayBeFinal")
-public class RefCountBufWriteFrame extends ByteBufferWriteFrame {
+public class RefBufWriteFrame extends ByteBufferWriteFrame {
     private RefByteBuffer refByteBuffer;
     private boolean encodeInvoked;
 
-    public RefCountBufWriteFrame(RefByteBuffer refByteBuffer) {
+    public RefBufWriteFrame(RefByteBuffer refByteBuffer) {
         super(refByteBuffer == null ? null : refByteBuffer.getBuffer());
         this.refByteBuffer = refByteBuffer;
     }
