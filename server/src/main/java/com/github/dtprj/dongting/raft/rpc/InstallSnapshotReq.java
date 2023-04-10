@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.RefByteBuffer;
 import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.pb.PbUtil;
 
@@ -39,11 +40,16 @@ public class InstallSnapshotReq {
     public long lastIncludedIndex;
     public int lastIncludedTerm;
     public long offset;
-    public ByteBuffer data;
+    public RefByteBuffer data;
     public boolean done;
 
     public static class Callback extends PbCallback {
         private final InstallSnapshotReq result = new InstallSnapshotReq();
+        private final ByteBufferPool heapPool;
+
+        public Callback(ByteBufferPool heapPool) {
+            this.heapPool = heapPool;
+        }
 
         @Override
         public boolean readVarNumber(int index, long value) {
@@ -84,11 +90,11 @@ public class InstallSnapshotReq {
         public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
             if (index == 7) {
                 if (begin) {
-                    result.data = ByteBuffer.allocate(len);
+                    result.data = RefByteBuffer.create(heapPool, len, 1024);
                 }
-                result.data.put(buf);
+                result.data.getBuffer().put(buf);
                 if (end) {
-                    result.data.flip();
+                    result.data.getBuffer().flip();
                 }
             }
             return true;
@@ -116,7 +122,8 @@ public class InstallSnapshotReq {
                     + PbUtil.accurateFix64Size(4, data.lastIncludedIndex)
                     + PbUtil.accurateUnsignedIntSize(5, data.lastIncludedTerm)
                     + PbUtil.accurateFix64Size(6, data.offset)
-                    + PbUtil.accurateLengthDelimitedSize(7, data.data.remaining(), false)
+                    //TODO process end
+                    + PbUtil.accurateLengthDelimitedSize(7, data.data.getBuffer().remaining(), false)
                     + PbUtil.accurateUnsignedIntSize(8, data.done ? 1 : 0);
         }
 
@@ -129,8 +136,8 @@ public class InstallSnapshotReq {
             PbUtil.writeFix64(buf, 4, data.lastIncludedIndex);
             PbUtil.writeUnsignedInt32(buf, 5, data.lastIncludedTerm);
             PbUtil.writeFix64(buf, 6, data.offset);
-            PbUtil.writeLengthDelimitedPrefix(buf, 7, data.data.remaining(), false);
-            buf.put(data.data);
+            PbUtil.writeLengthDelimitedPrefix(buf, 7, data.data.getBuffer().remaining(), false);
+            buf.put(data.data.getBuffer());
             PbUtil.writeUnsignedInt32(buf, 8, data.done ? 1 : 0);
         }
 

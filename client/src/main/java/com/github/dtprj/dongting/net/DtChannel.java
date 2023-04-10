@@ -571,7 +571,7 @@ class ByteBufferPoolReleaseInOtherThread extends ByteBufferPool {
 
     @Override
     public ByteBuffer borrow(int requestSize) {
-        return pool.borrow(requestSize);
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -581,6 +581,11 @@ class ByteBufferPoolReleaseInOtherThread extends ByteBufferPool {
         } catch (NetException e) {
             // ignore
         }
+    }
+
+    @Override
+    public ByteBuffer allocate(int requestSize) {
+        throw new UnsupportedOperationException();
     }
 }
 

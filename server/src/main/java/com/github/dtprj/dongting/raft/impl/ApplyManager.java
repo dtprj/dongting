@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.buf.RefByteBuffer;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -25,7 +26,6 @@ import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.StateMachine;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
@@ -87,28 +87,39 @@ public class ApplyManager {
     }
 
     private void resumeAfterLoad(LogItem[] items, Throwable ex) {
-        waiting = false;
-        if (ex != null) {
-            log.error("load log failed", ex);
-            return;
+        try {
+            waiting = false;
+            if (ex != null) {
+                log.error("load log failed", ex);
+                return;
+            }
+            if (items == null || items.length == 0) {
+                log.error("load log failed, items is null");
+                return;
+            }
+            if (items[0].getIndex() != appliedIndex + 1) {
+                // previous load failed, ignore
+                log.warn("first index of load result not match appliedIndex, ignore.");
+                return;
+            }
+            int readCount = items.length;
+            //noinspection ForLoopReplaceableByForEach
+            for (int i = 0; i < readCount; i++) {
+                LogItem item = items[i];
+                RaftTask rt = buildRaftTask(item);
+                execChain(item.getIndex(), rt);
+            }
+            appliedIndex += readCount;
+        } finally {
+            // the data loaded will not put into pending map, so release it here
+            if (items != null) {
+                int len = items.length;
+                //noinspection ForLoopReplaceableByForEach
+                for (int i = 0; i < len; i++) {
+                    RaftUtil.release(items[i]);
+                }
+            }
         }
-        if (items == null || items.length == 0) {
-            log.error("load log failed, items is null");
-            return;
-        }
-        if (items[0].getIndex() != appliedIndex + 1) {
-            // previous load failed, ignore
-            log.warn("first index of load result not match appliedIndex, ignore.");
-            return;
-        }
-        int readCount = items.length;
-        //noinspection ForLoopReplaceableByForEach
-        for (int i = 0; i < readCount; i++) {
-            LogItem item = items[i];
-            RaftTask rt = buildRaftTask(item);
-            execChain(item.getIndex(), rt);
-        }
-        appliedIndex += readCount;
         apply(raftStatus);
     }
 
@@ -123,7 +134,6 @@ public class ApplyManager {
         return new RaftTask(ts, item.getType(), input, null);
     }
 
-    @SuppressWarnings({"ForLoopReplaceableByForEach", "BooleanMethodIsAlwaysInverted"})
     private void execChain(long index, RaftTask rt) {
         switch (rt.type) {
             case LogItem.TYPE_NORMAL:
@@ -167,6 +177,7 @@ public class ApplyManager {
         if (nextReaders == null) {
             return;
         }
+        //noinspection ForLoopReplaceableByForEach
         for (int i = 0; i < nextReaders.size(); i++) {
             RaftTask readerTask = nextReaders.get(i);
             execRead(index, readerTask);
@@ -175,10 +186,12 @@ public class ApplyManager {
 
     private void execWrite(long index, RaftTask rt) {
         RaftInput input = rt.input;
+        RaftUtil.retain(input);
         CompletableFuture<RaftOutput> future = rt.future;
         stateMachine.exec(index, input).whenCompleteAsync((r, e) -> {
+            RaftUtil.release(input);
             if (e != null) {
-                log.warn("exec write failed. {}", e.toString());
+                log.warn("exec write failed. {}", e);
                 future.completeExceptionally(e);
             } else {
                 future.complete(new RaftOutput(index, r));
@@ -201,7 +214,7 @@ public class ApplyManager {
         }
         try {
             // no need run in raft thread
-            stateMachine.exec(index, input).whenComplete((r, e) -> {
+            stateMachine.exec(index, input.getInput()).whenComplete((r, e) -> {
                 if (e != null) {
                     future.completeExceptionally(e);
                 } else {
@@ -216,9 +229,9 @@ public class ApplyManager {
     private void doPrepare(long index, RaftTask rt) {
         configChanging = true;
 
-        ByteBuffer logData = rt.input.getLogData();
-        byte[] data = new byte[logData.remaining()];
-        logData.get(data);
+        RefByteBuffer logData = rt.input.getLogData();
+        byte[] data = new byte[logData.getBuffer().remaining()];
+        logData.getBuffer().get(data);
         String dataStr = new String(data);
         String[] fields = dataStr.split(";");
         Set<Integer> oldMembers = parseSet(fields[0]);

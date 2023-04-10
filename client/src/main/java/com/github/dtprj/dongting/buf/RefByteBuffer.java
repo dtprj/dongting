@@ -27,7 +27,7 @@ public class RefByteBuffer extends RefCount {
     private final ByteBuffer buffer;
     private final ByteBufferPool pool;
 
-    protected RefByteBuffer(boolean plain, ByteBufferPool pool, int requestSize, int threshold) {
+    private RefByteBuffer(boolean plain, ByteBufferPool pool, int requestSize, int threshold) {
         super(plain);
         if (requestSize < threshold) {
             this.buffer = ByteBuffer.allocate(requestSize);
@@ -36,6 +36,12 @@ public class RefByteBuffer extends RefCount {
             this.buffer = pool.borrow(requestSize);
             this.pool = pool;
         }
+    }
+
+    private RefByteBuffer(int requestSize, boolean direct) {
+        super(true);
+        this.buffer = direct ? ByteBuffer.allocateDirect(requestSize) : ByteBuffer.allocate(requestSize);
+        this.pool = null;
     }
 
     /**
@@ -50,6 +56,10 @@ public class RefByteBuffer extends RefCount {
      */
     public static RefByteBuffer createPlain(ByteBufferPool pool, int requestSize, int threshold) {
         return new RefByteBuffer(true, pool, requestSize, threshold);
+    }
+
+    public static RefByteBuffer createUnpooled(int requestSize, boolean direct) {
+        return new RefByteBuffer(requestSize, direct);
     }
 
     @Override

@@ -15,9 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import com.github.dtprj.dongting.buf.RefByteBuffer;
 import com.github.dtprj.dongting.common.DtTime;
-
-import java.nio.ByteBuffer;
 
 /**
  * @author huangli
@@ -25,16 +24,16 @@ import java.nio.ByteBuffer;
 public class RaftInput {
     private final DtTime deadline;
     private final boolean readOnly;
-    private final ByteBuffer logData;
+    private final RefByteBuffer logData;
     private final Object input;
     private final int size;
 
-    public RaftInput(ByteBuffer logData, Object input, DtTime deadline, boolean readOnly) {
+    public RaftInput(RefByteBuffer logData, Object input, DtTime deadline, boolean readOnly) {
         this.logData = logData;
         this.input = input;
         this.deadline = deadline;
         this.readOnly = readOnly;
-        this.size = logData == null ? 0 : logData.remaining();
+        this.size = logData == null ? 0 : logData.getBuffer().remaining();
     }
 
     /**
@@ -48,7 +47,7 @@ public class RaftInput {
         return deadline;
     }
 
-    public ByteBuffer getLogData() {
+    public RefByteBuffer getLogData() {
         return logData;
     }
 

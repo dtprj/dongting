@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.buf.RefByteBuffer;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -48,7 +49,7 @@ public class AppendProcessor extends AbstractProcessor {
     public static final int CODE_NOT_MEMBER_IN_GROUP = 5;
     public static final int CODE_ERROR_STATE = 6;
 
-    private static final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder(c -> new AppendReqCallback());
+    private static final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder(c -> new AppendReqCallback(c));
 
     public AppendProcessor(GroupComponentsMap groupComponentsMap) {
         super(groupComponentsMap);
@@ -103,6 +104,15 @@ public class AppendProcessor extends AbstractProcessor {
 
         resp.setTerm(raftStatus.getCurrentTerm());
         resp.setRespCode(CmdCodes.SUCCESS);
+        ArrayList<LogItem> logs = req.getLogs();
+        if (logs != null) {
+            for (int i = 0; i < logs.size(); i++) {
+                RefByteBuffer b = logs.get(i).getBuffer();
+                if (b != null) {
+                    b.release();
+                }
+            }
+        }
         return resp;
     }
 
@@ -145,6 +155,7 @@ public class AppendProcessor extends AbstractProcessor {
             LogItem li = logs.get(i);
             RaftInput raftInput = new RaftInput(li.getBuffer(), null, null, false);
             RaftTask task = new RaftTask(raftStatus.getTs(), li.getType(), raftInput, null);
+            RaftUtil.retain(raftInput);
             raftStatus.getPendingRequests().put(li.getIndex(), task);
         }
 

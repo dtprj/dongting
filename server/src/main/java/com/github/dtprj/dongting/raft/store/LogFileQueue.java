@@ -161,7 +161,7 @@ public class LogFileQueue extends FileQueue {
         long pos = writePos;
         LogFile file = getLogFile(pos);
         for (LogItem log : logs) {
-            ByteBuffer dataBuffer = log.getBuffer();
+            ByteBuffer dataBuffer = log.getBuffer().getBuffer();
             long posOfFile = (pos + buffer.position()) & FILE_LEN_MASK;
             // if posOfFile == 0, it means last item exactly fill the file
             if (posOfFile == 0 || LOG_FILE_SIZE - posOfFile < ITEM_HEADER_SIZE + dataBuffer.remaining()) {

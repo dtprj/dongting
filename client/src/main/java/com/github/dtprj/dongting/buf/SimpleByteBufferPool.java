@@ -125,7 +125,8 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         this.statReleaseHitCount = new long[bufferTypeCount];
     }
 
-    private ByteBuffer allocate(int size) {
+    @Override
+    public ByteBuffer allocate(int size) {
         return this.direct ? ByteBuffer.allocateDirect(size) : ByteBuffer.allocate(size);
     }
 

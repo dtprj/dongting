@@ -38,7 +38,7 @@ public class InstallSnapshotProcessor extends AbstractProcessor {
 
     private static final DtLog log = DtLogs.getLogger(InstallSnapshotProcessor.class);
 
-    private static final Decoder DECODER = new PbZeroCopyDecoder(c -> new InstallSnapshotReq.Callback());
+    private static final Decoder DECODER = new PbZeroCopyDecoder(c -> new InstallSnapshotReq.Callback(c.getIoHeapBufferPool()));
 
     public InstallSnapshotProcessor(GroupComponentsMap groupComponentsMap) {
         super(groupComponentsMap);
@@ -52,47 +52,53 @@ public class InstallSnapshotProcessor extends AbstractProcessor {
     @Override
     protected WriteFrame doProcess(ReadFrame frame, ChannelContext channelContext, GroupComponents gc) {
         InstallSnapshotReq req = (InstallSnapshotReq) frame.getBody();
-        InstallSnapshotResp resp = new InstallSnapshotResp();
-        InstallSnapshotResp.WriteFrame respFrame = new InstallSnapshotResp.WriteFrame(resp);
-        int remoteTerm = req.term;
-        RaftStatus raftStatus = gc.getRaftStatus();
+        try {
+            InstallSnapshotResp resp = new InstallSnapshotResp();
+            InstallSnapshotResp.WriteFrame respFrame = new InstallSnapshotResp.WriteFrame(resp);
+            int remoteTerm = req.term;
+            RaftStatus raftStatus = gc.getRaftStatus();
 
-        if (raftStatus.isError()) {
-            resp.success = false;
-        } else if (gc.getMemberManager().checkLeader(req.leaderId)) {
-            int localTerm = raftStatus.getCurrentTerm();
-            if (remoteTerm == localTerm) {
-                if (raftStatus.getRole() == RaftRole.follower) {
-                    RaftUtil.resetElectTimer(raftStatus);
-                    RaftUtil.updateLeader(raftStatus, req.leaderId);
-                    installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
-                } else if (raftStatus.getRole() == RaftRole.observer) {
-                    RaftUtil.updateLeader(raftStatus, req.leaderId);
-                    installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
-                } else if (raftStatus.getRole() == RaftRole.candidate) {
-                    RaftUtil.changeToFollower(raftStatus, req.leaderId);
+            if (raftStatus.isError()) {
+                resp.success = false;
+            } else if (gc.getMemberManager().checkLeader(req.leaderId)) {
+                int localTerm = raftStatus.getCurrentTerm();
+                if (remoteTerm == localTerm) {
+                    if (raftStatus.getRole() == RaftRole.follower) {
+                        RaftUtil.resetElectTimer(raftStatus);
+                        RaftUtil.updateLeader(raftStatus, req.leaderId);
+                        installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
+                    } else if (raftStatus.getRole() == RaftRole.observer) {
+                        RaftUtil.updateLeader(raftStatus, req.leaderId);
+                        installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
+                    } else if (raftStatus.getRole() == RaftRole.candidate) {
+                        RaftUtil.changeToFollower(raftStatus, req.leaderId);
+                        installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
+                    } else {
+                        BugLog.getLog().error("leader receive raft install snapshot request. term={}, remote={}",
+                                remoteTerm, channelContext.getRemoteAddr());
+                        resp.success = false;
+                    }
+                } else if (remoteTerm > localTerm) {
+                    RaftUtil.incrTerm(remoteTerm, raftStatus, req.leaderId);
                     installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
                 } else {
-                    BugLog.getLog().error("leader receive raft install snapshot request. term={}, remote={}",
-                            remoteTerm, channelContext.getRemoteAddr());
+                    log.debug("receive raft install snapshot request with a smaller term, ignore, remoteTerm={}, localTerm={}", remoteTerm, localTerm);
                     resp.success = false;
                 }
-            } else if (remoteTerm > localTerm) {
-                RaftUtil.incrTerm(remoteTerm, raftStatus, req.leaderId);
-                installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
             } else {
-                log.debug("receive raft install snapshot request with a smaller term, ignore, remoteTerm={}, localTerm={}", remoteTerm, localTerm);
                 resp.success = false;
+                log.warn("receive raft install snapshot request from a non-member, ignore. remoteId={}, group={}, remote={}",
+                        req.leaderId, req.groupId, channelContext.getRemoteAddr());
             }
-        } else {
-            resp.success = false;
-            log.warn("receive raft install snapshot request from a non-member, ignore. remoteId={}, group={}, remote={}",
-                    req.leaderId, req.groupId, channelContext.getRemoteAddr());
-        }
 
-        resp.term = raftStatus.getCurrentTerm();
-        respFrame.setRespCode(CmdCodes.SUCCESS);
-        return respFrame;
+            resp.term = raftStatus.getCurrentTerm();
+            respFrame.setRespCode(CmdCodes.SUCCESS);
+            return respFrame;
+        } finally {
+            if (req.data != null) {
+                req.data.release();
+            }
+        }
     }
 
     private void installSnapshot(RaftStatus raftStatus, StateMachine stateMachine, InstallSnapshotReq req, InstallSnapshotResp resp) {

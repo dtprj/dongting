@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.RefByteBuffer;
+import com.github.dtprj.dongting.net.ChannelContext;
 import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.pb.PbParser;
 import com.github.dtprj.dongting.raft.server.LogItem;
@@ -37,6 +40,7 @@ import java.util.ArrayList;
 //
 public class AppendReqCallback extends PbCallback {
 
+    private final ByteBufferPool heapPool;
     private int groupId;
     private int term;
     private int leaderId;
@@ -45,7 +49,8 @@ public class AppendReqCallback extends PbCallback {
     private final ArrayList<LogItem> logs = new ArrayList<>();
     private long leaderCommit;
 
-    public AppendReqCallback() {
+    public AppendReqCallback(ChannelContext channelContext) {
+        this.heapPool = channelContext.getIoHeapBufferPool();
     }
 
     @Override
@@ -85,7 +90,7 @@ public class AppendReqCallback extends PbCallback {
         if (index == 6) {
             PbParser logItemParser;
             if (begin) {
-                logItemParser = parser.createOrGetNestedParserSingle(new LogItemCallback(), len);
+                logItemParser = parser.createOrGetNestedParserSingle(new LogItemCallback(heapPool), len);
             } else {
                 logItemParser = parser.getNestedParser();
             }
@@ -142,6 +147,11 @@ public class AppendReqCallback extends PbCallback {
     //}
     static class LogItemCallback extends PbCallback {
         private final LogItem item = new LogItem();
+        private final ByteBufferPool heapPool;
+
+        public LogItemCallback(ByteBufferPool heapPool) {
+            this.heapPool = heapPool;
+        }
 
         @Override
         public boolean readVarNumber(int index, long value) {
@@ -170,16 +180,17 @@ public class AppendReqCallback extends PbCallback {
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
             if (index == 5) {
-                ByteBuffer dest;
+                RefByteBuffer dest;
                 if (begin) {
-                    dest = ByteBuffer.allocate(len);
+                    dest = RefByteBuffer.createPlain(heapPool, len, 1024);
                     item.setBuffer(dest);
                 } else {
                     dest = item.getBuffer();
                 }
-                dest.put(buf);
+                ByteBuffer destBuffer = dest.getBuffer();
+                destBuffer.put(buf);
                 if (end) {
-                    dest.flip();
+                    destBuffer.flip();
                 }
             }
             return true;

@@ -15,12 +15,14 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.buf.RefByteBuffer;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
+import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftNode;
 
@@ -125,6 +127,12 @@ public class RaftUtil {
         RaftUtil.resetElectTimer(raftStatus);
         raftStatus.setHeartbeatTime(raftStatus.getLastElectTime());
         raftStatus.setLeaseStartNanos(0);
+        raftStatus.getPendingRequests().forEach((k, rt) -> {
+            if (!rt.input.isReadOnly()) {
+                rt.input.getLogData().release();
+            }
+            return true;
+        });
         raftStatus.setPendingRequests(new PendingMap());
         raftStatus.setCurrentLeader(null);
         raftStatus.setHoldRequest(false);
@@ -308,4 +316,48 @@ public class RaftUtil {
         return gc;
     }
 
+    public static void retain(RaftInput rt) {
+        if (rt == null) {
+            return;
+        }
+        if (!rt.isReadOnly()) {
+            RefByteBuffer logData = rt.getLogData();
+            if (logData != null) {
+                logData.retain();
+            }
+        }
+    }
+
+    public static void release(RaftInput rt) {
+        if (rt == null) {
+            return;
+        }
+        if (!rt.isReadOnly()) {
+            RefByteBuffer logData = rt.getLogData();
+            if (logData != null) {
+                logData.release();
+            }
+        }
+    }
+
+
+    public static void retain(LogItem li) {
+        if (li == null) {
+            return;
+        }
+        RefByteBuffer b = li.getBuffer();
+        if (b != null) {
+            b.retain();
+        }
+    }
+
+    public static void release(LogItem li) {
+        if (li == null) {
+            return;
+        }
+        RefByteBuffer b = li.getBuffer();
+        if (b != null) {
+            b.release();
+        }
+    }
 }
