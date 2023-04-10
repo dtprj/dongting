@@ -27,7 +27,6 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -58,7 +57,7 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public Pair<Integer, Long> init() throws IOException {
+    public Pair<Integer, Long> init() throws Exception {
         File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
         checkpointFile = new StatusFile(new File(dataDir, "checkpoint"));
         checkpointFile.init();
@@ -70,7 +69,10 @@ public class DefaultRaftLog implements RaftLog {
         idxFiles.initWithCommitIndex(knownMaxCommitIndex);
         long commitIndexPos;
         if (knownMaxCommitIndex > 0) {
-            commitIndexPos = idxFiles.findLogPosByItemIndex(knownMaxCommitIndex);
+            commitIndexPos = idxFiles.findLogPosInMemCache(knownMaxCommitIndex);
+            if (commitIndexPos < 0) {
+                commitIndexPos = idxFiles.loadLogPos(knownMaxCommitIndex).get();
+            }
         } else {
             commitIndexPos = 0;
         }
@@ -90,7 +92,7 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public void append(long commitIndex, List<LogItem> logs) throws IOException {
+    public void append(long commitIndex, List<LogItem> logs) throws Exception {
         if (logs == null || logs.size() == 0) {
             BugLog.getLog().error("append log with empty logs");
             return;

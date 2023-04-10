@@ -26,13 +26,13 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface RaftLog extends AutoCloseable {
 
-    Pair<Integer, Long> init() throws IOException;
+    Pair<Integer, Long> init() throws Exception;
 
     /**
      * Batch append logs. In some conditions, the commitIndex may be smaller than commitIndex
      * in previous append invoke, but it ensures that logs at index(<=commitIndex) never be re-write.
      */
-    void append(long commitIndex, List<LogItem> logs) throws IOException;
+    void append(long commitIndex, List<LogItem> logs) throws Exception;
 
     /**
      * load logs.

@@ -24,7 +24,6 @@ import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftNode;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -251,7 +250,7 @@ public class RaftUtil {
             try {
                 raftLog.append(raftStatus.getCommitIndex(), logs);
                 return null;
-            } catch (IOException e) {
+            } catch (Exception e) {
                 throw new RaftException(e);
             }
         }, raftStatus, 1000, "raft log append error");

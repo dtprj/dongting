@@ -95,7 +95,7 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         return pos >>> 3;
     }
 
-    public long findLogPosByItemIndex(long itemIndex) throws IOException {
+    public long findLogPosInMemCache(long itemIndex) {
         checkIndex(itemIndex);
         if (itemIndex < firstIndex) {
             return -1;
@@ -104,22 +104,34 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         if (result > 0) {
             return result;
         }
+        return -2;
+    }
+
+    public CompletableFuture<Long> loadLogPos(long itemIndex) {
+        checkIndex(itemIndex);
+        if (itemIndex < firstIndex) {
+            return CompletableFuture.completedFuture(-1L);
+        }
         long pos = indexToPos(itemIndex);
         long filePos = pos & FILE_LEN_MASK;
         LogFile lf = getLogFile(pos);
-        // TODO reuse it
         ByteBuffer buffer = ByteBuffer.allocate(8);
-        FileUtil.syncRead(lf.channel, buffer, filePos);
-        buffer.flip();
-        return buffer.getLong();
+        AsyncReadTask t = new AsyncReadTask(buffer, filePos, lf.channel);
+        return t.exec().thenApply(v -> {
+            buffer.flip();
+            return buffer.getLong();
+        });
     }
 
-    public long truncateTail(long index) throws IOException {
+    public long truncateTail(long index) throws Exception {
         ObjUtil.checkPositive(index, "index");
         if (index < firstIndex) {
             throw new RaftException("truncateTail index is too small: " + index);
         }
-        long value = findLogPosByItemIndex(index);
+        long value = findLogPosInMemCache(index);
+        if (value < 0) {
+            value = loadLogPos(index).get();
+        }
         cache.truncate(index);
         nextIndex = index;
         if (nextPersistIndex > index) {
