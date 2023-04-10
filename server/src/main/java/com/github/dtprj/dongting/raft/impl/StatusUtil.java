@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.raft.file.FileUtil;
-import com.github.dtprj.dongting.raft.file.StatusFile;
+import com.github.dtprj.dongting.raft.store.FileUtil;
+import com.github.dtprj.dongting.raft.store.StatusFile;
 
 import java.io.File;
 import java.util.Properties;

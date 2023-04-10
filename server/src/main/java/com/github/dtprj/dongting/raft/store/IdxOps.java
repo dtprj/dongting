@@ -13,24 +13,13 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.file;
+package com.github.dtprj.dongting.raft.store;
 
-import java.nio.channels.AsynchronousFileChannel;
-import java.nio.channels.FileChannel;
+import java.io.IOException;
 
 /**
  * @author huangli
  */
-class LogFile {
-    final long startPos;
-    final AsynchronousFileChannel channel;
-    final String pathname;
-    final long endPos;
-
-    public LogFile(long startPos, long endPos, AsynchronousFileChannel channel, String pathname) {
-        this.startPos = startPos;
-        this.endPos = endPos;
-        this.channel = channel;
-        this.pathname = pathname;
-    }
+public interface IdxOps {
+    void put(long index, long position) throws IOException;
 }

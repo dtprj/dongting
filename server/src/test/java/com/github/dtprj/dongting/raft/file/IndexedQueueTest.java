@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.file;
 
+import com.github.dtprj.dongting.raft.store.IndexedQueue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

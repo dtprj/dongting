@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.raft.file.StatusFile;
+import com.github.dtprj.dongting.raft.store.StatusFile;
 
 import java.util.List;
 import java.util.Set;
