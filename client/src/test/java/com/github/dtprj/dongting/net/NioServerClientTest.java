@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.RefCountByteBuffer;
+import com.github.dtprj.dongting.buf.RefByteBuffer;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.CloseUtil;
 import com.github.dtprj.dongting.common.DtTime;
@@ -65,7 +65,7 @@ public class NioServerClientTest {
         assertEquals(wf.getSeq(), rf.getSeq());
         assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
-        RefCountByteBuffer rc = (RefCountByteBuffer) rf.getBody();
+        RefByteBuffer rc = (RefByteBuffer) rf.getBody();
         assertEquals(buf, rc.getBuffer());
         rc.release();
     }

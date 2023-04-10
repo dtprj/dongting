@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.RefCountByteBuffer;
+import com.github.dtprj.dongting.buf.RefByteBuffer;
 import com.github.dtprj.dongting.common.CloseUtil;
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtTime;
@@ -593,7 +593,7 @@ public class NioServerTest {
             @Override
             public WriteFrame process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext) {
                 Thread t = new Thread(() -> {
-                    RefCountBufWriteFrame resp = new RefCountBufWriteFrame((RefCountByteBuffer) frame.getBody());
+                    RefCountBufWriteFrame resp = new RefCountBufWriteFrame((RefByteBuffer) frame.getBody());
                     resp.setRespCode(CmdCodes.SUCCESS);
                     channelContext.getRespWriter().writeRespInBizThreads(frame, resp, new DtTime(1, TimeUnit.SECONDS));
                 });

@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.bench;
 
-import com.github.dtprj.dongting.buf.RefCountByteBuffer;
+import com.github.dtprj.dongting.buf.RefByteBuffer;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.net.ByteBufferDecoder;
 import com.github.dtprj.dongting.net.ByteBufferWriteFrame;
@@ -87,14 +87,14 @@ public class NioServerBenchmark extends BenchBase {
             if (SYNC) {
                 ReadFrame rf = f.get();
                 successCount.increment();
-                RefCountByteBuffer rc = (RefCountByteBuffer) rf.getBody();
+                RefByteBuffer rc = (RefByteBuffer) rf.getBody();
                 rc.release();
             } else {
                 f.handle((result, ex) -> {
                     if (ex != null) {
                         failCount.increment();
                     } else {
-                        RefCountByteBuffer rc = (RefCountByteBuffer) result.getBody();
+                        RefByteBuffer rc = (RefByteBuffer) result.getBody();
                         rc.release();
                         successCount.increment();
                     }

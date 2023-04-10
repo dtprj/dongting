@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.RefCountByteBuffer;
+import com.github.dtprj.dongting.buf.RefByteBuffer;
 
 import java.nio.ByteBuffer;
 
@@ -42,14 +42,14 @@ public class ByteBufferDecoder extends Decoder {
 
     @Override
     public Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
-        RefCountByteBuffer result;
+        RefByteBuffer result;
         if (start) {
-            result = RefCountByteBuffer.createPlain(context.getIoHeapBufferPool(), bodyLen, usePoolThreshold);
+            result = RefByteBuffer.createPlain(context.getIoHeapBufferPool(), bodyLen, usePoolThreshold);
             if (!end) {
                 context.setIoDecodeStatus(result);
             }
         } else {
-            result = (RefCountByteBuffer) context.getIoDecodeStatus();
+            result = (RefByteBuffer) context.getIoDecodeStatus();
         }
         ByteBuffer bb = result.getBuffer();
         bb.put(buffer);

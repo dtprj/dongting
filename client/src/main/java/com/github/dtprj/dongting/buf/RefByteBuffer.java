@@ -22,12 +22,12 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class RefCountByteBuffer extends RefCount {
+public class RefByteBuffer extends RefCount {
 
     private final ByteBuffer buffer;
     private final ByteBufferPool pool;
 
-    protected RefCountByteBuffer(boolean plain, ByteBufferPool pool, int requestSize, int threshold) {
+    protected RefByteBuffer(boolean plain, ByteBufferPool pool, int requestSize, int threshold) {
         super(plain);
         if (requestSize < threshold) {
             this.buffer = ByteBuffer.allocate(requestSize);
@@ -41,15 +41,15 @@ public class RefCountByteBuffer extends RefCount {
     /**
      * create thread safe instance.
      */
-    public static RefCountByteBuffer create(ByteBufferPool pool, int requestSize, int threshold) {
-        return new RefCountByteBuffer(false, pool, requestSize, threshold);
+    public static RefByteBuffer create(ByteBufferPool pool, int requestSize, int threshold) {
+        return new RefByteBuffer(false, pool, requestSize, threshold);
     }
 
     /**
      * create instance which is not thread safe.
      */
-    public static RefCountByteBuffer createPlain(ByteBufferPool pool, int requestSize, int threshold) {
-        return new RefCountByteBuffer(true, pool, requestSize, threshold);
+    public static RefByteBuffer createPlain(ByteBufferPool pool, int requestSize, int threshold) {
+        return new RefByteBuffer(true, pool, requestSize, threshold);
     }
 
     @Override
