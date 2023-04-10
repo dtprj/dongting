@@ -13,9 +13,8 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.file;
+package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.raft.store.IndexedQueue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
