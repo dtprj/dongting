@@ -41,7 +41,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
-import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -157,24 +156,38 @@ public class ReplicateManager {
             }
             sendAppendRequest(member, items);
         } else {
-            Supplier<CompletableFuture<LogItem[]>> s = () ->
-                    raftLog.load(nextIndex, limit, config.getReplicateLoadBytesLimit());
-            AsyncRetryTask<LogItem[]> task = new AsyncRetryTask<>(s, raftStatus, "load raft log failed");
             member.setWaiting(true);
-            task.exec();
-            task.getFinalResult().thenAcceptAsync(
-                    result -> resumeAfterLogLoad(member.getReplicateEpoch(), member, result),
+            CompletableFuture<LogItem[]> future = raftLog.load(nextIndex, limit, config.getReplicateLoadBytesLimit());
+            future.whenCompleteAsync(
+                    (r, ex) -> resumeAfterLogLoad(member.getReplicateEpoch(), member, r, ex),
                     raftStatus.getRaftExecutor());
         }
     }
 
-    private void resumeAfterLogLoad(int repEpoch, RaftMember member, LogItem[] items) {
+    private void resumeAfterLogLoad(int repEpoch, RaftMember member, LogItem[] items, Throwable ex) {
         member.setWaiting(false);
         if (epochNotMatch(member, repEpoch)) {
             log.info("replicate epoch changed, ignore load result");
             return;
         }
+        if (ex != null) {
+            log.error("load raft log failed", ex);
+            return;
+        }
         if (!member.isReady()) {
+            log.warn("member is not ready, ignore load result");
+            return;
+        }
+        if (member.isInstallSnapshot()) {
+            log.warn("member is installing snapshot, ignore load result");
+            return;
+        }
+        if (items == null || items.length == 0) {
+            log.warn("load raft log return empty, ignore load result");
+            return;
+        }
+        if (member.getNextIndex() != items[0].getIndex()) {
+            log.warn("the first load item index not match nextIndex, ignore load result");
             return;
         }
         if (member.isMultiAppend()) {

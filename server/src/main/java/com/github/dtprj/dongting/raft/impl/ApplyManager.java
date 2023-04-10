@@ -31,7 +31,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
@@ -76,10 +75,8 @@ public class ApplyManager {
             if (rt == null) {
                 waiting = true;
                 int limit = (int) Math.min(diff, 100L);
-                Supplier<CompletableFuture<LogItem[]>> s = () -> raftLog.load(index, limit, 16 * 1024 * 1024);
-                AsyncRetryTask<LogItem[]> task = new AsyncRetryTask<>(s, raftStatus, "load raft log failed");
-                task.exec();
-                task.getFinalResult().thenAcceptAsync(this::resumeAfterLoad, raftStatus.getRaftExecutor());
+                CompletableFuture<LogItem[]> future = raftLog.load(index, limit, 16 * 1024 * 1024);
+                future.whenCompleteAsync(this::resumeAfterLoad, raftStatus.getRaftExecutor());
                 return;
             } else {
                 execChain(index, rt);
@@ -89,8 +86,21 @@ public class ApplyManager {
         }
     }
 
-    private void resumeAfterLoad(LogItem[] items) {
+    private void resumeAfterLoad(LogItem[] items, Throwable ex) {
         waiting = false;
+        if (ex != null) {
+            log.error("load log failed", ex);
+            return;
+        }
+        if (items == null || items.length == 0) {
+            log.error("load log failed, items is null");
+            return;
+        }
+        if (items[0].getIndex() != appliedIndex + 1) {
+            // previous load failed, ignore
+            log.warn("first index of load result not match appliedIndex, ignore.");
+            return;
+        }
         int readCount = items.length;
         //noinspection ForLoopReplaceableByForEach
         for (int i = 0; i < readCount; i++) {
