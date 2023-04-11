@@ -30,7 +30,7 @@ public class RefByteBuffer extends RefCount {
     private RefByteBuffer(boolean plain, ByteBufferPool pool, int requestSize, int threshold) {
         super(plain);
         if (requestSize < threshold) {
-            this.buffer = ByteBuffer.allocate(requestSize);
+            this.buffer = pool.allocate(requestSize);
             this.pool = null;
         } else {
             this.buffer = pool.borrow(requestSize);

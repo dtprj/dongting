@@ -585,7 +585,7 @@ class ByteBufferPoolReleaseInOtherThread extends ByteBufferPool {
 
     @Override
     public ByteBuffer allocate(int requestSize) {
-        throw new UnsupportedOperationException();
+        return pool.allocate(requestSize);
     }
 }
 
