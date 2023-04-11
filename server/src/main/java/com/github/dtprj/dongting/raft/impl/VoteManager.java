@@ -183,9 +183,9 @@ public class VoteManager implements BiConsumer<EventType, Object> {
                 preVote ? "pre-vote" : "vote", member.getNode().getNodeId(), groupId,
                 currentTerm, req.getLastLogIndex(), req.getLastLogTerm());
         if (preVote) {
-            f.handleAsync((rf, ex) -> processPreVoteResp(rf, ex, member, req, voteIdOfRequest), raftExecutor);
+            f.whenCompleteAsync((rf, ex) -> processPreVoteResp(rf, ex, member, req, voteIdOfRequest), raftExecutor);
         } else {
-            f.handleAsync((rf, ex) -> processVoteResp(rf, ex, member, req, voteIdOfRequest, leaseStartTime), raftExecutor);
+            f.whenCompleteAsync((rf, ex) -> processVoteResp(rf, ex, member, req, voteIdOfRequest, leaseStartTime), raftExecutor);
         }
     }
 
@@ -201,12 +201,12 @@ public class VoteManager implements BiConsumer<EventType, Object> {
         }
     }
 
-    private Object processPreVoteResp(ReadFrame rf, Throwable ex, RaftMember remoteMember, VoteReq req, int voteIdOfRequest) {
+    private void processPreVoteResp(ReadFrame rf, Throwable ex, RaftMember remoteMember, VoteReq req, int voteIdOfRequest) {
         if (voteIdOfRequest != currentVoteId) {
-            return null;
+            return;
         }
         if (!checkCandidate()) {
-            return null;
+            return;
         }
         int currentTerm = raftStatus.getCurrentTerm();
         if (ex == null) {
@@ -230,7 +230,6 @@ public class VoteManager implements BiConsumer<EventType, Object> {
         }
         descPending(voteIdOfRequest);
 
-        return null;
     }
 
     private static int getVoteCount(Set<Integer> members, Set<Integer> votes) {
@@ -299,13 +298,13 @@ public class VoteManager implements BiConsumer<EventType, Object> {
         }
     }
 
-    private Object processVoteResp(ReadFrame rf, Throwable ex, RaftMember remoteMember,
+    private void processVoteResp(ReadFrame rf, Throwable ex, RaftMember remoteMember,
                                    VoteReq voteReq, int voteIdOfRequest, long leaseStartTime) {
         if (voteIdOfRequest != currentVoteId) {
-            return null;
+            return;
         }
         if (!checkCandidate()) {
-            return null;
+            return;
         }
         if (ex == null) {
             processVoteResp(rf, remoteMember, voteReq, leaseStartTime);
@@ -315,7 +314,6 @@ public class VoteManager implements BiConsumer<EventType, Object> {
             // don't send more request for simplification
         }
         descPending(voteIdOfRequest);
-        return null;
     }
 
     private void processVoteResp(ReadFrame rf, RaftMember remoteMember, VoteReq voteReq, long leaseStartTime) {
