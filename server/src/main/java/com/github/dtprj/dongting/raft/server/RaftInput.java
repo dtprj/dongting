@@ -55,6 +55,7 @@ public class RaftInput {
         return input;
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public boolean isReadOnly() {
         return readOnly;
     }

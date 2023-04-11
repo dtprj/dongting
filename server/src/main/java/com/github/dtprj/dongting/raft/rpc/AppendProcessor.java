@@ -49,7 +49,7 @@ public class AppendProcessor extends AbstractProcessor {
     public static final int CODE_NOT_MEMBER_IN_GROUP = 5;
     public static final int CODE_ERROR_STATE = 6;
 
-    private static final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder(c -> new AppendReqCallback(c));
+    private static final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder(AppendReqCallback::new);
 
     public AppendProcessor(GroupComponentsMap groupComponentsMap) {
         super(groupComponentsMap);
@@ -106,6 +106,7 @@ public class AppendProcessor extends AbstractProcessor {
         resp.setRespCode(CmdCodes.SUCCESS);
         ArrayList<LogItem> logs = req.getLogs();
         if (logs != null) {
+            //noinspection ForLoopReplaceableByForEach
             for (int i = 0; i < logs.size(); i++) {
                 RefByteBuffer b = logs.get(i).getBuffer();
                 if (b != null) {
