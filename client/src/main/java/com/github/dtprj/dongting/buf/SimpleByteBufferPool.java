@@ -108,7 +108,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
         this.pools = new Pool[bufferTypeCount];
         for (int i = 0; i < bufferTypeCount; i++) {
-            this.pools[i] = new Pool(direct, minCount[i], maxCount[i]);
+            this.pools[i] = new Pool(minCount[i], maxCount[i]);
         }
     }
 
@@ -307,7 +307,6 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 class Pool {
     private final ByteBuffer[] bufferStack;
     private final long[] returnTimes;
-    private final boolean direct;
     private final int minCount;
 
     private int bottom;
@@ -319,9 +318,8 @@ class Pool {
     long statReleaseCount;
     long statReleaseHitCount;
 
-    public Pool(boolean direct, int minCount, int maxCount) {
+    public Pool(int minCount, int maxCount) {
         this.minCount = minCount;
-        this.direct = direct;
         this.bufferStack = new ByteBuffer[maxCount];
         this.returnTimes = new long[maxCount];
     }
