@@ -36,6 +36,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     private final int[] bufSizes;
     private final long timeoutNanos;
     private final boolean direct;
+    private final boolean threadSafe;
 
     private long statBorrowTooSmallCount;
     private long statBorrowTooLargeCount;
@@ -58,18 +59,27 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     public static final long DEFAULT_TIME_OUT_MILLIS = 10 * 1000;
 
     public SimpleByteBufferPool(Timestamp ts, boolean direct, int threshold) {
-        this(ts, direct, threshold, DEFAULT_BUF_SIZE, DEFAULT_MIN_COUNT, DEFAULT_MAX_COUNT, 10 * 1000);
+        this(ts, direct, threshold, false, DEFAULT_BUF_SIZE,
+                DEFAULT_MIN_COUNT, DEFAULT_MAX_COUNT, 10 * 1000);
     }
 
     public SimpleByteBufferPool(Timestamp ts, boolean direct) {
-        this(ts, direct, DEFAULT_THRESHOLD, DEFAULT_BUF_SIZE, DEFAULT_MIN_COUNT, DEFAULT_MAX_COUNT, 10 * 1000);
+        this(ts, direct, DEFAULT_THRESHOLD, false, DEFAULT_BUF_SIZE,
+                DEFAULT_MIN_COUNT, DEFAULT_MAX_COUNT, 10 * 1000);
     }
 
-    public SimpleByteBufferPool(Timestamp ts, boolean direct, int threshold, int[] bufSizes, int[] minCount, int[] maxCount, long timeoutMillis) {
+    public SimpleByteBufferPool(Timestamp ts, boolean direct, int threshold, boolean threadSafe,
+                                int[] bufSizes, int[] minCount, int[] maxCount, long timeoutMillis) {
         Objects.requireNonNull(bufSizes);
         Objects.requireNonNull(minCount);
         Objects.requireNonNull(maxCount);
         this.ts = ts;
+        this.threadSafe = threadSafe;
+        this.direct = direct;
+        this.threshold = threshold;
+        this.bufSizes = bufSizes;
+        this.timeoutNanos = timeoutMillis * 1000 * 1000;
+
         int bufferTypeCount = bufSizes.length;
         if (bufferTypeCount != minCount.length || bufferTypeCount != maxCount.length) {
             throw new IllegalArgumentException();
@@ -95,13 +105,10 @@ public class SimpleByteBufferPool extends ByteBufferPool {
                 throw new IllegalArgumentException("maxCount<minCount");
             }
         }
-        this.direct = direct;
-        this.threshold = threshold;
-        this.bufSizes = bufSizes;
-        this.timeoutNanos = timeoutMillis * 1000 * 1000;
+
         this.pools = new Pool[bufferTypeCount];
         for (int i = 0; i < bufferTypeCount; i++) {
-            this.pools[i] = new Pool(direct, bufSizes[i], minCount[i], maxCount[i]);
+            this.pools[i] = new Pool(direct, minCount[i], maxCount[i]);
         }
     }
 
@@ -113,7 +120,13 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     @Override
     public ByteBuffer borrow(int requestSize) {
         if (requestSize < threshold) {
-            statBorrowTooSmallCount++;
+            if (threadSafe) {
+                synchronized (this) {
+                    statBorrowTooSmallCount++;
+                }
+            } else {
+                statBorrowTooSmallCount++;
+            }
             return allocate(requestSize);
         }
         int[] bufSizes = this.bufSizes;
@@ -127,15 +140,44 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
         if (poolIndex >= poolCount) {
             // request buffer too large, allocate without pool
-            statBorrowTooLargeCount++;
+            if (threadSafe) {
+                synchronized (this) {
+                    statBorrowTooLargeCount++;
+                }
+            } else {
+                statBorrowTooLargeCount++;
+            }
             return allocate(requestSize);
         }
 
-        return pools[poolIndex].borrow();
+        ByteBuffer result;
+        if (threadSafe) {
+            result = pools[poolIndex].borrow();
+        } else {
+            synchronized (this) {
+                result = pools[poolIndex].borrow();
+            }
+        }
+        if (result != null) {
+            return result;
+        } else {
+            int size = bufSizes[poolIndex];
+            return allocate(size);
+        }
     }
 
     @Override
     public void release(ByteBuffer buf) {
+        if (threadSafe) {
+            synchronized (this) {
+                release0(buf);
+            }
+        } else {
+            release0(buf);
+        }
+    }
+
+    private void release0(ByteBuffer buf) {
         int capacity = buf.capacity();
         if (capacity < threshold) {
             return;
@@ -156,6 +198,18 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     }
 
     public void clean() {
+        if (threadSafe) {
+            synchronized (this) {
+                if (ts.refresh(100)) {
+                    clean0();
+                }
+            }
+        } else {
+            clean0();
+        }
+    }
+
+    private void clean0() {
         long expireNanos = ts.getNanoTime() - this.timeoutNanos;
         for (Pool pool : pools) {
             pool.clean(expireNanos);
@@ -163,6 +217,16 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     }
 
     public String formatStat() {
+        if (threadSafe) {
+            synchronized (this) {
+                return formatStat0();
+            }
+        } else {
+            return formatStat0();
+        }
+    }
+
+    private String formatStat0() {
         StringBuilder sb = new StringBuilder(512);
         DecimalFormat f1 = new DecimalFormat("#,###");
         NumberFormat f2 = NumberFormat.getPercentInstance();
@@ -241,7 +305,6 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 }
 
 class Pool {
-    private final int size;
     private final ByteBuffer[] bufferStack;
     private final long[] returnTimes;
     private final boolean direct;
@@ -256,23 +319,18 @@ class Pool {
     long statReleaseCount;
     long statReleaseHitCount;
 
-    public Pool(boolean direct, int size, int minCount, int maxCount) {
-        this.size = size;
+    public Pool(boolean direct, int minCount, int maxCount) {
         this.minCount = minCount;
         this.direct = direct;
         this.bufferStack = new ByteBuffer[maxCount];
         this.returnTimes = new long[maxCount];
     }
 
-    private ByteBuffer allocate(int size) {
-        return this.direct ? ByteBuffer.allocateDirect(size) : ByteBuffer.allocate(size);
-    }
-
     public ByteBuffer borrow() {
         statBorrowCount++;
         if (stackSize == 0) {
             // no buffer available
-            return allocate(size);
+            return null;
         }
 
         statBorrowHitCount++;
