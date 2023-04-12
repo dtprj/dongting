@@ -34,23 +34,14 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
     private final int threshold;
     private final int[] bufSizes;
-    private final ByteBuffer[][] bufferStacks;
-    private final long[][] returnTimes;
-    private final int[] bottomIndices;
-    private final int[] topIndices;
-    private final int[] stackSizes;
     private final long timeoutNanos;
     private final boolean direct;
-    private final int[] minCount;
 
-    private final long[] statBorrowCount;
-    private final long[] statBorrowHitCount;
     private long statBorrowTooSmallCount;
     private long statBorrowTooLargeCount;
-    private final long[] statReleaseCount;
-    private final long[] statReleaseHitCount;
 
     private Timestamp ts;
+    private final Pool[] pools;
 
     public static final int[] DEFAULT_BUF_SIZE = new int[]{1024, 2048, 4096, 8192, 16 * 1024,
             32 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 512 * 1024, 1024 * 1024, 2 * 1024 * 1024,
@@ -108,21 +99,10 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         this.threshold = threshold;
         this.bufSizes = bufSizes;
         this.timeoutNanos = timeoutMillis * 1000 * 1000;
-        bufferStacks = new ByteBuffer[bufferTypeCount][];
-        returnTimes = new long[bufferTypeCount][];
+        this.pools = new Pool[bufferTypeCount];
         for (int i = 0; i < bufferTypeCount; i++) {
-            bufferStacks[i] = new ByteBuffer[maxCount[i]];
-            returnTimes[i] = new long[maxCount[i]];
+            this.pools[i] = new Pool(direct, bufSizes[i], minCount[i], maxCount[i]);
         }
-        bottomIndices = new int[bufferTypeCount];
-        topIndices = new int[bufferTypeCount];
-        stackSizes = new int[bufferTypeCount];
-        this.minCount = minCount;
-
-        this.statBorrowCount = new long[bufferTypeCount];
-        this.statBorrowHitCount = new long[bufferTypeCount];
-        this.statReleaseCount = new long[bufferTypeCount];
-        this.statReleaseHitCount = new long[bufferTypeCount];
     }
 
     @Override
@@ -137,39 +117,21 @@ public class SimpleByteBufferPool extends ByteBufferPool {
             return allocate(requestSize);
         }
         int[] bufSizes = this.bufSizes;
-        int stackCount = bufSizes.length;
-        int stackIndex = 0;
-        for (; stackIndex < stackCount; stackIndex++) {
-            if (bufSizes[stackIndex] >= requestSize) {
+        int poolCount = bufSizes.length;
+        int poolIndex = 0;
+        for (; poolIndex < poolCount; poolIndex++) {
+            if (bufSizes[poolIndex] >= requestSize) {
                 break;
             }
         }
 
-        if (stackIndex >= stackCount) {
+        if (poolIndex >= poolCount) {
             // request buffer too large, allocate without pool
             statBorrowTooLargeCount++;
             return allocate(requestSize);
         }
-        statBorrowCount[stackIndex]++;
 
-        int[] stackSizes = this.stackSizes;
-        if (stackSizes[stackIndex] == 0) {
-            // no buffer available
-            return allocate(bufSizes[stackIndex]);
-        }
-        statBorrowHitCount[stackIndex]++;
-        int[] topIndices = this.topIndices;
-        ByteBuffer[] bufferStack = this.bufferStacks[stackIndex];
-        int stackCapacity = bufferStack.length;
-        int topIndex = topIndices[stackIndex];
-        topIndex = topIndex == 0 ? stackCapacity - 1 : topIndex - 1;
-        topIndices[stackIndex] = topIndex;
-        stackSizes[stackIndex]--;
-
-        // get from pool
-        ByteBuffer buf = bufferStack[topIndex];
-        bufferStack[topIndex] = null;
-        return buf;
+        return pools[poolIndex].borrow();
     }
 
     @Override
@@ -179,68 +141,24 @@ public class SimpleByteBufferPool extends ByteBufferPool {
             return;
         }
         int[] bufSizes = this.bufSizes;
-        int stackCount = bufSizes.length;
-        int stackIndex = 0;
-        for (; stackIndex < stackCount; stackIndex++) {
-            if (bufSizes[stackIndex] == capacity) {
+        int poolCount = bufSizes.length;
+        int poolIndex = 0;
+        for (; poolIndex < poolCount; poolIndex++) {
+            if (bufSizes[poolIndex] == capacity) {
                 break;
             }
         }
-        if (stackIndex >= stackCount) {
+        if (poolIndex >= poolCount) {
             // buffer too large, release it without pool
             return;
         }
-        statReleaseCount[stackIndex]++;
-        int[] stackSizes = this.stackSizes;
-        ByteBuffer[] bufferStack = this.bufferStacks[stackIndex];
-        int stackCapacity = bufferStack.length;
-        if (stackSizes[stackIndex] >= stackCapacity) {
-            // too many buffer in pool
-            return;
-        }
-        statReleaseHitCount[stackIndex]++;
-        int[] topIndices = this.topIndices;
-        int topIndex = topIndices[stackIndex];
-
-        // return it to pool
-        buf.clear();
-        bufferStack[topIndex] = buf;
-        this.returnTimes[stackIndex][topIndex] = ts.getNanoTime();
-
-        topIndex = topIndex + 1 >= stackCapacity ? 0 : topIndex + 1;
-        topIndices[stackIndex] = topIndex;
-        stackSizes[stackIndex]++;
+        pools[poolIndex].release(buf, ts.getNanoTime());
     }
 
     public void clean() {
-        ByteBuffer[][] bufferStacks = this.bufferStacks;
-        long[][] returnTimes = this.returnTimes;
-        int[] bottomIndices = this.bottomIndices;
-        int[] stackSizes = this.stackSizes;
-        int stackCount = bufferStacks.length;
         long expireNanos = ts.getNanoTime() - this.timeoutNanos;
-        for (int stackIndex = 0; stackIndex < stackCount; stackIndex++) {
-            ByteBuffer[] stack = bufferStacks[stackIndex];
-            long[] stackReturnTime = returnTimes[stackIndex];
-            int size = stackSizes[stackIndex];
-            int bottom = bottomIndices[stackIndex];
-            int capacity = stack.length;
-            int min = this.minCount[stackIndex];
-            while (size > min) {
-                if (stackReturnTime[bottom] - expireNanos > 0) {
-                    break;
-                } else {
-                    // expired
-                    stack[bottom] = null;
-                    size--;
-                    bottom++;
-                    if (bottom >= capacity) {
-                        bottom = 0;
-                    }
-                }
-            }
-            bottomIndices[stackIndex] = bottom;
-            stackSizes[stackIndex] = size;
+        for (Pool pool : pools) {
+            pool.clean(expireNanos);
         }
     }
 
@@ -255,10 +173,11 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         long totalReleaseHit = 0;
         int bufferTypeCount = bufSizes.length;
         for (int i = 0; i < bufferTypeCount; i++) {
-            totalBorrow += statBorrowCount[i];
-            totalRelease += statReleaseCount[i];
-            totalBorrowHit += statBorrowHitCount[i];
-            totalReleaseHit += statReleaseHitCount[i];
+            Pool p = pools[i];
+            totalBorrow += p.statBorrowCount;
+            totalRelease += p.statReleaseCount;
+            totalBorrowHit += p.statBorrowHitCount;
+            totalReleaseHit += p.statReleaseHitCount;
         }
         sb.append("borrow ").append(f1.format(totalBorrow)).append('(');
         if (totalBorrow == 0) {
@@ -286,21 +205,23 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         sb.deleteCharAt(sb.length() - 1);
         sb.append("\nborrow ");
 
-        appendDetail(bufferTypeCount, sb, f1, f2, statBorrowCount, statBorrowHitCount);
+        appendDetail(bufferTypeCount, sb, f1, f2, true);
         sb.append("\nrelease ");
-        appendDetail(bufferTypeCount, sb, f1, f2, statReleaseCount, statReleaseHitCount);
+        appendDetail(bufferTypeCount, sb, f1, f2, false);
         return sb.toString();
     }
 
-    private void appendDetail(int bufferTypeCount, StringBuilder sb, DecimalFormat f1, NumberFormat f2,
-                              long[] count, long[] hitCount) {
+    private void appendDetail(int bufferTypeCount, StringBuilder sb, DecimalFormat f1, NumberFormat f2, boolean borrow) {
         for (int i = 0; i < bufferTypeCount; i++) {
-            sb.append(f1.format(count[i]));
+            Pool p = pools[i];
+            long count = borrow ? p.statBorrowCount : p.statReleaseCount;
+            long hit = borrow ? p.statBorrowHitCount : p.statReleaseHitCount;
+            sb.append(f1.format(count));
             sb.append('(');
-            if (count[i] == 0) {
+            if (count == 0) {
                 sb.append("0%");
             } else {
-                sb.append(f2.format((double) hitCount[i] / count[i]));
+                sb.append(f2.format((double) hit / count));
             }
             sb.append("), ");
         }
@@ -317,4 +238,100 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     Timestamp getTs() {
         return this.ts;
     }
+}
+
+class Pool {
+    private final int size;
+    private final ByteBuffer[] bufferStack;
+    private final long[] returnTimes;
+    private final boolean direct;
+    private final int minCount;
+
+    private int bottom;
+    private int top;
+    private int stackSize;
+
+    long statBorrowCount;
+    long statBorrowHitCount;
+    long statReleaseCount;
+    long statReleaseHitCount;
+
+    public Pool(boolean direct, int size, int minCount, int maxCount) {
+        this.size = size;
+        this.minCount = minCount;
+        this.direct = direct;
+        this.bufferStack = new ByteBuffer[maxCount];
+        this.returnTimes = new long[maxCount];
+    }
+
+    private ByteBuffer allocate(int size) {
+        return this.direct ? ByteBuffer.allocateDirect(size) : ByteBuffer.allocate(size);
+    }
+
+    public ByteBuffer borrow() {
+        statBorrowCount++;
+        if (stackSize == 0) {
+            // no buffer available
+            return allocate(size);
+        }
+
+        statBorrowHitCount++;
+        ByteBuffer[] bufferStack = this.bufferStack;
+        int top = this.top;
+        top = top == 0 ? bufferStack.length - 1 : top - 1;
+        stackSize--;
+
+        // get from pool
+        ByteBuffer buf = bufferStack[top];
+        bufferStack[top] = null;
+        this.top = top;
+        return buf;
+    }
+
+    public void release(ByteBuffer buf, long nanos) {
+        statReleaseCount++;
+
+        ByteBuffer[] bufferStack = this.bufferStack;
+        int stackCapacity = bufferStack.length;
+        if (stackSize >= stackCapacity) {
+            // too many buffer in pool
+            return;
+        }
+        statReleaseHitCount++;
+
+        // return it to pool
+        buf.clear();
+        int top = this.top;
+        bufferStack[top] = buf;
+        returnTimes[top] = nanos;
+
+        this.top = top + 1 >= stackCapacity ? 0 : top + 1;
+
+        stackSize++;
+    }
+
+    public void clean(long expireNanos) {
+        ByteBuffer[] bufferStack = this.bufferStack;
+        long[] returnTimes = this.returnTimes;
+        int stackSize = this.stackSize;
+        int bottom = this.bottom;
+        int capacity = bufferStack.length;
+        int minCount = this.minCount;
+        while (stackSize > minCount) {
+            if (returnTimes[bottom] - expireNanos > 0) {
+                break;
+            } else {
+                // expired
+                bufferStack[bottom] = null;
+                stackSize--;
+                bottom++;
+                if (bottom >= capacity) {
+                    bottom = 0;
+                }
+            }
+        }
+        this.bottom = bottom;
+        this.stackSize = stackSize;
+    }
+
 }
