@@ -40,12 +40,15 @@ public class Timestamp {
         return wallClockMillis;
     }
 
-    public void refresh(int millisDiff) {
+    public boolean refresh(long millisDiff) {
         long t = System.currentTimeMillis();
         long old = this.wallClockMillis;
         if (t < old || t - old >= millisDiff) {
             this.wallClockMillis = t;
             this.nanoTime = System.nanoTime();
+            return true;
+        } else {
+            return false;
         }
     }
 }
