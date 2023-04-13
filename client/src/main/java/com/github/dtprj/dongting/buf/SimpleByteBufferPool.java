@@ -157,11 +157,11 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
         ByteBuffer result;
         if (threadSafe) {
-            result = pools[poolIndex].borrow();
-        } else {
             synchronized (this) {
                 result = pools[poolIndex].borrow();
             }
+        } else {
+            result = pools[poolIndex].borrow();
         }
         if (result != null) {
             return result;
@@ -206,9 +206,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     public void clean() {
         if (threadSafe) {
             synchronized (this) {
-                if (ts.refresh(10)) {
-                    clean0();
-                }
+                clean0();
             }
         } else {
             clean0();

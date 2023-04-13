@@ -4,9 +4,15 @@
 package com.github.dtprj.dongting.buf;
 
 import com.github.dtprj.dongting.common.Timestamp;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
+import java.util.Random;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -21,11 +27,21 @@ public class SimpleByteBufferPoolTest {
 
     private static final Timestamp TS = new Timestamp();
 
+    private SimpleByteBufferPool pool;
+
     private void plus(SimpleByteBufferPool pool, long millis) {
         Timestamp ts = pool.getTs();
         Timestamp tsNew = new Timestamp(ts.getNanoTime() + millis * 1000 * 1000,
                 ts.getWallClockMillis() + millis);
         pool.setTs(tsNew);
+    }
+
+    @AfterEach
+    public void tearDown() {
+        if (pool != null) {
+            pool.formatStat();
+            pool = null;
+        }
     }
 
     @Test
@@ -50,7 +66,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testBorrow1() {
-        SimpleByteBufferPool pool = new SimpleByteBufferPool(TS, false);
+        pool = new SimpleByteBufferPool(TS, false);
         ByteBuffer buf1 = pool.borrow(1);
         ByteBuffer buf2 = pool.borrow(1024);
         assertEquals(1, buf1.capacity());
@@ -64,7 +80,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testBorrow2() {
-        SimpleByteBufferPool pool = new SimpleByteBufferPool(TS, false);
+        pool = new SimpleByteBufferPool(TS, false);
         ByteBuffer buf1 = pool.borrow(1024);
         ByteBuffer buf2 = pool.borrow(1025);
         assertEquals(1024, buf1.capacity());
@@ -73,7 +89,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testBorrow3() {
-        SimpleByteBufferPool pool = new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024, 2048},
+        pool = new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024, 2048},
                 new int[]{10, 10}, new int[]{10, 10}, 1000);
         ByteBuffer buf1 = pool.borrow(4000);
         pool.release(buf1);
@@ -82,7 +98,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testRelease() {
-        SimpleByteBufferPool pool = new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024, 2048},
+        pool = new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024, 2048},
                 new int[]{1, 1}, new int[]{2, 2}, 1000);
         ByteBuffer buf1 = pool.borrow(1024);
         ByteBuffer buf2 = pool.borrow(1024);
@@ -96,7 +112,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testClean1() {
-        SimpleByteBufferPool pool = new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024, 2048},
+        pool = new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024, 2048},
                 new int[]{1, 1}, new int[]{2, 2}, 1000);
         ByteBuffer buf1 = pool.borrow(1024);
         ByteBuffer buf2 = pool.borrow(1024);
@@ -116,7 +132,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testThreshold() {
-        SimpleByteBufferPool pool = new SimpleByteBufferPool(TS, false, 2048);
+        pool = new SimpleByteBufferPool(TS, false, 2048);
         ByteBuffer buf = pool.borrow(2047);
         assertEquals(2047, buf.capacity());
         pool.release(buf);
@@ -135,7 +151,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testClean2() {
-        SimpleByteBufferPool pool = new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024, 2048},
+        pool = new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024, 2048},
                 new int[]{1, 1}, new int[]{3, 3}, 1000);
         ByteBuffer buf1 = pool.borrow(1024);
         ByteBuffer buf2 = pool.borrow(1024);
@@ -165,7 +181,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testClean3() {
-        SimpleByteBufferPool pool = new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024, 2048},
+        pool = new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024, 2048},
                 new int[]{1, 1}, new int[]{2, 2}, 1000);
         ByteBuffer buf1 = pool.borrow(2048);
         ByteBuffer buf2 = pool.borrow(2048);
@@ -189,7 +205,7 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testClean4() {
-        SimpleByteBufferPool pool = new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024, 2048},
+        pool = new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024, 2048},
                 new int[]{0, 0}, new int[]{2, 2}, 1000);
         ByteBuffer buf1 = pool.borrow(2048);
         ByteBuffer buf2 = pool.borrow(2048);
@@ -211,8 +227,48 @@ public class SimpleByteBufferPoolTest {
         }
     }
 
+    @Test
+    public void testThreadSafe() throws Exception {
+        pool = new SimpleByteBufferPool(TS, false, 0, true, new int[]{16, 32, 64, 128},
+                new int[]{1, 1, 1, 1}, new int[]{20, 20, 20, 20}, 1000);
+        threadSafeTest(pool, 128);
+    }
+
+    public static void threadSafeTest(ByteBufferPool pool, int maxCapacity) throws Exception {
+        int threadNum = 2;
+        ExecutorService executorService = Executors.newFixedThreadPool(threadNum);
+        CountDownLatch countDownLatch = new CountDownLatch(threadNum);
+        try {
+            Runnable runnable = () -> {
+                try {
+                    for (int i = 0; i < 1000; i++) {
+                        Random r = new Random();
+                        ByteBuffer bb = pool.borrow(r.nextInt(maxCapacity) + 1);
+                        int pos = bb.position();
+                        if (pos > 0) {
+                            throw new IllegalStateException();
+                        } else {
+                            bb.position(1);
+                        }
+                        pool.release(bb);
+                        pool.clean();
+                    }
+                    countDownLatch.countDown();
+                } catch (Throwable e) {
+                    e.printStackTrace();
+                }
+            };
+            for (int i = 0; i < threadNum; i++) {
+                executorService.submit(runnable);
+            }
+            assertTrue(countDownLatch.await(2000, TimeUnit.MILLISECONDS));
+        } finally {
+            executorService.shutdown();
+        }
+    }
+
     public static void main(String[] args) {
-        int[]  bufSize = new int[]{32 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 512 * 1024, 1024 * 1024, 2 * 1024 * 1024, 4 * 1024 * 1024};
+        int[] bufSize = new int[]{32 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 512 * 1024, 1024 * 1024, 2 * 1024 * 1024, 4 * 1024 * 1024};
         int[] minCount = new int[]{16, 8, 4, 2, 1, 0, 0, 0};
         int[] maxCount = new int[]{128, 128, 64, 64, 32, 16, 8, 4};
         long totalMax = 0;
@@ -223,4 +279,5 @@ public class SimpleByteBufferPoolTest {
         }
         System.out.printf("max:%,d\nmin:%,d", totalMax, totalMin);
     }
+
 }

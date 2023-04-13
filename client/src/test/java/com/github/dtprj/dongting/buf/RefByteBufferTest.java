@@ -66,4 +66,13 @@ public class RefByteBufferTest {
         refByteBuffer.release();
         Assertions.assertThrows(DtException.class, refByteBuffer::release);
     }
+
+    @Test
+    public void testUnpooled() {
+        RefByteBuffer refByteBuffer = RefByteBuffer.createUnpooled(128, false);
+        refByteBuffer.retain();
+        refByteBuffer.release();
+        refByteBuffer.release();
+        refByteBuffer.release();
+    }
 }
