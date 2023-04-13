@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.buf;
 
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.RefCount;
 
 import java.nio.ByteBuffer;
@@ -83,7 +84,7 @@ public class RefByteBuffer extends RefCount {
     }
 
     public ByteBuffer getBuffer() {
-        if (isReleased()) {
+        if (DtUtil.DEBUG && isReleased()) {
             throw new IllegalStateException("buffer is released");
         }
         return buffer;

@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 public class DtUtil {
     private static final DtLog log = DtLogs.getLogger(DtUtil.class);
     private static final int JAVA_VER = majorVersion(System.getProperty("java.specification.version", "1.8"));
+    public static boolean DEBUG = Boolean.parseBoolean(System.getProperty("dt.debug", "false"));
 
     public static void close(Object... resources) {
         for (Object res : resources) {
