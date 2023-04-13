@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.buf;
 
+import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.Timestamp;
 
 import java.nio.ByteBuffer;
@@ -73,6 +74,10 @@ public class TwoLevelPool extends ByteBufferPool {
 
     @Override
     public ByteBuffer borrow(int requestSize) {
+        Thread owner = this.owner;
+        if (owner != null && owner != Thread.currentThread()) {
+            throw new DtException("borrow in other thread");
+        }
         if (requestSize <= threshold) {
             return smallPool.borrow(requestSize);
         } else {
