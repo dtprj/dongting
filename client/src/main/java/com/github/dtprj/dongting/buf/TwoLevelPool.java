@@ -89,6 +89,11 @@ public class TwoLevelPool extends ByteBufferPool {
         largePool.clean();
     }
 
+    @Override
+    public String formatStat() {
+        return smallPool.formatStat();
+    }
+
     public static BiFunction<Timestamp, Boolean, ByteBufferPool> getDefaultFactory() {
         return DEFAULT_FACTORY;
     }

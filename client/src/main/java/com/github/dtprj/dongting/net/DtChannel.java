@@ -591,6 +591,11 @@ class ByteBufferPoolReleaseInOtherThread extends ByteBufferPool {
     public void clean() {
         pool.clean();
     }
+
+    @Override
+    public String formatStat() {
+        return pool.formatStat();
+    }
 }
 
 @SuppressWarnings("FieldMayBeFinal")

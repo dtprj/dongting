@@ -30,4 +30,6 @@ public abstract class ByteBufferPool {
 
     public abstract void clean();
 
+    // TODO return a stat object, not a string
+    public abstract String formatStat();
 }
