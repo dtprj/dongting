@@ -3,6 +3,8 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.buf.TwoLevelPool;
+import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.pb.DtFrame;
 import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.Test;
@@ -80,7 +82,10 @@ public class FramePbTest {
         buf.put(encodeBytes);
         buf.flip();
 
-        DtChannel dtc = new DtChannel(new NioStatus(null), new WorkerStatus(),
+        WorkerStatus workerStatus = new WorkerStatus();
+        workerStatus.setHeapPool(TwoLevelPool.getDefaultFactory().apply(new Timestamp(), false));
+
+        DtChannel dtc = new DtChannel(new NioStatus(null), workerStatus,
                 new NioClientConfig(), SocketChannel.open(), 0) {
             @Override
             public void end(boolean success) {

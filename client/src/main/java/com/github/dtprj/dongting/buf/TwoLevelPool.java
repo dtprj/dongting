@@ -19,14 +19,19 @@ import com.github.dtprj.dongting.common.Timestamp;
 
 import java.nio.ByteBuffer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 /**
  * @author huangli
  */
 public class TwoLevelPool extends ByteBufferPool {
+    private final boolean direct;
     private final SimpleByteBufferPool smallPool;
     private final SimpleByteBufferPool largePool;
     private final int threshold;
+    private final boolean releaseInOtherThread;
+    private final Consumer<ByteBuffer> releaseCallback;
+    private final Thread owner;
 
     private static SimpleByteBufferPool GLOBAL_POOL;
 
@@ -47,13 +52,23 @@ public class TwoLevelPool extends ByteBufferPool {
         int[] maxCount = new int[]{8192, 4096, 2048, 1024, 1024, 1024, 512, 256};
         SimpleByteBufferPool p1 = new SimpleByteBufferPool(ts, direct, 64, false,
                 bufSize, minCount, maxCount, 10000);
-        return new TwoLevelPool(p1, GLOBAL_POOL, 16 * 1024);
+        return new TwoLevelPool(direct, p1, GLOBAL_POOL, 16 * 1024);
     };
 
-    public TwoLevelPool(SimpleByteBufferPool smallPool, SimpleByteBufferPool largePool, int threshold) {
+    public TwoLevelPool(boolean direct, SimpleByteBufferPool smallPool, SimpleByteBufferPool largePool, int threshold) {
+        this(direct, smallPool, largePool, threshold, false, null, null);
+    }
+
+    private TwoLevelPool(boolean direct, SimpleByteBufferPool smallPool, SimpleByteBufferPool largePool,
+                         int threshold, boolean releaseInOtherThread,
+                         Consumer<ByteBuffer> releaseCallback, Thread owner) {
+        this.direct = direct;
         this.smallPool = smallPool;
         this.largePool = largePool;
         this.threshold = threshold;
+        this.releaseInOtherThread = releaseInOtherThread;
+        this.releaseCallback = releaseCallback;
+        this.owner = owner;
     }
 
     @Override
@@ -67,8 +82,13 @@ public class TwoLevelPool extends ByteBufferPool {
 
     @Override
     public void release(ByteBuffer buf) {
-        if (buf.capacity() <= threshold) {
-            smallPool.release(buf);
+        int c = buf.capacity();
+        if (c <= threshold) {
+            if (releaseInOtherThread && owner != Thread.currentThread()) {
+                releaseCallback.accept(buf);
+            } else {
+                smallPool.release(buf);
+            }
         } else {
             largePool.release(buf);
         }
@@ -76,11 +96,7 @@ public class TwoLevelPool extends ByteBufferPool {
 
     @Override
     public ByteBuffer allocate(int requestSize) {
-        if (requestSize <= threshold) {
-            return smallPool.allocate(requestSize);
-        } else {
-            return largePool.allocate(requestSize);
-        }
+        return direct ? ByteBuffer.allocateDirect(requestSize) : ByteBuffer.allocate(requestSize);
     }
 
     @Override
@@ -92,6 +108,11 @@ public class TwoLevelPool extends ByteBufferPool {
     @Override
     public String formatStat() {
         return smallPool.formatStat();
+    }
+
+    public TwoLevelPool toReleaseInOtherThreadInstance(Thread owner, Consumer<ByteBuffer> releaseCallback) {
+        return new TwoLevelPool(direct, smallPool, largePool,
+                threshold, true, releaseCallback, owner);
     }
 
     public static BiFunction<Timestamp, Boolean, ByteBufferPool> getDefaultFactory() {

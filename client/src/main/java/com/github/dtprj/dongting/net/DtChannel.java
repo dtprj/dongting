@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -32,6 +33,7 @@ import java.util.ArrayList;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 /**
  * @author huangli
@@ -90,11 +92,16 @@ class DtChannel extends PbCallback {
         channelContext.setRemoteAddr(socketChannel.getRemoteAddress());
         channelContext.setLocalAddr(socketChannel.getLocalAddress());
         channelContext.setIoThreadStrDecoder(strDecoder);
-        channelContext.setIoHeapBufferPool(new ByteBufferPoolReleaseInOtherThread(
-                workerStatus.getHeapPool(), workerStatus.getIoQueue()));
+        channelContext.setIoHeapBufferPool(createReleaseSafePool((TwoLevelPool) workerStatus.getHeapPool(),
+                workerStatus.getIoQueue()));
         channelContext.setRespWriter(respWriter);
         channelContext.setIoParser(parser);
         this.channelContext = channelContext;
+    }
+
+    private static ByteBufferPool createReleaseSafePool(TwoLevelPool heapPool, IoQueue ioQueue) {
+        Consumer<ByteBuffer> callback = (buf) -> ioQueue.scheduleFromBizThread(() -> heapPool.release(buf));
+        return heapPool.toReleaseInOtherThreadInstance(Thread.currentThread(), callback);
     }
 
     public void afterRead(boolean running, ByteBuffer buf, Timestamp roundTime) {
@@ -523,9 +530,8 @@ class ProcessInBizThreadTask implements Runnable {
                         req.setBody(o);
                     } finally {
                         WorkerStatus ws = dtc.getWorkerStatus();
-                        ReleaseBufferTask t = new ReleaseBufferTask(ws.getHeapPool(), bodyBuffer);
                         try {
-                            ws.getIoQueue().scheduleFromBizThread(t);
+                            ws.getIoQueue().scheduleFromBizThread(() -> ws.getHeapPool().release(bodyBuffer));
                         } catch (NetException e) {
                             log.warn("schedule ReleaseBufferTask fail: {}", e.toString());
                         }
@@ -556,60 +562,5 @@ class ProcessInBizThreadTask implements Runnable {
         if (resp != null) {
             dtc.getRespWriter().writeRespInBizThreads(req, resp, reqContext.getTimeout());
         }
-    }
-}
-
-class ByteBufferPoolReleaseInOtherThread extends ByteBufferPool {
-    private final ByteBufferPool pool;
-    private final IoQueue ioQueue;
-
-    ByteBufferPoolReleaseInOtherThread(ByteBufferPool pool, IoQueue ioQueue) {
-        this.pool = pool;
-        this.ioQueue = ioQueue;
-    }
-
-    @Override
-    public ByteBuffer borrow(int requestSize) {
-        return pool.borrow(requestSize);
-    }
-
-    @Override
-    public void release(ByteBuffer buf) {
-        try {
-            ioQueue.scheduleFromBizThread(new ReleaseBufferTask(pool, buf));
-        } catch (NetException e) {
-            // ignore
-        }
-    }
-
-    @Override
-    public ByteBuffer allocate(int requestSize) {
-        return pool.allocate(requestSize);
-    }
-
-    @Override
-    public void clean() {
-        pool.clean();
-    }
-
-    @Override
-    public String formatStat() {
-        return pool.formatStat();
-    }
-}
-
-@SuppressWarnings("FieldMayBeFinal")
-class ReleaseBufferTask implements Runnable {
-    private ByteBufferPool pool;
-    private ByteBuffer buffer;
-
-    public ReleaseBufferTask(ByteBufferPool pool, ByteBuffer buffer) {
-        this.pool = pool;
-        this.buffer = buffer;
-    }
-
-    @Override
-    public void run() {
-        pool.release(buffer);
     }
 }
