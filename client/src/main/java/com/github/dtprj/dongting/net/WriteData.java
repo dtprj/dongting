@@ -22,7 +22,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * @author huangli
  */
-class WriteData {
+final class WriteData {
     private DtChannel dtc;
     private final Peer peer;
 

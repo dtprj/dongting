@@ -174,11 +174,8 @@ public class RaftGroupThread extends Thread {
             Object o = queueData.get(i);
             if (o instanceof RaftTask) {
                 rwTasks.add((RaftTask) o);
-            } else if (o instanceof Runnable) {
-                runnables.add((Runnable) o);
             } else {
-                BugLog.getLog().error("type error: {}", o.getClass());
-                return false;
+                runnables.add((Runnable) o);
             }
         }
 

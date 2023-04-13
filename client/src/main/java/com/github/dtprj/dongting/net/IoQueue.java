@@ -62,10 +62,10 @@ class IoQueue {
     }
 
     private void process(Object data) {
-        if (data instanceof Runnable) {
-            ((Runnable) data).run();
-        } else {
+        if (data instanceof WriteData) {
             processWriteData((WriteData) data);
+        } else {
+            ((Runnable) data).run();
         }
     }
 
