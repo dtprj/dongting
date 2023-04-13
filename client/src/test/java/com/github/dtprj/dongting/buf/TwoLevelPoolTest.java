@@ -60,6 +60,7 @@ public class TwoLevelPoolTest {
     @Test
     public void testBorrowInOtherThread() {
         TwoLevelPool p = new TwoLevelPool(false, p1, p2, 32);
+        //noinspection InstantiatingAThreadWithDefaultRunMethod
         TwoLevelPool p2 = p.toReleaseInOtherThreadInstance(new Thread(), buf -> {
         });
         assertThrows(DtException.class, () -> p2.borrow(1));
@@ -69,9 +70,7 @@ public class TwoLevelPoolTest {
     public void testReleaseInOtherThread1() {
         TwoLevelPool p = new TwoLevelPool(false, p1, p2, 32);
         AtomicInteger releaseCount = new AtomicInteger(0);
-        TwoLevelPool p2 = p.toReleaseInOtherThreadInstance(Thread.currentThread(), buf -> {
-            releaseCount.incrementAndGet();
-        });
+        TwoLevelPool p2 = p.toReleaseInOtherThreadInstance(Thread.currentThread(), buf -> releaseCount.incrementAndGet());
         ByteBuffer b1 = p2.borrow(1);
         // release in same thread, not invoke callback
         p2.release(b1);
@@ -82,9 +81,7 @@ public class TwoLevelPoolTest {
     public void testReleaseInOtherThread2() throws Exception {
         TwoLevelPool p = new TwoLevelPool(false, p1, p2, 32);
         AtomicInteger releaseCount = new AtomicInteger(0);
-        TwoLevelPool p2 = p.toReleaseInOtherThreadInstance(Thread.currentThread(), buf -> {
-            releaseCount.incrementAndGet();
-        });
+        TwoLevelPool p2 = p.toReleaseInOtherThreadInstance(Thread.currentThread(), buf -> releaseCount.incrementAndGet());
         ByteBuffer b1 = p2.borrow(1);
         Thread t = new Thread(() -> p2.release(b1));
         t.start();
@@ -96,9 +93,7 @@ public class TwoLevelPoolTest {
     public void testReleaseInOtherThread3() throws Exception {
         TwoLevelPool p = new TwoLevelPool(false, p1, p2, 32);
         AtomicInteger releaseCount = new AtomicInteger(0);
-        TwoLevelPool p2 = p.toReleaseInOtherThreadInstance(Thread.currentThread(), buf -> {
-            releaseCount.incrementAndGet();
-        });
+        TwoLevelPool p2 = p.toReleaseInOtherThreadInstance(Thread.currentThread(), buf -> releaseCount.incrementAndGet());
         ByteBuffer b1 = p2.borrow(128);
         // large buffer not invoke callback when release
         Thread t = new Thread(() -> p2.release(b1));
