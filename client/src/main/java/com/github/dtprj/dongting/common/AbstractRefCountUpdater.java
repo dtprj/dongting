@@ -24,4 +24,6 @@ public abstract class AbstractRefCountUpdater {
     public abstract void retain(RefCount instance, int increment);
 
     public abstract boolean release(RefCount instance, int decrement);
+
+    public abstract boolean isReleased(RefCount instance);
 }

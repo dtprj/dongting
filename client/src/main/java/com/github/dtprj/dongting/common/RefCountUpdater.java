@@ -47,6 +47,11 @@ public abstract class RefCountUpdater extends AbstractRefCountUpdater {
         return rawCnt != 2 && rawCnt != 4 && (rawCnt & 1) != 0 ? 0 : rawCnt >>> 1;
     }
 
+    @Override
+    public boolean isReleased(RefCount instance) {
+        return (getVolatile(instance) & 1) != 0;
+    }
+
     /**
      * Like {@link #realRefCnt(int)} but throws if realCount == 0
      */

@@ -63,4 +63,8 @@ public class RefCount {
         return updater.release(this, decrement);
     }
 
+    protected boolean isReleased() {
+        return updater.isReleased(this);
+    }
+
 }

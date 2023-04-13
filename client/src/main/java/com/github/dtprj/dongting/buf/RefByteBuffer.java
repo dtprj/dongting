@@ -83,6 +83,9 @@ public class RefByteBuffer extends RefCount {
     }
 
     public ByteBuffer getBuffer() {
+        if (isReleased()) {
+            throw new IllegalStateException("buffer is released");
+        }
         return buffer;
     }
 }

@@ -32,7 +32,7 @@ public class PlainRefCountUpdater extends AbstractRefCountUpdater {
     private PlainRefCountUpdater() {
     }
 
-    public static PlainRefCountUpdater getInstance(){
+    public static PlainRefCountUpdater getInstance() {
         return INSTANCE;
     }
 
@@ -61,5 +61,10 @@ public class PlainRefCountUpdater extends AbstractRefCountUpdater {
         refCnt -= decrement;
         REF_CNT.set(instance, refCnt);
         return refCnt == 0;
+    }
+
+    @Override
+    public boolean isReleased(RefCount instance) {
+        return ((int) REF_CNT.get(instance)) <= 0;
     }
 }
