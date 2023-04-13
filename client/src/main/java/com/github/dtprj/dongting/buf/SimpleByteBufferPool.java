@@ -60,12 +60,12 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
     public SimpleByteBufferPool(Timestamp ts, boolean direct, int threshold) {
         this(ts, direct, threshold, false, DEFAULT_BUF_SIZE,
-                DEFAULT_MIN_COUNT, DEFAULT_MAX_COUNT, 10 * 1000);
+                DEFAULT_MIN_COUNT, DEFAULT_MAX_COUNT, DEFAULT_TIME_OUT_MILLIS);
     }
 
     public SimpleByteBufferPool(Timestamp ts, boolean direct) {
         this(ts, direct, DEFAULT_THRESHOLD, false, DEFAULT_BUF_SIZE,
-                DEFAULT_MIN_COUNT, DEFAULT_MAX_COUNT, 10 * 1000);
+                DEFAULT_MIN_COUNT, DEFAULT_MAX_COUNT, DEFAULT_TIME_OUT_MILLIS);
     }
 
     public SimpleByteBufferPool(Timestamp ts, boolean direct, int threshold, boolean threadSafe,
@@ -73,8 +73,13 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         Objects.requireNonNull(bufSizes);
         Objects.requireNonNull(minCount);
         Objects.requireNonNull(maxCount);
-        this.ts = ts;
         this.threadSafe = threadSafe;
+        if (threadSafe) {
+            // Thread safe pool should use a dedicated Timestamp
+            this.ts = new Timestamp();
+        } else {
+            this.ts = ts;
+        }
         this.direct = direct;
         this.threshold = threshold;
         this.bufSizes = bufSizes;
@@ -119,7 +124,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
     @Override
     public ByteBuffer borrow(int requestSize) {
-        if (requestSize < threshold) {
+        if (requestSize <= threshold) {
             if (threadSafe) {
                 synchronized (this) {
                     statBorrowTooSmallCount++;
@@ -179,7 +184,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
     private void release0(ByteBuffer buf) {
         int capacity = buf.capacity();
-        if (capacity < threshold) {
+        if (capacity <= threshold) {
             return;
         }
         int[] bufSizes = this.bufSizes;
@@ -197,10 +202,11 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         pools[poolIndex].release(buf, ts.getNanoTime());
     }
 
+    @Override
     public void clean() {
         if (threadSafe) {
             synchronized (this) {
-                if (ts.refresh(100)) {
+                if (ts.refresh(10)) {
                     clean0();
                 }
             }

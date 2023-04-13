@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
+import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.common.LongObjMap;
 
 /**
@@ -25,8 +25,8 @@ class WorkerStatus {
     private IoQueue ioQueue;
     private Runnable wakeupRunnable;
     private LongObjMap<WriteData> pendingRequests;
-    private SimpleByteBufferPool directPool;
-    private SimpleByteBufferPool heapPool;
+    private ByteBufferPool directPool;
+    private ByteBufferPool heapPool;
     private int packetToWrite;
 
     public WorkerStatus() {
@@ -56,19 +56,19 @@ class WorkerStatus {
         this.pendingRequests = pendingRequests;
     }
 
-    public SimpleByteBufferPool getDirectPool() {
+    public ByteBufferPool getDirectPool() {
         return directPool;
     }
 
-    public void setDirectPool(SimpleByteBufferPool directPool) {
+    public void setDirectPool(ByteBufferPool directPool) {
         this.directPool = directPool;
     }
 
-    public SimpleByteBufferPool getHeapPool() {
+    public ByteBufferPool getHeapPool() {
         return heapPool;
     }
 
-    public void setHeapPool(SimpleByteBufferPool heapPool) {
+    public void setHeapPool(ByteBufferPool heapPool) {
         this.heapPool = heapPool;
     }
 

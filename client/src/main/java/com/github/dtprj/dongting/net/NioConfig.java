@@ -15,7 +15,10 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
+import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.common.Timestamp;
+
+import java.util.function.BiFunction;
 
 /**
  * @author huangli
@@ -36,10 +39,7 @@ public abstract class NioConfig {
     private int maxFrameSize = 5 * 1024 * 1024;
     private int maxBodySize = 4 * 1024 * 1024;
 
-    private int[] bufPoolSize = SimpleByteBufferPool.DEFAULT_BUF_SIZE;
-    private int[] bufPoolMinCount = SimpleByteBufferPool.DEFAULT_MIN_COUNT;
-    private int[] bufPoolMaxCount = SimpleByteBufferPool.DEFAULT_MAX_COUNT;
-    private long bufPoolTimeout = SimpleByteBufferPool.DEFAULT_TIME_OUT_MILLIS;
+    private BiFunction<Timestamp, Boolean, ByteBufferPool> poolFactory;
 
     private int readBufferSize = 128 * 1024;
     private long readBufferTimeout = 200;
@@ -110,36 +110,12 @@ public abstract class NioConfig {
         this.maxInBytes = maxInBytes;
     }
 
-    public int[] getBufPoolSize() {
-        return bufPoolSize;
+    public BiFunction<Timestamp, Boolean, ByteBufferPool> getPoolFactory() {
+        return poolFactory;
     }
 
-    public void setBufPoolSize(int[] bufPoolSize) {
-        this.bufPoolSize = bufPoolSize;
-    }
-
-    public int[] getBufPoolMinCount() {
-        return bufPoolMinCount;
-    }
-
-    public void setBufPoolMinCount(int[] bufPoolMinCount) {
-        this.bufPoolMinCount = bufPoolMinCount;
-    }
-
-    public int[] getBufPoolMaxCount() {
-        return bufPoolMaxCount;
-    }
-
-    public void setBufPoolMaxCount(int[] bufPoolMaxCount) {
-        this.bufPoolMaxCount = bufPoolMaxCount;
-    }
-
-    public long getBufPoolTimeout() {
-        return bufPoolTimeout;
-    }
-
-    public void setBufPoolTimeout(long bufPoolTimeout) {
-        this.bufPoolTimeout = bufPoolTimeout;
+    public void setPoolFactory(BiFunction<Timestamp, Boolean, ByteBufferPool> poolFactory) {
+        this.poolFactory = poolFactory;
     }
 
     public int getMaxFrameSize() {

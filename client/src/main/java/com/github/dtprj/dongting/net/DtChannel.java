@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -561,10 +560,10 @@ class ProcessInBizThreadTask implements Runnable {
 }
 
 class ByteBufferPoolReleaseInOtherThread extends ByteBufferPool {
-    private final SimpleByteBufferPool pool;
+    private final ByteBufferPool pool;
     private final IoQueue ioQueue;
 
-    ByteBufferPoolReleaseInOtherThread(SimpleByteBufferPool pool, IoQueue ioQueue) {
+    ByteBufferPoolReleaseInOtherThread(ByteBufferPool pool, IoQueue ioQueue) {
         this.pool = pool;
         this.ioQueue = ioQueue;
     }
@@ -587,14 +586,19 @@ class ByteBufferPoolReleaseInOtherThread extends ByteBufferPool {
     public ByteBuffer allocate(int requestSize) {
         return pool.allocate(requestSize);
     }
+
+    @Override
+    public void clean() {
+        pool.clean();
+    }
 }
 
 @SuppressWarnings("FieldMayBeFinal")
 class ReleaseBufferTask implements Runnable {
-    private SimpleByteBufferPool pool;
+    private ByteBufferPool pool;
     private ByteBuffer buffer;
 
-    public ReleaseBufferTask(SimpleByteBufferPool pool, ByteBuffer buffer) {
+    public ReleaseBufferTask(ByteBufferPool pool, ByteBuffer buffer) {
         this.pool = pool;
         this.buffer = buffer;
     }

@@ -125,7 +125,7 @@ public class SimpleByteBufferPoolTest {
         buf = pool.borrow(2048);
         assertEquals(2048, buf.capacity());
         pool.release(buf);
-        assertSame(buf, pool.borrow(2048));
+        assertNotSame(buf, pool.borrow(2048));
 
         buf = pool.borrow(2049);
         assertEquals(4096, buf.capacity());
@@ -212,9 +212,9 @@ public class SimpleByteBufferPoolTest {
     }
 
     public static void main(String[] args) {
-        int[] bufSize = SimpleByteBufferPool.DEFAULT_BUF_SIZE;
-        int[] maxCount = SimpleByteBufferPool.DEFAULT_MAX_COUNT;
-        int[] minCount = SimpleByteBufferPool.DEFAULT_MIN_COUNT;
+        int[]  bufSize = new int[]{32 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 512 * 1024, 1024 * 1024, 2 * 1024 * 1024, 4 * 1024 * 1024};
+        int[] minCount = new int[]{16, 8, 4, 2, 1, 0, 0, 0};
+        int[] maxCount = new int[]{128, 128, 64, 64, 32, 16, 8, 4};
         long totalMax = 0;
         long totalMin = 0;
         for (int i = 0; i < bufSize.length; i++) {

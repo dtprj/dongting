@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
+import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IntObjMap;
@@ -81,8 +81,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     final LongObjMap<WriteData> pendingOutgoingRequests = new LongObjMap<>();
     private final CompletableFuture<Void> preCloseFuture = new CompletableFuture<>();
 
-    private final SimpleByteBufferPool directPool;
-    private final SimpleByteBufferPool heapPool;
+    private final ByteBufferPool directPool;
+    private final ByteBufferPool heapPool;
 
     private final WorkerStatus workerStatus;
 
@@ -107,13 +107,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             this.ioQueue = new IoQueue(channelsList);
         }
 
-        this.directPool = new SimpleByteBufferPool(timestamp, true, 64, false,
-                config.getBufPoolSize(), config.getBufPoolMinCount(),
-                config.getBufPoolMaxCount(), config.getBufPoolTimeout());
-
-        this.heapPool = new SimpleByteBufferPool(timestamp, false, 64, false,
-                config.getBufPoolSize(), config.getBufPoolMinCount(),
-                config.getBufPoolMaxCount(), config.getBufPoolTimeout());
+        this.directPool = config.getPoolFactory().apply(timestamp, true);
+        this.heapPool = config.getPoolFactory().apply(timestamp, false);
 
         workerStatus = new WorkerStatus();
         workerStatus.setIoQueue(ioQueue);
@@ -193,7 +188,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     statReadCount, statReadBytes, statReadCount == 0 ? 0 : statReadBytes / statReadCount,
                     statWriteCount, statWriteBytes, statWriteCount == 0 ? 0 : statWriteBytes / statWriteCount);
             if (log.isDebugEnabled()) {
-                log.debug("direct pool stat: {}\nheap pool stat: {}", directPool.formatStat(), heapPool.formatStat());
+                // TODO fix here
+                // log.debug("direct pool stat: {}\nheap pool stat: {}", directPool.formatStat(), heapPool.formatStat());
             }
         } catch (Exception e) {
             log.error("close error. {}", e);

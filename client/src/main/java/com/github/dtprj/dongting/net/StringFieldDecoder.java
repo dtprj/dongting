@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
+import com.github.dtprj.dongting.buf.ByteBufferPool;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -30,11 +30,11 @@ public class StringFieldDecoder {
     private static final int THREAD_LOCAL_BUFFER_SIZE = 32 * 1024;
     private static final ThreadLocal<byte[]> THREAD_LOCAL_BUFFER = ThreadLocal.withInitial(() -> new byte[THREAD_LOCAL_BUFFER_SIZE]);
     private final byte[] threadLocalBuffer;
-    private final SimpleByteBufferPool pool;
+    private final ByteBufferPool pool;
 
     private ByteBuffer bufferFromPool;
 
-    StringFieldDecoder(SimpleByteBufferPool pool) {
+    StringFieldDecoder(ByteBufferPool pool) {
         this.pool = pool;
         this.threadLocalBuffer = THREAD_LOCAL_BUFFER.get();
     }

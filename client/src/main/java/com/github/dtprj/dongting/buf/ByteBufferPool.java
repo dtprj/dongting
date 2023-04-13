@@ -27,4 +27,7 @@ public abstract class ByteBufferPool {
     public abstract void release(ByteBuffer buf);
 
     public abstract ByteBuffer allocate(int requestSize);
+
+    public abstract void clean();
+
 }
