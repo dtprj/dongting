@@ -100,7 +100,13 @@ class DtChannel extends PbCallback {
     }
 
     private static ByteBufferPool createReleaseSafePool(TwoLevelPool heapPool, IoQueue ioQueue) {
-        Consumer<ByteBuffer> callback = (buf) -> ioQueue.scheduleFromBizThread(() -> heapPool.release(buf));
+        Consumer<ByteBuffer> callback = (buf) -> {
+            try {
+                ioQueue.scheduleFromBizThread(() -> heapPool.release(buf));
+            } catch (NetException e) {
+                log.warn("schedule ReleaseBufferTask fail: {}", e.toString());
+            }
+        };
         return heapPool.toReleaseInOtherThreadInstance(Thread.currentThread(), callback);
     }
 
