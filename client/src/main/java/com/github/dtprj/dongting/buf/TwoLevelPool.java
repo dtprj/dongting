@@ -124,6 +124,7 @@ public class TwoLevelPool extends ByteBufferPool {
         return DEFAULT_FACTORY;
     }
 
+    @SuppressWarnings("unused")
     public static void setDefaultFactory(BiFunction<Timestamp, Boolean, ByteBufferPool> defaultFactory) {
         GLOBAL_POOL = null;
         DEFAULT_FACTORY = defaultFactory;

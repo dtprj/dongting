@@ -393,11 +393,6 @@ public class NioServerTest {
             public Decoder getDecoder() {
                 return new Decoder() {
                     @Override
-                    public boolean decodeInIoThread() {
-                        return true;
-                    }
-
-                    @Override
                     public Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
                         throw new ArrayIndexOutOfBoundsException();
                     }
