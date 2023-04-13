@@ -19,8 +19,7 @@ import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtThreadFactory;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.ObjUtil;
-import com.github.dtprj.dongting.common.ThreadUtils;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -86,7 +85,7 @@ public abstract class NioNet extends AbstractLifeCircle {
     CompletableFuture<ReadFrame> sendRequest(NioWorker worker, Peer peer, WriteFrame request,
                                                        Decoder decoder, DtTime timeout) {
         request.setFrameType(FrameType.TYPE_REQ);
-        ObjUtil.checkPositive(request.getCommand(), "request.command");
+        DtUtil.checkPositive(request.getCommand(), "request.command");
         if (request.estimateBodySize() > config.getMaxBodySize()) {
             throw new IllegalArgumentException("request body too large: " + request.estimateBodySize());
         }
@@ -191,7 +190,7 @@ public abstract class NioNet extends AbstractLifeCircle {
                         log.warn("bizExecutor not terminated in {} ms", rest);
                     }
                 } catch (InterruptedException e) {
-                    ThreadUtils.restoreInterruptStatus();
+                    DtUtil.restoreInterruptStatus();
                 }
             }
         }

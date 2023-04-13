@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.common.CloseUtil;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
@@ -179,11 +179,11 @@ abstract class FileQueue {
                 return new LogFile(currentEndPosition, currentEndPosition + getFileSize(), channel, f.getPath());
             } catch (Exception e) {
                 if (channel != null) {
-                    CloseUtil.close(channel);
+                    DtUtil.close(channel);
                 }
                 throw new RaftException(e);
             } finally {
-                CloseUtil.close(raf);
+                DtUtil.close(raf);
             }
         }, ioExecutor);
     }

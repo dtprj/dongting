@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.common.ObjUtil;
+import com.github.dtprj.dongting.common.DtUtil;
 
 /**
  * @author huangli
@@ -65,7 +65,7 @@ public class LongLongSeqMap {
     }
 
     public void remove(int count) {
-        ObjUtil.checkPositive(count, "count");
+        DtUtil.checkPositive(count, "count");
         for (int i = 0; i < count && size > 0; i++) {
             data[idx(firstKey, data.length)] = 0;
             firstKey++;

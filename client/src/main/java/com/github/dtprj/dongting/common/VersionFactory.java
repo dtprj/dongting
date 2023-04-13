@@ -40,7 +40,7 @@ class VfHolder {
     static final VersionFactory FACTORY;
 
     static {
-        if (JavaVersion.javaVersion() < 11) {
+        if (DtUtil.javaVersion() < 11) {
             FACTORY = new Java8Factory();
         } else {
             VersionFactory f = null;

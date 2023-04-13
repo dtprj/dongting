@@ -25,9 +25,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class JavaVersionTest {
     @Test
     public void testMajorVersion() {
-        assertEquals(8, JavaVersion.majorVersion("1.8"));
-        assertEquals(8, JavaVersion.majorVersion("8"));
-        assertEquals(9, JavaVersion.majorVersion("1.9")); // early version of JDK 9 before Project Verona
-        assertEquals(9, JavaVersion.majorVersion("9"));
+        assertEquals(8, DtUtil.majorVersion("1.8"));
+        assertEquals(8, DtUtil.majorVersion("8"));
+        assertEquals(9, DtUtil.majorVersion("1.9")); // early version of JDK 9 before Project Verona
+        assertEquals(9, DtUtil.majorVersion("9"));
     }
 }

@@ -36,8 +36,8 @@ public class IntObjMap<V> {
     }
 
     public IntObjMap(int initSize, float loadFactor) {
-        ObjUtil.checkPositive(initSize, "initSize");
-        ObjUtil.checkPositive(loadFactor, "loadFactor");
+        DtUtil.checkPositive(initSize, "initSize");
+        DtUtil.checkPositive(loadFactor, "loadFactor");
         resizeThreshold = BitUtil.nextHighestPowerOfTwo(initSize);
         this.loadFactor = loadFactor;
     }

@@ -16,9 +16,9 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.RefByteBuffer;
-import com.github.dtprj.dongting.common.CloseUtil;
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.pb.DtFrame;
 import com.google.protobuf.ByteString;
@@ -123,7 +123,7 @@ public class NioServerTest {
             simpleTest(CMD_BIZ_PING1, in, out, 2);
             simpleTest(CMD_BIZ_PING2, in, out, 3);
         } finally {
-            CloseUtil.close(s);
+            DtUtil.close(s);
         }
     }
 
@@ -213,7 +213,7 @@ public class NioServerTest {
                 }
             }
         } finally {
-            CloseUtil.close(s);
+            DtUtil.close(s);
         }
     }
 
@@ -321,7 +321,7 @@ public class NioServerTest {
             int code = invoke(1, 12323434, 5000, in, out);
             assertEquals(CmdCodes.COMMAND_NOT_SUPPORT, code);
         } finally {
-            CloseUtil.close(s);
+            DtUtil.close(s);
         }
     }
 
@@ -444,7 +444,7 @@ public class NioServerTest {
             assertEquals(CmdCodes.SUCCESS, invoke(6, CMD_BIZ_PING1, 5000, in, out));
             assertEquals(CmdCodes.SUCCESS, invoke(7, CMD_BIZ_PING2, 5000, in, out));
         } finally {
-            CloseUtil.close(s);
+            DtUtil.close(s);
         }
     }
 
@@ -517,7 +517,7 @@ public class NioServerTest {
 
             assertThrows(SocketTimeoutException.class, () -> invoke(123456, 10003, 5000, in, out));
         } finally {
-            CloseUtil.close(s);
+            DtUtil.close(s);
         }
         s = new Socket("127.0.0.1", PORT);
         try {
@@ -527,7 +527,7 @@ public class NioServerTest {
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
             assertThrows(SocketTimeoutException.class, () -> invoke(10003, 10004, 5000, in, out));
         } finally {
-            CloseUtil.close(s);
+            DtUtil.close(s);
         }
         s = new Socket("127.0.0.1", PORT);
         try {
@@ -537,7 +537,7 @@ public class NioServerTest {
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
             assertThrows(SocketTimeoutException.class, () -> invoke(10004, 10004, 5000, in, out));
         } finally {
-            CloseUtil.close(s);
+            DtUtil.close(s);
         }
     }
 
@@ -616,7 +616,7 @@ public class NioServerTest {
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
             assertEquals(CmdCodes.SUCCESS, invoke(1, 3333, 5000, in, out));
         } finally {
-            CloseUtil.close(s);
+            DtUtil.close(s);
         }
     }
 }

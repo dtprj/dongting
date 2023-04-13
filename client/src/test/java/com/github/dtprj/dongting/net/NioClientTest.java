@@ -16,8 +16,8 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.RefByteBuffer;
-import com.github.dtprj.dongting.common.CloseUtil;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.TestUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -102,7 +102,7 @@ public class NioClientTest {
             } catch (Throwable e) {
                 log.error("", e);
             } finally {
-                CloseUtil.close(in);
+                DtUtil.close(in);
             }
         }
 
@@ -128,7 +128,7 @@ public class NioClientTest {
             } catch (Throwable e) {
                 log.error("", e);
             } finally {
-                CloseUtil.close(out);
+                DtUtil.close(out);
             }
         }
 
@@ -153,9 +153,9 @@ public class NioClientTest {
             }
             stop = true;
             for (Socket s : sockets) {
-                CloseUtil.close(s);
+                DtUtil.close(s);
             }
-            CloseUtil.close(ss);
+            DtUtil.close(ss);
             // if no sleep, GitHub action fails: Bind Address already in use (Bind failed)
             Thread.sleep(tick(1));
         }
@@ -175,7 +175,7 @@ public class NioClientTest {
             client.waitStart();
             sendSync(5000, client, tick(1000));
         } finally {
-            CloseUtil.close(client, server);
+            DtUtil.close(client, server);
         }
     }
 
@@ -193,7 +193,7 @@ public class NioClientTest {
             client.waitStart();
             asyncTest(client, tick(1000), 1, 6000);
         } finally {
-            CloseUtil.close(client, server);
+            DtUtil.close(client, server);
         }
     }
 
@@ -211,7 +211,7 @@ public class NioClientTest {
             client.waitStart();
             generalTest(client, tick(100), 5000);
         } finally {
-            CloseUtil.close(client, server);
+            DtUtil.close(client, server);
         }
     }
 
@@ -263,7 +263,7 @@ public class NioClientTest {
             client.waitStart();
             generalTest(client, tick(100), 5000);
         } finally {
-            CloseUtil.close(client, server1, server2);
+            DtUtil.close(client, server1, server2);
         }
     }
 
@@ -430,7 +430,7 @@ public class NioClientTest {
             }
 
         } finally {
-            CloseUtil.close(client, server1, server2);
+            DtUtil.close(client, server1, server2);
         }
     }
 
@@ -483,7 +483,7 @@ public class NioClientTest {
 
             client.removePeer(p2).get();
         } finally {
-            CloseUtil.close(client, server1, server2);
+            DtUtil.close(client, server1, server2);
         }
     }
 
@@ -513,7 +513,7 @@ public class NioClientTest {
             }
             f3.get(tick(1), TimeUnit.SECONDS);
         } finally {
-            CloseUtil.close(client, server);
+            DtUtil.close(client, server);
         }
     }
 
@@ -560,7 +560,7 @@ public class NioClientTest {
                 // ignore
             }
         } finally {
-            CloseUtil.close(client, server);
+            DtUtil.close(client, server);
         }
     }
 
@@ -584,7 +584,7 @@ public class NioClientTest {
                 assertEquals(100, ((NetCodeException) e.getCause()).getCode());
             }
         } finally {
-            CloseUtil.close(client, server);
+            DtUtil.close(client, server);
         }
     }
 
@@ -607,7 +607,7 @@ public class NioClientTest {
             client.stop();
             f.get(tick(1), TimeUnit.SECONDS);
         } finally {
-            CloseUtil.close(client, server);
+            DtUtil.close(client, server);
         }
     }
 
@@ -643,7 +643,7 @@ public class NioClientTest {
                 assertTrue(msg.contains("channel closed") || msg.equals("client closed"), msg);
             }
         } finally {
-            CloseUtil.close(client, server);
+            DtUtil.close(client, server);
         }
     }
 
@@ -716,7 +716,7 @@ public class NioClientTest {
                 sendSync(5000, client, tick(1000));
             }
         } finally {
-            CloseUtil.close(client, server);
+            DtUtil.close(client, server);
         }
     }
 }

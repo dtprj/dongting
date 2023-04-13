@@ -17,7 +17,7 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.RefByteBuffer;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.ThreadUtils;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -142,7 +142,7 @@ public class NioServer extends NioNet implements Runnable {
                 try {
                     worker.getPreCloseFuture().get(rest, TimeUnit.MILLISECONDS);
                 } catch (InterruptedException e) {
-                    ThreadUtils.restoreInterruptStatus();
+                    DtUtil.restoreInterruptStatus();
                 } catch (TimeoutException e) {
                     preStopOk = false;
                     log.info("server {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
@@ -167,7 +167,7 @@ public class NioServer extends NioNet implements Runnable {
                 try {
                     worker.getThread().join(rest);
                 } catch (InterruptedException e) {
-                    ThreadUtils.restoreInterruptStatus();
+                    DtUtil.restoreInterruptStatus();
                 }
             }
         }
@@ -184,7 +184,7 @@ public class NioServer extends NioNet implements Runnable {
         try {
             acceptThread.join(100);
         } catch (InterruptedException e) {
-            ThreadUtils.restoreInterruptStatus();
+            DtUtil.restoreInterruptStatus();
         }
     }
 

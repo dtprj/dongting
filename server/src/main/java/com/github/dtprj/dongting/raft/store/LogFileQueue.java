@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.common.BitUtil;
-import com.github.dtprj.dongting.common.ObjUtil;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
@@ -243,7 +243,7 @@ public class LogFileQueue extends FileQueue {
     }
 
     public void truncateTail(long dataPosition) {
-        ObjUtil.checkNotNegative(dataPosition, "dataPosition");
+        DtUtil.checkNotNegative(dataPosition, "dataPosition");
         writePos = dataPosition;
     }
 }

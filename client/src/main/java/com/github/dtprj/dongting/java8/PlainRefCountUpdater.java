@@ -17,7 +17,7 @@ package com.github.dtprj.dongting.java8;
 
 import com.github.dtprj.dongting.common.AbstractRefCountUpdater;
 import com.github.dtprj.dongting.common.DtException;
-import com.github.dtprj.dongting.common.ObjUtil;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.RefCount;
 
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
@@ -43,7 +43,7 @@ public class PlainRefCountUpdater extends AbstractRefCountUpdater {
 
     @Override
     public void retain(RefCount instance, int increment) {
-        ObjUtil.checkPositive(increment, "increment");
+        DtUtil.checkPositive(increment, "increment");
         int refCnt = UPDATER.get(instance);
         if (refCnt <= 0) {
             throw new DtException("already released");
@@ -53,7 +53,7 @@ public class PlainRefCountUpdater extends AbstractRefCountUpdater {
 
     @Override
     public boolean release(RefCount instance, int decrement) {
-        ObjUtil.checkPositive(decrement, "decrement");
+        DtUtil.checkPositive(decrement, "decrement");
         int refCnt = UPDATER.get(instance);
         if (refCnt < decrement) {
             throw new DtException("decrement>refCnt," + decrement + "," + refCnt);

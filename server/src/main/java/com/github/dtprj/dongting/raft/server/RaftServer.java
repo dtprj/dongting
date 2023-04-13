@@ -17,7 +17,7 @@ package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.ObjUtil;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -117,8 +117,8 @@ public class RaftServer extends AbstractLifeCircle {
             throw new IllegalArgumentException("groupConfig, raftLogs, stateMachines size not match");
         }
 
-        ObjUtil.checkPositive(serverConfig.getNodeId(), "id");
-        ObjUtil.checkPositive(serverConfig.getRaftPort(), "port");
+        DtUtil.checkPositive(serverConfig.getNodeId(), "id");
+        DtUtil.checkPositive(serverConfig.getRaftPort(), "port");
         this.serverConfig = serverConfig;
         this.maxPendingWrites = serverConfig.getMaxPendingWrites();
         this.maxPendingWriteBytes = serverConfig.getMaxPendingWriteBytes();

@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.pb;
 
 import com.github.dtprj.dongting.common.DtException;
-import com.github.dtprj.dongting.common.ObjUtil;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -61,12 +61,12 @@ public class PbParser {
     private PbParser(PbCallback callback, boolean multi, int maxFrameOrPbLen) {
         Objects.requireNonNull(callback);
         if (multi) {
-            ObjUtil.checkPositive(maxFrameOrPbLen, "maxFrame");
+            DtUtil.checkPositive(maxFrameOrPbLen, "maxFrame");
             this.callback = callback;
             this.maxFrame = maxFrameOrPbLen;
             this.status = STATUS_PARSE_PB_LEN;
         } else {
-            ObjUtil.checkNotNegative(maxFrameOrPbLen, "pbLen");
+            DtUtil.checkNotNegative(maxFrameOrPbLen, "pbLen");
             this.callback = callback;
             this.frameLen = maxFrameOrPbLen;
             this.status = STATUS_SINGLE_INIT;

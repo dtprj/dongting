@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.common.BitUtil;
-import com.github.dtprj.dongting.common.ObjUtil;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -124,7 +124,7 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     public long truncateTail(long index) throws Exception {
-        ObjUtil.checkPositive(index, "index");
+        DtUtil.checkPositive(index, "index");
         if (index < firstIndex) {
             throw new RaftException("truncateTail index is too small: " + index);
         }
@@ -145,7 +145,7 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     private void checkIndex(long index) {
-        ObjUtil.checkPositive(index, "index");
+        DtUtil.checkPositive(index, "index");
         if (index > nextIndex) {
             BugLog.getLog().error("index is too large : lastIndex={}, index={}", nextIndex, index);
             throw new RaftException("index is too large");

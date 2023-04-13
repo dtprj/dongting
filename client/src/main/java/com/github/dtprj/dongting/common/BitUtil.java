@@ -35,7 +35,7 @@ public class BitUtil {
     }
 
     public static int zeroCountOfBinary(int value) {
-        ObjUtil.checkPositive(value, "value");
+        DtUtil.checkPositive(value, "value");
         if (nextHighestPowerOfTwo(value) != value) {
             throw new IllegalArgumentException();
         }

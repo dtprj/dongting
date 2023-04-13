@@ -65,7 +65,7 @@ public abstract class RefCountUpdater extends AbstractRefCountUpdater {
 
     @Override
     public void retain(RefCount instance, int increment) {
-        ObjUtil.checkPositive(increment, "increment");
+        DtUtil.checkPositive(increment, "increment");
         retain0(instance, increment, increment << 1);
     }
 
@@ -83,7 +83,7 @@ public abstract class RefCountUpdater extends AbstractRefCountUpdater {
 
     @Override
     public boolean release(RefCount instance, int decrement) {
-        ObjUtil.checkPositive(decrement, "decrement");
+        DtUtil.checkPositive(decrement, "decrement");
         int rawCnt = getPlain(instance);
         int realCnt = toLiveRealRefCnt(rawCnt);
         return decrement == realCnt ? tryFinalRelease0(instance, rawCnt) || retryRelease0(instance, decrement)

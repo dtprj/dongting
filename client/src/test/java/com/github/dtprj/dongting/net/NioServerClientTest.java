@@ -17,8 +17,8 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.RefByteBuffer;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
-import com.github.dtprj.dongting.common.CloseUtil;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.DtUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -50,7 +50,7 @@ public class NioServerClientTest {
             client.waitStart();
             invoke(client);
         } finally {
-            CloseUtil.close(client, server);
+            DtUtil.close(client, server);
         }
     }
 
@@ -126,7 +126,7 @@ public class NioServerClientTest {
             }
 
         } finally {
-            CloseUtil.close(client, server);
+            DtUtil.close(client, server);
         }
     }
 

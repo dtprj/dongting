@@ -15,10 +15,51 @@
  */
 package com.github.dtprj.dongting.common;
 
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
+
 /**
  * @author huangli
  */
-public class ObjUtil {
+public class DtUtil {
+    private static final DtLog log = DtLogs.getLogger(DtUtil.class);
+    private static final int JAVA_VER = majorVersion(System.getProperty("java.specification.version", "1.8"));
+
+    public static void close(Object... resources) {
+        for (Object res : resources) {
+            if (res != null) {
+                try {
+                    if (res instanceof AutoCloseable) {
+                        ((AutoCloseable) res).close();
+                    } else if (res instanceof LifeCircle) {
+                        ((LifeCircle) res).stop();
+                    }
+                } catch (Throwable e) {
+                    log.error("close fail", e);
+                }
+            }
+        }
+    }
+
+    public static int javaVersion() {
+        return JAVA_VER;
+    }
+
+    // Package-private for testing only
+    static int majorVersion(final String javaSpecVersion) {
+        final String[] components = javaSpecVersion.split("\\.");
+        final int[] version = new int[components.length];
+        for (int i = 0; i < components.length; i++) {
+            version[i] = Integer.parseInt(components[i]);
+        }
+
+        if (version[0] == 1) {
+            assert version[1] >= 8;
+            return version[1];
+        } else {
+            return version[0];
+        }
+    }
 
     /**
      * Checks that the given argument is strictly positive. If it is not, throws {@link IllegalArgumentException}.
@@ -54,4 +95,9 @@ public class ObjUtil {
         }
     }
 
+    public static void restoreInterruptStatus() {
+        if (!Thread.currentThread().isInterrupted()) {
+            Thread.currentThread().interrupt();
+        }
+    }
 }

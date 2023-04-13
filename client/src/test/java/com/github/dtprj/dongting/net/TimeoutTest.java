@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.common.CloseUtil;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.DtUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -67,7 +67,7 @@ public class TimeoutTest {
 
     @AfterEach
     public void shutdown() {
-        CloseUtil.close(client, server);
+        DtUtil.close(client, server);
     }
 
     private CompletableFuture<ReadFrame> send(DtTime timeout) {

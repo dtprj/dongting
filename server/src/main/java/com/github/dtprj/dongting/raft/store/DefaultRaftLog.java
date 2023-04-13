@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.common.ObjUtil;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
@@ -99,7 +99,7 @@ public class DefaultRaftLog implements RaftLog {
         }
         knownMaxCommitIndex = Math.max(knownMaxCommitIndex, commitIndex);
         long firstIndex = logs.get(0).getIndex();
-        ObjUtil.checkPositive(firstIndex, "firstIndex");
+        DtUtil.checkPositive(firstIndex, "firstIndex");
         if (firstIndex == idxFiles.getNextIndex()) {
             logFiles.append(logs);
         } else if (firstIndex < idxFiles.getNextIndex()) {

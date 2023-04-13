@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.common.CloseUtil;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
@@ -95,10 +95,10 @@ public class StatusFile implements AutoCloseable {
 
             }
         } catch (RaftException e) {
-            CloseUtil.close(lock, channel);
+            DtUtil.close(lock, channel);
             throw e;
         } catch (Exception e) {
-            CloseUtil.close(lock, channel);
+            DtUtil.close(lock, channel);
             throw new RaftException(e);
         }
     }
@@ -138,6 +138,6 @@ public class StatusFile implements AutoCloseable {
 
     @Override
     public void close() {
-        CloseUtil.close(lock, channel);
+        DtUtil.close(lock, channel);
     }
 }
