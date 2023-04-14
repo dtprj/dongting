@@ -117,7 +117,7 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public CompletableFuture<LogItem[]> load(long index, int limit, long bytesLimit) {
+    public CompletableFuture<LogItem[]> load(long index, int limit, int bytesLimit) {
         try {
             long pos = idxFiles.findLogPosInMemCache(index);
             CompletableFuture<Long> posFuture;

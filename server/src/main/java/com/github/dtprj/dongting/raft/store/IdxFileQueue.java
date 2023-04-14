@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -151,6 +152,10 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
             pageCache.put(pageStartPos, buffer);
             return buffer;
         });
+    }
+
+    private CompletableFuture<Pair<long[], int[]>> loadIndex(long index, int limit, int bytesLimit) {
+        return null;
     }
 
     public long truncateTail(long index) throws Exception {

@@ -42,7 +42,7 @@ public interface RaftLog extends AutoCloseable {
      * @param bytesLimit max bytes of logs to return, 0 means no limit
      * @return return log items, don't return null or empty array
      */
-    CompletableFuture<LogItem[]> load(long index, int limit, long bytesLimit);
+    CompletableFuture<LogItem[]> load(long index, int limit, int bytesLimit);
 
     /**
      * return -1 if the index can't find.
