@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.common.Pair;
@@ -189,6 +190,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     statWriteCount, statWriteBytes, statWriteCount == 0 ? 0 : statWriteBytes / statWriteCount);
             if (log.isDebugEnabled()) {
                 log.debug("direct pool stat: {}\nheap pool stat: {}", directPool.formatStat(), heapPool.formatStat());
+            } else if (DtUtil.DEBUG) {
+                log.info("direct pool stat: {}\nheap pool stat: {}", directPool.formatStat(), heapPool.formatStat());
             }
         } catch (Exception e) {
             log.error("close error. {}", e);
