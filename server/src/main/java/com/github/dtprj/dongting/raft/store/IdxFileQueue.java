@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.BugLog;
@@ -26,6 +27,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.CompletionHandler;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -37,6 +40,8 @@ import java.util.function.Supplier;
  */
 public class IdxFileQueue extends FileQueue implements IdxOps {
     private static final DtLog log = DtLogs.getLogger(IdxFileQueue.class);
+    private static final int PAGE_SIZE = 4096;
+    private static final long PAGE_MASK = ~(PAGE_SIZE - 1);
     private static final int ITEM_LEN = 8;
     private static final int ITEMS_PER_FILE = 1024 * 1024;
     private static final int REMOVE_ITEMS = 512;
@@ -49,6 +54,16 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
     private static final int FLUSH_ITEMS = MAX_CACHE_ITEMS / 2;
     private static final int FLUSH_ITEMS_MAST = FLUSH_ITEMS - 1;
     private final LongLongSeqMap cache = new LongLongSeqMap();
+    private final LinkedHashMap<Long, ByteBuffer> pageCache = new LinkedHashMap<>(32) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<Long, ByteBuffer> eldest) {
+            boolean result = size() > 16;
+            if (result) {
+                heapPool.release(eldest.getValue());
+            }
+            return result;
+        }
+    };
     private final Supplier<Boolean> stopIndicator;
 
     private long nextPersistIndex;
@@ -59,8 +74,9 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
 
     private WriteTask writeTask;
 
-    public IdxFileQueue(File dir, Executor ioExecutor, Supplier<Boolean> stopIndicator) {
-        super(dir, ioExecutor);
+    public IdxFileQueue(File dir, Executor ioExecutor, Supplier<Boolean> stopIndicator,
+                        ByteBufferPool heapPool, ByteBufferPool directPool) {
+        super(dir, ioExecutor, heapPool, directPool);
         this.stopIndicator = stopIndicator;
     }
 
@@ -104,6 +120,12 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         if (result > 0) {
             return result;
         }
+        long pos = indexToPos(itemIndex);
+        long pageStartPos = pos & PAGE_MASK;
+        ByteBuffer page = pageCache.get(pageStartPos);
+        if (page != null) {
+            return page.getLong((int) (pos & ~PAGE_MASK));
+        }
         return -2;
     }
 
@@ -113,13 +135,21 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
             return CompletableFuture.completedFuture(-1L);
         }
         long pos = indexToPos(itemIndex);
-        long filePos = pos & FILE_LEN_MASK;
-        LogFile lf = getLogFile(pos);
-        ByteBuffer buffer = ByteBuffer.allocate(8);
+        long pageStartPos = pos & PAGE_MASK;
+
+        return loadPage(pageStartPos)
+                .thenApply(page -> page.getLong((int) (pos & ~PAGE_MASK)));
+    }
+
+    private CompletableFuture<ByteBuffer> loadPage(long pageStartPos) {
+        long filePos = pageStartPos & FILE_LEN_MASK;
+        LogFile lf = getLogFile(pageStartPos);
+        ByteBuffer buffer = heapPool.borrow(PAGE_SIZE);
         AsyncReadTask t = new AsyncReadTask(buffer, filePos, lf.channel);
         return t.exec().thenApply(v -> {
             buffer.flip();
-            return buffer.getLong();
+            pageCache.put(pageStartPos, buffer);
+            return buffer;
         });
     }
 

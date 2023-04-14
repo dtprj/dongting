@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
@@ -62,8 +63,8 @@ public class LogFileQueue extends FileQueue {
     private final CRC32C crc32c = new CRC32C();
     private long writePos;
 
-    public LogFileQueue(File dir, Executor ioExecutor, IdxOps idxOps) {
-        super(dir, ioExecutor);
+    public LogFileQueue(File dir, Executor ioExecutor, IdxOps idxOps, ByteBufferPool heapPool, ByteBufferPool directPool) {
+        super(dir, ioExecutor, heapPool, directPool);
         this.idxOps = idxOps;
     }
 
@@ -246,4 +247,5 @@ public class LogFileQueue extends FileQueue {
         DtUtil.checkNotNegative(dataPosition, "dataPosition");
         writePos = dataPosition;
     }
+
 }

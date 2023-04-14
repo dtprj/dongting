@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -40,15 +41,19 @@ abstract class FileQueue {
     protected final IndexedQueue<LogFile> queue = new IndexedQueue<>();
     protected final File dir;
     protected final Executor ioExecutor;
+    protected final ByteBufferPool heapPool;
+    protected final ByteBufferPool directPool;
 
     protected long queueStartPosition;
     protected long queueEndPosition;
 
     protected CompletableFuture<LogFile> allocateFuture;
 
-    public FileQueue(File dir, Executor ioExecutor) {
+    public FileQueue(File dir, Executor ioExecutor, ByteBufferPool heapPool, ByteBufferPool directPool) {
         this.dir = dir;
         this.ioExecutor = ioExecutor;
+        this.heapPool = heapPool;
+        this.directPool = directPool;
     }
 
     protected abstract long getFileSize();
