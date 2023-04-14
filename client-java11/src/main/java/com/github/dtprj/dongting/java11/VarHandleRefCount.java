@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.java11;
 
-import com.github.dtprj.dongting.common.Processor;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.RefCount;
 import com.github.dtprj.dongting.common.RefCountUpdater;
 
@@ -68,7 +68,7 @@ public class VarHandleRefCount extends RefCountUpdater {
 
     @Override
     protected void doSpin(int count) {
-        if (count <= 10 && Processor.processorCount() > 1) {
+        if (count <= 10 && DtUtil.processorCount() > 1) {
             Thread.onSpinWait();
         } else {
             Thread.yield();
