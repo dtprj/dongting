@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * @author huangli
  */
@@ -38,7 +40,7 @@ public class RaftMember {
     private long nextIndex;
     private long matchIndex;
 
-    private boolean waiting;
+    private CompletableFuture<?> replicateFuture;
 
     public RaftMember(RaftNodeEx node) {
         this.node = node;
@@ -134,12 +136,12 @@ public class RaftMember {
         this.nodeEpoch = nodeEpoch;
     }
 
-    public boolean isWaiting() {
-        return waiting;
+    public CompletableFuture<?> getReplicateFuture() {
+        return replicateFuture;
     }
 
-    public void setWaiting(boolean waiting) {
-        this.waiting = waiting;
+    public void setReplicateFuture(CompletableFuture<?> replicateFuture) {
+        this.replicateFuture = replicateFuture;
     }
 
     public int getReplicateEpoch() {

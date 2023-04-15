@@ -109,7 +109,7 @@ public class ReplicateManager {
         if (!member.isReady()) {
             return;
         }
-        if (member.isWaiting()) {
+        if (member.getReplicateFuture() != null) {
             return;
         }
         if (member.isInstallSnapshot()) {
@@ -156,8 +156,8 @@ public class ReplicateManager {
             }
             sendAppendRequest(member, items);
         } else {
-            member.setWaiting(true);
             CompletableFuture<LogItem[]> future = raftLog.load(nextIndex, limit, config.getReplicateLoadBytesLimit());
+            member.setReplicateFuture(future);
             future.whenCompleteAsync(
                     (r, ex) -> resumeAfterLogLoad(member.getReplicateEpoch(), member, r, ex),
                     raftStatus.getRaftExecutor());
@@ -166,7 +166,7 @@ public class ReplicateManager {
 
     private void resumeAfterLogLoad(int repEpoch, RaftMember member, LogItem[] items, Throwable ex) {
         try {
-            member.setWaiting(false);
+            member.setReplicateFuture(null);
             if (epochNotMatch(member, repEpoch)) {
                 log.info("replicate epoch changed, ignore load result");
                 return;
@@ -363,16 +363,16 @@ public class ReplicateManager {
             member.setNextIndex(body.getMaxLogIndex() + 1);
             replicate(member);
         } else {
-            member.setWaiting(true);
             int reqEpoch = member.getReplicateEpoch();
-            raftLog.nextIndexToReplicate(body.getMaxLogTerm(), body.getMaxLogIndex())
-                    .whenCompleteAsync(resumeAfterFindIndex(member, reqEpoch, body.getMaxLogIndex()), raftExecutor);
+            CompletableFuture<Long> future = raftLog.nextIndexToReplicate(body.getMaxLogTerm(), body.getMaxLogIndex());
+            member.setReplicateFuture(future);
+            future.whenCompleteAsync(resumeAfterFindIndex(member, reqEpoch, body.getMaxLogIndex()), raftExecutor);
         }
     }
 
     private BiConsumer<Long, Throwable> resumeAfterFindIndex(RaftMember member, int reqEpoch, long remoteMayIndex) {
         return (nextIndex, ex) -> {
-            member.setWaiting(false);
+            member.setReplicateFuture(null);
             if (epochNotMatch(member, reqEpoch)) {
                 log.info("epoch not match. ignore result of nextIndexToReplicate call");
                 return;
@@ -414,8 +414,8 @@ public class ReplicateManager {
         }
         int reqEpoch = member.getReplicateEpoch();
         try {
-            member.setWaiting(true);
             CompletableFuture<RefByteBuffer> future = stateMachine.readNext(si.snapshot);
+            member.setReplicateFuture(future);
             future.whenCompleteAsync(resumeAfterSnapshotLoad(member, si, reqEpoch), raftExecutor);
         } catch (Exception e) {
             processInstallSnapshotError(member, si, e, reqEpoch);
@@ -425,7 +425,7 @@ public class ReplicateManager {
     private BiConsumer<RefByteBuffer, Throwable> resumeAfterSnapshotLoad(RaftMember member, SnapshotInfo si, int reqEpoch) {
         return (data, ex) -> {
             try {
-                member.setWaiting(false);
+                member.setReplicateFuture(null);
                 if (ex != null) {
                     processInstallSnapshotError(member, si, ex, reqEpoch);
                     return;

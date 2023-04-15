@@ -144,7 +144,9 @@ public class RaftUtil {
             member.setMultiAppend(false);
             member.setInstallSnapshot(false);
             member.incrReplicateEpoch(member.getReplicateEpoch());
-            member.setWaiting(false);
+            if (member.getReplicateFuture() != null) {
+                member.getReplicateFuture().cancel(false);
+            }
             if (member.getSnapshotInfo() != null) {
                 try {
                     SnapshotInfo si = member.getSnapshotInfo();
