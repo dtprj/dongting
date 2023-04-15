@@ -38,12 +38,13 @@ class Restorer {
 
     private long itemStartPosOfFile;
     private boolean readHeader = true;
-    private int crc = 0;
-    private int bodyRestLen = 0;
-    private int currentItemLen = 0;
+    private int crc;
+    private int bodyRestLen;
+    private int currentItemLen;
 
-    long previousIndex = 0;
-    int previousTerm = 0;
+    long previousIndex;
+    int previousTerm;
+    int totalLen;
 
     public Restorer(IdxOps idxOps, long commitIndex, long commitIndexPos) {
         this.idxOps = idxOps;
@@ -95,7 +96,7 @@ class Restorer {
                 }
                 int startPos = buf.position();
                 crc = buf.getInt();
-                int totalLen = buf.getInt();
+                totalLen = buf.getInt();
                 short headLen = buf.getShort();
                 byte type = buf.get();//type
                 int term = buf.getInt();
@@ -152,7 +153,7 @@ class Restorer {
                     if (crc == crc32c.getValue()) {
                         itemStartPosOfFile += currentItemLen;
                         if (commitIndexChecked) {
-                            idxOps.put(this.previousIndex, lf.startPos + itemStartPosOfFile);
+                            idxOps.put(this.previousIndex, lf.startPos + itemStartPosOfFile, totalLen);
                         } else {
                             commitIndexChecked = true;
                         }

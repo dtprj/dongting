@@ -76,7 +76,7 @@ public class DefaultRaftLog implements RaftLog {
         if (knownMaxCommitIndex > 0) {
             commitIndexPos = idxFiles.findLogPosInMemCache(knownMaxCommitIndex);
             if (commitIndexPos < 0) {
-                commitIndexPos = idxFiles.loadLogPos(knownMaxCommitIndex).get();
+                commitIndexPos = idxFiles.syncLoadLogPos(knownMaxCommitIndex);
             }
         } else {
             commitIndexPos = 0;
@@ -121,11 +121,11 @@ public class DefaultRaftLog implements RaftLog {
         try {
             long pos = idxFiles.findLogPosInMemCache(index);
             CompletableFuture<Long> posFuture;
-            if (pos < 0) {
-                posFuture = idxFiles.loadLogPos(index);
-            } else {
-                posFuture = CompletableFuture.completedFuture(pos);
-            }
+//            if (pos < 0) {
+//                posFuture = idxFiles.loadLogPos(index);
+//            } else {
+//                posFuture = CompletableFuture.completedFuture(pos);
+//            }
 
             return null;
         } catch (Throwable e) {

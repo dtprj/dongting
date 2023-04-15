@@ -180,7 +180,8 @@ public class LogFileQueue extends FileQueue {
             }
 
             long startPos = pos;
-            writeHeader(buffer, dataBuffer, log);
+            int totalLen = dataBuffer.remaining() + ITEM_HEADER_SIZE;
+            writeHeader(buffer, dataBuffer, log, totalLen);
 
             while (dataBuffer.hasRemaining()) {
                 buffer.put(dataBuffer);
@@ -188,14 +189,14 @@ public class LogFileQueue extends FileQueue {
                     pos = writeAndClearBuffer(buffer, file, pos);
                 }
             }
-            idxOps.put(log.getIndex(), startPos);
+            idxOps.put(log.getIndex(), startPos, totalLen);
         }
         pos = writeAndClearBuffer(buffer, file, pos);
         file.channel.force(false);
         this.writePos = pos;
     }
 
-    private void writeHeader(ByteBuffer buffer, ByteBuffer dataBuffer, LogItem log) {
+    private void writeHeader(ByteBuffer buffer, ByteBuffer dataBuffer, LogItem log, int totalLen) {
         // crc32c 4 bytes
         // total len 4 bytes
         // head len 2 bytes
@@ -205,7 +206,7 @@ public class LogFileQueue extends FileQueue {
         // index 8 bytes
         int crcPos = buffer.position();
         buffer.putInt(0);
-        buffer.putInt(dataBuffer.remaining() + ITEM_HEADER_SIZE);
+        buffer.putInt(totalLen);
         buffer.putShort(ITEM_HEADER_SIZE);
         buffer.put((byte) log.getType());
         buffer.putInt(log.getTerm());

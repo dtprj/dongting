@@ -28,8 +28,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.CompletionHandler;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -54,22 +52,14 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
 
     private static final int FLUSH_ITEMS = MAX_CACHE_ITEMS / 2;
     private static final int FLUSH_ITEMS_MAST = FLUSH_ITEMS - 1;
-    private final LongLongSeqMap cache = new LongLongSeqMap();
-    private final LinkedHashMap<Long, ByteBuffer> pageCache = new LinkedHashMap<>(32) {
-        @Override
-        protected boolean removeEldestEntry(Map.Entry<Long, ByteBuffer> eldest) {
-            boolean result = size() > 16;
-            if (result) {
-                heapPool.release(eldest.getValue());
-            }
-            return result;
-        }
-    };
+    private final LongLongSeqMap tailCache = new LongLongSeqMap();
+
     private final Supplier<Boolean> stopIndicator;
 
     private long nextPersistIndex;
     private long nextIndex;
     private long firstIndex;
+    private int lastItemLen;
 
     private final ByteBuffer writeBuffer = ByteBuffer.allocateDirect(FLUSH_ITEMS * ITEM_LEN);
 
@@ -113,45 +103,29 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     public long findLogPosInMemCache(long itemIndex) {
-        checkIndex(itemIndex);
+        checkIndex(itemIndex, true);
         if (itemIndex < firstIndex) {
             return -1;
         }
-        long result = cache.get(itemIndex);
+        long result = tailCache.get(itemIndex);
         if (result > 0) {
             return result;
-        }
-        long pos = indexToPos(itemIndex);
-        long pageStartPos = pos & PAGE_MASK;
-        ByteBuffer page = pageCache.get(pageStartPos);
-        if (page != null) {
-            return page.getLong((int) (pos & ~PAGE_MASK));
         }
         return -2;
     }
 
-    public CompletableFuture<Long> loadLogPos(long itemIndex) {
-        checkIndex(itemIndex);
+    public long syncLoadLogPos(long itemIndex) throws IOException {
+        checkIndex(itemIndex, true);
         if (itemIndex < firstIndex) {
-            return CompletableFuture.completedFuture(-1L);
+            return -1;
         }
         long pos = indexToPos(itemIndex);
-        long pageStartPos = pos & PAGE_MASK;
-
-        return loadPage(pageStartPos)
-                .thenApply(page -> page.getLong((int) (pos & ~PAGE_MASK)));
-    }
-
-    private CompletableFuture<ByteBuffer> loadPage(long pageStartPos) {
-        long filePos = pageStartPos & FILE_LEN_MASK;
-        LogFile lf = getLogFile(pageStartPos);
-        ByteBuffer buffer = heapPool.borrow(PAGE_SIZE);
-        AsyncReadTask t = new AsyncReadTask(buffer, filePos, lf.channel);
-        return t.exec().thenApply(v -> {
-            buffer.flip();
-            pageCache.put(pageStartPos, buffer);
-            return buffer;
-        });
+        long filePos = pos & FILE_LEN_MASK;
+        LogFile lf = getLogFile(pos);
+        ByteBuffer buffer = ByteBuffer.allocate(8);
+        FileUtil.syncReadFull(lf.channel, buffer, filePos);
+        buffer.flip();
+        return buffer.getLong();
     }
 
     private CompletableFuture<Pair<long[], int[]>> loadIndex(long index, int limit, int bytesLimit) {
@@ -165,9 +139,9 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         }
         long value = findLogPosInMemCache(index);
         if (value < 0) {
-            value = loadLogPos(index).get();
+            value = syncLoadLogPos(index);
         }
-        cache.truncate(index);
+        tailCache.truncate(index);
         nextIndex = index;
         if (nextPersistIndex > index) {
             nextPersistIndex = index;
@@ -179,22 +153,24 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         return value;
     }
 
-    private void checkIndex(long index) {
+    private void checkIndex(long index, boolean read) {
         DtUtil.checkPositive(index, "index");
-        if (index > nextIndex) {
+        boolean ok = read ? index < nextIndex : index <= nextIndex;
+        if (!ok) {
             BugLog.getLog().error("index is too large : lastIndex={}, index={}", nextIndex, index);
             throw new RaftException("index is too large");
         }
     }
 
     @Override
-    public void put(long itemIndex, long dataPosition) throws IOException {
-        checkIndex(itemIndex);
+    public void put(long itemIndex, long dataPosition, int len) throws IOException {
+        checkIndex(itemIndex, false);
         if (itemIndex < firstIndex) {
             BugLog.getLog().error("index is too small : firstIndex={}, index={}", firstIndex, itemIndex);
             throw new RaftException("index is too small");
         }
-        LongLongSeqMap cache = this.cache;
+        this.lastItemLen = len;
+        LongLongSeqMap cache = this.tailCache;
         if (itemIndex < nextIndex) {
             cache.truncate(itemIndex);
         }
@@ -216,7 +192,7 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
             return;
         }
         ByteBuffer writeBuffer = this.writeBuffer;
-        LongLongSeqMap cache = this.cache;
+        LongLongSeqMap cache = this.tailCache;
         writeBuffer.clear();
         long index = nextPersistIndex;
         long startPos = indexToPos(index);
@@ -291,7 +267,6 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         if (writeTask == null) {
             return true;
         }
-        long sleep = 0;
         //noinspection LoopStatementThatDoesntLoop
         while (true) {
             try {
@@ -306,7 +281,7 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
                     return true;
                 } catch (CancellationException e) {
                     log.info("previous write canceled");
-                    return true;
+                    return !stopIndicator.get();
                 } catch (ExecutionException e) {
                     log.error("write idx file failed: {}", writeTask.logFile.pathname, e);
                     if (e.getCause() instanceof IOException) {

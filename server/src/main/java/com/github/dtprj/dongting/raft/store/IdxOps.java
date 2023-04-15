@@ -21,5 +21,5 @@ import java.io.IOException;
  * @author huangli
  */
 public interface IdxOps {
-    void put(long index, long position) throws IOException;
+    void put(long index, long position, int len) throws IOException;
 }
