@@ -36,6 +36,7 @@ import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.server.Snapshot;
 import com.github.dtprj.dongting.raft.server.StateMachine;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -147,19 +148,30 @@ public class ReplicateManager {
         int limit = member.isMultiAppend() ? rest : 1;
 
         RaftTask first = raftStatus.getPendingRequests().get(nextIndex);
-        LogItem[] items;
         if (first != null && !first.input.isReadOnly()) {
-            items = new LogItem[limit];
-            for (int i = 0; i < limit; i++) {
-                RaftTask t = raftStatus.getPendingRequests().get(nextIndex + i);
-                items[i] = t.item;
+            int sizeLimit = config.getSingleReplicateLimit();
+            while (limit > 0) {
+                ArrayList<LogItem> items = new ArrayList<>(limit);
+                int size = 0;
+                for (int i = 0; i < limit; i++) {
+                    LogItem li = raftStatus.getPendingRequests().get(nextIndex + i).item;
+                    size += li.getBuffer().getBuffer().remaining();
+                    if (size > sizeLimit && i != 0) {
+                        break;
+                    }
+                    items.add(li);
+                }
+                limit -= items.size();
+                sendAppendRequest(member, items);
+                if (limit == 0 || ps.getPendingBytes() >= maxReplicateBytes) {
+                    return;
+                }
             }
-            sendAppendRequest(member, items);
         } else {
-            CompletableFuture<LogItem[]> future = raftLog.load(nextIndex, limit, config.getReplicateLoadBytesLimit());
+            CompletableFuture<LogItem[]> future = raftLog.load(nextIndex, Math.min(limit, 1024),
+                    config.getSingleReplicateLimit());
             member.setReplicateFuture(future);
-            future.whenCompleteAsync(
-                    (r, ex) -> resumeAfterLogLoad(member.getReplicateEpoch(), member, r, ex),
+            future.whenCompleteAsync((r, ex) -> resumeAfterLogLoad(member.getReplicateEpoch(), member, r, ex),
                     raftStatus.getRaftExecutor());
         }
     }
@@ -192,11 +204,12 @@ public class ReplicateManager {
                 return;
             }
             if (member.isMultiAppend()) {
-                sendAppendRequest(member, items);
+                sendAppendRequest(member, Arrays.asList(items));
+                replicate(member);
             } else {
                 //noinspection StatementWithEmptyBody
                 if (member.getPendingStat().getPendingRequests() == 0) {
-                    sendAppendRequest(member, items);
+                    sendAppendRequest(member, Arrays.asList(items));
                 } else {
                     // waiting all pending request complete
                 }
@@ -213,15 +226,15 @@ public class ReplicateManager {
         }
     }
 
-    private void sendAppendRequest(RaftMember member, LogItem[] items) {
-        LogItem firstItem = items[0];
+    private void sendAppendRequest(RaftMember member, List<LogItem> items) {
+        LogItem firstItem = items.get(0);
         long bytes = 0;
         //noinspection ForLoopReplaceableByForEach
-        for (int i = 0; i < items.length; i++) {
-            LogItem item = items[i];
+        for (int i = 0; i < items.size(); i++) {
+            LogItem item = items.get(i);
             bytes += item.getBuffer() == null ? 0 : item.getBuffer().getBuffer().remaining();
         }
-        sendAppendRequest(member, firstItem.getIndex() - 1, firstItem.getPrevLogTerm(), Arrays.asList(items), bytes);
+        sendAppendRequest(member, firstItem.getIndex() - 1, firstItem.getPrevLogTerm(), items, bytes);
     }
 
     private void sendAppendRequest(RaftMember member, long prevLogIndex, int prevLogTerm, List<LogItem> logs, long bytes) {

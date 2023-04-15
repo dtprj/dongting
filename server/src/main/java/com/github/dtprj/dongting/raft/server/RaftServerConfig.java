@@ -26,10 +26,10 @@ public class RaftServerConfig {
     private long rpcTimeout = 5 * 1000;
     private long connectTimeout = 2000;
     private long heartbeatInterval = 2000;
-    private int maxBodySize = 8 * 1024 * 1024;
+    private int maxBodySize = 4 * 1024 * 1024;
     private int maxReplicateItems = 1000;
     private long maxReplicateBytes = 16 * 1024 * 1024;
-    private int replicateLoadBytesLimit = 4 * 1024 * 1024;
+    private int singleReplicateLimit = 1800 * 1024;
 
     private int maxPendingWrites = 10000;
     private long maxPendingWriteBytes = 256 * 1024 * 1024;
@@ -133,12 +133,12 @@ public class RaftServerConfig {
         this.connectTimeout = connectTimeout;
     }
 
-    public int getReplicateLoadBytesLimit() {
-        return replicateLoadBytesLimit;
+    public int getSingleReplicateLimit() {
+        return singleReplicateLimit;
     }
 
-    public void setReplicateLoadBytesLimit(int replicateLoadBytesLimit) {
-        this.replicateLoadBytesLimit = replicateLoadBytesLimit;
+    public void setSingleReplicateLimit(int singleReplicateLimit) {
+        this.singleReplicateLimit = singleReplicateLimit;
     }
 
     public boolean isCheckSelf() {

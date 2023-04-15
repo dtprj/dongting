@@ -74,7 +74,7 @@ public class ApplyManager {
             RaftTask rt = raftStatus.getPendingRequests().get(index);
             if (rt == null) {
                 waiting = true;
-                int limit = (int) Math.min(diff, 100L);
+                int limit = (int) Math.min(diff, 1024L);
                 CompletableFuture<LogItem[]> future = raftLog.load(index, limit, 16 * 1024 * 1024);
                 future.whenCompleteAsync(this::resumeAfterLoad, raftStatus.getRaftExecutor());
                 return;
