@@ -20,6 +20,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.CompletionHandler;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -28,12 +29,18 @@ class AsyncReadTask implements CompletionHandler<Integer, Void> {
     private final ByteBuffer readBuffer;
     private long pos;
     private final AsynchronousFileChannel channel;
+    private final Supplier<Boolean> cancel;
     private final CompletableFuture<Void> f = new CompletableFuture<>();
 
     public AsyncReadTask(ByteBuffer readBuffer, long pos, AsynchronousFileChannel channel) {
+        this(readBuffer, pos, channel, null);
+    }
+
+    public AsyncReadTask(ByteBuffer readBuffer, long pos, AsynchronousFileChannel channel, Supplier<Boolean> cancel) {
         this.readBuffer = readBuffer;
         this.pos = pos;
         this.channel = channel;
+        this.cancel = cancel;
     }
 
     public CompletableFuture<Void> exec() {
@@ -49,6 +56,10 @@ class AsyncReadTask implements CompletionHandler<Integer, Void> {
         }
         if (readBuffer.hasRemaining()) {
             pos += result;
+            if (cancel != null && cancel.get()) {
+                f.cancel(false);
+                return;
+            }
             exec();
         } else {
             f.complete(null);

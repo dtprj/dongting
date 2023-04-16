@@ -149,10 +149,10 @@ public class ReplicateManager {
 
         RaftTask first = raftStatus.getPendingRequests().get(nextIndex);
         if (first != null && !first.input.isReadOnly()) {
-            int sizeLimit = config.getSingleReplicateLimit();
+            long sizeLimit = config.getSingleReplicateLimit();
             while (limit > 0) {
                 ArrayList<LogItem> items = new ArrayList<>(limit);
-                int size = 0;
+                long size = 0;
                 for (int i = 0; i < limit; i++) {
                     LogItem li = raftStatus.getPendingRequests().get(nextIndex + i).item;
                     size += li.getBuffer().getBuffer().remaining();

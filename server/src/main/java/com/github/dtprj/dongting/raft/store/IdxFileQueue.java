@@ -128,8 +128,66 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         return buffer.getLong();
     }
 
-    private CompletableFuture<Pair<long[], int[]>> loadIndex(long index, int limit, int bytesLimit) {
-        return null;
+    public CompletableFuture<Pair<long[], int[]>> loadIndex(long index, int limit,
+                                                            int bytesLimit, Supplier<Boolean> cancel) {
+        if (index >= tailCache.getFirstKey()) {
+            long bytes = 0;
+            int returnItems = 0;
+            long lastIndex = tailCache.getLastKey();
+            for (int i = 0; i < limit; i++) {
+                long x = index + returnItems;
+                long size;
+                if (x < lastIndex) {
+                    size = tailCache.get(x + 1) - tailCache.get(x);
+                } else {
+                    size = lastItemLen;
+                }
+                if (i > 0 && bytes + size > bytesLimit) {
+                    break;
+                }
+                returnItems++;
+                bytes += size;
+            }
+            long[] logPos = new long[returnItems];
+            int[] sizes = new int[returnItems];
+            for (int i = 0; i < returnItems; i++) {
+                long x = index + returnItems;
+                logPos[i] = tailCache.get(x);
+                if (x < lastIndex) {
+                    sizes[i] = (int) (tailCache.get(x + 1) - tailCache.get(x));
+                } else {
+                    sizes[i] = lastItemLen;
+                }
+            }
+            return CompletableFuture.completedFuture(new Pair<>(logPos, sizes));
+        } else {
+            CompletableFuture<Pair<long[], int[]>> f = new CompletableFuture<>();
+            long idxStartPos = indexToPos(index);
+            long filePos = idxStartPos & FILE_LEN_MASK;
+            int len = (int) Math.min(indexToPos(limit), IDX_FILE_SIZE - filePos);
+            ByteBuffer buffer = directPool.borrow(len);
+            LogFile logFile = getLogFile(idxStartPos);
+            AsyncReadTask t = new AsyncReadTask(buffer, filePos, logFile.channel, cancel);
+            // loadIndexFromStore can run in other thread
+            return t.exec().thenApply(v -> loadIndexFromStore(
+                    index, bytesLimit, buffer, tailCache.getLastKey(), lastItemLen));
+        }
+    }
+
+    private static Pair<long[], int[]> loadIndexFromStore(long index, int bytesLimit, ByteBuffer buffer,
+                                                          long lastIndex, int lastLen) {
+        int count = (int) posToIndex(buffer.capacity());
+        int returnItems = 0;
+        long bytes = 0;
+        for (int i = 0; i < count ; i++) {
+            long x = index + i;
+            long size;
+            if (x + 1 < count) {
+                size = buffer.getLong(i + 1) - buffer.getLong(i);
+            } else {
+
+            }
+        }
     }
 
     public long truncateTail(long index) throws Exception {
