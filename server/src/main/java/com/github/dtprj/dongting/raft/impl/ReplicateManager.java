@@ -128,8 +128,8 @@ public class ReplicateManager {
 
     private void doReplicate(RaftMember member) {
         long nextIndex = member.getNextIndex();
-        long lastLogIndex = raftStatus.getLastLogIndex();
-        if (lastLogIndex < nextIndex) {
+        int diff = (int) (raftStatus.getLastLogIndex() - nextIndex + 1);
+        if (diff <= 0) {
             // no data to replicate
             return;
         }
@@ -145,7 +145,7 @@ public class ReplicateManager {
             return;
         }
 
-        int limit = member.isMultiAppend() ? rest : 1;
+        int limit = member.isMultiAppend() ? Math.min(rest, diff) : 1;
 
         RaftTask first = raftStatus.getPendingRequests().get(nextIndex);
         if (first != null && !first.input.isReadOnly()) {

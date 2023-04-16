@@ -27,7 +27,7 @@ public class RaftServerConfig {
     private long connectTimeout = 2000;
     private long heartbeatInterval = 2000;
     private int maxBodySize = 4 * 1024 * 1024;
-    private int maxReplicateItems = 1000;
+    private int maxReplicateItems = 3000;
     private long maxReplicateBytes = 16 * 1024 * 1024;
     private int singleReplicateLimit = 1800 * 1024;
 
