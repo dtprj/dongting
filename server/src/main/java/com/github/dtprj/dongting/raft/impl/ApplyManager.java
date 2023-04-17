@@ -29,6 +29,7 @@ import com.github.dtprj.dongting.raft.server.StateMachine;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -90,7 +91,11 @@ public class ApplyManager {
         try {
             waiting = false;
             if (ex != null) {
-                log.error("load log failed", ex);
+                if (ex instanceof CancellationException) {
+                    log.info("ApplyManager load raft log cancelled");
+                } else {
+                    log.error("load log failed", ex);
+                }
                 return;
             }
             if (items == null || items.length == 0) {

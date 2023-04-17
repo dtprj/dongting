@@ -39,6 +39,7 @@ import com.github.dtprj.dongting.raft.server.StateMachine;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
@@ -184,7 +185,11 @@ public class ReplicateManager {
                 return;
             }
             if (ex != null) {
-                log.error("load raft log failed", ex);
+                if (ex instanceof CancellationException) {
+                    log.info("ReplicateManager load raft log cancelled");
+                } else {
+                    log.error("load raft log failed", ex);
+                }
                 return;
             }
             if (!member.isReady()) {
@@ -439,13 +444,13 @@ public class ReplicateManager {
         return (data, ex) -> {
             try {
                 member.setReplicateFuture(null);
-                if (ex != null) {
-                    processInstallSnapshotError(member, si, ex, reqEpoch);
-                    return;
-                }
                 if (epochNotMatch(member, reqEpoch)) {
                     log.info("epoch not match, abort install snapshot.");
                     closeSnapshotAndResetStatus(member, si);
+                    return;
+                }
+                if (ex != null) {
+                    processInstallSnapshotError(member, si, ex, reqEpoch);
                     return;
                 }
                 if (!member.isReady()) {

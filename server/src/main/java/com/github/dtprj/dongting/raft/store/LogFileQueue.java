@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.zip.CRC32C;
@@ -249,4 +250,11 @@ public class LogFileQueue extends FileQueue {
         writePos = dataPosition;
     }
 
+    public void loadLog(long[] pos, int[] size, CompletableFuture<LogItem[]> result) {
+        int totalSize = 0;
+        for (int i = 0; i < pos.length; i++) {
+            totalSize += size[i];
+        }
+
+    }
 }

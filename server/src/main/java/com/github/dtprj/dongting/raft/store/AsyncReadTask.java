@@ -29,18 +29,18 @@ class AsyncReadTask implements CompletionHandler<Integer, Void> {
     private final ByteBuffer readBuffer;
     private long pos;
     private final AsynchronousFileChannel channel;
-    private final Supplier<Boolean> cancel;
+    private final Supplier<Boolean> stopIndicator;
     private final CompletableFuture<Void> f = new CompletableFuture<>();
 
     public AsyncReadTask(ByteBuffer readBuffer, long pos, AsynchronousFileChannel channel) {
         this(readBuffer, pos, channel, null);
     }
 
-    public AsyncReadTask(ByteBuffer readBuffer, long pos, AsynchronousFileChannel channel, Supplier<Boolean> cancel) {
+    public AsyncReadTask(ByteBuffer readBuffer, long pos, AsynchronousFileChannel channel, Supplier<Boolean> stopIndicator) {
         this.readBuffer = readBuffer;
         this.pos = pos;
         this.channel = channel;
-        this.cancel = cancel;
+        this.stopIndicator = stopIndicator;
     }
 
     public CompletableFuture<Void> exec() {
@@ -56,7 +56,7 @@ class AsyncReadTask implements CompletionHandler<Integer, Void> {
         }
         if (readBuffer.hasRemaining()) {
             pos += result;
-            if (cancel != null && cancel.get()) {
+            if (stopIndicator != null && stopIndicator.get()) {
                 f.cancel(false);
                 return;
             }

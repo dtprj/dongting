@@ -118,11 +118,27 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public CompletableFuture<LogItem[]> load(long index, int limit, int bytesLimit) {
+        CompletableFuture<LogItem[]> result = new CompletableFuture<>();
         try {
-            return null;
+            CompletableFuture<Pair<long[], int[]>> f = idxFiles.loadIndex(index, limit, bytesLimit);
+            if (f.isDone()) {
+                Pair<long[], int[]> pair = f.join();
+                logFiles.loadLog(pair.getLeft(), pair.getRight(), result);
+            } else {
+                f.whenComplete((pair, e) -> {
+                    if (stopIndicator.get()) {
+                        result.cancel(false);
+                    } else if (e != null) {
+                        result.completeExceptionally(e);
+                    } else {
+                        logFiles.loadLog(pair.getLeft(), pair.getRight(), result);
+                    }
+                });
+            }
         } catch (Throwable e) {
-            return CompletableFuture.failedFuture(e);
+            result.completeExceptionally(e);
         }
+        return result;
     }
 
     @Override

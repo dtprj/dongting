@@ -128,8 +128,7 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         return buffer.getLong();
     }
 
-    public CompletableFuture<Pair<long[], int[]>> loadIndex(long index, int limit,
-                                                            int bytesLimit, Supplier<Boolean> cancel) {
+    public CompletableFuture<Pair<long[], int[]>> loadIndex(long index, int limit, int bytesLimit) {
         if (index >= tailCache.getFirstKey()) {
             long bytes = 0;
             int returnItems = 0;
@@ -161,33 +160,43 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
             }
             return CompletableFuture.completedFuture(new Pair<>(logPos, sizes));
         } else {
-            CompletableFuture<Pair<long[], int[]>> f = new CompletableFuture<>();
             long idxStartPos = indexToPos(index);
             long filePos = idxStartPos & FILE_LEN_MASK;
             int len = (int) Math.min(indexToPos(limit), IDX_FILE_SIZE - filePos);
             ByteBuffer buffer = directPool.borrow(len);
             LogFile logFile = getLogFile(idxStartPos);
-            AsyncReadTask t = new AsyncReadTask(buffer, filePos, logFile.channel, cancel);
+            AsyncReadTask t = new AsyncReadTask(buffer, filePos, logFile.channel, stopIndicator);
             // loadIndexFromStore can run in other thread
-            return t.exec().thenApply(v -> loadIndexFromStore(
-                    index, bytesLimit, buffer, tailCache.getLastKey(), lastItemLen));
+            CompletableFuture<Void> f = t.exec();
+            f.whenComplete((v, e) -> directPool.release(buffer));
+            return f.thenApply(v -> loadIndexFromStore(index, bytesLimit, buffer));
         }
     }
 
-    private static Pair<long[], int[]> loadIndexFromStore(long index, int bytesLimit, ByteBuffer buffer,
-                                                          long lastIndex, int lastLen) {
+    private static Pair<long[], int[]> loadIndexFromStore(long index, int bytesLimit, ByteBuffer buffer) {
         int count = (int) posToIndex(buffer.capacity());
+        if (count == 1) {
+            // there is no easy way to find last item length, return 64KB
+            return new Pair<>(new long[]{buffer.getLong()}, new int[]{64 * 1024});
+        }
         int returnItems = 0;
         long bytes = 0;
-        for (int i = 0; i < count ; i++) {
-            long x = index + i;
-            long size;
-            if (x + 1 < count) {
-                size = buffer.getLong(i + 1) - buffer.getLong(i);
-            } else {
-
+        // there is no easy way to find last item length, drop last item
+        for (int i = 0; i < count - 1; i++) {
+            long size = buffer.getLong(i + 1) - buffer.getLong(i);
+            if (bytes + size > bytesLimit) {
+                break;
             }
+            returnItems++;
+            bytes += size;
         }
+        long[] logPos = new long[returnItems];
+        int[] sizes = new int[returnItems];
+        for (int i = 0; i < returnItems; i++) {
+            logPos[i] = buffer.getLong(i);
+            sizes[i] = (int) (buffer.getLong(i + 1) - buffer.getLong(i));
+        }
+        return new Pair<>(logPos, sizes);
     }
 
     public long truncateTail(long index) throws Exception {
@@ -204,9 +213,9 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         if (nextPersistIndex > index) {
             nextPersistIndex = index;
         }
-        if (writeTask != null && writeTask.persistIndexAfterWrite > index) {
+        if (writeTask != null && writeTask.nextPersistIndexAfterWrite > index) {
             writeTask.future.cancel(false);
-            writeTask.persistIndexAfterWrite = 0;
+            writeTask.nextPersistIndexAfterWrite = 0;
         }
         return value;
     }
@@ -270,7 +279,7 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         writeTask.logFile = getLogFile(startPos);
         writeTask.writeStartPosOfFile = startPos & FILE_LEN_MASK;
         writeTask.currentWritePosOfFile = writeTask.writeStartPosOfFile;
-        writeTask.persistIndexAfterWrite = index;
+        writeTask.nextPersistIndexAfterWrite = index;
         writeTask.future = new CompletableFuture<>();
         writeTask.writeBuffer = writeBuffer;
         writeBuffer.mark();
@@ -282,7 +291,7 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         long writeStartPosOfFile;
         long currentWritePosOfFile;
         CompletableFuture<Void> future;
-        long persistIndexAfterWrite;
+        long nextPersistIndexAfterWrite;
         ByteBuffer writeBuffer;
 
         private void doWrite() {
@@ -316,7 +325,9 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
 
         @Override
         public void failed(Throwable exc, Void attachment) {
-            future.completeExceptionally(exc);
+            if (!future.isCancelled()) {
+                future.completeExceptionally(exc);
+            }
         }
     }
 
@@ -333,8 +344,8 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
                 }
                 try {
                     writeTask.future.get();
-                    if (writeTask.persistIndexAfterWrite > 0) {
-                        nextPersistIndex = writeTask.persistIndexAfterWrite;
+                    if (writeTask.nextPersistIndexAfterWrite > 0) {
+                        nextPersistIndex = writeTask.nextPersistIndexAfterWrite;
                     }
                     return true;
                 } catch (CancellationException e) {
