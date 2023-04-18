@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.buf.RefByteBuffer;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -37,7 +38,6 @@ import com.github.dtprj.dongting.raft.server.Snapshot;
 import com.github.dtprj.dongting.raft.server.StateMachine;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -149,7 +149,12 @@ public class ReplicateManager {
         int limit = member.isMultiAppend() ? Math.min(rest, diff) : 1;
 
         RaftTask first = raftStatus.getPendingRequests().get(nextIndex);
+        RaftLog.LogIterator logIterator = member.getReplicateIterator();
         if (first != null && !first.input.isReadOnly()) {
+            if (logIterator != null) {
+                DtUtil.close(logIterator);
+                member.setReplicateIterator(null);
+            }
             long sizeLimit = config.getSingleReplicateLimit();
             while (limit > 0) {
                 ArrayList<LogItem> items = new ArrayList<>(limit);
@@ -169,7 +174,11 @@ public class ReplicateManager {
                 }
             }
         } else {
-            CompletableFuture<LogItem[]> future = raftLog.load(nextIndex, Math.min(limit, 1024),
+            if (logIterator == null) {
+                logIterator = raftLog.openIterator();
+                member.setReplicateIterator(logIterator);
+            }
+            CompletableFuture<List<LogItem>> future = logIterator.next(nextIndex, Math.min(limit, 1024),
                     config.getSingleReplicateLimit());
             member.setReplicateFuture(future);
             future.whenCompleteAsync((r, ex) -> resumeAfterLogLoad(member.getReplicateEpoch(), member, r, ex),
@@ -177,7 +186,7 @@ public class ReplicateManager {
         }
     }
 
-    private void resumeAfterLogLoad(int repEpoch, RaftMember member, LogItem[] items, Throwable ex) {
+    private void resumeAfterLogLoad(int repEpoch, RaftMember member, List<LogItem> items, Throwable ex) {
         try {
             member.setReplicateFuture(null);
             if (epochNotMatch(member, repEpoch)) {
@@ -200,21 +209,21 @@ public class ReplicateManager {
                 log.warn("member is installing snapshot, ignore load result");
                 return;
             }
-            if (items == null || items.length == 0) {
+            if (items == null || items.size() == 0) {
                 log.warn("load raft log return empty, ignore load result");
                 return;
             }
-            if (member.getNextIndex() != items[0].getIndex()) {
+            if (member.getNextIndex() != items.get(0).getIndex()) {
                 log.warn("the first load item index not match nextIndex, ignore load result");
                 return;
             }
             if (member.isMultiAppend()) {
-                sendAppendRequest(member, Arrays.asList(items));
+                sendAppendRequest(member, items);
                 replicate(member);
             } else {
                 //noinspection StatementWithEmptyBody
                 if (member.getPendingStat().getPendingRequests() == 0) {
-                    sendAppendRequest(member, Arrays.asList(items));
+                    sendAppendRequest(member, items);
                 } else {
                     // waiting all pending request complete
                 }
@@ -222,10 +231,10 @@ public class ReplicateManager {
         } finally {
             // the data loaded will not put into pending map, so release it here
             if (items != null) {
-                int len = items.length;
+                int len = items.size();
                 //noinspection ForLoopReplaceableByForEach
                 for (int i = 0; i < len; i++) {
-                    RaftUtil.release(items[i]);
+                    RaftUtil.release(items.get(i));
                 }
             }
         }

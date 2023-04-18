@@ -18,11 +18,11 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
-import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 
 import java.io.File;
 import java.io.IOException;
@@ -39,8 +39,6 @@ import java.util.function.Supplier;
  */
 public class IdxFileQueue extends FileQueue implements IdxOps {
     private static final DtLog log = DtLogs.getLogger(IdxFileQueue.class);
-    private static final int PAGE_SIZE = 4096;
-    private static final long PAGE_MASK = ~(PAGE_SIZE - 1);
     private static final int ITEM_LEN = 8;
     private static final int ITEMS_PER_FILE = 1024 * 1024;
     private static final int REMOVE_ITEMS = 512;
@@ -54,21 +52,17 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
     private static final int FLUSH_ITEMS_MAST = FLUSH_ITEMS - 1;
     private final LongLongSeqMap tailCache = new LongLongSeqMap();
 
-    private final Supplier<Boolean> stopIndicator;
-
     private long nextPersistIndex;
     private long nextIndex;
     private long firstIndex;
-    private int lastItemLen;
 
     private final ByteBuffer writeBuffer = ByteBuffer.allocateDirect(FLUSH_ITEMS * ITEM_LEN);
 
     private WriteTask writeTask;
 
-    public IdxFileQueue(File dir, Executor ioExecutor, Supplier<Boolean> stopIndicator,
+    public IdxFileQueue(File dir, Executor ioExecutor, RaftExecutor raftExecutor, Supplier<Boolean> stopIndicator,
                         ByteBufferPool heapPool, ByteBufferPool directPool) {
-        super(dir, ioExecutor, heapPool, directPool);
-        this.stopIndicator = stopIndicator;
+        super(dir, ioExecutor, raftExecutor, stopIndicator, heapPool, directPool);
     }
 
     @Override
@@ -105,7 +99,7 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
     public long findLogPosInMemCache(long itemIndex) {
         checkIndex(itemIndex, true);
         if (itemIndex < firstIndex) {
-            return -1;
+            throw new RaftException("index too small:" + itemIndex);
         }
         long result = tailCache.get(itemIndex);
         if (result > 0) {
@@ -117,7 +111,7 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
     public long syncLoadLogPos(long itemIndex) throws IOException {
         checkIndex(itemIndex, true);
         if (itemIndex < firstIndex) {
-            return -1;
+            throw new RaftException("index too small:" + itemIndex);
         }
         long pos = indexToPos(itemIndex);
         long filePos = pos & FILE_LEN_MASK;
@@ -126,77 +120,6 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         FileUtil.syncReadFull(lf.channel, buffer, filePos);
         buffer.flip();
         return buffer.getLong();
-    }
-
-    public CompletableFuture<Pair<long[], int[]>> loadIndex(long index, int limit, int bytesLimit) {
-        if (index >= tailCache.getFirstKey()) {
-            long bytes = 0;
-            int returnItems = 0;
-            long lastIndex = tailCache.getLastKey();
-            for (int i = 0; i < limit; i++) {
-                long x = index + returnItems;
-                long size;
-                if (x < lastIndex) {
-                    size = tailCache.get(x + 1) - tailCache.get(x);
-                } else {
-                    size = lastItemLen;
-                }
-                if (i > 0 && bytes + size > bytesLimit) {
-                    break;
-                }
-                returnItems++;
-                bytes += size;
-            }
-            long[] logPos = new long[returnItems];
-            int[] sizes = new int[returnItems];
-            for (int i = 0; i < returnItems; i++) {
-                long x = index + returnItems;
-                logPos[i] = tailCache.get(x);
-                if (x < lastIndex) {
-                    sizes[i] = (int) (tailCache.get(x + 1) - tailCache.get(x));
-                } else {
-                    sizes[i] = lastItemLen;
-                }
-            }
-            return CompletableFuture.completedFuture(new Pair<>(logPos, sizes));
-        } else {
-            long idxStartPos = indexToPos(index);
-            long filePos = idxStartPos & FILE_LEN_MASK;
-            int len = (int) Math.min(indexToPos(limit), IDX_FILE_SIZE - filePos);
-            ByteBuffer buffer = directPool.borrow(len);
-            LogFile logFile = getLogFile(idxStartPos);
-            AsyncReadTask t = new AsyncReadTask(buffer, filePos, logFile.channel, stopIndicator);
-            // loadIndexFromStore can run in other thread
-            CompletableFuture<Void> f = t.exec();
-            f.whenComplete((v, e) -> directPool.release(buffer));
-            return f.thenApply(v -> loadIndexFromStore(index, bytesLimit, buffer));
-        }
-    }
-
-    private static Pair<long[], int[]> loadIndexFromStore(long index, int bytesLimit, ByteBuffer buffer) {
-        int count = (int) posToIndex(buffer.capacity());
-        if (count == 1) {
-            // there is no easy way to find last item length, return 64KB
-            return new Pair<>(new long[]{buffer.getLong()}, new int[]{64 * 1024});
-        }
-        int returnItems = 0;
-        long bytes = 0;
-        // there is no easy way to find last item length, drop last item
-        for (int i = 0; i < count - 1; i++) {
-            long size = buffer.getLong(i + 1) - buffer.getLong(i);
-            if (bytes + size > bytesLimit) {
-                break;
-            }
-            returnItems++;
-            bytes += size;
-        }
-        long[] logPos = new long[returnItems];
-        int[] sizes = new int[returnItems];
-        for (int i = 0; i < returnItems; i++) {
-            logPos[i] = buffer.getLong(i);
-            sizes[i] = (int) (buffer.getLong(i + 1) - buffer.getLong(i));
-        }
-        return new Pair<>(logPos, sizes);
     }
 
     public long truncateTail(long index) throws Exception {
@@ -236,7 +159,6 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
             BugLog.getLog().error("index is too small : firstIndex={}, index={}", firstIndex, itemIndex);
             throw new RaftException("index is too small");
         }
-        this.lastItemLen = len;
         LongLongSeqMap cache = this.tailCache;
         if (itemIndex < nextIndex) {
             cache.truncate(itemIndex);

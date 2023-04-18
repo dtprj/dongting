@@ -34,15 +34,7 @@ public interface RaftLog extends AutoCloseable {
      */
     void append(long commitIndex, List<LogItem> logs) throws Exception;
 
-    /**
-     * load logs.
-     *
-     * @param index the index of the first log to be loaded
-     * @param limit max number of logs to return
-     * @param bytesLimit max bytes of logs to return, 0 means no limit
-     * @return return log items, don't return null or empty array
-     */
-    CompletableFuture<LogItem[]> load(long index, int limit, int bytesLimit);
+    LogIterator openIterator();
 
     /**
      * return -1 if the index can't find.
@@ -53,4 +45,17 @@ public interface RaftLog extends AutoCloseable {
      * delete logs before the index(included), this method may invoke by other thread.
      */
     void truncate(long index) throws IOException;
+
+    interface LogIterator extends AutoCloseable {
+
+        /**
+         * load logs.
+         *
+         * @param index the index of the first log to be loaded
+         * @param limit max number of logs to return
+         * @param bytesLimit max bytes of logs to return, 0 means no limit
+         * @return return log items, don't return null or empty array
+         */
+        CompletableFuture<List<LogItem>> next(long index, int limit, int bytesLimit);
+    }
 }

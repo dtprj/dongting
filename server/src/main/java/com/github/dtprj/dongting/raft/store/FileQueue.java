@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 
 import java.io.File;
 import java.io.IOException;
@@ -29,6 +30,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -41,6 +43,8 @@ abstract class FileQueue {
     protected final IndexedQueue<LogFile> queue = new IndexedQueue<>();
     protected final File dir;
     protected final Executor ioExecutor;
+    protected final RaftExecutor raftExecutor;
+    protected final Supplier<Boolean> stopIndicator;
     protected final ByteBufferPool heapPool;
     protected final ByteBufferPool directPool;
 
@@ -49,9 +53,12 @@ abstract class FileQueue {
 
     protected CompletableFuture<LogFile> allocateFuture;
 
-    public FileQueue(File dir, Executor ioExecutor, ByteBufferPool heapPool, ByteBufferPool directPool) {
+    public FileQueue(File dir, Executor ioExecutor, RaftExecutor raftExecutor, Supplier<Boolean> stopIndicator,
+                     ByteBufferPool heapPool, ByteBufferPool directPool) {
         this.dir = dir;
         this.ioExecutor = ioExecutor;
+        this.raftExecutor = raftExecutor;
+        this.stopIndicator = stopIndicator;
         this.heapPool = heapPool;
         this.directPool = directPool;
     }

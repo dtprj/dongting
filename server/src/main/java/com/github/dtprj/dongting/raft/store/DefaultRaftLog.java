@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftLog;
@@ -45,6 +46,7 @@ public class DefaultRaftLog implements RaftLog {
     private final ByteBufferPool heapPool;
     private final ByteBufferPool directPool;
     private final Executor ioExecutor;
+    private final RaftExecutor raftExecutor;
     private final Supplier<Boolean> stopIndicator;
     private LogFileQueue logFiles;
     private IdxFileQueue idxFiles;
@@ -52,12 +54,13 @@ public class DefaultRaftLog implements RaftLog {
     private StatusFile checkpointFile;
 
     public DefaultRaftLog(RaftGroupConfig groupConfig, Timestamp ts, ByteBufferPool heapPool, ByteBufferPool directPool,
-                          Executor ioExecutor, Supplier<Boolean> stopIndicator) {
+                          Executor ioExecutor, RaftExecutor raftExecutor, Supplier<Boolean> stopIndicator) {
         this.groupConfig = groupConfig;
         this.ts = ts;
         this.heapPool = heapPool;
         this.directPool = directPool;
         this.ioExecutor = ioExecutor;
+        this.raftExecutor = raftExecutor;
         this.stopIndicator = stopIndicator;
     }
 
@@ -67,8 +70,8 @@ public class DefaultRaftLog implements RaftLog {
         checkpointFile = new StatusFile(new File(dataDir, "checkpoint"));
         checkpointFile.init();
         knownMaxCommitIndex = Long.parseLong(checkpointFile.getProperties().getProperty(KNOWN_MAX_COMMIT_INDEX_KEY, "0"));
-        idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), ioExecutor, stopIndicator, heapPool, directPool);
-        logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), ioExecutor, idxFiles, heapPool, directPool);
+        idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), ioExecutor, raftExecutor, stopIndicator, heapPool, directPool);
+        logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), ioExecutor, raftExecutor, stopIndicator, idxFiles, heapPool, directPool);
         logFiles.init();
         idxFiles.init();
         idxFiles.initWithCommitIndex(knownMaxCommitIndex);
@@ -117,28 +120,20 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public CompletableFuture<LogItem[]> load(long index, int limit, int bytesLimit) {
-        CompletableFuture<LogItem[]> result = new CompletableFuture<>();
+    public LogIterator openIterator() {
+        return new DefaultLogIterator(this, directPool.borrow(1024 * 1024));
+    }
+
+    public CompletableFuture<List<LogItem>> next(DefaultLogIterator it, long index, int limit, int bytesLimit) {
         try {
-            CompletableFuture<Pair<long[], int[]>> f = idxFiles.loadIndex(index, limit, bytesLimit);
-            if (f.isDone()) {
-                Pair<long[], int[]> pair = f.join();
-                logFiles.loadLog(pair.getLeft(), pair.getRight(), result);
-            } else {
-                f.whenComplete((pair, e) -> {
-                    if (stopIndicator.get()) {
-                        result.cancel(false);
-                    } else if (e != null) {
-                        result.completeExceptionally(e);
-                    } else {
-                        logFiles.loadLog(pair.getLeft(), pair.getRight(), result);
-                    }
-                });
+            if (index != it.nextIndex) {
+                it.buffer.clear();
             }
+            long pos = idxFiles.syncLoadLogPos(index);
+            return logFiles.loadLog(pos, it, limit, bytesLimit);
         } catch (Throwable e) {
-            result.completeExceptionally(e);
+            return CompletableFuture.failedFuture(e);
         }
-        return result;
     }
 
     @Override
@@ -150,4 +145,5 @@ public class DefaultRaftLog implements RaftLog {
     public void truncate(long index) {
 
     }
+
 }

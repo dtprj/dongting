@@ -18,19 +18,23 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 import com.github.dtprj.dongting.raft.server.LogItem;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
+import java.util.function.Supplier;
 import java.util.zip.CRC32C;
 
 /**
@@ -64,8 +68,9 @@ public class LogFileQueue extends FileQueue {
     private final CRC32C crc32c = new CRC32C();
     private long writePos;
 
-    public LogFileQueue(File dir, Executor ioExecutor, IdxOps idxOps, ByteBufferPool heapPool, ByteBufferPool directPool) {
-        super(dir, ioExecutor, heapPool, directPool);
+    public LogFileQueue(File dir, Executor ioExecutor, RaftExecutor raftExecutor, Supplier<Boolean> stopIndicator,
+                        IdxOps idxOps, ByteBufferPool heapPool, ByteBufferPool directPool) {
+        super(dir, ioExecutor, raftExecutor, stopIndicator, heapPool, directPool);
         this.idxOps = idxOps;
     }
 
@@ -250,11 +255,71 @@ public class LogFileQueue extends FileQueue {
         writePos = dataPosition;
     }
 
-    public void loadLog(long[] pos, int[] size, CompletableFuture<LogItem[]> result) {
-        int totalSize = 0;
-        for (int i = 0; i < pos.length; i++) {
-            totalSize += size[i];
+    public CompletableFuture<List<LogItem>> loadLog(long pos, DefaultLogIterator it, int limit, int bytesLimit) {
+        if (pos < queueStartPosition) {
+            throw new RaftException("pos too small: " + pos);
         }
-
+        if (pos >= writePos) {
+            throw new RaftException("pos too large: " + pos);
+        }
+        int rest = (int) (writePos - pos);
+        if (rest <= 0) {
+            BugLog.getLog().error("rest is illegal. pos={}, writePos={}", pos, writePos);
+            throw new RaftException("rest is illegal.");
+        }
+        ByteBuffer buf = it.buffer;
+        List<LogItem> result = new ArrayList<>();
+        if (buf.hasRemaining()) {
+            if (buf.remaining() > rest) {
+                buf.limit(buf.position() + rest);
+            }
+            int oldRemaining = buf.remaining();
+            if (extractItems(buf, result, limit, bytesLimit)) {
+                return CompletableFuture.completedFuture(result);
+            } else {
+                limit -= result.size();
+                int parsedBytes = oldRemaining - buf.position();
+                pos += parsedBytes;
+                bytesLimit -= parsedBytes;
+                if (buf.hasRemaining()) {
+                    ByteBuffer temp = buffer.slice();
+                    buffer.clear();
+                    buffer.put(temp);
+                } else {
+                    buf.clear();
+                }
+                return loadLogFromStore(pos, it, limit, bytesLimit, result);
+            }
+        } else {
+            buf.clear();
+            return loadLogFromStore(pos, it, limit, bytesLimit, result);
+        }
     }
+
+    private CompletableFuture<List<LogItem>> loadLogFromStore(long pos, DefaultLogIterator it,
+                                                              int limit, int bytesLimit, List<LogItem> result) {
+        int rest = (int) (writePos - pos);
+        if (rest <= 0) {
+            BugLog.getLog().error("rest is illegal. pos={}, writePos={}", pos, writePos);
+            throw new RaftException("rest is illegal.");
+        }
+        LogFile logFile = getLogFile(pos);
+        int fileStartPos = (int) (pos & FILE_LEN_MASK);
+        rest = Math.min(rest, LOG_FILE_SIZE - fileStartPos);
+        ByteBuffer buf = it.buffer;
+        if (rest > buf.remaining()) {
+            buf.limit(buf.position() + rest);
+        }
+        AsyncReadTask t = new AsyncReadTask(buf, fileStartPos, logFile.channel, stopIndicator);
+        return t.exec().thenApplyAsync(v -> {
+            extractItems(buf, result, limit, bytesLimit);
+            return result;
+        }, raftExecutor);
+    }
+
+    private boolean extractItems(ByteBuffer buf, List<LogItem> result, int limit, int bytesLimit) {
+        return false;
+    }
+
+
 }

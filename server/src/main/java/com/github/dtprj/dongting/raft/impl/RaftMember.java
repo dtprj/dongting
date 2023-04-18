@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.raft.server.RaftLog;
+
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -41,6 +43,7 @@ public class RaftMember {
     private long matchIndex;
 
     private CompletableFuture<?> replicateFuture;
+    private RaftLog.LogIterator replicateIterator;
 
     public RaftMember(RaftNodeEx node) {
         this.node = node;
@@ -148,4 +151,11 @@ public class RaftMember {
         return replicateEpoch;
     }
 
+    public RaftLog.LogIterator getReplicateIterator() {
+        return replicateIterator;
+    }
+
+    public void setReplicateIterator(RaftLog.LogIterator replicateIterator) {
+        this.replicateIterator = replicateIterator;
+    }
 }

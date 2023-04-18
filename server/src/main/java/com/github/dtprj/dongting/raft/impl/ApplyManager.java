@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.buf.RefByteBuffer;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -28,6 +29,7 @@ import com.github.dtprj.dongting.raft.server.StateMachine;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -53,6 +55,8 @@ public class ApplyManager {
     private boolean waiting;
     private long appliedIndex;
 
+    private RaftLog.LogIterator logIterator;
+
     public ApplyManager(int selfNodeId, RaftLog raftLog, StateMachine stateMachine, RaftStatus raftStatus, EventBus eventBus) {
         this.selfNodeId = selfNodeId;
         this.raftLog = raftLog;
@@ -76,10 +80,17 @@ public class ApplyManager {
             if (rt == null) {
                 waiting = true;
                 int limit = (int) Math.min(diff, 1024L);
-                CompletableFuture<LogItem[]> future = raftLog.load(index, limit, 16 * 1024 * 1024);
-                future.whenCompleteAsync(this::resumeAfterLoad, raftStatus.getRaftExecutor());
+                if (logIterator == null) {
+                    logIterator = raftLog.openIterator();
+                }
+                logIterator.next(index, limit, 16 * 1024 * 1024)
+                        .whenCompleteAsync(this::resumeAfterLoad, raftStatus.getRaftExecutor());
                 return;
             } else {
+                if (logIterator != null) {
+                    DtUtil.close(logIterator);
+                    this.logIterator = null;
+                }
                 execChain(index, rt);
                 appliedIndex++;
                 diff--;
@@ -87,7 +98,7 @@ public class ApplyManager {
         }
     }
 
-    private void resumeAfterLoad(LogItem[] items, Throwable ex) {
+    private void resumeAfterLoad(List<LogItem> items, Throwable ex) {
         try {
             waiting = false;
             if (ex != null) {
@@ -98,19 +109,19 @@ public class ApplyManager {
                 }
                 return;
             }
-            if (items == null || items.length == 0) {
+            if (items == null || items.size() == 0) {
                 log.error("load log failed, items is null");
                 return;
             }
-            if (items[0].getIndex() != appliedIndex + 1) {
+            if (items.get(0).getIndex() != appliedIndex + 1) {
                 // previous load failed, ignore
                 log.warn("first index of load result not match appliedIndex, ignore.");
                 return;
             }
-            int readCount = items.length;
+            int readCount = items.size();
             //noinspection ForLoopReplaceableByForEach
             for (int i = 0; i < readCount; i++) {
-                LogItem item = items[i];
+                LogItem item = items.get(i);
                 RaftTask rt = buildRaftTask(item);
                 execChain(item.getIndex(), rt);
             }
@@ -118,10 +129,10 @@ public class ApplyManager {
         } finally {
             // the data loaded will not put into pending map, so release it here
             if (items != null) {
-                int len = items.length;
+                int len = items.size();
                 //noinspection ForLoopReplaceableByForEach
                 for (int i = 0; i < len; i++) {
-                    RaftUtil.release(items[i]);
+                    RaftUtil.release(items.get(i));
                 }
             }
         }
