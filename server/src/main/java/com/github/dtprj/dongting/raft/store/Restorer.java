@@ -57,12 +57,9 @@ class Restorer {
         if (commitIndexPos >= lf.startPos) {
             // check from commitIndexPos
             itemStartPosOfFile = commitIndexPos & LogFileQueue.FILE_LEN_MASK;
-            if (itemStartPosOfFile < LogFileQueue.FILE_HEADER_SIZE) {
-                throw new RaftException("commitIndexPos is invalid. file=" + lf.pathname + ", pos=" + commitIndexPos);
-            }
         } else {
             // check full file
-            itemStartPosOfFile = LogFileQueue.FILE_HEADER_SIZE;
+            itemStartPosOfFile = 0;
         }
         AsynchronousFileChannel channel = lf.channel;
         long readPos = itemStartPosOfFile;
@@ -98,6 +95,7 @@ class Restorer {
                 crc = buf.getInt();
                 totalLen = buf.getInt();
                 short headLen = buf.getShort();
+                int contextLen = buf.getInt();// context len
                 byte type = buf.get();//type
                 int term = buf.getInt();
                 int prevLogTerm = buf.getInt();
@@ -127,7 +125,7 @@ class Restorer {
                     if (index != commitIndex) {
                         throw new RaftException("commitIndex not match. file=" + lf.pathname + ", pos=" + itemStartPosOfFile);
                     }
-                    if (totalLen <= 0 || headLen <= 0 || type < 0 || term <= 0 || prevLogTerm < 0) {
+                    if (totalLen <= 0 || headLen <= 0 || contextLen < 0 || type < 0 || term <= 0 || prevLogTerm < 0) {
                         throw new RaftException("bad item. file=" + lf.pathname + ", pos=" + itemStartPosOfFile);
                     }
                 }

@@ -51,18 +51,17 @@ public class LogFileQueue extends FileQueue {
     static final int FILE_LEN_MASK = LOG_FILE_SIZE - 1;
     private static final int FILE_LEN_SHIFT_BITS = BitUtil.zeroCountOfBinary(LOG_FILE_SIZE);
 
-    static final int FILE_HEADER_SIZE = 4096;
-
     private final IdxOps idxOps;
 
     // crc32c 4 bytes
     // total len 4 bytes
     // head len 2 bytes
+    // context len 4 bytes
     // type 1 byte
     // term 4 bytes
     // prevLogTerm 4 bytes
     // index 8 bytes
-    static final short ITEM_HEADER_SIZE = 4 + 4 + 2 + 1 + 4 + 4 + 8;
+    static final short ITEM_HEADER_SIZE = 4 + 4 + 2 + 4 + 1 + 4 + 4 + 8;
 
     private final ByteBuffer buffer = ByteBuffer.allocateDirect(128 * 1024);
     private final CRC32C crc32c = new CRC32C();
@@ -105,35 +104,13 @@ public class LogFileQueue extends FileQueue {
     }
 
     public int restore(long commitIndex, long commitIndexPos) throws IOException {
-        ByteBuffer fileHeaderBuffer = ByteBuffer.allocate(FILE_HEADER_SIZE);
         log.info("restore from {}, {}", commitIndex, commitIndexPos);
         Restorer restorer = new Restorer(idxOps, commitIndex, commitIndexPos);
         for (int i = 0; i < queue.size(); i++) {
             LogFile lf = queue.get(i);
-            AsynchronousFileChannel channel = lf.channel;
-            fileHeaderBuffer.clear();
-            FileUtil.syncReadFull(channel, fileHeaderBuffer, 0);
-            fileHeaderBuffer.flip();
-            if (fileHeaderBuffer.getInt() != FILE_MAGIC) {
-                if (commitIndexPos < lf.startPos) {
-                    log.warn("file {} magic is illegal. ignore it.", lf.pathname, fileHeaderBuffer.getInt());
-                    break;
-                } else {
-                    throw new RaftException("file magic is illegal " + lf.pathname);
-                }
-            }
-            short majorVersion = fileHeaderBuffer.getShort();
-            if (majorVersion > MAJOR_VERSION) {
-                log.error("unsupported major version: {}, {}", majorVersion, lf.pathname);
-                throw new RaftException("unsupported major version: " + majorVersion);
-            }
             if (commitIndexPos < lf.endPos) {
                 long pos = restorer.restoreFile(this.buffer, lf);
-                if (pos <= FILE_HEADER_SIZE) {
-                    break;
-                } else {
-                    writePos = lf.startPos + pos;
-                }
+                writePos = lf.startPos + pos;
             } else {
                 writePos = lf.endPos;
             }
@@ -144,9 +121,6 @@ public class LogFileQueue extends FileQueue {
             }
             log.info("restore finished. lastTerm={}, lastIndex={}, lastPos={}, lastFile={}",
                     restorer.previousTerm, restorer.previousIndex, writePos, queue.get(queue.size() - 1).pathname);
-        }
-        if (writePos == 0) {
-            writePos = FILE_HEADER_SIZE;
         }
         return restorer.previousTerm;
     }
@@ -179,7 +153,6 @@ public class LogFileQueue extends FileQueue {
                 }
                 ensureWritePosReady(pos);
                 file = getLogFile(pos);
-                pos += FILE_HEADER_SIZE;
             }
             if (buffer.remaining() < ITEM_HEADER_SIZE) {
                 pos = writeAndClearBuffer(buffer, file, pos);
@@ -206,6 +179,7 @@ public class LogFileQueue extends FileQueue {
         // crc32c 4 bytes
         // total len 4 bytes
         // head len 2 bytes
+        // context len 4 bytes
         // type 1 byte
         // term 4 bytes
         // prevLogTerm 4 bytes
@@ -214,6 +188,8 @@ public class LogFileQueue extends FileQueue {
         buffer.putInt(0);
         buffer.putInt(totalLen);
         buffer.putShort(ITEM_HEADER_SIZE);
+        // TODO support context
+        buffer.putInt(0);
         buffer.put((byte) log.getType());
         buffer.putInt(log.getTerm());
         buffer.putInt(log.getPrevLogTerm());
