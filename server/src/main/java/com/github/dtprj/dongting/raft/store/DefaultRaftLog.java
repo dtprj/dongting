@@ -16,9 +16,9 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.RefByteBuffer;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
-import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -42,7 +42,6 @@ public class DefaultRaftLog implements RaftLog {
     private static final String KNOWN_MAX_COMMIT_INDEX_KEY = "knownMaxCommitIndex";
 
     private final RaftGroupConfig groupConfig;
-    private final Timestamp ts;
     private final ByteBufferPool heapPool;
     private final ByteBufferPool directPool;
     private final Executor ioExecutor;
@@ -53,10 +52,9 @@ public class DefaultRaftLog implements RaftLog {
     private long knownMaxCommitIndex;
     private StatusFile checkpointFile;
 
-    public DefaultRaftLog(RaftGroupConfig groupConfig, Timestamp ts, ByteBufferPool heapPool, ByteBufferPool directPool,
+    public DefaultRaftLog(RaftGroupConfig groupConfig, ByteBufferPool heapPool, ByteBufferPool directPool,
                           Executor ioExecutor, RaftExecutor raftExecutor, Supplier<Boolean> stopIndicator) {
         this.groupConfig = groupConfig;
-        this.ts = ts;
         this.heapPool = heapPool;
         this.directPool = directPool;
         this.ioExecutor = ioExecutor;
@@ -121,8 +119,9 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public LogIterator openIterator(Supplier<Boolean> epochChange) {
-        return new DefaultLogIterator(this, directPool.borrow(1024 * 1024),
-                ()-> stopIndicator.get() || epochChange.get());
+        return new DefaultLogIterator(this,
+                RefByteBuffer.createPlain(directPool, 1024 * 1024, 0),
+                () -> stopIndicator.get() || epochChange.get());
     }
 
     public CompletableFuture<List<LogItem>> next(DefaultLogIterator it, long index, int limit, int bytesLimit) {

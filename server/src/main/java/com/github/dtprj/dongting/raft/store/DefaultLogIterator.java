@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.buf.RefByteBuffer;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 
@@ -30,8 +31,8 @@ import java.util.zip.CRC32C;
 class DefaultLogIterator implements RaftLog.LogIterator {
 
     private final DefaultRaftLog defaultRaftLog;
+    final RefByteBuffer rbb;
 
-    final ByteBuffer buffer;
     final Supplier<Boolean> stopIndicator;
     final CRC32C crc32c = new CRC32C();
     final LogHeader header = new LogHeader();
@@ -42,9 +43,9 @@ class DefaultLogIterator implements RaftLog.LogIterator {
     LogItem item;
     int payLoad;
 
-    DefaultLogIterator(DefaultRaftLog defaultRaftLog, ByteBuffer buffer, Supplier<Boolean> stopIndicator) {
+    DefaultLogIterator(DefaultRaftLog defaultRaftLog, RefByteBuffer rbb, Supplier<Boolean> stopIndicator) {
         this.defaultRaftLog = defaultRaftLog;
-        this.buffer = buffer;
+        this.rbb = rbb;
         this.stopIndicator = stopIndicator;
     }
 
@@ -54,13 +55,14 @@ class DefaultLogIterator implements RaftLog.LogIterator {
     }
 
     @Override
-    public void close() throws Exception {
-
+    public void close() {
+        rbb.release();
     }
 
     public void resetBuffer() {
-        buffer.clear();
-        buffer.position(0);
+        ByteBuffer buf = rbb.getBuffer();
+        buf.clear();
+        buf.position(0);
     }
 
     public void resetBeforeLoad() {

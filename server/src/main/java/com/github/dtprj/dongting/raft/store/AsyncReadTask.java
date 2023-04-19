@@ -32,10 +32,6 @@ class AsyncReadTask implements CompletionHandler<Integer, Void> {
     private final Supplier<Boolean> stopIndicator;
     private final CompletableFuture<Void> f = new CompletableFuture<>();
 
-    public AsyncReadTask(ByteBuffer readBuffer, long pos, AsynchronousFileChannel channel) {
-        this(readBuffer, pos, channel, null);
-    }
-
     public AsyncReadTask(ByteBuffer readBuffer, long pos, AsynchronousFileChannel channel, Supplier<Boolean> stopIndicator) {
         this.readBuffer = readBuffer;
         this.pos = pos;

@@ -203,7 +203,7 @@ public class LogFileQueue extends FileQueue {
             BugLog.getLog().error("rest is illegal. pos={}, writePos={}", pos, writePos);
             throw new RaftException("rest is illegal.");
         }
-        ByteBuffer buf = it.buffer;
+        ByteBuffer buf = it.rbb.getBuffer();
         List<LogItem> result = new ArrayList<>();
         it.resetBeforeLoad();
         if (buf.hasRemaining()) {
@@ -249,12 +249,13 @@ public class LogFileQueue extends FileQueue {
         LogFile logFile = getLogFile(pos);
         int fileStartPos = (int) (pos & FILE_LEN_MASK);
         rest = Math.min(rest, LOG_FILE_SIZE - fileStartPos);
-        ByteBuffer buf = it.buffer;
+        ByteBuffer buf = it.rbb.getBuffer();
         if (rest < buf.remaining()) {
             buf.limit(buf.position() + rest);
         }
         long newReadPos = pos + buf.remaining();
         AsyncReadTask t = new AsyncReadTask(buf, fileStartPos, logFile.channel, it.stopIndicator);
+        it.rbb.retain();
         t.exec().whenCompleteAsync((v, ex) -> resumeAfterLoad(newReadPos, it, limit, bytesLimit,
                 result, future, ex), raftExecutor);
     }
@@ -262,12 +263,13 @@ public class LogFileQueue extends FileQueue {
     private void resumeAfterLoad(long newReadPos, DefaultLogIterator it, int limit, int bytesLimit,
                                  List<LogItem> result, CompletableFuture<List<LogItem>> future, Throwable ex) {
         try {
+            it.rbb.release();
             if (it.stopIndicator.get()) {
                 future.cancel(false);
             } else if (ex != null) {
                 future.completeExceptionally(ex);
             } else {
-                ByteBuffer buf = it.buffer;
+                ByteBuffer buf = it.rbb.getBuffer();
                 buf.flip();
                 if (extractItems(it, result, limit, bytesLimit)) {
                     future.complete(result);
@@ -283,7 +285,7 @@ public class LogFileQueue extends FileQueue {
     }
 
     private boolean extractItems(DefaultLogIterator it, List<LogItem> result, int limit, int bytesLimit) {
-        ByteBuffer buf = it.buffer;
+        ByteBuffer buf = it.rbb.getBuffer();
 
         while (buf.remaining() > ITEM_HEADER_SIZE) {
             LogHeader header = it.header;
@@ -295,7 +297,7 @@ public class LogFileQueue extends FileQueue {
 
                 it.payLoad = header.totalLen - header.headLen;
                 int bodyLen = header.totalLen - header.contextLen - header.headLen;
-                if (header.totalLen <= 0 || header.contextLen < 0 || header.headLen <= 0 || it.payLoad < 0
+                if (header.totalLen <= 0 || header.contextLen < 0 || header.headLen <= 0
                         || it.payLoad < 0 || bodyLen < 0 || it.payLoad > LOG_FILE_SIZE) {
                     throw new RaftException("invalid log item length: " + header.totalLen
                             + "," + header.contextLen + "," + header.headLen);
