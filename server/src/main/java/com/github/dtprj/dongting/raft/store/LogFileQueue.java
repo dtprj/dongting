@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.RefByteBuffer;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.BugLog;
@@ -198,22 +199,13 @@ public class LogFileQueue extends FileQueue {
         CRC32C crc32c = this.crc32c;
         crc32c.reset();
 
-        // backup position and limit
-        int pos = buffer.position();
-        int limit = buffer.limit();
-
-        buffer.position(crcPos + 4);
-        buffer.limit(pos);
-        crc32c.update(buffer);
-
-        // restore position and limit
-        buffer.limit(limit);
-        buffer.position(pos);
+        updateCrc(crc32c, buffer, crcPos + 4, totalLen - 4);
 
         // backup position, the data buffer is a read-only buffer, so we don't need to change its limit
-        pos = dataBuffer.position();
+        int pos = dataBuffer.position();
         crc32c.update(dataBuffer);
         dataBuffer.position(pos);
+        buffer.putInt(crcPos, (int) crc32c.getValue());
     }
 
     private long writeAndClearBuffer(ByteBuffer buffer, LogFile file, long filePos) throws IOException {
@@ -245,55 +237,169 @@ public class LogFileQueue extends FileQueue {
         }
         ByteBuffer buf = it.buffer;
         List<LogItem> result = new ArrayList<>();
+        it.resetBeforeLoad();
         if (buf.hasRemaining()) {
             if (buf.remaining() > rest) {
                 buf.limit(buf.position() + rest);
             }
             int oldRemaining = buf.remaining();
-            if (extractItems(buf, result, limit, bytesLimit)) {
+            if (extractItems(it, result, limit, bytesLimit)) {
                 return CompletableFuture.completedFuture(result);
             } else {
-                limit -= result.size();
-                int parsedBytes = oldRemaining - buf.position();
-                pos += parsedBytes;
-                bytesLimit -= parsedBytes;
-                if (buf.hasRemaining()) {
-                    ByteBuffer temp = buffer.slice();
-                    buffer.clear();
-                    buffer.put(temp);
-                } else {
-                    buf.clear();
-                }
-                return loadLogFromStore(pos, it, limit, bytesLimit, result);
+                pos += oldRemaining - buf.remaining();
+                prepareNextRead(buf);
+                CompletableFuture<List<LogItem>> future = new CompletableFuture<>();
+                loadLogFromStore(pos, it, limit, bytesLimit, result, future);
+                return future;
             }
         } else {
             buf.clear();
-            return loadLogFromStore(pos, it, limit, bytesLimit, result);
+            CompletableFuture<List<LogItem>> future = new CompletableFuture<>();
+            loadLogFromStore(pos, it, limit, bytesLimit, result, future);
+            return future;
         }
     }
 
-    private CompletableFuture<List<LogItem>> loadLogFromStore(long pos, DefaultLogIterator it,
-                                                              int limit, int bytesLimit, List<LogItem> result) {
+    private void prepareNextRead(ByteBuffer buf) {
+        if (buf.hasRemaining()) {
+            ByteBuffer temp = buffer.slice();
+            buffer.clear();
+            buffer.put(temp);
+        } else {
+            buf.clear();
+        }
+    }
+
+    private void loadLogFromStore(long pos, DefaultLogIterator it, int limit, int bytesLimit,
+                                  List<LogItem> result, CompletableFuture<List<LogItem>> future) {
         int rest = (int) (writePos - pos);
         if (rest <= 0) {
-            BugLog.getLog().error("rest is illegal. pos={}, writePos={}", pos, writePos);
-            throw new RaftException("rest is illegal.");
+            log.warn("rest is illegal. pos={}, writePos={}", pos, writePos);
+            future.completeExceptionally(new RaftException("rest is illegal."));
+            return;
         }
         LogFile logFile = getLogFile(pos);
         int fileStartPos = (int) (pos & FILE_LEN_MASK);
         rest = Math.min(rest, LOG_FILE_SIZE - fileStartPos);
         ByteBuffer buf = it.buffer;
-        if (rest > buf.remaining()) {
+        if (rest < buf.remaining()) {
             buf.limit(buf.position() + rest);
         }
+        long newReadPos = pos + buf.remaining();
         AsyncReadTask t = new AsyncReadTask(buf, fileStartPos, logFile.channel, stopIndicator);
-        return t.exec().thenApplyAsync(v -> {
-            extractItems(buf, result, limit, bytesLimit);
-            return result;
-        }, raftExecutor);
+        t.exec().whenCompleteAsync((v, ex) -> resumeAfterLoad(newReadPos, it, limit, bytesLimit,
+                result, future, ex), raftExecutor);
     }
 
-    private boolean extractItems(ByteBuffer buf, List<LogItem> result, int limit, int bytesLimit) {
+    private void resumeAfterLoad(long newReadPos, DefaultLogIterator it, int limit, int bytesLimit,
+                                 List<LogItem> result, CompletableFuture<List<LogItem>> future, Throwable ex) {
+        try {
+            if (stopIndicator.get()) {
+                future.cancel(false);
+            } else if (ex != null) {
+                future.completeExceptionally(ex);
+            } else {
+                ByteBuffer buf = it.buffer;
+                buf.flip();
+                if (extractItems(it, result, limit, bytesLimit)) {
+                    future.complete(result);
+                    it.nextIndex = it.nextIndex + result.size();
+                } else {
+                    prepareNextRead(buf);
+                    loadLogFromStore(newReadPos, it, limit, bytesLimit, result, future);
+                }
+            }
+        } catch (Throwable e) {
+            future.completeExceptionally(e);
+        }
+    }
+
+    private boolean extractItems(DefaultLogIterator it, List<LogItem> result, int limit, int bytesLimit) {
+        ByteBuffer buf = it.buffer;
+
+        while (buf.remaining() > ITEM_HEADER_SIZE) {
+            if (it.item == null) {
+                LogItem li = new LogItem();
+                it.item = li;
+
+                // crc32c 4 bytes
+                // total len 4 bytes
+                // head len 2 bytes
+                // context len 4 bytes
+                // type 1 byte
+                // term 4 bytes
+                // prevLogTerm 4 bytes
+                // index 8 bytes
+                int startPos = buf.position();
+                it.crc = buf.getInt();
+                int totalLen = buf.getInt();
+                short headLen = buf.getShort();
+                int contextLen = buf.getInt();
+                li.setType(buf.get());
+                li.setTerm(buf.getInt());
+                li.setPrevLogTerm(buf.getInt());
+                li.setIndex(buf.getLong());
+
+                it.payLoad = totalLen - headLen;
+                int bodyLen = totalLen - contextLen - headLen;
+                if (totalLen <= 0 || contextLen < 0 || headLen < 0 || it.payLoad < 0
+                        || it.payLoad < 0 || bodyLen < 0 || it.payLoad > LOG_FILE_SIZE) {
+                    throw new RaftException("invalid log item length: " + totalLen + "," + contextLen + "," + headLen);
+                }
+
+                if (result.size() > 0 && it.bytes + it.payLoad > bytesLimit) {
+                    // rollback position for next use
+                    buf.position(startPos);
+                    return true;
+                }
+
+
+                if (buf.remaining() >= it.payLoad) {
+                    updateCrc(it.crc32c, buf, startPos + 4, totalLen - 4);
+                    if (it.crc32c.getValue() != it.crc) {
+                        throw new RaftException("crc32c not match");
+                    }
+                    RefByteBuffer rbb = RefByteBuffer.create(heapPool, bodyLen, 800);
+                    li.setBuffer(rbb);
+                    ByteBuffer destBuf = rbb.getBuffer();
+                    buf.get(destBuf.array(), 0, bodyLen);
+                    destBuf.limit(bodyLen);
+                    result.add(li);
+                    it.bytes += it.payLoad;
+                    it.resetItem();
+                    if (result.size() >= limit) {
+                        return true;
+                    }
+                } else {
+                    updateCrc(it.crc32c, buf, startPos + 4, buf.limit());
+                    RefByteBuffer rbb = RefByteBuffer.create(heapPool, bodyLen, 800);
+                    li.setBuffer(rbb);
+                    rbb.getBuffer().put(buf);
+                }
+            } else {
+                ByteBuffer destBuf = it.item.getBuffer().getBuffer();
+                int read = destBuf.position();
+                int restBytes = it.payLoad - read;
+                if (buf.remaining() >= restBytes) {
+                    updateCrc(it.crc32c, buf, buf.position(), restBytes);
+                    if (it.crc32c.getValue() != it.crc) {
+                        throw new RaftException("crc32c not match");
+                    }
+                    buf.get(destBuf.array(), read, it.payLoad - read);
+                    destBuf.limit(it.payLoad);
+                    destBuf.position(0);
+                    result.add(it.item);
+                    it.bytes += it.payLoad;
+                    it.resetItem();
+                    if (result.size() >= limit) {
+                        return true;
+                    }
+                } else {
+                    updateCrc(it.crc32c, buf, buf.position(), buf.limit());
+                    destBuf.put(buf);
+                }
+            }
+        }
         return false;
     }
 

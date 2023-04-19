@@ -127,11 +127,18 @@ public class DefaultRaftLog implements RaftLog {
     public CompletableFuture<List<LogItem>> next(DefaultLogIterator it, long index, int limit, int bytesLimit) {
         try {
             if (index != it.nextIndex) {
-                it.buffer.clear();
+                it.resetBuffer();
+                it.nextIndex = index;
             }
             long pos = idxFiles.syncLoadLogPos(index);
-            return logFiles.loadLog(pos, it, limit, bytesLimit);
+            CompletableFuture<List<LogItem>> result = logFiles.loadLog(pos, it, limit, bytesLimit);
+            result.exceptionally(e -> {
+                it.resetBuffer();
+                return null;
+            });
+            return result;
         } catch (Throwable e) {
+            it.resetBuffer();
             return CompletableFuture.failedFuture(e);
         }
     }
