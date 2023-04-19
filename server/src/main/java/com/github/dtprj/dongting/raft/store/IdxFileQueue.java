@@ -274,7 +274,7 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
                     log.info("previous write canceled");
                     return !stopIndicator.get();
                 } catch (ExecutionException e) {
-                    log.error("write idx file failed: {}", writeTask.logFile.pathname, e);
+                    log.error("write idx file failed: {}", writeTask.logFile.file.getPath(), e);
                     if (e.getCause() instanceof IOException) {
                         if (stopIndicator.get()) {
                             return false;
@@ -288,7 +288,7 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
                     this.writeTask = null;
                 }
             } catch (InterruptedException e) {
-                log.info("write index interrupted: {}", writeTask.logFile.pathname);
+                log.info("write index interrupted: {}", writeTask.logFile.file.getPath());
                 return false;
             }
         }

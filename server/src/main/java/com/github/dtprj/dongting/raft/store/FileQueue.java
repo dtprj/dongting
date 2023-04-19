@@ -95,7 +95,7 @@ abstract class FileQueue {
                 long startPos = Long.parseLong(matcher.group(1));
                 log.info("load file: {}", f.getPath());
                 AsynchronousFileChannel channel = AsynchronousFileChannel.open(f.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
-                queue.addLast(new LogFile(startPos, startPos + getFileSize(), channel, f.getPath()));
+                queue.addLast(new LogFile(startPos, startPos + getFileSize(), channel, f));
             }
         }
         for (int i = 0; i < queue.size(); i++) {
@@ -188,7 +188,7 @@ abstract class FileQueue {
                 raf.setLength(getFileSize());
                 channel = AsynchronousFileChannel.open(f.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
                 afterFileAllocated(f, channel);
-                return new LogFile(currentEndPosition, currentEndPosition + getFileSize(), channel, f.getPath());
+                return new LogFile(currentEndPosition, currentEndPosition + getFileSize(), channel, f);
             } catch (Exception e) {
                 if (channel != null) {
                     DtUtil.close(channel);

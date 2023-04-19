@@ -121,7 +121,7 @@ public class LogFileQueue extends FileQueue {
                 throw new RaftException("commitIndexPos is illegal. " + commitIndexPos);
             }
             log.info("restore finished. lastTerm={}, lastIndex={}, lastPos={}, lastFile={}",
-                    restorer.previousTerm, restorer.previousIndex, writePos, queue.get(queue.size() - 1).pathname);
+                    restorer.previousTerm, restorer.previousIndex, writePos, queue.get(queue.size() - 1).file.getPath());
         }
         return restorer.previousTerm;
     }

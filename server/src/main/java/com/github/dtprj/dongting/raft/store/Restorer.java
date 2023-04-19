@@ -51,7 +51,7 @@ class Restorer {
     }
 
     public long restoreFile(ByteBuffer buffer, LogFile lf) throws IOException {
-        log.info("try restore file {}", lf.pathname);
+        log.info("try restore file {}", lf.file.getPath());
         if (commitIndexPos >= lf.startPos) {
             // check from commitIndexPos
             itemStartPosOfFile = commitIndexPos & LogFileQueue.FILE_LEN_MASK;
@@ -90,30 +90,30 @@ class Restorer {
                 if (commitIndexChecked) {
                     if (header.prevLogTerm != previousTerm) {
                         if (header.prevLogTerm == 0 && header.crc == 0) {
-                            log.info("reach end of file. file={}, pos={}", lf.pathname, itemStartPosOfFile);
+                            log.info("reach end of file. file={}, pos={}", lf.file.getPath(), itemStartPosOfFile);
                         } else {
                             log.warn("prevLogTerm not match. file={}, itemStartPos={}, {}!={}",
-                                    lf.pathname, itemStartPosOfFile, this.previousTerm, header.prevLogTerm);
+                                    lf.file.getPath(), itemStartPosOfFile, this.previousTerm, header.prevLogTerm);
                         }
                         return false;
                     }
                     if (this.previousIndex + 1 != header.index) {
                         log.warn("index not match. file={}, itemStartPos={}, {}!={}",
-                                lf.pathname, itemStartPosOfFile, this.previousIndex + 1, header.index);
+                                lf.file.getPath(), itemStartPosOfFile, this.previousIndex + 1, header.index);
                         return false;
                     }
                     if (header.term < this.previousTerm) {
                         log.warn("term not match. file={}, itemStartPos={}, {}<{}",
-                                lf.pathname, itemStartPosOfFile, header.term, this.previousTerm);
+                                lf.file.getPath(), itemStartPosOfFile, header.term, this.previousTerm);
                         return false;
                     }
                 } else {
                     if (header.index != commitIndex) {
-                        throw new RaftException("commitIndex not match. file=" + lf.pathname + ", pos=" + itemStartPosOfFile);
+                        throw new RaftException("commitIndex not match. file=" + lf.file.getPath() + ", pos=" + itemStartPosOfFile);
                     }
                     if (header.totalLen <= 0 || header.headLen <= 0 || header.contextLen < 0 ||
                             header.type < 0 || header.term <= 0 || header.prevLogTerm < 0) {
-                        throw new RaftException("bad item. file=" + lf.pathname + ", pos=" + itemStartPosOfFile);
+                        throw new RaftException("bad item. file=" + lf.file.getPath() + ", pos=" + itemStartPosOfFile);
                     }
                 }
 
@@ -122,7 +122,7 @@ class Restorer {
 
                 if (header.totalLen < header.headLen + header.contextLen
                         || itemStartPosOfFile + header.totalLen > LogFileQueue.LOG_FILE_SIZE) {
-                    log.error("bad item len. file={}, itemStartPos={}", lf.pathname, itemStartPosOfFile);
+                    log.error("bad item len. file={}, itemStartPos={}", lf.file.getPath(), itemStartPosOfFile);
                     return false;
                 }
 
@@ -143,7 +143,7 @@ class Restorer {
                             commitIndexChecked = true;
                         }
                     } else {
-                        log.warn("crc32c not match. file={}, itemStartPos={}", lf.pathname, itemStartPosOfFile);
+                        log.warn("crc32c not match. file={}, itemStartPos={}", lf.file.getPath(), itemStartPosOfFile);
                         return false;
                     }
                     readHeader = true;

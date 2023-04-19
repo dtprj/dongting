@@ -15,21 +15,22 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import java.io.File;
 import java.nio.channels.AsynchronousFileChannel;
 
 /**
  * @author huangli
  */
 class LogFile {
-    final long startPos;
+    final File file;
     final AsynchronousFileChannel channel;
-    final String pathname;
+    final long startPos;
     final long endPos;
 
-    public LogFile(long startPos, long endPos, AsynchronousFileChannel channel, String pathname) {
+    public LogFile(long startPos, long endPos, AsynchronousFileChannel channel, File file) {
         this.startPos = startPos;
         this.endPos = endPos;
         this.channel = channel;
-        this.pathname = pathname;
+        this.file = file;
     }
 }
