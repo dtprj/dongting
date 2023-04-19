@@ -62,7 +62,7 @@ public class LogFileQueue extends FileQueue {
     // term 4 bytes
     // prevLogTerm 4 bytes
     // index 8 bytes
-    static final short ITEM_HEADER_SIZE = 4 + 4 + 2 + 4 + 1 + 4 + 4 + 8;
+    static final int ITEM_HEADER_SIZE = 4 + 4 + 2 + 4 + 1 + 4 + 4 + 8;
 
     private final ByteBuffer buffer = ByteBuffer.allocateDirect(128 * 1024);
     private final CRC32C crc32c = new CRC32C();

@@ -35,9 +35,9 @@ class LogHeader {
 
     int crc;
     int totalLen;
-    short headLen;
+    int headLen;
     int contextLen;
-    byte type;
+    int type;
     int term;
     int prevLogTerm;
     long index;
@@ -54,18 +54,10 @@ class LogHeader {
     }
 
     public static void writeHeader(ByteBuffer buffer, ByteBuffer dataBuffer, LogItem log, int totalLen, CRC32C crc32c) {
-        // crc32c 4 bytes
-        // total len 4 bytes
-        // head len 2 bytes
-        // context len 4 bytes
-        // type 1 byte
-        // term 4 bytes
-        // prevLogTerm 4 bytes
-        // index 8 bytes
         int crcPos = buffer.position();
         buffer.putInt(0);
         buffer.putInt(totalLen);
-        buffer.putShort(LogFileQueue.ITEM_HEADER_SIZE);
+        buffer.putShort((short) LogFileQueue.ITEM_HEADER_SIZE);
         // TODO support context
         buffer.putInt(0);
         buffer.put((byte) log.getType());
