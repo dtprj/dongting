@@ -286,7 +286,7 @@ public class LogFileQueue extends FileQueue {
             buf.limit(buf.position() + rest);
         }
         long newReadPos = pos + buf.remaining();
-        AsyncReadTask t = new AsyncReadTask(buf, fileStartPos, logFile.channel, stopIndicator);
+        AsyncReadTask t = new AsyncReadTask(buf, fileStartPos, logFile.channel, it.stopIndicator);
         t.exec().whenCompleteAsync((v, ex) -> resumeAfterLoad(newReadPos, it, limit, bytesLimit,
                 result, future, ex), raftExecutor);
     }
@@ -294,7 +294,7 @@ public class LogFileQueue extends FileQueue {
     private void resumeAfterLoad(long newReadPos, DefaultLogIterator it, int limit, int bytesLimit,
                                  List<LogItem> result, CompletableFuture<List<LogItem>> future, Throwable ex) {
         try {
-            if (stopIndicator.get()) {
+            if (it.stopIndicator.get()) {
                 future.cancel(false);
             } else if (ex != null) {
                 future.completeExceptionally(ex);

@@ -120,8 +120,9 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public LogIterator openIterator() {
-        return new DefaultLogIterator(this, directPool.borrow(1024 * 1024));
+    public LogIterator openIterator(Supplier<Boolean> epochChange) {
+        return new DefaultLogIterator(this, directPool.borrow(1024 * 1024),
+                ()-> stopIndicator.get() || epochChange.get());
     }
 
     public CompletableFuture<List<LogItem>> next(DefaultLogIterator it, long index, int limit, int bytesLimit) {

@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.raft.server.RaftLog;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 import java.util.zip.CRC32C;
 
 /**
@@ -30,6 +31,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
 
     private final DefaultRaftLog defaultRaftLog;
     final ByteBuffer buffer;
+    final Supplier<Boolean> stopIndicator;
     final CRC32C crc32c = new CRC32C();
 
     long nextIndex = 1;
@@ -39,9 +41,10 @@ class DefaultLogIterator implements RaftLog.LogIterator {
     int crc;
     int payLoad;
 
-    DefaultLogIterator(DefaultRaftLog defaultRaftLog, ByteBuffer buffer) {
+    DefaultLogIterator(DefaultRaftLog defaultRaftLog, ByteBuffer buffer, Supplier<Boolean> stopIndicator) {
         this.defaultRaftLog = defaultRaftLog;
         this.buffer = buffer;
+        this.stopIndicator = stopIndicator;
     }
 
     @Override

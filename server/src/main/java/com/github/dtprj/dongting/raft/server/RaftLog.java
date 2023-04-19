@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.common.Pair;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -34,7 +35,7 @@ public interface RaftLog extends AutoCloseable {
      */
     void append(long commitIndex, List<LogItem> logs) throws Exception;
 
-    LogIterator openIterator();
+    LogIterator openIterator(Supplier<Boolean> epochChange);
 
     /**
      * return -1 if the index can't find.
