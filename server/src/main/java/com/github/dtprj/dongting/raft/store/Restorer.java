@@ -38,13 +38,11 @@ class Restorer {
 
     private long itemStartPosOfFile;
     private boolean readHeader = true;
-    private int crc;
+    private LogHeader header = new LogHeader();
     private int bodyRestLen;
-    private int currentItemLen;
 
     long previousIndex;
     int previousTerm;
-    int totalLen;
 
     public Restorer(IdxOps idxOps, long commitIndex, long commitIndexPos) {
         this.idxOps = idxOps;
@@ -70,14 +68,9 @@ class Restorer {
                 continue;
             }
             buffer.flip();
-            if (restore(buffer, lf)) {
-                if (buffer.remaining() == 0) {
-                    buffer.clear();
-                } else {
-                    ByteBuffer temp = buffer.slice();
-                    buffer.clear();
-                    buffer.put(temp);
-                }
+            if (restore(buffer, lf, readPos)) {
+                LogFileQueue.prepareNextRead(buffer);
+                readPos += read;
             } else {
                 break;
             }
@@ -85,56 +78,51 @@ class Restorer {
         return itemStartPosOfFile;
     }
 
-    private boolean restore(ByteBuffer buf, LogFile lf) throws IOException {
+    private boolean restore(ByteBuffer buf, LogFile lf, long readPos) throws IOException {
         while (buf.hasRemaining()) {
             if (readHeader) {
                 if (buf.remaining() < LogFileQueue.ITEM_HEADER_SIZE) {
                     return true;
                 }
                 int startPos = buf.position();
-                crc = buf.getInt();
-                totalLen = buf.getInt();
-                short headLen = buf.getShort();
-                int contextLen = buf.getInt();// context len
-                byte type = buf.get();//type
-                int term = buf.getInt();
-                int prevLogTerm = buf.getInt();
-                long index = buf.getLong();
+                header.read(buf);
 
                 if (commitIndexChecked) {
-                    if (this.previousTerm != prevLogTerm) {
-                        if (prevLogTerm == 0 && crc == 0) {
+                    if (header.prevLogTerm != previousTerm) {
+                        if (header.prevLogTerm == 0 && header.crc == 0) {
                             log.info("reach end of file. file={}, pos={}", lf.pathname, itemStartPosOfFile);
                         } else {
                             log.warn("prevLogTerm not match. file={}, itemStartPos={}, {}!={}",
-                                    lf.pathname, itemStartPosOfFile, this.previousTerm, prevLogTerm);
+                                    lf.pathname, itemStartPosOfFile, this.previousTerm, header.prevLogTerm);
                         }
                         return false;
                     }
-                    if (this.previousIndex + 1 != index) {
+                    if (this.previousIndex + 1 != header.index) {
                         log.warn("index not match. file={}, itemStartPos={}, {}!={}",
-                                lf.pathname, itemStartPosOfFile, this.previousIndex + 1, index);
+                                lf.pathname, itemStartPosOfFile, this.previousIndex + 1, header.index);
                         return false;
                     }
-                    if (term < this.previousTerm) {
+                    if (header.term < this.previousTerm) {
                         log.warn("term not match. file={}, itemStartPos={}, {}<{}",
-                                lf.pathname, itemStartPosOfFile, term, this.previousTerm);
+                                lf.pathname, itemStartPosOfFile, header.term, this.previousTerm);
                         return false;
                     }
                 } else {
-                    if (index != commitIndex) {
+                    if (header.index != commitIndex) {
                         throw new RaftException("commitIndex not match. file=" + lf.pathname + ", pos=" + itemStartPosOfFile);
                     }
-                    if (totalLen <= 0 || headLen <= 0 || contextLen < 0 || type < 0 || term <= 0 || prevLogTerm < 0) {
+                    if (header.totalLen <= 0 || header.headLen <= 0 || header.contextLen < 0 ||
+                            header.type < 0 || header.term <= 0 || header.prevLogTerm < 0) {
                         throw new RaftException("bad item. file=" + lf.pathname + ", pos=" + itemStartPosOfFile);
                     }
                 }
 
-                this.previousTerm = term;
-                this.previousIndex = index;
+                this.previousTerm = header.term;
+                this.previousIndex = header.index;
 
-                if (totalLen < headLen) {
-                    log.error("totalLen<headLen. file={}, itemStartPos={}", lf.pathname, itemStartPosOfFile);
+                if (header.totalLen < header.headLen + header.contextLen
+                        || itemStartPosOfFile + header.totalLen > LogFileQueue.LOG_FILE_SIZE) {
+                    log.error("bad item len. file={}, itemStartPos={}", lf.pathname, itemStartPosOfFile);
                     return false;
                 }
 
@@ -142,16 +130,15 @@ class Restorer {
                 LogFileQueue.updateCrc(crc32c, buf, startPos + 4, LogFileQueue.ITEM_HEADER_SIZE - 4);
                 buf.position(startPos + LogFileQueue.ITEM_HEADER_SIZE);
                 readHeader = false;
-                currentItemLen = totalLen;
-                bodyRestLen = totalLen - headLen;
+                bodyRestLen = header.totalLen - header.headLen - header.contextLen;
             } else {
                 if (buf.remaining() >= bodyRestLen) {
                     LogFileQueue.updateCrc(crc32c, buf, buf.position(), bodyRestLen);
                     buf.position(buf.position() + bodyRestLen);
-                    if (crc == crc32c.getValue()) {
-                        itemStartPosOfFile += currentItemLen;
+                    if (header.crc == crc32c.getValue()) {
+                        itemStartPosOfFile += header.totalLen;
                         if (commitIndexChecked) {
-                            idxOps.put(this.previousIndex, lf.startPos + itemStartPosOfFile, totalLen);
+                            idxOps.put(this.previousIndex, lf.startPos + itemStartPosOfFile, header.totalLen);
                         } else {
                             commitIndexChecked = true;
                         }

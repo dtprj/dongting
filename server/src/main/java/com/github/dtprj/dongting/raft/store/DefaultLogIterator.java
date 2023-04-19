@@ -30,15 +30,16 @@ import java.util.zip.CRC32C;
 class DefaultLogIterator implements RaftLog.LogIterator {
 
     private final DefaultRaftLog defaultRaftLog;
+
     final ByteBuffer buffer;
     final Supplier<Boolean> stopIndicator;
     final CRC32C crc32c = new CRC32C();
+    final LogHeader header = new LogHeader();
 
     long nextIndex = 1;
 
     int bytes;
     LogItem item;
-    int crc;
     int payLoad;
 
     DefaultLogIterator(DefaultRaftLog defaultRaftLog, ByteBuffer buffer, Supplier<Boolean> stopIndicator) {
@@ -69,7 +70,6 @@ class DefaultLogIterator implements RaftLog.LogIterator {
 
     public void resetItem() {
         item = null;
-        crc = 0;
         crc32c.reset();
         payLoad = 0;
     }

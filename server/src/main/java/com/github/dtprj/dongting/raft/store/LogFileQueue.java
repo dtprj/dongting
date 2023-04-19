@@ -161,7 +161,7 @@ public class LogFileQueue extends FileQueue {
 
             long startPos = pos;
             int totalLen = dataBuffer.remaining() + ITEM_HEADER_SIZE;
-            writeHeader(buffer, dataBuffer, log, totalLen);
+            LogHeader.writeHeader(buffer, dataBuffer, log, totalLen, crc32c);
 
             while (dataBuffer.hasRemaining()) {
                 buffer.put(dataBuffer);
@@ -174,38 +174,6 @@ public class LogFileQueue extends FileQueue {
         pos = writeAndClearBuffer(buffer, file, pos);
         file.channel.force(false);
         this.writePos = pos;
-    }
-
-    private void writeHeader(ByteBuffer buffer, ByteBuffer dataBuffer, LogItem log, int totalLen) {
-        // crc32c 4 bytes
-        // total len 4 bytes
-        // head len 2 bytes
-        // context len 4 bytes
-        // type 1 byte
-        // term 4 bytes
-        // prevLogTerm 4 bytes
-        // index 8 bytes
-        int crcPos = buffer.position();
-        buffer.putInt(0);
-        buffer.putInt(totalLen);
-        buffer.putShort(ITEM_HEADER_SIZE);
-        // TODO support context
-        buffer.putInt(0);
-        buffer.put((byte) log.getType());
-        buffer.putInt(log.getTerm());
-        buffer.putInt(log.getPrevLogTerm());
-        buffer.putLong(log.getIndex());
-
-        CRC32C crc32c = this.crc32c;
-        crc32c.reset();
-
-        updateCrc(crc32c, buffer, crcPos + 4, totalLen - 4);
-
-        // backup position, the data buffer is a read-only buffer, so we don't need to change its limit
-        int pos = dataBuffer.position();
-        crc32c.update(dataBuffer);
-        dataBuffer.position(pos);
-        buffer.putInt(crcPos, (int) crc32c.getValue());
     }
 
     private long writeAndClearBuffer(ByteBuffer buffer, LogFile file, long filePos) throws IOException {
@@ -260,11 +228,11 @@ public class LogFileQueue extends FileQueue {
         }
     }
 
-    private void prepareNextRead(ByteBuffer buf) {
+    static void prepareNextRead(ByteBuffer buf) {
         if (buf.hasRemaining()) {
-            ByteBuffer temp = buffer.slice();
-            buffer.clear();
-            buffer.put(temp);
+            ByteBuffer temp = buf.slice();
+            buf.clear();
+            buf.put(temp);
         } else {
             buf.clear();
         }
@@ -318,33 +286,19 @@ public class LogFileQueue extends FileQueue {
         ByteBuffer buf = it.buffer;
 
         while (buf.remaining() > ITEM_HEADER_SIZE) {
+            LogHeader header = it.header;
             if (it.item == null) {
                 LogItem li = new LogItem();
                 it.item = li;
-
-                // crc32c 4 bytes
-                // total len 4 bytes
-                // head len 2 bytes
-                // context len 4 bytes
-                // type 1 byte
-                // term 4 bytes
-                // prevLogTerm 4 bytes
-                // index 8 bytes
                 int startPos = buf.position();
-                it.crc = buf.getInt();
-                int totalLen = buf.getInt();
-                short headLen = buf.getShort();
-                int contextLen = buf.getInt();
-                li.setType(buf.get());
-                li.setTerm(buf.getInt());
-                li.setPrevLogTerm(buf.getInt());
-                li.setIndex(buf.getLong());
+                header.read(buf);
 
-                it.payLoad = totalLen - headLen;
-                int bodyLen = totalLen - contextLen - headLen;
-                if (totalLen <= 0 || contextLen < 0 || headLen < 0 || it.payLoad < 0
+                it.payLoad = header.totalLen - header.headLen;
+                int bodyLen = header.totalLen - header.contextLen - header.headLen;
+                if (header.totalLen <= 0 || header.contextLen < 0 || header.headLen <= 0 || it.payLoad < 0
                         || it.payLoad < 0 || bodyLen < 0 || it.payLoad > LOG_FILE_SIZE) {
-                    throw new RaftException("invalid log item length: " + totalLen + "," + contextLen + "," + headLen);
+                    throw new RaftException("invalid log item length: " + header.totalLen
+                            + "," + header.contextLen + "," + header.headLen);
                 }
 
                 if (result.size() > 0 && it.bytes + it.payLoad > bytesLimit) {
@@ -353,10 +307,15 @@ public class LogFileQueue extends FileQueue {
                     return true;
                 }
 
+                li.setIndex(header.index);
+                li.setType(header.type);
+                li.setTerm(header.term);
+                li.setPrevLogTerm(header.prevLogTerm);
+
 
                 if (buf.remaining() >= it.payLoad) {
-                    updateCrc(it.crc32c, buf, startPos + 4, totalLen - 4);
-                    if (it.crc32c.getValue() != it.crc) {
+                    updateCrc(it.crc32c, buf, startPos + 4, header.totalLen - 4);
+                    if (it.crc32c.getValue() != header.crc) {
                         throw new RaftException("crc32c not match");
                     }
                     RefByteBuffer rbb = RefByteBuffer.create(heapPool, bodyLen, 800);
@@ -382,7 +341,7 @@ public class LogFileQueue extends FileQueue {
                 int restBytes = it.payLoad - read;
                 if (buf.remaining() >= restBytes) {
                     updateCrc(it.crc32c, buf, buf.position(), restBytes);
-                    if (it.crc32c.getValue() != it.crc) {
+                    if (it.crc32c.getValue() != header.crc) {
                         throw new RaftException("crc32c not match");
                     }
                     buf.get(destBuf.array(), read, it.payLoad - read);
