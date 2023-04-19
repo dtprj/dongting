@@ -81,7 +81,7 @@ public class ApplyManager {
                 waiting = true;
                 int limit = (int) Math.min(diff, 1024L);
                 if (logIterator == null) {
-                    logIterator = raftLog.openIterator();
+                    logIterator = raftLog.openIterator(() -> false);
                 }
                 logIterator.next(index, limit, 16 * 1024 * 1024)
                         .whenCompleteAsync(this::resumeAfterLoad, raftStatus.getRaftExecutor());
