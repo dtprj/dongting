@@ -29,16 +29,19 @@ public class LogItem {
 
     private int type;
     private int term;
-    private int prevLogTerm;
-    private RefByteBuffer buffer;
     private long index;
+    private int prevLogTerm;
+    private long timestamp;
+    private RefByteBuffer buffer;
 
-    public LogItem(int type, long index, int term, int prevLogTerm, RefByteBuffer buffer) {
+
+    public LogItem(int type, int term, long index, int prevLogTerm,long timestamp, RefByteBuffer buffer) {
         this.type = type;
         this.term = term;
-        this.prevLogTerm = prevLogTerm;
-        this.buffer = buffer;
         this.index = index;
+        this.prevLogTerm = prevLogTerm;
+        this.timestamp = timestamp;
+        this.buffer = buffer;
     }
 
     public LogItem() {
@@ -82,5 +85,13 @@ public class LogItem {
 
     public void setIndex(long index) {
         this.index = index;
+    }
+
+    public long getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(long timestamp) {
+        this.timestamp = timestamp;
     }
 }

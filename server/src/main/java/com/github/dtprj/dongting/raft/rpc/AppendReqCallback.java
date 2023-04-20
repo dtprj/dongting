@@ -143,7 +143,8 @@ public class AppendReqCallback extends PbCallback {
     //  uint32 term = 2;
     //  fixed64 index = 3;
     //  uint32 prev_log_term = 4;
-    //  bytes data = 5;
+    //  fixed64 timestamp = 5;
+    //  bytes data = 6;
     //}
     static class LogItemCallback extends PbCallback {
         private final LogItem item = new LogItem();
@@ -171,15 +172,20 @@ public class AppendReqCallback extends PbCallback {
 
         @Override
         public boolean readFix64(int index, long value) {
-            if (index == 3) {
-                item.setIndex(value);
+            switch (index) {
+                case 3:
+                    item.setIndex(value);
+                    break;
+                case 5:
+                    item.setTimestamp(value);
+                    break;
             }
             return true;
         }
 
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
-            if (index == 5) {
+            if (index == 6) {
                 RefByteBuffer dest;
                 if (begin) {
                     dest = RefByteBuffer.createPlain(heapPool, len, 1024);

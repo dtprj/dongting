@@ -81,7 +81,7 @@ class Restorer {
     private boolean restore(ByteBuffer buf, LogFile lf, long readPos) throws IOException {
         while (buf.hasRemaining()) {
             if (readHeader) {
-                if (buf.remaining() < LogFileQueue.ITEM_HEADER_SIZE) {
+                if (buf.remaining() < LogHeader.ITEM_HEADER_SIZE) {
                     return true;
                 }
                 int startPos = buf.position();
@@ -127,8 +127,8 @@ class Restorer {
                 }
 
                 crc32c.reset();
-                LogFileQueue.updateCrc(crc32c, buf, startPos + 4, LogFileQueue.ITEM_HEADER_SIZE - 4);
-                buf.position(startPos + LogFileQueue.ITEM_HEADER_SIZE);
+                LogFileQueue.updateCrc(crc32c, buf, startPos + 4, LogHeader.ITEM_HEADER_SIZE - 4);
+                buf.position(startPos + LogHeader.ITEM_HEADER_SIZE);
                 readHeader = false;
                 bodyRestLen = header.totalLen - header.headLen - header.contextLen;
             } else {

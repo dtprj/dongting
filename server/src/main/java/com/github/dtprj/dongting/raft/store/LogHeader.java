@@ -32,6 +32,8 @@ class LogHeader {
     // term 4 bytes
     // prevLogTerm 4 bytes
     // index 8 bytes
+    // timestamp 8 bytes
+    static final int ITEM_HEADER_SIZE = 4 + 4 + 2 + 4 + 1 + 4 + 4 + 8 + 8;
 
     int crc;
     int totalLen;
@@ -41,6 +43,7 @@ class LogHeader {
     int term;
     int prevLogTerm;
     long index;
+    long timestamp;
 
     public void read(ByteBuffer buf) {
         crc = buf.getInt();
@@ -51,19 +54,21 @@ class LogHeader {
         term = buf.getInt();
         prevLogTerm = buf.getInt();
         index = buf.getLong();
+        timestamp = buf.getLong();
     }
 
     public static void writeHeader(ByteBuffer buffer, ByteBuffer dataBuffer, LogItem log, int totalLen, CRC32C crc32c) {
         int crcPos = buffer.position();
         buffer.putInt(0);
         buffer.putInt(totalLen);
-        buffer.putShort((short) LogFileQueue.ITEM_HEADER_SIZE);
+        buffer.putShort((short) ITEM_HEADER_SIZE);
         // TODO support context
         buffer.putInt(0);
         buffer.put((byte) log.getType());
         buffer.putInt(log.getTerm());
         buffer.putInt(log.getPrevLogTerm());
         buffer.putLong(log.getIndex());
+        buffer.putLong(log.getTimestamp());
 
         crc32c.reset();
 

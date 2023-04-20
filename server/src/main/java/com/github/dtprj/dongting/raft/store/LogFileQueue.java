@@ -54,16 +54,6 @@ public class LogFileQueue extends FileQueue {
 
     private final IdxOps idxOps;
 
-    // crc32c 4 bytes
-    // total len 4 bytes
-    // head len 2 bytes
-    // context len 4 bytes
-    // type 1 byte
-    // term 4 bytes
-    // prevLogTerm 4 bytes
-    // index 8 bytes
-    static final int ITEM_HEADER_SIZE = 4 + 4 + 2 + 4 + 1 + 4 + 4 + 8;
-
     private final ByteBuffer buffer = ByteBuffer.allocateDirect(128 * 1024);
     private final CRC32C crc32c = new CRC32C();
     private long writePos;
@@ -146,7 +136,7 @@ public class LogFileQueue extends FileQueue {
             ByteBuffer dataBuffer = log.getBuffer().getBuffer();
             long posOfFile = (pos + buffer.position()) & FILE_LEN_MASK;
             // if posOfFile == 0, it means last item exactly fill the file
-            if (posOfFile == 0 || LOG_FILE_SIZE - posOfFile < ITEM_HEADER_SIZE + dataBuffer.remaining()) {
+            if (posOfFile == 0 || LOG_FILE_SIZE - posOfFile < LogHeader.ITEM_HEADER_SIZE + dataBuffer.remaining()) {
                 pos = writeAndClearBuffer(buffer, file, pos);
                 if (posOfFile != 0) {
                     // roll to next file
@@ -155,12 +145,12 @@ public class LogFileQueue extends FileQueue {
                 ensureWritePosReady(pos);
                 file = getLogFile(pos);
             }
-            if (buffer.remaining() < ITEM_HEADER_SIZE) {
+            if (buffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
                 pos = writeAndClearBuffer(buffer, file, pos);
             }
 
             long startPos = pos;
-            int totalLen = dataBuffer.remaining() + ITEM_HEADER_SIZE;
+            int totalLen = dataBuffer.remaining() + LogHeader.ITEM_HEADER_SIZE;
             LogHeader.writeHeader(buffer, dataBuffer, log, totalLen, crc32c);
 
             while (dataBuffer.hasRemaining()) {
@@ -287,7 +277,7 @@ public class LogFileQueue extends FileQueue {
     private boolean extractItems(DefaultLogIterator it, List<LogItem> result, int limit, int bytesLimit) {
         ByteBuffer buf = it.rbb.getBuffer();
 
-        while (buf.remaining() > ITEM_HEADER_SIZE) {
+        while (buf.remaining() > LogHeader.ITEM_HEADER_SIZE) {
             LogHeader header = it.header;
             if (it.item == null) {
                 LogItem li = new LogItem();
@@ -313,7 +303,7 @@ public class LogFileQueue extends FileQueue {
                 li.setType(header.type);
                 li.setTerm(header.term);
                 li.setPrevLogTerm(header.prevLogTerm);
-
+                li.setTimestamp(header.timestamp);
 
                 if (buf.remaining() >= it.payLoad) {
                     updateCrc(it.crc32c, buf, startPos + 4, header.totalLen - 4);
