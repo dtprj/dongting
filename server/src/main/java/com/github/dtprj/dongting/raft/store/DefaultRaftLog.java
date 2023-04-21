@@ -56,6 +56,9 @@ public class DefaultRaftLog implements RaftLog {
     private long deleteMarkIndex;
     private StatusFile checkpointFile;
 
+    private long lastDeleteNanos;
+    private static final long DELETE_INTERVAL_NANOS = 10 * 1000 * 1000 * 1000L;
+
     public DefaultRaftLog(RaftGroupConfig groupConfig, Timestamp ts, ByteBufferPool heapPool, ByteBufferPool directPool,
                           Executor ioExecutor, RaftExecutor raftExecutor, Supplier<Boolean> stopIndicator) {
         this.groupConfig = groupConfig;
@@ -65,6 +68,8 @@ public class DefaultRaftLog implements RaftLog {
         this.ioExecutor = ioExecutor;
         this.raftExecutor = raftExecutor;
         this.stopIndicator = stopIndicator;
+
+        this.lastDeleteNanos = ts.getNanoTime();
     }
 
     @Override
@@ -121,6 +126,9 @@ public class DefaultRaftLog implements RaftLog {
         } else {
             throw new RaftException("bad index: " + firstIndex);
         }
+        if (ts.getNanoTime() - lastDeleteNanos > DELETE_INTERVAL_NANOS) {
+            delete();
+        }
     }
 
     @Override
@@ -163,6 +171,10 @@ public class DefaultRaftLog implements RaftLog {
         this.deleteMarkIndex = index;
         long deleteTimestamp = ts.getWallClockMillis() + delayMillis;
         logFiles.markDelete(index, deleteTimestamp);
+    }
+
+    private void delete() {
+        logFiles.submitDeleteTask(ts.getWallClockMillis());
     }
 
 }

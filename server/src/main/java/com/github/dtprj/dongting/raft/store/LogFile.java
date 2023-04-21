@@ -27,7 +27,7 @@ class LogFile {
     final long startPos;
     final long endPos;
 
-    int use = 1;
+    int use = 0;
 
     long firstTimestamp;
     long firstIndex;
