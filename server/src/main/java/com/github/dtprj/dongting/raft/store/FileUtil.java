@@ -78,11 +78,10 @@ public class FileUtil {
         }
     }
 
-    public static long syncWriteFull(AsynchronousFileChannel c, ByteBuffer buf, long pos) throws IOException {
+    public static void syncWriteFull(AsynchronousFileChannel c, ByteBuffer buf, long pos) throws IOException {
         while (buf.hasRemaining()) {
             Future<Integer> f = c.write(buf, pos);
-            pos += getResult(f);
+            getResult(f);
         }
-        return pos;
     }
 }

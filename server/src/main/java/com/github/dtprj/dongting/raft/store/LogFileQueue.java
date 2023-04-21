@@ -54,7 +54,7 @@ public class LogFileQueue extends FileQueue {
 
     private final IdxOps idxOps;
 
-    private final ByteBuffer buffer = ByteBuffer.allocateDirect(128 * 1024);
+    private final ByteBuffer writeBuffer = ByteBuffer.allocateDirect(128 * 1024);
     private final CRC32C crc32c = new CRC32C();
     private long writePos;
 
@@ -100,7 +100,7 @@ public class LogFileQueue extends FileQueue {
         for (int i = 0; i < queue.size(); i++) {
             LogFile lf = queue.get(i);
             if (commitIndexPos < lf.endPos) {
-                long pos = restorer.restoreFile(this.buffer, lf);
+                long pos = restorer.restoreFile(this.writeBuffer, lf);
                 writePos = lf.startPos + pos;
             } else {
                 writePos = lf.endPos;
@@ -128,52 +128,64 @@ public class LogFileQueue extends FileQueue {
 
     public void append(List<LogItem> logs) throws IOException {
         ensureWritePosReady();
-        ByteBuffer buffer = this.buffer;
-        buffer.clear();
+        ByteBuffer writeBuffer = this.writeBuffer;
+        writeBuffer.clear();
         long pos = writePos;
         LogFile file = getLogFile(pos);
-        for (LogItem log : logs) {
+        for (int i = 0; i < logs.size(); i++) {
+            LogItem log = logs.get(i);
             ByteBuffer dataBuffer = log.getBuffer().getBuffer();
-            long posOfFile = (pos + buffer.position()) & FILE_LEN_MASK;
-            // if posOfFile == 0, it means last item exactly fill the file
-            if (posOfFile == 0 || LOG_FILE_SIZE - posOfFile < LogHeader.ITEM_HEADER_SIZE + dataBuffer.remaining()) {
-                pos = writeAndClearBuffer(buffer, file, pos);
-                if (posOfFile != 0) {
-                    // roll to next file
-                    pos = ((pos >>> FILE_LEN_SHIFT_BITS) + 1) << FILE_LEN_SHIFT_BITS;
+            long posOfFile = (pos + writeBuffer.position()) & FILE_LEN_MASK;
+            if (posOfFile == 0) {
+                if (i != 0) {
+                    // last item exactly fill the file
+                    pos = writeAndClearBuffer(writeBuffer, file, pos);
+                    ensureWritePosReady(pos);
+                    file = getLogFile(pos);
                 }
+                file.firstTimestamp = log.getTimestamp();
+                file.firstIndex = log.getIndex();
+                file.firstTerm = log.getTerm();
+            } else if (LOG_FILE_SIZE - posOfFile < LogHeader.ITEM_HEADER_SIZE + dataBuffer.remaining()) {
+                pos = writeAndClearBuffer(writeBuffer, file, pos);
+                // roll to next file
+                pos = ((pos >>> FILE_LEN_SHIFT_BITS) + 1) << FILE_LEN_SHIFT_BITS;
                 ensureWritePosReady(pos);
                 file = getLogFile(pos);
             }
-            if (buffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
-                pos = writeAndClearBuffer(buffer, file, pos);
+
+            if (writeBuffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
+                pos = writeAndClearBuffer(writeBuffer, file, pos);
             }
 
             long startPos = pos;
             int totalLen = dataBuffer.remaining() + LogHeader.ITEM_HEADER_SIZE;
-            LogHeader.writeHeader(buffer, dataBuffer, log, totalLen, crc32c);
+            LogHeader.writeHeader(writeBuffer, dataBuffer, log, totalLen, crc32c);
+            pos += LogHeader.ITEM_HEADER_SIZE;
 
             while (dataBuffer.hasRemaining()) {
-                buffer.put(dataBuffer);
-                if (!buffer.hasRemaining()) {
-                    pos = writeAndClearBuffer(buffer, file, pos);
+                writeBuffer.put(dataBuffer);
+                if (!writeBuffer.hasRemaining()) {
+                    pos = writeAndClearBuffer(writeBuffer, file, pos);
                 }
             }
             idxOps.put(log.getIndex(), startPos, totalLen);
         }
-        pos = writeAndClearBuffer(buffer, file, pos);
+        pos = writeAndClearBuffer(writeBuffer, file, pos);
         file.channel.force(false);
         this.writePos = pos;
     }
 
-    private long writeAndClearBuffer(ByteBuffer buffer, LogFile file, long filePos) throws IOException {
+    private long writeAndClearBuffer(ByteBuffer buffer, LogFile file, long pos) throws IOException {
         if (buffer.position() == 0) {
-            return filePos;
+            return pos;
         }
+        long posOfFile = pos & FILE_LEN_MASK;
         buffer.flip();
-        filePos = FileUtil.syncWriteFull(file.channel, buffer, filePos);
+        int count = buffer.remaining();
+        FileUtil.syncWriteFull(file.channel, buffer, posOfFile);
         buffer.clear();
-        return filePos;
+        return pos + count;
     }
 
     public void truncateTail(long dataPosition) {
@@ -246,14 +258,16 @@ public class LogFileQueue extends FileQueue {
         long newReadPos = pos + buf.remaining();
         AsyncReadTask t = new AsyncReadTask(buf, fileStartPos, logFile.channel, it.stopIndicator);
         it.rbb.retain();
-        t.exec().whenCompleteAsync((v, ex) -> resumeAfterLoad(newReadPos, it, limit, bytesLimit,
+        logFile.use++;
+        t.exec().whenCompleteAsync((v, ex) -> resumeAfterLoad(logFile, newReadPos, it, limit, bytesLimit,
                 result, future, ex), raftExecutor);
     }
 
-    private void resumeAfterLoad(long newReadPos, DefaultLogIterator it, int limit, int bytesLimit,
+    private void resumeAfterLoad(LogFile logFile, long newReadPos, DefaultLogIterator it, int limit, int bytesLimit,
                                  List<LogItem> result, CompletableFuture<List<LogItem>> future, Throwable ex) {
         try {
             it.rbb.release();
+            logFile.use--;
             if (it.stopIndicator.get()) {
                 future.cancel(false);
             } else if (ex != null) {
@@ -354,5 +368,18 @@ public class LogFileQueue extends FileQueue {
         return false;
     }
 
+    public void markDelete(long index, long deleteTimestamp) {
+        int queueSize = queue.size();
+        for (int i = 0; i < queueSize - 1; i++) {
+            LogFile logFile = queue.get(i);
+            LogFile nextFile = queue.get(i + 1);
 
+            if (nextFile.firstIndex > index) {
+                break;
+            }
+            if (logFile.deleteTimestamp != 0) {
+                logFile.deleteTimestamp = Math.min(deleteTimestamp, logFile.deleteTimestamp);
+            }
+        }
+    }
 }

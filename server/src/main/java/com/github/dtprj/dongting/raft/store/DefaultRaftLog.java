@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefByteBuffer;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
+import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -40,8 +41,10 @@ import java.util.function.Supplier;
 public class DefaultRaftLog implements RaftLog {
     private static final DtLog log = DtLogs.getLogger(DefaultRaftLog.class);
     private static final String KNOWN_MAX_COMMIT_INDEX_KEY = "knownMaxCommitIndex";
+    private static final String DELETE_MARK_INDEX_KEY = "deleteMarkIndex";
 
     private final RaftGroupConfig groupConfig;
+    private final Timestamp ts;
     private final ByteBufferPool heapPool;
     private final ByteBufferPool directPool;
     private final Executor ioExecutor;
@@ -50,11 +53,13 @@ public class DefaultRaftLog implements RaftLog {
     private LogFileQueue logFiles;
     private IdxFileQueue idxFiles;
     private long knownMaxCommitIndex;
+    private long deleteMarkIndex;
     private StatusFile checkpointFile;
 
-    public DefaultRaftLog(RaftGroupConfig groupConfig, ByteBufferPool heapPool, ByteBufferPool directPool,
+    public DefaultRaftLog(RaftGroupConfig groupConfig, Timestamp ts, ByteBufferPool heapPool, ByteBufferPool directPool,
                           Executor ioExecutor, RaftExecutor raftExecutor, Supplier<Boolean> stopIndicator) {
         this.groupConfig = groupConfig;
+        this.ts = ts;
         this.heapPool = heapPool;
         this.directPool = directPool;
         this.ioExecutor = ioExecutor;
@@ -68,6 +73,7 @@ public class DefaultRaftLog implements RaftLog {
         checkpointFile = new StatusFile(new File(dataDir, "checkpoint"));
         checkpointFile.init();
         knownMaxCommitIndex = Long.parseLong(checkpointFile.getProperties().getProperty(KNOWN_MAX_COMMIT_INDEX_KEY, "0"));
+        deleteMarkIndex = Long.parseLong(checkpointFile.getProperties().getProperty(DELETE_MARK_INDEX_KEY, "0"));
         idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), ioExecutor, raftExecutor, stopIndicator, heapPool, directPool);
         logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), ioExecutor, raftExecutor, stopIndicator, idxFiles, heapPool, directPool);
         logFiles.init();
@@ -149,8 +155,14 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public void truncate(long index) {
-
+    public void markTruncate(long index, long delayMillis) {
+        index = Math.min(index, knownMaxCommitIndex - 1);
+        if (index <= 0) {
+            return;
+        }
+        this.deleteMarkIndex = index;
+        long deleteTimestamp = ts.getWallClockMillis() + delayMillis;
+        logFiles.markDelete(index, deleteTimestamp);
     }
 
 }

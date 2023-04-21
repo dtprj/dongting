@@ -27,6 +27,14 @@ class LogFile {
     final long startPos;
     final long endPos;
 
+    int use = 1;
+
+    long firstTimestamp;
+    long firstIndex;
+    int firstTerm;
+
+    long deleteTimestamp;
+
     public LogFile(long startPos, long endPos, AsynchronousFileChannel channel, File file) {
         this.startPos = startPos;
         this.endPos = endPos;

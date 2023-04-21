@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.Pair;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
@@ -43,9 +42,10 @@ public interface RaftLog extends AutoCloseable {
     CompletableFuture<Long> nextIndexToReplicate(int remoteMaxTerm, long remoteMaxIndex);
 
     /**
-     * delete logs before the index(included), this method may invoke by other thread.
+     * try to delete logs before the index(included).
      */
-    void truncate(long index) throws IOException;
+    @SuppressWarnings("unused")
+    void markTruncate(long index, long delayMillis);
 
     interface LogIterator extends AutoCloseable {
 
