@@ -369,32 +369,33 @@ public class LogFileQueue extends FileQueue {
         return false;
     }
 
-    public void markDeleteByIndex(long index, long deleteTimestamp) {
-        markDelete(deleteTimestamp, nextFile -> index >= nextFile.firstIndex);
+    public long markDeleteByIndex(long index, long deleteTimestamp) {
+        return markDelete(deleteTimestamp, nextFile -> index >= nextFile.firstIndex);
     }
 
-    public void markDeleteByTimestamp(long maxKnownCommitIndex, long timestampMillis, long deleteTimestamp) {
-        markDelete(deleteTimestamp, nextFile -> timestampMillis >= nextFile.firstTimestamp
+    public long markDeleteByTimestamp(long maxKnownCommitIndex, long timestampMillis, long deleteTimestamp) {
+        return markDelete(deleteTimestamp, nextFile -> timestampMillis >= nextFile.firstTimestamp
             && maxKnownCommitIndex >= nextFile.firstIndex);
     }
 
-    private void markDelete(long deleteTimestamp, Predicate<LogFile> predicate) {
+    private long markDelete(long deleteTimestamp, Predicate<LogFile> predicate) {
         int queueSize = queue.size();
         for (int i = 0; i < queueSize - 1; i++) {
             LogFile logFile = queue.get(i);
             LogFile nextFile = queue.get(i + 1);
 
             if (nextFile.firstTimestamp == 0) {
-                break;
+               return logFile.firstIndex;
             }
             if (predicate.test(nextFile)) {
                 if (logFile.deleteTimestamp != 0) {
                     logFile.deleteTimestamp = Math.min(deleteTimestamp, logFile.deleteTimestamp);
                 }
             } else {
-                break;
+                return logFile.firstIndex;
             }
         }
+        return 0;
     }
 
     public void submitDeleteTask(long startTimestamp) {
