@@ -27,7 +27,6 @@ import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.CompletionHandler;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -58,7 +57,9 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
 
     private final ByteBuffer writeBuffer = ByteBuffer.allocateDirect(FLUSH_ITEMS * ITEM_LEN);
 
-    private WriteTask writeTask;
+    private CompletableFuture<Void> writeFuture;
+    private AsyncIoTask writeTask;
+    private long nextPersistIndexAfterWrite;
 
     public IdxFileQueue(File dir, Executor ioExecutor, RaftExecutor raftExecutor, Supplier<Boolean> stopIndicator,
                         ByteBufferPool heapPool, ByteBufferPool directPool) {
@@ -136,9 +137,9 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         if (nextPersistIndex > index) {
             nextPersistIndex = index;
         }
-        if (writeTask != null && writeTask.nextPersistIndexAfterWrite > index) {
-            writeTask.future.cancel(false);
-            writeTask.nextPersistIndexAfterWrite = 0;
+        if (writeTask != null && nextPersistIndexAfterWrite > index) {
+            writeFuture.cancel(false);
+            cleanWriteState();
         }
         return value;
     }
@@ -196,65 +197,21 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         }
         writeBuffer.flip();
 
-        writeTask = new WriteTask();
-        WriteTask writeTask = this.writeTask;
-        writeTask.logFile = getLogFile(startPos);
-        writeTask.writeStartPosOfFile = startPos & FILE_LEN_MASK;
-        writeTask.currentWritePosOfFile = writeTask.writeStartPosOfFile;
-        writeTask.nextPersistIndexAfterWrite = index;
-        writeTask.future = new CompletableFuture<>();
-        writeTask.writeBuffer = writeBuffer;
-        writeBuffer.mark();
-        writeTask.doWrite();
+
+        nextPersistIndexAfterWrite = index;
+        writeTask = new AsyncIoTask(false, writeBuffer, startPos & FILE_LEN_MASK,
+                getLogFile(startPos), stopIndicator);
+        writeFuture = writeTask.exec();
     }
 
-    private static class WriteTask implements CompletionHandler<Integer, Void> {
-        LogFile logFile;
-        long writeStartPosOfFile;
-        long currentWritePosOfFile;
-        CompletableFuture<Void> future;
-        long nextPersistIndexAfterWrite;
-        ByteBuffer writeBuffer;
-
-        private void doWrite() {
-            logFile.channel.write(writeBuffer, currentWritePosOfFile, null, this);
-        }
-
-        private void retryWrite() {
-            writeBuffer.reset();
-            currentWritePosOfFile = writeStartPosOfFile;
-            future = new CompletableFuture<>();
-            doWrite();
-        }
-
-        @Override
-        public void completed(Integer result, Void attachment) {
-            if (future.isCancelled()) {
-                return;
-            }
-            if (writeBuffer.hasRemaining()) {
-                currentWritePosOfFile += result;
-                doWrite();
-            } else {
-                try {
-                    logFile.channel.force(false);
-                    future.complete(null);
-                } catch (Throwable e) {
-                    future.completeExceptionally(e);
-                }
-            }
-        }
-
-        @Override
-        public void failed(Throwable exc, Void attachment) {
-            if (!future.isCancelled()) {
-                future.completeExceptionally(exc);
-            }
-        }
+    private void cleanWriteState() {
+        writeFuture = null;
+        writeTask = null;
+        nextPersistIndexAfterWrite = 0;
     }
 
     private boolean ensureLastWriteFinish() {
-        WriteTask writeTask = this.writeTask;
+        AsyncIoTask writeTask = this.writeTask;
         if (writeTask == null) {
             return true;
         }
@@ -262,33 +219,37 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         while (true) {
             try {
                 if (stopIndicator.get()) {
+                    cleanWriteState();
                     return false;
                 }
                 try {
-                    writeTask.future.get();
-                    if (writeTask.nextPersistIndexAfterWrite > 0) {
-                        nextPersistIndex = writeTask.nextPersistIndexAfterWrite;
+                    writeFuture.get();
+                    if (nextPersistIndexAfterWrite > nextPersistIndex && nextPersistIndexAfterWrite <= nextIndex) {
+                        nextPersistIndex = nextPersistIndexAfterWrite;
                     }
+                    cleanWriteState();
                     return true;
                 } catch (CancellationException e) {
                     log.info("previous write canceled");
+                    cleanWriteState();
                     return !stopIndicator.get();
                 } catch (ExecutionException e) {
                     log.error("write idx file failed: {}", writeTask.logFile.file.getPath(), e);
                     if (e.getCause() instanceof IOException) {
                         if (stopIndicator.get()) {
+                            cleanWriteState();
                             return false;
                         } else {
                             //noinspection BusyWait
                             Thread.sleep(1000);
-                            writeTask.retryWrite();
+                            writeFuture = writeTask.retry();
                         }
                     }
+                    cleanWriteState();
                     throw new RaftException(e);
-                } finally {
-                    this.writeTask = null;
                 }
             } catch (InterruptedException e) {
+                cleanWriteState();
                 log.info("write index interrupted: {}", writeTask.logFile.file.getPath());
                 return false;
             }

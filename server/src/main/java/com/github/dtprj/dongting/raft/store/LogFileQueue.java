@@ -256,7 +256,7 @@ public class LogFileQueue extends FileQueue {
             buf.limit(buf.position() + rest);
         }
         long newReadPos = pos + buf.remaining();
-        AsyncReadTask t = new AsyncReadTask(buf, fileStartPos, logFile.channel, it.stopIndicator);
+        AsyncIoTask t = new AsyncIoTask(true, buf, fileStartPos, logFile, it.stopIndicator);
         it.rbb.retain();
         logFile.use++;
         t.exec().whenCompleteAsync((v, ex) -> resumeAfterLoad(logFile, newReadPos, it, limit, bytesLimit,
@@ -389,10 +389,7 @@ public class LogFileQueue extends FileQueue {
     public void submitDeleteTask(long startTimestamp) {
         submitDeleteTask(logFile -> {
             long deleteTimestamp = logFile.deleteTimestamp;
-            if (deleteTimestamp > 0 && deleteTimestamp < startTimestamp && logFile.use <= 0) {
-                return true;
-            }
-            return false;
+            return deleteTimestamp > 0 && deleteTimestamp < startTimestamp && logFile.use <= 0;
         });
     }
 
