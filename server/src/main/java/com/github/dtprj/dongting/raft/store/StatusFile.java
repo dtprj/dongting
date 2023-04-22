@@ -50,6 +50,8 @@ public class StatusFile implements AutoCloseable {
 
     private final Properties properties = new Properties();
 
+    private volatile boolean updating;
+
     public StatusFile(File file) {
         this.file = file;
     }
@@ -105,6 +107,7 @@ public class StatusFile implements AutoCloseable {
 
     public boolean update() {
         try {
+            updating = true;
             ByteArrayOutputStream bos = new ByteArrayOutputStream(128);
             properties.store(bos, null);
             byte[] propertiesBytes = bos.toByteArray();
@@ -133,11 +136,17 @@ public class StatusFile implements AutoCloseable {
         } catch (Exception e) {
             log.error("update status file failed. file={}", file.getPath(), e);
             return false;
+        } finally {
+            updating = false;
         }
     }
 
     @Override
     public void close() {
         DtUtil.close(lock, channel);
+    }
+
+    public boolean isUpdating() {
+        return updating;
     }
 }

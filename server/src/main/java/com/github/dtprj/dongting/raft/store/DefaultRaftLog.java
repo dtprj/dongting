@@ -31,8 +31,10 @@ import com.github.dtprj.dongting.raft.server.RaftLog;
 
 import java.io.File;
 import java.util.List;
+import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
@@ -56,8 +58,8 @@ public class DefaultRaftLog implements RaftLog {
     private long deleteMarkIndex;
     private StatusFile checkpointFile;
 
-    private long lastDeleteNanos;
-    private static final long DELETE_INTERVAL_NANOS = 10 * 1000 * 1000 * 1000L;
+    private long lastTaskNanos;
+    private static final long TASK_INTERVAL_NANOS = 10 * 1000 * 1000 * 1000L;
 
     public DefaultRaftLog(RaftGroupConfig groupConfig, Timestamp ts, ByteBufferPool heapPool, ByteBufferPool directPool,
                           Executor ioExecutor, RaftExecutor raftExecutor, Supplier<Boolean> stopIndicator) {
@@ -69,7 +71,7 @@ public class DefaultRaftLog implements RaftLog {
         this.raftExecutor = raftExecutor;
         this.stopIndicator = stopIndicator;
 
-        this.lastDeleteNanos = ts.getNanoTime();
+        this.lastTaskNanos = ts.getNanoTime();
     }
 
     @Override
@@ -104,6 +106,11 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public void close() {
+        try {
+            updateCheckpoint().get(100, TimeUnit.MILLISECONDS);
+        } catch (Exception e) {
+            // ignore
+        }
         logFiles.close();
         idxFiles.close();
     }
@@ -126,8 +133,9 @@ public class DefaultRaftLog implements RaftLog {
         } else {
             throw new RaftException("bad index: " + firstIndex);
         }
-        if (ts.getNanoTime() - lastDeleteNanos > DELETE_INTERVAL_NANOS) {
+        if (ts.getNanoTime() - lastTaskNanos > TASK_INTERVAL_NANOS) {
             delete();
+            updateCheckpoint();
         }
     }
 
@@ -183,6 +191,16 @@ public class DefaultRaftLog implements RaftLog {
     private void delete() {
         logFiles.submitDeleteTask(ts.getWallClockMillis());
         idxFiles.submitDeleteTask(logFiles.getFirstIndex());
+    }
+
+    private CompletableFuture<Void> updateCheckpoint() {
+        if (checkpointFile.isUpdating()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        Properties p = checkpointFile.getProperties();
+        p.setProperty(KNOWN_MAX_COMMIT_INDEX_KEY, String.valueOf(knownMaxCommitIndex));
+        p.setProperty(DELETE_MARK_INDEX_KEY, String.valueOf(deleteMarkIndex));
+        return CompletableFuture.runAsync(() -> checkpointFile.update(), ioExecutor);
     }
 
 }
