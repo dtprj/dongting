@@ -58,8 +58,6 @@ public class LogFileQueue extends FileQueue {
     private final CRC32C crc32c = new CRC32C();
     private long writePos;
 
-    private boolean deleting;
-
     public LogFileQueue(File dir, Executor ioExecutor, RaftExecutor raftExecutor, Supplier<Boolean> stopIndicator,
                         IdxOps idxOps, ByteBufferPool heapPool, ByteBufferPool directPool) {
         super(dir, ioExecutor, raftExecutor, stopIndicator, heapPool, directPool);
@@ -376,7 +374,10 @@ public class LogFileQueue extends FileQueue {
             LogFile logFile = queue.get(i);
             LogFile nextFile = queue.get(i + 1);
 
-            if (nextFile.firstIndex > index) {
+            if (nextFile.firstTimestamp == 0) {
+                break;
+            }
+            if (index < nextFile.firstIndex) {
                 break;
             }
             if (logFile.deleteTimestamp != 0) {
@@ -386,42 +387,19 @@ public class LogFileQueue extends FileQueue {
     }
 
     public void submitDeleteTask(long startTimestamp) {
-        if (deleting) {
-            return;
-        }
-        if (queue.size() <= 1) {
-            return;
-        }
-        LogFile logFile = queue.get(0);
-        long deleteTimestamp = logFile.deleteTimestamp;
-        if (deleteTimestamp <= 0 || deleteTimestamp > startTimestamp || logFile.use > 0) {
-            return;
-        }
-        deleting = true;
-        ioExecutor.execute(() -> {
-            try {
-                log.debug("close log file: {}", logFile.file.getPath());
-                DtUtil.close(logFile.channel);
-                log.info("delete log file: {}", logFile.file.getPath());
-                boolean b = logFile.file.delete();
-                if (!b) {
-                    log.warn("delete log file failed: {}", logFile.file.getPath());
-                }
-                raftExecutor.execute(() -> processDeleteResult(b, startTimestamp));
-            } catch (Throwable e) {
-                BugLog.log(e);
-                raftExecutor.execute(() -> processDeleteResult(false, startTimestamp));
+        submitDeleteTask(logFile -> {
+            long deleteTimestamp = logFile.deleteTimestamp;
+            if (deleteTimestamp > 0 && deleteTimestamp < startTimestamp && logFile.use <= 0) {
+                return true;
             }
+            return false;
         });
     }
 
-    private void processDeleteResult(boolean success, long startTimestamp) {
-        // access variable deleting in raft thread
-        deleting = false;
-        if (success) {
-            queue.removeFirst();
-            queueStartPosition = queue.get(0).startPos;
-            submitDeleteTask(startTimestamp);
+    public long getFirstIndex() {
+        if (queue.size() > 0) {
+            return queue.get(0).firstIndex;
         }
+        return 0;
     }
 }

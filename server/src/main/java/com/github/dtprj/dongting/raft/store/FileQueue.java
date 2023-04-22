@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
@@ -30,6 +31,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -52,6 +54,8 @@ abstract class FileQueue {
     protected long queueEndPosition;
 
     protected CompletableFuture<LogFile> allocateFuture;
+
+    private boolean deleting;
 
     public FileQueue(File dir, Executor ioExecutor, RaftExecutor raftExecutor, Supplier<Boolean> stopIndicator,
                      ByteBufferPool heapPool, ByteBufferPool directPool) {
@@ -209,4 +213,50 @@ abstract class FileQueue {
             }
         }
     }
+
+    protected void submitDeleteTask(Predicate<LogFile> shouldDelete) {
+        if (deleting) {
+            return;
+        }
+        if (stopIndicator.get()) {
+            return;
+        }
+        if (queue.size() <= 1) {
+            return;
+        }
+        LogFile logFile = queue.get(0);
+        if (!shouldDelete.test(logFile)) {
+            return;
+        }
+        deleting = true;
+        ioExecutor.execute(() -> {
+            try {
+                if (stopIndicator.get()) {
+                    return;
+                }
+                log.debug("close log file: {}", logFile.file.getPath());
+                DtUtil.close(logFile.channel);
+                log.info("delete log file: {}", logFile.file.getPath());
+                boolean b = logFile.file.delete();
+                if (!b) {
+                    log.warn("delete log file failed: {}", logFile.file.getPath());
+                }
+                raftExecutor.execute(() -> processDeleteResult(b, shouldDelete));
+            } catch (Throwable e) {
+                BugLog.log(e);
+                raftExecutor.execute(() -> processDeleteResult(false, shouldDelete));
+            }
+        });
+    }
+
+    private void processDeleteResult(boolean success, Predicate<LogFile> shouldDelete) {
+        // access variable deleting in raft thread
+        deleting = false;
+        if (success) {
+            queue.removeFirst();
+            queueStartPosition = queue.get(0).startPos;
+            submitDeleteTask(shouldDelete);
+        }
+    }
+
 }

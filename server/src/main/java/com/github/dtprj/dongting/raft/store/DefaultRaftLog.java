@@ -175,6 +175,7 @@ public class DefaultRaftLog implements RaftLog {
 
     private void delete() {
         logFiles.submitDeleteTask(ts.getWallClockMillis());
+        idxFiles.submitDeleteTask(logFiles.getFirstIndex());
     }
 
 }

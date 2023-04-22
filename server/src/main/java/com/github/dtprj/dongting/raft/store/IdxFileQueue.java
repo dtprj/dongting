@@ -279,6 +279,7 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
                         if (stopIndicator.get()) {
                             return false;
                         } else {
+                            //noinspection BusyWait
                             Thread.sleep(1000);
                             writeTask.retryWrite();
                         }
@@ -292,6 +293,10 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
                 return false;
             }
         }
+    }
+
+    public void submitDeleteTask(long firstIndex) {
+        submitDeleteTask(logFile -> posToIndex(logFile.endPos) < firstIndex);
     }
 
     public long getNextIndex() {
