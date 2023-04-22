@@ -201,6 +201,7 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         nextPersistIndexAfterWrite = index;
         writeTask = new AsyncIoTask(false, writeBuffer, startPos & FILE_LEN_MASK,
                 getLogFile(startPos), stopIndicator);
+        writeTask.logFile.use++;
         writeFuture = writeTask.exec();
     }
 
@@ -242,6 +243,7 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
                         } else {
                             //noinspection BusyWait
                             Thread.sleep(1000);
+                            writeTask.logFile.use++;
                             writeFuture = writeTask.retry();
                         }
                     }
@@ -252,6 +254,8 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
                 cleanWriteState();
                 log.info("write index interrupted: {}", writeTask.logFile.file.getPath());
                 return false;
+            } finally {
+                writeTask.logFile.use--;
             }
         }
     }

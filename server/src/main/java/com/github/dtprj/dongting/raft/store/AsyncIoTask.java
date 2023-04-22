@@ -55,10 +55,14 @@ class AsyncIoTask implements CompletionHandler<Integer, CompletableFuture<Void>>
     }
 
     private void exec(CompletableFuture<Void> f, long pos) {
-        if (read) {
-            logFile.channel.read(ioBuffer, pos, f, this);
-        } else {
-            logFile.channel.write(ioBuffer, pos, f, this);
+        try {
+            if (read) {
+                logFile.channel.read(ioBuffer, pos, f, this);
+            } else {
+                logFile.channel.write(ioBuffer, pos, f, this);
+            }
+        } catch (Throwable e) {
+            f.completeExceptionally(e);
         }
     }
 
