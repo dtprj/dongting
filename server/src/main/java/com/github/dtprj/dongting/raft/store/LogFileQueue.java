@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.zip.CRC32C;
 
@@ -368,7 +369,16 @@ public class LogFileQueue extends FileQueue {
         return false;
     }
 
-    public void markDelete(long index, long deleteTimestamp) {
+    public void markDeleteByIndex(long index, long deleteTimestamp) {
+        markDelete(deleteTimestamp, nextFile -> index >= nextFile.firstIndex);
+    }
+
+    public void markDeleteByTimestamp(long maxKnownCommitIndex, long timestampMillis, long deleteTimestamp) {
+        markDelete(deleteTimestamp, nextFile -> timestampMillis >= nextFile.firstTimestamp
+            && maxKnownCommitIndex >= nextFile.firstIndex);
+    }
+
+    private void markDelete(long deleteTimestamp, Predicate<LogFile> predicate) {
         int queueSize = queue.size();
         for (int i = 0; i < queueSize - 1; i++) {
             LogFile logFile = queue.get(i);
@@ -377,11 +387,12 @@ public class LogFileQueue extends FileQueue {
             if (nextFile.firstTimestamp == 0) {
                 break;
             }
-            if (index < nextFile.firstIndex) {
+            if (predicate.test(nextFile)) {
+                if (logFile.deleteTimestamp != 0) {
+                    logFile.deleteTimestamp = Math.min(deleteTimestamp, logFile.deleteTimestamp);
+                }
+            } else {
                 break;
-            }
-            if (logFile.deleteTimestamp != 0) {
-                logFile.deleteTimestamp = Math.min(deleteTimestamp, logFile.deleteTimestamp);
             }
         }
     }
@@ -399,4 +410,5 @@ public class LogFileQueue extends FileQueue {
         }
         return 0;
     }
+
 }

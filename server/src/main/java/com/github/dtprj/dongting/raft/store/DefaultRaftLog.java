@@ -163,14 +163,20 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public void markTruncate(long index, long delayMillis) {
+    public void markTruncateByIndex(long index, long delayMillis) {
         index = Math.min(index, knownMaxCommitIndex - 1);
         if (index <= 0) {
             return;
         }
         this.deleteMarkIndex = index;
         long deleteTimestamp = ts.getWallClockMillis() + delayMillis;
-        logFiles.markDelete(index, deleteTimestamp);
+        logFiles.markDeleteByIndex(index, deleteTimestamp);
+    }
+
+    @Override
+    public void markTruncateByTimestamp(long timestampMillis, long delayMillis) {
+        long deleteTimestamp = ts.getWallClockMillis() + delayMillis;
+        logFiles.markDeleteByTimestamp(knownMaxCommitIndex, timestampMillis, deleteTimestamp);
     }
 
     private void delete() {

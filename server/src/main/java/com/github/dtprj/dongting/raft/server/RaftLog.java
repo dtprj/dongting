@@ -45,7 +45,10 @@ public interface RaftLog extends AutoCloseable {
      * try to delete logs before the index(included).
      */
     @SuppressWarnings("unused")
-    void markTruncate(long index, long delayMillis);
+    void markTruncateByIndex(long index, long delayMillis);
+
+    @SuppressWarnings("unused")
+    void markTruncateByTimestamp(long timestampMillis, long delayMillis);
 
     interface LogIterator extends AutoCloseable {
 
