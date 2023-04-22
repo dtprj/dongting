@@ -100,12 +100,7 @@ public class LogFileQueue extends FileQueue {
         Restorer restorer = new Restorer(idxOps, commitIndex, commitIndexPos);
         for (int i = 0; i < queue.size(); i++) {
             LogFile lf = queue.get(i);
-            if (commitIndexPos < lf.endPos) {
-                long pos = restorer.restoreFile(this.writeBuffer, lf);
-                writePos = lf.startPos + pos;
-            } else {
-                writePos = lf.endPos;
-            }
+            writePos = restorer.restoreFile(this.writeBuffer, lf);
         }
         if (queue.size() > 0) {
             if (commitIndexPos >= queue.get(queue.size() - 1).endPos) {

@@ -51,6 +51,25 @@ class Restorer {
     }
 
     public long restoreFile(ByteBuffer buffer, LogFile lf) throws IOException {
+        buffer.clear();
+        buffer.limit(LogHeader.ITEM_HEADER_SIZE);
+        FileUtil.syncReadFull(lf.channel, buffer, 0);
+        buffer.flip();
+        LogHeader header = new LogHeader();
+        header.read(buffer);
+        lf.firstIndex = header.index;
+        lf.firstTerm = header.term;
+        lf.firstTimestamp = header.timestamp;
+
+        if (commitIndexPos < lf.endPos) {
+            long pos = restoreFile0(buffer, lf);
+            return lf.startPos + pos;
+        } else {
+            return lf.endPos;
+        }
+    }
+
+    private long restoreFile0(ByteBuffer buffer, LogFile lf) throws IOException {
         log.info("try restore file {}", lf.file.getPath());
         if (commitIndexPos >= lf.startPos) {
             // check from commitIndexPos
