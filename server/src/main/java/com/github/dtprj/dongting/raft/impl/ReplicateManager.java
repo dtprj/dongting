@@ -319,7 +319,7 @@ public class ReplicateManager {
         }, raftExecutor);
     }
 
-    private boolean checkTermAndRoleFailed(int reqTerm, int remoteTerm) {
+    private boolean checkTermFailed(int remoteTerm) {
         if (remoteTerm > raftStatus.getCurrentTerm()) {
             log.info("find remote term greater than local term. remoteTerm={}, localTerm={}",
                     remoteTerm, raftStatus.getCurrentTerm());
@@ -327,11 +327,6 @@ public class ReplicateManager {
             return true;
         }
 
-        if (raftStatus.getRole() != RaftRole.leader) {
-            log.warn("receive response, not leader, ignore. reqTerm={}, currentTerm={}",
-                    reqTerm, raftStatus.getCurrentTerm());
-            return true;
-        }
         return false;
     }
 
@@ -342,7 +337,7 @@ public class ReplicateManager {
         AppendRespCallback body = (AppendRespCallback) rf.getBody();
         RaftStatus raftStatus = this.raftStatus;
         int remoteTerm = body.getTerm();
-        if (checkTermAndRoleFailed(reqTerm, remoteTerm)) {
+        if (checkTermFailed(remoteTerm)) {
             return;
         }
         if (member.isInstallSnapshot()) {
@@ -368,7 +363,7 @@ public class ReplicateManager {
             }
         } else if (body.getAppendCode() == AppendProcessor.CODE_LOG_NOT_MATCH) {
             member.incrReplicateEpoch(reqEpoch);
-            processLogNotMatch(member, prevLogIndex, prevLogTerm, reqTerm, reqNanos, body, raftStatus);
+            processLogNotMatch(member, prevLogIndex, prevLogTerm, reqTerm, body, raftStatus);
         } else if (body.getAppendCode() == AppendProcessor.CODE_INSTALL_SNAPSHOT) {
             log.error("remote member is installing snapshot, prevLogIndex={}", prevLogIndex);
         } else {
@@ -379,15 +374,15 @@ public class ReplicateManager {
         }
     }
 
-    private void processLogNotMatch(RaftMember member, long prevLogIndex, int prevLogTerm, int reqTerm,
+    private void processLogNotMatch(RaftMember member, long prevLogIndex, int prevLogTerm,
                                     long reqNanos, AppendRespCallback body, RaftStatus raftStatus) {
-        log.info("log not match. remoteId={}, groupId={}, matchIndex={}, prevLogIndex={}, prevLogTerm={}, remoteLogTerm={}, remoteLogIndex={}, localTerm={}, reqTerm={}, remoteTerm={}",
+        log.info("log not match. remoteId={}, groupId={}, matchIndex={}, prevLogIndex={}, prevLogTerm={}, remoteLogTerm={}, remoteLogIndex={}, localTerm={}, remoteTerm={}",
                 member.getNode().getNodeId(), groupId, member.getMatchIndex(), prevLogIndex, prevLogTerm, body.getMaxLogTerm(),
-                body.getMaxLogIndex(), raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
+                body.getMaxLogIndex(), raftStatus.getCurrentTerm(), body.getTerm());
         member.setLastConfirmReqNanos(reqNanos);
         member.setMultiAppend(false);
         RaftUtil.updateLease(raftStatus);
-        if (body.getTerm() == raftStatus.getCurrentTerm() && reqTerm == raftStatus.getCurrentTerm()) {
+        if (body.getTerm() == raftStatus.getCurrentTerm()) {
             member.setNextIndex(body.getMaxLogIndex() + 1);
             replicate(member);
         } else {
@@ -583,7 +578,7 @@ public class ReplicateManager {
                 return;
             }
             InstallSnapshotResp respBody = (InstallSnapshotResp) rf.getBody();
-            if (checkTermAndRoleFailed(reqTerm, respBody.term)) {
+            if (checkTermFailed(respBody.term)) {
                 return;
             }
             log.info("transfer snapshot data to member. nodeId={}, groupId={}, offset={}",
