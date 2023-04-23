@@ -29,12 +29,10 @@ import com.github.dtprj.dongting.raft.server.LogItem;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.AsynchronousFileChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Future;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.zip.CRC32C;
@@ -44,10 +42,6 @@ import java.util.zip.CRC32C;
  */
 public class LogFileQueue extends FileQueue {
     private static final DtLog log = DtLogs.getLogger(LogFileQueue.class);
-
-    private static final int FILE_MAGIC = 0x7C3FA7B6;
-    private static final short MAJOR_VERSION = 1;
-    private static final short MINOR_VERSION = 0;
 
     static final int LOG_FILE_SIZE = 1024 * 1024 * 1024;
     static final int FILE_LEN_MASK = LOG_FILE_SIZE - 1;
@@ -59,7 +53,7 @@ public class LogFileQueue extends FileQueue {
     private final CRC32C crc32c = new CRC32C();
     private long writePos;
 
-    public LogFileQueue(File dir, Executor ioExecutor, RaftExecutor raftExecutor, Supplier<Boolean> stopIndicator,
+    public LogFileQueue(File dir, ExecutorService ioExecutor, RaftExecutor raftExecutor, Supplier<Boolean> stopIndicator,
                         IdxOps idxOps, ByteBufferPool heapPool, ByteBufferPool directPool) {
         super(dir, ioExecutor, raftExecutor, stopIndicator, heapPool, directPool);
         this.idxOps = idxOps;
@@ -78,21 +72,6 @@ public class LogFileQueue extends FileQueue {
     @Override
     protected long getWritePos() {
         return writePos;
-    }
-
-    @Override
-    protected void afterFileAllocated(File f, AsynchronousFileChannel channel) throws Exception {
-        ByteBuffer header = ByteBuffer.allocateDirect(8);
-        header.putInt(FILE_MAGIC);
-        header.putShort(MAJOR_VERSION);
-        header.putShort(MINOR_VERSION);
-        header.flip();
-        int x = header.remaining();
-        while (x > 0) {
-            Future<Integer> future = channel.write(header, 0);
-            x -= future.get();
-        }
-        channel.force(false);
     }
 
     public int restore(long commitIndex, long commitIndexPos) throws IOException {
@@ -252,7 +231,7 @@ public class LogFileQueue extends FileQueue {
             buf.limit(buf.position() + rest);
         }
         long newReadPos = pos + buf.remaining();
-        AsyncIoTask t = new AsyncIoTask(true, buf, fileStartPos, logFile, it.stopIndicator);
+        AsyncIoTask t = new AsyncIoTask(buf, fileStartPos, logFile, it.stopIndicator);
         it.rbb.retain();
         logFile.use++;
         t.exec().whenCompleteAsync((v, ex) -> resumeAfterLoad(logFile, newReadPos, it, limit, bytesLimit,

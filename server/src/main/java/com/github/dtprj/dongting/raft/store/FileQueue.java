@@ -25,12 +25,14 @@ import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
+import java.nio.file.OpenOption;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
@@ -44,7 +46,7 @@ abstract class FileQueue {
     private static final Pattern PATTERN = Pattern.compile("^(\\d{20})$");
     protected final IndexedQueue<LogFile> queue = new IndexedQueue<>();
     protected final File dir;
-    protected final Executor ioExecutor;
+    protected final ExecutorService ioExecutor;
     protected final RaftExecutor raftExecutor;
     protected final Supplier<Boolean> stopIndicator;
     protected final ByteBufferPool heapPool;
@@ -57,7 +59,7 @@ abstract class FileQueue {
 
     private boolean deleting;
 
-    public FileQueue(File dir, Executor ioExecutor, RaftExecutor raftExecutor, Supplier<Boolean> stopIndicator,
+    public FileQueue(File dir, ExecutorService ioExecutor, RaftExecutor raftExecutor, Supplier<Boolean> stopIndicator,
                      ByteBufferPool heapPool, ByteBufferPool directPool) {
         this.dir = dir;
         this.ioExecutor = ioExecutor;
@@ -72,12 +74,6 @@ abstract class FileQueue {
     protected abstract long getWritePos();
 
     protected abstract int getFileLenShiftBits();
-
-    /**
-     * this method will be called in ioExecutor
-     */
-    protected void afterFileAllocated(File f, AsynchronousFileChannel channel) throws Exception {
-    }
 
     public void init() throws IOException {
         File[] files = dir.listFiles();
@@ -134,7 +130,7 @@ abstract class FileQueue {
                         LogFile newFile = allocateFuture.join();
                         queue.addLast(newFile);
                         queueEndPosition = newFile.endPos;
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         log.error("allocate file error", e);
                     } finally {
                         allocateFuture = null;
@@ -183,25 +179,34 @@ abstract class FileQueue {
     }
 
     private CompletableFuture<LogFile> allocate(long currentEndPosition) {
-        return CompletableFuture.supplyAsync(() -> {
-            RandomAccessFile raf = null;
+        CompletableFuture future = new CompletableFuture();
+        ioExecutor.execute(() -> {
             AsynchronousFileChannel channel = null;
             try {
                 File f = new File(dir, String.valueOf(currentEndPosition));
-                raf = new RandomAccessFile(f, "rw");
-                raf.setLength(getFileSize());
-                channel = AsynchronousFileChannel.open(f.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
-                afterFileAllocated(f, channel);
-                return new LogFile(currentEndPosition, currentEndPosition + getFileSize(), channel, f);
-            } catch (Exception e) {
+                HashSet<OpenOption> openOptions = new HashSet<>();
+                openOptions.add(StandardOpenOption.READ);
+                openOptions.add(StandardOpenOption.WRITE);
+                openOptions.add(StandardOpenOption.CREATE);
+                channel = AsynchronousFileChannel.open(f.toPath(), openOptions, ioExecutor);
+                ByteBuffer buf = ByteBuffer.allocate(1);
+                LogFile logFile = new LogFile(currentEndPosition, currentEndPosition + getFileSize(), channel, f);
+                AsyncIoTask t = new AsyncIoTask(true, buf, getFileSize() - 1, logFile, stopIndicator);
+                t.exec().whenComplete((v, ex) -> {
+                    if (ex != null) {
+                        future.completeExceptionally(ex);
+                    } else {
+                        future.complete(logFile);
+                    }
+                });
+            } catch (Throwable e) {
                 if (channel != null) {
                     DtUtil.close(channel);
                 }
-                throw new RaftException(e);
-            } finally {
-                DtUtil.close(raf);
+                future.completeExceptionally(e);
             }
-        }, ioExecutor);
+        });
+        return future;
     }
 
     public void close() {

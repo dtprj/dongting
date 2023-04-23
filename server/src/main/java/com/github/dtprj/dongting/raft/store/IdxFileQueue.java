@@ -30,7 +30,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 
 /**
@@ -61,7 +61,7 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
     private AsyncIoTask writeTask;
     private long nextPersistIndexAfterWrite;
 
-    public IdxFileQueue(File dir, Executor ioExecutor, RaftExecutor raftExecutor, Supplier<Boolean> stopIndicator,
+    public IdxFileQueue(File dir, ExecutorService ioExecutor, RaftExecutor raftExecutor, Supplier<Boolean> stopIndicator,
                         ByteBufferPool heapPool, ByteBufferPool directPool) {
         super(dir, ioExecutor, raftExecutor, stopIndicator, heapPool, directPool);
     }

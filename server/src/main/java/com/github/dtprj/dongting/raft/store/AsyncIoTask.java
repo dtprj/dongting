@@ -32,15 +32,30 @@ class AsyncIoTask implements CompletionHandler<Integer, CompletableFuture<Void>>
     private final Supplier<Boolean> stopIndicator;
     private final boolean read;
     private final int position;
+    private final boolean flushMeta;
 
-    public AsyncIoTask(boolean read, ByteBuffer ioBuffer, long startPos, LogFile logFile,
+    public AsyncIoTask(ByteBuffer ioBuffer, long startPos, LogFile logFile,
                        Supplier<Boolean> stopIndicator) {
         this.ioBuffer = ioBuffer;
         this.startPos = startPos;
         this.logFile = logFile;
         this.stopIndicator = stopIndicator;
-        this.read = read;
         this.position = ioBuffer.position();
+
+        this.read = true;
+        this.flushMeta = false;
+    }
+
+    public AsyncIoTask(boolean flushMeta, ByteBuffer ioBuffer, long startPos, LogFile logFile,
+                       Supplier<Boolean> stopIndicator) {
+        this.ioBuffer = ioBuffer;
+        this.startPos = startPos;
+        this.logFile = logFile;
+        this.stopIndicator = stopIndicator;
+        this.position = ioBuffer.position();
+
+        this.read = false;
+        this.flushMeta = flushMeta;
     }
 
     public CompletableFuture<Void> exec() {
@@ -85,7 +100,7 @@ class AsyncIoTask implements CompletionHandler<Integer, CompletableFuture<Void>>
         } else {
             try {
                 if (!read) {
-                    logFile.channel.force(false);
+                    logFile.channel.force(flushMeta);
                 }
                 f.complete(null);
             } catch (Throwable e) {

@@ -33,7 +33,7 @@ import java.io.File;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -49,7 +49,7 @@ public class DefaultRaftLog implements RaftLog {
     private final Timestamp ts;
     private final ByteBufferPool heapPool;
     private final ByteBufferPool directPool;
-    private final Executor ioExecutor;
+    private final ExecutorService ioExecutor;
     private final RaftExecutor raftExecutor;
     private final Supplier<Boolean> stopIndicator;
     private LogFileQueue logFiles;
@@ -62,7 +62,7 @@ public class DefaultRaftLog implements RaftLog {
     private static final long TASK_INTERVAL_NANOS = 10 * 1000 * 1000 * 1000L;
 
     public DefaultRaftLog(RaftGroupConfig groupConfig, Timestamp ts, ByteBufferPool heapPool, ByteBufferPool directPool,
-                          Executor ioExecutor, RaftExecutor raftExecutor, Supplier<Boolean> stopIndicator) {
+                          ExecutorService ioExecutor, RaftExecutor raftExecutor, Supplier<Boolean> stopIndicator) {
         this.groupConfig = groupConfig;
         this.ts = ts;
         this.heapPool = heapPool;
