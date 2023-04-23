@@ -29,7 +29,9 @@ public class RaftMember {
     private boolean multiAppend;
 
     private int nodeEpoch;
-    private int replicateEpoch;
+
+    // may check whether epoch change in io thread, so mark it volatile
+    private volatile int replicateEpoch;
 
     private PendingStat pendingStat;
 
@@ -51,6 +53,7 @@ public class RaftMember {
 
     public void incrReplicateEpoch(int reqEpoch) {
         if (reqEpoch == replicateEpoch) {
+            //noinspection NonAtomicOperationOnVolatileField
             replicateEpoch++;
         }
     }
