@@ -588,4 +588,10 @@ public class RaftServer extends AbstractLifeCircle {
         return f;
     }
 
+    @SuppressWarnings("unused")
+    public StateMachine getStateMachine(int groupId) {
+        GroupComponents gc = RaftUtil.getGroupComponents(groupComponentsMap, groupId);
+        return gc.getStateMachine();
+    }
+
 }
