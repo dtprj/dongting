@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 
 import java.io.File;
@@ -41,7 +42,7 @@ import java.util.zip.CRC32C;
 /**
  * @author huangli
  */
-public class LogFileQueue extends FileQueue {
+class LogFileQueue extends FileQueue {
     private static final DtLog log = DtLogs.getLogger(LogFileQueue.class);
 
     static final int LOG_FILE_SIZE = 1024 * 1024 * 1024;

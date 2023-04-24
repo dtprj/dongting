@@ -20,7 +20,7 @@ import com.github.dtprj.dongting.common.DtUtil;
 /**
  * @author huangli
  */
-public class LongLongSeqMap {
+class LongLongSeqMap {
     private static final int DEFAULT_INITIAL_CAPACITY = 16;
 
     private long[] data;

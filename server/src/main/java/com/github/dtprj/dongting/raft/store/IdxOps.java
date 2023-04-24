@@ -20,7 +20,7 @@ import java.io.IOException;
 /**
  * @author huangli
  */
-public interface IdxOps {
+interface IdxOps {
     void put(long index, long position, int len) throws IOException;
     long syncLoadLogPos(long itemIndex) throws IOException;
 }
