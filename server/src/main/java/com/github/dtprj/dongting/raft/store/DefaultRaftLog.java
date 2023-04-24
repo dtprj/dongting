@@ -21,8 +21,6 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 import com.github.dtprj.dongting.raft.server.LogItem;
@@ -41,7 +39,6 @@ import java.util.function.Supplier;
  * @author huangli
  */
 public class DefaultRaftLog implements RaftLog {
-    private static final DtLog log = DtLogs.getLogger(DefaultRaftLog.class);
     private static final String KNOWN_MAX_COMMIT_INDEX_KEY = "knownMaxCommitIndex";
     private static final String DELETE_MARK_INDEX_KEY = "deleteMarkIndex";
 
@@ -136,6 +133,7 @@ public class DefaultRaftLog implements RaftLog {
         if (ts.getNanoTime() - lastTaskNanos > TASK_INTERVAL_NANOS) {
             delete();
             updateCheckpoint();
+            lastTaskNanos = ts.getNanoTime();
         }
     }
 
