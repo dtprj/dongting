@@ -39,7 +39,7 @@ public interface RaftLog extends AutoCloseable {
     /**
      * return -1 if the index can't find.
      */
-    CompletableFuture<Long> nextIndexToReplicate(int remoteMaxTerm, long remoteMaxIndex);
+    CompletableFuture<Long> nextIndexToReplicate(int remoteMaxTerm, long remoteMaxIndex, Supplier<Boolean> epochChange);
 
     /**
      * try to delete logs before the index(included).

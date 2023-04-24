@@ -33,7 +33,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
     private final DefaultRaftLog defaultRaftLog;
     final RefByteBuffer rbb;
 
-    final Supplier<Boolean> stopIndicator;
+    final Supplier<Boolean> fullIndicator;
     final CRC32C crc32c = new CRC32C();
     final LogHeader header = new LogHeader();
 
@@ -43,10 +43,10 @@ class DefaultLogIterator implements RaftLog.LogIterator {
     LogItem item;
     int payLoad;
 
-    DefaultLogIterator(DefaultRaftLog defaultRaftLog, RefByteBuffer rbb, Supplier<Boolean> stopIndicator) {
+    DefaultLogIterator(DefaultRaftLog defaultRaftLog, RefByteBuffer rbb, Supplier<Boolean> fullIndicator) {
         this.defaultRaftLog = defaultRaftLog;
         this.rbb = rbb;
-        this.stopIndicator = stopIndicator;
+        this.fullIndicator = fullIndicator;
     }
 
     @Override

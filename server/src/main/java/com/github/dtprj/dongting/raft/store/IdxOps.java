@@ -22,4 +22,5 @@ import java.io.IOException;
  */
 public interface IdxOps {
     void put(long index, long position, int len) throws IOException;
+    long syncLoadLogPos(long itemIndex) throws IOException;
 }

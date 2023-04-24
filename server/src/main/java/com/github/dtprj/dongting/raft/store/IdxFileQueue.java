@@ -109,6 +109,7 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         return -2;
     }
 
+    @Override
     public long syncLoadLogPos(long itemIndex) throws IOException {
         checkIndex(itemIndex, true);
         if (itemIndex < firstIndex) {

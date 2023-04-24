@@ -166,8 +166,10 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public CompletableFuture<Long> nextIndexToReplicate(int remoteMaxTerm, long remoteMaxIndex) {
-        return null;
+    public CompletableFuture<Long> nextIndexToReplicate(int remoteMaxTerm, long remoteMaxIndex,
+                                                        Supplier<Boolean> epochChange) {
+        return logFiles.nextIndexToReplicate(remoteMaxTerm, remoteMaxIndex, idxFiles.getNextIndex(),
+                () -> stopIndicator.get() || epochChange.get());
     }
 
     @Override

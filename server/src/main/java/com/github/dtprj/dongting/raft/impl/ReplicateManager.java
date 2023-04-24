@@ -387,7 +387,8 @@ public class ReplicateManager {
             replicate(member);
         } else {
             int reqEpoch = member.getReplicateEpoch();
-            CompletableFuture<Long> future = raftLog.nextIndexToReplicate(body.getMaxLogTerm(), body.getMaxLogIndex());
+            CompletableFuture<Long> future = raftLog.nextIndexToReplicate(body.getMaxLogTerm(), body.getMaxLogIndex(),
+                    () -> reqEpoch != member.getReplicateEpoch());
             member.setReplicateFuture(future);
             future.whenCompleteAsync(resumeAfterFindIndex(member, reqEpoch, body.getMaxLogIndex()), raftExecutor);
         }

@@ -231,7 +231,7 @@ public class LogFileQueue extends FileQueue {
             buf.limit(buf.position() + rest);
         }
         long newReadPos = pos + buf.remaining();
-        AsyncIoTask t = new AsyncIoTask(buf, fileStartPos, logFile, it.stopIndicator);
+        AsyncIoTask t = new AsyncIoTask(buf, fileStartPos, logFile, it.fullIndicator);
         it.rbb.retain();
         logFile.use++;
         t.exec().whenCompleteAsync((v, ex) -> resumeAfterLoad(logFile, newReadPos, it, limit, bytesLimit,
@@ -243,7 +243,7 @@ public class LogFileQueue extends FileQueue {
         try {
             it.rbb.release();
             logFile.use--;
-            if (it.stopIndicator.get()) {
+            if (it.fullIndicator.get()) {
                 future.cancel(false);
             } else if (ex != null) {
                 future.completeExceptionally(ex);
@@ -349,7 +349,7 @@ public class LogFileQueue extends FileQueue {
 
     public long markDeleteByTimestamp(long maxKnownCommitIndex, long timestampMillis, long deleteTimestamp) {
         return markDelete(deleteTimestamp, nextFile -> timestampMillis >= nextFile.firstTimestamp
-            && maxKnownCommitIndex >= nextFile.firstIndex);
+                && maxKnownCommitIndex >= nextFile.firstIndex);
     }
 
     private long markDelete(long deleteTimestamp, Predicate<LogFile> predicate) {
@@ -359,14 +359,14 @@ public class LogFileQueue extends FileQueue {
             LogFile nextFile = queue.get(i + 1);
 
             if (nextFile.firstTimestamp == 0) {
-               return logFile.firstIndex;
+                return logFile.firstIndex;
             }
             if (predicate.test(nextFile)) {
                 if (logFile.deleteTimestamp != 0) {
                     logFile.deleteTimestamp = Math.min(deleteTimestamp, logFile.deleteTimestamp);
                 }
             } else {
-                return logFile.firstIndex;
+                return logFile.firstIndex - 1;
             }
         }
         return 0;
@@ -386,4 +386,132 @@ public class LogFileQueue extends FileQueue {
         return 0;
     }
 
+    public CompletableFuture<Long> nextIndexToReplicate(int remoteMaxTerm, long remoteMaxIndex, long nextIndex,
+                                                        Supplier<Boolean> fullIndicator) {
+        if (queue.size() == 0) {
+            return CompletableFuture.completedFuture(1L);
+        }
+        LogFile logFile = findLogFileToReplicate(remoteMaxTerm, remoteMaxIndex, nextIndex);
+        if (logFile == null) {
+            return CompletableFuture.completedFuture(-1L);
+        }
+        if (compare(logFile.firstTerm, logFile.firstIndex, remoteMaxTerm, remoteMaxIndex) == 0) {
+            return CompletableFuture.completedFuture(logFile.firstIndex);
+        }
+        CompletableFuture<Long> future = new CompletableFuture<>();
+        ioExecutor.execute(() -> nextIndexToReplicate(fullIndicator, logFile, nextIndex,
+                remoteMaxTerm, remoteMaxIndex, future));
+        return future;
+    }
+
+    // in io thread
+    private void nextIndexToReplicate(Supplier<Boolean> fullIndicator, LogFile logFile, long nextIndex,
+                                      int remoteMaxTerm, long remoteMaxIndex, CompletableFuture<Long> future) {
+        try {
+            if (fullIndicator.get()) {
+                future.cancel(false);
+                return;
+            }
+            long leftIndex = logFile.firstIndex;
+            // findLogFileToReplicate ensures nextIndex>logFile.firstIndex
+            long rightIndex = nextIndex - 1;
+            LogHeader header = new LogHeader();
+            loadHeader(logFile, rightIndex, header);
+            if (fullIndicator.get()) {
+                future.cancel(false);
+                return;
+            }
+            while (leftIndex < rightIndex) {
+                long midIndex = (leftIndex + rightIndex) >>> 1;
+                loadHeader(logFile, midIndex, header);
+                if (fullIndicator.get()) {
+                    future.cancel(false);
+                    return;
+                }
+                int c = compare(header.term, midIndex, remoteMaxTerm, remoteMaxIndex);
+                if (c == 0) {
+                    future.complete(midIndex);
+                    return;
+                } else if (c > 0) {
+                    rightIndex = midIndex - 1;
+                } else {
+                    if (rightIndex == leftIndex + 1) {
+                        loadHeader(logFile, rightIndex, header);
+                        if (fullIndicator.get()) {
+                            future.cancel(false);
+                            return;
+                        }
+                        c = compare(header.term, rightIndex, remoteMaxTerm, remoteMaxIndex);
+                        if(c > 0) {
+                            future.complete(leftIndex);
+                        } else {
+                            future.complete(rightIndex);
+                        }
+                        return;
+                    } else {
+                        leftIndex = midIndex;
+                    }
+                }
+            }
+            future.complete(leftIndex);
+        } catch (Throwable e) {
+            future.completeExceptionally(e);
+        }
+    }
+
+    private void loadHeader(LogFile logFile, long index, LogHeader header) throws IOException {
+        long rightPos = idxOps.syncLoadLogPos(index);
+        ByteBuffer buf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE);
+        FileUtil.syncReadFull(logFile.channel, buf, rightPos & FILE_LEN_MASK);
+        buf.flip();
+        header.read(buf);
+        if (header.index != index) {
+            throw new RaftException("index not match");
+        }
+    }
+
+    private LogFile findLogFileToReplicate(int remoteMaxTerm, long remoteMaxIndex, long nextIndex) {
+        int left = 0;
+        int right = queue.size() - 1;
+        while (left <= right) {
+            int mid = (left + right) >>> 1;
+            LogFile logFile = queue.get(mid);
+            if (logFile.deleteTimestamp > 0) {
+                left = mid + 1;
+                continue;
+            }
+            if (logFile.firstIndex >= nextIndex) {
+                right = mid - 1;
+                continue;
+            }
+            int c = compare(logFile.firstTerm, logFile.firstIndex, remoteMaxTerm, remoteMaxIndex);
+            if (left == right) {
+                return c <= 0 ? logFile : null;
+            } else if (c > 0) {
+                right = mid - 1;
+            } else if (c < 0) {
+                if (right == left + 1) {
+                    // assert mid == left
+                    LogFile nextLogFile = queue.get(right);
+                    c = compare(nextLogFile.firstTerm, nextLogFile.firstIndex, remoteMaxTerm, remoteMaxIndex);
+                    return c <= 0 ? nextLogFile : logFile;
+                } else {
+                    left = mid;
+                }
+            } else {
+                return logFile;
+            }
+        }
+        return null;
+    }
+
+    private static int compare(int term1, long index1, int term2, long index2) {
+        if (term1 < term2) {
+            return -1;
+        } else if (term1 > term2) {
+            return 1;
+        } else {
+            return Long.compare(index1, index2);
+        }
+    }
 }
