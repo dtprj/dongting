@@ -42,7 +42,11 @@ import java.util.function.Supplier;
  */
 public class RaftUtil {
     private static final DtLog log = DtLogs.getLogger(RaftUtil.class);
-    public final static ScheduledExecutorService SCHEDULED_SERVICE = Executors.newSingleThreadScheduledExecutor();
+    public final static ScheduledExecutorService SCHEDULED_SERVICE = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "DtRaftSchedule");
+        t.setDaemon(true);
+        return t;
+    });
 
     public static List<RaftNode> parseServers(int selfId, String serversStr) {
         String[] servers = serversStr.split(";");

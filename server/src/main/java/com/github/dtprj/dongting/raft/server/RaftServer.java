@@ -68,6 +68,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 /**
@@ -293,7 +294,7 @@ public class RaftServer extends AbstractLifeCircle {
     @Override
     protected void doStart() {
         if (serverConfig.getIoThreads() > 0) {
-            ioExecutor = Executors.newFixedThreadPool(serverConfig.getIoThreads());
+            ioExecutor = createIoExecutor();
         }
 
         groupComponentsMap.forEach((groupId, gc) -> {
@@ -320,6 +321,12 @@ public class RaftServer extends AbstractLifeCircle {
             log.info("raft group {} is ready", groupId);
             return true;
         });
+    }
+
+    protected ExecutorService createIoExecutor() {
+        AtomicInteger count = new AtomicInteger();
+        return Executors.newFixedThreadPool(serverConfig.getIoThreads(),
+                r -> new Thread(r, "raft-io-" + count.incrementAndGet()));
     }
 
     @Override

@@ -78,6 +78,7 @@ public class RaftGroupThread extends Thread {
         heartbeatIntervalNanos = Duration.ofMillis(config.getHeartbeatInterval()).toNanos();
 
         this.voteManager = voteManager;
+        setName("raft-" + groupConfig.getGroupId());
     }
 
     public void init(ExecutorService ioExecutor) {
