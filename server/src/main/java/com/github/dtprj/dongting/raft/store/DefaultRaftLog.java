@@ -40,7 +40,6 @@ import java.util.function.Supplier;
  */
 public class DefaultRaftLog implements RaftLog {
     private static final String KNOWN_MAX_COMMIT_INDEX_KEY = "knownMaxCommitIndex";
-    private static final String DELETE_MARK_INDEX_KEY = "deleteMarkIndex";
 
     private final RaftGroupConfig groupConfig;
     private final Timestamp ts;
@@ -52,7 +51,6 @@ public class DefaultRaftLog implements RaftLog {
     private LogFileQueue logFiles;
     private IdxFileQueue idxFiles;
     private long knownMaxCommitIndex;
-    private long deleteMarkIndex;
     private StatusFile checkpointFile;
 
     private long lastTaskNanos;
@@ -77,7 +75,6 @@ public class DefaultRaftLog implements RaftLog {
         checkpointFile = new StatusFile(new File(dataDir, "checkpoint"));
         checkpointFile.init();
         knownMaxCommitIndex = Long.parseLong(checkpointFile.getProperties().getProperty(KNOWN_MAX_COMMIT_INDEX_KEY, "0"));
-        deleteMarkIndex = Long.parseLong(checkpointFile.getProperties().getProperty(DELETE_MARK_INDEX_KEY, "0"));
         idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), ioExecutor, raftExecutor, stopIndicator, heapPool, directPool);
         logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), ioExecutor, raftExecutor, stopIndicator, idxFiles, heapPool, directPool);
         logFiles.init();
@@ -177,15 +174,13 @@ public class DefaultRaftLog implements RaftLog {
             return;
         }
         long deleteTimestamp = ts.getWallClockMillis() + delayMillis;
-        long deleteMarkIndex = logFiles.markDeleteByIndex(index, deleteTimestamp);
-        this.deleteMarkIndex = Math.max(this.deleteMarkIndex, deleteMarkIndex);
+        logFiles.markDeleteByIndex(index, deleteTimestamp);
     }
 
     @Override
     public void markTruncateByTimestamp(long timestampMillis, long delayMillis) {
         long deleteTimestamp = ts.getWallClockMillis() + delayMillis;
-        long deleteMarkIndex = logFiles.markDeleteByTimestamp(knownMaxCommitIndex, timestampMillis, deleteTimestamp);
-        this.deleteMarkIndex = Math.max(this.deleteMarkIndex, deleteMarkIndex);
+        logFiles.markDeleteByTimestamp(knownMaxCommitIndex, timestampMillis, deleteTimestamp);
     }
 
     private void delete() {
@@ -199,7 +194,6 @@ public class DefaultRaftLog implements RaftLog {
         }
         Properties p = checkpointFile.getProperties();
         p.setProperty(KNOWN_MAX_COMMIT_INDEX_KEY, String.valueOf(knownMaxCommitIndex));
-        p.setProperty(DELETE_MARK_INDEX_KEY, String.valueOf(deleteMarkIndex));
         return CompletableFuture.runAsync(() -> checkpointFile.update(), ioExecutor);
     }
 

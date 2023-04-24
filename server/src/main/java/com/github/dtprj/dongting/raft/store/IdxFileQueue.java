@@ -106,7 +106,7 @@ public class IdxFileQueue extends FileQueue implements IdxOps {
         if (result > 0) {
             return result;
         }
-        return -2;
+        return -1;
     }
 
     @Override
