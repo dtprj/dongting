@@ -63,15 +63,21 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 /**
  * @author huangli
  */
 public class RaftServer extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(RaftServer.class);
+    private final Function<RaftGroupConfigEx, RaftLog> raftLogFactory;
+    private final Function<RaftGroupConfigEx, StateMachine> stateMachineFactory;
+
     private final NioServer raftServer;
     private final NioClient raftClient;
 
@@ -95,6 +101,8 @@ public class RaftServer extends AbstractLifeCircle {
 
     private final AtomicBoolean change = new AtomicBoolean(false);
 
+    private ExecutorService ioExecutor;
+
     static {
         try {
             MethodHandles.Lookup lookup = MethodHandles.lookup();
@@ -106,22 +114,21 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     public RaftServer(RaftServerConfig serverConfig, List<RaftGroupConfig> groupConfig,
-                      List<RaftLog> raftLogs, List<StateMachine> stateMachines) {
+                      Function<RaftGroupConfigEx, RaftLog> raftLogFactory,
+                      Function<RaftGroupConfigEx, StateMachine> stateMachineFactory) {
         Objects.requireNonNull(serverConfig);
         Objects.requireNonNull(groupConfig);
-        Objects.requireNonNull(raftLogs);
-        Objects.requireNonNull(stateMachines);
+        Objects.requireNonNull(raftLogFactory);
+        Objects.requireNonNull(stateMachineFactory);
         Objects.requireNonNull(serverConfig.getServers());
-
-        if (groupConfig.size() != raftLogs.size() || groupConfig.size() != stateMachines.size()) {
-            throw new IllegalArgumentException("groupConfig, raftLogs, stateMachines size not match");
-        }
 
         DtUtil.checkPositive(serverConfig.getNodeId(), "id");
         DtUtil.checkPositive(serverConfig.getRaftPort(), "port");
         this.serverConfig = serverConfig;
         this.maxPendingWrites = serverConfig.getMaxPendingWrites();
         this.maxPendingWriteBytes = serverConfig.getMaxPendingWriteBytes();
+        this.raftLogFactory = raftLogFactory;
+        this.stateMachineFactory = stateMachineFactory;
 
         List<RaftNode> allRaftServers = RaftUtil.parseServers(serverConfig.getNodeId(), serverConfig.getServers());
         HashSet<Integer> allNodeIds = new HashSet<>();
@@ -143,7 +150,7 @@ public class RaftServer extends AbstractLifeCircle {
         setupNioConfig(nioClientConfig);
         raftClient = new NioClient(nioClientConfig);
 
-        createRaftGroups(serverConfig, groupConfig, raftLogs, stateMachines, allNodeIds);
+        createRaftGroups(serverConfig, groupConfig, allNodeIds);
         nodeManager = new NodeManager(serverConfig, allRaftServers, raftClient, groupComponentsMap);
         groupComponentsMap.forEach((id, gc) -> {
             gc.getEventBus().register(nodeManager);
@@ -166,19 +173,15 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     private void createRaftGroups(RaftServerConfig serverConfig, List<RaftGroupConfig> groupConfig,
-                                  List<RaftLog> raftLogs, List<StateMachine> stateMachines,
                                   HashSet<Integer> allNodeIds) {
-        for (int i = 0; i < groupConfig.size(); i++) {
-            RaftGroupConfig rgc = groupConfig.get(i);
-            StateMachine stateMachine = stateMachines.get(i);
-            RaftLog raftLog = raftLogs.get(i);
-            GroupComponents gc = createRaftGroup(serverConfig, allNodeIds, rgc, stateMachine, raftLog);
+        for (RaftGroupConfig rgc : groupConfig) {
+            GroupComponents gc = createRaftGroup(serverConfig, allNodeIds, rgc);
             groupComponentsMap.put(rgc.getGroupId(), gc);
         }
     }
 
     private GroupComponents createRaftGroup(RaftServerConfig serverConfig, Set<Integer> allNodeIds,
-                                            RaftGroupConfig rgc, StateMachine stateMachine, RaftLog raftLog) {
+                                            RaftGroupConfig rgc) {
         Objects.requireNonNull(rgc.getNodeIdOfMembers());
 
         EventBus eventBus = new EventBus();
@@ -215,6 +218,11 @@ public class RaftServer extends AbstractLifeCircle {
         raftStatus.setNodeIdOfObservers(nodeIdOfObservers);
         raftStatus.setGroupId(rgc.getGroupId());
 
+        RaftGroupConfigEx rgcEx = createGroupConfigEx(rgc, raftStatus, raftExecutor);
+
+        RaftLog raftLog = raftLogFactory.apply(rgcEx);
+        StateMachine stateMachine = stateMachineFactory.apply(rgcEx);
+
         MemberManager memberManager = new MemberManager(serverConfig, raftClient, raftExecutor,
                 raftStatus, eventBus);
         ApplyManager applyManager = new ApplyManager(serverConfig.getNodeId(), raftLog, stateMachine, raftStatus, eventBus);
@@ -224,7 +232,7 @@ public class RaftServer extends AbstractLifeCircle {
 
         Raft raft = new Raft(raftStatus, raftLog, applyManager, commitManager, replicateManager);
         VoteManager voteManager = new VoteManager(serverConfig, rgc.getGroupId(), raftStatus, raftClient, raftExecutor, raft);
-        RaftGroupThread raftGroupThread = new RaftGroupThread(serverConfig, rgc, raftStatus, raftLog, stateMachine, raftExecutor,
+        RaftGroupThread raftGroupThread = new RaftGroupThread(serverConfig, rgcEx, raftStatus, raftLog, stateMachine, raftExecutor,
                 raft, memberManager, voteManager);
 
         eventBus.register(voteManager);
@@ -244,6 +252,20 @@ public class RaftServer extends AbstractLifeCircle {
         gc.setReplicateManager(replicateManager);
         gc.setEventBus(eventBus);
         return gc;
+    }
+
+    private RaftGroupConfigEx createGroupConfigEx(RaftGroupConfig rgc, RaftStatus raftStatus, RaftExecutor raftExecutor) {
+        RaftGroupConfigEx rgcEx = new RaftGroupConfigEx(rgc.getGroupId(), rgc.getNodeIdOfMembers(),
+                rgc.getNodeIdOfObservers());
+        rgcEx.setDataDir(rgc.getDataDir());
+        rgcEx.setStatusFile(rgc.getStatusFile());
+
+        rgcEx.setTs(raftStatus.getTs());
+        rgcEx.setHeapPool(serverConfig.getPoolFactory().apply(raftStatus.getTs(), false));
+        rgcEx.setDirectPool(serverConfig.getPoolFactory().apply(raftStatus.getTs(), true));
+        rgcEx.setRaftExecutor(raftExecutor);
+        rgcEx.setStopIndicator(raftStatus::isStop);
+        return rgcEx;
     }
 
     private static void parseMemberIds(Set<Integer> allNodeIds, Set<Integer> nodeIdOfMembers, String str, int groupId) {
@@ -270,8 +292,12 @@ public class RaftServer extends AbstractLifeCircle {
 
     @Override
     protected void doStart() {
+        if (serverConfig.getIoThreads() > 0) {
+            ioExecutor = Executors.newFixedThreadPool(serverConfig.getIoThreads());
+        }
+
         groupComponentsMap.forEach((groupId, gc) -> {
-            gc.getRaftGroupThread().init();
+            gc.getRaftGroupThread().init(ioExecutor);
             return true;
         });
 
@@ -463,14 +489,13 @@ public class RaftServer extends AbstractLifeCircle {
      * ADMIN API.
      */
     @SuppressWarnings("unused")
-    public void addGroup(RaftGroupConfig groupConfig, RaftLog raftLog, StateMachine stateMachine) {
+    public void addGroup(RaftGroupConfig groupConfig) {
         doChange(() -> {
             try {
                 CompletableFuture<GroupComponents> f = new CompletableFuture<>();
                 RaftUtil.SCHEDULED_SERVICE.execute(() -> {
                     try {
-                        GroupComponents gc = createRaftGroup(serverConfig, nodeManager.getAllNodeIds(),
-                                groupConfig, stateMachine, raftLog);
+                        GroupComponents gc = createRaftGroup(serverConfig, nodeManager.getAllNodeIds(), groupConfig);
                         gc.getMemberManager().init(nodeManager.getAllNodesEx());
                         f.complete(gc);
                     } catch (Exception e) {
@@ -479,7 +504,7 @@ public class RaftServer extends AbstractLifeCircle {
                 });
 
                 GroupComponents gc = f.get(5, TimeUnit.SECONDS);
-                gc.getRaftGroupThread().init();
+                gc.getRaftGroupThread().init(ioExecutor);
 
                 gc.getMemberManager().init(nodeManager.getAllNodesEx());
                 gc.getRaftGroupThread().start();

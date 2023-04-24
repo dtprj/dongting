@@ -23,7 +23,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
@@ -34,6 +34,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -46,7 +47,7 @@ public class RaftGroupThread extends Thread {
     private final Random random = new Random();
 
     private final RaftServerConfig config;
-    private final RaftGroupConfig groupConfig;
+    private final RaftGroupConfigEx groupConfig;
     private final RaftStatus raftStatus;
     private final Raft raft;
     private final MemberManager memberManager;
@@ -60,7 +61,7 @@ public class RaftGroupThread extends Thread {
     // TODO optimise blocking queue
     private final LinkedBlockingQueue<Object> queue;
 
-    public RaftGroupThread(RaftServerConfig serverConfig, RaftGroupConfig groupConfig, RaftStatus raftStatus,
+    public RaftGroupThread(RaftServerConfig serverConfig, RaftGroupConfigEx groupConfig, RaftStatus raftStatus,
                            RaftLog raftLog, StateMachine stateMachine, RaftExecutor raftExecutor,
                            Raft raft, MemberManager memberManager, VoteManager voteManager) {
         this.config = serverConfig;
@@ -79,7 +80,7 @@ public class RaftGroupThread extends Thread {
         this.voteManager = voteManager;
     }
 
-    public void init() {
+    public void init(ExecutorService ioExecutor) {
         try {
             StatusUtil.initStatusFileChannel(groupConfig.getDataDir(), groupConfig.getStatusFile(), raftStatus);
             long stateMachineLatestIndex = stateMachine.initFromLatestSnapshot();
@@ -88,7 +89,7 @@ public class RaftGroupThread extends Thread {
                 raftStatus.setCommitIndex(stateMachineLatestIndex);
             }
 
-            Pair<Integer, Long> initResult = raftLog.init();
+            Pair<Integer, Long> initResult = raftLog.init(ioExecutor);
             log.info("init raft log, maxTerm={}, maxIndex={}, groupId={}",
                     initResult.getLeft(), initResult.getRight(), groupConfig.getGroupId());
             raftStatus.setLastLogTerm(initResult.getLeft());

@@ -24,7 +24,7 @@ import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 
 import java.io.File;
@@ -41,11 +41,10 @@ import java.util.function.Supplier;
 public class DefaultRaftLog implements RaftLog {
     private static final String KNOWN_MAX_COMMIT_INDEX_KEY = "knownMaxCommitIndex";
 
-    private final RaftGroupConfig groupConfig;
+    private final RaftGroupConfigEx groupConfig;
     private final Timestamp ts;
     private final ByteBufferPool heapPool;
     private final ByteBufferPool directPool;
-    private final ExecutorService ioExecutor;
     private final RaftExecutor raftExecutor;
     private final Supplier<Boolean> stopIndicator;
     private LogFileQueue logFiles;
@@ -55,22 +54,22 @@ public class DefaultRaftLog implements RaftLog {
 
     private long lastTaskNanos;
     private static final long TASK_INTERVAL_NANOS = 10 * 1000 * 1000 * 1000L;
+    private ExecutorService ioExecutor;
 
-    public DefaultRaftLog(RaftGroupConfig groupConfig, Timestamp ts, ByteBufferPool heapPool, ByteBufferPool directPool,
-                          ExecutorService ioExecutor, RaftExecutor raftExecutor, Supplier<Boolean> stopIndicator) {
+    public DefaultRaftLog(RaftGroupConfigEx groupConfig) {
         this.groupConfig = groupConfig;
-        this.ts = ts;
-        this.heapPool = heapPool;
-        this.directPool = directPool;
-        this.ioExecutor = ioExecutor;
-        this.raftExecutor = raftExecutor;
-        this.stopIndicator = stopIndicator;
+        this.ts = groupConfig.getTs();
+        this.heapPool = groupConfig.getHeapPool();
+        this.directPool = groupConfig.getDirectPool();
+        this.raftExecutor = groupConfig.getRaftExecutor();
+        this.stopIndicator = groupConfig.getStopIndicator();
 
         this.lastTaskNanos = ts.getNanoTime();
     }
 
     @Override
-    public Pair<Integer, Long> init() throws Exception {
+    public Pair<Integer, Long> init(ExecutorService ioExecutor) throws Exception {
+        this.ioExecutor = ioExecutor;
         File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
         checkpointFile = new StatusFile(new File(dataDir, "checkpoint"));
         checkpointFile.init();
