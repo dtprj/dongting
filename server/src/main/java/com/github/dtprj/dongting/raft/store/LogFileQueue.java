@@ -32,6 +32,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -416,14 +417,14 @@ public class LogFileQueue extends FileQueue {
             // findLogFileToReplicate ensures nextIndex>logFile.firstIndex
             long rightIndex = nextIndex - 1;
             LogHeader header = new LogHeader();
-            loadHeader(logFile, rightIndex, header);
+            loadHeaderInIoThread(logFile, rightIndex, header);
             if (fullIndicator.get()) {
                 future.cancel(false);
                 return;
             }
             while (leftIndex < rightIndex) {
                 long midIndex = (leftIndex + rightIndex) >>> 1;
-                loadHeader(logFile, midIndex, header);
+                loadHeaderInIoThread(logFile, midIndex, header);
                 if (fullIndicator.get()) {
                     future.cancel(false);
                     return;
@@ -436,13 +437,13 @@ public class LogFileQueue extends FileQueue {
                     rightIndex = midIndex - 1;
                 } else {
                     if (rightIndex == leftIndex + 1) {
-                        loadHeader(logFile, rightIndex, header);
+                        loadHeaderInIoThread(logFile, rightIndex, header);
                         if (fullIndicator.get()) {
                             future.cancel(false);
                             return;
                         }
                         c = compare(header.term, rightIndex, remoteMaxTerm, remoteMaxIndex);
-                        if(c > 0) {
+                        if (c > 0) {
                             future.complete(leftIndex);
                         } else {
                             future.complete(rightIndex);
@@ -459,10 +460,17 @@ public class LogFileQueue extends FileQueue {
         }
     }
 
-    private void loadHeader(LogFile logFile, long index, LogHeader header) throws IOException {
-        long rightPos = idxOps.syncLoadLogPos(index);
+    private void loadHeaderInIoThread(LogFile logFile, long index, LogHeader header) throws Exception {
+        CompletableFuture<Long> posFuture = CompletableFuture.supplyAsync(() -> {
+            try {
+                return idxOps.syncLoadLogPos(index);
+            } catch (Throwable e){
+                throw new CompletionException(e);
+            }
+        }, raftExecutor);
+        long pos = posFuture.get();
         ByteBuffer buf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE);
-        FileUtil.syncReadFull(logFile.channel, buf, rightPos & FILE_LEN_MASK);
+        FileUtil.syncReadFull(logFile.channel, buf, pos & FILE_LEN_MASK);
         buf.flip();
         header.read(buf);
         if (header.index != index) {
