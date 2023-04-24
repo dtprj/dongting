@@ -24,6 +24,7 @@ import java.util.function.BiFunction;
 /**
  * @author huangli
  */
+@SuppressWarnings("unused")
 public class RaftServerConfig {
     private String servers;
     private int raftPort;

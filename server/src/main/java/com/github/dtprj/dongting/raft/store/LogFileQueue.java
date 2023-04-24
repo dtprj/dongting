@@ -23,7 +23,6 @@ import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
-import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 import com.github.dtprj.dongting.raft.server.LogItem;
 
 import java.io.File;
@@ -33,6 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -54,7 +54,7 @@ public class LogFileQueue extends FileQueue {
     private final CRC32C crc32c = new CRC32C();
     private long writePos;
 
-    public LogFileQueue(File dir, ExecutorService ioExecutor, RaftExecutor raftExecutor, Supplier<Boolean> stopIndicator,
+    public LogFileQueue(File dir, ExecutorService ioExecutor, Executor raftExecutor, Supplier<Boolean> stopIndicator,
                         IdxOps idxOps, ByteBufferPool heapPool, ByteBufferPool directPool) {
         super(dir, ioExecutor, raftExecutor, stopIndicator, heapPool, directPool);
         this.idxOps = idxOps;

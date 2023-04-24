@@ -21,7 +21,6 @@ import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
-import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,6 +31,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -47,7 +47,7 @@ abstract class FileQueue {
     protected final IndexedQueue<LogFile> queue = new IndexedQueue<>();
     protected final File dir;
     protected final ExecutorService ioExecutor;
-    protected final RaftExecutor raftExecutor;
+    protected final Executor raftExecutor;
     protected final Supplier<Boolean> stopIndicator;
     protected final ByteBufferPool heapPool;
     protected final ByteBufferPool directPool;
@@ -59,7 +59,7 @@ abstract class FileQueue {
 
     private boolean deleting;
 
-    public FileQueue(File dir, ExecutorService ioExecutor, RaftExecutor raftExecutor, Supplier<Boolean> stopIndicator,
+    public FileQueue(File dir, ExecutorService ioExecutor, Executor raftExecutor, Supplier<Boolean> stopIndicator,
                      ByteBufferPool heapPool, ByteBufferPool directPool) {
         this.dir = dir;
         this.ioExecutor = ioExecutor;
@@ -179,7 +179,7 @@ abstract class FileQueue {
     }
 
     private CompletableFuture<LogFile> allocate(long currentEndPosition) {
-        CompletableFuture future = new CompletableFuture();
+        CompletableFuture<LogFile> future = new CompletableFuture<>();
         ioExecutor.execute(() -> {
             AsynchronousFileChannel channel = null;
             try {

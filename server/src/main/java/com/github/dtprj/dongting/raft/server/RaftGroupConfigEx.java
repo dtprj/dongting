@@ -17,8 +17,8 @@ package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 
+import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
 /**
@@ -26,11 +26,10 @@ import java.util.function.Supplier;
  */
 public class RaftGroupConfigEx extends RaftGroupConfig {
 
-
     private Timestamp ts;
     private ByteBufferPool heapPool;
     private ByteBufferPool directPool;
-    private RaftExecutor raftExecutor;
+    private Executor raftExecutor;
     private Supplier<Boolean> stopIndicator;
 
     public RaftGroupConfigEx(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
@@ -61,11 +60,11 @@ public class RaftGroupConfigEx extends RaftGroupConfig {
         this.directPool = directPool;
     }
 
-    public RaftExecutor getRaftExecutor() {
+    public Executor getRaftExecutor() {
         return raftExecutor;
     }
 
-    public void setRaftExecutor(RaftExecutor raftExecutor) {
+    public void setRaftExecutor(Executor raftExecutor) {
         this.raftExecutor = raftExecutor;
     }
 
