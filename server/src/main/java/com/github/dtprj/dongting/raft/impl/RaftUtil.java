@@ -35,7 +35,6 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -263,22 +262,21 @@ public class RaftUtil {
         RaftUtil.doWithSyncRetry(() -> {
             try {
                 raftLog.append(raftStatus.getCommitIndex(), logs);
-                return null;
             } catch (Exception e) {
                 throw new RaftException(e);
             }
         }, raftStatus, 1000, "raft log append error");
     }
 
-    public static <T> T doWithSyncRetry(Supplier<T> callback, RaftStatus raftStatus, long sleepMillis, String errorMsg) {
+    public static void doWithSyncRetry(Runnable callback, RaftStatus raftStatus, long sleepMillis, String errorMsg) {
         int failCount = 0;
         while (true) {
             try {
-                T result = callback.get();
+                callback.run();
                 if (failCount > 0) {
                     raftStatus.setError(false);
                 }
-                return result;
+                return;
             } catch (Exception e) {
                 failCount++;
                 log.error(errorMsg, e);
