@@ -39,7 +39,7 @@ class Restorer {
 
     private long itemStartPosOfFile;
     private boolean readHeader = true;
-    private LogHeader header = new LogHeader();
+    private final LogHeader header = new LogHeader();
     private int bodyRestLen;
 
     long previousIndex;
@@ -88,7 +88,7 @@ class Restorer {
                 continue;
             }
             buffer.flip();
-            if (restore(buffer, lf, readPos)) {
+            if (restore(buffer, lf)) {
                 LogFileQueue.prepareNextRead(buffer);
                 readPos += read;
             } else {
@@ -98,7 +98,7 @@ class Restorer {
         return itemStartPosOfFile;
     }
 
-    private boolean restore(ByteBuffer buf, LogFile lf, long readPos) throws IOException {
+    private boolean restore(ByteBuffer buf, LogFile lf) throws IOException {
         while (buf.hasRemaining()) {
             if (readHeader) {
                 if (buf.remaining() < LogHeader.ITEM_HEADER_SIZE) {

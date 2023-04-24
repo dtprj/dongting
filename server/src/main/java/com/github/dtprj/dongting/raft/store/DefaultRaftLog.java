@@ -142,7 +142,7 @@ public class DefaultRaftLog implements RaftLog {
                 () -> stopIndicator.get() || epochChange.get());
     }
 
-    public CompletableFuture<List<LogItem>> next(DefaultLogIterator it, long index, int limit, int bytesLimit) {
+    CompletableFuture<List<LogItem>> next(DefaultLogIterator it, long index, int limit, int bytesLimit) {
         try {
             if (index != it.nextIndex) {
                 it.resetBuffer();
