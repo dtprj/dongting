@@ -212,7 +212,8 @@ public class ApplyManager {
             } else {
                 future.complete(new RaftOutput(index, r));
             }
-            if (raftStatus.getFirstCommitOfApplied() != null) {
+            RaftStatus raftStatus = this.raftStatus;
+            if (raftStatus.getFirstCommitOfApplied() != null && index >= raftStatus.getFirstIndexOfCurrentTerm()) {
                 raftStatus.getFirstCommitOfApplied().complete(null);
                 raftStatus.setFirstCommitOfApplied(null);
             }

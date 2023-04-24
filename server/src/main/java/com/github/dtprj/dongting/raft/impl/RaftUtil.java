@@ -126,7 +126,7 @@ public class RaftUtil {
     }
 
     public static void resetStatus(RaftStatus raftStatus) {
-        raftStatus.setFirstCommitIndexOfCurrentTerm(0);
+        raftStatus.setFirstIndexOfCurrentTerm(0);
         raftStatus.setFirstCommitOfApplied(new CompletableFuture<>());
         RaftUtil.resetElectTimer(raftStatus);
         raftStatus.setHeartbeatTime(raftStatus.getLastElectTime());
@@ -224,7 +224,7 @@ public class RaftUtil {
         log.info("change to leader. term={}", raftStatus.getCurrentTerm());
         resetStatus(raftStatus);
         raftStatus.setRole(RaftRole.leader);
-        raftStatus.setFirstCommitIndexOfCurrentTerm(raftStatus.getLastLogIndex() + 1);
+        raftStatus.setFirstIndexOfCurrentTerm(raftStatus.getLastLogIndex() + 1);
         for (RaftMember node : raftStatus.getReplicateList()) {
             node.setNextIndex(raftStatus.getLastLogIndex() + 1);
         }

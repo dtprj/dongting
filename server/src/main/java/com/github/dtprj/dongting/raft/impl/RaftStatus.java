@@ -62,7 +62,7 @@ public class RaftStatus {
     private List<RaftMember> replicateList;
 
     private PendingMap pendingRequests = new PendingMap();
-    private long firstCommitIndexOfCurrentTerm;
+    private long firstIndexOfCurrentTerm;
     private CompletableFuture<Void> firstCommitOfApplied; // shared
 
     private boolean shareStatusUpdated;
@@ -295,12 +295,12 @@ public class RaftStatus {
         this.pendingRequests = pendingRequests;
     }
 
-    public long getFirstCommitIndexOfCurrentTerm() {
-        return firstCommitIndexOfCurrentTerm;
+    public long getFirstIndexOfCurrentTerm() {
+        return firstIndexOfCurrentTerm;
     }
 
-    public void setFirstCommitIndexOfCurrentTerm(long firstCommitIndexOfCurrentTerm) {
-        this.firstCommitIndexOfCurrentTerm = firstCommitIndexOfCurrentTerm;
+    public void setFirstIndexOfCurrentTerm(long firstIndexOfCurrentTerm) {
+        this.firstIndexOfCurrentTerm = firstIndexOfCurrentTerm;
     }
 
     public Timestamp getTs() {
