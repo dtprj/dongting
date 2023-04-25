@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.server;
+package com.github.dtprj.dongting.raft.sm;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
 
@@ -23,7 +23,7 @@ import java.util.concurrent.CompletableFuture;
  * @author huangli
  */
 public interface StateMachine extends AutoCloseable {
-    long initFromLatestSnapshot();
+    long init();
 
     Object decode(RefBuffer logData);
 
@@ -31,9 +31,6 @@ public interface StateMachine extends AutoCloseable {
 
     void installSnapshot(boolean start, boolean finish, RefBuffer data);
 
-    Snapshot openLatestSnapshot();
+    Snapshot takeSnapshot();
 
-    CompletableFuture<RefBuffer> readNext(Snapshot snapshot);
-
-    void closeSnapshot(Snapshot snapshot);
 }

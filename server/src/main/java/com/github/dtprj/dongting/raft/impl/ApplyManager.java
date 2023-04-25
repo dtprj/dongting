@@ -25,7 +25,7 @@ import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
-import com.github.dtprj.dongting.raft.server.StateMachine;
+import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.util.ArrayList;
 import java.util.HashSet;

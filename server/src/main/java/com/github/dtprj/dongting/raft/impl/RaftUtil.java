@@ -154,7 +154,7 @@ public class RaftUtil {
                 try {
                     SnapshotInfo si = member.getSnapshotInfo();
                     if (si != null) {
-                        si.stateMachine.closeSnapshot(si.snapshot);
+                        si.snapshot.close();
                     }
                 } catch (Exception e) {
                     log.error("close snapshot error", e);

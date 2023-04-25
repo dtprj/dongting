@@ -15,8 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.raft.server.Snapshot;
-import com.github.dtprj.dongting.raft.server.StateMachine;
+import com.github.dtprj.dongting.raft.sm.Snapshot;
 
 /**
  * @author huangli
@@ -26,5 +25,4 @@ class SnapshotInfo {
     long offset;
     int replicateEpoch;
     boolean readFinished;
-    StateMachine stateMachine;
 }

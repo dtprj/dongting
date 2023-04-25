@@ -55,6 +55,7 @@ import com.github.dtprj.dongting.raft.rpc.NodePingProcessor;
 import com.github.dtprj.dongting.raft.rpc.RaftPingProcessor;
 import com.github.dtprj.dongting.raft.rpc.TransferLeaderProcessor;
 import com.github.dtprj.dongting.raft.rpc.VoteProcessor;
+import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;

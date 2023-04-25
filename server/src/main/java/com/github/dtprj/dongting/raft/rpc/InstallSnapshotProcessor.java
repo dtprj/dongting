@@ -29,7 +29,7 @@ import com.github.dtprj.dongting.raft.impl.GroupComponentsMap;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.server.StateMachine;
+import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 /**
  * @author huangli

@@ -18,7 +18,7 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
-import com.github.dtprj.dongting.raft.server.StateMachine;
+import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 /**
  * @author huangli

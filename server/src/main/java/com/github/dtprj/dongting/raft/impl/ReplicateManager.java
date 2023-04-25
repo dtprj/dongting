@@ -34,8 +34,8 @@ import com.github.dtprj.dongting.raft.rpc.InstallSnapshotResp;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
-import com.github.dtprj.dongting.raft.server.Snapshot;
-import com.github.dtprj.dongting.raft.server.StateMachine;
+import com.github.dtprj.dongting.raft.sm.Snapshot;
+import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -438,7 +438,7 @@ public class ReplicateManager {
         }
         int reqEpoch = member.getReplicateEpoch();
         try {
-            CompletableFuture<RefBuffer> future = stateMachine.readNext(si.snapshot);
+            CompletableFuture<RefBuffer> future = si.snapshot.readNext();
             member.setReplicateFuture(future);
             future.whenCompleteAsync(resumeAfterSnapshotLoad(member, si, reqEpoch), raftExecutor);
         } catch (Exception e) {
@@ -488,7 +488,7 @@ public class ReplicateManager {
     private void closeSnapshotAndResetStatus(RaftMember member, SnapshotInfo si) {
         try {
             if (si != null) {
-                stateMachine.closeSnapshot(si.snapshot);
+                si.snapshot.close();
             }
         } catch (Throwable e) {
             log.error("close snapshot fail", e);
@@ -507,18 +507,18 @@ public class ReplicateManager {
             return;
         }
         try {
-            Snapshot snapshot = stateMachine.openLatestSnapshot();
+            Snapshot snapshot = stateMachine.takeSnapshot();
             if (snapshot == null) {
                 installSnapshotFailTime = raftStatus.getTs().getNanoTime();
                 log.error("open recent snapshot fail, return null");
                 return;
             }
+            snapshot.open();
             log.info("begin install snapshot for member: nodeId={}, groupId={}", member.getNode().getNodeId(), groupId);
             si = new SnapshotInfo();
             si.snapshot = snapshot;
             si.offset = 0;
             si.replicateEpoch = member.getReplicateEpoch();
-            si.stateMachine = stateMachine;
             member.setSnapshotInfo(si);
         } catch (Exception e) {
             installSnapshotFailTime = raftStatus.getTs().getNanoTime();
