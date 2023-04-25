@@ -15,29 +15,47 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+
 /**
  * @author huangli
  */
 public class PendingStat {
-    private int pendingRequests;
-    private long pendingBytes;
+    @SuppressWarnings("unused")
+    private volatile int pendingRequests;
+    @SuppressWarnings("unused")
+    private volatile long pendingBytes;
 
-    public void incrAndGetPendingRequests(int requests, long bytes) {
-        pendingRequests += requests;
-        pendingBytes += bytes;
+    static final VarHandle PENDING_REQUESTS;
+    static final VarHandle PENDING_BYTES;
+
+    static {
+        try {
+            MethodHandles.Lookup lookup = MethodHandles.lookup();
+            PENDING_REQUESTS = lookup.findVarHandle(PendingStat.class, "pendingRequests", int.class);
+            PENDING_BYTES = lookup.findVarHandle(PendingStat.class, "pendingBytes", long.class);
+        } catch (Exception e) {
+            throw new Error(e);
+        }
     }
 
-    public void decrAndGetPendingRequests(int requests, long bytes) {
-        pendingRequests -= requests;
-        pendingBytes -= bytes;
+    public void incrPlain(int requests, long bytes) {
+        PENDING_REQUESTS.set(this, requests + (int) PENDING_REQUESTS.get(this));
+        PENDING_BYTES.set(this, bytes + (long) PENDING_BYTES.get(this));
     }
 
-    public int getPendingRequests() {
-        return pendingRequests;
+    public void decrPlain(int requests, long bytes) {
+        PENDING_REQUESTS.set(this, (int) PENDING_REQUESTS.get(this) - requests);
+        PENDING_BYTES.set(this, (long) PENDING_BYTES.get(this) - bytes);
     }
 
-    public long getPendingBytes() {
-        return pendingBytes;
+    public int getPendingRequestsPlain() {
+        return (int) PENDING_REQUESTS.get(this);
+    }
+
+    public long getPendingBytesPlain() {
+        return (long) PENDING_BYTES.get(this);
     }
 
 }

@@ -15,16 +15,35 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.log.BugLog;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftLog;
+import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
+
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
  */
 public class RaftGroupImpl extends RaftGroup {
+    private static final DtLog log = DtLogs.getLogger(RaftGroupImpl.class);
+    private final Timestamp readTimestamp = new Timestamp();
 
     private RaftServerConfig serverConfig;
     private RaftGroupConfig groupConfig;
@@ -39,7 +58,144 @@ public class RaftGroupImpl extends RaftGroup {
     private ApplyManager applyManager;
     private EventBus eventBus;
 
-    public RaftGroupImpl() {
+    private NodeManager nodeManager;
+    private PendingStat serverStat;
+
+    public RaftGroupImpl(Supplier<Boolean> isServerRunning) {
+        super(isServerRunning);
+    }
+
+    @Override
+    public int getGroupId() {
+        return groupConfig.getGroupId();
+    }
+
+    @SuppressWarnings("unused")
+    @Override
+    public CompletableFuture<RaftOutput> submitLinearTask(RaftInput input) throws RaftException {
+        Objects.requireNonNull(input);
+        Objects.requireNonNull(input.getInput());
+        if (!input.isReadOnly()) {
+            Objects.requireNonNull(input.getLogData());
+        } else {
+            if (input.getLogData() != null) {
+                throw new IllegalArgumentException("read only request should not have log data");
+            }
+        }
+        try {
+            RaftStatus raftStatus = this.raftStatus;
+            if (raftStatus.isError()) {
+                throw new RaftException("raft status is error");
+            }
+            if (raftStatus.isStop()) {
+                throw new RaftException("raft group thread is stop");
+            }
+            int size = input.size();
+            if (size > serverConfig.getMaxBodySize()) {
+                throw new RaftException("request size too large, size=" + size + ", maxBodySize=" + serverConfig.getMaxBodySize());
+            }
+            int currentPendingWrites = (int) PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, 1);
+            if (currentPendingWrites >= serverConfig.getMaxPendingWrites()) {
+                String msg = "submitRaftTask failed: too many pending writes, currentPendingWrites=" + currentPendingWrites;
+                log.warn(msg);
+                PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, -1);
+                throw new RaftException(msg);
+            }
+            long currentPendingWriteBytes = (long) PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, size);
+            if (currentPendingWriteBytes >= serverConfig.getMaxPendingWriteBytes()) {
+                String msg = "too many pending write bytes,currentPendingWriteBytes="
+                        + currentPendingWriteBytes + ", currentRequestBytes=" + size;
+                log.warn(msg);
+                PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, -size);
+                throw new RaftException(msg);
+            }
+            CompletableFuture<RaftOutput> f = raftGroupThread.submitRaftTask(input);
+            registerCallback(f, size, input);
+            return f;
+        } catch (RuntimeException | Error ex) {
+            RaftUtil.release(input);
+            throw ex;
+        }
+    }
+
+    private void registerCallback(CompletableFuture<?> f, int size, RaftInput input) {
+        f.whenComplete((o, ex) -> {
+            PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, -1);
+            PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, -size);
+            RaftUtil.release(input);
+        });
+    }
+
+    @Override
+    public long getLogIndexForRead(DtTime deadline)
+            throws RaftException, InterruptedException, TimeoutException {
+        RaftStatus raftStatus = this.raftStatus;
+        if (raftStatus.isError()) {
+            throw new RaftException("raft status error");
+        }
+        if (raftStatus.isStop()) {
+            throw new RaftException("raft group thread is stop");
+        }
+        ShareStatus ss = raftStatus.getShareStatus();
+        // NOTICE : timestamp is not thread safe
+        readTimestamp.refresh(1);
+        if (ss.role != RaftRole.leader) {
+            throw new NotLeaderException(RaftUtil.getLeader(ss.currentLeader));
+        }
+        long t = readTimestamp.getNanoTime();
+        if (ss.leaseEndNanos - t < 0) {
+            throw new NotLeaderException(null);
+        }
+        if (ss.firstCommitOfApplied != null) {
+            try {
+                ss.firstCommitOfApplied.get(deadline.rest(TimeUnit.NANOSECONDS), TimeUnit.NANOSECONDS);
+            } catch (ExecutionException e) {
+                BugLog.log(e);
+                throw new RaftException(e);
+            }
+        }
+        return ss.lastApplied;
+    }
+
+    /**
+     * ADMIN API.
+     */
+    @Override
+    public CompletableFuture<Void> transferLeadership(int nodeId, long timeoutMillis) {
+        checkStatus();
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        DtTime deadline = new DtTime(timeoutMillis, TimeUnit.MILLISECONDS);
+        raftStatus.setHoldRequest(true);
+        memberManager.transferLeadership(nodeId, f, deadline);
+        return f;
+    }
+
+    @Override
+    public CompletableFuture<Void> leaderPrepareJointConsensus(Set<Integer> members, Set<Integer> observers) {
+        Objects.requireNonNull(members);
+        Objects.requireNonNull(observers);
+        checkStatus();
+        // node state change in scheduler thread, member state change in raft thread
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        RaftUtil.SCHEDULED_SERVICE.execute(() -> nodeManager.leaderPrepareJointConsensus(f, this, members, observers));
+        return f;
+    }
+
+    @Override
+    public CompletableFuture<Void> leaderAbortJointConsensus() {
+        checkStatus();
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        raftExecutor.execute(() -> memberManager.leaderAbortJointConsensus(f));
+        return f;
+    }
+
+    @SuppressWarnings("unused")
+    @Override
+    public CompletableFuture<Void> leaderCommitJointConsensus() {
+        checkStatus();
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        raftExecutor.execute(() -> memberManager.leaderCommitJointConsensus(f));
+        return f;
     }
 
     public RaftGroupThread getRaftGroupThread() {
@@ -136,5 +292,13 @@ public class RaftGroupImpl extends RaftGroup {
 
     public void setEventBus(EventBus eventBus) {
         this.eventBus = eventBus;
+    }
+
+    public void setNodeManager(NodeManager nodeManager) {
+        this.nodeManager = nodeManager;
+    }
+
+    public void setServerStat(PendingStat serverStat) {
+        this.serverStat = serverStat;
     }
 }

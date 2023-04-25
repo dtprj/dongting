@@ -15,8 +15,60 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.raft.client.RaftException;
+
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
+
 /**
  * @author huangli
  */
-public class RaftGroup {
+public abstract class RaftGroup {
+    private final Supplier<Boolean> isServerRunning;
+
+    public RaftGroup(Supplier<Boolean> isServerRunning) {
+        this.isServerRunning = isServerRunning;
+    }
+
+    protected void checkStatus() {
+        if (!isServerRunning.get()) {
+            throw new RaftException("raft server is not running");
+        }
+    }
+
+    public abstract int getGroupId();
+
+    @SuppressWarnings("unused")
+    public abstract CompletableFuture<RaftOutput> submitLinearTask(RaftInput input) throws RaftException;
+
+    @SuppressWarnings("unused")
+    public abstract long getLogIndexForRead(DtTime deadline)
+            throws RaftException, InterruptedException, TimeoutException;
+
+    /**
+     * ADMIN API.
+     */
+    @SuppressWarnings("unused")
+    public abstract CompletableFuture<Void> transferLeadership(int nodeId, long timeoutMillis);
+
+    /**
+     * ADMIN API. This method is idempotent.
+     */
+    @SuppressWarnings("unused")
+    public abstract CompletableFuture<Void> leaderPrepareJointConsensus(Set<Integer> members, Set<Integer> observers);
+
+    /**
+     * ADMIN API. This method is idempotent.
+     */
+    @SuppressWarnings("unused")
+    public abstract CompletableFuture<Void> leaderAbortJointConsensus();
+
+    /**
+     * ADMIN API. This method is idempotent.
+     */
+    @SuppressWarnings("unused")
+    public abstract CompletableFuture<Void> leaderCommitJointConsensus();
 }

@@ -18,10 +18,8 @@ package com.github.dtprj.dongting.raft.server;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
-import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
@@ -37,17 +35,16 @@ import com.github.dtprj.dongting.raft.impl.CommitManager;
 import com.github.dtprj.dongting.raft.impl.EventBus;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.NodeManager;
+import com.github.dtprj.dongting.raft.impl.PendingStat;
 import com.github.dtprj.dongting.raft.impl.Raft;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftGroupThread;
 import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.impl.RaftNodeEx;
-import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.ReplicateManager;
-import com.github.dtprj.dongting.raft.impl.ShareStatus;
 import com.github.dtprj.dongting.raft.impl.VoteManager;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.InstallSnapshotProcessor;
@@ -57,19 +54,15 @@ import com.github.dtprj.dongting.raft.rpc.TransferLeaderProcessor;
 import com.github.dtprj.dongting.raft.rpc.VoteProcessor;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -91,31 +84,11 @@ public class RaftServer extends AbstractLifeCircle {
 
     private final NodeManager nodeManager;
 
-    private final int maxPendingWrites;
-    private final long maxPendingWriteBytes;
-    @SuppressWarnings({"unused"})
-    private volatile int pendingWrites;
-    @SuppressWarnings({"unused"})
-    private volatile long pendingWriteBytes;
-
-    private static final VarHandle PENDING_WRITES;
-    private static final VarHandle PENDING_WRITE_BYTES;
-
-    private final Timestamp readTimestamp = new Timestamp();
-
     private final AtomicBoolean change = new AtomicBoolean(false);
 
     private ExecutorService ioExecutor;
 
-    static {
-        try {
-            MethodHandles.Lookup lookup = MethodHandles.lookup();
-            PENDING_WRITES = lookup.findVarHandle(RaftServer.class, "pendingWrites", int.class);
-            PENDING_WRITE_BYTES = lookup.findVarHandle(RaftServer.class, "pendingWriteBytes", long.class);
-        } catch (Exception e) {
-            throw new Error(e);
-        }
-    }
+    private final PendingStat serverStat = new PendingStat();
 
     public RaftServer(RaftServerConfig serverConfig, List<RaftGroupConfig> groupConfig,
                       Function<RaftGroupConfigEx, RaftLog> raftLogFactory,
@@ -129,8 +102,6 @@ public class RaftServer extends AbstractLifeCircle {
         DtUtil.checkPositive(serverConfig.getNodeId(), "id");
         DtUtil.checkPositive(serverConfig.getRaftPort(), "port");
         this.serverConfig = serverConfig;
-        this.maxPendingWrites = serverConfig.getMaxPendingWrites();
-        this.maxPendingWriteBytes = serverConfig.getMaxPendingWriteBytes();
         this.raftLogFactory = raftLogFactory;
         this.stateMachineFactory = stateMachineFactory;
 
@@ -240,7 +211,7 @@ public class RaftServer extends AbstractLifeCircle {
 
         eventBus.register(voteManager);
 
-        RaftGroupImpl gc = new RaftGroupImpl();
+        RaftGroupImpl gc = new RaftGroupImpl(() -> status == LifeStatus.running);
         gc.setServerConfig(serverConfig);
         gc.setGroupConfig(rgc);
         gc.setRaftLog(raftLog);
@@ -252,6 +223,8 @@ public class RaftServer extends AbstractLifeCircle {
         gc.setRaftExecutor(raftExecutor);
         gc.setApplyManager(applyManager);
         gc.setEventBus(eventBus);
+        gc.setNodeManager(nodeManager);
+        gc.setServerStat(serverStat);
         return gc;
     }
 
@@ -358,99 +331,6 @@ public class RaftServer extends AbstractLifeCircle {
         }
     }
 
-    @SuppressWarnings("unused")
-    public CompletableFuture<RaftOutput> submitLinearTask(int groupId, RaftInput input) throws RaftException {
-        Objects.requireNonNull(input);
-        Objects.requireNonNull(input.getInput());
-        if (!input.isReadOnly()) {
-            Objects.requireNonNull(input.getLogData());
-        } else {
-            if (input.getLogData() != null) {
-                throw new IllegalArgumentException("read only request should not have log data");
-            }
-        }
-        try {
-            RaftGroupImpl gc = RaftUtil.getGroupComponents(raftGroups, groupId);
-            RaftStatus raftStatus = gc.getRaftStatus();
-            if (raftStatus.isError()) {
-                throw new RaftException("raft status is error");
-            }
-            if (gc.getRaftStatus().isStop()) {
-                throw new RaftException("raft group thread is stop");
-            }
-            int size = input.size();
-            if (size > serverConfig.getMaxBodySize()) {
-                throw new RaftException("request size too large, size=" + size + ", maxBodySize=" + serverConfig.getMaxBodySize());
-            }
-            int currentPendingWrites = (int) PENDING_WRITES.getAndAddRelease(this, 1);
-            if (currentPendingWrites >= maxPendingWrites) {
-                String msg = "submitRaftTask failed: too many pending writes, currentPendingWrites=" + currentPendingWrites;
-                log.warn(msg);
-                PENDING_WRITES.getAndAddRelease(this, -1);
-                throw new RaftException(msg);
-            }
-            long currentPendingWriteBytes = (long) PENDING_WRITE_BYTES.getAndAddRelease(this, size);
-            if (currentPendingWriteBytes >= maxPendingWriteBytes) {
-                String msg = "too many pending write bytes,currentPendingWriteBytes="
-                        + currentPendingWriteBytes + ", currentRequestBytes=" + size;
-                log.warn(msg);
-                PENDING_WRITE_BYTES.getAndAddRelease(this, -size);
-                throw new RaftException(msg);
-            }
-            CompletableFuture<RaftOutput> f = gc.getRaftGroupThread().submitRaftTask(input);
-            registerCallback(f, size, input);
-            return f;
-        } catch (RuntimeException | Error ex) {
-            RaftUtil.release(input);
-            throw ex;
-        }
-    }
-
-    private void registerCallback(CompletableFuture<?> f, int size, RaftInput input) {
-        f.whenComplete((o, ex) -> {
-            PENDING_WRITES.getAndAddRelease(this, -1);
-            PENDING_WRITE_BYTES.getAndAddRelease(this, -size);
-            RaftUtil.release(input);
-        });
-    }
-
-    @SuppressWarnings("unused")
-    public long getLogIndexForRead(int groupId, DtTime deadline)
-            throws RaftException, InterruptedException, TimeoutException {
-        RaftGroupImpl gc = RaftUtil.getGroupComponents(raftGroups, groupId);
-        RaftStatus raftStatus = gc.getRaftStatus();
-        if (raftStatus.isError()) {
-            throw new RaftException("raft status error");
-        }
-        if (gc.getRaftStatus().isStop()) {
-            throw new RaftException("raft group thread is stop");
-        }
-        ShareStatus ss = raftStatus.getShareStatus();
-        readTimestamp.refresh(1);
-        if (ss.role != RaftRole.leader) {
-            throw new NotLeaderException(RaftUtil.getLeader(ss.currentLeader));
-        }
-        long t = readTimestamp.getNanoTime();
-        if (ss.leaseEndNanos - t < 0) {
-            throw new NotLeaderException(null);
-        }
-        if (ss.firstCommitOfApplied != null) {
-            try {
-                ss.firstCommitOfApplied.get(deadline.rest(TimeUnit.NANOSECONDS), TimeUnit.NANOSECONDS);
-            } catch (ExecutionException e) {
-                BugLog.log(e);
-                throw new RaftException(e);
-            }
-        }
-        return ss.lastApplied;
-    }
-
-    @SuppressWarnings("unused")
-    public Thread getRaftGroupThread(int groupId) {
-        RaftGroupImpl gc = RaftUtil.getGroupComponents(raftGroups, groupId);
-        return gc.getRaftGroupThread();
-    }
-
     private void doChange(Runnable runnable) {
         checkStatus();
         if (change.compareAndSet(false, true)) {
@@ -548,60 +428,9 @@ public class RaftServer extends AbstractLifeCircle {
         });
     }
 
-    /**
-     * ADMIN API. This method is idempotent.
-     */
     @SuppressWarnings("unused")
-    public CompletableFuture<Void> leaderPrepareJointConsensus(int groupId, Set<Integer> members, Set<Integer> observers) {
-        Objects.requireNonNull(members);
-        Objects.requireNonNull(observers);
-        checkStatus();
-        // node state change in scheduler thread, member state change in raft thread
-        CompletableFuture<Void> f = new CompletableFuture<>();
-        RaftUtil.SCHEDULED_SERVICE.execute(() -> nodeManager.leaderPrepareJointConsensus(f, groupId, members, observers));
-        return f;
-    }
-
-    /**
-     * ADMIN API. This method is idempotent.
-     */
-    @SuppressWarnings("unused")
-    public CompletableFuture<Void> leaderAbortJointConsensus(int groupId) {
-        checkStatus();
-        CompletableFuture<Void> f = new CompletableFuture<>();
-        RaftUtil.SCHEDULED_SERVICE.execute(() -> nodeManager.leaderAbortJointConsensus(f, groupId));
-        return f;
-    }
-
-    /**
-     * ADMIN API. This method is idempotent.
-     */
-    @SuppressWarnings("unused")
-    public CompletableFuture<Void> leaderCommitJointConsensus(int groupId) {
-        checkStatus();
-        CompletableFuture<Void> f = new CompletableFuture<>();
-        RaftUtil.SCHEDULED_SERVICE.execute(() -> nodeManager.leaderCommitJointConsensus(f, groupId));
-        return f;
-    }
-
-    /**
-     * ADMIN API.
-     */
-    @SuppressWarnings("unused")
-    public CompletableFuture<Void> transferLeadership(int groupId, int nodeId, long timeoutMillis) {
-        checkStatus();
-        CompletableFuture<Void> f = new CompletableFuture<>();
-        DtTime deadline = new DtTime(timeoutMillis, TimeUnit.MILLISECONDS);
-        RaftGroupImpl gc = RaftUtil.getGroupComponents(raftGroups, groupId);
-        gc.getRaftStatus().setHoldRequest(true);
-        gc.getMemberManager().transferLeadership(nodeId, f, deadline);
-        return f;
-    }
-
-    @SuppressWarnings("unused")
-    public StateMachine getStateMachine(int groupId) {
-        RaftGroupImpl gc = RaftUtil.getGroupComponents(raftGroups, groupId);
-        return gc.getStateMachine();
+    public RaftGroup getRaftGroup(int groupId) {
+        return RaftUtil.getGroupComponents(raftGroups, groupId);
     }
 
 }

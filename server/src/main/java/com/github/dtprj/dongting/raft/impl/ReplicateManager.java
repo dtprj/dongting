@@ -119,7 +119,7 @@ public class ReplicateManager {
         } else if (member.isMultiAppend()) {
             doReplicate(member);
         } else {
-            if (member.getPendingStat().getPendingRequests() == 0) {
+            if (member.getPendingStat().getPendingRequestsPlain() == 0) {
                 doReplicate(member);
             } else {
                 // waiting all pending request complete
@@ -137,12 +137,12 @@ public class ReplicateManager {
 
         // flow control
         PendingStat ps = member.getPendingStat();
-        int rest = maxReplicateItems - ps.getPendingRequests();
+        int rest = maxReplicateItems - ps.getPendingRequestsPlain();
         if (rest <= restItemsToStartReplicate) {
             // avoid silly window syndrome
             return;
         }
-        if (ps.getPendingBytes() >= maxReplicateBytes) {
+        if (ps.getPendingBytesPlain() >= maxReplicateBytes) {
             return;
         }
 
@@ -169,7 +169,7 @@ public class ReplicateManager {
                 }
                 limit -= items.size();
                 sendAppendRequest(member, items);
-                if (limit == 0 || ps.getPendingBytes() >= maxReplicateBytes) {
+                if (limit == 0 || ps.getPendingBytesPlain() >= maxReplicateBytes) {
                     return;
                 }
             }
@@ -223,7 +223,7 @@ public class ReplicateManager {
                 replicate(member);
             } else {
                 //noinspection StatementWithEmptyBody
-                if (member.getPendingStat().getPendingRequests() == 0) {
+                if (member.getPendingStat().getPendingRequestsPlain() == 0) {
                     sendAppendRequest(member, items);
                 } else {
                     // waiting all pending request complete
@@ -281,7 +281,7 @@ public class ReplicateManager {
         long reqNanos = ts.getNanoTime();
         // if PendingStat is reset, we should not invoke decrAndGetPendingRequests() on new instance
         PendingStat ps = member.getPendingStat();
-        ps.incrAndGetPendingRequests(logs.size(), bytes);
+        ps.incrPlain(logs.size(), bytes);
         int repEpoch = member.getReplicateEpoch();
         f.whenCompleteAsync((rf, ex) -> {
             try {
@@ -294,7 +294,7 @@ public class ReplicateManager {
                     log.info("receive outdated append result, replicateEpoch not match. ignore.");
                     return;
                 }
-                ps.decrAndGetPendingRequests(logs.size(), bytes);
+                ps.decrPlain(logs.size(), bytes);
                 if (ex == null) {
                     processAppendResult(member, rf, prevLogIndex, prevLogTerm, reqTerm, reqNanos, logs.size(), repEpoch);
                 } else {
@@ -433,7 +433,7 @@ public class ReplicateManager {
         if (si.readFinished) {
             return;
         }
-        if (member.getPendingStat().getPendingBytes() >= maxReplicateBytes) {
+        if (member.getPendingStat().getPendingBytesPlain() >= maxReplicateBytes) {
             return;
         }
         int reqEpoch = member.getReplicateEpoch();
@@ -562,7 +562,7 @@ public class ReplicateManager {
                                                  SnapshotInfo si, int reqTerm, long reqOffset,
                                                  int reqBytes, boolean reqDone, long reqLastIncludedIndex) {
         PendingStat pd = member.getPendingStat();
-        pd.incrAndGetPendingRequests(1, reqBytes);
+        pd.incrPlain(1, reqBytes);
         int reqEpoch = member.getReplicateEpoch();
         future.whenCompleteAsync((rf, ex) -> {
             if (reqTerm != raftStatus.getCurrentTerm()) {
@@ -574,7 +574,7 @@ public class ReplicateManager {
                 log.info("epoch not match, ignore install snapshot response.");
                 return;
             }
-            pd.decrAndGetPendingRequests(1, reqBytes);
+            pd.decrPlain(1, reqBytes);
             if (ex != null) {
                 log.error("send install snapshot fail. remoteNode={}, groupId={}",
                         member.getNode().getNodeId(), groupId, ex);
