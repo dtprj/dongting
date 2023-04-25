@@ -67,7 +67,7 @@ public class RaftGroupThread extends Thread {
     public RaftGroupThread() {
     }
 
-    public void init(GroupComponents gc, ExecutorService ioExecutor) {
+    public void init(RaftGroupImpl gc, ExecutorService ioExecutor) {
         this.config = gc.getServerConfig();
         this.raftStatus = gc.getRaftStatus();
         this.queue = gc.getRaftExecutor().getQueue();

@@ -23,9 +23,9 @@ import com.github.dtprj.dongting.net.Decoder;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.WriteFrame;
-import com.github.dtprj.dongting.raft.impl.GroupComponents;
-import com.github.dtprj.dongting.raft.impl.GroupComponentsMap;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
+import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
+import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.StatusUtil;
@@ -38,8 +38,8 @@ public class VoteProcessor extends AbstractProcessor {
 
     private static final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder(c -> new VoteReq.Callback());
 
-    public VoteProcessor(GroupComponentsMap groupComponentsMap) {
-        super(groupComponentsMap);
+    public VoteProcessor(RaftGroups raftGroups) {
+        super(raftGroups);
     }
 
     @Override
@@ -48,7 +48,7 @@ public class VoteProcessor extends AbstractProcessor {
     }
 
     @Override
-    protected WriteFrame doProcess(ReadFrame rf, ChannelContext channelContext, GroupComponents gc) {
+    protected WriteFrame doProcess(ReadFrame rf, ChannelContext channelContext, RaftGroupImpl gc) {
         VoteReq voteReq = (VoteReq) rf.getBody();
         VoteResp resp = new VoteResp();
         RaftStatus raftStatus = gc.getRaftStatus();

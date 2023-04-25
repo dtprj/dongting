@@ -311,8 +311,8 @@ public class RaftUtil {
         return set;
     }
 
-    public static GroupComponents getGroupComponents(GroupComponentsMap map, int groupId) {
-        GroupComponents gc = map.get(groupId);
+    public static RaftGroupImpl getGroupComponents(RaftGroups map, int groupId) {
+        RaftGroupImpl gc = map.get(groupId);
         if (gc == null) {
             log.error("group not exist: {}", groupId);
             throw new RaftException("group not exist: " + groupId);

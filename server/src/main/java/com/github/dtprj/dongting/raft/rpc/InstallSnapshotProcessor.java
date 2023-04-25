@@ -24,8 +24,8 @@ import com.github.dtprj.dongting.net.Decoder;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.WriteFrame;
-import com.github.dtprj.dongting.raft.impl.GroupComponents;
-import com.github.dtprj.dongting.raft.impl.GroupComponentsMap;
+import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
+import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -40,8 +40,8 @@ public class InstallSnapshotProcessor extends AbstractProcessor {
 
     private static final Decoder DECODER = new PbZeroCopyDecoder(c -> new InstallSnapshotReq.Callback(c.getIoHeapBufferPool()));
 
-    public InstallSnapshotProcessor(GroupComponentsMap groupComponentsMap) {
-        super(groupComponentsMap);
+    public InstallSnapshotProcessor(RaftGroups raftGroups) {
+        super(raftGroups);
     }
 
     @Override
@@ -50,7 +50,7 @@ public class InstallSnapshotProcessor extends AbstractProcessor {
     }
 
     @Override
-    protected WriteFrame doProcess(ReadFrame frame, ChannelContext channelContext, GroupComponents gc) {
+    protected WriteFrame doProcess(ReadFrame frame, ChannelContext channelContext, RaftGroupImpl gc) {
         InstallSnapshotReq req = (InstallSnapshotReq) frame.getBody();
         try {
             InstallSnapshotResp resp = new InstallSnapshotResp();

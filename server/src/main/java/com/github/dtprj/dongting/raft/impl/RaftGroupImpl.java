@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
@@ -23,7 +24,7 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 /**
  * @author huangli
  */
-public class GroupComponents {
+public class RaftGroupImpl extends RaftGroup {
 
     private RaftServerConfig serverConfig;
     private RaftGroupConfig groupConfig;
@@ -38,7 +39,7 @@ public class GroupComponents {
     private ApplyManager applyManager;
     private EventBus eventBus;
 
-    public GroupComponents() {
+    public RaftGroupImpl() {
     }
 
     public RaftGroupThread getRaftGroupThread() {

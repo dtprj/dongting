@@ -25,8 +25,8 @@ import com.github.dtprj.dongting.net.Decoder;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.WriteFrame;
-import com.github.dtprj.dongting.raft.impl.GroupComponents;
-import com.github.dtprj.dongting.raft.impl.GroupComponentsMap;
+import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
+import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatus;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
@@ -51,8 +51,8 @@ public class AppendProcessor extends AbstractProcessor {
 
     private static final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder(AppendReqCallback::new);
 
-    public AppendProcessor(GroupComponentsMap groupComponentsMap) {
-        super(groupComponentsMap);
+    public AppendProcessor(RaftGroups raftGroups) {
+        super(raftGroups);
     }
 
     @Override
@@ -61,7 +61,7 @@ public class AppendProcessor extends AbstractProcessor {
     }
 
     @Override
-    protected WriteFrame doProcess(ReadFrame rf, ChannelContext channelContext, GroupComponents gc) {
+    protected WriteFrame doProcess(ReadFrame rf, ChannelContext channelContext, RaftGroupImpl gc) {
         AppendRespWriteFrame resp = new AppendRespWriteFrame();
         AppendReqCallback req = (AppendReqCallback) rf.getBody();
         RaftStatus raftStatus = gc.getRaftStatus();
@@ -118,7 +118,7 @@ public class AppendProcessor extends AbstractProcessor {
     }
 
     @SuppressWarnings("ForLoopReplaceableByForEach")
-    private void append(GroupComponents gc, RaftStatus raftStatus, AppendReqCallback req, AppendRespWriteFrame resp) {
+    private void append(RaftGroupImpl gc, RaftStatus raftStatus, AppendReqCallback req, AppendRespWriteFrame resp) {
         if (raftStatus.isInstallSnapshot()) {
             resp.setSuccess(false);
             resp.setAppendCode(CODE_INSTALL_SNAPSHOT);

@@ -20,24 +20,24 @@ import com.github.dtprj.dongting.common.IntObjMap;
 /**
  * @author huangli
  */
-public class GroupComponentsMap {
-    private volatile IntObjMap<GroupComponents> map = new IntObjMap<>();
+public class RaftGroups {
+    private volatile IntObjMap<RaftGroupImpl> map = new IntObjMap<>();
 
-    public GroupComponents get(int groupId) {
+    public RaftGroupImpl get(int groupId) {
         return map.get(groupId);
     }
 
-    public void put(int groupId, GroupComponents groupComponents) {
-        IntObjMap<GroupComponents> newMap = new IntObjMap<>();
+    public void put(int groupId, RaftGroupImpl raftGroupImpl) {
+        IntObjMap<RaftGroupImpl> newMap = new IntObjMap<>();
         map.forEach((k, v) -> {
             newMap.put(k, v);
             return true;
         });
-        newMap.put(groupId, groupComponents);
+        newMap.put(groupId, raftGroupImpl);
         this.map = newMap;
     }
 
-    public void forEach(IntObjMap.Visitor<GroupComponents> visitor) {
+    public void forEach(IntObjMap.Visitor<RaftGroupImpl> visitor) {
         map.forEach(visitor);
     }
 

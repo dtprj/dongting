@@ -24,8 +24,8 @@ import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
-import com.github.dtprj.dongting.raft.impl.GroupComponents;
-import com.github.dtprj.dongting.raft.impl.GroupComponentsMap;
+import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
+import com.github.dtprj.dongting.raft.impl.RaftGroups;
 
 /**
  * @author huangli
@@ -33,21 +33,21 @@ import com.github.dtprj.dongting.raft.impl.GroupComponentsMap;
 abstract class AbstractProcessor extends ReqProcessor {
     private static final DtLog log = DtLogs.getLogger(AbstractProcessor.class);
 
-    protected final GroupComponentsMap groupComponentsMap;
+    protected final RaftGroups raftGroups;
 
-    public AbstractProcessor(GroupComponentsMap groupComponentsMap) {
-        this.groupComponentsMap = groupComponentsMap;
+    public AbstractProcessor(RaftGroups raftGroups) {
+        this.raftGroups = raftGroups;
     }
 
     protected abstract int getGroupId(ReadFrame frame);
 
     protected abstract WriteFrame doProcess(ReadFrame frame, ChannelContext channelContext,
-                                            GroupComponents gc);
+                                            RaftGroupImpl gc);
 
     @Override
     public final WriteFrame process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext) {
         int groupId = getGroupId(frame);
-        GroupComponents gc = groupComponentsMap.get(groupId);
+        RaftGroupImpl gc = raftGroups.get(groupId);
         if (gc == null) {
             log.error("raft group not found: {}", groupId);
             EmptyBodyRespFrame wf = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
@@ -65,7 +65,7 @@ abstract class AbstractProcessor extends ReqProcessor {
         }
     }
 
-    private void process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext, GroupComponents gc) {
+    private void process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext, RaftGroupImpl gc) {
         WriteFrame wf = doProcess(frame, channelContext, gc);
         if (wf != null) {
             channelContext.getRespWriter().writeRespInBizThreads(frame, wf, reqContext.getTimeout());

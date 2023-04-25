@@ -21,8 +21,8 @@ import com.github.dtprj.dongting.net.Decoder;
 import com.github.dtprj.dongting.net.PbZeroCopyDecoder;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.WriteFrame;
-import com.github.dtprj.dongting.raft.impl.GroupComponents;
-import com.github.dtprj.dongting.raft.impl.GroupComponentsMap;
+import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
+import com.github.dtprj.dongting.raft.impl.RaftGroups;
 
 /**
  * @author huangli
@@ -31,8 +31,8 @@ public class RaftPingProcessor extends AbstractProcessor {
     public static final PbZeroCopyDecoder DECODER = new PbZeroCopyDecoder(context ->
             new RaftPingFrameCallback());
 
-    public RaftPingProcessor(GroupComponentsMap groupComponentsMap) {
-        super(groupComponentsMap);
+    public RaftPingProcessor(RaftGroups raftGroups) {
+        super(raftGroups);
     }
 
     @Override
@@ -41,7 +41,7 @@ public class RaftPingProcessor extends AbstractProcessor {
     }
 
     @Override
-    protected WriteFrame doProcess(ReadFrame frame, ChannelContext channelContext, GroupComponents gc) {
+    protected WriteFrame doProcess(ReadFrame frame, ChannelContext channelContext, RaftGroupImpl gc) {
         RaftPingWriteFrame resp = new RaftPingWriteFrame(gc.getServerConfig().getNodeId(),
                 gc.getGroupConfig().getGroupId(), gc.getRaftStatus().getNodeIdOfMembers(),
                 gc.getRaftStatus().getNodeIdOfObservers());
