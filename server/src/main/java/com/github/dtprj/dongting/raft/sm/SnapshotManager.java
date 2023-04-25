@@ -15,23 +15,13 @@
  */
 package com.github.dtprj.dongting.raft.sm;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
-
-import java.util.concurrent.CompletableFuture;
+import java.util.List;
 
 /**
  * @author huangli
  */
-public interface StateMachine extends AutoCloseable {
+public interface SnapshotManager {
+    List<Snapshot> list();
 
-    Object decode(RefBuffer logData);
-
-    CompletableFuture<Object> exec(long index, Object input);
-
-    SnapshotManager getSnapshotManager();
-
-    void installSnapshot(boolean start, boolean finish, RefBuffer data);
-
-    Snapshot takeSnapshot();
-
+    void delete(Snapshot snapshot);
 }

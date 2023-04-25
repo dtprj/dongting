@@ -544,6 +544,9 @@ public class ReplicateManager {
         InstallSnapshotReq.WriteFrame wf = new InstallSnapshotReq.WriteFrame(req);
         wf.setCommand(Commands.RAFT_INSTALL_SNAPSHOT);
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
+        if (data != null) {
+            data.retain();
+        }
         CompletableFuture<ReadFrame> future = client.sendRequest(member.getNode().getPeer(), wf, INSTALL_SNAPSHOT_RESP_DECODER, timeout);
         future.whenComplete((rf, ex) -> {
             if (data != null) {

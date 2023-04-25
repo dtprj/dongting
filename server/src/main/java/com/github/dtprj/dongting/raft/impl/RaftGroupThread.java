@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -28,10 +29,13 @@ import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
+import com.github.dtprj.dongting.raft.sm.Snapshot;
+import com.github.dtprj.dongting.raft.sm.SnapshotManager;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -82,7 +86,7 @@ public class RaftGroupThread extends Thread {
 
         try {
             StatusUtil.initStatusFileChannel(groupConfig.getDataDir(), groupConfig.getStatusFile(), raftStatus);
-            long stateMachineLatestIndex = stateMachine.init();
+            long stateMachineLatestIndex = recoverStateMachine();
             log.info("load snapshot to stateMachineLatestIndex {}, groupId={}", stateMachineLatestIndex, groupConfig.getGroupId());
             if (stateMachineLatestIndex > raftStatus.getCommitIndex()) {
                 raftStatus.setCommitIndex(stateMachineLatestIndex);
@@ -103,6 +107,36 @@ public class RaftGroupThread extends Thread {
         } catch (Exception e) {
             throw new RaftException(e);
         }
+    }
+
+    private long recoverStateMachine() throws Exception {
+        SnapshotManager manager = stateMachine.getSnapshotManager();
+        if (manager == null) {
+            return 0;
+        }
+        List<Snapshot> snapshots = manager.list();
+        if (snapshots == null || snapshots.size() == 0) {
+            return 0;
+        }
+        Snapshot snapshot = snapshots.get(snapshots.size() - 1);
+        try {
+            snapshot.open();
+            boolean start = true;
+            while (true) {
+                CompletableFuture<RefBuffer> f = snapshot.readNext();
+                RefBuffer rb = f.get();
+                if (rb == null || !rb.getBuffer().hasRemaining()) {
+                    stateMachine.installSnapshot(start, true, rb);
+                    break;
+                }
+                stateMachine.installSnapshot(start, false, rb);
+                start = false;
+                rb.release();
+            }
+        } finally {
+            snapshot.close();
+        }
+        return snapshot.getLastIncludedIndex();
     }
 
     public void waitReady() {
