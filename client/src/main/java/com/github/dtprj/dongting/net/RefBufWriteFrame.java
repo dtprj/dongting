@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.RefByteBuffer;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.DtException;
 
 import java.nio.ByteBuffer;
@@ -26,12 +26,12 @@ import java.nio.ByteBuffer;
  */
 @SuppressWarnings("FieldMayBeFinal")
 public class RefBufWriteFrame extends ByteBufferWriteFrame {
-    private RefByteBuffer refByteBuffer;
+    private RefBuffer refBuffer;
     private boolean encodeInvoked;
 
-    public RefBufWriteFrame(RefByteBuffer refByteBuffer) {
-        super(refByteBuffer == null ? null : refByteBuffer.getBuffer());
-        this.refByteBuffer = refByteBuffer;
+    public RefBufWriteFrame(RefBuffer refBuffer) {
+        super(refBuffer == null ? null : refBuffer.getBuffer());
+        this.refBuffer = refBuffer;
     }
 
     @Override
@@ -40,8 +40,8 @@ public class RefBufWriteFrame extends ByteBufferWriteFrame {
             throw new DtException("encode method has been invoked");
         }
         super.encodeBody(buf, pool);
-        if (refByteBuffer != null) {
-            refByteBuffer.release();
+        if (refBuffer != null) {
+            refBuffer.release();
         }
         encodeInvoked = true;
     }

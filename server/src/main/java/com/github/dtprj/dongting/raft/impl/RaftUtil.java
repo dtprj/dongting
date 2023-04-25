@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.buf.RefByteBuffer;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.HostPort;
@@ -325,7 +325,7 @@ public class RaftUtil {
             return;
         }
         if (!rt.isReadOnly()) {
-            RefByteBuffer logData = rt.getLogData();
+            RefBuffer logData = rt.getLogData();
             if (logData != null) {
                 logData.retain();
             }
@@ -337,7 +337,7 @@ public class RaftUtil {
             return;
         }
         if (!rt.isReadOnly()) {
-            RefByteBuffer logData = rt.getLogData();
+            RefBuffer logData = rt.getLogData();
             if (logData != null) {
                 logData.release();
             }
@@ -349,7 +349,7 @@ public class RaftUtil {
         if (li == null) {
             return;
         }
-        RefByteBuffer b = li.getBuffer();
+        RefBuffer b = li.getBuffer();
         if (b != null) {
             b.retain();
         }
@@ -359,7 +359,7 @@ public class RaftUtil {
         if (li == null) {
             return;
         }
-        RefByteBuffer b = li.getBuffer();
+        RefBuffer b = li.getBuffer();
         if (b != null) {
             b.release();
         }

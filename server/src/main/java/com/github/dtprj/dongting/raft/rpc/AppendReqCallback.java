@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.RefByteBuffer;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.net.ChannelContext;
 import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.pb.PbParser;
@@ -186,9 +186,9 @@ public class AppendReqCallback extends PbCallback {
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
             if (index == 6) {
-                RefByteBuffer dest;
+                RefBuffer dest;
                 if (begin) {
-                    dest = RefByteBuffer.createPlain(heapPool, len, 1024);
+                    dest = RefBuffer.createPlain(heapPool, len, 1024);
                     item.setBuffer(dest);
                 } else {
                     dest = item.getBuffer();

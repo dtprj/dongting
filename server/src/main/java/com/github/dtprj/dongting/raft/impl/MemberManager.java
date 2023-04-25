@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.buf.RefByteBuffer;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.log.DtLog;
@@ -327,7 +327,7 @@ public class MemberManager {
         executor.schedule(r, 3);
     }
 
-    private void leaderConfigChange(int type, RefByteBuffer data, CompletableFuture<Void> f) {
+    private void leaderConfigChange(int type, RefBuffer data, CompletableFuture<Void> f) {
         if (raftStatus.getRole() != RaftRole.leader) {
             String stageStr;
             switch (type) {
@@ -366,7 +366,7 @@ public class MemberManager {
         leaderConfigChange(LogItem.TYPE_PREPARE_CONFIG_CHANGE, getInputData(newMemberNodes, newObserverNodes), f);
     }
 
-    private RefByteBuffer getInputData(Set<Integer> newMemberNodes, Set<Integer> newObserverNodes) {
+    private RefBuffer getInputData(Set<Integer> newMemberNodes, Set<Integer> newObserverNodes) {
         StringBuilder sb = new StringBuilder(64);
         appendSet(sb, raftStatus.getNodeIdOfMembers());
         appendSet(sb, raftStatus.getNodeIdOfObservers());
@@ -374,7 +374,7 @@ public class MemberManager {
         appendSet(sb, newObserverNodes);
         sb.deleteCharAt(sb.length() - 1);
         byte[] data = sb.toString().getBytes();
-        RefByteBuffer buf = RefByteBuffer.createUnpooled(data.length, false);
+        RefBuffer buf = RefBuffer.createUnpooled(data.length, false);
         buf.getBuffer().put(data);
         buf.getBuffer().flip();
         return buf;

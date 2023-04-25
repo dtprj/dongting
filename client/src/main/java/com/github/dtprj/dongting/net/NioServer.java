@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.RefByteBuffer;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.BugLog;
@@ -225,7 +225,7 @@ public class NioServer extends NioNet implements Runnable {
 
         @Override
         public WriteFrame process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext) {
-            RefBufWriteFrame resp = new RefBufWriteFrame((RefByteBuffer) frame.getBody());
+            RefBufWriteFrame resp = new RefBufWriteFrame((RefBuffer) frame.getBody());
             resp.setRespCode(CmdCodes.SUCCESS);
             return resp;
         }

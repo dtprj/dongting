@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.RefByteBuffer;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.TestUtil;
@@ -283,8 +283,8 @@ public class NioClientTest {
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
         assertEquals("msg", rf.getMsg());
         if (bs.length != 0) {
-            if (rf.getBody() instanceof RefByteBuffer) {
-                RefByteBuffer rc = (RefByteBuffer) rf.getBody();
+            if (rf.getBody() instanceof RefBuffer) {
+                RefBuffer rc = (RefBuffer) rf.getBody();
                 assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
                 rc.release();
             } else {
@@ -310,7 +310,7 @@ public class NioClientTest {
         assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
         if (bs.length != 0) {
-            RefByteBuffer rc = (RefByteBuffer) rf.getBody();
+            RefBuffer rc = (RefBuffer) rf.getBody();
             assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
             rc.release();
         } else {
@@ -332,7 +332,7 @@ public class NioClientTest {
             assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
             assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
             if (bs.length != 0) {
-                RefByteBuffer rc = (RefByteBuffer) rf.getBody();
+                RefBuffer rc = (RefBuffer) rf.getBody();
                 assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
                 rc.release();
             } else {

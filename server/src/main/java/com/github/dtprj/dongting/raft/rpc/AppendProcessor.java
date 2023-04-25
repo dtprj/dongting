@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.buf.RefByteBuffer;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -108,7 +108,7 @@ public class AppendProcessor extends AbstractProcessor {
         if (logs != null) {
             //noinspection ForLoopReplaceableByForEach
             for (int i = 0; i < logs.size(); i++) {
-                RefByteBuffer b = logs.get(i).getBuffer();
+                RefBuffer b = logs.get(i).getBuffer();
                 if (b != null) {
                     b.release();
                 }

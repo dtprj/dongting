@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.buf.RefByteBuffer;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.DtLog;
@@ -246,7 +246,7 @@ public class ApplyManager {
     private void doPrepare(long index, RaftTask rt) {
         configChanging = true;
 
-        RefByteBuffer logData = rt.input.getLogData();
+        RefBuffer logData = rt.input.getLogData();
         byte[] data = new byte[logData.getBuffer().remaining()];
         logData.getBuffer().get(data);
         String dataStr = new String(data);

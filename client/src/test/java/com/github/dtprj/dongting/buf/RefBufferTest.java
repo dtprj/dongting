@@ -23,56 +23,56 @@ import org.junit.jupiter.api.Test;
 /**
  * @author huangli
  */
-public class RefByteBufferTest {
+public class RefBufferTest {
 
     @Test
     public void testCreate1() {
         SimpleByteBufferPool pool = new SimpleByteBufferPool(new Timestamp(), false);
-        RefByteBuffer refByteBuffer = RefByteBuffer.create(pool, 128, 128);
-        refByteBuffer.retain();
-        refByteBuffer.release();
-        refByteBuffer.release();
-        refByteBuffer.release();
-        refByteBuffer.release();
+        RefBuffer refBuffer = RefBuffer.create(pool, 128, 128);
+        refBuffer.retain();
+        refBuffer.release();
+        refBuffer.release();
+        refBuffer.release();
+        refBuffer.release();
     }
 
     @Test
     public void testCreate2() {
         SimpleByteBufferPool pool = new SimpleByteBufferPool(new Timestamp(), false);
-        RefByteBuffer refByteBuffer = RefByteBuffer.create(pool, 128, 127);
-        refByteBuffer.retain();
-        refByteBuffer.release();
-        refByteBuffer.release();
-        Assertions.assertThrows(DtException.class, refByteBuffer::release);
+        RefBuffer refBuffer = RefBuffer.create(pool, 128, 127);
+        refBuffer.retain();
+        refBuffer.release();
+        refBuffer.release();
+        Assertions.assertThrows(DtException.class, refBuffer::release);
     }
 
     @Test
     public void testCreatePlain1() {
         SimpleByteBufferPool pool = new SimpleByteBufferPool(new Timestamp(), false);
-        RefByteBuffer refByteBuffer = RefByteBuffer.createPlain(pool, 128, 128);
-        refByteBuffer.retain();
-        refByteBuffer.release();
-        refByteBuffer.release();
-        refByteBuffer.release();
-        refByteBuffer.release();
+        RefBuffer refBuffer = RefBuffer.createPlain(pool, 128, 128);
+        refBuffer.retain();
+        refBuffer.release();
+        refBuffer.release();
+        refBuffer.release();
+        refBuffer.release();
     }
 
     @Test
     public void testCreatePlain2() {
         SimpleByteBufferPool pool = new SimpleByteBufferPool(new Timestamp(), false);
-        RefByteBuffer refByteBuffer = RefByteBuffer.createPlain(pool, 128, 127);
-        refByteBuffer.retain();
-        refByteBuffer.release();
-        refByteBuffer.release();
-        Assertions.assertThrows(DtException.class, refByteBuffer::release);
+        RefBuffer refBuffer = RefBuffer.createPlain(pool, 128, 127);
+        refBuffer.retain();
+        refBuffer.release();
+        refBuffer.release();
+        Assertions.assertThrows(DtException.class, refBuffer::release);
     }
 
     @Test
     public void testUnpooled() {
-        RefByteBuffer refByteBuffer = RefByteBuffer.createUnpooled(128, false);
-        refByteBuffer.retain();
-        refByteBuffer.release();
-        refByteBuffer.release();
-        refByteBuffer.release();
+        RefBuffer refBuffer = RefBuffer.createUnpooled(128, false);
+        refBuffer.retain();
+        refBuffer.release();
+        refBuffer.release();
+        refBuffer.release();
     }
 }

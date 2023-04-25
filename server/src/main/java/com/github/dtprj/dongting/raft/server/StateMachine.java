@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.buf.RefByteBuffer;
+import com.github.dtprj.dongting.buf.RefBuffer;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -25,15 +25,15 @@ import java.util.concurrent.CompletableFuture;
 public interface StateMachine extends AutoCloseable {
     long initFromLatestSnapshot();
 
-    Object decode(RefByteBuffer logData);
+    Object decode(RefBuffer logData);
 
     CompletableFuture<Object> exec(long index, Object input);
 
-    void installSnapshot(boolean start, boolean finish, RefByteBuffer data);
+    void installSnapshot(boolean start, boolean finish, RefBuffer data);
 
     Snapshot openLatestSnapshot();
 
-    CompletableFuture<RefByteBuffer> readNext(Snapshot snapshot);
+    CompletableFuture<RefBuffer> readNext(Snapshot snapshot);
 
     void closeSnapshot(Snapshot snapshot);
 }

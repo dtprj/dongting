@@ -23,12 +23,12 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class RefByteBuffer extends RefCount {
+public class RefBuffer extends RefCount {
 
     private final ByteBuffer buffer;
     private final ByteBufferPool pool;
 
-    private RefByteBuffer(boolean plain, ByteBufferPool pool, int requestSize, int threshold) {
+    private RefBuffer(boolean plain, ByteBufferPool pool, int requestSize, int threshold) {
         super(plain);
         if (requestSize <= threshold) {
             this.buffer = pool.allocate(requestSize);
@@ -39,7 +39,7 @@ public class RefByteBuffer extends RefCount {
         }
     }
 
-    private RefByteBuffer(int requestSize, boolean direct) {
+    private RefBuffer(int requestSize, boolean direct) {
         super(true);
         this.buffer = direct ? ByteBuffer.allocateDirect(requestSize) : ByteBuffer.allocate(requestSize);
         this.pool = null;
@@ -48,19 +48,19 @@ public class RefByteBuffer extends RefCount {
     /**
      * create thread safe instance.
      */
-    public static RefByteBuffer create(ByteBufferPool pool, int requestSize, int threshold) {
-        return new RefByteBuffer(false, pool, requestSize, threshold);
+    public static RefBuffer create(ByteBufferPool pool, int requestSize, int threshold) {
+        return new RefBuffer(false, pool, requestSize, threshold);
     }
 
     /**
      * create instance which is not thread safe.
      */
-    public static RefByteBuffer createPlain(ByteBufferPool pool, int requestSize, int threshold) {
-        return new RefByteBuffer(true, pool, requestSize, threshold);
+    public static RefBuffer createPlain(ByteBufferPool pool, int requestSize, int threshold) {
+        return new RefBuffer(true, pool, requestSize, threshold);
     }
 
-    public static RefByteBuffer createUnpooled(int requestSize, boolean direct) {
-        return new RefByteBuffer(requestSize, direct);
+    public static RefBuffer createUnpooled(int requestSize, boolean direct) {
+        return new RefBuffer(requestSize, direct);
     }
 
     @Override

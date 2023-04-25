@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.buf.RefByteBuffer;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -438,7 +438,7 @@ public class ReplicateManager {
         }
         int reqEpoch = member.getReplicateEpoch();
         try {
-            CompletableFuture<RefByteBuffer> future = stateMachine.readNext(si.snapshot);
+            CompletableFuture<RefBuffer> future = stateMachine.readNext(si.snapshot);
             member.setReplicateFuture(future);
             future.whenCompleteAsync(resumeAfterSnapshotLoad(member, si, reqEpoch), raftExecutor);
         } catch (Exception e) {
@@ -446,7 +446,7 @@ public class ReplicateManager {
         }
     }
 
-    private BiConsumer<RefByteBuffer, Throwable> resumeAfterSnapshotLoad(RaftMember member, SnapshotInfo si, int reqEpoch) {
+    private BiConsumer<RefBuffer, Throwable> resumeAfterSnapshotLoad(RaftMember member, SnapshotInfo si, int reqEpoch) {
         return (data, ex) -> {
             try {
                 member.setReplicateFuture(null);
@@ -526,7 +526,7 @@ public class ReplicateManager {
         }
     }
 
-    private void sendInstallSnapshotReq(RaftMember member, SnapshotInfo si, RefByteBuffer data) {
+    private void sendInstallSnapshotReq(RaftMember member, SnapshotInfo si, RefBuffer data) {
         InstallSnapshotReq req = new InstallSnapshotReq();
         req.groupId = groupId;
         req.term = raftStatus.getCurrentTerm();

@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.RefByteBuffer;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -138,7 +138,7 @@ public class DefaultRaftLog implements RaftLog {
     @Override
     public LogIterator openIterator(Supplier<Boolean> epochChange) {
         return new DefaultLogIterator(this,
-                RefByteBuffer.createPlain(directPool, 1024 * 1024, 0),
+                RefBuffer.createPlain(directPool, 1024 * 1024, 0),
                 () -> stopIndicator.get() || epochChange.get());
     }
 

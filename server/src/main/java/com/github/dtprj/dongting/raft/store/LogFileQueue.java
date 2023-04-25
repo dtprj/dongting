@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.RefByteBuffer;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.BugLog;
@@ -301,7 +301,7 @@ class LogFileQueue extends FileQueue {
                     if (it.crc32c.getValue() != header.crc) {
                         throw new RaftException("crc32c not match");
                     }
-                    RefByteBuffer rbb = RefByteBuffer.create(heapPool, bodyLen, 800);
+                    RefBuffer rbb = RefBuffer.create(heapPool, bodyLen, 800);
                     li.setBuffer(rbb);
                     ByteBuffer destBuf = rbb.getBuffer();
                     buf.get(destBuf.array(), 0, bodyLen);
@@ -314,7 +314,7 @@ class LogFileQueue extends FileQueue {
                     }
                 } else {
                     updateCrc(it.crc32c, buf, startPos + 4, buf.limit());
-                    RefByteBuffer rbb = RefByteBuffer.create(heapPool, bodyLen, 800);
+                    RefBuffer rbb = RefBuffer.create(heapPool, bodyLen, 800);
                     li.setBuffer(rbb);
                     rbb.getBuffer().put(buf);
                 }

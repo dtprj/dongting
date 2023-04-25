@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.buf.RefByteBuffer;
+import com.github.dtprj.dongting.buf.RefBuffer;
 
 /**
  * @author huangli
@@ -32,10 +32,10 @@ public class LogItem {
     private long index;
     private int prevLogTerm;
     private long timestamp;
-    private RefByteBuffer buffer;
+    private RefBuffer buffer;
 
 
-    public LogItem(int type, int term, long index, int prevLogTerm,long timestamp, RefByteBuffer buffer) {
+    public LogItem(int type, int term, long index, int prevLogTerm,long timestamp, RefBuffer buffer) {
         this.type = type;
         this.term = term;
         this.index = index;
@@ -71,11 +71,11 @@ public class LogItem {
         this.prevLogTerm = prevLogTerm;
     }
 
-    public RefByteBuffer getBuffer() {
+    public RefBuffer getBuffer() {
         return buffer;
     }
 
-    public void setBuffer(RefByteBuffer buffer) {
+    public void setBuffer(RefBuffer buffer) {
         this.buffer = buffer;
     }
 

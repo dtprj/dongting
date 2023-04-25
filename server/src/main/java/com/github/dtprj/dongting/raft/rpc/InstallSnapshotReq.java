@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.RefByteBuffer;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.pb.PbUtil;
 
@@ -40,7 +40,7 @@ public class InstallSnapshotReq {
     public long lastIncludedIndex;
     public int lastIncludedTerm;
     public long offset;
-    public RefByteBuffer data;
+    public RefBuffer data;
     public boolean done;
 
     public static class Callback extends PbCallback {
@@ -90,7 +90,7 @@ public class InstallSnapshotReq {
         public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
             if (index == 7) {
                 if (begin) {
-                    result.data = RefByteBuffer.create(heapPool, len, 1024);
+                    result.data = RefBuffer.create(heapPool, len, 1024);
                 }
                 result.data.getBuffer().put(buf);
                 if (end) {
