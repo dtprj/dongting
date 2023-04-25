@@ -24,10 +24,7 @@ import java.nio.ByteBuffer;
  */
 public class ByteBufferDecoder extends Decoder {
 
-    private final int usePoolThreshold;
-
-    public ByteBufferDecoder(int usePoolThreshold) {
-        this.usePoolThreshold = usePoolThreshold;
+    public ByteBufferDecoder() {
     }
 
     @Override
@@ -44,7 +41,7 @@ public class ByteBufferDecoder extends Decoder {
     public Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
         RefBuffer result;
         if (start) {
-            result = RefBuffer.createPlain(context.getIoHeapBufferPool(), bodyLen, usePoolThreshold);
+            result = context.getIoHeapBufferPool().createPlain(bodyLen);
             if (!end) {
                 context.setIoDecodeStatus(result);
             }

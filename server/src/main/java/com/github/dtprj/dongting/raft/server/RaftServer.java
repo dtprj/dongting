@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -219,7 +221,8 @@ public class RaftServer extends AbstractLifeCircle {
         raftStatus.setNodeIdOfObservers(nodeIdOfObservers);
         raftStatus.setGroupId(rgc.getGroupId());
 
-        RaftGroupConfigEx rgcEx = createGroupConfigEx(rgc, raftStatus, raftExecutor);
+        RaftGroupThread raftGroupThread = new RaftGroupThread();
+        RaftGroupConfigEx rgcEx = createGroupConfigEx(rgc, raftStatus, raftExecutor, raftGroupThread);
 
         RaftLog raftLog = raftLogFactory.apply(rgcEx);
         StateMachine stateMachine = stateMachineFactory.apply(rgcEx);
@@ -233,8 +236,6 @@ public class RaftServer extends AbstractLifeCircle {
 
         Raft raft = new Raft(raftStatus, raftLog, applyManager, commitManager, replicateManager);
         VoteManager voteManager = new VoteManager(serverConfig, rgc.getGroupId(), raftStatus, raftClient, raftExecutor, raft);
-        RaftGroupThread raftGroupThread = new RaftGroupThread(serverConfig, rgcEx, raftStatus, raftLog, stateMachine, raftExecutor,
-                raft, memberManager, voteManager);
 
         eventBus.register(voteManager);
 
@@ -255,18 +256,29 @@ public class RaftServer extends AbstractLifeCircle {
         return gc;
     }
 
-    private RaftGroupConfigEx createGroupConfigEx(RaftGroupConfig rgc, RaftStatus raftStatus, RaftExecutor raftExecutor) {
+    private RaftGroupConfigEx createGroupConfigEx(RaftGroupConfig rgc, RaftStatus raftStatus,
+                                                  RaftExecutor raftExecutor, RaftGroupThread raftGroupThread) {
         RaftGroupConfigEx rgcEx = new RaftGroupConfigEx(rgc.getGroupId(), rgc.getNodeIdOfMembers(),
                 rgc.getNodeIdOfObservers());
         rgcEx.setDataDir(rgc.getDataDir());
         rgcEx.setStatusFile(rgc.getStatusFile());
 
         rgcEx.setTs(raftStatus.getTs());
-        rgcEx.setHeapPool(serverConfig.getPoolFactory().apply(raftStatus.getTs(), false));
+        rgcEx.setHeapPool(createHeapPoolFactory(raftStatus.getTs(), raftExecutor, raftGroupThread));
         rgcEx.setDirectPool(serverConfig.getPoolFactory().apply(raftStatus.getTs(), true));
         rgcEx.setRaftExecutor(raftExecutor);
         rgcEx.setStopIndicator(raftStatus::isStop);
         return rgcEx;
+    }
+
+    private RefBufferFactory createHeapPoolFactory(Timestamp ts, RaftExecutor raftExecutor, RaftGroupThread raftGroupThread) {
+        TwoLevelPool heapPool = (TwoLevelPool) serverConfig.getPoolFactory().apply(ts, false);
+        TwoLevelPool releaseSafePool = heapPool.toReleaseInOtherThreadInstance(raftGroupThread, byteBuffer -> {
+            if (byteBuffer != null) {
+                raftExecutor.execute(() -> heapPool.release(byteBuffer));
+            }
+        });
+        return new RefBufferFactory(releaseSafePool, 800);
     }
 
     private static void parseMemberIds(Set<Integer> allNodeIds, Set<Integer> nodeIdOfMembers, String str, int groupId) {
@@ -298,7 +310,7 @@ public class RaftServer extends AbstractLifeCircle {
         }
 
         groupComponentsMap.forEach((groupId, gc) -> {
-            gc.getRaftGroupThread().init(ioExecutor);
+            gc.getRaftGroupThread().init(gc, ioExecutor);
             return true;
         });
 
@@ -511,7 +523,7 @@ public class RaftServer extends AbstractLifeCircle {
                 });
 
                 GroupComponents gc = f.get(5, TimeUnit.SECONDS);
-                gc.getRaftGroupThread().init(ioExecutor);
+                gc.getRaftGroupThread().init(gc, ioExecutor);
 
                 gc.getMemberManager().init(nodeManager.getAllNodesEx());
                 gc.getRaftGroupThread().start();

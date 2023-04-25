@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.pb.PbUtil;
 
@@ -45,9 +46,9 @@ public class InstallSnapshotReq {
 
     public static class Callback extends PbCallback {
         private final InstallSnapshotReq result = new InstallSnapshotReq();
-        private final ByteBufferPool heapPool;
+        private final RefBufferFactory heapPool;
 
-        public Callback(ByteBufferPool heapPool) {
+        public Callback(RefBufferFactory heapPool) {
             this.heapPool = heapPool;
         }
 
@@ -90,7 +91,7 @@ public class InstallSnapshotReq {
         public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
             if (index == 7) {
                 if (begin) {
-                    result.data = RefBuffer.create(heapPool, len, 1024);
+                    result.data = heapPool.create(len);
                 }
                 result.data.getBuffer().put(buf);
                 if (end) {

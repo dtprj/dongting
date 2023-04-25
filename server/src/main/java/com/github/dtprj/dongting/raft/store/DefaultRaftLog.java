@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -45,7 +45,7 @@ public class DefaultRaftLog implements RaftLog {
 
     private final RaftGroupConfigEx groupConfig;
     private final Timestamp ts;
-    private final ByteBufferPool heapPool;
+    private final RefBufferFactory heapPool;
     private final ByteBufferPool directPool;
     private final Executor raftExecutor;
     private final Supplier<Boolean> stopIndicator;
@@ -137,9 +137,7 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public LogIterator openIterator(Supplier<Boolean> epochChange) {
-        return new DefaultLogIterator(this,
-                RefBuffer.createPlain(directPool, 1024 * 1024, 0),
-                () -> stopIndicator.get() || epochChange.get());
+        return new DefaultLogIterator(this, directPool, () -> stopIndicator.get() || epochChange.get());
     }
 
     CompletableFuture<List<LogItem>> next(DefaultLogIterator it, long index, int limit, int bytesLimit) {

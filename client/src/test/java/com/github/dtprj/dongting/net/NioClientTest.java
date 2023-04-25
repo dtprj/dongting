@@ -242,7 +242,7 @@ public class NioClientTest {
     }
 
     private static void sendSync(int maxBodySize, NioClient client, long timeoutMillis) throws Exception {
-        sendSync(maxBodySize, client, timeoutMillis, new ByteBufferDecoder(maxBodySize / 2));
+        sendSync(maxBodySize, client, timeoutMillis, new ByteBufferDecoder());
         sendSync(maxBodySize, client, timeoutMillis, new BizByteBufferDecoder());
         sendSync(maxBodySize, client, timeoutMillis, new IoFullPackByteBufferDecoder());
     }
@@ -304,7 +304,7 @@ public class NioClientTest {
         wf.setCommand(Commands.CMD_PING);
 
         CompletableFuture<ReadFrame> f = client.sendRequest(peer, wf,
-                new ByteBufferDecoder(maxBodySize / 2), new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
+                new ByteBufferDecoder(), new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
         ReadFrame rf = f.get(5000, TimeUnit.MILLISECONDS);
         assertEquals(wf.getSeq(), rf.getSeq());
         assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
@@ -326,7 +326,7 @@ public class NioClientTest {
         wf.setCommand(Commands.CMD_PING);
 
         CompletableFuture<ReadFrame> f = client.sendRequest(wf,
-                new ByteBufferDecoder(maxBodySize / 2), new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
+                new ByteBufferDecoder(), new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
         return f.thenApply(rf -> {
             assertEquals(wf.getSeq(), rf.getSeq());
             assertEquals(FrameType.TYPE_RESP, rf.getFrameType());

@@ -82,7 +82,7 @@ public class NioServerBenchmark extends BenchBase {
             final DtTime timeout = new DtTime(TIMEOUT, TimeUnit.MILLISECONDS);
             ByteBufferWriteFrame req = new ByteBufferWriteFrame(ByteBuffer.wrap(data));
             req.setCommand(Commands.CMD_PING);
-            CompletableFuture<ReadFrame> f = client.sendRequest(req, new ByteBufferDecoder(128), timeout);
+            CompletableFuture<ReadFrame> f = client.sendRequest(req, new ByteBufferDecoder(), timeout);
 
             if (SYNC) {
                 ReadFrame rf = f.get();

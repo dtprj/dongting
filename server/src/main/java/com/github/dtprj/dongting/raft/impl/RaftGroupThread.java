@@ -23,7 +23,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
@@ -46,42 +46,40 @@ public class RaftGroupThread extends Thread {
 
     private final Random random = new Random();
 
-    private final RaftServerConfig config;
-    private final RaftGroupConfigEx groupConfig;
-    private final RaftStatus raftStatus;
-    private final Raft raft;
-    private final MemberManager memberManager;
-    private final VoteManager voteManager;
-    private final StateMachine stateMachine;
-    private final RaftLog raftLog;
+    private RaftServerConfig config;
+    private RaftStatus raftStatus;
+    private Raft raft;
+    private MemberManager memberManager;
+    private VoteManager voteManager;
+    private StateMachine stateMachine;
+    private RaftLog raftLog;
 
-    private final long heartbeatIntervalNanos;
-    private final long electTimeoutNanos;
+    private long heartbeatIntervalNanos;
+    private long electTimeoutNanos;
 
     // TODO optimise blocking queue
-    private final LinkedBlockingQueue<Object> queue;
+    private LinkedBlockingQueue<Object> queue;
 
-    public RaftGroupThread(RaftServerConfig serverConfig, RaftGroupConfigEx groupConfig, RaftStatus raftStatus,
-                           RaftLog raftLog, StateMachine stateMachine, RaftExecutor raftExecutor,
-                           Raft raft, MemberManager memberManager, VoteManager voteManager) {
-        this.config = serverConfig;
-        this.groupConfig = groupConfig;
-        this.raftStatus = raftStatus;
-        this.queue = raftExecutor.getQueue();
-        this.raft = raft;
-        this.memberManager = memberManager;
-        this.stateMachine = stateMachine;
-        this.raftLog = raftLog;
+    public RaftGroupThread() {
+    }
+
+    public void init(GroupComponents gc, ExecutorService ioExecutor) {
+        this.config = gc.getServerConfig();
+        this.raftStatus = gc.getRaftStatus();
+        this.queue = gc.getRaftExecutor().getQueue();
+        this.raft = gc.getRaft();
+        this.memberManager = gc.getMemberManager();
+        this.stateMachine = gc.getStateMachine();
+        this.raftLog = gc.getRaftLog();
+        this.voteManager = gc.getVoteManager();
 
         electTimeoutNanos = Duration.ofMillis(config.getElectTimeout()).toNanos();
         raftStatus.setElectTimeoutNanos(electTimeoutNanos);
         heartbeatIntervalNanos = Duration.ofMillis(config.getHeartbeatInterval()).toNanos();
 
-        this.voteManager = voteManager;
+        RaftGroupConfig groupConfig = gc.getGroupConfig();
         setName("raft-" + groupConfig.getGroupId());
-    }
 
-    public void init(ExecutorService ioExecutor) {
         try {
             StatusUtil.initStatusFileChannel(groupConfig.getDataDir(), groupConfig.getStatusFile(), raftStatus);
             long stateMachineLatestIndex = stateMachine.initFromLatestSnapshot();

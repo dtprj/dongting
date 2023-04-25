@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.BugLog;
@@ -56,7 +57,7 @@ class LogFileQueue extends FileQueue {
     private long writePos;
 
     public LogFileQueue(File dir, ExecutorService ioExecutor, Executor raftExecutor, Supplier<Boolean> stopIndicator,
-                        IdxOps idxOps, ByteBufferPool heapPool, ByteBufferPool directPool) {
+                        IdxOps idxOps, RefBufferFactory heapPool, ByteBufferPool directPool) {
         super(dir, ioExecutor, raftExecutor, stopIndicator, heapPool, directPool);
         this.idxOps = idxOps;
     }
@@ -182,7 +183,7 @@ class LogFileQueue extends FileQueue {
             BugLog.getLog().error("rest is illegal. pos={}, writePos={}", pos, writePos);
             throw new RaftException("rest is illegal.");
         }
-        ByteBuffer buf = it.rbb.getBuffer();
+        ByteBuffer buf = it.readBuffer;
         List<LogItem> result = new ArrayList<>();
         it.resetBeforeLoad();
         if (buf.hasRemaining()) {
@@ -228,13 +229,12 @@ class LogFileQueue extends FileQueue {
         LogFile logFile = getLogFile(pos);
         int fileStartPos = (int) (pos & FILE_LEN_MASK);
         rest = Math.min(rest, LOG_FILE_SIZE - fileStartPos);
-        ByteBuffer buf = it.rbb.getBuffer();
+        ByteBuffer buf = it.readBuffer;
         if (rest < buf.remaining()) {
             buf.limit(buf.position() + rest);
         }
         long newReadPos = pos + buf.remaining();
         AsyncIoTask t = new AsyncIoTask(buf, fileStartPos, logFile, it.fullIndicator);
-        it.rbb.retain();
         logFile.use++;
         t.exec().whenCompleteAsync((v, ex) -> resumeAfterLoad(logFile, newReadPos, it, limit, bytesLimit,
                 result, future, ex), raftExecutor);
@@ -243,14 +243,13 @@ class LogFileQueue extends FileQueue {
     private void resumeAfterLoad(LogFile logFile, long newReadPos, DefaultLogIterator it, int limit, int bytesLimit,
                                  List<LogItem> result, CompletableFuture<List<LogItem>> future, Throwable ex) {
         try {
-            it.rbb.release();
             logFile.use--;
             if (it.fullIndicator.get()) {
                 future.cancel(false);
             } else if (ex != null) {
                 future.completeExceptionally(ex);
             } else {
-                ByteBuffer buf = it.rbb.getBuffer();
+                ByteBuffer buf = it.readBuffer;
                 buf.flip();
                 if (extractItems(it, result, limit, bytesLimit)) {
                     future.complete(result);
@@ -266,7 +265,7 @@ class LogFileQueue extends FileQueue {
     }
 
     private boolean extractItems(DefaultLogIterator it, List<LogItem> result, int limit, int bytesLimit) {
-        ByteBuffer buf = it.rbb.getBuffer();
+        ByteBuffer buf = it.readBuffer;
 
         while (buf.remaining() > LogHeader.ITEM_HEADER_SIZE) {
             LogHeader header = it.header;
@@ -301,7 +300,7 @@ class LogFileQueue extends FileQueue {
                     if (it.crc32c.getValue() != header.crc) {
                         throw new RaftException("crc32c not match");
                     }
-                    RefBuffer rbb = RefBuffer.create(heapPool, bodyLen, 800);
+                    RefBuffer rbb = heapPool.create(bodyLen);
                     li.setBuffer(rbb);
                     ByteBuffer destBuf = rbb.getBuffer();
                     buf.get(destBuf.array(), 0, bodyLen);
@@ -314,7 +313,7 @@ class LogFileQueue extends FileQueue {
                     }
                 } else {
                     updateCrc(it.crc32c, buf, startPos + 4, buf.limit());
-                    RefBuffer rbb = RefBuffer.create(heapPool, bodyLen, 800);
+                    RefBuffer rbb = heapPool.create(bodyLen);
                     li.setBuffer(rbb);
                     rbb.getBuffer().put(buf);
                 }

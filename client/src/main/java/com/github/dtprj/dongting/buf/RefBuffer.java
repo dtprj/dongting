@@ -28,7 +28,7 @@ public class RefBuffer extends RefCount {
     private final ByteBuffer buffer;
     private final ByteBufferPool pool;
 
-    private RefBuffer(boolean plain, ByteBufferPool pool, int requestSize, int threshold) {
+    RefBuffer(boolean plain, ByteBufferPool pool, int requestSize, int threshold) {
         super(plain);
         if (requestSize <= threshold) {
             this.buffer = pool.allocate(requestSize);
@@ -43,20 +43,6 @@ public class RefBuffer extends RefCount {
         super(true);
         this.buffer = direct ? ByteBuffer.allocateDirect(requestSize) : ByteBuffer.allocate(requestSize);
         this.pool = null;
-    }
-
-    /**
-     * create thread safe instance.
-     */
-    public static RefBuffer create(ByteBufferPool pool, int requestSize, int threshold) {
-        return new RefBuffer(false, pool, requestSize, threshold);
-    }
-
-    /**
-     * create instance which is not thread safe.
-     */
-    public static RefBuffer createPlain(ByteBufferPool pool, int requestSize, int threshold) {
-        return new RefBuffer(true, pool, requestSize, threshold);
     }
 
     public static RefBuffer createUnpooled(int requestSize, boolean direct) {

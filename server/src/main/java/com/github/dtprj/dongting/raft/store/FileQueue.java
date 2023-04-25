@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -49,7 +50,7 @@ abstract class FileQueue {
     protected final ExecutorService ioExecutor;
     protected final Executor raftExecutor;
     protected final Supplier<Boolean> stopIndicator;
-    protected final ByteBufferPool heapPool;
+    protected final RefBufferFactory heapPool;
     protected final ByteBufferPool directPool;
 
     protected long queueStartPosition;
@@ -60,7 +61,7 @@ abstract class FileQueue {
     private boolean deleting;
 
     public FileQueue(File dir, ExecutorService ioExecutor, Executor raftExecutor, Supplier<Boolean> stopIndicator,
-                     ByteBufferPool heapPool, ByteBufferPool directPool) {
+                     RefBufferFactory heapPool, ByteBufferPool directPool) {
         this.dir = dir;
         this.ioExecutor = ioExecutor;
         this.raftExecutor = raftExecutor;

@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtTime;
@@ -92,8 +93,9 @@ class DtChannel extends PbCallback {
         channelContext.setRemoteAddr(socketChannel.getRemoteAddress());
         channelContext.setLocalAddr(socketChannel.getLocalAddress());
         channelContext.setIoThreadStrDecoder(strDecoder);
-        channelContext.setIoHeapBufferPool(createReleaseSafePool((TwoLevelPool) workerStatus.getHeapPool(),
-                workerStatus.getIoQueue()));
+        ByteBufferPool releaseSafePool = createReleaseSafePool((TwoLevelPool) workerStatus.getHeapPool(),
+                workerStatus.getIoQueue());
+        channelContext.setIoHeapBufferPool(new RefBufferFactory(releaseSafePool, 800));
         channelContext.setRespWriter(respWriter);
         channelContext.setIoParser(parser);
         this.channelContext = channelContext;

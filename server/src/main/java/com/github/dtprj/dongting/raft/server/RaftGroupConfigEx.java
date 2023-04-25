@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.common.Timestamp;
 
 import java.util.concurrent.Executor;
@@ -27,7 +28,7 @@ import java.util.function.Supplier;
 public class RaftGroupConfigEx extends RaftGroupConfig {
 
     private Timestamp ts;
-    private ByteBufferPool heapPool;
+    private RefBufferFactory heapPool;
     private ByteBufferPool directPool;
     private Executor raftExecutor;
     private Supplier<Boolean> stopIndicator;
@@ -44,11 +45,11 @@ public class RaftGroupConfigEx extends RaftGroupConfig {
         this.ts = ts;
     }
 
-    public ByteBufferPool getHeapPool() {
+    public RefBufferFactory getHeapPool() {
         return heapPool;
     }
 
-    public void setHeapPool(ByteBufferPool heapPool) {
+    public void setHeapPool(RefBufferFactory heapPool) {
         this.heapPool = heapPool;
     }
 

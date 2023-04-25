@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.net.ChannelContext;
 import com.github.dtprj.dongting.pb.PbCallback;
 import com.github.dtprj.dongting.pb.PbParser;
@@ -40,7 +40,7 @@ import java.util.ArrayList;
 //
 public class AppendReqCallback extends PbCallback {
 
-    private final ByteBufferPool heapPool;
+    private final RefBufferFactory heapPool;
     private int groupId;
     private int term;
     private int leaderId;
@@ -148,9 +148,9 @@ public class AppendReqCallback extends PbCallback {
     //}
     static class LogItemCallback extends PbCallback {
         private final LogItem item = new LogItem();
-        private final ByteBufferPool heapPool;
+        private final RefBufferFactory heapPool;
 
-        public LogItemCallback(ByteBufferPool heapPool) {
+        public LogItemCallback(RefBufferFactory heapPool) {
             this.heapPool = heapPool;
         }
 
@@ -188,7 +188,7 @@ public class AppendReqCallback extends PbCallback {
             if (index == 6) {
                 RefBuffer dest;
                 if (begin) {
-                    dest = RefBuffer.createPlain(heapPool, len, 1024);
+                    dest = heapPool.createPlain(len);
                     item.setBuffer(dest);
                 } else {
                     dest = item.getBuffer();
