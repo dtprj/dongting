@@ -344,15 +344,14 @@ public class RaftServer extends AbstractLifeCircle {
 
     @Override
     protected void doStop() {
-        raftServer.stop();
-        raftClient.stop();
-
         groupComponentsMap.forEach((groupId, gc) -> {
             RaftGroupThread raftGroupThread = gc.getRaftGroupThread();
             raftGroupThread.requestShutdown();
             raftGroupThread.interrupt();
             return true;
         });
+        raftServer.stop();
+        raftClient.stop();
     }
 
     private void checkStatus() {
