@@ -35,9 +35,7 @@ public class GroupComponents {
     private StateMachine stateMachine;
     private Raft raft;
     private RaftExecutor raftExecutor;
-    private ReplicateManager replicateManager;
     private ApplyManager applyManager;
-    private CommitManager commitManager;
     private EventBus eventBus;
 
     public GroupComponents() {
@@ -123,28 +121,12 @@ public class GroupComponents {
         this.raft = raft;
     }
 
-    public ReplicateManager getReplicateManager() {
-        return replicateManager;
-    }
-
-    public void setReplicateManager(ReplicateManager replicateManager) {
-        this.replicateManager = replicateManager;
-    }
-
     public ApplyManager getApplyManager() {
         return applyManager;
     }
 
     public void setApplyManager(ApplyManager applyManager) {
         this.applyManager = applyManager;
-    }
-
-    public CommitManager getCommitManager() {
-        return commitManager;
-    }
-
-    public void setCommitManager(CommitManager commitManager) {
-        this.commitManager = commitManager;
     }
 
     public EventBus getEventBus() {
