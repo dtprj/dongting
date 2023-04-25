@@ -188,7 +188,7 @@ public class AppendReqCallback extends PbCallback {
             if (index == 6) {
                 RefBuffer dest;
                 if (begin) {
-                    dest = heapPool.createPlain(len);
+                    dest = heapPool.create(len);
                     item.setBuffer(dest);
                 } else {
                     dest = item.getBuffer();
