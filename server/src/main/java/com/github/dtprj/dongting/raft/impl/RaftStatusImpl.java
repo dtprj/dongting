@@ -27,16 +27,6 @@ import java.util.concurrent.CompletableFuture;
  */
 public class RaftStatusImpl extends RaftStatus {
 
-    // persistent state on all servers
-    private int currentTerm;
-    private int votedFor;
-
-    // volatile state on all servers
-    private long commitIndex;
-    private long lastApplied; // shared
-
-    private int groupId;
-
     private volatile ShareStatus shareStatus;
     private volatile boolean error;
     private volatile boolean stop;
@@ -152,32 +142,16 @@ public class RaftStatusImpl extends RaftStatus {
         this.stop = stop;
     }
 
-    public int getCurrentTerm() {
-        return currentTerm;
-    }
-
     public void setCurrentTerm(int currentTerm) {
         this.currentTerm = currentTerm;
-    }
-
-    public int getVotedFor() {
-        return votedFor;
     }
 
     public void setVotedFor(int votedFor) {
         this.votedFor = votedFor;
     }
 
-    public long getCommitIndex() {
-        return commitIndex;
-    }
-
     public void setCommitIndex(long commitIndex) {
         this.commitIndex = commitIndex;
-    }
-
-    public long getLastApplied() {
-        return lastApplied;
     }
 
     public RaftRole getRole() {
@@ -382,10 +356,6 @@ public class RaftStatusImpl extends RaftStatus {
 
     public void setSelf(RaftMember self) {
         this.self = self;
-    }
-
-    public int getGroupId() {
-        return groupId;
     }
 
     public void setGroupId(int groupId) {

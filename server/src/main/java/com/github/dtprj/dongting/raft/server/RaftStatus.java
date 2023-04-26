@@ -18,5 +18,34 @@ package com.github.dtprj.dongting.raft.server;
 /**
  * @author huangli
  */
-public class RaftStatus {
+public abstract class RaftStatus {
+    // persistent state on all servers
+    protected int currentTerm;
+    protected int votedFor;
+
+    // volatile state on all servers
+    protected long commitIndex;
+    protected long lastApplied; // shared
+
+    protected int groupId;
+
+    public int getGroupId() {
+        return groupId;
+    }
+
+    public int getCurrentTerm() {
+        return currentTerm;
+    }
+
+    public int getVotedFor() {
+        return votedFor;
+    }
+
+    public long getCommitIndex() {
+        return commitIndex;
+    }
+
+    public long getLastApplied() {
+        return lastApplied;
+    }
 }
