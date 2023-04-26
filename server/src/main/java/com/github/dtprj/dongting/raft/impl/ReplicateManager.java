@@ -198,6 +198,9 @@ public class ReplicateManager {
                 if (ex instanceof CancellationException) {
                     log.info("ReplicateManager load raft log cancelled");
                 } else {
+                    // if log is deleted, the next load will never success, so we need to reset nextIndex.
+                    // however, the exception may be caused by other reasons
+                    member.setNextIndex(raftStatus.getLastLogIndex() + 1);
                     log.error("load raft log failed", ex);
                 }
                 return;
