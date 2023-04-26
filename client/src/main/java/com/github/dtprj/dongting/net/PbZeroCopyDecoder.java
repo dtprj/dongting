@@ -24,7 +24,7 @@ import java.util.function.Function;
 /**
  * @author huangli
  */
-public class PbZeroCopyDecoder extends Decoder {
+public class PbZeroCopyDecoder implements Decoder {
 
     private final Function<ChannelContext, PbCallback> callbackCreator;
 

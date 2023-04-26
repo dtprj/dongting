@@ -20,14 +20,14 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public abstract class Decoder {
-    public boolean decodeInIoThread() {
+public interface Decoder {
+    default boolean decodeInIoThread() {
         return true;
     }
 
-    public boolean supportHalfPacket() {
+    default boolean supportHalfPacket() {
         return false;
     }
 
-    public abstract Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end);
+    Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end);
 }

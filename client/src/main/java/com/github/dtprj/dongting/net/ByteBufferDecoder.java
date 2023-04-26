@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class ByteBufferDecoder extends Decoder {
+public class ByteBufferDecoder implements Decoder {
 
     public ByteBufferDecoder() {
     }
