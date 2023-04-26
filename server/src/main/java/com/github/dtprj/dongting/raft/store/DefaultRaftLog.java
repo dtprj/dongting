@@ -23,25 +23,22 @@ import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
-import com.github.dtprj.dongting.raft.impl.StatusFile;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftLog;
+import com.github.dtprj.dongting.raft.server.RaftStatus;
 
 import java.io.File;
 import java.util.List;
-import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
  * @author huangli
  */
 public class DefaultRaftLog implements RaftLog {
-    private static final String KNOWN_MAX_COMMIT_INDEX_KEY = "knownMaxCommitIndex";
 
     private final RaftGroupConfigEx groupConfig;
     private final Timestamp ts;
@@ -49,14 +46,12 @@ public class DefaultRaftLog implements RaftLog {
     private final ByteBufferPool directPool;
     private final Executor raftExecutor;
     private final Supplier<Boolean> stopIndicator;
+    private final RaftStatus raftStatus;
     private LogFileQueue logFiles;
     private IdxFileQueue idxFiles;
-    private long knownMaxCommitIndex;
-    private StatusFile checkpointFile;
 
     private long lastTaskNanos;
     private static final long TASK_INTERVAL_NANOS = 10 * 1000 * 1000 * 1000L;
-    private ExecutorService ioExecutor;
 
     public DefaultRaftLog(RaftGroupConfigEx groupConfig) {
         this.groupConfig = groupConfig;
@@ -65,17 +60,17 @@ public class DefaultRaftLog implements RaftLog {
         this.directPool = groupConfig.getDirectPool();
         this.raftExecutor = groupConfig.getRaftExecutor();
         this.stopIndicator = groupConfig.getStopIndicator();
+        this.raftStatus = groupConfig.getRaftStatus();
 
         this.lastTaskNanos = ts.getNanoTime();
     }
 
     @Override
     public Pair<Integer, Long> init(ExecutorService ioExecutor) throws Exception {
-        this.ioExecutor = ioExecutor;
         File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
-        checkpointFile = new StatusFile(new File(dataDir, "checkpoint"));
-        checkpointFile.init();
-        knownMaxCommitIndex = Long.parseLong(checkpointFile.getProperties().getProperty(KNOWN_MAX_COMMIT_INDEX_KEY, "0"));
+
+        long knownMaxCommitIndex = raftStatus.getCommitIndex();
+
         idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), ioExecutor, raftExecutor, stopIndicator, heapPool, directPool);
         logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), ioExecutor, raftExecutor, stopIndicator, idxFiles, heapPool, directPool);
         logFiles.init();
@@ -101,22 +96,16 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public void close() {
-        try {
-            updateCheckpoint().get(100, TimeUnit.MILLISECONDS);
-        } catch (Exception e) {
-            // ignore
-        }
         logFiles.close();
         idxFiles.close();
     }
 
     @Override
-    public void append(long commitIndex, List<LogItem> logs) throws Exception {
+    public void append(List<LogItem> logs) throws Exception {
         if (logs == null || logs.size() == 0) {
             BugLog.getLog().error("append log with empty logs");
             return;
         }
-        knownMaxCommitIndex = Math.max(knownMaxCommitIndex, commitIndex);
         long firstIndex = logs.get(0).getIndex();
         DtUtil.checkPositive(firstIndex, "firstIndex");
         if (firstIndex == idxFiles.getNextIndex()) {
@@ -130,7 +119,6 @@ public class DefaultRaftLog implements RaftLog {
         }
         if (ts.getNanoTime() - lastTaskNanos > TASK_INTERVAL_NANOS) {
             delete();
-            updateCheckpoint();
             lastTaskNanos = ts.getNanoTime();
         }
     }
@@ -168,7 +156,7 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public void markTruncateByIndex(long index, long delayMillis) {
-        index = Math.min(index, knownMaxCommitIndex - 1);
+        index = Math.min(index, raftStatus.getCommitIndex() - 1);
         if (index <= 0) {
             return;
         }
@@ -179,21 +167,12 @@ public class DefaultRaftLog implements RaftLog {
     @Override
     public void markTruncateByTimestamp(long timestampMillis, long delayMillis) {
         long deleteTimestamp = ts.getWallClockMillis() + delayMillis;
-        logFiles.markDeleteByTimestamp(knownMaxCommitIndex, timestampMillis, deleteTimestamp);
+        logFiles.markDeleteByTimestamp(raftStatus.getCommitIndex(), timestampMillis, deleteTimestamp);
     }
 
     private void delete() {
         logFiles.submitDeleteTask(ts.getWallClockMillis());
         idxFiles.submitDeleteTask(logFiles.getFirstIndex());
-    }
-
-    private CompletableFuture<Void> updateCheckpoint() {
-        if (checkpointFile.isUpdating()) {
-            return CompletableFuture.completedFuture(null);
-        }
-        Properties p = checkpointFile.getProperties();
-        p.setProperty(KNOWN_MAX_COMMIT_INDEX_KEY, String.valueOf(knownMaxCommitIndex));
-        return CompletableFuture.runAsync(() -> checkpointFile.update(), ioExecutor);
     }
 
 }

@@ -32,6 +32,7 @@ public class RaftGroupConfigEx extends RaftGroupConfig {
     private ByteBufferPool directPool;
     private Executor raftExecutor;
     private Supplier<Boolean> stopIndicator;
+    private RaftStatus raftStatus;
 
     public RaftGroupConfigEx(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         super(groupId, nodeIdOfMembers, nodeIdOfObservers);
@@ -75,5 +76,13 @@ public class RaftGroupConfigEx extends RaftGroupConfig {
 
     public void setStopIndicator(Supplier<Boolean> stopIndicator) {
         this.stopIndicator = stopIndicator;
+    }
+
+    public RaftStatus getRaftStatus() {
+        return raftStatus;
+    }
+
+    public void setRaftStatus(RaftStatus raftStatus) {
+        this.raftStatus = raftStatus;
     }
 }

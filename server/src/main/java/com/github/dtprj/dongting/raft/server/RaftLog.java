@@ -32,10 +32,9 @@ public interface RaftLog extends AutoCloseable {
     Pair<Integer, Long> init(ExecutorService ioExecutor) throws Exception;
 
     /**
-     * Batch append logs. In some conditions, the commitIndex may be smaller than commitIndex
-     * in previous append invoke, but it ensures that logs at index(<=commitIndex) never be re-write.
+     * Batch append logs.
      */
-    void append(long commitIndex, List<LogItem> logs) throws Exception;
+    void append(List<LogItem> logs) throws Exception;
 
     LogIterator openIterator(Supplier<Boolean> epochChange);
 

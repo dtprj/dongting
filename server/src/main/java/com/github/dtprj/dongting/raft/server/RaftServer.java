@@ -241,6 +241,7 @@ public class RaftServer extends AbstractLifeCircle {
         rgcEx.setDirectPool(serverConfig.getPoolFactory().apply(raftStatus.getTs(), true));
         rgcEx.setRaftExecutor(raftExecutor);
         rgcEx.setStopIndicator(raftStatus::isStop);
+        rgcEx.setRaftStatus(raftStatus);
         return rgcEx;
     }
 

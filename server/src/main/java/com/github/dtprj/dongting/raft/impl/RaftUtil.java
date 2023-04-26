@@ -261,7 +261,7 @@ public class RaftUtil {
     public static void append(RaftLog raftLog, RaftStatusImpl raftStatus, ArrayList<LogItem> logs) {
         RaftUtil.doWithSyncRetry(() -> {
             try {
-                raftLog.append(raftStatus.getCommitIndex(), logs);
+                raftLog.append(logs);
             } catch (Exception e) {
                 throw new RaftException(e);
             }
