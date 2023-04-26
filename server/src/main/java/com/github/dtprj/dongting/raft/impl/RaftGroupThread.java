@@ -51,7 +51,7 @@ public class RaftGroupThread extends Thread {
     private final Random random = new Random();
 
     private RaftServerConfig config;
-    private RaftStatus raftStatus;
+    private RaftStatusImpl raftStatus;
     private Raft raft;
     private MemberManager memberManager;
     private VoteManager voteManager;
@@ -202,7 +202,7 @@ public class RaftGroupThread extends Thread {
     }
 
     private boolean process(ArrayList<RaftTask> rwTasks, ArrayList<Runnable> runnables, ArrayList<Object> queueData) {
-        RaftStatus raftStatus = this.raftStatus;
+        RaftStatusImpl raftStatus = this.raftStatus;
         int len = queueData.size();
         for (int i = 0; i < len; i++) {
             Object o = queueData.get(i);
@@ -253,7 +253,7 @@ public class RaftGroupThread extends Thread {
     }
 
     private void idle(Timestamp ts) {
-        RaftStatus raftStatus = this.raftStatus;
+        RaftStatusImpl raftStatus = this.raftStatus;
         if (raftStatus.isError()) {
             return;
         }

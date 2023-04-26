@@ -22,16 +22,16 @@ import java.util.List;
  */
 public class CommitManager {
 
-    private final RaftStatus raftStatus;
+    private final RaftStatusImpl raftStatus;
     private final ApplyManager applyManager;
 
-    public CommitManager(RaftStatus raftStatus, ApplyManager applyManager) {
+    public CommitManager(RaftStatusImpl raftStatus, ApplyManager applyManager) {
         this.raftStatus = raftStatus;
         this.applyManager = applyManager;
     }
 
     public void tryCommit(long recentMatchIndex) {
-        RaftStatus raftStatus = this.raftStatus;
+        RaftStatusImpl raftStatus = this.raftStatus;
 
         if (!needCommit(recentMatchIndex, raftStatus)) {
             return;
@@ -44,7 +44,7 @@ public class CommitManager {
         applyManager.apply(raftStatus);
     }
 
-    private static boolean needCommit(long recentMatchIndex, RaftStatus raftStatus) {
+    private static boolean needCommit(long recentMatchIndex, RaftStatusImpl raftStatus) {
         boolean needCommit = needCommit(raftStatus.getCommitIndex(), recentMatchIndex,
                 raftStatus.getMembers(), raftStatus.getRwQuorum());
         if (needCommit && raftStatus.getPreparedMembers().size() > 0) {

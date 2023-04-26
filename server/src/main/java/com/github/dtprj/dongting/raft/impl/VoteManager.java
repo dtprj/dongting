@@ -44,7 +44,7 @@ public class VoteManager implements BiConsumer<EventType, Object> {
     private static final DtLog log = DtLogs.getLogger(VoteManager.class);
     private final Raft raft;
     private final NioClient client;
-    private final RaftStatus raftStatus;
+    private final RaftStatusImpl raftStatus;
     private final RaftServerConfig config;
     private final int groupId;
     private final RaftExecutor raftExecutor;
@@ -56,7 +56,7 @@ public class VoteManager implements BiConsumer<EventType, Object> {
     private int votePendingCount;
     private int currentVoteId;
 
-    public VoteManager(RaftServerConfig serverConfig, int groupId, RaftStatus raftStatus,
+    public VoteManager(RaftServerConfig serverConfig, int groupId, RaftStatusImpl raftStatus,
                        NioClient client, RaftExecutor executor, Raft raft) {
         this.raft = raft;
         this.client = client;

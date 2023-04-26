@@ -42,7 +42,7 @@ import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftGroupThread;
 import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.impl.RaftNodeEx;
-import com.github.dtprj.dongting.raft.impl.RaftStatus;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.ReplicateManager;
 import com.github.dtprj.dongting.raft.impl.VoteManager;
@@ -186,7 +186,7 @@ public class RaftServer extends AbstractLifeCircle {
             throw new IllegalArgumentException("self id not found in group members/observers list: " + serverConfig.getNodeId());
         }
 
-        RaftStatus raftStatus = new RaftStatus();
+        RaftStatusImpl raftStatus = new RaftStatusImpl();
         RaftExecutor raftExecutor = new RaftExecutor();
         raftStatus.setRaftExecutor(raftExecutor);
         raftStatus.setNodeIdOfMembers(nodeIdOfMembers);
@@ -228,7 +228,7 @@ public class RaftServer extends AbstractLifeCircle {
         return gc;
     }
 
-    private RaftGroupConfigEx createGroupConfigEx(RaftGroupConfig rgc, RaftStatus raftStatus,
+    private RaftGroupConfigEx createGroupConfigEx(RaftGroupConfig rgc, RaftStatusImpl raftStatus,
                                                   RaftExecutor raftExecutor, RaftGroupThread raftGroupThread) {
         RaftGroupConfigEx rgcEx = new RaftGroupConfigEx(rgc.getGroupId(), rgc.getNodeIdOfMembers(),
                 rgc.getNodeIdOfObservers());

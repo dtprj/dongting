@@ -71,7 +71,7 @@ public class PendingMap extends LongObjMap<RaftTask> {
         super.forEach(newVisitor);
     }
 
-    public void cleanPending(RaftStatus raftStatus, int maxPending, long maxPendingBytes) {
+    public void cleanPending(RaftStatusImpl raftStatus, int maxPending, long maxPendingBytes) {
         if (firstKey <= 0) {
             return;
         }
@@ -89,7 +89,7 @@ public class PendingMap extends LongObjMap<RaftTask> {
         }
     }
 
-    private void doClean(RaftStatus raftStatus, int maxPending, long maxPendingBytes, long boundIndex) {
+    private void doClean(RaftStatusImpl raftStatus, int maxPending, long maxPendingBytes, long boundIndex) {
         long now = raftStatus.getTs().getNanoTime();
         long k = firstKey;
         RaftTask task = get(k);

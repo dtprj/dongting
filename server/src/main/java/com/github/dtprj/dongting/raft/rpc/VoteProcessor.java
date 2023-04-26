@@ -26,7 +26,7 @@ import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftGroups;
-import com.github.dtprj.dongting.raft.impl.RaftStatus;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.StatusUtil;
 
@@ -51,7 +51,7 @@ public class VoteProcessor extends AbstractProcessor {
     protected WriteFrame doProcess(ReadFrame rf, ChannelContext channelContext, RaftGroupImpl gc) {
         VoteReq voteReq = (VoteReq) rf.getBody();
         VoteResp resp = new VoteResp();
-        RaftStatus raftStatus = gc.getRaftStatus();
+        RaftStatusImpl raftStatus = gc.getRaftStatus();
         if (MemberManager.validCandidate(raftStatus, voteReq.getCandidateId())) {
             int localTerm = raftStatus.getCurrentTerm();
             if (voteReq.isPreVote()) {
@@ -74,13 +74,13 @@ public class VoteProcessor extends AbstractProcessor {
         return wf;
     }
 
-    private void processPreVote(RaftStatus raftStatus, VoteReq voteReq, VoteResp resp, int localTerm) {
+    private void processPreVote(RaftStatusImpl raftStatus, VoteReq voteReq, VoteResp resp, int localTerm) {
         if (shouldGrant(raftStatus, voteReq, localTerm)) {
             resp.setVoteGranted(true);
         }
     }
 
-    private void processVote(RaftStatus raftStatus, VoteReq voteReq, VoteResp resp, int localTerm) {
+    private void processVote(RaftStatusImpl raftStatus, VoteReq voteReq, VoteResp resp, int localTerm) {
         if (voteReq.getTerm() > localTerm) {
             RaftUtil.incrTerm(voteReq.getTerm(), raftStatus, -1);
         }
@@ -92,7 +92,7 @@ public class VoteProcessor extends AbstractProcessor {
         }
     }
 
-    private boolean shouldGrant(RaftStatus raftStatus, VoteReq voteReq, int localTerm) {
+    private boolean shouldGrant(RaftStatusImpl raftStatus, VoteReq voteReq, int localTerm) {
         if (voteReq.getTerm() < localTerm) {
             return false;
         } else {

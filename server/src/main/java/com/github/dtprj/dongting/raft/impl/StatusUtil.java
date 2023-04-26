@@ -26,7 +26,7 @@ public class StatusUtil {
     private static final String CURRENT_TERM_KEY = "currentTerm";
     private static final String VOTED_FOR_KEY = "votedFor";
 
-    public static void initStatusFileChannel(String dataDir, String filename, RaftStatus raftStatus) {
+    public static void initStatusFileChannel(String dataDir, String filename, RaftStatusImpl raftStatus) {
         File dir = FileUtil.ensureDir(dataDir);
         File file = new File(dir, filename);
         StatusFile sf = new StatusFile(file);
@@ -37,7 +37,7 @@ public class StatusUtil {
         raftStatus.setVotedFor(Integer.parseInt(p.getProperty(VOTED_FOR_KEY, "0")));
     }
 
-    public static void persist(RaftStatus raftStatus) {
+    public static void persist(RaftStatusImpl raftStatus) {
         if (raftStatus.isStop()) {
             return;
         }

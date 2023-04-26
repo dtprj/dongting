@@ -49,7 +49,7 @@ public class ApplyManager {
     private final StateMachine stateMachine;
     private final Timestamp ts;
     private final EventBus eventBus;
-    private final RaftStatus raftStatus;
+    private final RaftStatusImpl raftStatus;
     private boolean configChanging = false;
 
     private boolean waiting;
@@ -57,7 +57,7 @@ public class ApplyManager {
 
     private RaftLog.LogIterator logIterator;
 
-    public ApplyManager(int selfNodeId, RaftLog raftLog, StateMachine stateMachine, RaftStatus raftStatus, EventBus eventBus) {
+    public ApplyManager(int selfNodeId, RaftLog raftLog, StateMachine stateMachine, RaftStatusImpl raftStatus, EventBus eventBus) {
         this.selfNodeId = selfNodeId;
         this.raftLog = raftLog;
         this.stateMachine = stateMachine;
@@ -66,7 +66,7 @@ public class ApplyManager {
         this.eventBus = eventBus;
     }
 
-    public void apply(RaftStatus raftStatus) {
+    public void apply(RaftStatusImpl raftStatus) {
         if (waiting) {
             return;
         }
@@ -212,7 +212,7 @@ public class ApplyManager {
             } else {
                 future.complete(new RaftOutput(index, r));
             }
-            RaftStatus raftStatus = this.raftStatus;
+            RaftStatusImpl raftStatus = this.raftStatus;
             if (raftStatus.getFirstCommitOfApplied() != null && index >= raftStatus.getFirstIndexOfCurrentTerm()) {
                 raftStatus.getFirstCommitOfApplied().complete(null);
                 raftStatus.setFirstCommitOfApplied(null);

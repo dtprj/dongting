@@ -51,7 +51,7 @@ import static java.util.Collections.emptySet;
 public class MemberManager {
     private static final DtLog log = DtLogs.getLogger(MemberManager.class);
     private final RaftServerConfig serverConfig;
-    private final RaftStatus raftStatus;
+    private final RaftStatusImpl raftStatus;
     private final int groupId;
     private final NioClient client;
     private final RaftExecutor executor;
@@ -60,7 +60,7 @@ public class MemberManager {
     private final EventBus eventBus;
 
     public MemberManager(RaftServerConfig serverConfig, NioClient client, RaftExecutor executor,
-                         RaftStatus raftStatus, EventBus eventBus) {
+                         RaftStatusImpl raftStatus, EventBus eventBus) {
         this.serverConfig = serverConfig;
         this.client = client;
         this.executor = executor;
@@ -110,7 +110,7 @@ public class MemberManager {
         raftStatus.setRole(role);
     }
 
-    static void computeDuplicatedData(RaftStatus raftStatus) {
+    static void computeDuplicatedData(RaftStatusImpl raftStatus) {
         ArrayList<RaftMember> replicateList = new ArrayList<>();
         Set<Integer> memberIds = new HashSet<>();
         Set<Integer> observerIds = new HashSet<>();
@@ -254,7 +254,7 @@ public class MemberManager {
         return validCandidate(raftStatus, nodeId);
     }
 
-    public static boolean validCandidate(RaftStatus raftStatus, int nodeId) {
+    public static boolean validCandidate(RaftStatusImpl raftStatus, int nodeId) {
         return raftStatus.getNodeIdOfMembers().contains(nodeId)
                 || raftStatus.getNodeIdOfPreparedMembers().contains(nodeId);
     }

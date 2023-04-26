@@ -28,7 +28,7 @@ import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
-import com.github.dtprj.dongting.raft.impl.RaftStatus;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
@@ -64,7 +64,7 @@ public class AppendProcessor extends AbstractProcessor {
     protected WriteFrame doProcess(ReadFrame rf, ChannelContext channelContext, RaftGroupImpl gc) {
         AppendRespWriteFrame resp = new AppendRespWriteFrame();
         AppendReqCallback req = (AppendReqCallback) rf.getBody();
-        RaftStatus raftStatus = gc.getRaftStatus();
+        RaftStatusImpl raftStatus = gc.getRaftStatus();
         if (raftStatus.isError()) {
             resp.setSuccess(false);
             resp.setAppendCode(CODE_ERROR_STATE);
@@ -118,7 +118,7 @@ public class AppendProcessor extends AbstractProcessor {
     }
 
     @SuppressWarnings("ForLoopReplaceableByForEach")
-    private void append(RaftGroupImpl gc, RaftStatus raftStatus, AppendReqCallback req, AppendRespWriteFrame resp) {
+    private void append(RaftGroupImpl gc, RaftStatusImpl raftStatus, AppendReqCallback req, AppendRespWriteFrame resp) {
         if (raftStatus.isInstallSnapshot()) {
             resp.setSuccess(false);
             resp.setAppendCode(CODE_INSTALL_SNAPSHOT);

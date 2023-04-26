@@ -79,7 +79,7 @@ public class RaftUtil {
         }
     }
 
-    public static void updateLease(RaftStatus raftStatus) {
+    public static void updateLease(RaftStatusImpl raftStatus) {
         long leaseStartTime = computeLease(raftStatus, raftStatus.getElectQuorum(), raftStatus.getMembers());
         List<RaftMember> jointMembers = raftStatus.getPreparedMembers();
         if (jointMembers.size() > 0) {
@@ -96,7 +96,7 @@ public class RaftUtil {
     /**
      * test if currentReqNanos is the X(X=quorum)th large value in list(lastConfirmReqNanos).
      */
-    private static long computeLease(RaftStatus raftStatus, int quorum, List<RaftMember> list) {
+    private static long computeLease(RaftStatusImpl raftStatus, int quorum, List<RaftMember> list) {
         int len = list.size();
         if (len == 1) {
             return list.get(0).getLastConfirmReqNanos();
@@ -120,11 +120,11 @@ public class RaftUtil {
         return arr[quorum];
     }
 
-    public static void resetElectTimer(RaftStatus raftStatus) {
+    public static void resetElectTimer(RaftStatusImpl raftStatus) {
         raftStatus.setLastElectTime(raftStatus.getTs().getNanoTime());
     }
 
-    public static void resetStatus(RaftStatus raftStatus) {
+    public static void resetStatus(RaftStatusImpl raftStatus) {
         raftStatus.setFirstIndexOfCurrentTerm(0);
         raftStatus.setFirstCommitOfApplied(new CompletableFuture<>());
         RaftUtil.resetElectTimer(raftStatus);
@@ -164,7 +164,7 @@ public class RaftUtil {
         }
     }
 
-    public static void incrTerm(int remoteTerm, RaftStatus raftStatus, int newLeaderId) {
+    public static void incrTerm(int remoteTerm, RaftStatusImpl raftStatus, int newLeaderId) {
         RaftRole oldRole = raftStatus.getRole();
         if (oldRole != RaftRole.observer) {
             log.info("update term from {} to {}, change to follower, oldRole={}",
@@ -201,7 +201,7 @@ public class RaftUtil {
 
     }
 
-    public static void changeToFollower(RaftStatus raftStatus, int leaderId) {
+    public static void changeToFollower(RaftStatusImpl raftStatus, int leaderId) {
         log.info("change to follower. term={}, oldRole={}", raftStatus.getCurrentTerm(), raftStatus.getRole());
         resetStatus(raftStatus);
         if (leaderId > 0) {
@@ -210,7 +210,7 @@ public class RaftUtil {
         raftStatus.setRole(RaftRole.follower);
     }
 
-    public static void changeToObserver(RaftStatus raftStatus, int leaderId) {
+    public static void changeToObserver(RaftStatusImpl raftStatus, int leaderId) {
         log.info("change to observer. term={}, oldRole={}", raftStatus.getCurrentTerm(), raftStatus.getRole());
         resetStatus(raftStatus);
         if (leaderId > 0) {
@@ -219,7 +219,7 @@ public class RaftUtil {
         raftStatus.setRole(RaftRole.observer);
     }
 
-    public static void changeToLeader(RaftStatus raftStatus) {
+    public static void changeToLeader(RaftStatusImpl raftStatus) {
         log.info("change to leader. term={}", raftStatus.getCurrentTerm());
         resetStatus(raftStatus);
         raftStatus.setRole(RaftRole.leader);
@@ -229,7 +229,7 @@ public class RaftUtil {
         }
     }
 
-    public static void updateLeader(RaftStatus raftStatus, int leaderId) {
+    public static void updateLeader(RaftStatusImpl raftStatus, int leaderId) {
         RaftMember leader = raftStatus.getCurrentLeader();
         if (leader != null && leader.getNode().getNodeId() == leaderId) {
             return;
@@ -258,7 +258,7 @@ public class RaftUtil {
         return leader == null ? null : leader.getNode();
     }
 
-    public static void append(RaftLog raftLog, RaftStatus raftStatus, ArrayList<LogItem> logs) {
+    public static void append(RaftLog raftLog, RaftStatusImpl raftStatus, ArrayList<LogItem> logs) {
         RaftUtil.doWithSyncRetry(() -> {
             try {
                 raftLog.append(raftStatus.getCommitIndex(), logs);
@@ -268,7 +268,7 @@ public class RaftUtil {
         }, raftStatus, 1000, "raft log append error");
     }
 
-    public static void doWithSyncRetry(Runnable callback, RaftStatus raftStatus, long sleepMillis, String errorMsg) {
+    public static void doWithSyncRetry(Runnable callback, RaftStatusImpl raftStatus, long sleepMillis, String errorMsg) {
         int failCount = 0;
         while (true) {
             try {

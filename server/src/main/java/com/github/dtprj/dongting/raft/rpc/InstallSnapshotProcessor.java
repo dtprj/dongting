@@ -27,7 +27,7 @@ import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
-import com.github.dtprj.dongting.raft.impl.RaftStatus;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
@@ -56,7 +56,7 @@ public class InstallSnapshotProcessor extends AbstractProcessor {
             InstallSnapshotResp resp = new InstallSnapshotResp();
             InstallSnapshotResp.WriteFrame respFrame = new InstallSnapshotResp.WriteFrame(resp);
             int remoteTerm = req.term;
-            RaftStatus raftStatus = gc.getRaftStatus();
+            RaftStatusImpl raftStatus = gc.getRaftStatus();
 
             if (raftStatus.isError()) {
                 resp.success = false;
@@ -101,7 +101,7 @@ public class InstallSnapshotProcessor extends AbstractProcessor {
         }
     }
 
-    private void installSnapshot(RaftStatus raftStatus, StateMachine stateMachine, InstallSnapshotReq req, InstallSnapshotResp resp) {
+    private void installSnapshot(RaftStatusImpl raftStatus, StateMachine stateMachine, InstallSnapshotReq req, InstallSnapshotResp resp) {
         boolean start = req.offset == 0;
         boolean finish = req.done;
         if (start) {

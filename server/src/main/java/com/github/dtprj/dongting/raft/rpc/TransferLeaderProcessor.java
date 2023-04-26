@@ -28,7 +28,7 @@ import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
-import com.github.dtprj.dongting.raft.impl.RaftStatus;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 
 /**
@@ -52,7 +52,7 @@ public class TransferLeaderProcessor extends AbstractProcessor {
     @Override
     protected WriteFrame doProcess(ReadFrame frame, ChannelContext channelContext, RaftGroupImpl gc) {
         TransferLeaderReq req = (TransferLeaderReq) frame.getBody();
-        RaftStatus raftStatus = gc.getRaftStatus();
+        RaftStatusImpl raftStatus = gc.getRaftStatus();
         if (raftStatus.isError()) {
             log.error("transfer leader fail, error state, groupId={}", req.groupId);
             throw new NetCodeException(CmdCodes.BIZ_ERROR, "in error state");

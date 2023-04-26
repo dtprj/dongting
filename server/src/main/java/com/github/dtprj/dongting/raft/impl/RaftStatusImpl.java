@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.raft.server.RaftStatus;
 
 import java.util.List;
 import java.util.Set;
@@ -24,7 +25,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * @author huangli
  */
-public class RaftStatus {
+public class RaftStatusImpl extends RaftStatus {
 
     // persistent state on all servers
     private int currentTerm;
@@ -84,7 +85,7 @@ public class RaftStatus {
 
     private boolean holdRequest;
 
-    public RaftStatus() {
+    public RaftStatusImpl() {
         lastElectTime = ts.getNanoTime();
         heartbeatTime = ts.getNanoTime();
     }

@@ -41,12 +41,12 @@ public class Raft implements BiConsumer<EventType, Object> {
     private final CommitManager commitManager;
 
     private final RaftLog raftLog;
-    private final RaftStatus raftStatus;
+    private final RaftStatusImpl raftStatus;
 
     private final Timestamp ts;
 
-    public Raft(RaftStatus raftStatus, RaftLog raftLog, ApplyManager applyManager,
-                 CommitManager commitManager, ReplicateManager replicateManager) {
+    public Raft(RaftStatusImpl raftStatus, RaftLog raftLog, ApplyManager applyManager,
+                CommitManager commitManager, ReplicateManager replicateManager) {
         this.raftStatus = raftStatus;
         this.raftLog = raftLog;
         this.ts = raftStatus.getTs();
@@ -65,7 +65,7 @@ public class Raft implements BiConsumer<EventType, Object> {
 
     @SuppressWarnings("ForLoopReplaceableByForEach")
     public void raftExec(List<RaftTask> inputs) {
-        RaftStatus raftStatus = this.raftStatus;
+        RaftStatusImpl raftStatus = this.raftStatus;
         if (raftStatus.getRole() != RaftRole.leader) {
             RaftNode leader = RaftUtil.getLeader(raftStatus.getCurrentLeader());
             for (RaftTask t : inputs) {

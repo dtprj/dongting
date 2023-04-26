@@ -48,7 +48,7 @@ public class RaftGroupImpl extends RaftGroup {
     private RaftServerConfig serverConfig;
     private RaftGroupConfig groupConfig;
     private RaftGroupThread raftGroupThread;
-    private RaftStatus raftStatus;
+    private RaftStatusImpl raftStatus;
     private MemberManager memberManager;
     private VoteManager voteManager;
     private Raft raft;
@@ -80,7 +80,7 @@ public class RaftGroupImpl extends RaftGroup {
             }
         }
         try {
-            RaftStatus raftStatus = this.raftStatus;
+            RaftStatusImpl raftStatus = this.raftStatus;
             if (raftStatus.isError()) {
                 throw new RaftException("raft status is error");
             }
@@ -126,7 +126,7 @@ public class RaftGroupImpl extends RaftGroup {
     @Override
     public long getLogIndexForRead(DtTime deadline)
             throws RaftException, InterruptedException, TimeoutException {
-        RaftStatus raftStatus = this.raftStatus;
+        RaftStatusImpl raftStatus = this.raftStatus;
         if (raftStatus.isError()) {
             throw new RaftException("raft status error");
         }
@@ -205,7 +205,7 @@ public class RaftGroupImpl extends RaftGroup {
         return raftGroupThread;
     }
 
-    public RaftStatus getRaftStatus() {
+    public RaftStatusImpl getRaftStatus() {
         return raftStatus;
     }
 
@@ -237,7 +237,7 @@ public class RaftGroupImpl extends RaftGroup {
         this.raftGroupThread = raftGroupThread;
     }
 
-    public void setRaftStatus(RaftStatus raftStatus) {
+    public void setRaftStatus(RaftStatusImpl raftStatus) {
         this.raftStatus = raftStatus;
     }
 

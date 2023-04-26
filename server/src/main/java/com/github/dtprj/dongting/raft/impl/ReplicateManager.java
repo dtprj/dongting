@@ -52,7 +52,7 @@ public class ReplicateManager {
     private static final DtLog log = DtLogs.getLogger(ReplicateManager.class);
 
     private final int groupId;
-    private final RaftStatus raftStatus;
+    private final RaftStatusImpl raftStatus;
     private final RaftServerConfig config;
     private final RaftLog raftLog;
     private final StateMachine stateMachine;
@@ -70,7 +70,7 @@ public class ReplicateManager {
     private static final PbZeroCopyDecoder APPEND_RESP_DECODER = new PbZeroCopyDecoder(c -> new AppendRespCallback());
     private static final PbZeroCopyDecoder INSTALL_SNAPSHOT_RESP_DECODER = new PbZeroCopyDecoder(c -> new InstallSnapshotResp.Callback());
 
-    public ReplicateManager(RaftServerConfig config, int groupId, RaftStatus raftStatus, RaftLog raftLog,
+    public ReplicateManager(RaftServerConfig config, int groupId, RaftStatusImpl raftStatus, RaftLog raftLog,
                             StateMachine stateMachine, NioClient client, RaftExecutor executor,
                             CommitManager commitManager) {
         this.groupId = groupId;
@@ -91,7 +91,7 @@ public class ReplicateManager {
     }
 
     @SuppressWarnings("ForLoopReplaceableByForEach")
-    public void replicateAfterRaftExec(RaftStatus raftStatus) {
+    public void replicateAfterRaftExec(RaftStatusImpl raftStatus) {
         List<RaftMember> list = raftStatus.getReplicateList();
         int len = list.size();
         for (int i = 0; i < len; i++) {
@@ -335,7 +335,7 @@ public class ReplicateManager {
                                      int prevLogTerm, int reqTerm, long reqNanos, int count, int reqEpoch) {
         long expectNewMatchIndex = prevLogIndex + count;
         AppendRespCallback body = (AppendRespCallback) rf.getBody();
-        RaftStatus raftStatus = this.raftStatus;
+        RaftStatusImpl raftStatus = this.raftStatus;
         int remoteTerm = body.getTerm();
         if (checkTermFailed(remoteTerm)) {
             return;
@@ -375,7 +375,7 @@ public class ReplicateManager {
     }
 
     private void processLogNotMatch(RaftMember member, long prevLogIndex, int prevLogTerm,
-                                    long reqNanos, AppendRespCallback body, RaftStatus raftStatus) {
+                                    long reqNanos, AppendRespCallback body, RaftStatusImpl raftStatus) {
         log.info("log not match. remoteId={}, groupId={}, matchIndex={}, prevLogIndex={}, prevLogTerm={}, remoteLogTerm={}, remoteLogIndex={}, localTerm={}, remoteTerm={}",
                 member.getNode().getNodeId(), groupId, member.getMatchIndex(), prevLogIndex, prevLogTerm, body.getMaxLogTerm(),
                 body.getMaxLogIndex(), raftStatus.getCurrentTerm(), body.getTerm());
