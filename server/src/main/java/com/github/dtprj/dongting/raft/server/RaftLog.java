@@ -23,6 +23,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 
 /**
+ * Operations except init() of this interface should invoked in raft thread.
+ *
  * @author huangli
  */
 public interface RaftLog extends AutoCloseable {
@@ -44,11 +46,16 @@ public interface RaftLog extends AutoCloseable {
 
     /**
      * try to delete logs before the index(included).
+     * @param index the index of the last log to be deleted
+     * @param delayMillis delay millis to delete the logs, to wait read complete
      */
-    @SuppressWarnings("unused")
     void markTruncateByIndex(long index, long delayMillis);
 
-    @SuppressWarnings("unused")
+    /**
+     * try to delete logs before the timestamp(included).
+     * @param timestampMillis the timestamp of the log
+     * @param delayMillis delay millis to delete the logs, to wait read complete
+     */
     void markTruncateByTimestamp(long timestampMillis, long delayMillis);
 
     interface LogIterator extends AutoCloseable {

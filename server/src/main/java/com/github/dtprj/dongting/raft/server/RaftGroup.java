@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -28,6 +29,9 @@ import java.util.function.Supplier;
  */
 public abstract class RaftGroup {
     private final Supplier<Boolean> isServerRunning;
+
+    protected RaftLog raftLog;
+    protected StateMachine stateMachine;
 
     public RaftGroup(Supplier<Boolean> isServerRunning) {
         this.isServerRunning = isServerRunning;
@@ -47,6 +51,25 @@ public abstract class RaftGroup {
     @SuppressWarnings("unused")
     public abstract long getLogIndexForRead(DtTime deadline)
             throws RaftException, InterruptedException, TimeoutException;
+
+
+    /**
+     * ADMIN API.
+     * try to delete logs before the index(included).
+     * @param index the index of the last log to be deleted
+     * @param delayMillis delay millis to delete the logs, to wait read complete
+     */
+    @SuppressWarnings("unused")
+    public abstract void markTruncateByIndex(long index, long delayMillis);
+
+    /**
+     * ADMIN API.
+     * try to delete logs before the timestamp(included).
+     * @param timestampMillis the timestamp of the log
+     * @param delayMillis delay millis to delete the logs, to wait read complete
+     */
+    @SuppressWarnings("unused")
+    public abstract void markTruncateByTimestamp(long timestampMillis, long delayMillis);
 
     /**
      * ADMIN API.
@@ -71,4 +94,12 @@ public abstract class RaftGroup {
      */
     @SuppressWarnings("unused")
     public abstract CompletableFuture<Void> leaderCommitJointConsensus();
+
+    public RaftLog getRaftLog() {
+        return raftLog;
+    }
+
+    public StateMachine getStateMachine() {
+        return stateMachine;
+    }
 }

@@ -51,8 +51,6 @@ public class RaftGroupImpl extends RaftGroup {
     private RaftStatus raftStatus;
     private MemberManager memberManager;
     private VoteManager voteManager;
-    private RaftLog raftLog;
-    private StateMachine stateMachine;
     private Raft raft;
     private RaftExecutor raftExecutor;
     private ApplyManager applyManager;
@@ -70,7 +68,6 @@ public class RaftGroupImpl extends RaftGroup {
         return groupConfig.getGroupId();
     }
 
-    @SuppressWarnings("unused")
     @Override
     public CompletableFuture<RaftOutput> submitLinearTask(RaftInput input) throws RaftException {
         Objects.requireNonNull(input);
@@ -157,9 +154,16 @@ public class RaftGroupImpl extends RaftGroup {
         return ss.lastApplied;
     }
 
-    /**
-     * ADMIN API.
-     */
+    @Override
+    public void markTruncateByIndex(long index, long delayMillis) {
+        raftExecutor.execute(() -> raftLog.markTruncateByIndex(index, delayMillis));
+    }
+
+    @Override
+    public void markTruncateByTimestamp(long timestampMillis, long delayMillis) {
+        raftExecutor.execute(() -> raftLog.markTruncateByTimestamp(timestampMillis, delayMillis));
+    }
+
     @Override
     public CompletableFuture<Void> transferLeadership(int nodeId, long timeoutMillis) {
         checkStatus();
@@ -189,7 +193,6 @@ public class RaftGroupImpl extends RaftGroup {
         return f;
     }
 
-    @SuppressWarnings("unused")
     @Override
     public CompletableFuture<Void> leaderCommitJointConsensus() {
         checkStatus();
@@ -220,14 +223,6 @@ public class RaftGroupImpl extends RaftGroup {
 
     public RaftGroupConfig getGroupConfig() {
         return groupConfig;
-    }
-
-    public RaftLog getRaftLog() {
-        return raftLog;
-    }
-
-    public StateMachine getStateMachine() {
-        return stateMachine;
     }
 
     public void setServerConfig(RaftServerConfig serverConfig) {
