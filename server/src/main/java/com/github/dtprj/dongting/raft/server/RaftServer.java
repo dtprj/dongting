@@ -209,6 +209,7 @@ public class RaftServer extends AbstractLifeCircle {
         Raft raft = new Raft(raftStatus, raftLog, applyManager, commitManager, replicateManager);
         VoteManager voteManager = new VoteManager(serverConfig, rgc.getGroupId(), raftStatus, raftClient, raftExecutor, raft);
 
+        eventBus.register(raft);
         eventBus.register(voteManager);
 
         RaftGroupImpl gc = new RaftGroupImpl(() -> status == LifeStatus.running);

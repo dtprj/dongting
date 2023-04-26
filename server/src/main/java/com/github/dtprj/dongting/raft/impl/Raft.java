@@ -29,7 +29,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 /**
  * @author huangli
@@ -59,6 +58,7 @@ public class Raft implements BiConsumer<EventType, Object> {
     @Override
     public void accept(EventType eventType, Object o) {
         if (eventType == EventType.raftExec) {
+            //noinspection unchecked
             raftExec((List<RaftTask>) o);
         }
     }
@@ -75,8 +75,7 @@ public class Raft implements BiConsumer<EventType, Object> {
             }
             return;
         }
-        long oldIndex = raftStatus.getLastLogIndex();
-        long newIndex = oldIndex;
+        long newIndex = raftStatus.getLastLogIndex();
 
         ArrayList<LogItem> logs = new ArrayList<>(inputs.size());
         int oldTerm = raftStatus.getLastLogTerm();
@@ -144,10 +143,6 @@ public class Raft implements BiConsumer<EventType, Object> {
         RaftInput input = new RaftInput(null, null, deadline, false);
         RaftTask rt = new RaftTask(ts, LogItem.TYPE_HEARTBEAT, input, null);
         raftExec(Collections.singletonList(rt));
-    }
-
-    public Consumer<List<RaftTask>> raftTaskConsumer() {
-        return this::raftExec;
     }
 
 }
