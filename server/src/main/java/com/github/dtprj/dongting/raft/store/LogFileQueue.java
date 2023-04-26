@@ -348,9 +348,9 @@ class LogFileQueue extends FileQueue {
         markDelete(deleteTimestamp, nextFile -> index >= nextFile.firstIndex);
     }
 
-    public void markDeleteByTimestamp(long maxKnownCommitIndex, long timestampMillis, long deleteTimestamp) {
+    public void markDeleteByTimestamp(long lastApplied, long timestampMillis, long deleteTimestamp) {
         markDelete(deleteTimestamp, nextFile -> timestampMillis >= nextFile.firstTimestamp
-                && maxKnownCommitIndex >= nextFile.firstIndex);
+                && lastApplied >= nextFile.firstIndex);
     }
 
     private void markDelete(long deleteTimestamp, Predicate<LogFile> predicate) {

@@ -44,14 +44,14 @@ public interface RaftLog extends AutoCloseable {
     CompletableFuture<Long> nextIndexToReplicate(int remoteMaxTerm, long remoteMaxIndex, Supplier<Boolean> epochChange);
 
     /**
-     * try to delete logs before the index(included).
+     * try to delete logs before the index(exclude).
      * @param index the index of the last log to be deleted
      * @param delayMillis delay millis to delete the logs, to wait read complete
      */
     void markTruncateByIndex(long index, long delayMillis);
 
     /**
-     * try to delete logs before the timestamp(included).
+     * try to delete logs before the timestamp(may include).
      * @param timestampMillis the timestamp of the log
      * @param delayMillis delay millis to delete the logs, to wait read complete
      */

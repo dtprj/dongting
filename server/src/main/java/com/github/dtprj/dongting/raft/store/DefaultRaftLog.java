@@ -156,7 +156,7 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public void markTruncateByIndex(long index, long delayMillis) {
-        index = Math.min(index, raftStatus.getCommitIndex() - 1);
+        index = Math.min(index, raftStatus.getLastApplied());
         if (index <= 0) {
             return;
         }
@@ -167,7 +167,7 @@ public class DefaultRaftLog implements RaftLog {
     @Override
     public void markTruncateByTimestamp(long timestampMillis, long delayMillis) {
         long deleteTimestamp = ts.getWallClockMillis() + delayMillis;
-        logFiles.markDeleteByTimestamp(raftStatus.getCommitIndex(), timestampMillis, deleteTimestamp);
+        logFiles.markDeleteByTimestamp(raftStatus.getLastApplied(), timestampMillis, deleteTimestamp);
     }
 
     private void delete() {
