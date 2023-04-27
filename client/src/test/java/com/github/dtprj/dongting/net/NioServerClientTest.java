@@ -61,7 +61,7 @@ public class NioServerClientTest {
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame(buf);
         wf.setCommand(Commands.CMD_PING);
 
-        CompletableFuture<ReadFrame> f = client.sendRequest(wf, new ByteBufferDecoder(), new DtTime(1, TimeUnit.SECONDS));
+        CompletableFuture<ReadFrame> f = client.sendRequest(wf, new RefBufferDecoder(), new DtTime(1, TimeUnit.SECONDS));
         ReadFrame rf = f.get(1, TimeUnit.SECONDS);
         assertEquals(wf.getSeq(), rf.getSeq());
         assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
@@ -113,10 +113,10 @@ public class NioServerClientTest {
             ByteBufferWriteFrame wf2 = new ByteBufferWriteFrame(SimpleByteBufferPool.EMPTY_BUFFER);
             wf2.setCommand(12345);
 
-            CompletableFuture<ReadFrame> f1 = client.sendRequest(wf1, new ByteBufferDecoder(), new DtTime(1, TimeUnit.SECONDS));
+            CompletableFuture<ReadFrame> f1 = client.sendRequest(wf1, new RefBufferDecoder(), new DtTime(1, TimeUnit.SECONDS));
             Thread.sleep(10);// wait dispatch thread
             dtc.seq = dtc.seq - 1;
-            CompletableFuture<ReadFrame> f2 = client.sendRequest(wf2, new ByteBufferDecoder(), new DtTime(1, TimeUnit.SECONDS));
+            CompletableFuture<ReadFrame> f2 = client.sendRequest(wf2, new RefBufferDecoder(), new DtTime(1, TimeUnit.SECONDS));
             ReadFrame rf1 = f1.get(1, TimeUnit.SECONDS);
             Assertions.assertEquals(CmdCodes.SUCCESS, rf1.getRespCode());
 

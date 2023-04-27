@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.bench;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.net.ByteBufferDecoder;
 import com.github.dtprj.dongting.net.ByteBufferWriteFrame;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.HostPort;
@@ -26,6 +25,7 @@ import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
 import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.RefBufferDecoder;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -82,7 +82,7 @@ public class NioServerBenchmark extends BenchBase {
             final DtTime timeout = new DtTime(TIMEOUT, TimeUnit.MILLISECONDS);
             ByteBufferWriteFrame req = new ByteBufferWriteFrame(ByteBuffer.wrap(data));
             req.setCommand(Commands.CMD_PING);
-            CompletableFuture<ReadFrame> f = client.sendRequest(req, new ByteBufferDecoder(), timeout);
+            CompletableFuture<ReadFrame> f = client.sendRequest(req, new RefBufferDecoder(), timeout);
 
             if (SYNC) {
                 ReadFrame rf = f.get();

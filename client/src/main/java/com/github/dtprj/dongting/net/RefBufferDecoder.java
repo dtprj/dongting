@@ -24,9 +24,9 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class ByteBufferDecoder implements Decoder {
+public class RefBufferDecoder implements Decoder {
 
-    public ByteBufferDecoder() {
+    public RefBufferDecoder() {
     }
 
     @Override

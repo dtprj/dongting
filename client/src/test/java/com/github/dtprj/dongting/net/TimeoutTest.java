@@ -74,7 +74,7 @@ public class TimeoutTest {
     private CompletableFuture<ReadFrame> send(DtTime timeout) {
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(1));
         wf.setCommand(CMD);
-        return client.sendRequest(wf, new ByteBufferDecoder(), timeout);
+        return client.sendRequest(wf, new RefBufferDecoder(), timeout);
     }
 
     private void registerDelayPingProcessor(int sleepTime) {

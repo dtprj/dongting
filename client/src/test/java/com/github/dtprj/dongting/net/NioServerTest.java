@@ -433,7 +433,7 @@ public class NioServerTest {
 
             @Override
             public Decoder getDecoder() {
-                return new ByteBufferDecoder();
+                return new RefBufferDecoder();
             }
         }, null);
         server.register(10002, new ReqProcessor() {
@@ -444,7 +444,7 @@ public class NioServerTest {
 
             @Override
             public Decoder getDecoder() {
-                return new ByteBufferDecoder();
+                return new RefBufferDecoder();
             }
         });
         server.register(10003, new ReqProcessor() {
@@ -455,7 +455,7 @@ public class NioServerTest {
 
             @Override
             public Decoder getDecoder() {
-                return new ByteBufferDecoder();
+                return new RefBufferDecoder();
             }
         }, null);
         server.register(10004, new ReqProcessor() {
@@ -466,7 +466,7 @@ public class NioServerTest {
 
             @Override
             public Decoder getDecoder() {
-                return new ByteBufferDecoder();
+                return new RefBufferDecoder();
             }
         });
         server.start();
@@ -540,7 +540,7 @@ public class NioServerTest {
 
             @Override
             public Decoder getDecoder() {
-                return new ByteBufferDecoder();
+                return new RefBufferDecoder();
             }
         });
         server.start();
