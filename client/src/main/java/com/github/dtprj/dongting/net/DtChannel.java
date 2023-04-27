@@ -227,25 +227,22 @@ class DtChannel extends PbCallback {
             return true;
         }
 
-        boolean decodeInIoThread = decoder.decodeInIoThread();
-        boolean useIoBufferDecode = decodeInIoThread && decoder.supportHalfPacket();
         try {
-            if (useIoBufferDecode) {
+            if (decoder.supportHalfPacket()) {
                 Object o = decoder.decode(channelContext, buf, fieldLen, start, end);
                 if (end) {
                     frame.setBody(o);
                 }
             } else {
-                if (decodeInIoThread) {
+                if (decoder.decodeInIoThread()) {
                     if (start && end) {
-                        Object o = decoder.decode(channelContext, buf, fieldLen, true, true);
+                        Object o = decoder.decode(buf);
                         frame.setBody(o);
                     } else {
                         ByteBuffer copyBuffer = copyBuffer(buf, fieldLen, start, end);
                         if (end) {
                             try {
-                                Object result = decoder.decode(channelContext, copyBuffer,
-                                        fieldLen, false, true);
+                                Object result = decoder.decode(copyBuffer);
                                 frame.setBody(result);
                             } finally {
                                 workerStatus.getHeapPool().release(copyBuffer);
@@ -534,7 +531,7 @@ class ProcessInBizThreadTask implements Runnable {
                 ByteBuffer bodyBuffer = (ByteBuffer) req.getBody();
                 if (bodyBuffer != null) {
                     try {
-                        Object o = decoder.decode(null, bodyBuffer, bodyBuffer.remaining(), true, true);
+                        Object o = decoder.decode(bodyBuffer);
                         req.setBody(o);
                     } finally {
                         WorkerStatus ws = dtc.getWorkerStatus();

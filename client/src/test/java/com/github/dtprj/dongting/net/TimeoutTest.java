@@ -163,13 +163,13 @@ public class TimeoutTest {
             public Decoder getDecoder() {
                 return new IoFullPackByteBufferDecoder() {
                     @Override
-                    public Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+                    public Object decode(ByteBuffer buffer) {
                         try {
                             Thread.sleep(tick(15));
                         } catch (InterruptedException e) {
                             throw new RuntimeException(e);
                         }
-                        return super.decode(context, buffer, bodyLen, start, end);
+                        return super.decode(buffer);
                     }
                 };
             }

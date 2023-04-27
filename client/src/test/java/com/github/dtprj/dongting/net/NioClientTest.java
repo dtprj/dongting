@@ -672,7 +672,7 @@ public class NioClientTest {
                     }
 
                     @Override
-                    public Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+                    public Object decode(ByteBuffer buffer) {
                         throw new ArrayIndexOutOfBoundsException();
                     }
                 };
@@ -690,13 +690,9 @@ public class NioClientTest {
                 ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(1));
                 wf.setCommand(Commands.CMD_PING);
                 Decoder decoder = new Decoder() {
-                    @Override
-                    public boolean decodeInIoThread() {
-                        return true;
-                    }
 
                     @Override
-                    public Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+                    public Object decode(ByteBuffer buffer) {
                         throw new ArrayIndexOutOfBoundsException();
                     }
                 };

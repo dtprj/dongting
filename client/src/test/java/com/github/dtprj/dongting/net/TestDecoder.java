@@ -27,8 +27,8 @@ class BizByteBufferDecoder implements Decoder {
     }
 
     @Override
-    public Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
-        ByteBuffer buf = ByteBuffer.allocate(bodyLen);
+    public Object decode(ByteBuffer buffer) {
+        ByteBuffer buf = ByteBuffer.allocate(buffer.remaining());
         buf.put(buffer);
         buf.flip();
         return buf;
@@ -37,8 +37,8 @@ class BizByteBufferDecoder implements Decoder {
 
 class IoFullPackByteBufferDecoder implements Decoder {
     @Override
-    public Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
-        ByteBuffer buf = ByteBuffer.allocate(bodyLen);
+    public Object decode(ByteBuffer buffer) {
+        ByteBuffer buf = ByteBuffer.allocate(buffer.remaining());
         buf.put(buffer);
         buf.flip();
         return buf;

@@ -393,7 +393,7 @@ public class NioServerTest {
             public Decoder getDecoder() {
                 return new Decoder() {
                     @Override
-                    public Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+                    public Object decode(ByteBuffer buffer) {
                         throw new ArrayIndexOutOfBoundsException();
                     }
                 };
@@ -415,7 +415,7 @@ public class NioServerTest {
                     }
 
                     @Override
-                    public Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+                    public Object decode(ByteBuffer buffer) {
                         throw new ArrayIndexOutOfBoundsException();
                     }
                 };
@@ -547,7 +547,7 @@ public class NioServerTest {
                     }
 
                     @Override
-                    public Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+                    public Object decode(ByteBuffer buffer) {
                         return null;
                     }
                 };

@@ -29,5 +29,11 @@ public interface Decoder {
         return false;
     }
 
-    Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end);
+    default Object decode(ByteBuffer buffer) {
+        throw new UnsupportedOperationException();
+    }
+
+    default Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+        throw new UnsupportedOperationException();
+    }
 }
