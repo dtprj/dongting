@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtThreadFactory;
@@ -83,7 +84,7 @@ public abstract class NioNet extends AbstractLifeCircle {
     }
 
     CompletableFuture<ReadFrame> sendRequest(NioWorker worker, Peer peer, WriteFrame request,
-                                                       Decoder decoder, DtTime timeout) {
+                                             Decoder decoder, DtTime timeout) {
         request.setFrameType(FrameType.TYPE_REQ);
         DtUtil.checkPositive(request.getCommand(), "request.command");
         if (request.estimateBodySize() > config.getMaxBodySize()) {

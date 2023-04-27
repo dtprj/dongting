@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.common.DtTime;
 
 import java.util.concurrent.CompletableFuture;
