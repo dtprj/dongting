@@ -455,10 +455,6 @@ class DtChannel extends PbCallback {
         return closed;
     }
 
-    public WorkerStatus getWorkerStatus() {
-        return workerStatus;
-    }
-
     public ChannelContext getProcessContext() {
         return channelContext;
     }

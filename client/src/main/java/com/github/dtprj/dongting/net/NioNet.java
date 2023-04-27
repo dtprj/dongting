@@ -74,11 +74,6 @@ public abstract class NioNet extends AbstractLifeCircle {
         nioStatus.registerProcessor(cmd, processor);
     }
 
-    private void throwThreadNotMatch(int cmd) {
-        throw new DtException("the processor should run in io thread," +
-                " but decoder.decodeInIoThread==false. command=" + cmd);
-    }
-
     CompletableFuture<ReadFrame> sendRequest(NioWorker worker, Peer peer, WriteFrame request,
                                              Decoder decoder, DtTime timeout) {
         request.setFrameType(FrameType.TYPE_REQ);
@@ -108,7 +103,7 @@ public abstract class NioNet extends AbstractLifeCircle {
             CompletableFuture<ReadFrame> future = new CompletableFuture<>();
             worker.writeReqInBizThreads(peer, request, decoder, timeout, future);
             write = true;
-            return registerReqCallback(future, decoder);
+            return registerReqCallback(future);
 
         } catch (Throwable e) {
             return errorFuture(new NetException("sendRequest error", e));
@@ -119,7 +114,7 @@ public abstract class NioNet extends AbstractLifeCircle {
         }
     }
 
-    private CompletableFuture<ReadFrame> registerReqCallback(CompletableFuture<ReadFrame> future, Decoder decoder) {
+    private CompletableFuture<ReadFrame> registerReqCallback(CompletableFuture<ReadFrame> future) {
         if (semaphore != null) {
             future = future.whenComplete((rf, ex) -> semaphore.release());
         }
