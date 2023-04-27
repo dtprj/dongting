@@ -35,11 +35,6 @@ public class ByteBufferDecoder implements Decoder {
     }
 
     @Override
-    public final boolean decodeInIoThread() {
-        return true;
-    }
-
-    @Override
     public Object decode(DecodeContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
         RefBuffer result;
         if (start) {

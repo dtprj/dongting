@@ -239,23 +239,19 @@ class DtChannel extends PbCallback {
                     frame.setBody(o);
                 }
             } else {
-                if (decoder.decodeInIoThread()) {
-                    if (start && end) {
-                        Object o = decoder.decode(buf);
-                        frame.setBody(o);
-                    } else {
-                        ByteBuffer copyBuffer = copyBuffer(buf, fieldLen, start, end);
-                        if (end) {
-                            try {
-                                Object result = decoder.decode(copyBuffer);
-                                frame.setBody(result);
-                            } finally {
-                                workerStatus.getHeapPool().release(copyBuffer);
-                            }
+                if (start && end) {
+                    Object o = decoder.decode(buf);
+                    frame.setBody(o);
+                } else {
+                    ByteBuffer copyBuffer = copyBuffer(buf, fieldLen, start, end);
+                    if (end) {
+                        try {
+                            Object result = decoder.decode(copyBuffer);
+                            frame.setBody(result);
+                        } finally {
+                            workerStatus.getHeapPool().release(copyBuffer);
                         }
                     }
-                } else {
-                    copyBuffer(buf, fieldLen, start, end);
                 }
             }
         } catch (Throwable e) {
@@ -397,10 +393,6 @@ class DtChannel extends PbCallback {
         } else {
             AtomicLong bytes = nioStatus.getInReqBytes();
             int currentReadFrameSize = this.currentReadFrameSize;
-            ByteBuffer bufferNeedRelease = null; // copy buffer need to release
-            if (!p.getDecoder().decodeInIoThread()) {
-                bufferNeedRelease = (ByteBuffer) req.getBody();
-            }
             try {
                 // TODO use custom thread pool?
                 p.getExecutor().execute(new ProcessInBizThreadTask(
@@ -412,9 +404,6 @@ class DtChannel extends PbCallback {
                         "max incoming request: " + nioConfig.getMaxInRequests(), reqContext.getTimeout());
                 if (bytes != null) {
                     bytes.addAndGet(-currentReadFrameSize);
-                }
-                if (bufferNeedRelease != null) {
-                    workerStatus.getHeapPool().release(bufferNeedRelease);
                 }
             }
         }
@@ -525,30 +514,10 @@ class ProcessInBizThreadTask implements Runnable {
         WriteFrame resp;
         ReadFrame req = this.req;
         DtChannel dtc = this.dtc;
-        boolean decodeSuccess = false;
         try {
             if (DtChannel.timeout(req, dtc.getProcessContext(), reqContext, null)) {
                 return;
             }
-            ReqProcessor processor = this.processor;
-            Decoder decoder = processor.getDecoder();
-            if (decoder != null && !decoder.decodeInIoThread()) {
-                ByteBuffer bodyBuffer = (ByteBuffer) req.getBody();
-                if (bodyBuffer != null) {
-                    try {
-                        Object o = decoder.decode(bodyBuffer);
-                        req.setBody(o);
-                    } finally {
-                        WorkerStatus ws = dtc.getWorkerStatus();
-                        try {
-                            ws.getIoQueue().scheduleFromBizThread(() -> ws.getHeapPool().release(bodyBuffer));
-                        } catch (NetException e) {
-                            log.warn("schedule ReleaseBufferTask fail: {}", e.toString());
-                        }
-                    }
-                }
-            }
-            decodeSuccess = true;
             resp = processor.process(req, dtc.getProcessContext(), reqContext);
         } catch (NetCodeException e) {
             log.warn("ReqProcessor.process fail, command={}, code={}, msg={}", req.getCommand(), e.getCode(), e.getMessage());
@@ -556,11 +525,7 @@ class ProcessInBizThreadTask implements Runnable {
             errorResp.setMsg(e.toString());
             resp = errorResp;
         } catch (Throwable e) {
-            if (decodeSuccess) {
-                log.warn("ReqProcessor.process fail, command={}", req.getCommand(), e);
-            } else {
-                log.warn("ReqProcessor decode fail, command={}", req.getCommand(), e);
-            }
+            log.warn("ReqProcessor.process fail, command={}", req.getCommand(), e);
             EmptyBodyRespFrame errorResp = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
             errorResp.setMsg(e.toString());
             resp = errorResp;

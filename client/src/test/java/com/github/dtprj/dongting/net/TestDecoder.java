@@ -22,21 +22,6 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-class BizByteBufferDecoder implements Decoder {
-    @Override
-    public boolean decodeInIoThread() {
-        return false;
-    }
-
-    @Override
-    public Object decode(ByteBuffer buffer) {
-        ByteBuffer buf = ByteBuffer.allocate(buffer.remaining());
-        buf.put(buffer);
-        buf.flip();
-        return buf;
-    }
-}
-
 class IoFullPackByteBufferDecoder implements Decoder {
     @Override
     public Object decode(ByteBuffer buffer) {

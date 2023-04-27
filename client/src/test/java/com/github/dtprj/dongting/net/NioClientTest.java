@@ -244,7 +244,6 @@ public class NioClientTest {
 
     private static void sendSync(int maxBodySize, NioClient client, long timeoutMillis) throws Exception {
         sendSync(maxBodySize, client, timeoutMillis, new ByteBufferDecoder());
-        sendSync(maxBodySize, client, timeoutMillis, new BizByteBufferDecoder());
         sendSync(maxBodySize, client, timeoutMillis, new IoFullPackByteBufferDecoder());
     }
 
@@ -661,31 +660,6 @@ public class NioClientTest {
 
             sendSync(5000, client, tick(1000));
 
-            {
-                // decoder fail in biz thread
-                ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(1));
-                wf.setCommand(Commands.CMD_PING);
-
-                Decoder decoder = new Decoder() {
-                    @Override
-                    public boolean decodeInIoThread() {
-                        return false;
-                    }
-
-                    @Override
-                    public Object decode(ByteBuffer buffer) {
-                        throw new ArrayIndexOutOfBoundsException();
-                    }
-                };
-                CompletableFuture<ReadFrame> f = client.sendRequest(wf,
-                        decoder, new DtTime(tick(1), TimeUnit.SECONDS));
-
-                try {
-                    f.get(tick(5), TimeUnit.SECONDS);
-                } catch (ExecutionException e) {
-                    assertEquals(ArrayIndexOutOfBoundsException.class, e.getCause().getClass());
-                }
-            }
             {
                 // decoder fail in io thread
                 ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(1));

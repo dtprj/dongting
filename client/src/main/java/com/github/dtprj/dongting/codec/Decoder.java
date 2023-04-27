@@ -21,9 +21,6 @@ import java.nio.ByteBuffer;
  * @author huangli
  */
 public interface Decoder {
-    default boolean decodeInIoThread() {
-        return true;
-    }
 
     default boolean supportHalfPacket() {
         return false;

@@ -24,7 +24,6 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
-import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -70,9 +69,6 @@ public abstract class NioNet extends AbstractLifeCircle {
     public void register(int cmd, ReqProcessor processor, Executor executor) {
         if (status != LifeStatus.not_start) {
             throw new DtException("processor should register before start");
-        }
-        if (executor == null && !processor.getDecoder().decodeInIoThread()) {
-            throwThreadNotMatch(cmd);
         }
         processor.setExecutor(executor);
         nioStatus.registerProcessor(cmd, processor);
@@ -131,13 +127,6 @@ public abstract class NioNet extends AbstractLifeCircle {
             if (frame.getRespCode() != CmdCodes.SUCCESS) {
                 throw new NetCodeException(frame.getRespCode(), frame.getMsg());
             }
-            if (decoder != null && !decoder.decodeInIoThread()) {
-                ByteBuffer buf = (ByteBuffer) frame.getBody();
-                if (buf != null) {
-                    Object body = decoder.decode(buf);
-                    frame.setBody(body);
-                }
-            }
             return frame;
         });
     }
@@ -160,10 +149,6 @@ public abstract class NioNet extends AbstractLifeCircle {
             if (p.isUseDefaultExecutor()) {
                 if (bizExecutor != null) {
                     p.setExecutor(bizExecutor);
-                } else {
-                    if (!p.getDecoder().decodeInIoThread()) {
-                        throwThreadNotMatch(command);
-                    }
                 }
             }
             return true;

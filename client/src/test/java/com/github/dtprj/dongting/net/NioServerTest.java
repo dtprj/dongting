@@ -100,7 +100,7 @@ public class NioServerTest {
 
             @Override
             public Decoder getDecoder() {
-                return new BizByteBufferDecoder();
+                return new IoFullPackByteBufferDecoder();
             }
         });
     }
@@ -401,27 +401,6 @@ public class NioServerTest {
             }
         });
 
-        server.register(10002, new ReqProcessor() {
-            @Override
-            public WriteFrame process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext) {
-                return null;
-            }
-
-            @Override
-            public Decoder getDecoder() {
-                return new Decoder() {
-                    @Override
-                    public boolean decodeInIoThread() {
-                        return false;
-                    }
-
-                    @Override
-                    public Object decode(ByteBuffer buffer) {
-                        throw new ArrayIndexOutOfBoundsException();
-                    }
-                };
-            }
-        });
         server.start();
         Socket s = new Socket("127.0.0.1", PORT);
         try {
@@ -434,7 +413,6 @@ public class NioServerTest {
             assertEquals(CmdCodes.SUCCESS, invoke(2, CMD_BIZ_PING2, 5000, in, out));
 
             assertEquals(CmdCodes.BIZ_ERROR, invoke(3, 10001, 5000, in, out));
-            assertEquals(CmdCodes.BIZ_ERROR, invoke(4, 10002, 5000, in, out));
 
             assertEquals(CmdCodes.SUCCESS, invoke(5, CMD_IO_PING, 5000, in, out));
             assertEquals(CmdCodes.SUCCESS, invoke(6, CMD_BIZ_PING1, 5000, in, out));
@@ -535,43 +513,6 @@ public class NioServerTest {
         } finally {
             DtUtil.close(s);
         }
-    }
-
-    private ReqProcessor threadNotMatchProcessor() {
-        return new NioServer.PingProcessor() {
-            @Override
-            public Decoder getDecoder() {
-                return new Decoder() {
-                    @Override
-                    public boolean decodeInIoThread() {
-                        return false;
-                    }
-
-                    @Override
-                    public Object decode(ByteBuffer buffer) {
-                        return null;
-                    }
-                };
-            }
-        };
-    }
-
-    @Test
-    public void testThreadNotMatch() {
-        // processor run in io thread, but decoder.decodeInIoThread() == false
-        setupServer(null);
-        ReqProcessor badProcessor = threadNotMatchProcessor();
-        assertThrows(DtException.class, () -> server.register(10005, badProcessor, null));
-        server.start();
-    }
-
-    @Test
-    public void testThreadNotMatch2() {
-        // processor run in io thread, but decoder.decodeInIoThread() == false
-        setupServer(c -> c.setBizThreads(0));
-        ReqProcessor badProcessor = threadNotMatchProcessor();
-        server.register(10005, badProcessor);
-        assertThrows(DtException.class, () -> server.start());
     }
 
     @Test
