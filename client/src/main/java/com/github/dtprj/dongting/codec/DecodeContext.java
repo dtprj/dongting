@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.codec;
 
 import com.github.dtprj.dongting.buf.RefBufferFactory;
-import com.github.dtprj.dongting.net.StringFieldDecoder;
 
 /**
  * @author huangli
@@ -24,7 +23,7 @@ import com.github.dtprj.dongting.net.StringFieldDecoder;
 public class DecodeContext {
     private RefBufferFactory heapPool;
 
-    private StringFieldDecoder strDecoder;
+    private StrDecoder strDecoder;
     private Object status;
     private PbParser pbParser;
 
@@ -36,11 +35,11 @@ public class DecodeContext {
         this.heapPool = heapPool;
     }
 
-    public StringFieldDecoder getStrDecoder() {
+    public StrDecoder getStrDecoder() {
         return strDecoder;
     }
 
-    public void setStrDecoder(StringFieldDecoder strDecoder) {
+    public void setStrDecoder(StrDecoder strDecoder) {
         this.strDecoder = strDecoder;
     }
 

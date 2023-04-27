@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.net;
+package com.github.dtprj.dongting.codec;
 
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -27,15 +27,15 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 /**
  * @author huangli
  */
-public class StringFieldDecoderTest {
+public class StrDecoderTest {
 
-    private StringFieldDecoder decoder;
+    private StrDecoder decoder;
     private byte[] bytes;
     private ByteBuffer buf;
 
     @Test
     public void test() {
-        decoder = new StringFieldDecoder(new SimpleByteBufferPool(new Timestamp(), false));
+        decoder = new StrDecoder(new SimpleByteBufferPool(new Timestamp(), false));
         bytes = new byte[33 * 1024];
         byte c = 'a';
         for (int i = 0; i < bytes.length; i++) {
@@ -58,59 +58,59 @@ public class StringFieldDecoderTest {
     private void testFull() {
         buf.clear();
         buf.limit(100);
-        String s = decoder.decodeUTF8(buf, 100, true, true);
+        String s = decoder.decode(null, buf, 100, true, true);
         assertEquals(new String(bytes, 0, 100), s);
 
         buf.clear();
-        s = decoder.decodeUTF8(buf, buf.capacity(), true, true);
+        s = decoder.decode(null, buf, buf.capacity(), true, true);
         assertEquals(new String(bytes, 0, buf.capacity()), s);
     }
 
     private void testHalf1() {
         buf.clear();
         buf.limit(10);
-        assertNull(decoder.decodeUTF8(buf, 100, true, false));
+        assertNull(decoder.decode(null, buf, 100, true, false));
         buf.clear();
         buf.position(10);
         buf.limit(100);
-        String s = decoder.decodeUTF8(buf, 100, false, true);
+        String s = decoder.decode(null, buf, 100, false, true);
         assertEquals(new String(bytes, 0, 100), s);
 
         buf.clear();
         buf.limit(10);
-        assertNull(decoder.decodeUTF8(buf, buf.capacity(), true, false));
+        assertNull(decoder.decode(null, buf, buf.capacity(), true, false));
         buf.clear();
         buf.position(10);
         buf.limit(buf.capacity());
-        s = decoder.decodeUTF8(buf, buf.capacity(), false, true);
+        s = decoder.decode(null, buf, buf.capacity(), false, true);
         assertEquals(new String(bytes, 0, buf.capacity()), s);
     }
 
     private void testHalf2() {
         buf.clear();
         buf.limit(10);
-        assertNull(decoder.decodeUTF8(buf, 100, true, false));
+        assertNull(decoder.decode(null, buf, 100, true, false));
         buf.clear();
         buf.position(10);
         buf.limit(20);
-        assertNull(decoder.decodeUTF8(buf, 100, false, false));
+        assertNull(decoder.decode(null, buf, 100, false, false));
         buf.clear();
         buf.position(20);
         buf.limit(100);
-        String s = decoder.decodeUTF8(buf, 100, false, true);
+        String s = decoder.decode(null, buf, 100, false, true);
         assertEquals(new String(bytes, 0, 100), s);
 
         buf.clear();
         buf.limit(10);
-        assertNull(decoder.decodeUTF8(buf, buf.capacity(), true, false));
+        assertNull(decoder.decode(null, buf, buf.capacity(), true, false));
         buf.clear();
         buf.position(10);
         buf.limit(20);
-        assertNull(decoder.decodeUTF8(buf, buf.capacity(), false, false));
+        assertNull(decoder.decode(null, buf, buf.capacity(), false, false));
         buf.clear();
         buf.position(20);
         buf.limit(buf.capacity());
-        s = decoder.decodeUTF8(buf, buf.capacity(), false, true);
+        s = decoder.decode(null, buf, buf.capacity(), false, true);
         assertEquals(new String(bytes, 0, buf.capacity()), s);
     }
 }

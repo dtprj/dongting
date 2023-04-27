@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.codec.PbParser;
+import com.github.dtprj.dongting.codec.StrDecoder;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -59,7 +60,7 @@ class DtChannel extends PbCallback {
     // read status
     private final ArrayList<ReadFrameInfo> frames = new ArrayList<>();
     private final PbParser parser;
-    private final StringFieldDecoder strDecoder;
+    private final StrDecoder strDecoder;
     private ReadFrame frame;
     private boolean readBody;
     private WriteData writeDataForResp;
@@ -87,7 +88,7 @@ class DtChannel extends PbCallback {
         this.workerStatus = workerStatus;
         this.channelIndexInWorker = channelIndexInWorker;
         this.parser = PbParser.multiParser(this, nioConfig.getMaxFrameSize());
-        this.strDecoder = new StringFieldDecoder(workerStatus.getHeapPool());
+        this.strDecoder = new StrDecoder(workerStatus.getHeapPool());
 
         this.respWriter = new RespWriter(workerStatus.getIoQueue(), workerStatus.getWakeupRunnable(), this);
 
@@ -207,7 +208,7 @@ class DtChannel extends PbCallback {
         }
         switch (index) {
             case Frame.IDX_MSG: {
-                String msg = strDecoder.decodeUTF8(buf, fieldLen, start, end);
+                String msg = strDecoder.decode(decodeContext, buf, fieldLen, start, end);
                 if (msg != null) {
                     this.frame.setMsg(msg);
                 }

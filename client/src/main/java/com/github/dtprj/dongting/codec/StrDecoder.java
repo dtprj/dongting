@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.net;
+package com.github.dtprj.dongting.codec;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 
@@ -25,7 +25,7 @@ import java.nio.charset.StandardCharsets;
  *
  * @author huangli
  */
-public class StringFieldDecoder {
+public class StrDecoder implements Decoder {
 
     private static final int THREAD_LOCAL_BUFFER_SIZE = 32 * 1024;
     private static final ThreadLocal<byte[]> THREAD_LOCAL_BUFFER = ThreadLocal.withInitial(() -> new byte[THREAD_LOCAL_BUFFER_SIZE]);
@@ -34,12 +34,13 @@ public class StringFieldDecoder {
 
     private ByteBuffer bufferFromPool;
 
-    StringFieldDecoder(ByteBufferPool pool) {
+    public StrDecoder(ByteBufferPool pool) {
         this.pool = pool;
         this.threadLocalBuffer = THREAD_LOCAL_BUFFER.get();
     }
 
-    public String decodeUTF8(ByteBuffer buf, int fieldLen, boolean start, boolean end) {
+    @Override
+    public String decode(DecodeContext decodeContext, ByteBuffer buf, int fieldLen, boolean start, boolean end) {
         if (start && end && fieldLen <= THREAD_LOCAL_BUFFER_SIZE) {
             byte[] threadLocalBuffer = this.threadLocalBuffer;
             buf.get(threadLocalBuffer, 0, fieldLen);
