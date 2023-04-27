@@ -21,7 +21,7 @@ import java.nio.charset.StandardCharsets;
 /**
  * encode/decode util for proto buffer 3.
  * <p>
- * see: https://developers.google.com/protocol-buffers/docs/encoding
+ * see: <a href="https://developers.google.com/protocol-buffers/docs/encoding">protobuf encoding docs</a>
  *
  * @author huangli
  */
@@ -50,7 +50,9 @@ public class PbUtil {
     public static final int TYPE_VAR_INT = 0;
     public static final int TYPE_FIX64 = 1;
     public static final int TYPE_LENGTH_DELIMITED = 2;
+    @SuppressWarnings("unused")
     public static final int TYPE_START_GROUP = 3;
+    @SuppressWarnings("unused")
     public static final int TYPE_END_GROUP = 4;
     public static final int TYPE_FIX32 = 5;
 
