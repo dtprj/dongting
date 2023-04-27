@@ -115,14 +115,16 @@ public abstract class NioNet extends AbstractLifeCircle {
     }
 
     private CompletableFuture<ReadFrame> registerReqCallback(CompletableFuture<ReadFrame> future) {
-        if (semaphore != null) {
-            future = future.whenComplete((rf, ex) -> semaphore.release());
-        }
-        return future.thenApply(frame -> {
+        return future.whenComplete((frame, ex) -> {
+            if (semaphore != null) {
+                semaphore.release();
+            }
+            if (ex != null) {
+                return;
+            }
             if (frame.getRespCode() != CmdCodes.SUCCESS) {
                 throw new NetCodeException(frame.getRespCode(), frame.getMsg());
             }
-            return frame;
         });
     }
 
