@@ -16,8 +16,8 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.pb.PbCallback;
-import com.github.dtprj.dongting.pb.PbUtil;
+import com.github.dtprj.dongting.codec.PbCallback;
+import com.github.dtprj.dongting.codec.PbUtil;
 
 import java.nio.ByteBuffer;
 

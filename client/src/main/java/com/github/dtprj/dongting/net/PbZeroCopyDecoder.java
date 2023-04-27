@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.pb.PbCallback;
-import com.github.dtprj.dongting.pb.PbParser;
+import com.github.dtprj.dongting.codec.PbCallback;
+import com.github.dtprj.dongting.codec.PbParser;
 
 import java.nio.ByteBuffer;
 import java.util.function.Function;

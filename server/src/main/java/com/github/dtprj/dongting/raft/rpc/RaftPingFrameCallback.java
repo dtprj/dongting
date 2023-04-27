@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.pb.PbCallback;
+import com.github.dtprj.dongting.codec.PbCallback;
 
 import java.util.HashSet;
 

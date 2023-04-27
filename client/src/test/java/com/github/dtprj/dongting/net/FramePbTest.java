@@ -4,8 +4,8 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.TwoLevelPool;
+import com.github.dtprj.dongting.codec.DtFrame;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.pb.DtFrame;
 import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.Test;
 

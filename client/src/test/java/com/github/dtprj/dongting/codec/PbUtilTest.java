@@ -13,35 +13,35 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.pb;
+package com.github.dtprj.dongting.codec;
 
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-import static com.github.dtprj.dongting.pb.PbUtil.TYPE_VAR_INT;
-import static com.github.dtprj.dongting.pb.PbUtil.accurateFix32Size;
-import static com.github.dtprj.dongting.pb.PbUtil.accurateFix64Size;
-import static com.github.dtprj.dongting.pb.PbUtil.accurateLengthDelimitedSize;
-import static com.github.dtprj.dongting.pb.PbUtil.accurateStrSizeAscii;
-import static com.github.dtprj.dongting.pb.PbUtil.accurateTagSize;
-import static com.github.dtprj.dongting.pb.PbUtil.accurateUnsignedIntSize;
-import static com.github.dtprj.dongting.pb.PbUtil.accurateUnsignedLongSize;
-import static com.github.dtprj.dongting.pb.PbUtil.maxFix32Size;
-import static com.github.dtprj.dongting.pb.PbUtil.maxFix64Size;
-import static com.github.dtprj.dongting.pb.PbUtil.maxLengthDelimitedSize;
-import static com.github.dtprj.dongting.pb.PbUtil.maxStrSizeAscii;
-import static com.github.dtprj.dongting.pb.PbUtil.maxStrSizeUTF8;
-import static com.github.dtprj.dongting.pb.PbUtil.maxUnsignedIntSize;
-import static com.github.dtprj.dongting.pb.PbUtil.maxUnsignedLongSize;
-import static com.github.dtprj.dongting.pb.PbUtil.writeAscii;
-import static com.github.dtprj.dongting.pb.PbUtil.writeFix32;
-import static com.github.dtprj.dongting.pb.PbUtil.writeFix64;
-import static com.github.dtprj.dongting.pb.PbUtil.writeTag;
-import static com.github.dtprj.dongting.pb.PbUtil.writeUTF8;
-import static com.github.dtprj.dongting.pb.PbUtil.writeUnsignedInt32ValueOnly;
-import static com.github.dtprj.dongting.pb.PbUtil.writeUnsignedInt64ValueOnly;
+import static com.github.dtprj.dongting.codec.PbUtil.TYPE_VAR_INT;
+import static com.github.dtprj.dongting.codec.PbUtil.accurateFix32Size;
+import static com.github.dtprj.dongting.codec.PbUtil.accurateFix64Size;
+import static com.github.dtprj.dongting.codec.PbUtil.accurateLengthDelimitedSize;
+import static com.github.dtprj.dongting.codec.PbUtil.accurateStrSizeAscii;
+import static com.github.dtprj.dongting.codec.PbUtil.accurateTagSize;
+import static com.github.dtprj.dongting.codec.PbUtil.accurateUnsignedIntSize;
+import static com.github.dtprj.dongting.codec.PbUtil.accurateUnsignedLongSize;
+import static com.github.dtprj.dongting.codec.PbUtil.maxFix32Size;
+import static com.github.dtprj.dongting.codec.PbUtil.maxFix64Size;
+import static com.github.dtprj.dongting.codec.PbUtil.maxLengthDelimitedSize;
+import static com.github.dtprj.dongting.codec.PbUtil.maxStrSizeAscii;
+import static com.github.dtprj.dongting.codec.PbUtil.maxStrSizeUTF8;
+import static com.github.dtprj.dongting.codec.PbUtil.maxUnsignedIntSize;
+import static com.github.dtprj.dongting.codec.PbUtil.maxUnsignedLongSize;
+import static com.github.dtprj.dongting.codec.PbUtil.writeAscii;
+import static com.github.dtprj.dongting.codec.PbUtil.writeFix32;
+import static com.github.dtprj.dongting.codec.PbUtil.writeFix64;
+import static com.github.dtprj.dongting.codec.PbUtil.writeTag;
+import static com.github.dtprj.dongting.codec.PbUtil.writeUTF8;
+import static com.github.dtprj.dongting.codec.PbUtil.writeUnsignedInt32ValueOnly;
+import static com.github.dtprj.dongting.codec.PbUtil.writeUnsignedInt64ValueOnly;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;

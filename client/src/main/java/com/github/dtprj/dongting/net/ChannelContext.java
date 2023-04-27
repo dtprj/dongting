@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.RefBufferFactory;
-import com.github.dtprj.dongting.pb.PbParser;
+import com.github.dtprj.dongting.codec.PbParser;
 
 import java.net.SocketAddress;
 import java.nio.channels.SocketChannel;
