@@ -38,7 +38,7 @@ public class InstallSnapshotProcessor extends AbstractProcessor {
 
     private static final DtLog log = DtLogs.getLogger(InstallSnapshotProcessor.class);
 
-    private static final Decoder DECODER = new PbZeroCopyDecoder(c -> new InstallSnapshotReq.Callback(c.getIoHeapBufferPool()));
+    private static final Decoder DECODER = new PbZeroCopyDecoder(c -> new InstallSnapshotReq.Callback(c.getHeapPool()));
 
     public InstallSnapshotProcessor(RaftGroups raftGroups) {
         super(raftGroups);

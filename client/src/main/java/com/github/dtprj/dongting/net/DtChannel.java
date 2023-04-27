@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
@@ -48,6 +49,7 @@ class DtChannel extends PbCallback {
     private final WorkerStatus workerStatus;
     private final SocketChannel channel;
     private final ChannelContext channelContext;
+    private final DecodeContext decodeContext;
     private final RespWriter respWriter;
     private Peer peer;
 
@@ -93,13 +95,14 @@ class DtChannel extends PbCallback {
         channelContext.setChannel(socketChannel);
         channelContext.setRemoteAddr(socketChannel.getRemoteAddress());
         channelContext.setLocalAddr(socketChannel.getLocalAddress());
-        channelContext.setIoThreadStrDecoder(strDecoder);
         ByteBufferPool releaseSafePool = createReleaseSafePool((TwoLevelPool) workerStatus.getHeapPool(),
                 workerStatus.getIoQueue());
-        channelContext.setIoHeapBufferPool(new RefBufferFactory(releaseSafePool, 800));
+        RefBufferFactory refBufferFactory = new RefBufferFactory(releaseSafePool, 800);
         channelContext.setRespWriter(respWriter);
-        channelContext.setIoParser(parser);
         this.channelContext = channelContext;
+
+        this.decodeContext = new DecodeContext();
+        decodeContext.setHeapPool(refBufferFactory);
     }
 
     private static ByteBufferPool createReleaseSafePool(TwoLevelPool heapPool, IoQueue ioQueue) {
@@ -230,7 +233,7 @@ class DtChannel extends PbCallback {
 
         try {
             if (decoder.supportHalfPacket()) {
-                Object o = decoder.decode(channelContext, buf, fieldLen, start, end);
+                Object o = decoder.decode(decodeContext, buf, fieldLen, start, end);
                 if (end) {
                     frame.setBody(o);
                 }
@@ -260,7 +263,7 @@ class DtChannel extends PbCallback {
         }
 
         if (end) {
-            channelContext.setIoDecodeStatus(null);
+            decodeContext.setStatus(null);
             // so if the body is not last field, exception throws
             readBody = true;
         }

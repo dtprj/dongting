@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.codec;
 
-import com.github.dtprj.dongting.net.ChannelContext;
-
 import java.nio.ByteBuffer;
 
 /**
@@ -35,7 +33,7 @@ public interface Decoder {
         throw new UnsupportedOperationException();
     }
 
-    default Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+    default Object decode(DecodeContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
         throw new UnsupportedOperationException();
     }
 }

@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbParser;
@@ -27,9 +28,9 @@ import java.util.function.Function;
  */
 public class PbZeroCopyDecoder implements Decoder {
 
-    private final Function<ChannelContext, PbCallback> callbackCreator;
+    private final Function<DecodeContext, PbCallback> callbackCreator;
 
-    public PbZeroCopyDecoder(Function<ChannelContext, PbCallback> callbackCreator) {
+    public PbZeroCopyDecoder(Function<DecodeContext, PbCallback> callbackCreator) {
         this.callbackCreator = callbackCreator;
     }
 
@@ -44,13 +45,16 @@ public class PbZeroCopyDecoder implements Decoder {
     }
 
     @Override
-    public Object decode(ChannelContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
-        PbParser parser;
+    public Object decode(DecodeContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+        PbParser parser = context.getPbParser();
         PbCallback callback;
         if (start) {
-            parser = context.getIoParser().createOrGetNestedParserSingle(callbackCreator.apply(context), bodyLen);
-        } else {
-            parser = context.getIoParser().getNestedParser();
+            if (parser != null) {
+                parser.resetSingle(callbackCreator.apply(context), bodyLen);
+            } else {
+                parser = PbParser.singleParser(callbackCreator.apply(context), bodyLen);
+                context.setPbParser(parser);
+            }
         }
         callback = parser.getCallback();
         parser.parse(buffer);

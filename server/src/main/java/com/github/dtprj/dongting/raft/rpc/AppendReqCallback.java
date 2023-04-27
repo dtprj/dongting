@@ -17,9 +17,9 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbParser;
-import com.github.dtprj.dongting.net.ChannelContext;
 import com.github.dtprj.dongting.raft.server.LogItem;
 
 import java.nio.ByteBuffer;
@@ -49,8 +49,8 @@ public class AppendReqCallback extends PbCallback {
     private final ArrayList<LogItem> logs = new ArrayList<>();
     private long leaderCommit;
 
-    public AppendReqCallback(ChannelContext channelContext) {
-        this.heapPool = channelContext.getIoHeapBufferPool();
+    public AppendReqCallback(DecodeContext decodeContext) {
+        this.heapPool = decodeContext.getHeapPool();
     }
 
     @Override

@@ -15,9 +15,6 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.RefBufferFactory;
-import com.github.dtprj.dongting.codec.PbParser;
-
 import java.net.SocketAddress;
 import java.nio.channels.SocketChannel;
 
@@ -29,12 +26,6 @@ public class ChannelContext {
     private SocketAddress remoteAddr;
     private SocketAddress localAddr;
     private RespWriter respWriter;
-
-    // this decoder can only be used in io thread
-    private StringFieldDecoder ioThreadStrDecoder;
-    private Object ioDecodeStatus;
-    private RefBufferFactory ioHeapBufferPool;
-    private PbParser ioParser;
 
     public SocketChannel getChannel() {
         return channel;
@@ -60,33 +51,6 @@ public class ChannelContext {
         this.localAddr = localAddr;
     }
 
-    /**
-     * this decoder can only be used in io thread
-     */
-    public StringFieldDecoder getIoThreadStrDecoder() {
-        return ioThreadStrDecoder;
-    }
-
-    public void setIoThreadStrDecoder(StringFieldDecoder ioThreadStrDecoder) {
-        this.ioThreadStrDecoder = ioThreadStrDecoder;
-    }
-
-    public Object getIoDecodeStatus() {
-        return ioDecodeStatus;
-    }
-
-    public void setIoDecodeStatus(Object ioDecodeStatus) {
-        this.ioDecodeStatus = ioDecodeStatus;
-    }
-
-    public RefBufferFactory getIoHeapBufferPool() {
-        return ioHeapBufferPool;
-    }
-
-    public void setIoHeapBufferPool(RefBufferFactory ioHeapBufferPool) {
-        this.ioHeapBufferPool = ioHeapBufferPool;
-    }
-
     public RespWriter getRespWriter() {
         return respWriter;
     }
@@ -95,11 +59,4 @@ public class ChannelContext {
         this.respWriter = respWriter;
     }
 
-    public PbParser getIoParser() {
-        return ioParser;
-    }
-
-    public void setIoParser(PbParser ioParser) {
-        this.ioParser = ioParser;
-    }
 }
