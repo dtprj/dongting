@@ -31,7 +31,24 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>8</source>
+                    <target>8</target>
+                    <release>8</release>
+                </configuration>
                 <executions>
+                    <execution>
+                        <id>default-testCompile</id>
+                        <phase>test-compile</phase>
+                        <goals>
+                            <goal>testCompile</goal>
+                        </goals>
+                        <configuration>
+                            <source>11</source>
+                            <target>11</target>
+                            <release>11</release>
+                        </configuration>
+                    </execution>
                     <execution>
                         <id>default-compile</id>
                         <configuration>
@@ -54,11 +71,7 @@
                         </configuration>
                     </execution>
                 </executions>
-                <configuration>
-                    <source>8</source>
-                    <target>8</target>
-                    <release>8</release>
-                </configuration>
+
             </plugin>
         </plugins>
     </build>
