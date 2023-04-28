@@ -130,12 +130,14 @@ public class NioClient extends NioNet {
         this.startFutures = null;
     }
 
-    public CompletableFuture<ReadFrame> sendRequest(WriteFrame request, Decoder decoder, DtTime timeout) {
-        return sendRequest(worker, null, request, decoder, timeout);
+    public <T> CompletableFuture<ReadFrame<T>> sendRequest(WriteFrame request, Decoder<T> decoder, DtTime timeout) {
+        return sendRequest(null, request, decoder, timeout);
     }
 
-    public CompletableFuture<ReadFrame> sendRequest(Peer peer, WriteFrame request, Decoder decoder, DtTime timeout) {
-        return sendRequest(worker, peer, request, decoder, timeout);
+    @SuppressWarnings("unchecked")
+    public <T> CompletableFuture<ReadFrame<T>> sendRequest(Peer peer, WriteFrame request, Decoder<T> decoder, DtTime timeout) {
+        CompletableFuture<?> f = sendRequest(worker, peer, request, decoder, timeout);
+        return (CompletableFuture<ReadFrame<T>>) f;
     }
 
     @Override

@@ -40,7 +40,7 @@ public class PbParser {
     private static final int STATUS_SINGLE_END = 8;
     private static final int STATUS_ERROR = 9;
 
-    private PbCallback callback;
+    private PbCallback<?> callback;
 
     private int maxFrame;
 
@@ -58,7 +58,7 @@ public class PbParser {
 
     private PbParser nestedParser;
 
-    private PbParser(PbCallback callback, boolean multi, int maxFrameOrPbLen) {
+    private PbParser(PbCallback<?> callback, boolean multi, int maxFrameOrPbLen) {
         Objects.requireNonNull(callback);
         if (multi) {
             DtUtil.checkPositive(maxFrameOrPbLen, "maxFrame");
@@ -77,23 +77,23 @@ public class PbParser {
         return maxFrame == 0;
     }
 
-    public static PbParser multiParser(PbCallback callback, int maxFrame) {
+    public static PbParser multiParser(PbCallback<?> callback, int maxFrame) {
         return new PbParser(callback, true, maxFrame);
     }
 
-    public static PbParser singleParser(PbCallback callback, int pbLen) {
+    public static PbParser singleParser(PbCallback<?> callback, int pbLen) {
         return new PbParser(callback, false, pbLen);
     }
 
-    public void resetMulti(PbCallback callback, int maxFrame) {
+    public void resetMulti(PbCallback<?>  callback, int maxFrame) {
         reset(callback, true, maxFrame);
     }
 
-    public void resetSingle(PbCallback callback, int pbLen) {
+    public void resetSingle(PbCallback<?> callback, int pbLen) {
         reset(callback, false, pbLen);
     }
 
-    private void reset(PbCallback callback, boolean multi, int maxFrameOrPbLen) {
+    private void reset(PbCallback<?> callback, boolean multi, int maxFrameOrPbLen) {
         this.callback = callback;
         this.parsedBytes = 0;
         this.pendingBytes = 0;
@@ -115,7 +115,7 @@ public class PbParser {
 
     public void parse(ByteBuffer buf) {
         int remain = buf.remaining();
-        PbCallback callback = this.callback;
+        PbCallback<?> callback = this.callback;
         while (true) {
             switch (this.status) {
                 case STATUS_ERROR:
@@ -159,7 +159,7 @@ public class PbParser {
         }
     }
 
-    private void callEnd(PbCallback callback, boolean success) {
+    private void callEnd(PbCallback<?> callback, boolean success) {
         try {
             callback.end(success);
         } catch (Throwable e) {
@@ -174,7 +174,7 @@ public class PbParser {
         this.parsedBytes = 0;
     }
 
-    private void callBegin(PbCallback callback, int len) {
+    private void callBegin(PbCallback<?> callback, int len) {
         try {
             callback.begin(len, this);
             this.status = STATUS_PARSE_TAG;
@@ -187,7 +187,7 @@ public class PbParser {
         }
     }
 
-    private int onStatusParsePbLen(ByteBuffer buf, PbCallback callback, int remain) {
+    private int onStatusParsePbLen(ByteBuffer buf, PbCallback<?> callback, int remain) {
         // read buffer is little endian.
         // however the length field is out of proto buffer data, and it's big endian
         if (pendingBytes == 0 && remain >= 4) {
@@ -321,7 +321,7 @@ public class PbParser {
         }
     }
 
-    private int parseVarLong(ByteBuffer buf, PbCallback callback, int remain) {
+    private int parseVarLong(ByteBuffer buf, PbCallback<?> callback, int remain) {
         long value = 0;
         int bitIndex = 0;
         int pendingBytes = this.pendingBytes;
@@ -384,7 +384,7 @@ public class PbParser {
         return 0;
     }
 
-    private int onStatusParseFieldBody(ByteBuffer buf, PbCallback callback, int remain) {
+    private int onStatusParseFieldBody(ByteBuffer buf, PbCallback<?> callback, int remain) {
         switch (this.fieldType) {
             case PbUtil.TYPE_VAR_INT:
                 remain = parseVarLong(buf, callback, remain);
@@ -409,7 +409,7 @@ public class PbParser {
         return remain;
     }
 
-    private int parseBodyLenDelimited(ByteBuffer buf, PbCallback callback, int remain) {
+    private int parseBodyLenDelimited(ByteBuffer buf, PbCallback<?> callback, int remain) {
         if (remain == 0 && status != STATUS_PARSE_FILED_BODY_BEGIN) {
             return 0;
         }
@@ -448,7 +448,7 @@ public class PbParser {
         return remain;
     }
 
-    private int parseBodyFixedNumber(ByteBuffer buf, PbCallback callback, int remain, int len) {
+    private int parseBodyFixedNumber(ByteBuffer buf, PbCallback<?> callback, int remain, int len) {
         int pendingBytes = this.pendingBytes;
         if (pendingBytes == 0 && remain >= len) {
             long value;
@@ -489,7 +489,7 @@ public class PbParser {
         }
     }
 
-    private void callbackOnReadFixNumber(PbCallback callback, int len, long value) {
+    private void callbackOnReadFixNumber(PbCallback<?> callback, int len, long value) {
         boolean r;
         try {
             if (len == 4) {
@@ -508,8 +508,9 @@ public class PbParser {
         }
     }
 
-    public PbCallback getCallback() {
-        return callback;
+    @SuppressWarnings("unchecked")
+    public <T> PbCallback<T> getCallback() {
+        return (PbCallback<T>) callback;
     }
 
     public PbParser getNestedParser() {
@@ -520,7 +521,7 @@ public class PbParser {
         return status == STATUS_ERROR;
     }
 
-    public PbParser createOrGetNestedParserSingle(PbCallback callback, int pbLen) {
+    public PbParser createOrGetNestedParserSingle(PbCallback<?> callback, int pbLen) {
         PbParser nestedParser = this.nestedParser;
         if (nestedParser == null) {
             nestedParser = singleParser(callback, pbLen);

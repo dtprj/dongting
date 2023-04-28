@@ -34,24 +34,24 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 /**
  * @author huangli
  */
-public class InstallSnapshotProcessor extends AbstractProcessor {
+public class InstallSnapshotProcessor extends AbstractProcessor<InstallSnapshotReq> {
 
     private static final DtLog log = DtLogs.getLogger(InstallSnapshotProcessor.class);
 
-    private static final Decoder DECODER = new PbZeroCopyDecoder(c -> new InstallSnapshotReq.Callback(c.getHeapPool()));
+    private static final Decoder<InstallSnapshotReq> DECODER = new PbZeroCopyDecoder<>(c -> new InstallSnapshotReq.Callback(c.getHeapPool()));
 
     public InstallSnapshotProcessor(RaftGroups raftGroups) {
         super(raftGroups);
     }
 
     @Override
-    protected int getGroupId(ReadFrame frame) {
-        return ((InstallSnapshotReq) frame.getBody()).groupId;
+    protected int getGroupId(ReadFrame<InstallSnapshotReq> frame) {
+        return frame.getBody().groupId;
     }
 
     @Override
-    protected WriteFrame doProcess(ReadFrame frame, ChannelContext channelContext, RaftGroupImpl gc) {
-        InstallSnapshotReq req = (InstallSnapshotReq) frame.getBody();
+    protected WriteFrame doProcess(ReadFrame<InstallSnapshotReq> frame, ChannelContext channelContext, RaftGroupImpl gc) {
+        InstallSnapshotReq req = frame.getBody();
         try {
             InstallSnapshotResp resp = new InstallSnapshotResp();
             InstallSnapshotResp.WriteFrame respFrame = new InstallSnapshotResp.WriteFrame(resp);
@@ -123,7 +123,7 @@ public class InstallSnapshotProcessor extends AbstractProcessor {
     }
 
     @Override
-    public Decoder getDecoder() {
+    public Decoder<InstallSnapshotReq> getDecoder() {
         return DECODER;
     }
 }

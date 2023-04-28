@@ -578,8 +578,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     // invoke by other threads
-    public void writeReqInBizThreads(Peer peer, WriteFrame frame, Decoder decoder,
-                                     DtTime timeout, CompletableFuture<ReadFrame> future) {
+    public void writeReqInBizThreads(Peer peer, WriteFrame frame, Decoder<?> decoder,
+                                     DtTime timeout, CompletableFuture<ReadFrame<?>> future) {
         Objects.requireNonNull(timeout);
         Objects.requireNonNull(future);
 

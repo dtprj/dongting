@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -71,7 +72,7 @@ public class TimeoutTest {
         DtUtil.close(client, server);
     }
 
-    private CompletableFuture<ReadFrame> send(DtTime timeout) {
+    private CompletableFuture<?> send(DtTime timeout) {
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(1));
         wf.setCommand(CMD);
         return client.sendRequest(wf, new RefBufferDecoder(), timeout);
@@ -80,7 +81,7 @@ public class TimeoutTest {
     private void registerDelayPingProcessor(int sleepTime) {
         server.register(CMD, new NioServer.PingProcessor() {
             @Override
-            public WriteFrame process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext) {
+            public WriteFrame process(ReadFrame<RefBuffer> frame, ChannelContext channelContext, ReqContext reqContext) {
                 try {
                     Thread.sleep(sleepTime);
                 } catch (InterruptedException e) {
@@ -95,9 +96,9 @@ public class TimeoutTest {
     @Test
     public void acquireTimeoutTest() throws Exception {
         setup(() -> registerDelayPingProcessor(10));
-        CompletableFuture<ReadFrame> f1 = send(new DtTime(1, TimeUnit.SECONDS));
+        CompletableFuture<?> f1 = send(new DtTime(1, TimeUnit.SECONDS));
         try {
-            CompletableFuture<ReadFrame> f2 = send(new DtTime(1, TimeUnit.NANOSECONDS));
+            CompletableFuture<?> f2 = send(new DtTime(1, TimeUnit.NANOSECONDS));
             f2.get(5, TimeUnit.SECONDS);
             fail();
         } catch (ExecutionException e) {
@@ -115,7 +116,7 @@ public class TimeoutTest {
         setup(() -> registerDelayPingProcessor(0));
         try {
             DtTime deadline = new DtTime(System.nanoTime() - 5 * 1000 * 1000, 1, TimeUnit.NANOSECONDS);
-            CompletableFuture<ReadFrame> f1 = send(deadline);
+            CompletableFuture<?> f1 = send(deadline);
             f1.get(5, TimeUnit.SECONDS);
             fail();
         } catch (ExecutionException e) {
@@ -132,7 +133,7 @@ public class TimeoutTest {
         int oldCount = runCount.get();
         setup(() -> registerDelayPingProcessor(tick(15)));
         try {
-            CompletableFuture<ReadFrame> f = send(new DtTime(tick(14), TimeUnit.MILLISECONDS));
+            CompletableFuture<?> f = send(new DtTime(tick(14), TimeUnit.MILLISECONDS));
             f.get(5, TimeUnit.SECONDS);
             fail();
         } catch (ExecutionException e) {
@@ -152,19 +153,19 @@ public class TimeoutTest {
     }
 
     private void serverTimeoutBeforeProcessTest(boolean runProcessInIoThread) throws Exception {
-        ReqProcessor p = new ReqProcessor() {
+        ReqProcessor<ByteBuffer> p = new ReqProcessor<>() {
             @Override
-            public WriteFrame process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext) {
-                ByteBufferWriteFrame resp = new ByteBufferWriteFrame((ByteBuffer) frame.getBody());
+            public WriteFrame process(ReadFrame<ByteBuffer> frame, ChannelContext channelContext, ReqContext reqContext) {
+                ByteBufferWriteFrame resp = new ByteBufferWriteFrame(frame.getBody());
                 resp.setRespCode(CmdCodes.SUCCESS);
                 return resp;
             }
 
             @Override
-            public Decoder getDecoder() {
+            public Decoder<ByteBuffer> getDecoder() {
                 return new IoFullPackByteBufferDecoder() {
                     @Override
-                    public Object decode(ByteBuffer buffer) {
+                    public ByteBuffer decode(ByteBuffer buffer) {
                         try {
                             Thread.sleep(tick(15));
                         } catch (InterruptedException e) {
@@ -182,7 +183,7 @@ public class TimeoutTest {
         int oldCount = runCount.get();
 
         try {
-            CompletableFuture<ReadFrame> f = send(new DtTime(tick(10), TimeUnit.MILLISECONDS));
+            CompletableFuture<?> f = send(new DtTime(tick(10), TimeUnit.MILLISECONDS));
             f.get(5, TimeUnit.SECONDS);
             fail();
         } catch (ExecutionException e) {

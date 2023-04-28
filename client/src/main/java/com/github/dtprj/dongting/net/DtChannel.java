@@ -42,7 +42,7 @@ import java.util.function.Consumer;
 /**
  * @author huangli
  */
-class DtChannel extends PbCallback {
+class DtChannel extends PbCallback<Object> {
     private static final DtLog log = DtLogs.getLogger(DtChannel.class);
 
     private final NioStatus nioStatus;
@@ -227,7 +227,7 @@ class DtChannel extends PbCallback {
             throw new NetException("command invalid :" + frame.getCommand());
         }
         // the body field should encode as last field
-        Decoder decoder = initRelatedDataForFrame(true);
+        Decoder<?> decoder = initRelatedDataForFrame(true);
         if (decoder == null) {
             return true;
         }
@@ -267,7 +267,7 @@ class DtChannel extends PbCallback {
         return true;
     }
 
-    private Decoder initRelatedDataForFrame(boolean returnDecoder) {
+    private Decoder<?> initRelatedDataForFrame(boolean returnDecoder) {
         ReadFrame frame = this.frame;
         if (frame.getFrameType() == FrameType.TYPE_RESP) {
             WriteData writeDataForResp = this.writeDataForResp;

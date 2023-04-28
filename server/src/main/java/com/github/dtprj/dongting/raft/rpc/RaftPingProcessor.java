@@ -27,8 +27,8 @@ import com.github.dtprj.dongting.raft.impl.RaftGroups;
 /**
  * @author huangli
  */
-public class RaftPingProcessor extends AbstractProcessor {
-    public static final PbZeroCopyDecoder DECODER = new PbZeroCopyDecoder(context ->
+public class RaftPingProcessor extends AbstractProcessor<RaftPingFrameCallback> {
+    public static final PbZeroCopyDecoder<RaftPingFrameCallback> DECODER = new PbZeroCopyDecoder<>(context ->
             new RaftPingFrameCallback());
 
     public RaftPingProcessor(RaftGroups raftGroups) {
@@ -36,12 +36,12 @@ public class RaftPingProcessor extends AbstractProcessor {
     }
 
     @Override
-    protected int getGroupId(ReadFrame frame) {
-        return ((RaftPingFrameCallback) frame.getBody()).groupId;
+    protected int getGroupId(ReadFrame<RaftPingFrameCallback> frame) {
+        return frame.getBody().groupId;
     }
 
     @Override
-    protected WriteFrame doProcess(ReadFrame frame, ChannelContext channelContext, RaftGroupImpl gc) {
+    protected WriteFrame doProcess(ReadFrame<RaftPingFrameCallback> frame, ChannelContext channelContext, RaftGroupImpl gc) {
         RaftPingWriteFrame resp = new RaftPingWriteFrame(gc.getServerConfig().getNodeId(),
                 gc.getGroupConfig().getGroupId(), gc.getRaftStatus().getNodeIdOfMembers(),
                 gc.getRaftStatus().getNodeIdOfObservers());
@@ -50,7 +50,7 @@ public class RaftPingProcessor extends AbstractProcessor {
     }
 
     @Override
-    public Decoder getDecoder() {
+    public Decoder<RaftPingFrameCallback> getDecoder() {
         return DECODER;
     }
 }

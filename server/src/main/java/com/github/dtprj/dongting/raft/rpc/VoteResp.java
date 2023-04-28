@@ -30,7 +30,7 @@ public class VoteResp {
     private int term;
     private boolean voteGranted;
 
-    public static class Callback extends PbCallback {
+    public static class Callback extends PbCallback<VoteResp> {
         private final VoteResp result = new VoteResp();
 
         @Override

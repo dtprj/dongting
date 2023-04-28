@@ -29,11 +29,11 @@ final class WriteData {
 
     private final WriteFrame data;
     private final DtTime timeout;
-    private final CompletableFuture<ReadFrame> future;
-    private final Decoder respDecoder;
+    private final CompletableFuture<ReadFrame<?>> future;
+    private final Decoder<?> respDecoder;
 
     public WriteData(Peer peer, WriteFrame data, DtTime timeout,
-                     CompletableFuture<ReadFrame> future, Decoder respDecoder) {
+                     CompletableFuture<ReadFrame<?>> future, Decoder<?> respDecoder) {
         this.peer = peer;
         this.data = data;
         this.timeout = timeout;
@@ -62,11 +62,11 @@ final class WriteData {
         return timeout;
     }
 
-    public CompletableFuture<ReadFrame> getFuture() {
+    public CompletableFuture<ReadFrame<?>> getFuture() {
         return future;
     }
 
-    public Decoder getRespDecoder() {
+    public Decoder<?> getRespDecoder() {
         return respDecoder;
     }
 

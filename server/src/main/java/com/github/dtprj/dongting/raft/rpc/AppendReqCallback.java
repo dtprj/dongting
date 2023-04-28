@@ -38,7 +38,7 @@ import java.util.ArrayList;
 //  fixed64 leader_commit = 7;
 //}
 //
-public class AppendReqCallback extends PbCallback {
+public class AppendReqCallback extends PbCallback<AppendReqCallback> {
 
     private final RefBufferFactory heapPool;
     private int groupId;
@@ -146,7 +146,7 @@ public class AppendReqCallback extends PbCallback {
     //  fixed64 timestamp = 5;
     //  bytes data = 6;
     //}
-    static class LogItemCallback extends PbCallback {
+    static class LogItemCallback extends PbCallback<Object> {
         private final LogItem item = new LogItem();
         private final RefBufferFactory heapPool;
 

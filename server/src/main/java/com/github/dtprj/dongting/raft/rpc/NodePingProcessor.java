@@ -28,9 +28,9 @@ import java.util.UUID;
 /**
  * @author huangli
  */
-public class NodePingProcessor extends ReqProcessor {
+public class NodePingProcessor extends ReqProcessor<NodePingCallback> {
 
-    public static final PbZeroCopyDecoder DECODER = new PbZeroCopyDecoder(ctx -> new NodePingCallback());
+    public static final PbZeroCopyDecoder<NodePingCallback> DECODER = new PbZeroCopyDecoder<>(ctx -> new NodePingCallback());
     private final int selfNodeId;
     private final UUID uuid;
 
@@ -40,12 +40,12 @@ public class NodePingProcessor extends ReqProcessor {
     }
 
     @Override
-    public WriteFrame process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext) {
+    public WriteFrame process(ReadFrame<NodePingCallback> frame, ChannelContext channelContext, ReqContext reqContext) {
         return new NodePingWriteFrame(selfNodeId, uuid);
     }
 
     @Override
-    public Decoder getDecoder() {
+    public Decoder<NodePingCallback> getDecoder() {
         return DECODER;
     }
 }

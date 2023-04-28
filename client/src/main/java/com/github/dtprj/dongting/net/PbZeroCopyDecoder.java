@@ -26,11 +26,11 @@ import java.util.function.Function;
 /**
  * @author huangli
  */
-public class PbZeroCopyDecoder implements Decoder {
+public class PbZeroCopyDecoder<T> implements Decoder<T> {
 
-    private final Function<DecodeContext, PbCallback> callbackCreator;
+    private final Function<DecodeContext, PbCallback<T>> callbackCreator;
 
-    public PbZeroCopyDecoder(Function<DecodeContext, PbCallback> callbackCreator) {
+    public PbZeroCopyDecoder(Function<DecodeContext, PbCallback<T>> callbackCreator) {
         this.callbackCreator = callbackCreator;
     }
 
@@ -40,9 +40,9 @@ public class PbZeroCopyDecoder implements Decoder {
     }
 
     @Override
-    public Object decode(DecodeContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+    public T decode(DecodeContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
         PbParser parser = context.getPbParser();
-        PbCallback callback;
+        PbCallback<T> callback;
         if (start) {
             if (parser != null) {
                 parser.resetSingle(callbackCreator.apply(context), bodyLen);

@@ -215,14 +215,14 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
 
     private CompletableFuture<Void> sendNodePing(RaftNodeEx nodeEx) {
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        CompletableFuture<ReadFrame> f = client.sendRequest(nodeEx.getPeer(),
+        CompletableFuture<ReadFrame<NodePingCallback>> f = client.sendRequest(nodeEx.getPeer(),
                 new NodePingWriteFrame(selfNodeId, uuid), NodePingProcessor.DECODER, timeout);
         return f.thenAccept(rf -> whenRpcFinish(rf, nodeEx));
     }
 
     // run in io thread
-    private void whenRpcFinish(ReadFrame rf, RaftNodeEx nodeEx) {
-        NodePingCallback callback = (NodePingCallback) rf.getBody();
+    private void whenRpcFinish(ReadFrame<NodePingCallback> rf, RaftNodeEx nodeEx) {
+        NodePingCallback callback = rf.getBody();
         if (nodeEx.getNodeId() != callback.nodeId) {
             String msg = "config fail: node id not match. expect " + nodeEx.getNodeId() + ", but " + callback.nodeId;
             log.error(msg);

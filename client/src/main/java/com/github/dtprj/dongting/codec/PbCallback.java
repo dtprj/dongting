@@ -20,7 +20,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public abstract class PbCallback {
+public abstract class PbCallback<T> {
 
     protected PbParser parser;
 
@@ -48,7 +48,7 @@ public abstract class PbCallback {
         this.parser = null;
     }
 
-    public Object getResult() {
+    public T getResult() {
         throw new UnsupportedOperationException();
     }
 }

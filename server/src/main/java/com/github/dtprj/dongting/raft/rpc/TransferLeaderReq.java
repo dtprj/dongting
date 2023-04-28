@@ -36,7 +36,7 @@ public class TransferLeaderReq {
     public int oldLeaderId;
     public long logIndex;
 
-    public static class Callback extends PbCallback {
+    public static class Callback extends PbCallback<TransferLeaderReq> {
         private final TransferLeaderReq result = new TransferLeaderReq();
 
         @Override
@@ -64,7 +64,7 @@ public class TransferLeaderReq {
         }
 
         @Override
-        public Object getResult() {
+        public TransferLeaderReq getResult() {
             return result;
         }
     }

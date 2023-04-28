@@ -217,7 +217,7 @@ public class NioServer extends NioNet implements Runnable {
         return config;
     }
 
-    public static class PingProcessor extends ReqProcessor {
+    public static class PingProcessor extends ReqProcessor<RefBuffer> {
 
         private static final RefBufferDecoder DECODER = new RefBufferDecoder();
 
@@ -225,14 +225,14 @@ public class NioServer extends NioNet implements Runnable {
         }
 
         @Override
-        public WriteFrame process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext) {
-            RefBufWriteFrame resp = new RefBufWriteFrame((RefBuffer) frame.getBody());
+        public WriteFrame process(ReadFrame<RefBuffer> frame, ChannelContext channelContext, ReqContext reqContext) {
+            RefBufWriteFrame resp = new RefBufWriteFrame(frame.getBody());
             resp.setRespCode(CmdCodes.SUCCESS);
             return resp;
         }
 
         @Override
-        public Decoder getDecoder() {
+        public Decoder<RefBuffer> getDecoder() {
             return DECODER;
         }
 

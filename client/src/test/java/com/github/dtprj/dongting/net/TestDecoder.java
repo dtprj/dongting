@@ -22,9 +22,9 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-class IoFullPackByteBufferDecoder implements Decoder {
+class IoFullPackByteBufferDecoder implements Decoder<ByteBuffer> {
     @Override
-    public Object decode(ByteBuffer buffer) {
+    public ByteBuffer decode(ByteBuffer buffer) {
         ByteBuffer buf = ByteBuffer.allocate(buffer.remaining());
         buf.put(buffer);
         buf.flip();

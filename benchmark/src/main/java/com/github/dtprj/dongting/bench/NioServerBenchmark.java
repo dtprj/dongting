@@ -41,7 +41,7 @@ public class NioServerBenchmark extends BenchBase {
     private NioClient client;
 
     private byte[] data;
-    private final int DATA_LEN = 128;
+    private static final int DATA_LEN = 128;
     private static final boolean SYNC = false;
     private static final int THREAD_COUNT = 1;
     private static final long TIME = 30 * 1000;
@@ -53,7 +53,7 @@ public class NioServerBenchmark extends BenchBase {
     }
 
     @Override
-    public void init() throws Exception {
+    public void init() {
         NioServerConfig serverConfig = new NioServerConfig();
         serverConfig.setIoThreads(1);
         serverConfig.setPort(9000);
@@ -71,7 +71,7 @@ public class NioServerBenchmark extends BenchBase {
     }
 
     @Override
-    public void shutdown() throws Exception {
+    public void shutdown() {
         client.stop();
         server.stop();
     }
@@ -82,19 +82,19 @@ public class NioServerBenchmark extends BenchBase {
             final DtTime timeout = new DtTime(TIMEOUT, TimeUnit.MILLISECONDS);
             ByteBufferWriteFrame req = new ByteBufferWriteFrame(ByteBuffer.wrap(data));
             req.setCommand(Commands.CMD_PING);
-            CompletableFuture<ReadFrame> f = client.sendRequest(req, new RefBufferDecoder(), timeout);
+            CompletableFuture<ReadFrame<RefBuffer>> f = client.sendRequest(req, new RefBufferDecoder(), timeout);
 
             if (SYNC) {
-                ReadFrame rf = f.get();
+                ReadFrame<RefBuffer> rf = f.get();
                 successCount.increment();
-                RefBuffer rc = (RefBuffer) rf.getBody();
+                RefBuffer rc = rf.getBody();
                 rc.release();
             } else {
                 f.handle((result, ex) -> {
                     if (ex != null) {
                         failCount.increment();
                     } else {
-                        RefBuffer rc = (RefBuffer) result.getBody();
+                        RefBuffer rc = result.getBody();
                         rc.release();
                         successCount.increment();
                     }

@@ -28,7 +28,7 @@ public class InstallSnapshotResp {
     public int term;
     public boolean success;
 
-    public static class Callback extends PbCallback {
+    public static class Callback extends PbCallback<InstallSnapshotResp> {
         private final InstallSnapshotResp result = new InstallSnapshotResp();
 
         @Override

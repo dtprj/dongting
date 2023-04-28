@@ -391,8 +391,8 @@ public class NioServerTest {
             }
 
             @Override
-            public Decoder getDecoder() {
-                return new Decoder() {
+            public Decoder<Object> getDecoder() {
+                return new Decoder<>() {
                     @Override
                     public Object decode(ByteBuffer buffer) {
                         throw new ArrayIndexOutOfBoundsException();

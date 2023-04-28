@@ -22,14 +22,14 @@ import java.util.concurrent.Executor;
 /**
  * @author huangli
  */
-public abstract class ReqProcessor {
+public abstract class ReqProcessor<T> {
 
     private Executor executor;
     private boolean useDefaultExecutor;
 
-    public abstract WriteFrame process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext);
+    public abstract WriteFrame process(ReadFrame<T> frame, ChannelContext channelContext, ReqContext reqContext);
 
-    public abstract Decoder getDecoder();
+    public abstract Decoder<T> getDecoder();
 
     Executor getExecutor() {
         return executor;

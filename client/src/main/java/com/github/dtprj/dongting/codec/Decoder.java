@@ -20,17 +20,17 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public interface Decoder {
+public interface Decoder<T> {
 
     default boolean supportHalfPacket() {
         return false;
     }
 
-    default Object decode(ByteBuffer buffer) {
+    default T decode(ByteBuffer buffer) {
         throw new UnsupportedOperationException();
     }
 
-    default Object decode(DecodeContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+    default T decode(DecodeContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
         throw new UnsupportedOperationException();
     }
 }

@@ -20,7 +20,7 @@ import com.github.dtprj.dongting.codec.PbCallback;
 /**
  * @author huangli
  */
-public class NodePingCallback extends PbCallback {
+public class NodePingCallback extends PbCallback<NodePingCallback> {
     public int nodeId;
     public long uuidHigh;
     public long uuidLow;
@@ -47,7 +47,7 @@ public class NodePingCallback extends PbCallback {
     }
 
     @Override
-    public Object getResult() {
+    public NodePingCallback getResult() {
         return this;
     }
 }

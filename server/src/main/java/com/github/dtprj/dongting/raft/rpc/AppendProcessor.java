@@ -39,7 +39,7 @@ import java.util.ArrayList;
 /**
  * @author huangli
  */
-public class AppendProcessor extends AbstractProcessor {
+public class AppendProcessor extends AbstractProcessor<AppendReqCallback> {
     private static final DtLog log = DtLogs.getLogger(AppendProcessor.class);
 
     public static final int CODE_LOG_NOT_MATCH = 1;
@@ -49,21 +49,21 @@ public class AppendProcessor extends AbstractProcessor {
     public static final int CODE_NOT_MEMBER_IN_GROUP = 5;
     public static final int CODE_ERROR_STATE = 6;
 
-    private static final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder(AppendReqCallback::new);
+    private static final PbZeroCopyDecoder<AppendReqCallback> decoder = new PbZeroCopyDecoder<>(AppendReqCallback::new);
 
     public AppendProcessor(RaftGroups raftGroups) {
         super(raftGroups);
     }
 
     @Override
-    protected int getGroupId(ReadFrame frame) {
-        return ((AppendReqCallback) frame.getBody()).getGroupId();
+    protected int getGroupId(ReadFrame<AppendReqCallback> frame) {
+        return frame.getBody().getGroupId();
     }
 
     @Override
-    protected WriteFrame doProcess(ReadFrame rf, ChannelContext channelContext, RaftGroupImpl gc) {
+    protected WriteFrame doProcess(ReadFrame<AppendReqCallback> rf, ChannelContext channelContext, RaftGroupImpl gc) {
         AppendRespWriteFrame resp = new AppendRespWriteFrame();
-        AppendReqCallback req = (AppendReqCallback) rf.getBody();
+        AppendReqCallback req = rf.getBody();
         RaftStatusImpl raftStatus = gc.getRaftStatus();
         if (raftStatus.isError()) {
             resp.setSuccess(false);
@@ -174,7 +174,7 @@ public class AppendProcessor extends AbstractProcessor {
     }
 
     @Override
-    public Decoder getDecoder() {
+    public Decoder<AppendReqCallback> getDecoder() {
         return decoder;
     }
 }

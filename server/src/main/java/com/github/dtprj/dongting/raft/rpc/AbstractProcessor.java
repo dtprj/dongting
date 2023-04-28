@@ -30,7 +30,7 @@ import com.github.dtprj.dongting.raft.impl.RaftGroups;
 /**
  * @author huangli
  */
-abstract class AbstractProcessor extends ReqProcessor {
+abstract class AbstractProcessor<T> extends ReqProcessor<T> {
     private static final DtLog log = DtLogs.getLogger(AbstractProcessor.class);
 
     protected final RaftGroups raftGroups;
@@ -39,13 +39,13 @@ abstract class AbstractProcessor extends ReqProcessor {
         this.raftGroups = raftGroups;
     }
 
-    protected abstract int getGroupId(ReadFrame frame);
+    protected abstract int getGroupId(ReadFrame<T> frame);
 
-    protected abstract WriteFrame doProcess(ReadFrame frame, ChannelContext channelContext,
+    protected abstract WriteFrame doProcess(ReadFrame<T> frame, ChannelContext channelContext,
                                             RaftGroupImpl gc);
 
     @Override
-    public final WriteFrame process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext) {
+    public final WriteFrame process(ReadFrame<T> frame, ChannelContext channelContext, ReqContext reqContext) {
         int groupId = getGroupId(frame);
         RaftGroupImpl gc = raftGroups.get(groupId);
         if (gc == null) {
@@ -65,7 +65,7 @@ abstract class AbstractProcessor extends ReqProcessor {
         }
     }
 
-    private void process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext, RaftGroupImpl gc) {
+    private void process(ReadFrame<T> frame, ChannelContext channelContext, ReqContext reqContext, RaftGroupImpl gc) {
         WriteFrame wf = doProcess(frame, channelContext, gc);
         if (wf != null) {
             channelContext.getRespWriter().writeRespInBizThreads(frame, wf, reqContext.getTimeout());

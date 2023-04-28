@@ -33,23 +33,23 @@ import com.github.dtprj.dongting.raft.impl.StatusUtil;
 /**
  * @author huangli
  */
-public class VoteProcessor extends AbstractProcessor {
+public class VoteProcessor extends AbstractProcessor<VoteReq> {
     private static final DtLog log = DtLogs.getLogger(VoteProcessor.class);
 
-    private static final PbZeroCopyDecoder decoder = new PbZeroCopyDecoder(c -> new VoteReq.Callback());
+    private static final PbZeroCopyDecoder<VoteReq> decoder = new PbZeroCopyDecoder<>(c -> new VoteReq.Callback());
 
     public VoteProcessor(RaftGroups raftGroups) {
         super(raftGroups);
     }
 
     @Override
-    protected int getGroupId(ReadFrame frame) {
-        return ((VoteReq) frame.getBody()).getGroupId();
+    protected int getGroupId(ReadFrame<VoteReq> frame) {
+        return frame.getBody().getGroupId();
     }
 
     @Override
-    protected WriteFrame doProcess(ReadFrame rf, ChannelContext channelContext, RaftGroupImpl gc) {
-        VoteReq voteReq = (VoteReq) rf.getBody();
+    protected WriteFrame doProcess(ReadFrame<VoteReq> rf, ChannelContext channelContext, RaftGroupImpl gc) {
+        VoteReq voteReq = rf.getBody();
         VoteResp resp = new VoteResp();
         RaftStatusImpl raftStatus = gc.getRaftStatus();
         if (MemberManager.validCandidate(raftStatus, voteReq.getCandidateId())) {
@@ -110,7 +110,7 @@ public class VoteProcessor extends AbstractProcessor {
     }
 
     @Override
-    public Decoder getDecoder() {
+    public Decoder<VoteReq> getDecoder() {
         return decoder;
     }
 }

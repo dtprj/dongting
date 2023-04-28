@@ -44,7 +44,7 @@ public class InstallSnapshotReq {
     public RefBuffer data;
     public boolean done;
 
-    public static class Callback extends PbCallback {
+    public static class Callback extends PbCallback<InstallSnapshotReq> {
         private final InstallSnapshotReq result = new InstallSnapshotReq();
         private final RefBufferFactory heapPool;
 

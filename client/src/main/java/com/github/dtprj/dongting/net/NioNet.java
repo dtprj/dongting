@@ -74,8 +74,8 @@ public abstract class NioNet extends AbstractLifeCircle {
         nioStatus.registerProcessor(cmd, processor);
     }
 
-    CompletableFuture<ReadFrame> sendRequest(NioWorker worker, Peer peer, WriteFrame request,
-                                             Decoder decoder, DtTime timeout) {
+    CompletableFuture<ReadFrame<?>> sendRequest(NioWorker worker, Peer peer, WriteFrame request,
+                                                    Decoder<?> decoder, DtTime timeout) {
         request.setFrameType(FrameType.TYPE_REQ);
         DtUtil.checkPositive(request.getCommand(), "request.command");
         if (request.estimateBodySize() > config.getMaxBodySize()) {
@@ -100,7 +100,7 @@ public abstract class NioNet extends AbstractLifeCircle {
                 }
             }
 
-            CompletableFuture<ReadFrame> future = new CompletableFuture<>();
+            CompletableFuture<ReadFrame<?>> future = new CompletableFuture<>();
             worker.writeReqInBizThreads(peer, request, decoder, timeout, future);
             write = true;
             return registerReqCallback(future);
@@ -114,7 +114,7 @@ public abstract class NioNet extends AbstractLifeCircle {
         }
     }
 
-    private CompletableFuture<ReadFrame> registerReqCallback(CompletableFuture<ReadFrame> future) {
+    private CompletableFuture<ReadFrame<?>> registerReqCallback(CompletableFuture<ReadFrame<?>> future) {
         return future.whenComplete((frame, ex) -> {
             if (semaphore != null) {
                 semaphore.release();

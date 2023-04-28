@@ -38,7 +38,7 @@ public class VoteReq {
     private int lastLogTerm;
     private boolean preVote;
 
-    public static class Callback extends PbCallback {
+    public static class Callback extends PbCallback<VoteReq> {
         private final VoteReq result = new VoteReq();
 
         @Override

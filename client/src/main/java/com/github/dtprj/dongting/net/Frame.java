@@ -36,13 +36,11 @@ public abstract class Frame {
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Frame(type=").append(frameType)
-                .append(",cmd=").append(command)
-                .append(",seq=").append(seq)
-                .append(",respCode=").append(respCode)
-                .append(")");
-        return sb.toString();
+        return "Frame(type=" + frameType +
+                ",cmd=" + command +
+                ",seq=" + seq +
+                ",respCode=" + respCode +
+                ")";
     }
 
 

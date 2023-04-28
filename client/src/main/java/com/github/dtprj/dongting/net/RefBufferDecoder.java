@@ -24,7 +24,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class RefBufferDecoder implements Decoder {
+public class RefBufferDecoder implements Decoder<RefBuffer> {
 
     public RefBufferDecoder() {
     }
@@ -35,7 +35,7 @@ public class RefBufferDecoder implements Decoder {
     }
 
     @Override
-    public Object decode(DecodeContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+    public RefBuffer decode(DecodeContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
         RefBuffer result;
         if (start) {
             result = context.getHeapPool().createPlain(bodyLen);

@@ -60,7 +60,7 @@ public class PbParserTest {
         }
     }
 
-    static class NestedCallback extends PbCallback {
+    static class NestedCallback extends PbCallback<Object> {
         private final NestedMsg msg = new NestedMsg(0, null);
         private int set101Count;
         private int begin102Count;
@@ -129,7 +129,7 @@ public class PbParserTest {
         }
     }
 
-    static class Callback extends PbCallback {
+    static class Callback extends PbCallback<Object> {
 
         final Msg msg;
         Msg readMsg;

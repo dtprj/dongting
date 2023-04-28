@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.TestUtil;
@@ -48,7 +49,7 @@ public class CloseTest {
         server = new NioServer(serverConfig);
         server.register(CMD, new NioServer.PingProcessor() {
             @Override
-            public WriteFrame process(ReadFrame frame, ChannelContext channelContext, ReqContext reqContext) {
+            public WriteFrame process(ReadFrame<RefBuffer> frame, ChannelContext channelContext, ReqContext reqContext) {
                 received = true;
                 try {
                     Thread.sleep(sleepTime);
@@ -84,7 +85,7 @@ public class CloseTest {
 
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(1));
         wf.setCommand(CMD);
-        CompletableFuture<ReadFrame> f = client.sendRequest(wf, new RefBufferDecoder(), new DtTime(10, TimeUnit.SECONDS));
+        CompletableFuture<?> f = client.sendRequest(wf, new RefBufferDecoder(), new DtTime(10, TimeUnit.SECONDS));
 
         TestUtil.waitUtil(() -> received);
 
@@ -106,7 +107,7 @@ public class CloseTest {
 
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(1));
         wf.setCommand(CMD);
-        CompletableFuture<ReadFrame> f = client.sendRequest(wf, new RefBufferDecoder(), new DtTime(10, TimeUnit.SECONDS));
+        CompletableFuture<?> f = client.sendRequest(wf, new RefBufferDecoder(), new DtTime(10, TimeUnit.SECONDS));
 
         TestUtil.waitUtil(() -> received);
 

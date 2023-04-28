@@ -22,7 +22,7 @@ import com.github.dtprj.dongting.codec.PbCallback;
  */
 //  uint32 term = 1;
 //  uint32 success = 2;
-public class AppendRespCallback extends PbCallback {
+public class AppendRespCallback extends PbCallback<AppendRespCallback> {
     private int term;
     private boolean success;
     private int appendCode;
@@ -57,7 +57,7 @@ public class AppendRespCallback extends PbCallback {
     }
 
     @Override
-    public Object getResult() {
+    public AppendRespCallback getResult() {
         return this;
     }
 

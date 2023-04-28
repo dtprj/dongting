@@ -91,7 +91,7 @@ public class PbParserExTest {
         }
     }
 
-    private static class EmptyCallback extends PbCallback {
+    private static class EmptyCallback extends PbCallback<Object> {
     }
 
     @Test

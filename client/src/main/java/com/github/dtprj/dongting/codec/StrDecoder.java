@@ -25,7 +25,7 @@ import java.nio.charset.StandardCharsets;
  *
  * @author huangli
  */
-public class StrDecoder implements Decoder {
+public class StrDecoder implements Decoder<String> {
 
     private static final int THREAD_LOCAL_BUFFER_SIZE = 32 * 1024;
     private static final ThreadLocal<byte[]> THREAD_LOCAL_BUFFER = ThreadLocal.withInitial(() -> new byte[THREAD_LOCAL_BUFFER_SIZE]);

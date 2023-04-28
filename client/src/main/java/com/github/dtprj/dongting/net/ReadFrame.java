@@ -18,17 +18,17 @@ package com.github.dtprj.dongting.net;
 /**
  * @author huangli
  */
-public class ReadFrame extends Frame {
-    private Object body;
+public class ReadFrame<T> extends Frame {
+    private T body;
 
     public ReadFrame() {
     }
 
-    public Object getBody() {
+    public T getBody() {
         return body;
     }
 
-    public void setBody(Object body) {
+    public void setBody(T body) {
         this.body = body;
     }
 

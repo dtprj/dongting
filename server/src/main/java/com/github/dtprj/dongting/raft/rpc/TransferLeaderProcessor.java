@@ -34,24 +34,24 @@ import com.github.dtprj.dongting.raft.impl.RaftUtil;
 /**
  * @author huangli
  */
-public class TransferLeaderProcessor extends AbstractProcessor {
+public class TransferLeaderProcessor extends AbstractProcessor<TransferLeaderReq> {
 
     private static final DtLog log = DtLogs.getLogger(TransferLeaderProcessor.class);
 
-    private static final Decoder DECODER = new PbZeroCopyDecoder(context -> new TransferLeaderReq.Callback());
+    private static final Decoder<TransferLeaderReq> DECODER = new PbZeroCopyDecoder<>(context -> new TransferLeaderReq.Callback());
 
     public TransferLeaderProcessor(RaftGroups raftGroups) {
         super(raftGroups);
     }
 
     @Override
-    protected int getGroupId(ReadFrame frame) {
-        return ((TransferLeaderReq) frame.getBody()).groupId;
+    protected int getGroupId(ReadFrame<TransferLeaderReq> frame) {
+        return frame.getBody().groupId;
     }
 
     @Override
-    protected WriteFrame doProcess(ReadFrame frame, ChannelContext channelContext, RaftGroupImpl gc) {
-        TransferLeaderReq req = (TransferLeaderReq) frame.getBody();
+    protected WriteFrame doProcess(ReadFrame<TransferLeaderReq> frame, ChannelContext channelContext, RaftGroupImpl gc) {
+        TransferLeaderReq req = frame.getBody();
         RaftStatusImpl raftStatus = gc.getRaftStatus();
         if (raftStatus.isError()) {
             log.error("transfer leader fail, error state, groupId={}", req.groupId);
@@ -85,7 +85,7 @@ public class TransferLeaderProcessor extends AbstractProcessor {
     }
 
     @Override
-    public Decoder getDecoder() {
+    public Decoder<TransferLeaderReq> getDecoder() {
         return DECODER;
     }
 }
