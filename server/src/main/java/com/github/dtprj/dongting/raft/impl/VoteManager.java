@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.codec.Decoder;
-import com.github.dtprj.dongting.codec.PbZeroCopyDecoder;
+import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -49,7 +49,7 @@ public class VoteManager implements BiConsumer<EventType, Object> {
     private final int groupId;
     private final RaftExecutor raftExecutor;
 
-    private static final Decoder RESP_DECODER = new PbZeroCopyDecoder(c -> new VoteResp.Callback());
+    private static final Decoder RESP_DECODER = new PbNoCopyDecoder(c -> new VoteResp.Callback());
 
     private boolean voting;
     private HashSet<Integer> votes;

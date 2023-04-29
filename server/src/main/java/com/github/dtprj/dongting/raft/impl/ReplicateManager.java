@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.codec.PbZeroCopyDecoder;
+import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -67,8 +67,8 @@ public class ReplicateManager {
 
     private long installSnapshotFailTime;
 
-    private static final PbZeroCopyDecoder APPEND_RESP_DECODER = new PbZeroCopyDecoder(c -> new AppendRespCallback());
-    private static final PbZeroCopyDecoder INSTALL_SNAPSHOT_RESP_DECODER = new PbZeroCopyDecoder(c -> new InstallSnapshotResp.Callback());
+    private static final PbNoCopyDecoder APPEND_RESP_DECODER = new PbNoCopyDecoder(c -> new AppendRespCallback());
+    private static final PbNoCopyDecoder INSTALL_SNAPSHOT_RESP_DECODER = new PbNoCopyDecoder(c -> new InstallSnapshotResp.Callback());
 
     public ReplicateManager(RaftServerConfig config, int groupId, RaftStatusImpl raftStatus, RaftLog raftLog,
                             StateMachine stateMachine, NioClient client, RaftExecutor executor,

@@ -21,11 +21,11 @@ import java.util.function.Function;
 /**
  * @author huangli
  */
-public class PbZeroCopyDecoder<T> implements Decoder<T> {
+public class PbNoCopyDecoder<T> implements Decoder<T> {
 
     private final Function<DecodeContext, PbCallback<T>> callbackCreator;
 
-    public PbZeroCopyDecoder(Function<DecodeContext, PbCallback<T>> callbackCreator) {
+    public PbNoCopyDecoder(Function<DecodeContext, PbCallback<T>> callbackCreator) {
         this.callbackCreator = callbackCreator;
     }
 

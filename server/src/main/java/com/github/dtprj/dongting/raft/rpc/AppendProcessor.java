@@ -17,7 +17,7 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.Decoder;
-import com.github.dtprj.dongting.codec.PbZeroCopyDecoder;
+import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -49,7 +49,7 @@ public class AppendProcessor extends AbstractProcessor<AppendReqCallback> {
     public static final int CODE_NOT_MEMBER_IN_GROUP = 5;
     public static final int CODE_ERROR_STATE = 6;
 
-    private static final PbZeroCopyDecoder<AppendReqCallback> decoder = new PbZeroCopyDecoder<>(AppendReqCallback::new);
+    private static final PbNoCopyDecoder<AppendReqCallback> decoder = new PbNoCopyDecoder<>(AppendReqCallback::new);
 
     public AppendProcessor(RaftGroups raftGroups) {
         super(raftGroups);

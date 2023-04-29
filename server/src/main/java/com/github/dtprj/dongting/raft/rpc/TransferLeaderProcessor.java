@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.Decoder;
-import com.github.dtprj.dongting.codec.PbZeroCopyDecoder;
+import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.ChannelContext;
@@ -38,7 +38,7 @@ public class TransferLeaderProcessor extends AbstractProcessor<TransferLeaderReq
 
     private static final DtLog log = DtLogs.getLogger(TransferLeaderProcessor.class);
 
-    private static final Decoder<TransferLeaderReq> DECODER = new PbZeroCopyDecoder<>(context -> new TransferLeaderReq.Callback());
+    private static final Decoder<TransferLeaderReq> DECODER = new PbNoCopyDecoder<>(context -> new TransferLeaderReq.Callback());
 
     public TransferLeaderProcessor(RaftGroups raftGroups) {
         super(raftGroups);

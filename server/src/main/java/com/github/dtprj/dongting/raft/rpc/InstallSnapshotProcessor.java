@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.Decoder;
-import com.github.dtprj.dongting.codec.PbZeroCopyDecoder;
+import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -38,7 +38,7 @@ public class InstallSnapshotProcessor extends AbstractProcessor<InstallSnapshotR
 
     private static final DtLog log = DtLogs.getLogger(InstallSnapshotProcessor.class);
 
-    private static final Decoder<InstallSnapshotReq> DECODER = new PbZeroCopyDecoder<>(c -> new InstallSnapshotReq.Callback(c.getHeapPool()));
+    private static final Decoder<InstallSnapshotReq> DECODER = new PbNoCopyDecoder<>(c -> new InstallSnapshotReq.Callback(c.getHeapPool()));
 
     public InstallSnapshotProcessor(RaftGroups raftGroups) {
         super(raftGroups);

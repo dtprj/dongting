@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.Decoder;
-import com.github.dtprj.dongting.codec.PbZeroCopyDecoder;
+import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.net.ChannelContext;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadFrame;
@@ -28,7 +28,7 @@ import com.github.dtprj.dongting.raft.impl.RaftGroups;
  * @author huangli
  */
 public class RaftPingProcessor extends AbstractProcessor<RaftPingFrameCallback> {
-    public static final PbZeroCopyDecoder<RaftPingFrameCallback> DECODER = new PbZeroCopyDecoder<>(context ->
+    public static final PbNoCopyDecoder<RaftPingFrameCallback> DECODER = new PbNoCopyDecoder<>(context ->
             new RaftPingFrameCallback());
 
     public RaftPingProcessor(RaftGroups raftGroups) {

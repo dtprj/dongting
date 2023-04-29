@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.Decoder;
-import com.github.dtprj.dongting.codec.PbZeroCopyDecoder;
+import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.ChannelContext;
@@ -36,7 +36,7 @@ import com.github.dtprj.dongting.raft.impl.StatusUtil;
 public class VoteProcessor extends AbstractProcessor<VoteReq> {
     private static final DtLog log = DtLogs.getLogger(VoteProcessor.class);
 
-    private static final PbZeroCopyDecoder<VoteReq> decoder = new PbZeroCopyDecoder<>(c -> new VoteReq.Callback());
+    private static final PbNoCopyDecoder<VoteReq> decoder = new PbNoCopyDecoder<>(c -> new VoteReq.Callback());
 
     public VoteProcessor(RaftGroups raftGroups) {
         super(raftGroups);

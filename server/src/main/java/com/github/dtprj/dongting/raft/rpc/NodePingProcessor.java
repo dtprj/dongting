@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.Decoder;
-import com.github.dtprj.dongting.codec.PbZeroCopyDecoder;
+import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.net.ChannelContext;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
@@ -30,7 +30,7 @@ import java.util.UUID;
  */
 public class NodePingProcessor extends ReqProcessor<NodePingCallback> {
 
-    public static final PbZeroCopyDecoder<NodePingCallback> DECODER = new PbZeroCopyDecoder<>(ctx -> new NodePingCallback());
+    public static final PbNoCopyDecoder<NodePingCallback> DECODER = new PbNoCopyDecoder<>(ctx -> new NodePingCallback());
     private final int selfNodeId;
     private final UUID uuid;
 
