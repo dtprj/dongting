@@ -13,39 +13,40 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.net;
+package com.github.dtprj.dongting.codec;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.codec.DecodeContext;
-import com.github.dtprj.dongting.codec.Decoder;
 
 import java.nio.ByteBuffer;
 
 /**
  * @author huangli
  */
-public class RefBufferDecoder implements Decoder<RefBuffer> {
-
-    public RefBufferDecoder() {
-    }
-
+public abstract class CopyDecoder<T> implements Decoder<T> {
     @Override
-    public RefBuffer decode(DecodeContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
-        RefBuffer result;
-        if (start) {
-            result = context.getHeapPool().createPlain(bodyLen);
-            if (!end) {
-                context.setStatus(result);
-            }
-        } else {
-            result = (RefBuffer) context.getStatus();
+    public T decode(DecodeContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+        if (start && end) {
+            return decode(buffer);
         }
-        ByteBuffer bb = result.getBuffer();
+        RefBuffer temp;
+        if (start) {
+            temp = context.getHeapPool().create(bodyLen);
+            context.setStatus(temp);
+        } else {
+            temp = (RefBuffer) context.getStatus();
+        }
+        ByteBuffer bb = temp.getBuffer();
         bb.put(buffer);
         if (end) {
             bb.flip();
-            return result;
+            try {
+                return decode(bb);
+            } finally {
+                temp.release();
+            }
         }
         return null;
     }
+
+    protected abstract T decode(ByteBuffer buffer);
 }

@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.CopyDecoder;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.DtFrame;
 import com.github.dtprj.dongting.common.DtTime;
@@ -664,7 +665,7 @@ public class NioClientTest {
                 // decoder fail in io thread
                 ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(1));
                 wf.setCommand(Commands.CMD_PING);
-                Decoder<Object> decoder = new Decoder<>() {
+                Decoder<Object> decoder = new CopyDecoder<>() {
 
                     @Override
                     public Object decode(ByteBuffer buffer) {

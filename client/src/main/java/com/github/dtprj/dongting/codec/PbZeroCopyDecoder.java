@@ -13,12 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.net;
-
-import com.github.dtprj.dongting.codec.DecodeContext;
-import com.github.dtprj.dongting.codec.Decoder;
-import com.github.dtprj.dongting.codec.PbCallback;
-import com.github.dtprj.dongting.codec.PbParser;
+package com.github.dtprj.dongting.codec;
 
 import java.nio.ByteBuffer;
 import java.util.function.Function;
@@ -32,11 +27,6 @@ public class PbZeroCopyDecoder<T> implements Decoder<T> {
 
     public PbZeroCopyDecoder(Function<DecodeContext, PbCallback<T>> callbackCreator) {
         this.callbackCreator = callbackCreator;
-    }
-
-    @Override
-    public final boolean supportHalfPacket() {
-        return true;
     }
 
     @Override

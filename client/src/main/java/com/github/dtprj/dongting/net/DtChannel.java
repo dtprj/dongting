@@ -233,26 +233,9 @@ class DtChannel extends PbCallback<Object> {
         }
 
         try {
-            if (decoder.supportHalfPacket()) {
-                Object o = decoder.decode(decodeContext, buf, fieldLen, start, end);
-                if (end) {
-                    frame.setBody(o);
-                }
-            } else {
-                if (start && end) {
-                    Object o = decoder.decode(buf);
-                    frame.setBody(o);
-                } else {
-                    ByteBuffer copyBuffer = copyBuffer(buf, fieldLen, start, end);
-                    if (end) {
-                        try {
-                            Object result = decoder.decode(copyBuffer);
-                            frame.setBody(result);
-                        } finally {
-                            workerStatus.getHeapPool().release(copyBuffer);
-                        }
-                    }
-                }
+            Object o = decoder.decode(decodeContext, buf, fieldLen, start, end);
+            if (end) {
+                frame.setBody(o);
             }
         } catch (Throwable e) {
             processIoDecodeFail(e);
@@ -322,22 +305,6 @@ class DtChannel extends PbCallback<Object> {
                 return null;
             }
         }
-    }
-
-    private ByteBuffer copyBuffer(ByteBuffer buf, int fieldLen, boolean start, boolean end) {
-        ByteBuffer body;
-        ReadFrame frame = this.frame;
-        if (start) {
-            body = workerStatus.getHeapPool().borrow(fieldLen);
-            frame.setBody(body);
-        } else {
-            body = (ByteBuffer) frame.getBody();
-        }
-        body.put(buf);
-        if (end) {
-            body.flip();
-        }
-        return body;
     }
 
     private void processIoDecodeFail(Throwable e) {

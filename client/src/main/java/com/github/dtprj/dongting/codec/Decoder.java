@@ -22,15 +22,5 @@ import java.nio.ByteBuffer;
  */
 public interface Decoder<T> {
 
-    default boolean supportHalfPacket() {
-        return false;
-    }
-
-    default T decode(ByteBuffer buffer) {
-        throw new UnsupportedOperationException();
-    }
-
-    default T decode(DecodeContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
-        throw new UnsupportedOperationException();
-    }
+    T decode(DecodeContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end);
 }

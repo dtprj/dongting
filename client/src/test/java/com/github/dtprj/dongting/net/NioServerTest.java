@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.CopyDecoder;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.DtFrame;
 import com.github.dtprj.dongting.common.DtException;
@@ -392,7 +393,7 @@ public class NioServerTest {
 
             @Override
             public Decoder<Object> getDecoder() {
-                return new Decoder<>() {
+                return new CopyDecoder<>() {
                     @Override
                     public Object decode(ByteBuffer buffer) {
                         throw new ArrayIndexOutOfBoundsException();

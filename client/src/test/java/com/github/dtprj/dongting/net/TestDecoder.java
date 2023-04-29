@@ -15,14 +15,14 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.codec.Decoder;
+import com.github.dtprj.dongting.codec.CopyDecoder;
 
 import java.nio.ByteBuffer;
 
 /**
  * @author huangli
  */
-class IoFullPackByteBufferDecoder implements Decoder<ByteBuffer> {
+class IoFullPackByteBufferDecoder extends CopyDecoder<ByteBuffer> {
     @Override
     public ByteBuffer decode(ByteBuffer buffer) {
         ByteBuffer buf = ByteBuffer.allocate(buffer.remaining());
