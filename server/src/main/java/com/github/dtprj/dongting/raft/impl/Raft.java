@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.server.LogItem;
@@ -36,6 +37,7 @@ import java.util.function.BiConsumer;
 public class Raft implements BiConsumer<EventType, Object> {
 
     private final ReplicateManager replicateManager;
+    private final Encoder<?> encoder;
     private final ApplyManager applyManager;
     private final CommitManager commitManager;
 
@@ -45,7 +47,7 @@ public class Raft implements BiConsumer<EventType, Object> {
     private final Timestamp ts;
 
     public Raft(RaftStatusImpl raftStatus, RaftLog raftLog, ApplyManager applyManager,
-                CommitManager commitManager, ReplicateManager replicateManager) {
+                CommitManager commitManager, ReplicateManager replicateManager, Encoder<?> encoder) {
         this.raftStatus = raftStatus;
         this.raftLog = raftLog;
         this.ts = raftStatus.getTs();
@@ -53,6 +55,7 @@ public class Raft implements BiConsumer<EventType, Object> {
         this.applyManager = applyManager;
         this.commitManager = commitManager;
         this.replicateManager = replicateManager;
+        this.encoder = encoder;
     }
 
     @Override
@@ -93,8 +96,15 @@ public class Raft implements BiConsumer<EventType, Object> {
 
             if (!input.isReadOnly()) {
                 newIndex++;
-                LogItem item = new LogItem(rt.type, currentTerm, newIndex,
-                        oldTerm, ts.getWallClockMillis(), input.getLogData());
+                LogItem item = new LogItem();
+                item.setType(rt.type);
+                item.setTerm(currentTerm);
+                item.setIndex(newIndex);
+                item.setPrevLogTerm(oldTerm);
+                item.setTimestamp(ts.getWallClockMillis());
+                item.setData(input.getInput());
+                item.setDataSize(input.size());
+                item.setEncoder(encoder);
                 logs.add(item);
 
                 rt.item = item;
@@ -140,7 +150,7 @@ public class Raft implements BiConsumer<EventType, Object> {
 
     public void sendHeartBeat() {
         DtTime deadline = new DtTime(ts, raftStatus.getElectTimeoutNanos(), TimeUnit.NANOSECONDS);
-        RaftInput input = new RaftInput(null, null, deadline, false);
+        RaftInput input = new RaftInput(null, deadline, false, 0);
         RaftTask rt = new RaftTask(ts, LogItem.TYPE_HEARTBEAT, input, null);
         raftExec(Collections.singletonList(rt));
     }

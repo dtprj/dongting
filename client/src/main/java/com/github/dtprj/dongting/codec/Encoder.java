@@ -20,20 +20,6 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public interface Decoder<T> {
-
-    T decode(DecodeContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end);
-
-    static ByteBuffer decodeToByteBuffer(ByteBuffer buffer, int bodyLen, boolean start, boolean end, ByteBuffer result) {
-        if (start) {
-            result = ByteBuffer.allocate(bodyLen);
-        }
-        result.put(buffer);
-
-        if (end) {
-            result.flip();
-        }
-        return result;
-    }
-
+public interface Encoder<T> {
+    boolean encode(ByteBuffer buffer, T data);
 }

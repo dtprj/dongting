@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.BugLog;
@@ -24,6 +22,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,9 +30,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -63,9 +60,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private AsyncIoTask writeTask;
     private long nextPersistIndexAfterWrite;
 
-    public IdxFileQueue(File dir, ExecutorService ioExecutor, Executor raftExecutor, Supplier<Boolean> stopIndicator,
-                        RefBufferFactory heapPool, ByteBufferPool directPool) {
-        super(dir, ioExecutor, raftExecutor, stopIndicator, heapPool, directPool);
+    public IdxFileQueue(File dir, ExecutorService ioExecutor, RaftGroupConfigEx groupConfig) {
+        super(dir, ioExecutor, groupConfig);
     }
 
     @Override

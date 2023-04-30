@@ -17,6 +17,8 @@ package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.codec.Decoder;
+import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.common.Timestamp;
 
 import java.util.concurrent.Executor;
@@ -33,6 +35,8 @@ public class RaftGroupConfigEx extends RaftGroupConfig {
     private Executor raftExecutor;
     private Supplier<Boolean> stopIndicator;
     private RaftStatus raftStatus;
+    private Encoder<?> encoder;
+    private Decoder<?> decoder;
 
     public RaftGroupConfigEx(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         super(groupId, nodeIdOfMembers, nodeIdOfObservers);
@@ -84,5 +88,21 @@ public class RaftGroupConfigEx extends RaftGroupConfig {
 
     public void setRaftStatus(RaftStatus raftStatus) {
         this.raftStatus = raftStatus;
+    }
+
+    public Encoder<?> getEncoder() {
+        return encoder;
+    }
+
+    public void setEncoder(Encoder<?> encoder) {
+        this.encoder = encoder;
+    }
+
+    public Decoder<?> getDecoder() {
+        return decoder;
+    }
+
+    public void setDecoder(Decoder<?> decoder) {
+        this.decoder = decoder;
     }
 }

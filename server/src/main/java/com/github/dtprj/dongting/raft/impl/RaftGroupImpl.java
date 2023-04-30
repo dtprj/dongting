@@ -72,54 +72,42 @@ public class RaftGroupImpl extends RaftGroup {
     public CompletableFuture<RaftOutput> submitLinearTask(RaftInput input) throws RaftException {
         Objects.requireNonNull(input);
         Objects.requireNonNull(input.getInput());
-        if (!input.isReadOnly()) {
-            Objects.requireNonNull(input.getLogData());
-        } else {
-            if (input.getLogData() != null) {
-                throw new IllegalArgumentException("read only request should not have log data");
-            }
+        RaftStatusImpl raftStatus = this.raftStatus;
+        if (raftStatus.isError()) {
+            throw new RaftException("raft status is error");
         }
-        try {
-            RaftStatusImpl raftStatus = this.raftStatus;
-            if (raftStatus.isError()) {
-                throw new RaftException("raft status is error");
-            }
-            if (raftStatus.isStop()) {
-                throw new RaftException("raft group thread is stop");
-            }
-            int size = input.size();
-            if (size > serverConfig.getMaxBodySize()) {
-                throw new RaftException("request size too large, size=" + size + ", maxBodySize=" + serverConfig.getMaxBodySize());
-            }
-            int currentPendingWrites = (int) PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, 1);
-            if (currentPendingWrites >= serverConfig.getMaxPendingWrites()) {
-                String msg = "submitRaftTask failed: too many pending writes, currentPendingWrites=" + currentPendingWrites;
-                log.warn(msg);
-                PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, -1);
-                throw new RaftException(msg);
-            }
-            long currentPendingWriteBytes = (long) PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, size);
-            if (currentPendingWriteBytes >= serverConfig.getMaxPendingWriteBytes()) {
-                String msg = "too many pending write bytes,currentPendingWriteBytes="
-                        + currentPendingWriteBytes + ", currentRequestBytes=" + size;
-                log.warn(msg);
-                PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, -size);
-                throw new RaftException(msg);
-            }
-            CompletableFuture<RaftOutput> f = raftGroupThread.submitRaftTask(input);
-            registerCallback(f, size, input);
-            return f;
-        } catch (RuntimeException | Error ex) {
-            RaftUtil.release(input);
-            throw ex;
+        if (raftStatus.isStop()) {
+            throw new RaftException("raft group thread is stop");
         }
+        int size = input.size();
+        if (size > serverConfig.getMaxBodySize()) {
+            throw new RaftException("request size too large, size=" + size + ", maxBodySize=" + serverConfig.getMaxBodySize());
+        }
+        int currentPendingWrites = (int) PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, 1);
+        if (currentPendingWrites >= serverConfig.getMaxPendingWrites()) {
+            String msg = "submitRaftTask failed: too many pending writes, currentPendingWrites=" + currentPendingWrites;
+            log.warn(msg);
+            PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, -1);
+            throw new RaftException(msg);
+        }
+        long currentPendingWriteBytes = (long) PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, size);
+        if (currentPendingWriteBytes >= serverConfig.getMaxPendingWriteBytes()) {
+            String msg = "too many pending write bytes,currentPendingWriteBytes="
+                    + currentPendingWriteBytes + ", currentRequestBytes=" + size;
+            log.warn(msg);
+            PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, -size);
+            throw new RaftException(msg);
+        }
+        CompletableFuture<RaftOutput> f = raftGroupThread.submitRaftTask(input);
+        registerCallback(f, size, input);
+        return f;
+
     }
 
     private void registerCallback(CompletableFuture<?> f, int size, RaftInput input) {
         f.whenComplete((o, ex) -> {
             PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, -1);
             PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, -size);
-            RaftUtil.release(input);
         });
     }
 

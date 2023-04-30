@@ -196,8 +196,10 @@ public class RaftServer extends AbstractLifeCircle {
         RaftGroupThread raftGroupThread = new RaftGroupThread();
         RaftGroupConfigEx rgcEx = createGroupConfigEx(rgc, raftStatus, raftExecutor, raftGroupThread);
 
-        RaftLog raftLog = raftLogFactory.apply(rgcEx);
         StateMachine stateMachine = stateMachineFactory.apply(rgcEx);
+        rgcEx.setEncoder(stateMachine.getEncoder());
+        rgcEx.setDecoder(stateMachine.getDecoder());
+        RaftLog raftLog = raftLogFactory.apply(rgcEx);
 
         MemberManager memberManager = new MemberManager(serverConfig, raftClient, raftExecutor,
                 raftStatus, eventBus);
@@ -206,7 +208,7 @@ public class RaftServer extends AbstractLifeCircle {
         ReplicateManager replicateManager = new ReplicateManager(serverConfig, rgc.getGroupId(), raftStatus, raftLog,
                 stateMachine, raftClient, raftExecutor, commitManager);
 
-        Raft raft = new Raft(raftStatus, raftLog, applyManager, commitManager, replicateManager);
+        Raft raft = new Raft(raftStatus, raftLog, applyManager, commitManager, replicateManager, stateMachine.getEncoder());
         VoteManager voteManager = new VoteManager(serverConfig, rgc.getGroupId(), raftStatus, raftClient, raftExecutor, raft);
 
         eventBus.register(raft);

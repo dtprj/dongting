@@ -161,7 +161,7 @@ public class ReplicateManager {
                 long size = 0;
                 for (int i = 0; i < limit; i++) {
                     LogItem li = raftStatus.getPendingRequests().get(nextIndex + i).item;
-                    size += li.getBuffer().getBuffer().remaining();
+                    size += li.getDataSize();
                     if (size > sizeLimit && i != 0) {
                         break;
                     }
@@ -188,60 +188,50 @@ public class ReplicateManager {
     }
 
     private void resumeAfterLogLoad(int repEpoch, RaftMember member, List<LogItem> items, Throwable ex) {
-        try {
-            member.setReplicateFuture(null);
-            if (epochNotMatch(member, repEpoch)) {
-                log.info("replicate epoch changed, ignore load result");
-                return;
-            }
-            if (ex != null) {
-                if (ex instanceof CancellationException) {
-                    log.info("ReplicateManager load raft log cancelled");
-                } else {
-                    // if log is deleted, the next load will never success, so we need to reset nextIndex.
-                    // however, the exception may be caused by other reasons
-                    member.setNextIndex(raftStatus.getLastLogIndex() + 1);
-                    log.error("load raft log failed", ex);
-                }
-                return;
-            }
-            if (!member.isReady()) {
-                log.warn("member is not ready, ignore load result");
-                return;
-            }
-            if (member.isInstallSnapshot()) {
-                log.warn("member is installing snapshot, ignore load result");
-                return;
-            }
-            if (items == null || items.size() == 0) {
-                log.warn("load raft log return empty, ignore load result");
-                return;
-            }
-            if (member.getNextIndex() != items.get(0).getIndex()) {
-                log.warn("the first load item index not match nextIndex, ignore load result");
-                return;
-            }
-            if (member.isMultiAppend()) {
-                sendAppendRequest(member, items);
-                replicate(member);
+        member.setReplicateFuture(null);
+        if (epochNotMatch(member, repEpoch)) {
+            log.info("replicate epoch changed, ignore load result");
+            return;
+        }
+        if (ex != null) {
+            if (ex instanceof CancellationException) {
+                log.info("ReplicateManager load raft log cancelled");
             } else {
-                //noinspection StatementWithEmptyBody
-                if (member.getPendingStat().getPendingRequestsPlain() == 0) {
-                    sendAppendRequest(member, items);
-                } else {
-                    // waiting all pending request complete
-                }
+                // if log is deleted, the next load will never success, so we need to reset nextIndex.
+                // however, the exception may be caused by other reasons
+                member.setNextIndex(raftStatus.getLastLogIndex() + 1);
+                log.error("load raft log failed", ex);
             }
-        } finally {
-            // the data loaded will not put into pending map, so release it here
-            if (items != null) {
-                int len = items.size();
-                //noinspection ForLoopReplaceableByForEach
-                for (int i = 0; i < len; i++) {
-                    RaftUtil.release(items.get(i));
-                }
+            return;
+        }
+        if (!member.isReady()) {
+            log.warn("member is not ready, ignore load result");
+            return;
+        }
+        if (member.isInstallSnapshot()) {
+            log.warn("member is installing snapshot, ignore load result");
+            return;
+        }
+        if (items == null || items.size() == 0) {
+            log.warn("load raft log return empty, ignore load result");
+            return;
+        }
+        if (member.getNextIndex() != items.get(0).getIndex()) {
+            log.warn("the first load item index not match nextIndex, ignore load result");
+            return;
+        }
+        if (member.isMultiAppend()) {
+            sendAppendRequest(member, items);
+            replicate(member);
+        } else {
+            //noinspection StatementWithEmptyBody
+            if (member.getPendingStat().getPendingRequestsPlain() == 0) {
+                sendAppendRequest(member, items);
+            } else {
+                // waiting all pending request complete
             }
         }
+
     }
 
     private void sendAppendRequest(RaftMember member, List<LogItem> items) {
@@ -250,7 +240,7 @@ public class ReplicateManager {
         //noinspection ForLoopReplaceableByForEach
         for (int i = 0; i < items.size(); i++) {
             LogItem item = items.get(i);
-            bytes += item.getBuffer() == null ? 0 : item.getBuffer().getBuffer().remaining();
+            bytes += item.getDataSize();
         }
         sendAppendRequest(member, firstItem.getIndex() - 1, firstItem.getPrevLogTerm(), items, bytes);
     }
@@ -269,10 +259,6 @@ public class ReplicateManager {
         member.setNextIndex(prevLogIndex + 1 + logs.size());
 
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        //noinspection ForLoopReplaceableByForEach
-        for (int i = 0; i < logs.size(); i++) {
-            RaftUtil.retain(logs.get(i));
-        }
         CompletableFuture<ReadFrame> f = client.sendRequest(member.getNode().getPeer(), req, APPEND_RESP_DECODER, timeout);
         registerAppendResultCallback(member, prevLogIndex, prevLogTerm, f, logs, bytes);
     }
@@ -287,36 +273,29 @@ public class ReplicateManager {
         ps.incrPlain(logs.size(), bytes);
         int repEpoch = member.getReplicateEpoch();
         f.whenCompleteAsync((rf, ex) -> {
-            try {
-                if (reqTerm != raftStatus.getCurrentTerm()) {
-                    log.info("receive outdated append result, term not match. reqTerm={}, currentTerm={}",
-                            reqTerm, raftStatus.getCurrentTerm());
-                    return;
-                }
-                if (epochNotMatch(member, repEpoch)) {
-                    log.info("receive outdated append result, replicateEpoch not match. ignore.");
-                    return;
-                }
-                ps.decrPlain(logs.size(), bytes);
-                if (ex == null) {
-                    processAppendResult(member, rf, prevLogIndex, prevLogTerm, reqTerm, reqNanos, logs.size(), repEpoch);
+            if (reqTerm != raftStatus.getCurrentTerm()) {
+                log.info("receive outdated append result, term not match. reqTerm={}, currentTerm={}",
+                        reqTerm, raftStatus.getCurrentTerm());
+                return;
+            }
+            if (epochNotMatch(member, repEpoch)) {
+                log.info("receive outdated append result, replicateEpoch not match. ignore.");
+                return;
+            }
+            ps.decrPlain(logs.size(), bytes);
+            if (ex == null) {
+                processAppendResult(member, rf, prevLogIndex, prevLogTerm, reqTerm, reqNanos, logs.size(), repEpoch);
+            } else {
+                member.incrReplicateEpoch(repEpoch);
+                if (member.isMultiAppend()) {
+                    member.setMultiAppend(false);
+                    String msg = "append fail. remoteId={}, groupId={}, localTerm={}, reqTerm={}, prevLogIndex={}";
+                    log.warn(msg, member.getNode().getNodeId(), groupId, raftStatus.getCurrentTerm(),
+                            reqTerm, prevLogIndex, ex);
                 } else {
-                    member.incrReplicateEpoch(repEpoch);
-                    if (member.isMultiAppend()) {
-                        member.setMultiAppend(false);
-                        String msg = "append fail. remoteId={}, groupId={}, localTerm={}, reqTerm={}, prevLogIndex={}";
-                        log.warn(msg, member.getNode().getNodeId(), groupId, raftStatus.getCurrentTerm(),
-                                reqTerm, prevLogIndex, ex);
-                    } else {
-                        String msg = "append fail. remoteId={}, groupId={}, localTerm={}, reqTerm={}, prevLogIndex={}, ex={}";
-                        log.warn(msg, member.getNode().getNodeId(), groupId, raftStatus.getCurrentTerm(),
-                                reqTerm, prevLogIndex, ex.toString());
-                    }
-                }
-            } finally {
-                //noinspection ForLoopReplaceableByForEach
-                for (int i = 0; i < logs.size(); i++) {
-                    RaftUtil.release(logs.get(i));
+                    String msg = "append fail. remoteId={}, groupId={}, localTerm={}, reqTerm={}, prevLogIndex={}, ex={}";
+                    log.warn(msg, member.getNode().getNodeId(), groupId, raftStatus.getCurrentTerm(),
+                            reqTerm, prevLogIndex, ex.toString());
                 }
             }
         }, raftExecutor);

@@ -15,9 +15,9 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.codec.DecodeContext;
+import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.BugLog;
@@ -26,6 +26,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.File;
 import java.io.IOException;
@@ -34,7 +35,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -56,9 +56,8 @@ class LogFileQueue extends FileQueue {
     private final CRC32C crc32c = new CRC32C();
     private long writePos;
 
-    public LogFileQueue(File dir, ExecutorService ioExecutor, Executor raftExecutor, Supplier<Boolean> stopIndicator,
-                        IdxOps idxOps, RefBufferFactory heapPool, ByteBufferPool directPool) {
-        super(dir, ioExecutor, raftExecutor, stopIndicator, heapPool, directPool);
+    public LogFileQueue(File dir, ExecutorService ioExecutor, RaftGroupConfigEx groupConfig, IdxOps idxOps) {
+        super(dir, ioExecutor, groupConfig);
         this.idxOps = idxOps;
     }
 
@@ -112,7 +111,7 @@ class LogFileQueue extends FileQueue {
         LogFile file = getLogFile(pos);
         for (int i = 0; i < logs.size(); i++) {
             LogItem log = logs.get(i);
-            ByteBuffer dataBuffer = log.getBuffer().getBuffer();
+            int dataSize = log.getDataSize();
             long posOfFile = (pos + writeBuffer.position()) & FILE_LEN_MASK;
             if (posOfFile == 0) {
                 if (i != 0) {
@@ -124,7 +123,7 @@ class LogFileQueue extends FileQueue {
                 file.firstTimestamp = log.getTimestamp();
                 file.firstIndex = log.getIndex();
                 file.firstTerm = log.getTerm();
-            } else if (LOG_FILE_SIZE - posOfFile < LogHeader.ITEM_HEADER_SIZE + dataBuffer.remaining()) {
+            } else if (LOG_FILE_SIZE - posOfFile < LogHeader.ITEM_HEADER_SIZE + dataSize) {
                 pos = writeAndClearBuffer(writeBuffer, file, pos);
                 // roll to next file
                 pos = ((pos >>> FILE_LEN_SHIFT_BITS) + 1) << FILE_LEN_SHIFT_BITS;
@@ -137,16 +136,12 @@ class LogFileQueue extends FileQueue {
             }
 
             long startPos = pos;
-            int totalLen = dataBuffer.remaining() + LogHeader.ITEM_HEADER_SIZE;
-            LogHeader.writeHeader(writeBuffer, dataBuffer, log, totalLen, crc32c);
+            int totalLen = dataSize + LogHeader.ITEM_HEADER_SIZE;
+            LogHeader.writeHeader(writeBuffer, log, totalLen, crc32c);
             pos += LogHeader.ITEM_HEADER_SIZE;
 
-            while (dataBuffer.hasRemaining()) {
-                writeBuffer.put(dataBuffer);
-                if (!writeBuffer.hasRemaining()) {
-                    pos = writeAndClearBuffer(writeBuffer, file, pos);
-                }
-            }
+            // TODO finish encode
+            log.getEncoder().encode(writeBuffer, log.getData());
             idxOps.put(log.getIndex(), startPos, totalLen);
         }
         pos = writeAndClearBuffer(writeBuffer, file, pos);
@@ -342,6 +337,17 @@ class LogFileQueue extends FileQueue {
             }
         }
         return false;
+    }
+
+    private Object decode(DecodeContext context, ByteBuffer buf, Decoder<?> decoder, int pos, int len) {
+        int oldLimit = buf.limit();
+        int oldPos = buf.position();
+        buf.limit(pos + len);
+        buf.position(pos);
+        Object o = decoder.decode(context, buf,len,true,true);
+        buf.limit(oldLimit);
+        buf.position(oldPos);
+        return o;
     }
 
     public void markDeleteByIndex(long index, long deleteTimestamp) {

@@ -100,7 +100,6 @@ public class PendingMap extends LongObjMap<RaftTask> {
                 }
             }
             remove(k);
-            RaftUtil.release(task.input);
             task = get(++k);
         }
     }

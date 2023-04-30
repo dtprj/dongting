@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.DtLog;
@@ -27,6 +26,7 @@ import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -46,7 +46,7 @@ public class ApplyManager {
 
     private final int selfNodeId;
     private final RaftLog raftLog;
-    private final StateMachine stateMachine;
+    private final StateMachine<Object, Object> stateMachine;
     private final Timestamp ts;
     private final EventBus eventBus;
     private final RaftStatusImpl raftStatus;
@@ -57,7 +57,7 @@ public class ApplyManager {
 
     private RaftLog.LogIterator logIterator;
 
-    public ApplyManager(int selfNodeId, RaftLog raftLog, StateMachine stateMachine, RaftStatusImpl raftStatus, EventBus eventBus) {
+    public ApplyManager(int selfNodeId, RaftLog raftLog, StateMachine<Object, Object> stateMachine, RaftStatusImpl raftStatus, EventBus eventBus) {
         this.selfNodeId = selfNodeId;
         this.raftLog = raftLog;
         this.stateMachine = stateMachine;
@@ -99,54 +99,38 @@ public class ApplyManager {
     }
 
     private void resumeAfterLoad(List<LogItem> items, Throwable ex) {
-        try {
-            waiting = false;
-            if (ex != null) {
-                if (ex instanceof CancellationException) {
-                    log.info("ApplyManager load raft log cancelled");
-                } else {
-                    log.error("load log failed", ex);
-                }
-                return;
+        waiting = false;
+        if (ex != null) {
+            if (ex instanceof CancellationException) {
+                log.info("ApplyManager load raft log cancelled");
+            } else {
+                log.error("load log failed", ex);
             }
-            if (items == null || items.size() == 0) {
-                log.error("load log failed, items is null");
-                return;
-            }
-            if (items.get(0).getIndex() != appliedIndex + 1) {
-                // previous load failed, ignore
-                log.warn("first index of load result not match appliedIndex, ignore.");
-                return;
-            }
-            int readCount = items.size();
-            //noinspection ForLoopReplaceableByForEach
-            for (int i = 0; i < readCount; i++) {
-                LogItem item = items.get(i);
-                RaftTask rt = buildRaftTask(item);
-                execChain(item.getIndex(), rt);
-            }
-            appliedIndex += readCount;
-        } finally {
-            // the data loaded will not put into pending map, so release it here
-            if (items != null) {
-                int len = items.size();
-                //noinspection ForLoopReplaceableByForEach
-                for (int i = 0; i < len; i++) {
-                    RaftUtil.release(items.get(i));
-                }
-            }
+            return;
         }
+        if (items == null || items.size() == 0) {
+            log.error("load log failed, items is null");
+            return;
+        }
+        if (items.get(0).getIndex() != appliedIndex + 1) {
+            // previous load failed, ignore
+            log.warn("first index of load result not match appliedIndex, ignore.");
+            return;
+        }
+        int readCount = items.size();
+        //noinspection ForLoopReplaceableByForEach
+        for (int i = 0; i < readCount; i++) {
+            LogItem item = items.get(i);
+            RaftTask rt = buildRaftTask(item);
+            execChain(item.getIndex(), rt);
+        }
+        appliedIndex += readCount;
+
         apply(raftStatus);
     }
 
     private RaftTask buildRaftTask(LogItem item) {
-        RaftInput input;
-        if (item.getType() == LogItem.TYPE_NORMAL) {
-            Object o = stateMachine.decode(item.getBuffer());
-            input = new RaftInput(item.getBuffer(), o, null, false);
-        } else {
-            input = new RaftInput(item.getBuffer(), null, null, false);
-        }
+        RaftInput input = new RaftInput(item.getData(), null, false, item.getDataSize());
         return new RaftTask(ts, item.getType(), input, null);
     }
 
@@ -202,13 +186,11 @@ public class ApplyManager {
 
     private void execWrite(long index, RaftTask rt) {
         RaftInput input = rt.input;
-        RaftUtil.retain(input);
         CompletableFuture<RaftOutput> future = rt.future;
-        stateMachine.exec(index, input).whenCompleteAsync((r, e) -> {
-            RaftUtil.release(input);
-            if (e != null) {
-                log.warn("exec write failed. {}", e);
-                future.completeExceptionally(e);
+        stateMachine.exec(index, input).whenCompleteAsync((r, ex) -> {
+            if (ex != null) {
+                log.warn("exec write failed. {}", ex);
+                future.completeExceptionally(ex);
             } else {
                 future.complete(new RaftOutput(index, r));
             }
@@ -218,8 +200,8 @@ public class ApplyManager {
                 raftStatus.setFirstCommitOfApplied(null);
             }
             raftStatus.setLastApplied(index);
+            execReaders(index, rt);
         }, raftStatus.getRaftExecutor());
-        execReaders(index, rt);
     }
 
     public void execRead(long index, RaftTask rt) {
@@ -246,9 +228,9 @@ public class ApplyManager {
     private void doPrepare(long index, RaftTask rt) {
         configChanging = true;
 
-        RefBuffer logData = rt.input.getLogData();
-        byte[] data = new byte[logData.getBuffer().remaining()];
-        logData.getBuffer().get(data);
+        ByteBuffer logData = (ByteBuffer) rt.input.getInput();
+        byte[] data = new byte[logData.remaining()];
+        logData.get(data);
         String dataStr = new String(data);
         String[] fields = dataStr.split(";");
         Set<Integer> oldMembers = parseSet(fields[0]);

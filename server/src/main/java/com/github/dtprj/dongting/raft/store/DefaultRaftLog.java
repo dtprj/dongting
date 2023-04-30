@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -31,7 +29,6 @@ import com.github.dtprj.dongting.raft.server.RaftStatus;
 import java.io.File;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 
@@ -42,9 +39,6 @@ public class DefaultRaftLog implements RaftLog {
 
     private final RaftGroupConfigEx groupConfig;
     private final Timestamp ts;
-    private final RefBufferFactory heapPool;
-    private final ByteBufferPool directPool;
-    private final Executor raftExecutor;
     private final Supplier<Boolean> stopIndicator;
     private final RaftStatus raftStatus;
     private LogFileQueue logFiles;
@@ -56,9 +50,6 @@ public class DefaultRaftLog implements RaftLog {
     public DefaultRaftLog(RaftGroupConfigEx groupConfig) {
         this.groupConfig = groupConfig;
         this.ts = groupConfig.getTs();
-        this.heapPool = groupConfig.getHeapPool();
-        this.directPool = groupConfig.getDirectPool();
-        this.raftExecutor = groupConfig.getRaftExecutor();
         this.stopIndicator = groupConfig.getStopIndicator();
         this.raftStatus = groupConfig.getRaftStatus();
 
@@ -71,8 +62,8 @@ public class DefaultRaftLog implements RaftLog {
 
         long knownMaxCommitIndex = raftStatus.getCommitIndex();
 
-        idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), ioExecutor, raftExecutor, stopIndicator, heapPool, directPool);
-        logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), ioExecutor, raftExecutor, stopIndicator, idxFiles, heapPool, directPool);
+        idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), ioExecutor, groupConfig);
+        logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), ioExecutor, groupConfig, idxFiles);
         logFiles.init();
         idxFiles.init();
         idxFiles.initWithCommitIndex(knownMaxCommitIndex);
@@ -125,7 +116,8 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public LogIterator openIterator(Supplier<Boolean> epochChange) {
-        return new DefaultLogIterator(this, directPool, () -> stopIndicator.get() || epochChange.get());
+        return new DefaultLogIterator(this, groupConfig.getHeapPool(), groupConfig.getDirectPool(),
+                () -> stopIndicator.get() || epochChange.get());
     }
 
     CompletableFuture<List<LogItem>> next(DefaultLogIterator it, long index, int limit, int bytesLimit) {

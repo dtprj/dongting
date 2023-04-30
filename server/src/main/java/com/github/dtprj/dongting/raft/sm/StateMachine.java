@@ -16,17 +16,21 @@
 package com.github.dtprj.dongting.raft.sm;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.Decoder;
+import com.github.dtprj.dongting.codec.Encoder;
 
 import java.util.concurrent.CompletableFuture;
 
 /**
  * @author huangli
  */
-public interface StateMachine extends AutoCloseable {
+public interface StateMachine<I, O> extends AutoCloseable {
 
-    Object decode(RefBuffer logData);
+    Decoder<I> getDecoder();
 
-    CompletableFuture<Object> exec(long index, Object input);
+    Encoder<I> getEncoder();
+
+    CompletableFuture<O> exec(long index, I input);
 
     SnapshotManager getSnapshotManager();
 

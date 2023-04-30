@@ -76,9 +76,7 @@ public class AppendReqWriteFrame extends WriteFrame {
         itemSize += PbUtil.accurateUnsignedIntSize(2, item.getTerm());
         itemSize += PbUtil.accurateFix64Size(3, item.getIndex());
         itemSize += PbUtil.accurateUnsignedIntSize(4, item.getPrevLogTerm());
-        if (item.getBuffer() != null) {
-            itemSize += PbUtil.accurateLengthDelimitedSize(5, item.getBuffer().getBuffer().remaining(), true);
-        }
+        itemSize += PbUtil.accurateLengthDelimitedSize(5, item.getDataSize(), false);
         return itemSize;
     }
 
@@ -98,10 +96,10 @@ public class AppendReqWriteFrame extends WriteFrame {
                 PbUtil.writeUnsignedInt32(buf, 2, item.getTerm());
                 PbUtil.writeFix64(buf, 3, item.getIndex());
                 PbUtil.writeUnsignedInt32(buf, 4, item.getPrevLogTerm());
-                ByteBuffer logBuffer = item.getBuffer().getBuffer();
-                if (logBuffer != null) {
-                    PbUtil.writeLengthDelimitedPrefix(buf, 5, logBuffer.remaining(), true);
-                    buf.put(logBuffer);
+                int dataSize = item.getDataSize();
+                if (dataSize > 0) {
+                    PbUtil.writeLengthDelimitedPrefix(buf, 5, dataSize, false);
+                    item.getEncoder().encode(buf, item.getData());
                 }
             }
             logs = null;

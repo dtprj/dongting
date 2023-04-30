@@ -15,11 +15,13 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.codec.DecodeContext;
+import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.PbCallback;
+import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.codec.PbParser;
+import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
+import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.server.LogItem;
 
 import java.nio.ByteBuffer;
@@ -40,7 +42,8 @@ import java.util.ArrayList;
 //
 public class AppendReqCallback extends PbCallback<AppendReqCallback> {
 
-    private final RefBufferFactory heapPool;
+    private final DecodeContext context;
+    private final RaftGroups raftGroups;
     private int groupId;
     private int term;
     private int leaderId;
@@ -49,8 +52,9 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
     private final ArrayList<LogItem> logs = new ArrayList<>();
     private long leaderCommit;
 
-    public AppendReqCallback(DecodeContext decodeContext) {
-        this.heapPool = decodeContext.getHeapPool();
+    public AppendReqCallback(DecodeContext context, RaftGroups raftGroups) {
+        this.context = context;
+        this.raftGroups = raftGroups;
     }
 
     @Override
@@ -88,9 +92,16 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
     @Override
     public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
         if (index == 6) {
+            RaftGroupImpl group = raftGroups.get(groupId);
+            if (group == null) {
+                // group id should encode before entries
+                throw new PbException("can't find raft group: " + groupId);
+            }
             PbParser logItemParser;
             if (begin) {
-                logItemParser = parser.createOrGetNestedParserSingle(new LogItemCallback(heapPool), len);
+                Decoder<?> decoder = group.getStateMachine().getDecoder();
+                LogItemCallback c = new LogItemCallback(context.createOrGetNestedContext(true), decoder);
+                logItemParser = parser.createOrGetNestedParserSingle(c, len);
             } else {
                 logItemParser = parser.getNestedParser();
             }
@@ -148,10 +159,12 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
     //}
     static class LogItemCallback extends PbCallback<Object> {
         private final LogItem item = new LogItem();
-        private final RefBufferFactory heapPool;
+        private final Decoder<?> stateMachineDecoder;
+        private final DecodeContext context;
 
-        public LogItemCallback(RefBufferFactory heapPool) {
-            this.heapPool = heapPool;
+        public LogItemCallback(DecodeContext context, Decoder<?> stateMachineDecoder) {
+            this.context = context;
+            this.stateMachineDecoder = stateMachineDecoder;
         }
 
         @Override
@@ -186,17 +199,17 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
             if (index == 6) {
-                RefBuffer dest;
                 if (begin) {
-                    dest = heapPool.create(len);
-                    item.setBuffer(dest);
-                } else {
-                    dest = item.getBuffer();
+                    item.setDataSize(len);
                 }
-                ByteBuffer destBuffer = dest.getBuffer();
-                destBuffer.put(buf);
+                Object result;
+                if (item.getType() == LogItem.TYPE_NORMAL) {
+                    result = stateMachineDecoder.decode(context, buf, len, begin, end);
+                } else {
+                    result = Decoder.decodeToByteBuffer(buf, len, begin, end, (ByteBuffer) item.getData());
+                }
                 if (end) {
-                    destBuffer.flip();
+                    item.setData(result);
                 }
             }
             return true;

@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.log.DtLog;
@@ -34,6 +33,7 @@ import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -179,8 +179,8 @@ public class MemberManager {
     }
 
     private void processPingResult(RaftNodeEx raftNodeEx, RaftMember member,
-                                   ReadFrame rf, Throwable ex, int nodeEpochWhenStartPing) {
-        RaftPingFrameCallback callback = (RaftPingFrameCallback) rf.getBody();
+                                   ReadFrame<RaftPingFrameCallback> rf, Throwable ex, int nodeEpochWhenStartPing) {
+        RaftPingFrameCallback callback = rf.getBody();
         executor.schedule(() -> member.setPinging(false), 1000);
         if (ex != null) {
             log.warn("raft ping fail, remote={}", raftNodeEx.getHostPort(), ex);
@@ -327,7 +327,7 @@ public class MemberManager {
         executor.schedule(r, 3);
     }
 
-    private void leaderConfigChange(int type, RefBuffer data, CompletableFuture<Void> f) {
+    private void leaderConfigChange(int type, ByteBuffer data, CompletableFuture<Void> f) {
         if (raftStatus.getRole() != RaftRole.leader) {
             String stageStr;
             switch (type) {
@@ -348,7 +348,7 @@ public class MemberManager {
             f.completeExceptionally(new RaftException("not leader"));
         }
         CompletableFuture<RaftOutput> outputFuture = new CompletableFuture<>();
-        RaftInput input = new RaftInput(data, null, null, false);
+        RaftInput input = new RaftInput(data, null, false, data == null ? 0 : data.remaining());
         RaftTask rt = new RaftTask(raftStatus.getTs(), type, input, outputFuture);
         eventBus.fire(EventType.raftExec, Collections.singletonList(rt));
 
@@ -366,18 +366,14 @@ public class MemberManager {
         leaderConfigChange(LogItem.TYPE_PREPARE_CONFIG_CHANGE, getInputData(newMemberNodes, newObserverNodes), f);
     }
 
-    private RefBuffer getInputData(Set<Integer> newMemberNodes, Set<Integer> newObserverNodes) {
+    private ByteBuffer getInputData(Set<Integer> newMemberNodes, Set<Integer> newObserverNodes) {
         StringBuilder sb = new StringBuilder(64);
         appendSet(sb, raftStatus.getNodeIdOfMembers());
         appendSet(sb, raftStatus.getNodeIdOfObservers());
         appendSet(sb, newMemberNodes);
         appendSet(sb, newObserverNodes);
         sb.deleteCharAt(sb.length() - 1);
-        byte[] data = sb.toString().getBytes();
-        RefBuffer buf = RefBuffer.createUnpooled(data.length, false);
-        buf.getBuffer().put(data);
-        buf.getBuffer().flip();
-        return buf;
+        return ByteBuffer.wrap(sb.toString().getBytes());
     }
 
     private void appendSet(StringBuilder sb, Set<Integer> set) {

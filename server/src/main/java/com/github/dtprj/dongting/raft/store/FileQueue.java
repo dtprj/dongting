@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.File;
 import java.io.IOException;
@@ -47,6 +48,8 @@ abstract class FileQueue {
     private static final Pattern PATTERN = Pattern.compile("^(\\d{20})$");
     protected final IndexedQueue<LogFile> queue = new IndexedQueue<>();
     protected final File dir;
+
+    protected final RaftGroupConfigEx groupConfig;
     protected final ExecutorService ioExecutor;
     protected final Executor raftExecutor;
     protected final Supplier<Boolean> stopIndicator;
@@ -60,14 +63,14 @@ abstract class FileQueue {
 
     private boolean deleting;
 
-    public FileQueue(File dir, ExecutorService ioExecutor, Executor raftExecutor, Supplier<Boolean> stopIndicator,
-                     RefBufferFactory heapPool, ByteBufferPool directPool) {
+    public FileQueue(File dir, ExecutorService ioExecutor, RaftGroupConfigEx groupConfig) {
         this.dir = dir;
         this.ioExecutor = ioExecutor;
-        this.raftExecutor = raftExecutor;
-        this.stopIndicator = stopIndicator;
-        this.heapPool = heapPool;
-        this.directPool = directPool;
+        this.raftExecutor = groupConfig.getRaftExecutor();
+        this.stopIndicator = groupConfig.getStopIndicator();
+        this.heapPool = groupConfig.getHeapPool();
+        this.directPool = groupConfig.getDirectPool();
+        this.groupConfig = groupConfig;
     }
 
     protected abstract long getFileSize();

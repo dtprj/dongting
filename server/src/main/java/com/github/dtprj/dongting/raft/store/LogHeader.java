@@ -57,7 +57,7 @@ class LogHeader {
         timestamp = buf.getLong();
     }
 
-    public static void writeHeader(ByteBuffer buffer, ByteBuffer dataBuffer, LogItem log, int totalLen, CRC32C crc32c) {
+    public static void writeHeader(ByteBuffer buffer, LogItem log, int totalLen, CRC32C crc32c) {
         int crcPos = buffer.position();
         buffer.putInt(0);
         buffer.putInt(totalLen);
@@ -72,12 +72,8 @@ class LogHeader {
 
         crc32c.reset();
 
-        LogFileQueue.updateCrc(crc32c, buffer, crcPos + 4, totalLen - 4);
+        LogFileQueue.updateCrc(crc32c, buffer, crcPos + 4, buffer.position() - crcPos - 4);
 
-        // backup position, the data buffer is a read-only buffer, so we don't need to change its limit
-        int pos = dataBuffer.position();
-        crc32c.update(dataBuffer);
-        dataBuffer.position(pos);
-        buffer.putInt(crcPos, (int) crc32c.getValue());
+        // TODO update body crc
     }
 }

@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.log.BugLog;
@@ -49,10 +48,11 @@ public class AppendProcessor extends AbstractProcessor<AppendReqCallback> {
     public static final int CODE_NOT_MEMBER_IN_GROUP = 5;
     public static final int CODE_ERROR_STATE = 6;
 
-    private static final PbNoCopyDecoder<AppendReqCallback> decoder = new PbNoCopyDecoder<>(AppendReqCallback::new);
+    private final PbNoCopyDecoder<AppendReqCallback> decoder;
 
     public AppendProcessor(RaftGroups raftGroups) {
         super(raftGroups);
+        decoder = new PbNoCopyDecoder<>(decodeContext -> new AppendReqCallback(decodeContext, raftGroups));
     }
 
     @Override
@@ -104,16 +104,6 @@ public class AppendProcessor extends AbstractProcessor<AppendReqCallback> {
 
         resp.setTerm(raftStatus.getCurrentTerm());
         resp.setRespCode(CmdCodes.SUCCESS);
-        ArrayList<LogItem> logs = req.getLogs();
-        if (logs != null) {
-            //noinspection ForLoopReplaceableByForEach
-            for (int i = 0; i < logs.size(); i++) {
-                RefBuffer b = logs.get(i).getBuffer();
-                if (b != null) {
-                    b.release();
-                }
-            }
-        }
         return resp;
     }
 
@@ -154,9 +144,8 @@ public class AppendProcessor extends AbstractProcessor<AppendReqCallback> {
 
         for (int i = 0; i < logs.size(); i++) {
             LogItem li = logs.get(i);
-            RaftInput raftInput = new RaftInput(li.getBuffer(), null, null, false);
+            RaftInput raftInput = new RaftInput(li.getData(), null, false, li.getDataSize());
             RaftTask task = new RaftTask(raftStatus.getTs(), li.getType(), raftInput, null);
-            RaftUtil.retain(raftInput);
             raftStatus.getPendingRequests().put(li.getIndex(), task);
         }
 

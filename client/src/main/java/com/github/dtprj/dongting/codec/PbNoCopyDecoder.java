@@ -31,17 +31,15 @@ public class PbNoCopyDecoder<T> implements Decoder<T> {
 
     @Override
     public T decode(DecodeContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
-        PbParser parser = context.getPbParser();
+        PbParser parser;
         PbCallback<T> callback;
         if (start) {
-            if (parser != null) {
-                parser.resetSingle(callbackCreator.apply(context), bodyLen);
-            } else {
-                parser = PbParser.singleParser(callbackCreator.apply(context), bodyLen);
-                context.setPbParser(parser);
-            }
+            callback = callbackCreator.apply(context);
+            parser = context.createOrGetPbParser(callback, bodyLen);
+        } else {
+            parser = context.getPbParser();
+            callback = parser.getCallback();
         }
-        callback = parser.getCallback();
         parser.parse(buffer);
         if (end) {
             return callback.getResult();

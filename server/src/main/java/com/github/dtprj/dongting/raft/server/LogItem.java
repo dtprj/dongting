@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.Encoder;
 
 /**
  * @author huangli
@@ -32,17 +33,12 @@ public class LogItem {
     private long index;
     private int prevLogTerm;
     private long timestamp;
+
     private RefBuffer buffer;
-
-
-    public LogItem(int type, int term, long index, int prevLogTerm,long timestamp, RefBuffer buffer) {
-        this.type = type;
-        this.term = term;
-        this.index = index;
-        this.prevLogTerm = prevLogTerm;
-        this.timestamp = timestamp;
-        this.buffer = buffer;
-    }
+    private Object data;
+    //TODO check if it is necessary
+    private int dataSize;
+    private Encoder encoder;
 
     public LogItem() {
     }
@@ -71,12 +67,20 @@ public class LogItem {
         this.prevLogTerm = prevLogTerm;
     }
 
-    public RefBuffer getBuffer() {
-        return buffer;
+    public Object getData() {
+        return data;
     }
 
-    public void setBuffer(RefBuffer buffer) {
-        this.buffer = buffer;
+    public void setData(Object data) {
+        this.data = data;
+    }
+
+    public int getDataSize() {
+        return dataSize;
+    }
+
+    public void setDataSize(int dataSize) {
+        this.dataSize = dataSize;
     }
 
     public long getIndex() {
@@ -93,5 +97,21 @@ public class LogItem {
 
     public void setTimestamp(long timestamp) {
         this.timestamp = timestamp;
+    }
+
+    public Encoder getEncoder() {
+        return encoder;
+    }
+
+    public void setEncoder(Encoder encoder) {
+        this.encoder = encoder;
+    }
+
+    public RefBuffer getBuffer() {
+        return buffer;
+    }
+
+    public void setBuffer(RefBuffer buffer) {
+        this.buffer = buffer;
     }
 }

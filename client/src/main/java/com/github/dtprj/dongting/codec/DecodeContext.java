@@ -22,10 +22,39 @@ import com.github.dtprj.dongting.buf.RefBufferFactory;
  */
 public class DecodeContext {
     private RefBufferFactory heapPool;
-
-    private StrDecoder strDecoder;
     private Object status;
     private PbParser pbParser;
+
+    private DecodeContext nestedContext;
+
+    public DecodeContext createOrGetNestedContext(boolean start) {
+        DecodeContext c = this.nestedContext;
+        if (c == null) {
+            c = new DecodeContext();
+            c.heapPool = heapPool;
+            this.nestedContext = c;
+        }
+        if (start) {
+            c.status = null;
+        }
+        return c;
+    }
+
+    public PbParser createOrGetPbParser(PbCallback<?> callback, int len) {
+        PbParser p = this.pbParser;
+        if (p == null) {
+            p = PbParser.singleParser(callback, len);
+            this.pbParser = p;
+            return p;
+        } else {
+            p.resetSingle(callback, len);
+            return p;
+        }
+    }
+
+    public PbParser getPbParser() {
+        return pbParser;
+    }
 
     public RefBufferFactory getHeapPool() {
         return heapPool;
@@ -33,14 +62,6 @@ public class DecodeContext {
 
     public void setHeapPool(RefBufferFactory heapPool) {
         this.heapPool = heapPool;
-    }
-
-    public StrDecoder getStrDecoder() {
-        return strDecoder;
-    }
-
-    public void setStrDecoder(StrDecoder strDecoder) {
-        this.strDecoder = strDecoder;
     }
 
     public Object getStatus() {
@@ -51,11 +72,4 @@ public class DecodeContext {
         this.status = status;
     }
 
-    public PbParser getPbParser() {
-        return pbParser;
-    }
-
-    public void setPbParser(PbParser pbParser) {
-        this.pbParser = pbParser;
-    }
 }
