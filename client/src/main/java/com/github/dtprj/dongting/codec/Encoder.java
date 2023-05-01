@@ -21,5 +21,5 @@ import java.nio.ByteBuffer;
  * @author huangli
  */
 public interface Encoder<T> {
-    boolean encode(ByteBuffer buffer, T data);
+    void encode(ByteBuffer buffer, T data);
 }
