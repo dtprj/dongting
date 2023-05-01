@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.DecodeContext;
+import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.HostPort;
@@ -24,6 +27,7 @@ import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftNode;
 
+import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -310,6 +314,31 @@ public class RaftUtil {
             throw new RaftException("group not exist: " + groupId);
         }
         return gc;
+    }
+
+    public static void release(List<LogItem> items) {
+        if(items==null){
+            return;
+        }
+        //noinspection ForLoopReplaceableByForEach
+        for (int i = 0; i < items.size(); i++) {
+            LogItem li = items.get(i);
+            RefBuffer b = li.getBuffer();
+            if (b != null) {
+                b.release();
+            }
+        }
+    }
+
+    public static Object decode(DecodeContext context, ByteBuffer buf, Decoder<?> decoder, int pos, int len) {
+        int oldLimit = buf.limit();
+        int oldPos = buf.position();
+        buf.limit(pos + len);
+        buf.position(pos);
+        Object o = decoder.decode(context, buf,len,true,true);
+        buf.limit(oldLimit);
+        buf.position(oldPos);
+        return o;
     }
 
 }

@@ -203,7 +203,7 @@ public class RaftServer extends AbstractLifeCircle {
 
         MemberManager memberManager = new MemberManager(serverConfig, raftClient, raftExecutor,
                 raftStatus, eventBus);
-        ApplyManager applyManager = new ApplyManager(serverConfig.getNodeId(), raftLog, stateMachine, raftStatus, eventBus);
+        ApplyManager applyManager = new ApplyManager(serverConfig.getNodeId(), raftLog, stateMachine, raftStatus, eventBus, rgcEx.getHeapPool());
         CommitManager commitManager = new CommitManager(raftStatus, applyManager);
         ReplicateManager replicateManager = new ReplicateManager(serverConfig, rgc.getGroupId(), raftStatus, raftLog,
                 stateMachine, raftClient, raftExecutor, commitManager);

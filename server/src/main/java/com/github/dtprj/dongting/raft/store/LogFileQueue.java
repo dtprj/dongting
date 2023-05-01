@@ -16,8 +16,6 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.codec.DecodeContext;
-import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.BugLog;
@@ -262,7 +260,7 @@ class LogFileQueue extends FileQueue {
     private boolean extractItems(DefaultLogIterator it, List<LogItem> result, int limit, int bytesLimit) {
         ByteBuffer buf = it.readBuffer;
 
-        while (buf.remaining() > LogHeader.ITEM_HEADER_SIZE) {
+        while (buf.remaining() >= LogHeader.ITEM_HEADER_SIZE) {
             LogHeader header = it.header;
             if (it.item == null) {
                 LogItem li = new LogItem();
@@ -270,12 +268,12 @@ class LogFileQueue extends FileQueue {
                 int startPos = buf.position();
                 header.read(buf);
 
-                it.payLoad = header.totalLen - header.headLen;
-                int bodyLen = header.totalLen - header.contextLen - header.headLen;
-                if (header.totalLen <= 0 || header.contextLen < 0 || header.headLen <= 0
+                int bodyLen = header.totalLen - header.headLen;
+                it.payLoad = bodyLen;
+                if (header.totalLen <= 0 || header.headLen <= 0
                         || it.payLoad < 0 || bodyLen < 0 || it.payLoad > LOG_FILE_SIZE) {
                     throw new RaftException("invalid log item length: " + header.totalLen
-                            + "," + header.contextLen + "," + header.headLen);
+                            + "," + header.headLen);
                 }
 
                 if (result.size() > 0 && it.bytes + it.payLoad > bytesLimit) {
@@ -289,20 +287,24 @@ class LogFileQueue extends FileQueue {
                 li.setTerm(header.term);
                 li.setPrevLogTerm(header.prevLogTerm);
                 li.setTimestamp(header.timestamp);
+                li.setEncoder(groupConfig.getEncoder());
+                li.setDataSize(bodyLen);
 
-                if (buf.remaining() >= it.payLoad) {
+                if (buf.remaining() >= bodyLen) {
                     updateCrc(it.crc32c, buf, startPos + 4, header.totalLen - 4);
                     if (it.crc32c.getValue() != header.crc) {
                         throw new RaftException("crc32c not match");
                     }
-                    RefBuffer rbb = heapPool.create(bodyLen);
-                    li.setBuffer(rbb);
-                    ByteBuffer destBuf = rbb.getBuffer();
-                    buf.get(destBuf.array(), 0, bodyLen);
-                    destBuf.limit(bodyLen);
-                    result.add(li);
-                    it.bytes += it.payLoad;
-                    it.resetItem();
+                    if (bodyLen > 0) {
+                        RefBuffer rbb = heapPool.create(bodyLen);
+                        li.setBuffer(rbb);
+                        ByteBuffer destBuf = rbb.getBuffer();
+                        buf.get(destBuf.array(), 0, bodyLen);
+                        destBuf.limit(bodyLen);
+                        result.add(li);
+                        it.bytes += it.payLoad;
+                        it.resetItem();
+                    }
                     if (result.size() >= limit) {
                         return true;
                     }
@@ -321,7 +323,7 @@ class LogFileQueue extends FileQueue {
                     if (it.crc32c.getValue() != header.crc) {
                         throw new RaftException("crc32c not match");
                     }
-                    buf.get(destBuf.array(), read, it.payLoad - read);
+                    buf.get(destBuf.array(), read, restBytes);
                     destBuf.limit(it.payLoad);
                     destBuf.position(0);
                     result.add(it.item);
@@ -337,17 +339,6 @@ class LogFileQueue extends FileQueue {
             }
         }
         return false;
-    }
-
-    private Object decode(DecodeContext context, ByteBuffer buf, Decoder<?> decoder, int pos, int len) {
-        int oldLimit = buf.limit();
-        int oldPos = buf.position();
-        buf.limit(pos + len);
-        buf.position(pos);
-        Object o = decoder.decode(context, buf,len,true,true);
-        buf.limit(oldLimit);
-        buf.position(oldPos);
-        return o;
     }
 
     public void markDeleteByIndex(long index, long deleteTimestamp) {

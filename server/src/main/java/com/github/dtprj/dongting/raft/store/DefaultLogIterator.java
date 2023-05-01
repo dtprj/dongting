@@ -16,8 +16,6 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.RefBufferFactory;
-import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 
@@ -40,21 +38,17 @@ class DefaultLogIterator implements RaftLog.LogIterator {
     final CRC32C crc32c = new CRC32C();
     final LogHeader header = new LogHeader();
 
-    final DecodeContext decodeContext;
-
     long nextIndex = 1;
 
     int bytes;
     LogItem item;
     int payLoad;
 
-    DefaultLogIterator(DefaultRaftLog defaultRaftLog, RefBufferFactory heapPool, ByteBufferPool directPool, Supplier<Boolean> fullIndicator) {
+    DefaultLogIterator(DefaultRaftLog defaultRaftLog, ByteBufferPool directPool, Supplier<Boolean> fullIndicator) {
         this.defaultRaftLog = defaultRaftLog;
         this.directPool = directPool;
         this.readBuffer = directPool.borrow(1024 * 1024);
         this.fullIndicator = fullIndicator;
-        this.decodeContext = new DecodeContext();
-        this.decodeContext.setHeapPool(heapPool);
     }
 
     @Override
@@ -81,6 +75,5 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         item = null;
         crc32c.reset();
         payLoad = 0;
-        decodeContext.setStatus(null);
     }
 }

@@ -191,6 +191,7 @@ public class ReplicateManager {
         member.setReplicateFuture(null);
         if (epochNotMatch(member, repEpoch)) {
             log.info("replicate epoch changed, ignore load result");
+            RaftUtil.release(items);
             return;
         }
         if (ex != null) {
@@ -202,24 +203,31 @@ public class ReplicateManager {
                 member.setNextIndex(raftStatus.getLastLogIndex() + 1);
                 log.error("load raft log failed", ex);
             }
+            RaftUtil.release(items);
             return;
         }
         if (!member.isReady()) {
             log.warn("member is not ready, ignore load result");
+            RaftUtil.release(items);
             return;
         }
         if (member.isInstallSnapshot()) {
             log.warn("member is installing snapshot, ignore load result");
+            RaftUtil.release(items);
             return;
         }
         if (items == null || items.size() == 0) {
             log.warn("load raft log return empty, ignore load result");
+            RaftUtil.release(items);
             return;
         }
         if (member.getNextIndex() != items.get(0).getIndex()) {
             log.warn("the first load item index not match nextIndex, ignore load result");
+            RaftUtil.release(items);
             return;
         }
+
+        // release in AppendReqWriteFrame
         if (member.isMultiAppend()) {
             sendAppendRequest(member, items);
             replicate(member);

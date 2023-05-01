@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.server.LogItem;
@@ -99,7 +100,16 @@ public class AppendReqWriteFrame extends WriteFrame {
                 int dataSize = item.getDataSize();
                 if (dataSize > 0) {
                     PbUtil.writeLengthDelimitedPrefix(buf, 5, dataSize, false);
-                    item.getEncoder().encode(buf, item.getData());
+                    RefBuffer rbb = item.getBuffer();
+                    if (rbb != null) {
+                        ByteBuffer src = rbb.getBuffer();
+                        src.mark();
+                        buf.put(src);
+                        src.reset();
+                        rbb.release();
+                    } else {
+                        item.getEncoder().encode(buf, item.getData());
+                    }
                 }
             }
             logs = null;

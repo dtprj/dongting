@@ -27,6 +27,9 @@ public class DecodeContext {
 
     private DecodeContext nestedContext;
 
+    public DecodeContext() {
+    }
+
     public DecodeContext createOrGetNestedContext(boolean start) {
         DecodeContext c = this.nestedContext;
         if (c == null) {

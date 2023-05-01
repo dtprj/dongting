@@ -116,7 +116,7 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public LogIterator openIterator(Supplier<Boolean> epochChange) {
-        return new DefaultLogIterator(this, groupConfig.getHeapPool(), groupConfig.getDirectPool(),
+        return new DefaultLogIterator(this, groupConfig.getDirectPool(),
                 () -> stopIndicator.get() || epochChange.get());
     }
 

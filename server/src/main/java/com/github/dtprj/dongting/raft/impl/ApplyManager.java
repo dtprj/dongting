@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.DtLog;
@@ -50,6 +53,9 @@ public class ApplyManager {
     private final Timestamp ts;
     private final EventBus eventBus;
     private final RaftStatusImpl raftStatus;
+
+    private final DecodeContext decodeContext;
+
     private boolean configChanging = false;
 
     private boolean waiting;
@@ -57,13 +63,16 @@ public class ApplyManager {
 
     private RaftLog.LogIterator logIterator;
 
-    public ApplyManager(int selfNodeId, RaftLog raftLog, StateMachine<Object, Object> stateMachine, RaftStatusImpl raftStatus, EventBus eventBus) {
+    public ApplyManager(int selfNodeId, RaftLog raftLog, StateMachine<Object, Object> stateMachine,
+                        RaftStatusImpl raftStatus, EventBus eventBus, RefBufferFactory heapPool) {
         this.selfNodeId = selfNodeId;
         this.raftLog = raftLog;
         this.stateMachine = stateMachine;
         this.ts = raftStatus.getTs();
         this.raftStatus = raftStatus;
         this.eventBus = eventBus;
+        this.decodeContext = new DecodeContext();
+        this.decodeContext.setHeapPool(heapPool);
     }
 
     public void apply(RaftStatusImpl raftStatus) {
@@ -99,39 +108,65 @@ public class ApplyManager {
     }
 
     private void resumeAfterLoad(List<LogItem> items, Throwable ex) {
-        waiting = false;
-        if (ex != null) {
-            if (ex instanceof CancellationException) {
-                log.info("ApplyManager load raft log cancelled");
-            } else {
-                log.error("load log failed", ex);
+        try {
+            waiting = false;
+            if (ex != null) {
+                if (ex instanceof CancellationException) {
+                    log.info("ApplyManager load raft log cancelled");
+                } else {
+                    log.error("load log failed", ex);
+                }
+                return;
             }
-            return;
-        }
-        if (items == null || items.size() == 0) {
-            log.error("load log failed, items is null");
-            return;
-        }
-        if (items.get(0).getIndex() != appliedIndex + 1) {
-            // previous load failed, ignore
-            log.warn("first index of load result not match appliedIndex, ignore.");
-            return;
-        }
-        int readCount = items.size();
-        //noinspection ForLoopReplaceableByForEach
-        for (int i = 0; i < readCount; i++) {
-            LogItem item = items.get(i);
-            RaftTask rt = buildRaftTask(item);
-            execChain(item.getIndex(), rt);
-        }
-        appliedIndex += readCount;
+            if (items == null || items.size() == 0) {
+                log.error("load log failed, items is null");
+                return;
+            }
+            if (items.get(0).getIndex() != appliedIndex + 1) {
+                // previous load failed, ignore
+                log.warn("first index of load result not match appliedIndex, ignore.");
+                return;
+            }
+            int readCount = items.size();
+            //noinspection ForLoopReplaceableByForEach
+            for (int i = 0; i < readCount; i++) {
+                LogItem item = items.get(i);
+                RaftTask rt = buildRaftTask(item);
+                execChain(item.getIndex(), rt);
+            }
+            appliedIndex += readCount;
 
-        apply(raftStatus);
+            apply(raftStatus);
+        } finally {
+            RaftUtil.release(items);
+        }
     }
 
     private RaftTask buildRaftTask(LogItem item) {
-        RaftInput input = new RaftInput(item.getData(), null, false, item.getDataSize());
-        return new RaftTask(ts, item.getType(), input, null);
+        try {
+            RefBuffer rbb = item.getBuffer();
+            if (item.getType() == LogItem.TYPE_NORMAL) {
+                ByteBuffer buf = rbb.getBuffer();
+                buf.mark();
+                Object o = stateMachine.getDecoder().decode(decodeContext, buf, buf.remaining(), true, true);
+                buf.reset();
+                item.setData(o);
+            } else {
+                if (rbb != null) {
+                    ByteBuffer src = rbb.getBuffer();
+                    src.mark();
+                    ByteBuffer dest = ByteBuffer.allocate(rbb.getBuffer().remaining());
+                    dest.put(rbb.getBuffer());
+                    dest.flip();
+                    src.reset();
+                    item.setData(dest);
+                }
+            }
+            RaftInput input = new RaftInput(item.getData(), null, false, item.getDataSize());
+            return new RaftTask(ts, item.getType(), input, null);
+        } finally {
+            decodeContext.setStatus(null);
+        }
     }
 
     private void execChain(long index, RaftTask rt) {
