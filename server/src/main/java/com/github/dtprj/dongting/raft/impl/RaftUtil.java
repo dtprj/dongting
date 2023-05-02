@@ -317,7 +317,7 @@ public class RaftUtil {
     }
 
     public static void release(List<LogItem> items) {
-        if(items==null){
+        if (items == null) {
             return;
         }
         //noinspection ForLoopReplaceableByForEach
@@ -328,6 +328,15 @@ public class RaftUtil {
                 b.release();
             }
         }
+    }
+
+    public static ByteBuffer copy(ByteBuffer src) {
+        ByteBuffer dest = ByteBuffer.allocate(src.remaining());
+        int pos = src.position();
+        dest.put(src);
+        dest.flip();
+        src.position(pos);
+        return dest;
     }
 
     public static Object decode(DecodeContext context, ByteBuffer buf, Decoder<?> decoder, int pos, int len) {

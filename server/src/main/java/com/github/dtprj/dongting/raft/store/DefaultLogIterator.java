@@ -42,7 +42,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
 
     int bytes;
     LogItem item;
-    int payLoad;
+    int bodyLen;
 
     DefaultLogIterator(DefaultRaftLog defaultRaftLog, ByteBufferPool directPool, Supplier<Boolean> fullIndicator) {
         this.defaultRaftLog = defaultRaftLog;
@@ -74,6 +74,6 @@ class DefaultLogIterator implements RaftLog.LogIterator {
     public void resetItem() {
         item = null;
         crc32c.reset();
-        payLoad = 0;
+        bodyLen = 0;
     }
 }

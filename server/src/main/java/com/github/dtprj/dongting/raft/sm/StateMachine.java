@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.Encoder;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -28,7 +29,7 @@ public interface StateMachine<I, O> extends AutoCloseable {
 
     Decoder<I> getDecoder();
 
-    Encoder<I> getEncoder();
+    Supplier<Encoder<I>> getEncoder();
 
     CompletableFuture<O> exec(long index, I input);
 

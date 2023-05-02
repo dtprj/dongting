@@ -35,7 +35,7 @@ public class RaftGroupConfigEx extends RaftGroupConfig {
     private Executor raftExecutor;
     private Supplier<Boolean> stopIndicator;
     private RaftStatus raftStatus;
-    private Encoder<?> encoder;
+    private Supplier<Encoder<?>> encoder;
     private Decoder<?> decoder;
 
     public RaftGroupConfigEx(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
@@ -90,11 +90,11 @@ public class RaftGroupConfigEx extends RaftGroupConfig {
         this.raftStatus = raftStatus;
     }
 
-    public Encoder<?> getEncoder() {
+    public Supplier<Encoder<?>> getEncoder() {
         return encoder;
     }
 
-    public void setEncoder(Encoder<?> encoder) {
+    public void setEncoder(Supplier<Encoder<?>> encoder) {
         this.encoder = encoder;
     }
 

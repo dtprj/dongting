@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.server.LogItem;
@@ -37,7 +36,6 @@ import java.util.function.BiConsumer;
 public class Raft implements BiConsumer<EventType, Object> {
 
     private final ReplicateManager replicateManager;
-    private final Encoder<?> encoder;
     private final ApplyManager applyManager;
     private final CommitManager commitManager;
 
@@ -47,7 +45,7 @@ public class Raft implements BiConsumer<EventType, Object> {
     private final Timestamp ts;
 
     public Raft(RaftStatusImpl raftStatus, RaftLog raftLog, ApplyManager applyManager,
-                CommitManager commitManager, ReplicateManager replicateManager, Encoder<?> encoder) {
+                CommitManager commitManager, ReplicateManager replicateManager) {
         this.raftStatus = raftStatus;
         this.raftLog = raftLog;
         this.ts = raftStatus.getTs();
@@ -104,7 +102,6 @@ public class Raft implements BiConsumer<EventType, Object> {
                 item.setTimestamp(ts.getWallClockMillis());
                 item.setData(input.getInput());
                 item.setDataSize(input.size());
-                item.setEncoder(encoder);
                 logs.add(item);
 
                 rt.item = item;

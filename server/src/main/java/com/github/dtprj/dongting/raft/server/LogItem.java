@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.codec.Encoder;
 
 /**
  * @author huangli
@@ -38,7 +37,6 @@ public class LogItem {
     private Object data;
     //TODO check if it is necessary
     private int dataSize;
-    private Encoder encoder;
 
     public LogItem() {
     }
@@ -97,14 +95,6 @@ public class LogItem {
 
     public void setTimestamp(long timestamp) {
         this.timestamp = timestamp;
-    }
-
-    public Encoder getEncoder() {
-        return encoder;
-    }
-
-    public void setEncoder(Encoder encoder) {
-        this.encoder = encoder;
     }
 
     public RefBuffer getBuffer() {

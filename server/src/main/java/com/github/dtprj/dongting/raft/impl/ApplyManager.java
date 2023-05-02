@@ -153,13 +153,7 @@ public class ApplyManager {
                 item.setData(o);
             } else {
                 if (rbb != null) {
-                    ByteBuffer src = rbb.getBuffer();
-                    src.mark();
-                    ByteBuffer dest = ByteBuffer.allocate(rbb.getBuffer().remaining());
-                    dest.put(rbb.getBuffer());
-                    dest.flip();
-                    src.reset();
-                    item.setData(dest);
+                    item.setData(RaftUtil.copy(rbb.getBuffer()));
                 }
             }
             RaftInput input = new RaftInput(item.getData(), null, false, item.getDataSize());

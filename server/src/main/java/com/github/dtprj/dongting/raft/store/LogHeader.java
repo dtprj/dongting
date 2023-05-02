@@ -18,13 +18,11 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.raft.server.LogItem;
 
 import java.nio.ByteBuffer;
-import java.util.zip.CRC32C;
 
 /**
  * @author huangli
  */
 class LogHeader {
-    // crc32c 4 bytes
     // total len 4 bytes
     // head len 2 bytes
     // type 1 byte
@@ -32,9 +30,8 @@ class LogHeader {
     // prevLogTerm 4 bytes
     // index 8 bytes
     // timestamp 8 bytes
-    static final int ITEM_HEADER_SIZE = 4 + 4 + 2 + 1 + 4 + 4 + 8 + 8;
+    static final int ITEM_HEADER_SIZE = 4 + 2 + 1 + 4 + 4 + 8 + 8;
 
-    int crc;
     int totalLen;
     int headLen;
     int type;
@@ -44,7 +41,6 @@ class LogHeader {
     long timestamp;
 
     public void read(ByteBuffer buf) {
-        crc = buf.getInt();
         totalLen = buf.getInt();
         headLen = buf.getShort();
         type = buf.get();
@@ -54,9 +50,7 @@ class LogHeader {
         timestamp = buf.getLong();
     }
 
-    public static void writeHeader(ByteBuffer buffer, LogItem log, int totalLen, CRC32C crc32c) {
-        int crcPos = buffer.position();
-        buffer.putInt(0);
+    public static void writeHeader(ByteBuffer buffer, LogItem log, int totalLen) {
         buffer.putInt(totalLen);
         buffer.putShort((short) ITEM_HEADER_SIZE);
         buffer.put((byte) log.getType());
@@ -64,11 +58,10 @@ class LogHeader {
         buffer.putInt(log.getPrevLogTerm());
         buffer.putLong(log.getIndex());
         buffer.putLong(log.getTimestamp());
+    }
 
-        crc32c.reset();
-
-        LogFileQueue.updateCrc(crc32c, buffer, crcPos + 4, buffer.position() - crcPos - 4);
-
-        // TODO update body crc
+    public static int totalSize(int bodySize) {
+        // header + body + crc32
+        return ITEM_HEADER_SIZE + 4 + bodySize;
     }
 }
