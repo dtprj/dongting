@@ -15,11 +15,9 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
@@ -30,7 +28,6 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -137,11 +134,8 @@ class LogFileQueue extends FileQueue {
             }
 
             long itemStartPos = pos;
-            int crcStartPos = writeBuffer.position();
-            LogHeader.writeHeader(writeBuffer, log, totalLen);
+            LogHeader.writeHeader(crc32c, writeBuffer, log, 0, 0, dataSize);
             pos += LogHeader.ITEM_HEADER_SIZE;
-            crc32c.reset();
-            updateCrc(crc32c, writeBuffer, crcStartPos, LogHeader.ITEM_HEADER_SIZE);
 
             Encoder encoder;
             if (log.getType() == LogItem.TYPE_NORMAL) {
@@ -150,19 +144,19 @@ class LogFileQueue extends FileQueue {
                 // TODO byte buffer encoder
                 encoder = null;
             }
-            crcStartPos = writeBuffer.position();
+            int lastPos = writeBuffer.position();
             while (!encoder.encode(writeBuffer, log.getData())) {
-                if (writeBuffer.position() > crcStartPos) {
-                    updateCrc(crc32c, writeBuffer, crcStartPos, writeBuffer.position() - crcStartPos);
+                if (writeBuffer.position() > lastPos) {
+                    updateCrc(crc32c, writeBuffer, lastPos, writeBuffer.position() - lastPos);
                 }
                 pos = writeAndClearBuffer(writeBuffer, file, pos);
-                crcStartPos = 0;
+                lastPos = 0;
             }
 
-            if (writeBuffer.position() > crcStartPos) {
-                updateCrc(crc32c, writeBuffer, crcStartPos, writeBuffer.position() - crcStartPos);
+            if (writeBuffer.position() > lastPos) {
+                updateCrc(crc32c, writeBuffer, lastPos, writeBuffer.position() - lastPos);
             }
-            if (writeBuffer.remaining() <= 4) {
+            if (writeBuffer.remaining() < 4) {
                 pos = writeAndClearBuffer(writeBuffer, file, pos);
             }
             writeBuffer.putInt((int) crc32c.getValue());
@@ -191,40 +185,12 @@ class LogFileQueue extends FileQueue {
         writePos = dataPosition;
     }
 
-    public CompletableFuture<List<LogItem>> loadLog(long pos, DefaultLogIterator it, int limit, int bytesLimit) {
+    public void checkPos(long pos){
         if (pos < queueStartPosition) {
             throw new RaftException("pos too small: " + pos);
         }
         if (pos >= writePos) {
             throw new RaftException("pos too large: " + pos);
-        }
-        int rest = (int) (writePos - pos);
-        if (rest <= 0) {
-            BugLog.getLog().error("rest is illegal. pos={}, writePos={}", pos, writePos);
-            throw new RaftException("rest is illegal.");
-        }
-        ByteBuffer buf = it.readBuffer;
-        List<LogItem> result = new ArrayList<>();
-        it.resetBeforeLoad();
-        if (buf.hasRemaining()) {
-            if (buf.remaining() > rest) {
-                buf.limit(buf.position() + rest);
-            }
-            int oldRemaining = buf.remaining();
-            if (extractItems(it, result, limit, bytesLimit)) {
-                return CompletableFuture.completedFuture(result);
-            } else {
-                pos += oldRemaining - buf.remaining();
-                prepareNextRead(buf);
-                CompletableFuture<List<LogItem>> future = new CompletableFuture<>();
-                loadLogFromStore(pos, it, limit, bytesLimit, result, future);
-                return future;
-            }
-        } else {
-            buf.clear();
-            CompletableFuture<List<LogItem>> future = new CompletableFuture<>();
-            loadLogFromStore(pos, it, limit, bytesLimit, result, future);
-            return future;
         }
     }
 
@@ -237,155 +203,6 @@ class LogFileQueue extends FileQueue {
             buf.clear();
         }
     }
-
-    private void loadLogFromStore(long pos, DefaultLogIterator it, int limit, int bytesLimit,
-                                  List<LogItem> result, CompletableFuture<List<LogItem>> future) {
-        int rest = (int) (writePos - pos);
-        if (rest <= 0) {
-            log.warn("rest is illegal. pos={}, writePos={}", pos, writePos);
-            future.completeExceptionally(new RaftException("rest is illegal."));
-            return;
-        }
-        LogFile logFile = getLogFile(pos);
-        int fileStartPos = (int) (pos & FILE_LEN_MASK);
-        rest = Math.min(rest, LOG_FILE_SIZE - fileStartPos);
-        ByteBuffer buf = it.readBuffer;
-        if (rest < buf.remaining()) {
-            buf.limit(buf.position() + rest);
-        }
-        long newReadPos = pos + buf.remaining();
-        AsyncIoTask t = new AsyncIoTask(buf, fileStartPos, logFile, it.fullIndicator);
-        logFile.use++;
-        t.exec().whenCompleteAsync((v, ex) -> resumeAfterLoad(logFile, newReadPos, it, limit, bytesLimit,
-                result, future, ex), raftExecutor);
-    }
-
-    private void resumeAfterLoad(LogFile logFile, long newReadPos, DefaultLogIterator it, int limit, int bytesLimit,
-                                 List<LogItem> result, CompletableFuture<List<LogItem>> future, Throwable ex) {
-        try {
-            logFile.use--;
-            if (it.fullIndicator.get()) {
-                future.cancel(false);
-            } else if (ex != null) {
-                future.completeExceptionally(ex);
-            } else {
-                ByteBuffer buf = it.readBuffer;
-                buf.flip();
-                if (extractItems(it, result, limit, bytesLimit)) {
-                    future.complete(result);
-                    it.nextIndex = it.nextIndex + result.size();
-                } else {
-                    prepareNextRead(buf);
-                    loadLogFromStore(newReadPos, it, limit, bytesLimit, result, future);
-                }
-            }
-        } catch (Throwable e) {
-            future.completeExceptionally(e);
-        }
-    }
-
-    private boolean extractItems(DefaultLogIterator it, List<LogItem> result, int limit, int bytesLimit) {
-        ByteBuffer buf = it.readBuffer;
-        while (buf.remaining() >= LogHeader.ITEM_HEADER_SIZE) {
-            if (it.item == null) {
-                if (extractedNewItem(it, result, limit, bytesLimit, buf)) {
-                    return true;
-                }
-            } else {
-                if (extractItemResume(it, result, limit, buf)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-
-    private boolean extractedNewItem(DefaultLogIterator it, List<LogItem> result, int limit,
-                                     int bytesLimit, ByteBuffer readBuffer) {
-        LogHeader header = it.header;
-        int startPos = readBuffer.position();
-        header.read(readBuffer);
-
-        int bodyLen = header.totalLen - header.headLen;
-        it.bodyLen = bodyLen;
-        if (header.totalLen <= 0 || header.headLen <= 0 ||  bodyLen < 0 || bodyLen > LOG_FILE_SIZE) {
-            throw new RaftException("invalid log item length: " + header.totalLen
-                    + "," + header.headLen);
-        }
-
-        if (result.size() > 0 && it.bytes + bodyLen > bytesLimit) {
-            // rollback position for next use
-            readBuffer.position(startPos);
-            return true;
-        }
-
-        LogItem li = new LogItem();
-        it.item = li;
-        li.setIndex(header.index);
-        li.setType(header.type);
-        li.setTerm(header.term);
-        li.setPrevLogTerm(header.prevLogTerm);
-        li.setTimestamp(header.timestamp);
-        li.setDataSize(bodyLen);
-
-        updateCrc(it.crc32c, readBuffer, startPos, );
-        if (bodyLen > 0) {
-            RefBuffer rbb = li.getBuffer();
-            if (rbb == null) {
-                rbb = heapPool.create(bodyLen);
-                li.setBuffer(rbb);
-            }
-            int available = Math.min(readBuffer.remaining(), bodyLen);
-            ByteBuffer dest = rbb.getBuffer();
-            readBuffer.get(dest.array(), 0, available);
-            dest.position(available);
-        }
-        if (readBuffer.remaining() >= bodyLen + 4) {
-            if (bodyLen > 0) {
-                li.getBuffer().getBuffer().flip();
-            }
-            result.add(li);
-            it.bytes += bodyLen;
-            it.resetItem();
-            int crc = readBuffer.getInt(); // crc
-            if (it.crc32c.getValue() != crc) {
-                throw new RaftException("crc32c not match");
-            }
-            if (result.size() >= limit) {
-                return true;
-            }
-        } else {
-            // the rest bytes not greater than 4
-        }
-        return false;
-    }
-
-    private boolean extractItemResume(DefaultLogIterator it, List<LogItem> result, int limit, ByteBuffer buf) {
-        ByteBuffer destBuf = it.item.getBuffer().getBuffer();
-        int read = destBuf.position();
-        int restBytes = it.bodyLen - read;
-        if (buf.remaining() >= restBytes) {
-            updateCrc(it.crc32c, buf, buf.position(), restBytes);
-            if (it.crc32c.getValue() != it.header.c) {
-                throw new RaftException("crc32c not match");
-            }
-            buf.get(destBuf.array(), read, restBytes);
-            destBuf.limit(it.bodyLen);
-            destBuf.position(0);
-            result.add(it.item);
-            it.bytes += it.bodyLen;
-            it.resetItem();
-            if (result.size() >= limit) {
-                return true;
-            }
-        } else {
-            updateCrc(it.crc32c, buf, buf.position(), buf.limit());
-            destBuf.put(buf);
-        }
-        return false;
-    }
-
 
     public void markDeleteByIndex(long index, long deleteTimestamp) {
         markDelete(deleteTimestamp, nextFile -> index >= nextFile.firstIndex);

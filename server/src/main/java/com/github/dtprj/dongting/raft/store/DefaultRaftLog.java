@@ -116,27 +116,8 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public LogIterator openIterator(Supplier<Boolean> epochChange) {
-        return new DefaultLogIterator(this, groupConfig.getDirectPool(),
+        return new DefaultLogIterator(idxFiles, logFiles, groupConfig.getDirectPool(),
                 () -> stopIndicator.get() || epochChange.get());
-    }
-
-    CompletableFuture<List<LogItem>> next(DefaultLogIterator it, long index, int limit, int bytesLimit) {
-        try {
-            if (index != it.nextIndex) {
-                it.resetBuffer();
-                it.nextIndex = index;
-            }
-            long pos = idxFiles.syncLoadLogPos(index);
-            CompletableFuture<List<LogItem>> result = logFiles.loadLog(pos, it, limit, bytesLimit);
-            result.exceptionally(e -> {
-                it.resetBuffer();
-                return null;
-            });
-            return result;
-        } catch (Throwable e) {
-            it.resetBuffer();
-            return CompletableFuture.failedFuture(e);
-        }
     }
 
     @Override

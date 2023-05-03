@@ -131,7 +131,7 @@ class Restorer {
                     if (header.index != commitIndex) {
                         throw new RaftException("commitIndex not match. file=" + lf.file.getPath() + ", pos=" + itemStartPosOfFile);
                     }
-                    if (header.totalLen <= 0 || header.headLen <= 0 ||
+                    if (header.totalLen <= 0 || header.bizHeaderLen <= 0 ||
                             header.type < 0 || header.term <= 0 || header.prevLogTerm < 0) {
                         throw new RaftException("bad item. file=" + lf.file.getPath() + ", pos=" + itemStartPosOfFile);
                     }
@@ -140,7 +140,7 @@ class Restorer {
                 this.previousTerm = header.term;
                 this.previousIndex = header.index;
 
-                if (header.totalLen < header.headLen
+                if (header.totalLen < header.bizHeaderLen
                         || itemStartPosOfFile + header.totalLen > LogFileQueue.LOG_FILE_SIZE) {
                     log.error("bad item len. file={}, itemStartPos={}", lf.file.getPath(), itemStartPosOfFile);
                     return false;
@@ -150,7 +150,7 @@ class Restorer {
                 LogFileQueue.updateCrc(crc32c, buf, startPos + 4, LogHeader.ITEM_HEADER_SIZE - 4);
                 buf.position(startPos + LogHeader.ITEM_HEADER_SIZE);
                 readHeader = false;
-                bodyRestLen = header.totalLen - header.headLen;
+                bodyRestLen = header.totalLen - header.bizHeaderLen;
             } else {
                 if (buf.remaining() >= bodyRestLen) {
                     LogFileQueue.updateCrc(crc32c, buf, buf.position(), bodyRestLen);
