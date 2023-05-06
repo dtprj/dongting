@@ -109,7 +109,7 @@ class LogFileQueue extends FileQueue {
             LogItem log = logs.get(i);
             int dataSize = log.getDataSize();
             long posOfFile = (pos + writeBuffer.position()) & FILE_LEN_MASK;
-            int totalLen = LogHeader.totalSize(dataSize);
+            int totalLen = LogHeader.computeTotalLen(0, 0, dataSize);
             if (posOfFile == 0) {
                 if (i != 0) {
                     // last item exactly fill the file
@@ -333,7 +333,7 @@ class LogFileQueue extends FileQueue {
         ByteBuffer buf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE);
         FileUtil.syncReadFull(logFile.channel, buf, pos & FILE_LEN_MASK);
         buf.flip();
-        header.read(buf);
+        header.read(new CRC32C(), buf);
         if (header.index != index) {
             throw new RaftException("index not match");
         }

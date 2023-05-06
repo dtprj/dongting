@@ -21,4 +21,7 @@ import com.github.dtprj.dongting.raft.client.RaftException;
  * @author huangli
  */
 public class ChecksumException extends RaftException {
+    public ChecksumException(String msg) {
+        super(msg);
+    }
 }

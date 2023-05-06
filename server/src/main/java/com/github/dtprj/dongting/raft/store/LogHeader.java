@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 
 import java.nio.ByteBuffer;
@@ -25,42 +26,50 @@ import java.util.zip.CRC32C;
  */
 class LogHeader {
     // total len 4 bytes
-    // biz header len 2 bytes
     // context len 4 bytes
+    // biz header len 4 bytes
+    // body len 4 bytes
     // type 1 byte
     // term 4 bytes
     // prevLogTerm 4 bytes
     // index 8 bytes
     // timestamp 8 bytes
     // header crc
-    static final int ITEM_HEADER_SIZE = 4 + 2 + 4 + 1 + 4 + 4 + 8 + 8 + 4;
+    static final int ITEM_HEADER_SIZE = 4 + 4 + 4 + 4 + 1 + 4 + 4 + 8 + 8 + 4;
 
     int totalLen;
-    int bizHeaderLen;
     int contextLen;
+    int bizHeaderLen;
+    int bodyLen;
     int type;
     int term;
     int prevLogTerm;
     long index;
     long timestamp;
-    int headerCrc;
 
-    public void read(ByteBuffer buf) {
+    public void read(CRC32C crc32c, ByteBuffer buf) {
+        int start = buf.position();
         totalLen = buf.getInt();
-        bizHeaderLen = buf.getShort();
         contextLen = buf.getInt();
+        bizHeaderLen = buf.getInt();
+        bodyLen = buf.getInt();
         type = buf.get();
         term = buf.getInt();
         prevLogTerm = buf.getInt();
         index = buf.getLong();
         timestamp = buf.getLong();
-        headerCrc = buf.getInt();
+        int headerCrc = buf.getInt();
+        crc32c.reset();
+        LogFileQueue.updateCrc(crc32c, buf, start, ITEM_HEADER_SIZE - 4);
+        if (headerCrc != crc32c.getValue()) {
+            throw new ChecksumException("header crc32c not match");
+        }
     }
 
-    public static int computeTotalLen(int bizHeaderLen, int contextLen, int bodyLen) {
+    public static int computeTotalLen(int contextLen, int bizHeaderLen, int bodyLen) {
         return ITEM_HEADER_SIZE
-                + bizHeaderLen == 0 ? 0 : bizHeaderLen + 4
                 + contextLen == 0 ? 0 : contextLen + 4
+                + bizHeaderLen == 0 ? 0 : bizHeaderLen + 4
                 + bodyLen == 0 ? 0 : bodyLen + 4;
     }
 
@@ -68,8 +77,9 @@ class LogHeader {
                                    int bizHeaderLen, int contextLen, int bodyLen) {
         int startPos = buffer.position();
         buffer.putInt(computeTotalLen(bizHeaderLen, contextLen, bodyLen));
-        buffer.putShort((short) bizHeaderLen);
         buffer.putInt(contextLen);
+        buffer.putInt(bizHeaderLen);
+        buffer.putInt(bodyLen);
         buffer.put((byte) log.getType());
         buffer.putInt(log.getTerm());
         buffer.putInt(log.getPrevLogTerm());
@@ -78,10 +88,5 @@ class LogHeader {
         crc.reset();
         LogFileQueue.updateCrc(crc, buffer, startPos, ITEM_HEADER_SIZE);
         buffer.putInt((int) crc.getValue());
-    }
-
-    public static int totalSize(int bodySize) {
-        // header + body + crc32
-        return ITEM_HEADER_SIZE + 4 + bodySize;
     }
 }
