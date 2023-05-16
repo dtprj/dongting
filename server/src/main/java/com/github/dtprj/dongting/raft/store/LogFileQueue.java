@@ -42,8 +42,8 @@ import java.util.zip.CRC32C;
 class LogFileQueue extends FileQueue {
     private static final DtLog log = DtLogs.getLogger(LogFileQueue.class);
 
-    static final int LOG_FILE_SIZE = 1024 * 1024 * 1024;
-    static final int FILE_LEN_MASK = LOG_FILE_SIZE - 1;
+    private static final int LOG_FILE_SIZE = 1024 * 1024 * 1024;
+    private static final int FILE_LEN_MASK = LOG_FILE_SIZE - 1;
     private static final int FILE_LEN_SHIFT_BITS = BitUtil.zeroCountOfBinary(LOG_FILE_SIZE);
 
     private final IdxOps idxOps;
@@ -185,7 +185,7 @@ class LogFileQueue extends FileQueue {
         writePos = dataPosition;
     }
 
-    public void checkPos(long pos){
+    public void checkPos(long pos) {
         if (pos < queueStartPosition) {
             throw new RaftException("pos too small: " + pos);
         }
@@ -382,5 +382,26 @@ class LogFileQueue extends FileQueue {
         } else {
             return Long.compare(index1, index2);
         }
+    }
+
+    public int filePos(long absolutePos) {
+        return (int) (absolutePos & LogFileQueue.FILE_LEN_MASK);
+    }
+
+    public int restInCurrentFile(long absolutePos) {
+        long totalRest = writePos - absolutePos;
+        int fileRest = LOG_FILE_SIZE - filePos(absolutePos);
+        return (int) Math.min(totalRest, fileRest);
+    }
+
+    public boolean checkHeader(long itemStartPos, LogHeader header) {
+        int filePos = filePos(itemStartPos);
+        int expectTotalLen = LogHeader.computeTotalLen(header.contextLen, header.bizHeaderLen, header.bodyLen);
+        if (header.totalLen < 0 || header.bizHeaderLen < 0 || header.bodyLen < 0 || header.contextLen < 0
+                || header.totalLen != expectTotalLen
+                || filePos + expectTotalLen > LOG_FILE_SIZE) {
+            return false;
+        }
+        return true;
     }
 }

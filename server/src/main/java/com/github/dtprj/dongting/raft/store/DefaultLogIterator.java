@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -54,15 +52,16 @@ class DefaultLogIterator implements RaftLog.LogIterator {
     private long nextIndex = -1;
     private long nextPos = -1;
 
+    // TODO check error handling
     private boolean error;
     private boolean close;
 
     private int bytes;
-    private LogItem item;
     private int limit;
     private int bytesLimit;
     private List<LogItem> result;
     private CompletableFuture<List<LogItem>> future;
+    private LogItem item;
 
     DefaultLogIterator(IdxFileQueue idxFiles, LogFileQueue logFiles, RaftGroupConfigEx groupConfig, Supplier<Boolean> fullIndicator) {
         this.idxFiles = idxFiles;
@@ -90,7 +89,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
                     throw new RaftException("nextIndex!=index");
                 }
             }
-            logFiles.checkPos();
+            logFiles.checkPos(nextPos);
 
             this.result = new ArrayList<>();
             this.future = new CompletableFuture<>();
@@ -114,7 +113,20 @@ class DefaultLogIterator implements RaftLog.LogIterator {
 
     private void extractAndLoadNextIfNecessary() {
         int oldRemaining = readBuffer.remaining();
-        boolean extractFinish = extractItems(result, limit, bytesLimit);
+
+        boolean extractFinish = false;
+        ByteBuffer buf = readBuffer;
+        while (buf.remaining() >= LogHeader.ITEM_HEADER_SIZE) {
+            if (item == null) {
+                if (extractHeader(result, bytesLimit, buf)) {
+                    extractFinish = true;
+                }
+            }
+            if (extractItemBody()) {
+                extractFinish = true;
+            }
+        }
+
         int extractBytes = oldRemaining - readBuffer.remaining();
         nextPos += extractBytes;
         if (extractFinish) {
@@ -128,7 +140,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
 
     private void loadLogFromStore() {
         long pos = nextPos;
-        long rest = logFiles.getWritePos() - pos;
+        long rest = logFiles.restInCurrentFile(pos);
         if (rest <= 0) {
             error = true;
             log.error("rest is illegal. pos={}, writePos={}", pos, logFiles.getWritePos());
@@ -136,8 +148,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
             return;
         }
         LogFile logFile = logFiles.getLogFile(pos);
-        int fileStartPos = (int) (pos & LogFileQueue.FILE_LEN_MASK);
-        rest = Math.min(rest, LogFileQueue.LOG_FILE_SIZE - fileStartPos);
+        int fileStartPos = logFiles.filePos(pos);
         ByteBuffer readBuffer = this.readBuffer;
         if (rest < readBuffer.remaining()) {
             readBuffer.limit((int) (readBuffer.position() + rest));
@@ -166,20 +177,6 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         }
     }
 
-    private boolean extractItems(List<LogItem> result, int limit, int bytesLimit) {
-        ByteBuffer buf = readBuffer;
-        while (buf.remaining() >= LogHeader.ITEM_HEADER_SIZE) {
-            if (item == null) {
-                if (extractHeader(result, bytesLimit, buf)) {
-                    return true;
-                }
-            }
-            if (extractItemBody(result, limit, buf)) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     private boolean extractHeader(List<LogItem> result, int bytesLimit, ByteBuffer readBuffer) {
         LogHeader header = this.header;
@@ -187,9 +184,8 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         header.read(crc32c, readBuffer);
 
         int bodyLen = header.totalLen - header.bizHeaderLen;
-        if (header.totalLen <= 0 || header.bizHeaderLen <= 0 || bodyLen < 0 || bodyLen > LogFileQueue.LOG_FILE_SIZE) {
-            throw new RaftException("invalid log item length: " + header.totalLen
-                    + "," + header.bizHeaderLen);
+        if (!logFiles.checkHeader(nextPos, header)) {
+            throw new RaftException("invalid log item length: totalLen=" + header.totalLen + ", nextPos=" + nextPos);
         }
 
         if (result.size() > 0 && bytes + bodyLen > bytesLimit) {
@@ -212,29 +208,38 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         return false;
     }
 
-    private boolean extractItemBody(List<LogItem> result, int limit, ByteBuffer buf) {
-        ByteBuffer destBuf = it.item.getBuffer().getBuffer();
-        int read = destBuf.position();
-        int restBytes = it.bodyLen - read;
-        if (buf.remaining() >= restBytes) {
-            updateCrc(it.crc32c, buf, buf.position(), restBytes);
-            if (it.crc32c.getValue() != it.header.c) {
-                throw new RaftException("crc32c not match");
-            }
-            buf.get(destBuf.array(), read, restBytes);
-            destBuf.limit(it.bodyLen);
-            destBuf.position(0);
-            result.add(it.item);
-            it.bytes += it.bodyLen;
-            it.resetItem();
-            if (result.size() >= limit) {
-                return true;
-            }
+    private boolean extractItemBody() {
+        int bodyLen = header.bodyLen;
+        if (bodyLen == 0) {
+            result.add(item);
+            item = null;
+            return result.size() >= limit;
         } else {
-            updateCrc(it.crc32c, buf, buf.position(), buf.limit());
-            destBuf.put(buf);
+            ByteBuffer destBuf = item.getBuffer().getBuffer();
+            int read = destBuf.position();
+            int restBytes = bodyLen - read;
+            ByteBuffer buf = readBuffer;
+            if (restBytes > 0 && buf.remaining() > 0) {
+                LogFileQueue.updateCrc(crc32c, buf, buf.position(), restBytes);
+            }
+            if (buf.remaining() >= restBytes + 4) {
+                buf.get(destBuf.array(), read, restBytes);
+                destBuf.limit(bodyLen);
+                destBuf.position(0);
+                if (crc32c.getValue() != buf.getInt()) {
+                    throw new RaftException("crc32c not match");
+                }
+
+                result.add(item);
+                bytes += bodyLen;
+                item = null;
+                return result.size() >= limit;
+            } else {
+                int restBodyLen = Math.min(restBytes, buf.remaining());
+                buf.get(destBuf.array(), read, restBodyLen);
+                return false;
+            }
         }
-        return false;
     }
 
     @Override

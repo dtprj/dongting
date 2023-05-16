@@ -53,7 +53,6 @@ public class Raft implements BiConsumer<EventType, Object> {
         this.applyManager = applyManager;
         this.commitManager = commitManager;
         this.replicateManager = replicateManager;
-        this.encoder = encoder;
     }
 
     @Override
