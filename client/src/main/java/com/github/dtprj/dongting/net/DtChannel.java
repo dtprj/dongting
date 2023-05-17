@@ -66,6 +66,7 @@ class DtChannel extends PbCallback<Object> {
     private WriteData writeDataForResp;
     private ReqProcessor processorForRequest;
     private int currentReadFrameSize;
+    private Decoder<?> currentDecoder;
 
     private boolean running = true;
 
@@ -141,6 +142,7 @@ class DtChannel extends PbCallback<Object> {
         readBody = false;
         writeDataForResp = null;
         processorForRequest = null;
+        currentDecoder = null;
     }
 
     @Override
@@ -227,13 +229,13 @@ class DtChannel extends PbCallback<Object> {
             throw new NetException("command invalid :" + frame.getCommand());
         }
         // the body field should encode as last field
-        Decoder<?> decoder = initRelatedDataForFrame(true);
-        if (decoder == null) {
+        initRelatedDataForFrame(true);
+        if (currentDecoder == null) {
             return true;
         }
 
         try {
-            Object o = decoder.decode(decodeContext, buf, fieldLen, start, end);
+            Object o = currentDecoder.decode(decodeContext, buf, fieldLen, start, end);
             if (end) {
                 frame.setBody(o);
             }
@@ -250,7 +252,7 @@ class DtChannel extends PbCallback<Object> {
         return true;
     }
 
-    private Decoder<?> initRelatedDataForFrame(boolean returnDecoder) {
+    private void initRelatedDataForFrame(boolean initDecoder) {
         ReadFrame frame = this.frame;
         if (frame.getFrameType() == FrameType.TYPE_RESP) {
             WriteData writeDataForResp = this.writeDataForResp;
@@ -258,21 +260,18 @@ class DtChannel extends PbCallback<Object> {
                 writeDataForResp = this.workerStatus.getPendingRequests().remove(BitUtil.toLong(channelIndexInWorker, frame.getSeq()));
                 if (writeDataForResp == null) {
                     log.info("pending request not found. channel={}, resp={}", channel, frame);
-                    return null;
+                    return;
                 } else {
                     this.writeDataForResp = writeDataForResp;
                 }
             }
-            if (returnDecoder) {
-                return writeDataForResp.getRespDecoder();
-            } else {
-                return null;
+            if (initDecoder && currentDecoder == null) {
+                currentDecoder = writeDataForResp.getRespDecoder();
             }
         } else {
             if (!running) {
-                log.debug("the channel is closing...");
                 writeErrorInIoThread(frame, CmdCodes.STOPPING, null);
-                return null;
+                return;
             }
             ReqProcessor processorForRequest = this.processorForRequest;
             if (processorForRequest == null) {
@@ -280,7 +279,7 @@ class DtChannel extends PbCallback<Object> {
                 if (processorForRequest == null) {
                     log.warn("command {} is not support", frame.getCommand());
                     writeErrorInIoThread(frame, CmdCodes.COMMAND_NOT_SUPPORT, null);
-                    return null;
+                    return;
                 }
                 if (processorForRequest.getExecutor() != null) {
                     // TODO can we eliminate this CAS operation?
@@ -293,16 +292,14 @@ class DtChannel extends PbCallback<Object> {
                             writeErrorInIoThread(frame, CmdCodes.FLOW_CONTROL,
                                     "max incoming request bytes: " + nioConfig.getMaxInBytes());
                             inReqBytes.addAndGet(-currentReadFrameSize);
-                            return null;
+                            return;
                         }
                     }
                 }
                 this.processorForRequest = processorForRequest;
             }
-            if (returnDecoder) {
-                return processorForRequest.createDecoder();
-            } else {
-                return null;
+            if (initDecoder && currentDecoder == null) {
+                currentDecoder = processorForRequest.createDecoder();
             }
         }
     }
