@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.server.LogItem;
@@ -46,6 +47,7 @@ import java.util.List;
 //}
 public class AppendReqWriteFrame extends WriteFrame {
 
+    private final Encoder bodyEncoder;
     private int groupId;
     private int term;
     private int leaderId;
@@ -53,6 +55,10 @@ public class AppendReqWriteFrame extends WriteFrame {
     private int prevLogTerm;
     private List<LogItem> logs;
     private long leaderCommit;
+
+    public AppendReqWriteFrame(Encoder bodyEncoder) {
+        this.bodyEncoder = bodyEncoder;
+    }
 
     @Override
     protected int calcEstimateBodySize() {
@@ -108,7 +114,7 @@ public class AppendReqWriteFrame extends WriteFrame {
                         src.reset();
                         rbb.release();
                     } else {
-                        item.getEncoder().encode(buf, item.getData());
+                        bodyEncoder.encode(buf, item.getData());
                     }
                 }
             }

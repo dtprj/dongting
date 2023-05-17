@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
+import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
@@ -39,11 +40,11 @@ import java.util.zip.CRC32C;
 /**
  * @author huangli
  */
-class LogFileQueue extends FileQueue {
+class LogFileQueue extends FileQueue implements FileOps {
     private static final DtLog log = DtLogs.getLogger(LogFileQueue.class);
 
-    private static final int LOG_FILE_SIZE = 1024 * 1024 * 1024;
-    private static final int FILE_LEN_MASK = LOG_FILE_SIZE - 1;
+    private static final long LOG_FILE_SIZE = 1024 * 1024 * 1024;
+    private static final long FILE_LEN_MASK = LOG_FILE_SIZE - 1;
     private static final int FILE_LEN_SHIFT_BITS = BitUtil.zeroCountOfBinary(LOG_FILE_SIZE);
 
     private final IdxOps idxOps;
@@ -74,7 +75,7 @@ class LogFileQueue extends FileQueue {
 
     public int restore(long commitIndex, long commitIndexPos) throws IOException {
         log.info("restore from {}, {}", commitIndex, commitIndexPos);
-        Restorer restorer = new Restorer(idxOps, commitIndex, commitIndexPos);
+        Restorer restorer = new Restorer(idxOps, this, commitIndex, commitIndexPos);
         for (int i = 0; i < queue.size(); i++) {
             LogFile lf = queue.get(i);
             writePos = restorer.restoreFile(this.writeBuffer, lf);
@@ -333,7 +334,10 @@ class LogFileQueue extends FileQueue {
         ByteBuffer buf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE);
         FileUtil.syncReadFull(logFile.channel, buf, pos & FILE_LEN_MASK);
         buf.flip();
-        header.read(new CRC32C(), buf);
+        header.read(buf);
+        if (!header.crcMatch()) {
+            throw new ChecksumException();
+        }
         if (header.index != index) {
             throw new RaftException("index not match");
         }
@@ -384,24 +388,20 @@ class LogFileQueue extends FileQueue {
         }
     }
 
-    public int filePos(long absolutePos) {
+    @Override
+    public long filePos(long absolutePos) {
         return (int) (absolutePos & LogFileQueue.FILE_LEN_MASK);
     }
 
-    public int restInCurrentFile(long absolutePos) {
+    public long restInCurrentFile(long absolutePos) {
         long totalRest = writePos - absolutePos;
-        int fileRest = LOG_FILE_SIZE - filePos(absolutePos);
-        return (int) Math.min(totalRest, fileRest);
+        long fileRest = LOG_FILE_SIZE - filePos(absolutePos);
+        return Math.min(totalRest, fileRest);
     }
 
-    public boolean checkHeader(long itemStartPos, LogHeader header) {
-        int filePos = filePos(itemStartPos);
-        int expectTotalLen = LogHeader.computeTotalLen(header.contextLen, header.bizHeaderLen, header.bodyLen);
-        if (header.totalLen < 0 || header.bizHeaderLen < 0 || header.bodyLen < 0 || header.contextLen < 0
-                || header.totalLen != expectTotalLen
-                || filePos + expectTotalLen > LOG_FILE_SIZE) {
-            return false;
-        }
-        return true;
+    @Override
+    public long fileLength() {
+        return LOG_FILE_SIZE;
     }
+
 }

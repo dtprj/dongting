@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 
 import java.nio.ByteBuffer;
@@ -37,6 +36,8 @@ class LogHeader {
     // header crc
     static final int ITEM_HEADER_SIZE = 4 + 4 + 4 + 4 + 1 + 4 + 4 + 8 + 8 + 4;
 
+    private CRC32C crc32c = new CRC32C();
+
     int totalLen;
     int contextLen;
     int bizHeaderLen;
@@ -47,7 +48,13 @@ class LogHeader {
     long index;
     long timestamp;
 
-    public void read(CRC32C crc32c, ByteBuffer buf) {
+    int headerCrc;
+    private int expectCrc;
+
+    public LogHeader() {
+    }
+
+    public void read(ByteBuffer buf) {
         int start = buf.position();
         totalLen = buf.getInt();
         contextLen = buf.getInt();
@@ -58,12 +65,16 @@ class LogHeader {
         prevLogTerm = buf.getInt();
         index = buf.getLong();
         timestamp = buf.getLong();
-        int headerCrc = buf.getInt();
+        headerCrc = buf.getInt();
+
+        CRC32C crc32c = this.crc32c;
         crc32c.reset();
         LogFileQueue.updateCrc(crc32c, buf, start, ITEM_HEADER_SIZE - 4);
-        if (headerCrc != crc32c.getValue()) {
-            throw new ChecksumException("header crc32c not match");
-        }
+        expectCrc = (int) crc32c.getValue();
+    }
+
+    public boolean crcMatch() {
+        return headerCrc == expectCrc;
     }
 
     public static int computeTotalLen(int contextLen, int bizHeaderLen, int bodyLen) {
@@ -88,5 +99,15 @@ class LogHeader {
         crc.reset();
         LogFileQueue.updateCrc(crc, buffer, startPos, ITEM_HEADER_SIZE);
         buffer.putInt((int) crc.getValue());
+    }
+
+    public boolean checkHeader(long filePos, long fileLen) {
+        int expectTotalLen = LogHeader.computeTotalLen(contextLen, bizHeaderLen, bodyLen);
+        if (type < 0 || totalLen <= 0 || bizHeaderLen < 0 || bodyLen < 0 || contextLen < 0
+                || totalLen != expectTotalLen
+                || filePos + expectTotalLen > fileLen) {
+            return false;
+        }
+        return true;
     }
 }

@@ -146,7 +146,7 @@ public class Raft implements BiConsumer<EventType, Object> {
 
     public void sendHeartBeat() {
         DtTime deadline = new DtTime(ts, raftStatus.getElectTimeoutNanos(), TimeUnit.NANOSECONDS);
-        RaftInput input = new RaftInput(null, deadline, false, 0);
+        RaftInput input = new RaftInput(null,null, deadline, false, 0);
         RaftTask rt = new RaftTask(ts, LogItem.TYPE_HEARTBEAT, input, null);
         raftExec(Collections.singletonList(rt));
     }

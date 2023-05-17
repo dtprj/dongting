@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
+import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftLog;
@@ -148,7 +149,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
             return;
         }
         LogFile logFile = logFiles.getLogFile(pos);
-        int fileStartPos = logFiles.filePos(pos);
+        long fileStartPos = logFiles.filePos(pos);
         ByteBuffer readBuffer = this.readBuffer;
         if (rest < readBuffer.remaining()) {
             readBuffer.limit((int) (readBuffer.position() + rest));
@@ -181,10 +182,13 @@ class DefaultLogIterator implements RaftLog.LogIterator {
     private boolean extractHeader(List<LogItem> result, int bytesLimit, ByteBuffer readBuffer) {
         LogHeader header = this.header;
         int startPos = readBuffer.position();
-        header.read(crc32c, readBuffer);
+        header.read(readBuffer);
+        if (!header.crcMatch()) {
+            throw new ChecksumException();
+        }
 
         int bodyLen = header.totalLen - header.bizHeaderLen;
-        if (!logFiles.checkHeader(nextPos, header)) {
+        if (!header.checkHeader(logFiles.filePos(nextPos), logFiles.fileLength())) {
             throw new RaftException("invalid log item length: totalLen=" + header.totalLen + ", nextPos=" + nextPos);
         }
 
@@ -227,7 +231,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
                 destBuf.limit(bodyLen);
                 destBuf.position(0);
                 if (crc32c.getValue() != buf.getInt()) {
-                    throw new RaftException("crc32c not match");
+                    throw new ChecksumException("crc32c not match");
                 }
 
                 result.add(item);

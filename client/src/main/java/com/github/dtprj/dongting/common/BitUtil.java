@@ -24,6 +24,10 @@ public class BitUtil {
     }
 
     public static int nextHighestPowerOfTwo(int v) {
+        DtUtil.checkPositive(v, "value");
+        if (v > 1 << 30) {
+            throw new IllegalArgumentException(String.valueOf(v));
+        }
         v--;
         v |= v >> 1;
         v |= v >> 2;
@@ -35,6 +39,35 @@ public class BitUtil {
     }
 
     public static int zeroCountOfBinary(int value) {
+        DtUtil.checkPositive(value, "value");
+        if (nextHighestPowerOfTwo(value) != value) {
+            throw new IllegalArgumentException();
+        }
+        int count = 0;
+        while (value != 1) {
+            count++;
+            value >>= 1;
+        }
+        return count;
+    }
+
+    public static long nextHighestPowerOfTwo(long v) {
+        DtUtil.checkPositive(v, "value");
+        if (v > 1 << 62) {
+            throw new IllegalArgumentException(String.valueOf(v));
+        }
+        v--;
+        v |= v >> 1;
+        v |= v >> 2;
+        v |= v >> 4;
+        v |= v >> 8;
+        v |= v >> 16;
+        v |= v >> 32;
+        v++;
+        return v;
+    }
+
+    public static int zeroCountOfBinary(long value) {
         DtUtil.checkPositive(value, "value");
         if (nextHighestPowerOfTwo(value) != value) {
             throw new IllegalArgumentException();

@@ -20,22 +20,21 @@ import com.github.dtprj.dongting.common.DtTime;
 /**
  * @author huangli
  */
-public class RaftInput {
+public final class RaftInput<H, B> {
     private final DtTime deadline;
     private final boolean readOnly;
-    private final Object input;
+    private final H header;
+    private final B input;
     private int size;
 
-    public RaftInput(Object input, DtTime deadline, boolean readOnly, int size) {
-        this.input = input;
+    public RaftInput(H header, B body, DtTime deadline, boolean readOnly, int size) {
+        this.input = body;
+        this.header = header;
         this.deadline = deadline;
         this.readOnly = readOnly;
         this.size = size;
     }
 
-    /**
-     * return size for flow control.
-     */
     public int size() {
         return size;
     }
@@ -44,8 +43,12 @@ public class RaftInput {
         return deadline;
     }
 
-    public Object getInput() {
+    public B getInput() {
         return input;
+    }
+
+    public H getHeader() {
+        return header;
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")

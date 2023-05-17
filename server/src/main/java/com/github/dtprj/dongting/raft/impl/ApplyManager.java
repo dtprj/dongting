@@ -49,7 +49,7 @@ public class ApplyManager {
 
     private final int selfNodeId;
     private final RaftLog raftLog;
-    private final StateMachine<Object, Object> stateMachine;
+    private final StateMachine stateMachine;
     private final Timestamp ts;
     private final EventBus eventBus;
     private final RaftStatusImpl raftStatus;
@@ -63,7 +63,7 @@ public class ApplyManager {
 
     private RaftLog.LogIterator logIterator;
 
-    public ApplyManager(int selfNodeId, RaftLog raftLog, StateMachine<Object, Object> stateMachine,
+    public ApplyManager(int selfNodeId, RaftLog raftLog, StateMachine stateMachine,
                         RaftStatusImpl raftStatus, EventBus eventBus, RefBufferFactory heapPool) {
         this.selfNodeId = selfNodeId;
         this.raftLog = raftLog;
@@ -156,7 +156,7 @@ public class ApplyManager {
                     item.setData(RaftUtil.copy(rbb.getBuffer()));
                 }
             }
-            RaftInput input = new RaftInput(item.getData(), null, false, item.getDataSize());
+            RaftInput input = new RaftInput(null, item.getData(), null, false, item.getDataSize());
             return new RaftTask(ts, item.getType(), input, null);
         } finally {
             decodeContext.setStatus(null);
@@ -218,8 +218,8 @@ public class ApplyManager {
         CompletableFuture<RaftOutput> future = rt.future;
         stateMachine.exec(index, input).whenCompleteAsync((r, ex) -> {
             if (ex != null) {
-                log.warn("exec write failed. {}", ex);
-                future.completeExceptionally(ex);
+                log.warn("exec write failed. {}", (Throwable) ex);
+                future.completeExceptionally((Throwable) ex);
             } else {
                 future.complete(new RaftOutput(index, r));
             }
@@ -242,9 +242,9 @@ public class ApplyManager {
         }
         try {
             // no need run in raft thread
-            stateMachine.exec(index, input.getInput()).whenComplete((r, e) -> {
+            stateMachine.exec(index, input).whenComplete((r, e) -> {
                 if (e != null) {
-                    future.completeExceptionally(e);
+                    future.completeExceptionally((Throwable) e);
                 } else {
                     future.complete(new RaftOutput(index, r));
                 }

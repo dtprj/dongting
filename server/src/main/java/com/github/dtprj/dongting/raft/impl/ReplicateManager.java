@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -254,7 +255,7 @@ public class ReplicateManager {
     }
 
     private void sendAppendRequest(RaftMember member, long prevLogIndex, int prevLogTerm, List<LogItem> logs, long bytes) {
-        AppendReqWriteFrame req = new AppendReqWriteFrame();
+        AppendReqWriteFrame req = new AppendReqWriteFrame((Encoder) stateMachine.getEncoder().get());
         req.setCommand(Commands.RAFT_APPEND_ENTRIES);
         req.setGroupId(groupId);
         req.setTerm(raftStatus.getCurrentTerm());

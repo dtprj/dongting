@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.sm;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.Encoder;
+import com.github.dtprj.dongting.raft.server.RaftInput;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
@@ -25,13 +26,13 @@ import java.util.function.Supplier;
 /**
  * @author huangli
  */
-public interface StateMachine<I, O> extends AutoCloseable {
+public interface StateMachine<H, B, O> extends AutoCloseable {
 
-    Decoder<I> getDecoder();
+    Decoder<B> getDecoder();
 
-    Supplier<Encoder<I>> getEncoder();
+    Supplier<Encoder<B>> getEncoder();
 
-    CompletableFuture<O> exec(long index, I input);
+    CompletableFuture<O> exec(long index, RaftInput<H, B> input);
 
     SnapshotManager getSnapshotManager();
 
