@@ -232,7 +232,7 @@ public class NioServer extends NioNet implements Runnable {
         }
 
         @Override
-        public Decoder<RefBuffer> getDecoder() {
+        public Decoder<RefBuffer> createDecoder() {
             return DECODER;
         }
 

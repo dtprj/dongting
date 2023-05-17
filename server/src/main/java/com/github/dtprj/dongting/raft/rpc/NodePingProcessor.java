@@ -45,7 +45,7 @@ public class NodePingProcessor extends ReqProcessor<NodePingCallback> {
     }
 
     @Override
-    public Decoder<NodePingCallback> getDecoder() {
+    public Decoder<NodePingCallback> createDecoder() {
         return DECODER;
     }
 }

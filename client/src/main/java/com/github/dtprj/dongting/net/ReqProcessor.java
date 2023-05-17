@@ -29,7 +29,7 @@ public abstract class ReqProcessor<T> {
 
     public abstract WriteFrame process(ReadFrame<T> frame, ChannelContext channelContext, ReqContext reqContext);
 
-    public abstract Decoder<T> getDecoder();
+    public abstract Decoder<T> createDecoder();
 
     Executor getExecutor() {
         return executor;

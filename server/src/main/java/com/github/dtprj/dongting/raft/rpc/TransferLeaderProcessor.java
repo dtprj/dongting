@@ -85,7 +85,7 @@ public class TransferLeaderProcessor extends AbstractProcessor<TransferLeaderReq
     }
 
     @Override
-    public Decoder<TransferLeaderReq> getDecoder() {
+    public Decoder<TransferLeaderReq> createDecoder() {
         return DECODER;
     }
 }

@@ -163,7 +163,7 @@ public class AppendProcessor extends AbstractProcessor<AppendReqCallback> {
     }
 
     @Override
-    public Decoder<AppendReqCallback> getDecoder() {
+    public Decoder<AppendReqCallback> createDecoder() {
         return decoder;
     }
 }

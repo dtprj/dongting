@@ -50,7 +50,7 @@ public class RaftPingProcessor extends AbstractProcessor<RaftPingFrameCallback> 
     }
 
     @Override
-    public Decoder<RaftPingFrameCallback> getDecoder() {
+    public Decoder<RaftPingFrameCallback> createDecoder() {
         return DECODER;
     }
 }

@@ -300,7 +300,7 @@ class DtChannel extends PbCallback<Object> {
                 this.processorForRequest = processorForRequest;
             }
             if (returnDecoder) {
-                return processorForRequest.getDecoder();
+                return processorForRequest.createDecoder();
             } else {
                 return null;
             }

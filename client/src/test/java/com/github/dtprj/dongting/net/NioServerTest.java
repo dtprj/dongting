@@ -100,7 +100,7 @@ public class NioServerTest {
             }
 
             @Override
-            public Decoder getDecoder() {
+            public Decoder createDecoder() {
                 return new IoFullPackByteBufferDecoder();
             }
         });
@@ -392,7 +392,7 @@ public class NioServerTest {
             }
 
             @Override
-            public Decoder<Object> getDecoder() {
+            public Decoder<Object> createDecoder() {
                 return new CopyDecoder<>() {
                     @Override
                     public Object decode(ByteBuffer buffer) {
@@ -433,7 +433,7 @@ public class NioServerTest {
             }
 
             @Override
-            public Decoder getDecoder() {
+            public Decoder createDecoder() {
                 return new RefBufferDecoder();
             }
         }, null);
@@ -444,7 +444,7 @@ public class NioServerTest {
             }
 
             @Override
-            public Decoder getDecoder() {
+            public Decoder createDecoder() {
                 return new RefBufferDecoder();
             }
         });
@@ -455,7 +455,7 @@ public class NioServerTest {
             }
 
             @Override
-            public Decoder getDecoder() {
+            public Decoder createDecoder() {
                 return new RefBufferDecoder();
             }
         }, null);
@@ -466,7 +466,7 @@ public class NioServerTest {
             }
 
             @Override
-            public Decoder getDecoder() {
+            public Decoder createDecoder() {
                 return new RefBufferDecoder();
             }
         });
@@ -540,7 +540,7 @@ public class NioServerTest {
             }
 
             @Override
-            public Decoder getDecoder() {
+            public Decoder createDecoder() {
                 return new RefBufferDecoder();
             }
         });

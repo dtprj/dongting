@@ -110,7 +110,7 @@ public class VoteProcessor extends AbstractProcessor<VoteReq> {
     }
 
     @Override
-    public Decoder<VoteReq> getDecoder() {
+    public Decoder<VoteReq> createDecoder() {
         return decoder;
     }
 }

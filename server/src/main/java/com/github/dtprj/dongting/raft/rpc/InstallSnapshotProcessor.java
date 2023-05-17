@@ -123,7 +123,7 @@ public class InstallSnapshotProcessor extends AbstractProcessor<InstallSnapshotR
     }
 
     @Override
-    public Decoder<InstallSnapshotReq> getDecoder() {
+    public Decoder<InstallSnapshotReq> createDecoder() {
         return DECODER;
     }
 }

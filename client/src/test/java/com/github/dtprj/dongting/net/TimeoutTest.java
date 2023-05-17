@@ -162,7 +162,7 @@ public class TimeoutTest {
             }
 
             @Override
-            public Decoder<ByteBuffer> getDecoder() {
+            public Decoder<ByteBuffer> createDecoder() {
                 return new IoFullPackByteBufferDecoder() {
                     @Override
                     public ByteBuffer decode(ByteBuffer buffer) {
