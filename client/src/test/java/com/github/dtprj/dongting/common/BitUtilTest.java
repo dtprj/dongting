@@ -55,13 +55,13 @@ public class BitUtilTest {
     public void testNextHighestPowerOfTwo2() {
         assertThrows(IllegalArgumentException.class, () -> BitUtil.nextHighestPowerOfTwo(0L));
         assertThrows(IllegalArgumentException.class, () -> BitUtil.nextHighestPowerOfTwo(-1L));
-        assertEquals(1, BitUtil.nextHighestPowerOfTwo(1L));
-        assertEquals(2, BitUtil.nextHighestPowerOfTwo(2L));
-        assertEquals(4, BitUtil.nextHighestPowerOfTwo(3L));
-        assertEquals(4, BitUtil.nextHighestPowerOfTwo(4L));
-        assertEquals(64, BitUtil.nextHighestPowerOfTwo(52L));
-        assertEquals(1 << 62, BitUtil.nextHighestPowerOfTwo((1L << 62) - 1));
-        assertEquals(1 << 62, BitUtil.nextHighestPowerOfTwo(1L << 62));
+        assertEquals(1L, BitUtil.nextHighestPowerOfTwo(1L));
+        assertEquals(2L, BitUtil.nextHighestPowerOfTwo(2L));
+        assertEquals(4L, BitUtil.nextHighestPowerOfTwo(3L));
+        assertEquals(4L, BitUtil.nextHighestPowerOfTwo(4L));
+        assertEquals(64L, BitUtil.nextHighestPowerOfTwo(52L));
+        assertEquals(1L << 62, BitUtil.nextHighestPowerOfTwo((1L << 62) - 1));
+        assertEquals(1L << 62, BitUtil.nextHighestPowerOfTwo(1L << 62));
         assertThrows(IllegalArgumentException.class, () -> BitUtil.nextHighestPowerOfTwo((1L << 62) + 1));
     }
 
@@ -70,12 +70,12 @@ public class BitUtilTest {
         assertThrows(IllegalArgumentException.class, () -> BitUtil.zeroCountOfBinary(0L));
         assertThrows(IllegalArgumentException.class, () -> BitUtil.zeroCountOfBinary(-1L));
         assertThrows(IllegalArgumentException.class, () -> BitUtil.zeroCountOfBinary(3L));
-        assertThrows(IllegalArgumentException.class, () -> BitUtil.zeroCountOfBinary((1 << 62) + 1));
-        assertEquals(0, BitUtil.zeroCountOfBinary(1));
-        assertEquals(1, BitUtil.zeroCountOfBinary(2));
-        assertEquals(2, BitUtil.zeroCountOfBinary(4));
-        assertEquals(3, BitUtil.zeroCountOfBinary(8));
-        assertEquals(62, BitUtil.zeroCountOfBinary(1 << 62));
-        assertThrows(IllegalArgumentException.class, () -> BitUtil.zeroCountOfBinary((1 << 62) + 1));
+        assertThrows(IllegalArgumentException.class, () -> BitUtil.zeroCountOfBinary((1L << 62) + 1));
+        assertEquals(0, BitUtil.zeroCountOfBinary(1L));
+        assertEquals(1, BitUtil.zeroCountOfBinary(2L));
+        assertEquals(2, BitUtil.zeroCountOfBinary(4L));
+        assertEquals(3, BitUtil.zeroCountOfBinary(8L));
+        assertEquals(62, BitUtil.zeroCountOfBinary(1L << 62));
+        assertThrows(IllegalArgumentException.class, () -> BitUtil.zeroCountOfBinary((1L << 62) + 1));
     }
 }

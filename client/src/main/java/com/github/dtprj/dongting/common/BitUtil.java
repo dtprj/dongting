@@ -53,7 +53,7 @@ public class BitUtil {
 
     public static long nextHighestPowerOfTwo(long v) {
         DtUtil.checkPositive(v, "value");
-        if (v > 1 << 62) {
+        if (v > 1L << 62) {
             throw new IllegalArgumentException(String.valueOf(v));
         }
         v--;
