@@ -40,7 +40,7 @@ public class PendingMap extends LongObjMap<RaftTask> {
             }
         }
         pending++;
-        pendingBytes += value.input.size();
+        pendingBytes += value.input.getFlowControlSize();
         return t;
     }
 
@@ -52,7 +52,7 @@ public class PendingMap extends LongObjMap<RaftTask> {
         RaftTask t = super.remove(key);
         if (t != null) {
             pending--;
-            pendingBytes -= t.input.size();
+            pendingBytes -= t.input.getFlowControlSize();
         }
         if (size() == 0) {
             firstKey = -1;
