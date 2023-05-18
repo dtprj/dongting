@@ -98,7 +98,10 @@ abstract class FileQueue {
                 }
                 long startPos = Long.parseLong(matcher.group(1));
                 log.info("load file: {}", f.getPath());
-                AsynchronousFileChannel channel = AsynchronousFileChannel.open(f.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
+                HashSet<OpenOption> openOptions = new HashSet<>();
+                openOptions.add(StandardOpenOption.READ);
+                openOptions.add(StandardOpenOption.WRITE);
+                AsynchronousFileChannel channel = AsynchronousFileChannel.open(f.toPath(), openOptions, ioExecutor);
                 queue.addLast(new LogFile(startPos, startPos + getFileSize(), channel, f));
             }
         }
