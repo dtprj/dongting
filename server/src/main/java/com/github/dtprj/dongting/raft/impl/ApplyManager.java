@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.codec.DecodeContext;
+import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.DtLog;
@@ -148,7 +149,8 @@ public class ApplyManager {
             if (item.getType() == LogItem.TYPE_NORMAL) {
                 ByteBuffer buf = rbb.getBuffer();
                 buf.mark();
-                Object o = stateMachine.getDecoder().decode(decodeContext, buf, buf.remaining(), true, true);
+                Decoder decoder = (Decoder) stateMachine.getDecoder().get();
+                Object o = decoder.decode(decodeContext, buf, buf.remaining(), true, true);
                 buf.reset();
                 item.setData(o);
             } else {

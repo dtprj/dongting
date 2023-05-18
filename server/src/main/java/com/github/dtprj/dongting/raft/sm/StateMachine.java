@@ -28,7 +28,7 @@ import java.util.function.Supplier;
  */
 public interface StateMachine<H, B, O> extends AutoCloseable {
 
-    Decoder<B> getDecoder();
+    Supplier<Decoder<B>> getDecoder();
 
     Supplier<Encoder<B>> getEncoder();
 
