@@ -39,8 +39,8 @@ import java.util.zip.CRC32C;
 class DefaultLogIterator implements RaftLog.LogIterator {
     private static final DtLog log = DtLogs.getLogger(DefaultLogIterator.class);
 
-    private final IdxFileQueue idxFiles;
-    private final LogFileQueue logFiles;
+    private final IdxOps idxFiles;
+    private final FileOps logFiles;
     private final RaftExecutor raftExecutor;
     private final RefBufferFactory heapPool;
     private final RaftGroupConfigEx groupConfig;
@@ -64,7 +64,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
     private CompletableFuture<List<LogItem>> future;
     private LogItem item;
 
-    DefaultLogIterator(IdxFileQueue idxFiles, LogFileQueue logFiles, RaftGroupConfigEx groupConfig, Supplier<Boolean> fullIndicator) {
+    DefaultLogIterator(IdxOps idxFiles, FileOps logFiles, RaftGroupConfigEx groupConfig, Supplier<Boolean> fullIndicator) {
         this.idxFiles = idxFiles;
         this.logFiles = logFiles;
         this.raftExecutor = (RaftExecutor) groupConfig.getRaftExecutor();
@@ -90,7 +90,6 @@ class DefaultLogIterator implements RaftLog.LogIterator {
                     throw new RaftException("nextIndex!=index");
                 }
             }
-            logFiles.checkPos(nextPos);
 
             this.result = new ArrayList<>();
             this.future = new CompletableFuture<>();
@@ -144,7 +143,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         long rest = logFiles.restInCurrentFile(pos);
         if (rest <= 0) {
             error = true;
-            log.error("rest is illegal. pos={}, writePos={}", pos, logFiles.getWritePos());
+            log.error("rest is illegal. pos={}", pos);
             future.completeExceptionally(new RaftException("rest is illegal."));
             return;
         }

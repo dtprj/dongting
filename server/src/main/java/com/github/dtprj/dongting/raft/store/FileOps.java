@@ -21,5 +21,9 @@ package com.github.dtprj.dongting.raft.store;
 interface FileOps {
     long filePos(long absolutePos);
 
+    long restInCurrentFile(long absolutePos);
+
     long fileLength();
+
+    LogFile getLogFile(long filePos);
 }
