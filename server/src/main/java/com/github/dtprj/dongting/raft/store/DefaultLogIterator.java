@@ -78,9 +78,9 @@ class DefaultLogIterator implements RaftLog.LogIterator {
     @Override
     public CompletableFuture<List<LogItem>> next(long index, int limit, int bytesLimit) {
         try {
-            if (error) {
-                BugLog.getLog().error("iterator has error");
-                throw new RaftException("iterator has error");
+            if (error || future != null || close) {
+                BugLog.getLog().error("iterator state error: {},{},{}", error, future, close);
+                throw new RaftException("iterator state error");
             }
             if (nextIndex == -1) {
                 nextPos = idxFiles.syncLoadLogPos(index);
@@ -107,8 +107,26 @@ class DefaultLogIterator implements RaftLog.LogIterator {
             return future;
         } catch (Throwable e) {
             error = true;
+            future = null;
             return CompletableFuture.failedFuture(e);
         }
+    }
+
+    private void finish(Throwable ex) {
+        error = true;
+        future.completeExceptionally(ex);
+        future = null;
+    }
+
+    private void finishWithCancel() {
+        error = true;
+        future.cancel(false);
+        future = null;
+    }
+
+    private void finish(List<LogItem> result) {
+        future.complete(result);
+        future = null;
     }
 
     private void extractAndLoadNextIfNecessary() {
@@ -130,7 +148,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         int extractBytes = oldRemaining - readBuffer.remaining();
         nextPos += extractBytes;
         if (extractFinish) {
-            future.complete(result);
+            finish(result);
             nextIndex += result.size();
         } else {
             LogFileQueue.prepareNextRead(readBuffer);
@@ -142,9 +160,8 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         long pos = nextPos;
         long rest = logFiles.restInCurrentFile(pos);
         if (rest <= 0) {
-            error = true;
             log.error("rest is illegal. pos={}", pos);
-            future.completeExceptionally(new RaftException("rest is illegal."));
+            finish(new RaftException("rest is illegal."));
             return;
         }
         LogFile logFile = logFiles.getLogFile(pos);
@@ -162,21 +179,17 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         try {
             logFile.use--;
             if (fullIndicator.get()) {
-                error = true;
-                future.cancel(false);
+                finishWithCancel();
             } else if (ex != null) {
-                error = true;
-                future.completeExceptionally(ex);
+                finish(ex);
             } else {
                 readBuffer.flip();
                 extractAndLoadNextIfNecessary();
             }
         } catch (Throwable e) {
-            error = true;
-            future.completeExceptionally(e);
+            finish(e);
         }
     }
-
 
     private boolean extractHeader(List<LogItem> result, int bytesLimit, ByteBuffer readBuffer) {
         LogHeader header = this.header;
