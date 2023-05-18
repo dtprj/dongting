@@ -98,12 +98,13 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                 throw new PbException("can't find raft group: " + groupId);
             }
             PbParser logItemParser;
+            DecodeContext nestedContext = context.createOrGetNestedContext(begin);
             if (begin) {
                 Decoder<?> decoder = group.getStateMachine().getDecoder();
-                LogItemCallback c = new LogItemCallback(context.createOrGetNestedContext(true), decoder);
-                logItemParser = parser.createOrResetNestedParserSingle(c, len);
+                LogItemCallback c = new LogItemCallback(nestedContext, decoder);
+                logItemParser = nestedContext.createOrResetPbParser(c, len);
             } else {
-                logItemParser = parser.getNestedParser();
+                logItemParser = nestedContext.getPbParser();
             }
             LogItemCallback callback = (LogItemCallback) logItemParser.getCallback();
             logItemParser.parse(buf);
