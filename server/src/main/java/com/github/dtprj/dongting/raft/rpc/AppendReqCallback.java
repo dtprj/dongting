@@ -100,7 +100,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
             PbParser logItemParser;
             DecodeContext nestedContext = context.createOrGetNestedContext(begin);
             if (begin) {
-                Decoder decoder = (Decoder) group.getStateMachine().getDecoder().get();
+                Decoder decoder = (Decoder) group.getStateMachine().getBodyDecoder().get();
                 LogItemCallback c = new LogItemCallback(nestedContext, decoder);
                 logItemParser = nestedContext.createOrResetPbParser(c, len);
             } else {

@@ -140,7 +140,7 @@ class LogFileQueue extends FileQueue implements FileOps {
 
             Encoder encoder;
             if (log.getType() == LogItem.TYPE_NORMAL) {
-                encoder = groupConfig.getEncoder().get();
+                encoder = groupConfig.getBodyEncoder().get();
             } else {
                 // TODO byte buffer encoder
                 encoder = null;

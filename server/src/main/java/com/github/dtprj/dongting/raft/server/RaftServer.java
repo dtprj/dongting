@@ -73,7 +73,7 @@ import java.util.function.Function;
 public class RaftServer extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(RaftServer.class);
     private final Function<RaftGroupConfigEx, RaftLog> raftLogFactory;
-    private final Function<RaftGroupConfigEx, StateMachine> stateMachineFactory;
+    private final Function<RaftGroupConfigEx, StateMachine<?, ?, ?>> stateMachineFactory;
 
     private final NioServer raftServer;
     private final NioClient raftClient;
@@ -92,7 +92,7 @@ public class RaftServer extends AbstractLifeCircle {
 
     public RaftServer(RaftServerConfig serverConfig, List<RaftGroupConfig> groupConfig,
                       Function<RaftGroupConfigEx, RaftLog> raftLogFactory,
-                      Function<RaftGroupConfigEx, StateMachine> stateMachineFactory) {
+                      Function<RaftGroupConfigEx, StateMachine<?, ?, ?>> stateMachineFactory) {
         Objects.requireNonNull(serverConfig);
         Objects.requireNonNull(groupConfig);
         Objects.requireNonNull(raftLogFactory);
@@ -196,9 +196,16 @@ public class RaftServer extends AbstractLifeCircle {
         RaftGroupThread raftGroupThread = new RaftGroupThread();
         RaftGroupConfigEx rgcEx = createGroupConfigEx(rgc, raftStatus, raftExecutor, raftGroupThread);
 
+        //noinspection rawtypes
         StateMachine stateMachine = stateMachineFactory.apply(rgcEx);
-        rgcEx.setEncoder(stateMachine.getEncoder());
-        rgcEx.setDecoder(stateMachine.getDecoder());
+        //noinspection unchecked
+        rgcEx.setHeaderDecoder(stateMachine.getHeaderDecoder());
+        //noinspection unchecked
+        rgcEx.setHeaderEncoder(stateMachine.getHeaderEncoder());
+        //noinspection unchecked
+        rgcEx.setBodyEncoder(stateMachine.getBodyEncoder());
+        //noinspection unchecked
+        rgcEx.setBodyDecoder(stateMachine.getBodyDecoder());
         RaftLog raftLog = raftLogFactory.apply(rgcEx);
 
         MemberManager memberManager = new MemberManager(serverConfig, raftClient, raftExecutor,

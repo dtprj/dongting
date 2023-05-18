@@ -149,7 +149,7 @@ public class ApplyManager {
             if (item.getType() == LogItem.TYPE_NORMAL) {
                 ByteBuffer buf = rbb.getBuffer();
                 buf.mark();
-                Decoder decoder = (Decoder) stateMachine.getDecoder().get();
+                Decoder decoder = (Decoder) stateMachine.getBodyDecoder().get();
                 Object o = decoder.decode(decodeContext, buf, buf.remaining(), true, true);
                 buf.reset();
                 item.setData(o);

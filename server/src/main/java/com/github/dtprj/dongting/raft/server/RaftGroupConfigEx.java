@@ -35,8 +35,10 @@ public class RaftGroupConfigEx extends RaftGroupConfig {
     private Executor raftExecutor;
     private Supplier<Boolean> stopIndicator;
     private RaftStatus raftStatus;
-    private Supplier<Encoder<?>> encoder;
-    private Supplier<Decoder<?>> decoder;
+    private Supplier<Encoder<?>> headerEncoder;
+    private Supplier<Decoder<?>> headerDecoder;
+    private Supplier<Encoder<?>> bodyEncoder;
+    private Supplier<Decoder<?>> bodyDecoder;
 
     public RaftGroupConfigEx(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         super(groupId, nodeIdOfMembers, nodeIdOfObservers);
@@ -90,19 +92,35 @@ public class RaftGroupConfigEx extends RaftGroupConfig {
         this.raftStatus = raftStatus;
     }
 
-    public Supplier<Encoder<?>> getEncoder() {
-        return encoder;
+    public Supplier<Encoder<?>> getHeaderEncoder() {
+        return headerEncoder;
     }
 
-    public void setEncoder(Supplier<Encoder<?>> encoder) {
-        this.encoder = encoder;
+    public void setHeaderEncoder(Supplier<Encoder<?>> headerEncoder) {
+        this.headerEncoder = headerEncoder;
     }
 
-    public Supplier<Decoder<?>> getDecoder() {
-        return decoder;
+    public Supplier<Decoder<?>> getHeaderDecoder() {
+        return headerDecoder;
     }
 
-    public void setDecoder(Supplier<Decoder<?>> decoder) {
-        this.decoder = decoder;
+    public void setHeaderDecoder(Supplier<Decoder<?>> headerDecoder) {
+        this.headerDecoder = headerDecoder;
+    }
+
+    public Supplier<Encoder<?>> getBodyEncoder() {
+        return bodyEncoder;
+    }
+
+    public void setBodyEncoder(Supplier<Encoder<?>> bodyEncoder) {
+        this.bodyEncoder = bodyEncoder;
+    }
+
+    public Supplier<Decoder<?>> getBodyDecoder() {
+        return bodyDecoder;
+    }
+
+    public void setBodyDecoder(Supplier<Decoder<?>> bodyDecoder) {
+        this.bodyDecoder = bodyDecoder;
     }
 }

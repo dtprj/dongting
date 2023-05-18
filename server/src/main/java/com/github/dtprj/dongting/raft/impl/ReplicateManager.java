@@ -255,7 +255,7 @@ public class ReplicateManager {
     }
 
     private void sendAppendRequest(RaftMember member, long prevLogIndex, int prevLogTerm, List<LogItem> logs, long bytes) {
-        AppendReqWriteFrame req = new AppendReqWriteFrame((Encoder) stateMachine.getEncoder().get());
+        AppendReqWriteFrame req = new AppendReqWriteFrame((Encoder) stateMachine.getBodyEncoder().get());
         req.setCommand(Commands.RAFT_APPEND_ENTRIES);
         req.setGroupId(groupId);
         req.setTerm(raftStatus.getCurrentTerm());

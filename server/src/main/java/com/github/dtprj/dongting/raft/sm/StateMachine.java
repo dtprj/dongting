@@ -28,9 +28,13 @@ import java.util.function.Supplier;
  */
 public interface StateMachine<H, B, O> extends AutoCloseable {
 
-    Supplier<Decoder<B>> getDecoder();
+    Supplier<Decoder<H>> getHeaderDecoder();
 
-    Supplier<Encoder<B>> getEncoder();
+    Supplier<Encoder<H>> getHeaderEncoder();
+
+    Supplier<Decoder<B>> getBodyDecoder();
+
+    Supplier<Encoder<B>> getBodyEncoder();
 
     CompletableFuture<O> exec(long index, RaftInput<H, B> input);
 
