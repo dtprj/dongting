@@ -162,7 +162,7 @@ public class ReplicateManager {
                 long size = 0;
                 for (int i = 0; i < limit; i++) {
                     LogItem li = raftStatus.getPendingRequests().get(nextIndex + i).item;
-                    size += li.getDataSize();
+                    size += li.getActualBodySize();
                     if (size > sizeLimit && i != 0) {
                         break;
                     }
@@ -249,7 +249,7 @@ public class ReplicateManager {
         //noinspection ForLoopReplaceableByForEach
         for (int i = 0; i < items.size(); i++) {
             LogItem item = items.get(i);
-            bytes += item.getDataSize();
+            bytes += item.getActualBodySize();
         }
         sendAppendRequest(member, firstItem.getIndex() - 1, firstItem.getPrevLogTerm(), items, bytes);
     }

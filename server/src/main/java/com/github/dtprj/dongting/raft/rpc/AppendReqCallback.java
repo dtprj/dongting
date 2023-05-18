@@ -201,16 +201,16 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
         public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
             if (index == 6) {
                 if (begin) {
-                    item.setDataSize(len);
+                    item.setActualBodySize(len);
                 }
                 Object result;
                 if (item.getType() == LogItem.TYPE_NORMAL) {
                     result = stateMachineDecoder.decode(context, buf, len, begin, end);
                 } else {
-                    result = Decoder.decodeToByteBuffer(buf, len, begin, end, (ByteBuffer) item.getData());
+                    result = Decoder.decodeToByteBuffer(buf, len, begin, end, (ByteBuffer) item.getBody());
                 }
                 if (end) {
-                    item.setData(result);
+                    item.setBody(result);
                 }
             }
             return true;

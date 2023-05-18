@@ -99,8 +99,8 @@ public class Raft implements BiConsumer<EventType, Object> {
                 item.setIndex(newIndex);
                 item.setPrevLogTerm(oldTerm);
                 item.setTimestamp(ts.getWallClockMillis());
-                item.setData(input.getInput());
-                item.setDataSize(input.size());
+                item.setBody(input.getInput());
+                item.setActualBodySize(input.size());
                 logs.add(item);
 
                 rt.item = item;

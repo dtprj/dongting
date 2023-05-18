@@ -83,7 +83,7 @@ public class AppendReqWriteFrame extends WriteFrame {
         itemSize += PbUtil.accurateUnsignedIntSize(2, item.getTerm());
         itemSize += PbUtil.accurateFix64Size(3, item.getIndex());
         itemSize += PbUtil.accurateUnsignedIntSize(4, item.getPrevLogTerm());
-        itemSize += PbUtil.accurateLengthDelimitedSize(5, item.getDataSize(), false);
+        itemSize += PbUtil.accurateLengthDelimitedSize(5, item.getActualBodySize(), false);
         return itemSize;
     }
 
@@ -103,7 +103,7 @@ public class AppendReqWriteFrame extends WriteFrame {
                 PbUtil.writeUnsignedInt32(buf, 2, item.getTerm());
                 PbUtil.writeFix64(buf, 3, item.getIndex());
                 PbUtil.writeUnsignedInt32(buf, 4, item.getPrevLogTerm());
-                int dataSize = item.getDataSize();
+                int dataSize = item.getActualBodySize();
                 if (dataSize > 0) {
                     PbUtil.writeLengthDelimitedPrefix(buf, 5, dataSize, false);
                     RefBuffer rbb = item.getBuffer();
@@ -114,7 +114,7 @@ public class AppendReqWriteFrame extends WriteFrame {
                         src.reset();
                         rbb.release();
                     } else {
-                        bodyEncoder.encode(buf, item.getData());
+                        bodyEncoder.encode(buf, item.getBody());
                     }
                 }
             }

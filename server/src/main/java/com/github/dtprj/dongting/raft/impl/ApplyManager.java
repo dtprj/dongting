@@ -152,13 +152,13 @@ public class ApplyManager {
                 Decoder decoder = (Decoder) stateMachine.getBodyDecoder().get();
                 Object o = decoder.decode(decodeContext, buf, buf.remaining(), true, true);
                 buf.reset();
-                item.setData(o);
+                item.setBody(o);
             } else {
                 if (rbb != null) {
-                    item.setData(RaftUtil.copy(rbb.getBuffer()));
+                    item.setBody(RaftUtil.copy(rbb.getBuffer()));
                 }
             }
-            RaftInput input = new RaftInput(null, item.getData(), null, false, item.getDataSize());
+            RaftInput input = new RaftInput(null, item.getBody(), null, false, item.getActualBodySize());
             return new RaftTask(ts, item.getType(), input, null);
         } finally {
             decodeContext.setStatus(null);

@@ -108,7 +108,7 @@ class LogFileQueue extends FileQueue implements FileOps {
         LogFile file = getLogFile(pos);
         for (int i = 0; i < logs.size(); i++) {
             LogItem log = logs.get(i);
-            int dataSize = log.getDataSize();
+            int dataSize = log.getActualBodySize();
             long posOfFile = (pos + writeBuffer.position()) & FILE_LEN_MASK;
             int totalLen = LogHeader.computeTotalLen(0, 0, dataSize);
             if (posOfFile == 0) {
@@ -146,7 +146,7 @@ class LogFileQueue extends FileQueue implements FileOps {
                 encoder = null;
             }
             int lastPos = writeBuffer.position();
-            while (!encoder.encode(writeBuffer, log.getData())) {
+            while (!encoder.encode(writeBuffer, log.getBody())) {
                 if (writeBuffer.position() > lastPos) {
                     updateCrc(crc32c, writeBuffer, lastPos, writeBuffer.position() - lastPos);
                 }

@@ -217,7 +217,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         li.setTerm(header.term);
         li.setPrevLogTerm(header.prevLogTerm);
         li.setTimestamp(header.timestamp);
-        li.setDataSize(bodyLen);
+        li.setActualBodySize(bodyLen);
         if (bodyLen > 0) {
             li.setBuffer(heapPool.create(bodyLen));
         }

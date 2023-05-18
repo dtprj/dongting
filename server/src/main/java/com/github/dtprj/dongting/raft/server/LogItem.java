@@ -34,9 +34,8 @@ public class LogItem {
     private long timestamp;
 
     private RefBuffer buffer;
-    private Object data;
-    //TODO check if it is necessary
-    private int dataSize;
+    private Object body;
+    private int actualBodySize;
 
     public LogItem() {
     }
@@ -65,20 +64,20 @@ public class LogItem {
         this.prevLogTerm = prevLogTerm;
     }
 
-    public Object getData() {
-        return data;
+    public Object getBody() {
+        return body;
     }
 
-    public void setData(Object data) {
-        this.data = data;
+    public void setBody(Object body) {
+        this.body = body;
     }
 
-    public int getDataSize() {
-        return dataSize;
+    public int getActualBodySize() {
+        return actualBodySize;
     }
 
-    public void setDataSize(int dataSize) {
-        this.dataSize = dataSize;
+    public void setActualBodySize(int actualBodySize) {
+        this.actualBodySize = actualBodySize;
     }
 
     public long getIndex() {
