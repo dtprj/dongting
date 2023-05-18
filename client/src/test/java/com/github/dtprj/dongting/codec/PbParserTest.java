@@ -322,7 +322,7 @@ public class PbParserTest {
             } else if (index == 7) {
                 PbParser np;
                 if (begin) {
-                    np = parser.createOrGetNestedParserSingle(new NestedCallback(), len);
+                    np = parser.createOrResetNestedParserSingle(new NestedCallback(), len);
                 } else {
                     np = parser.getNestedParser();
                 }

@@ -35,7 +35,7 @@ public class PbNoCopyDecoder<T> implements Decoder<T> {
         PbCallback<T> callback;
         if (start) {
             callback = callbackCreator.apply(context);
-            parser = context.createOrGetPbParser(callback, bodyLen);
+            parser = context.createOrResetPbParser(callback, bodyLen);
         } else {
             parser = context.getPbParser();
             callback = parser.getCallback();

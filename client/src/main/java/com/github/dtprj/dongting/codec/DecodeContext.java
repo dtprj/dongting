@@ -43,7 +43,7 @@ public class DecodeContext {
         return c;
     }
 
-    public PbParser createOrGetPbParser(PbCallback<?> callback, int len) {
+    public PbParser createOrResetPbParser(PbCallback<?> callback, int len) {
         PbParser p = this.pbParser;
         if (p == null) {
             p = PbParser.singleParser(callback, len);
