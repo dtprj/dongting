@@ -71,7 +71,7 @@ public class RaftGroupImpl extends RaftGroup {
     @Override
     public CompletableFuture<RaftOutput> submitLinearTask(RaftInput input) throws RaftException {
         Objects.requireNonNull(input);
-        Objects.requireNonNull(input.getInput());
+        Objects.requireNonNull(input.getBody());
         RaftStatusImpl raftStatus = this.raftStatus;
         if (raftStatus.isError()) {
             throw new RaftException("raft status is error");

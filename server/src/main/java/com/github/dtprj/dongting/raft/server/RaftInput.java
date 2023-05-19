@@ -24,11 +24,11 @@ public final class RaftInput<H, B> {
     private final DtTime deadline;
     private final boolean readOnly;
     private final H header;
-    private final B input;
+    private final B body;
     private int flowControlSize;
 
     public RaftInput(H header, B body, DtTime deadline, boolean readOnly, int flowControlSize) {
-        this.input = body;
+        this.body = body;
         this.header = header;
         this.deadline = deadline;
         this.readOnly = readOnly;
@@ -43,8 +43,8 @@ public final class RaftInput<H, B> {
         return deadline;
     }
 
-    public B getInput() {
-        return input;
+    public B getBody() {
+        return body;
     }
 
     public H getHeader() {

@@ -259,7 +259,7 @@ public class ApplyManager {
     private void doPrepare(long index, RaftTask rt) {
         configChanging = true;
 
-        ByteBuffer logData = (ByteBuffer) rt.input.getInput();
+        ByteBuffer logData = (ByteBuffer) rt.input.getBody();
         byte[] data = new byte[logData.remaining()];
         logData.get(data);
         String dataStr = new String(data);
