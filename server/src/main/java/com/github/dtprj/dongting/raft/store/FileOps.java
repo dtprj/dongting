@@ -19,6 +19,8 @@ package com.github.dtprj.dongting.raft.store;
  * @author huangli
  */
 interface FileOps {
+    long nextFilePos(long absolutePos);
+
     long filePos(long absolutePos);
 
     long restInCurrentFile(long absolutePos);

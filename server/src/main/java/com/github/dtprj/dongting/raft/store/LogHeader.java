@@ -57,6 +57,10 @@ class LogHeader {
     public LogHeader() {
     }
 
+    public boolean isEndMagic() {
+        return totalLen == END_LEN_MAGIC;
+    }
+
     public void read(ByteBuffer buf) {
         int start = buf.position();
         totalLen = buf.getInt();
@@ -123,6 +127,7 @@ class LogHeader {
     public boolean checkHeader(long filePos, long fileLen) {
         int expectTotalLen = LogHeader.computeTotalLen(contextLen, bizHeaderLen, bodyLen);
         if (type < 0 || totalLen <= 0 || bizHeaderLen < 0 || bodyLen < 0 || contextLen < 0
+                || expectTotalLen <= 0
                 || totalLen != expectTotalLen
                 || filePos + expectTotalLen > fileLen) {
             return false;

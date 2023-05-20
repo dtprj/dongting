@@ -136,7 +136,7 @@ class LogFileQueue extends FileQueue implements FileOps {
                     writeAndClearBuffer(writeBuffer, file, pos);
 
                     // roll to next file
-                    pos = ((pos >>> FILE_LEN_SHIFT_BITS) + 1) << FILE_LEN_SHIFT_BITS;
+                    pos = nextFilePos(pos);
                     ensureWritePosReady(pos);
                     file = getLogFile(pos);
 
@@ -162,6 +162,11 @@ class LogFileQueue extends FileQueue implements FileOps {
         pos = writeAndClearBuffer(writeBuffer, file, pos);
         file.channel.force(false);
         this.writePos = pos;
+    }
+
+    @Override
+    public long nextFilePos(long absolutePos) {
+        return ((absolutePos >>> FILE_LEN_SHIFT_BITS) + 1) << FILE_LEN_SHIFT_BITS;
     }
 
     private long writeData(ByteBuffer writeBuffer, long pos, LogFile file, LogItem log, boolean bizBody) throws IOException {
