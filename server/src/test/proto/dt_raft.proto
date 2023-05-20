@@ -56,7 +56,8 @@ message LogItem {
   fixed64 index = 3;
   uint32 prev_log_term = 4;
   fixed64 timestamp = 5;
-  bytes data = 6;
+  bytes header = 6;
+  bytes body = 7;
 }
 
 message AppendEntriesResp {

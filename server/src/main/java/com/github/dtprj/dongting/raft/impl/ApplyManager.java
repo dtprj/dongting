@@ -145,7 +145,7 @@ public class ApplyManager {
 
     private RaftTask buildRaftTask(LogItem item) {
         try {
-            RefBuffer rbb = item.getBuffer();
+            RefBuffer rbb = item.getBodyBuffer();
             if (item.getType() == LogItem.TYPE_NORMAL) {
                 ByteBuffer buf = rbb.getBuffer();
                 buf.mark();

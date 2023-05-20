@@ -21,5 +21,12 @@ import java.nio.ByteBuffer;
  * @author huangli
  */
 public interface Encoder<T> {
+
     boolean encode(ByteBuffer buffer, T data);
+
+    int actualSize(T data);
+
+    default boolean supportMultiEncode() {
+        return false;
+    }
 }

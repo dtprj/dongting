@@ -36,6 +36,9 @@ class LogHeader {
     // header crc
     static final int ITEM_HEADER_SIZE = 4 + 4 + 4 + 4 + 1 + 4 + 4 + 8 + 8 + 4;
 
+    // negative value means end of file
+    private static final int END_LEN_MAGIC = 0xF19A7BCB;
+
     private CRC32C crc32c = new CRC32C();
 
     int totalLen;
@@ -85,9 +88,9 @@ class LogHeader {
     }
 
     public static void writeHeader(CRC32C crc, ByteBuffer buffer, LogItem log,
-                                   int bizHeaderLen, int contextLen, int bodyLen) {
+                                   int contextLen, int bizHeaderLen, int bodyLen) {
         int startPos = buffer.position();
-        buffer.putInt(computeTotalLen(bizHeaderLen, contextLen, bodyLen));
+        buffer.putInt(computeTotalLen(contextLen, bizHeaderLen, bodyLen));
         buffer.putInt(contextLen);
         buffer.putInt(bizHeaderLen);
         buffer.putInt(bodyLen);
@@ -96,6 +99,22 @@ class LogHeader {
         buffer.putInt(log.getPrevLogTerm());
         buffer.putLong(log.getIndex());
         buffer.putLong(log.getTimestamp());
+        crc.reset();
+        LogFileQueue.updateCrc(crc, buffer, startPos, ITEM_HEADER_SIZE);
+        buffer.putInt((int) crc.getValue());
+    }
+
+    public static void writeEndHeader(CRC32C crc, ByteBuffer buffer) {
+        int startPos = buffer.position();
+        buffer.putInt(END_LEN_MAGIC);
+        buffer.putInt(0);
+        buffer.putInt(0);
+        buffer.putInt(0);
+        buffer.put((byte) 0);
+        buffer.putInt(0);
+        buffer.putInt(0);
+        buffer.putLong(0L);
+        buffer.putLong(0L);
         crc.reset();
         LogFileQueue.updateCrc(crc, buffer, startPos, ITEM_HEADER_SIZE);
         buffer.putInt((int) crc.getValue());

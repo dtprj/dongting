@@ -33,9 +33,13 @@ public class LogItem {
     private int prevLogTerm;
     private long timestamp;
 
-    private RefBuffer buffer;
+    private RefBuffer bodyBuffer;
     private Object body;
     private int actualBodySize;
+
+    private RefBuffer headerBuffer;
+    private Object header;
+    private int actualHeaderSize;
 
     public LogItem() {
     }
@@ -96,11 +100,35 @@ public class LogItem {
         this.timestamp = timestamp;
     }
 
-    public RefBuffer getBuffer() {
-        return buffer;
+    public RefBuffer getBodyBuffer() {
+        return bodyBuffer;
     }
 
-    public void setBuffer(RefBuffer buffer) {
-        this.buffer = buffer;
+    public void setBodyBuffer(RefBuffer bodyBuffer) {
+        this.bodyBuffer = bodyBuffer;
+    }
+
+    public Object getHeader() {
+        return header;
+    }
+
+    public void setHeader(Object header) {
+        this.header = header;
+    }
+
+    public int getActualHeaderSize() {
+        return actualHeaderSize;
+    }
+
+    public void setActualHeaderSize(int actualHeaderSize) {
+        this.actualHeaderSize = actualHeaderSize;
+    }
+
+    public RefBuffer getHeaderBuffer() {
+        return headerBuffer;
+    }
+
+    public void setHeaderBuffer(RefBuffer headerBuffer) {
+        this.headerBuffer = headerBuffer;
     }
 }

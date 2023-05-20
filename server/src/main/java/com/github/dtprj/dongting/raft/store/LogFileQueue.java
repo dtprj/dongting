@@ -108,9 +108,8 @@ class LogFileQueue extends FileQueue implements FileOps {
         LogFile file = getLogFile(pos);
         for (int i = 0; i < logs.size(); i++) {
             LogItem log = logs.get(i);
-            int dataSize = log.getActualBodySize();
             long posOfFile = (pos + writeBuffer.position()) & FILE_LEN_MASK;
-            int totalLen = LogHeader.computeTotalLen(0, 0, dataSize);
+            int totalLen = LogHeader.computeTotalLen(0, log.getActualHeaderSize(), log.getActualBodySize());
             if (posOfFile == 0) {
                 if (i != 0) {
                     // last item exactly fill the file
@@ -121,13 +120,30 @@ class LogFileQueue extends FileQueue implements FileOps {
                 file.firstTimestamp = log.getTimestamp();
                 file.firstIndex = log.getIndex();
                 file.firstTerm = log.getTerm();
-            } else if (LOG_FILE_SIZE - posOfFile < totalLen) {
-                // file rest space is not enough
-                pos = writeAndClearBuffer(writeBuffer, file, pos);
-                // roll to next file
-                pos = ((pos >>> FILE_LEN_SHIFT_BITS) + 1) << FILE_LEN_SHIFT_BITS;
-                ensureWritePosReady(pos);
-                file = getLogFile(pos);
+            } else {
+                long fileRest = LOG_FILE_SIZE - posOfFile;
+                if (fileRest < totalLen) {
+                    // file rest space is not enough
+                    if (fileRest >= LogHeader.ITEM_HEADER_SIZE) {
+                        // write an empty header to indicate the end of the file
+                        if (writeBuffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
+                            // don't update pos
+                            writeAndClearBuffer(writeBuffer, file, pos);
+                        }
+                        LogHeader.writeEndHeader(crc32c, writeBuffer);
+                    }
+                    // don't update pos
+                    writeAndClearBuffer(writeBuffer, file, pos);
+
+                    // roll to next file
+                    pos = ((pos >>> FILE_LEN_SHIFT_BITS) + 1) << FILE_LEN_SHIFT_BITS;
+                    ensureWritePosReady(pos);
+                    file = getLogFile(pos);
+
+                    file.firstTimestamp = log.getTimestamp();
+                    file.firstIndex = log.getIndex();
+                    file.firstTerm = log.getTerm();
+                }
             }
 
             if (writeBuffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
@@ -135,38 +151,88 @@ class LogFileQueue extends FileQueue implements FileOps {
             }
 
             long itemStartPos = pos;
-            LogHeader.writeHeader(crc32c, writeBuffer, log, 0, 0, dataSize);
+            LogHeader.writeHeader(crc32c, writeBuffer, log, 0, log.getActualHeaderSize(), log.getActualBodySize());
             pos += LogHeader.ITEM_HEADER_SIZE;
 
-            Encoder encoder;
-            if (log.getType() == LogItem.TYPE_NORMAL) {
-                encoder = groupConfig.getBodyEncoder().get();
-            } else {
-                // TODO byte buffer encoder
-                encoder = null;
-            }
-            int lastPos = writeBuffer.position();
-            while (!encoder.encode(writeBuffer, log.getBody())) {
-                if (writeBuffer.position() > lastPos) {
-                    updateCrc(crc32c, writeBuffer, lastPos, writeBuffer.position() - lastPos);
-                }
-                pos = writeAndClearBuffer(writeBuffer, file, pos);
-                lastPos = 0;
-            }
-
-            if (writeBuffer.position() > lastPos) {
-                updateCrc(crc32c, writeBuffer, lastPos, writeBuffer.position() - lastPos);
-            }
-            if (writeBuffer.remaining() < 4) {
-                pos = writeAndClearBuffer(writeBuffer, file, pos);
-            }
-            writeBuffer.putInt((int) crc32c.getValue());
+            pos = writeData(writeBuffer, pos, file, log, false);
+            pos = writeData(writeBuffer, pos, file, log, true);
 
             idxOps.put(log.getIndex(), itemStartPos, totalLen);
         }
         pos = writeAndClearBuffer(writeBuffer, file, pos);
         file.channel.force(false);
         this.writePos = pos;
+    }
+
+    private long writeData(ByteBuffer writeBuffer, long pos, LogFile file, LogItem log, boolean bizBody) throws IOException {
+        Encoder encoder;
+        int size;
+        Object data;
+        if (bizBody) {
+            size = log.getActualBodySize();
+            if (size <= 0) {
+                return pos;
+            }
+            if (log.getType() == LogItem.TYPE_NORMAL) {
+                encoder = groupConfig.getBodyEncoder().get();
+            } else {
+                // TODO byte buffer encoder
+                encoder = null;
+            }
+            data = log.getBody();
+        } else {
+            size = log.getActualHeaderSize();
+            if (size <= 0) {
+                return pos;
+            }
+            if (log.getType() == LogItem.TYPE_NORMAL) {
+                encoder = groupConfig.getHeaderEncoder().get();
+            } else {
+                // TODO byte buffer encoder
+                encoder = null;
+            }
+            data = log.getHeader();
+        }
+        crc32c.reset();
+
+        if (encoder.supportMultiEncode()) {
+            if (writeBuffer.remaining() == 0) {
+                pos = writeAndClearBuffer(writeBuffer, file, pos);
+            }
+            while (true) {
+                int lastPos = writeBuffer.position();
+                boolean encodeFinish = encoder.encode(writeBuffer, data);
+                if (writeBuffer.position() > lastPos) {
+                    updateCrc(crc32c, writeBuffer, lastPos, writeBuffer.position() - lastPos);
+                }
+                if (encodeFinish) {
+                    break;
+                }
+                pos = writeAndClearBuffer(writeBuffer, file, pos);
+            }
+        } else {
+            if (writeBuffer.remaining() > size) {
+                encoder.encode(writeBuffer, data);
+            } else {
+                pos = writeAndClearBuffer(writeBuffer, file, pos);
+                if (writeBuffer.remaining() > size) {
+                    encoder.encode(writeBuffer, data);
+                } else {
+                    ByteBuffer bigBuffer = groupConfig.getDirectPool().allocate(size);
+                    try {
+                        encoder.encode(writeBuffer, data);
+                    } finally {
+                        groupConfig.getDirectPool().release(bigBuffer);
+                    }
+                }
+            }
+        }
+
+        if (writeBuffer.remaining() < 4) {
+            pos = writeAndClearBuffer(writeBuffer, file, pos);
+        }
+        writeBuffer.putInt((int) crc32c.getValue());
+        return pos;
     }
 
     private long writeAndClearBuffer(ByteBuffer buffer, LogFile file, long pos) throws IOException {

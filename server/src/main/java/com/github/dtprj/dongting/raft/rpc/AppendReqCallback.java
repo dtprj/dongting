@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -100,8 +101,10 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
             PbParser logItemParser;
             DecodeContext nestedContext = context.createOrGetNestedContext(begin);
             if (begin) {
-                Decoder decoder = (Decoder) group.getStateMachine().getBodyDecoder().get();
-                LogItemCallback c = new LogItemCallback(nestedContext, decoder);
+                StateMachine sm = group.getStateMachine();
+                Decoder headerDecoder = (Decoder) sm.getHeaderDecoder().get();
+                Decoder bodyDecoder = (Decoder) sm.getBodyDecoder().get();
+                LogItemCallback c = new LogItemCallback(nestedContext, headerDecoder, bodyDecoder);
                 logItemParser = nestedContext.createOrResetPbParser(c, len);
             } else {
                 logItemParser = nestedContext.getPbParser();
@@ -156,16 +159,19 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
     //  fixed64 index = 3;
     //  uint32 prev_log_term = 4;
     //  fixed64 timestamp = 5;
-    //  bytes data = 6;
+    //  bytes header = 6;
+    //  bytes body = 7;
     //}
     static class LogItemCallback extends PbCallback<Object> {
         private final LogItem item = new LogItem();
-        private final Decoder<?> stateMachineDecoder;
+        private final Decoder headerDecoder;
+        private final Decoder bodyDecoder;
         private final DecodeContext context;
 
-        public LogItemCallback(DecodeContext context, Decoder<?> stateMachineDecoder) {
+        public LogItemCallback(DecodeContext context, Decoder headerDecoder, Decoder bodyDecoder) {
             this.context = context;
-            this.stateMachineDecoder = stateMachineDecoder;
+            this.headerDecoder = headerDecoder;
+            this.bodyDecoder = bodyDecoder;
         }
 
         @Override
@@ -201,11 +207,24 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
         public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
             if (index == 6) {
                 if (begin) {
+                    item.setActualHeaderSize(len);
+                }
+                Object result;
+                if (item.getType() == LogItem.TYPE_NORMAL) {
+                    result = headerDecoder.decode(context, buf, len, begin, end);
+                } else {
+                    result = Decoder.decodeToByteBuffer(buf, len, begin, end, (ByteBuffer) item.getBody());
+                }
+                if (end) {
+                    item.setHeader(result);
+                }
+            } else if (index == 7) {
+                if (begin) {
                     item.setActualBodySize(len);
                 }
                 Object result;
                 if (item.getType() == LogItem.TYPE_NORMAL) {
-                    result = stateMachineDecoder.decode(context, buf, len, begin, end);
+                    result = bodyDecoder.decode(context, buf, len, begin, end);
                 } else {
                     result = Decoder.decodeToByteBuffer(buf, len, begin, end, (ByteBuffer) item.getBody());
                 }

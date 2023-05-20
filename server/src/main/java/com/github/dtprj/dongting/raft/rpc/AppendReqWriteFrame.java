@@ -106,7 +106,7 @@ public class AppendReqWriteFrame extends WriteFrame {
                 int dataSize = item.getActualBodySize();
                 if (dataSize > 0) {
                     PbUtil.writeLengthDelimitedPrefix(buf, 5, dataSize, false);
-                    RefBuffer rbb = item.getBuffer();
+                    RefBuffer rbb = item.getBodyBuffer();
                     if (rbb != null) {
                         ByteBuffer src = rbb.getBuffer();
                         src.mark();

@@ -29,7 +29,12 @@ import java.util.zip.CRC32C;
  * @author huangli
  */
 class Restorer {
-    private final DtLog log = DtLogs.getLogger(Restorer.class);
+    private static final DtLog log = DtLogs.getLogger(Restorer.class);
+
+    private static final int STATE_ITEM_HEADER = 1;
+    private static final int STATE_BIZ_HEADER = 2;
+    private static final int STATE_BODY = 3;
+
     private final CRC32C crc32c = new CRC32C();
     private final IdxOps idxOps;
     private final FileOps fileOps;
@@ -39,7 +44,7 @@ class Restorer {
     private boolean commitIndexChecked;
 
     private long itemStartPosOfFile;
-    private boolean readHeader = true;
+    private int state;
     private final LogHeader header = new LogHeader();
     private int bodyRestLen;
 

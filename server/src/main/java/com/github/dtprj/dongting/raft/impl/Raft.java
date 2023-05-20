@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.server.LogItem;
@@ -23,6 +24,7 @@ import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftNode;
+import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,6 +38,7 @@ import java.util.function.BiConsumer;
 public class Raft implements BiConsumer<EventType, Object> {
 
     private final ReplicateManager replicateManager;
+    private final StateMachine stateMachine;
     private final ApplyManager applyManager;
     private final CommitManager commitManager;
 
@@ -45,7 +48,7 @@ public class Raft implements BiConsumer<EventType, Object> {
     private final Timestamp ts;
 
     public Raft(RaftStatusImpl raftStatus, RaftLog raftLog, ApplyManager applyManager,
-                CommitManager commitManager, ReplicateManager replicateManager) {
+                CommitManager commitManager, ReplicateManager replicateManager, StateMachine stateMachine) {
         this.raftStatus = raftStatus;
         this.raftLog = raftLog;
         this.ts = raftStatus.getTs();
@@ -53,6 +56,7 @@ public class Raft implements BiConsumer<EventType, Object> {
         this.applyManager = applyManager;
         this.commitManager = commitManager;
         this.replicateManager = replicateManager;
+        this.stateMachine = stateMachine;
     }
 
     @Override
@@ -99,9 +103,21 @@ public class Raft implements BiConsumer<EventType, Object> {
                 item.setIndex(newIndex);
                 item.setPrevLogTerm(oldTerm);
                 item.setTimestamp(ts.getWallClockMillis());
-                item.setBody(input.getBody());
-                // TODO use actual size
-                item.setActualBodySize(input.getFlowControlSize());
+
+                Object header = input.getHeader();
+                item.setHeader(header);
+                if (header != null) {
+                    Encoder encoder = (Encoder) stateMachine.getHeaderDecoder().get();
+                    item.setActualHeaderSize(encoder.actualSize(header));
+                }
+
+                Object body = input.getBody();
+                item.setBody(body);
+                if (body != null) {
+                    Encoder encoder = (Encoder) stateMachine.getBodyDecoder().get();
+                    item.setActualBodySize(encoder.actualSize(body));
+                }
+
                 logs.add(item);
 
                 rt.item = item;
