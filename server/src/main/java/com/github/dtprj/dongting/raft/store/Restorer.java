@@ -134,7 +134,6 @@ class Restorer {
         }
     }
 
-    // return ture if it's need continue read
     private int restore(ByteBuffer buf, LogFile lf, long lastReadEndPos) throws IOException {
         long fileLen = fileOps.fileLength();
         while (true) {

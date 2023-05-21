@@ -144,64 +144,27 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         while (true) {
             switch (state) {
                 case STATE_ITEM_HEADER:
-                    if (buf.remaining() >= LogHeader.ITEM_HEADER_SIZE) {
-                        if (extractHeader(buf)) {
-                            // reached end of file
-                            discardBufferAndLoadNext(buf);
-                            return;
-                        }
-                        crc32c.reset();
-                        state = STATE_BIZ_HEADER;
-                        if (result.size() > 0 && item.getActualBodySize() + bytes > bytesLimit) {
-                            finish(result, bufferStartPos + buf.position());
-                            return;
-                        } else {
-                            break;
-                        }
+                    if (processHeader(buf)) {
+                        continue;
                     } else {
-                        if (logFiles.restInCurrentFile(bufferEndPos) + buf.remaining() < LogHeader.ITEM_HEADER_SIZE) {
-                            // reached end of file
-                            discardBufferAndLoadNext(buf);
-                        } else {
-                            LogFileQueue.prepareNextRead(buf);
-                            loadLogFromStore(bufferEndPos);
-                        }
                         return;
                     }
                 case STATE_BIZ_HEADER:
-                    if (extractBizHeader()) {
-                        crc32c.reset();
-                        state = STATE_BIZ_BODY;
-                        break;
+                    if (extractBizHeader(buf)) {
+                        continue;
                     } else {
-                        LogFileQueue.prepareNextRead(buf);
-                        loadLogFromStore(bufferEndPos);
                         return;
                     }
                 case STATE_BIZ_BODY:
-                    if (extractBizBody()) {
-                        state = STATE_ITEM_HEADER;
-                        if (result.size() >= limit) {
-                            finish(result, bufferStartPos + buf.position());
-                            return;
-                        } else {
-                            break;
-                        }
+                    if (extractBizBody(buf)) {
+                        continue;
                     } else {
-                        LogFileQueue.prepareNextRead(buf);
-                        loadLogFromStore(bufferEndPos);
                         return;
                     }
                 default:
                     throw new RaftException("error state:" + state);
             }
         }
-    }
-
-    private void discardBufferAndLoadNext(ByteBuffer buf) {
-        buf.clear();
-        long nextFileStartPos = logFiles.nextFilePos(bufferStartPos);
-        loadLogFromStore(nextFileStartPos);
     }
 
     private void loadLogFromStore(long pos) {
@@ -240,6 +203,40 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         }
     }
 
+    private void discardBufferAndLoadNextFile(ByteBuffer buf) {
+        buf.clear();
+        long nextFileStartPos = logFiles.nextFilePos(bufferStartPos);
+        loadLogFromStore(nextFileStartPos);
+    }
+
+    // return true if it should continue parse
+    private boolean processHeader(ByteBuffer buf) {
+        if (buf.remaining() >= LogHeader.ITEM_HEADER_SIZE) {
+            if (!extractHeader(buf)) {
+                // reached end of file
+                discardBufferAndLoadNextFile(buf);
+                return false;
+            }
+            crc32c.reset();
+            state = STATE_BIZ_HEADER;
+            if (result.size() > 0 && item.getActualBodySize() + bytes > bytesLimit) {
+                finish(result, bufferStartPos + buf.position());
+                return false;
+            } else {
+                return true;
+            }
+        } else {
+            if (logFiles.restInCurrentFile(bufferEndPos) + buf.remaining() < LogHeader.ITEM_HEADER_SIZE) {
+                // reached end of file
+                discardBufferAndLoadNextFile(buf);
+            } else {
+                LogFileQueue.prepareNextRead(buf);
+                loadLogFromStore(bufferEndPos);
+            }
+            return false;
+        }
+    }
+
     private boolean extractHeader(ByteBuffer readBuffer) {
         LogHeader header = this.header;
         header.read(readBuffer);
@@ -247,7 +244,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
             throw new ChecksumException();
         }
         if (header.isEndMagic()) {
-            return true;
+            return false;
         }
 
         int bodyLen = header.bodyLen;
@@ -273,22 +270,29 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         if (bodyLen > 0) {
             li.setBodyBuffer(heapPool.create(bodyLen));
         }
-        return false;
+        return true;
     }
 
-    private boolean extractBizHeader() {
+    private boolean extractBizHeader(ByteBuffer buf) {
         int bizHeaderLen = header.bizHeaderLen;
         if (bizHeaderLen == 0) {
             return true;
         }
         ByteBuffer destBuf = item.getHeaderBuffer().getBuffer();
-        return readData(bizHeaderLen, destBuf);
+        boolean readFinish = readData(buf, bizHeaderLen, destBuf);
+        if (readFinish) {
+            crc32c.reset();
+            state = STATE_BIZ_BODY;
+        } else {
+            LogFileQueue.prepareNextRead(buf);
+            loadLogFromStore(bufferEndPos);
+        }
+        return readFinish;
     }
 
-    private boolean readData(int dataLen, ByteBuffer destBuf) {
+    private boolean readData(ByteBuffer buf, int dataLen, ByteBuffer destBuf) {
         int read = destBuf.position();
         int needRead = dataLen - read;
-        ByteBuffer buf = readBuffer;
         if (needRead > 0 && buf.remaining() > 0) {
             int actualRead = Math.min(needRead, buf.remaining());
             LogFileQueue.updateCrc(crc32c, buf, buf.position(), actualRead);
@@ -307,7 +311,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         }
     }
 
-    private boolean extractBizBody() {
+    private boolean extractBizBody(ByteBuffer buf) {
         int bodyLen = header.bodyLen;
         if (bodyLen == 0) {
             result.add(item);
@@ -315,13 +319,23 @@ class DefaultLogIterator implements RaftLog.LogIterator {
             return true;
         }
         ByteBuffer destBuf = item.getBodyBuffer().getBuffer();
-        boolean readFinish = readData(bodyLen, destBuf);
+        boolean readFinish = readData(buf, bodyLen, destBuf);
         if (readFinish) {
             result.add(item);
             bytes += bodyLen;
             item = null;
+            state = STATE_ITEM_HEADER;
+            if (result.size() >= limit) {
+                finish(result, bufferStartPos + buf.position());
+                return false;
+            } else {
+                return true;
+            }
+        } else {
+            LogFileQueue.prepareNextRead(buf);
+            loadLogFromStore(bufferEndPos);
+            return false;
         }
-        return readFinish;
     }
 
     @Override
