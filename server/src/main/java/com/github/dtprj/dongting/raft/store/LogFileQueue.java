@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
@@ -78,7 +79,11 @@ class LogFileQueue extends FileQueue implements FileOps {
         Restorer restorer = new Restorer(idxOps, this, commitIndex, commitIndexPos);
         for (int i = 0; i < queue.size(); i++) {
             LogFile lf = queue.get(i);
-            writePos = restorer.restoreFile(this.writeBuffer, lf);
+            Pair<Boolean, Long> result = restorer.restoreFile(this.writeBuffer, lf);
+            writePos = result.getRight();
+            if (result.getLeft()) {
+                break;
+            }
         }
         if (queue.size() > 0) {
             if (commitIndexPos >= queue.get(queue.size() - 1).endPos) {
