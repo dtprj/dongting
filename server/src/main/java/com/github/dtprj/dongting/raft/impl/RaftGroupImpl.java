@@ -79,7 +79,6 @@ public class RaftGroupImpl extends RaftGroup {
         if (raftStatus.isStop()) {
             throw new RaftException("raft group thread is stop");
         }
-        //TODO size control need update
         int size = input.getFlowControlSize();
         if (size > serverConfig.getMaxBodySize()) {
             throw new RaftException("request size too large, size=" + size + ", maxBodySize=" + serverConfig.getMaxBodySize());
