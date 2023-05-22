@@ -257,9 +257,51 @@ class LogFileQueue extends FileQueue implements FileOps {
         return pos + count;
     }
 
-    public void truncateTail(long dataPosition) {
-        DtUtil.checkNotNegative(dataPosition, "dataPosition");
-        writePos = dataPosition;
+    public void syncTruncateTail(long startPosition, long endPosition) throws IOException {
+        DtUtil.checkNotNegative(startPosition, "startPosition");
+        DtUtil.checkNotNegative(endPosition, "endPosition");
+        log.info("truncate tail from {} to {}, currentWritePos={}", startPosition, endPosition, writePos);
+        writePos = startPosition;
+        int startQueueIndex = (int) ((startPosition - queueStartPosition) >>> FILE_LEN_SHIFT_BITS);
+        ByteBuffer buffer = directPool.borrow(64 * 1024);
+        while (buffer.hasRemaining()) {
+            // fill with zero
+            buffer.putLong(0);
+        }
+        try {
+            for (int i = startQueueIndex; i < queue.size(); i++) {
+                LogFile lf = queue.get(i);
+                if (lf.startPos >= startPosition) {
+                    lf.firstTerm = 0;
+                    lf.firstIndex = 0;
+                    lf.firstTimestamp = 0;
+                }
+                fillWithZero(buffer, lf, startPosition, endPosition);
+            }
+        } finally {
+            directPool.release(buffer);
+        }
+    }
+
+    private void fillWithZero(ByteBuffer buffer, LogFile lf, long startPosition, long endPosition) throws IOException {
+        if (lf.startPos >= endPosition) {
+            return;
+        }
+        long start = Math.max(lf.startPos, startPosition);
+        long end = Math.min(lf.endPos, endPosition);
+        if (start >= end) {
+            return;
+        }
+        start = start & FILE_LEN_MASK;
+        end = end & FILE_LEN_MASK;
+        log.info("truncate tail, file zero from {} to {}, file={}", start, end, lf.file.getPath());
+        for (long i = start; i < end; ) {
+            buffer.clear();
+            if (i + buffer.capacity() > end) {
+                buffer.limit((int) (end - i));
+            }
+            FileUtil.syncWriteFull(lf.channel, buffer, i);
+        }
     }
 
     private void checkPos(long pos) {

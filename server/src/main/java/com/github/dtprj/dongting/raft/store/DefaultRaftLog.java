@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
+import com.github.dtprj.dongting.raft.impl.StatusFile;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftLog;
@@ -46,6 +47,9 @@ public class DefaultRaftLog implements RaftLog {
 
     private long lastTaskNanos;
     private static final long TASK_INTERVAL_NANOS = 10 * 1000 * 1000 * 1000L;
+
+    private StatusFile statusFile;
+    private static final String KEY_TRUNCATE = "truncate";
 
     public DefaultRaftLog(RaftGroupConfigEx groupConfig) {
         this.groupConfig = groupConfig;
@@ -76,6 +80,21 @@ public class DefaultRaftLog implements RaftLog {
         } else {
             commitIndexPos = 0;
         }
+
+        statusFile = new StatusFile(new File(dataDir, "log.status"));
+        statusFile.init();
+        String truncateStatus = statusFile.getProperties().getProperty(KEY_TRUNCATE);
+        if (truncateStatus != null) {
+            String[] parts = truncateStatus.split(",");
+            if (parts.length == 2) {
+                long start = Long.parseLong(parts[0]);
+                long end = Long.parseLong(parts[1]);
+                logFiles.syncTruncateTail(start, end);
+                statusFile.getProperties().remove(KEY_TRUNCATE);
+                statusFile.update();
+            }
+        }
+
         int lastTerm = logFiles.restore(knownMaxCommitIndex, commitIndexPos);
         if (idxFiles.getNextIndex() == 1) {
             return new Pair<>(0, 0L);
@@ -102,8 +121,17 @@ public class DefaultRaftLog implements RaftLog {
         if (firstIndex == idxFiles.getNextIndex()) {
             logFiles.append(logs);
         } else if (firstIndex < idxFiles.getNextIndex()) {
+            if (firstIndex < idxFiles.queueStartPosition || firstIndex < logFiles.queueStartPosition) {
+                throw new RaftException("bad index: " + firstIndex);
+            }
             long dataPosition = idxFiles.truncateTail(firstIndex);
-            logFiles.truncateTail(dataPosition);
+
+            statusFile.getProperties().setProperty(KEY_TRUNCATE, dataPosition + "," + logFiles.getWritePos());
+            statusFile.update();
+            logFiles.syncTruncateTail(dataPosition, logFiles.getWritePos());
+            statusFile.getProperties().remove(KEY_TRUNCATE);
+            statusFile.update();
+
             logFiles.append(logs);
         } else {
             throw new RaftException("bad index: " + firstIndex);
