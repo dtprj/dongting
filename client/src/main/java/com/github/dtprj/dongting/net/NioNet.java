@@ -78,11 +78,11 @@ public abstract class NioNet extends AbstractLifeCircle {
                                                     Decoder<?> decoder, DtTime timeout) {
         request.setFrameType(FrameType.TYPE_REQ);
         DtUtil.checkPositive(request.getCommand(), "request.command");
-        if (request.estimateBodySize() > config.getMaxBodySize()) {
-            throw new IllegalArgumentException("request body too large: " + request.estimateBodySize());
+        if (request.actualBodySize() > config.getMaxBodySize()) {
+            throw new IllegalArgumentException("request body too large: " + request.actualBodySize());
         }
-        if (request.estimateSize() > config.getMaxFrameSize()) {
-            throw new IllegalArgumentException("request frame too large: " + request.estimateSize());
+        if (request.actualSize() > config.getMaxFrameSize()) {
+            throw new IllegalArgumentException("request frame too large: " + request.actualSize());
         }
         boolean acquire = false;
         boolean write = false;

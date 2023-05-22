@@ -77,7 +77,7 @@ public class TransferLeaderReq {
         }
 
         @Override
-        protected int calcEstimateBodySize() {
+        protected int calcActualBodySize() {
             return PbUtil.accurateUnsignedIntSize(1, req.groupId)
                     + PbUtil.accurateUnsignedIntSize(2, req.term)
                     + PbUtil.accurateUnsignedIntSize(3, req.oldLeaderId)

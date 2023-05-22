@@ -263,7 +263,7 @@ public class PbParser {
                         }
                         if (parsedBytes + value > frameLen) {
                             status = STATUS_ERROR;
-                            throw new PbException("field length overflow frame length:" + value);
+                            throw new PbException("field length overflow frame length. len=" + value + ",index=" + fieldIndex);
                         }
                         this.fieldLen = value;
                         this.status = STATUS_PARSE_FILED_BODY_BEGIN;

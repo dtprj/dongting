@@ -38,7 +38,7 @@ public class NodePingWriteFrame extends WriteFrame {
     }
 
     @Override
-    protected int calcEstimateBodySize() {
+    protected int calcActualBodySize() {
         return PbUtil.accurateFix32Size(1, selfNodeId)
                 + PbUtil.accurateFix64Size(2, uuid.getMostSignificantBits())
                 + PbUtil.accurateFix64Size(3, uuid.getLeastSignificantBits());
@@ -46,7 +46,6 @@ public class NodePingWriteFrame extends WriteFrame {
 
     @Override
     protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
-        super.writeBodySize(buf, estimateBodySize());
         PbUtil.writeFix32(buf, 1, selfNodeId);
         PbUtil.writeFix64(buf, 2, uuid.getMostSignificantBits());
         PbUtil.writeFix64(buf, 3, uuid.getLeastSignificantBits());

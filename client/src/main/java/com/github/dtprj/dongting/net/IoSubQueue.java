@@ -61,7 +61,7 @@ class IoSubQueue {
     public void enqueue(WriteData writeData) {
         ArrayDeque<WriteData> subQueue = this.subQueue;
         subQueue.addLast(writeData);
-        subQueueBytes += writeData.getData().estimateSize();
+        subQueueBytes += writeData.getData().actualSize();
         if (subQueue.size() == 1 && !writing) {
             registerForWrite.run();
         }
@@ -108,7 +108,7 @@ class IoSubQueue {
             WriteData wd;
             while ((wd = subQueue.pollFirst()) != null) {
                 WriteFrame f = wd.getData();
-                int size = f.estimateSize();
+                int size = f.actualSize();
                 if (buf == null) {
                     if (size > MAX_BUFFER_SIZE) {
                         buf = directPool.borrow(size);

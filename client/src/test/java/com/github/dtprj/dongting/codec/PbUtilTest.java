@@ -498,11 +498,10 @@ public class PbUtilTest {
 
     @Test
     public void testLengthDelimitedSize() {
-        assertEquals(0, accurateLengthDelimitedSize(1, 0, false));
-        assertEquals(2, accurateLengthDelimitedSize(1, 0, true));
-        assertEquals(accurateLengthDelimitedSize(536870911, Integer.MAX_VALUE, false), maxLengthDelimitedSize(Integer.MAX_VALUE));
-        assertTrue(accurateLengthDelimitedSize(10000, Integer.MAX_VALUE, false) < maxLengthDelimitedSize(Integer.MAX_VALUE));
-        assertTrue(accurateLengthDelimitedSize(536870911, 10000, false) < maxLengthDelimitedSize(10000));
+        assertEquals(0, accurateLengthDelimitedSize(1, 0));
+        assertEquals(accurateLengthDelimitedSize(536870911, Integer.MAX_VALUE), maxLengthDelimitedSize(Integer.MAX_VALUE));
+        assertTrue(accurateLengthDelimitedSize(10000, Integer.MAX_VALUE) < maxLengthDelimitedSize(Integer.MAX_VALUE));
+        assertTrue(accurateLengthDelimitedSize(536870911, 10000) < maxLengthDelimitedSize(10000));
     }
 
     @Test

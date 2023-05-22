@@ -116,7 +116,7 @@ public class InstallSnapshotReq {
         }
 
         @Override
-        protected int calcEstimateBodySize() {
+        protected int calcActualBodySize() {
             int x = PbUtil.accurateUnsignedIntSize(1, req.groupId)
                     + PbUtil.accurateUnsignedIntSize(2, req.term)
                     + PbUtil.accurateUnsignedIntSize(3, req.leaderId)
@@ -124,7 +124,7 @@ public class InstallSnapshotReq {
                     + PbUtil.accurateUnsignedIntSize(5, req.lastIncludedTerm)
                     + PbUtil.accurateFix64Size(6, req.offset);
             if (req.data != null && req.data.getBuffer().hasRemaining()) {
-                x += PbUtil.accurateLengthDelimitedSize(7, req.data.getBuffer().remaining(), false);
+                x += PbUtil.accurateLengthDelimitedSize(7, req.data.getBuffer().remaining());
             }
             x += PbUtil.accurateUnsignedIntSize(8, req.done ? 1 : 0);
             return x;
@@ -132,7 +132,6 @@ public class InstallSnapshotReq {
 
         @Override
         protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
-            super.writeBodySize(buf, estimateBodySize());
             PbUtil.writeUnsignedInt32(buf, 1, req.groupId);
             PbUtil.writeUnsignedInt32(buf, 2, req.term);
             PbUtil.writeUnsignedInt32(buf, 3, req.leaderId);
@@ -140,7 +139,7 @@ public class InstallSnapshotReq {
             PbUtil.writeUnsignedInt32(buf, 5, req.lastIncludedTerm);
             PbUtil.writeFix64(buf, 6, req.offset);
             if (req.data != null && req.data.getBuffer().hasRemaining()) {
-                PbUtil.writeLengthDelimitedPrefix(buf, 7, req.data.getBuffer().remaining(), false);
+                PbUtil.writeLengthDelimitedPrefix(buf, 7, req.data.getBuffer().remaining());
                 buf.put(req.data.getBuffer());
             }
             PbUtil.writeUnsignedInt32(buf, 8, req.done ? 1 : 0);

@@ -112,9 +112,6 @@ public class PbUtil {
     }
 
     static void writeUnsignedInt64ValueOnly(ByteBuffer buf, long value) {
-        if (value == 0) {
-            throw new IllegalArgumentException();
-        }
         for (int i = 0; i < 10; i++) {
             long x = value & 0x7FL;
             value >>>= 7;
@@ -153,19 +150,19 @@ public class PbUtil {
         }
     }
 
-    public static void writeLengthDelimitedPrefix(ByteBuffer buf, int index, int len, boolean supportEmpty) {
-        if (len == 0 && !supportEmpty) {
-            throw new IllegalArgumentException(String.valueOf(len));
+    public static void writeLengthDelimitedPrefix(ByteBuffer buf, int index, int len) {
+        if (len == 0) {
+            return;
         }
         writeTag(buf, TYPE_LENGTH_DELIMITED, index);
         writeUnsignedInt32ValueOnly(buf, len);
     }
 
-    public static void writeBytes(ByteBuffer buf, int index, byte[] data, boolean supportEmpty) {
+    public static void writeBytes(ByteBuffer buf, int index, byte[] data) {
         if (data == null) {
             return;
         }
-        if (data.length == 0 && !supportEmpty) {
+        if (data.length == 0) {
             return;
         }
         writeTag(buf, TYPE_LENGTH_DELIMITED, index);
@@ -336,8 +333,8 @@ public class PbUtil {
         return MAX_TAG_LENGTH + MAX_UNSIGNED_INT_LENGTH + bodyLen;
     }
 
-    public static int accurateLengthDelimitedSize(int index, int bodyLen, boolean supportEmpty) {
-        if (bodyLen == 0 && !supportEmpty) {
+    public static int accurateLengthDelimitedSize(int index, int bodyLen) {
+        if (bodyLen == 0) {
             return 0;
         }
         return accurateTagSize(index) + accurateUnsignedIntSize(bodyLen) + bodyLen;

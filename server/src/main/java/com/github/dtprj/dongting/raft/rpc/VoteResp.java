@@ -61,14 +61,13 @@ public class VoteResp {
         }
 
         @Override
-        protected int calcEstimateBodySize() {
+        protected int calcActualBodySize() {
             return PbUtil.accurateUnsignedIntSize(1, data.term)
                     + PbUtil.accurateUnsignedIntSize(2, data.voteGranted ? 1 : 0);
         }
 
         @Override
         protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
-            super.writeBodySize(buf, estimateBodySize());
             PbUtil.writeUnsignedInt32(buf, 1, data.term);
             PbUtil.writeUnsignedInt32(buf, 2, data.voteGranted ? 1 : 0);
         }

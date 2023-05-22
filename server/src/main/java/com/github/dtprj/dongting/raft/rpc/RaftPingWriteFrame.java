@@ -40,7 +40,7 @@ public class RaftPingWriteFrame extends WriteFrame {
     }
 
     @Override
-    protected int calcEstimateBodySize() {
+    protected int calcActualBodySize() {
         int size = PbUtil.accurateFix32Size(1, groupId);
         size += PbUtil.accurateFix32Size(2, nodeId);
         if (nodeIdOfMembers != null) {
@@ -58,7 +58,6 @@ public class RaftPingWriteFrame extends WriteFrame {
 
     @Override
     protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
-        super.writeBodySize(buf, estimateBodySize());
         PbUtil.writeFix32(buf, 1, groupId);
         PbUtil.writeFix32(buf, 2, nodeId);
         if (nodeIdOfMembers != null) {

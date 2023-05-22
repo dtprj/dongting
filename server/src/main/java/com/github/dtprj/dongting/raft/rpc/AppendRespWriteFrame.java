@@ -34,7 +34,7 @@ public class AppendRespWriteFrame extends WriteFrame {
     private long maxLogIndex;
 
     @Override
-    protected int calcEstimateBodySize() {
+    protected int calcActualBodySize() {
         return PbUtil.accurateUnsignedIntSize(1, term)
                 + PbUtil.accurateUnsignedIntSize(2, success ? 1 : 0)
                 + PbUtil.accurateUnsignedIntSize(3, appendCode)
@@ -44,7 +44,6 @@ public class AppendRespWriteFrame extends WriteFrame {
 
     @Override
     protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
-        super.writeBodySize(buf, estimateBodySize());
         PbUtil.writeUnsignedInt32(buf, 1, term);
         PbUtil.writeUnsignedInt32(buf, 2, success ? 1 : 0);
         PbUtil.writeUnsignedInt32(buf, 3, appendCode);

@@ -26,24 +26,25 @@ public class FramePbTest {
 
     @Test
     public void test() throws Exception {
-        test0(0, 0, 0, 0, "1", 0);
-        test0(1, 1, 1, 1, "123", 1);
-        test0(1000, 1000, 1000, 1000, "123", 1000);
-        test0(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, "汉字", 1000);
-        test0(-1, -1, -1, -1, "123", 1000);
-        test0(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, "123", 1000);
+        test0(0, 0, 0, 0, "1", 0, 0);
+        test0(1, 1, 1, 1, "123", 1, 1);
+        test0(1000, 1000, 1000, 1000, "123", 10000, 1000);
+        test0(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, "汉字", Long.MAX_VALUE, 1000);
+        test0(-1, -1, -1, -1, "123", -1, 1000);
+        test0(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, "123", Long.MIN_VALUE, 1000);
 
         char[] cs = new char[2000];
         Arrays.fill(cs, 'a');
-        test0(1000, 1000, 1000, 1000, new String(cs), 1000);
+        test0(1000, 1000, 1000, 1000, new String(cs), 1000, 1000);
     }
 
-    private void test0(int frameType, int command, int seq, int respCode,String msg, int bodySize) throws Exception {
-        testEncode0(frameType, command, seq, respCode, msg, bodySize);
-        testDecode0(frameType, command, seq, respCode, msg, bodySize);
+    private void test0(int frameType, int command, int seq, int respCode, String msg, long timeout, int bodySize) throws Exception {
+        testEncode0(frameType, command, seq, respCode, msg, timeout, bodySize);
+        testDecode0(frameType, command, seq, respCode, msg, timeout, bodySize);
     }
 
-    private void testEncode0(int frameType, int command, int seq, int respCode,String msg, int bodySize) throws Exception {
+    private void testEncode0(int frameType, int command, int seq, int respCode, String msg,
+                             long timeout, int bodySize) throws Exception {
         byte[] bs = new byte[bodySize];
         new Random().nextBytes(bs);
         ByteBufferWriteFrame f = new ByteBufferWriteFrame(ByteBuffer.wrap(bs));
@@ -52,7 +53,8 @@ public class FramePbTest {
         f.setSeq(seq);
         f.setRespCode(respCode);
         f.setMsg(msg);
-        ByteBuffer buf = ByteBuffer.allocate(f.estimateSize());
+        f.setTimeout(timeout);
+        ByteBuffer buf = ByteBuffer.allocate(f.actualSize());
         f.encode(buf, null);
         buf.flip();
         buf.position(4);
@@ -62,10 +64,12 @@ public class FramePbTest {
         assertEquals(seq, pbf.getSeq());
         assertEquals(respCode, pbf.getRespCode());
         assertEquals(msg, pbf.getRespMsg());
+        assertEquals(timeout, pbf.getTimeout());
         assertArrayEquals(bs, pbf.getBody().toByteArray());
     }
 
-    private void testDecode0(int frameType, int command, int seq, int respCode,String msg, int bodySize) throws IOException {
+    private void testDecode0(int frameType, int command, int seq, int respCode,
+                             String msg, long timeout, int bodySize) throws IOException {
         byte[] bs = new byte[bodySize];
         new Random().nextBytes(bs);
         DtFrame.Frame pbf = DtFrame.Frame.newBuilder()
@@ -74,6 +78,7 @@ public class FramePbTest {
                 .setSeq(seq)
                 .setRespCode(respCode)
                 .setRespMsg(msg)
+                .setTimeout(timeout)
                 .setBody(ByteString.copyFrom(bs))
                 .build();
         byte[] encodeBytes = pbf.toByteArray();
@@ -110,5 +115,6 @@ public class FramePbTest {
         assertEquals(seq, dtc.getFrame().getSeq());
         assertEquals(respCode, dtc.getFrame().getRespCode());
         assertEquals(msg, dtc.getFrame().getMsg());
+        assertEquals(timeout, dtc.getFrame().getTimeout());
     }
 }

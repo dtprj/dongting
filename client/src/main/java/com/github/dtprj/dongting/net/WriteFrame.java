@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.codec.PbUtil;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 /**
  * @author huangli
@@ -28,50 +29,50 @@ public abstract class WriteFrame extends Frame {
     private int dumpSize;
     private int bodySize;
 
-    protected abstract int calcEstimateBodySize();
+    private byte[] msgBytes;
+
+    protected abstract int calcActualBodySize();
 
     protected abstract void encodeBody(ByteBuffer buf, ByteBufferPool pool);
 
-    public final int estimateBodySize() {
+    public final int actualBodySize() {
         if (bodySize == 0) {
-            bodySize = calcEstimateBodySize();
+            bodySize = calcActualBodySize();
         }
         return bodySize;
     }
 
-    public int estimateSize() {
+    public int actualSize() {
         int dumpSize = this.dumpSize;
         if (dumpSize == 0) {
-            dumpSize = 4 // length
-                    + 1 + 1 // uint32 frame_type = 1;
-                    + 1 + 5 // uint32 command = 2;
-                    + 1 + 4 // fixed32 seq = 3;
-                    + 1 + 5 // uint32 resp_code = 4;
-                    + PbUtil.maxStrSizeUTF8(msg) // string resp_msg = 5;
-                    + 1 + 8; // fixed32 timeout_millis = 6;
-            int bodySize = estimateBodySize();
-            if (bodySize > 0) {
-                dumpSize += 1 + 5 + bodySize; // bytes body = 15;
+            if (msg != null && !msg.isEmpty()) {
+                msgBytes = msg.getBytes(StandardCharsets.UTF_8);
             }
+            dumpSize = 4 // length
+                    + PbUtil.accurateUnsignedIntSize(1, frameType) // uint32 frame_type = 1;
+                    + PbUtil.accurateUnsignedIntSize(2, command) // uint32 command = 2;
+                    + PbUtil.accurateFix32Size(3, seq) // fixed32 seq = 3;
+                    + PbUtil.accurateUnsignedIntSize(4, respCode) // uint32 resp_code = 4;
+                    + PbUtil.accurateLengthDelimitedSize(5, msgBytes == null ? 0 : msgBytes.length) // string resp_msg = 5;
+                    + PbUtil.accurateFix64Size(6, timeout) // fixed64 timeout = 6;
+                    + PbUtil.accurateLengthDelimitedSize(15, actualBodySize()); // bytes body = 15;
             this.dumpSize = dumpSize;
         }
         return dumpSize;
     }
 
     public void encode(ByteBuffer buf, ByteBufferPool pool) {
-        int startPos = buf.position();
-        buf.position(startPos + 4);
+        buf.putInt(actualSize());
         PbUtil.writeUnsignedInt32(buf, Frame.IDX_TYPE, frameType);
         PbUtil.writeUnsignedInt32(buf, Frame.IDX_COMMAND, command);
         PbUtil.writeFix32(buf, Frame.IDX_SEQ, seq);
         PbUtil.writeUnsignedInt32(buf, Frame.IDX_RESP_CODE, respCode);
         PbUtil.writeUTF8(buf, Frame.IDX_MSG, msg);
         PbUtil.writeFix64(buf, Frame.IDX_TIMOUT, timeout);
-        encodeBody(buf, pool);
-        buf.putInt(startPos, buf.position() - startPos - 4);
+        if (actualBodySize() > 0) {
+            PbUtil.writeLengthDelimitedPrefix(buf, Frame.IDX_BODY, actualBodySize());
+            encodeBody(buf, pool);
+        }
     }
 
-    protected void writeBodySize(ByteBuffer buf, int len) {
-        PbUtil.writeLengthDelimitedPrefix(buf, Frame.IDX_BODY, len, true);
-    }
 }

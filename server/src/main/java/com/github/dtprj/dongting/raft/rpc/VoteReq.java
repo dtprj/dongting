@@ -86,7 +86,7 @@ public class VoteReq {
         }
 
         @Override
-        protected int calcEstimateBodySize() {
+        protected int calcActualBodySize() {
             return PbUtil.accurateUnsignedLongSize(1, data.groupId)
                     + PbUtil.accurateUnsignedLongSize(2, data.term)
                     + PbUtil.accurateUnsignedIntSize(3, data.candidateId)
@@ -97,7 +97,6 @@ public class VoteReq {
 
         @Override
         protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
-            super.writeBodySize(buf, estimateBodySize());
             PbUtil.writeUnsignedInt32(buf, 1, data.groupId);
             PbUtil.writeUnsignedInt32(buf, 2, data.term);
             PbUtil.writeUnsignedInt32(buf, 3, data.candidateId);

@@ -61,7 +61,7 @@ public class AppendReqWriteFrame extends WriteFrame {
     }
 
     @Override
-    protected int calcEstimateBodySize() {
+    protected int calcActualBodySize() {
         int x = PbUtil.accurateUnsignedIntSize(1, groupId)
                 + PbUtil.accurateUnsignedIntSize(2, term)
                 + PbUtil.accurateUnsignedIntSize(3, leaderId)
@@ -71,7 +71,7 @@ public class AppendReqWriteFrame extends WriteFrame {
         if (logs != null) {
             for (LogItem item : logs) {
                 int itemSize = computeItemSize(item);
-                x += PbUtil.accurateLengthDelimitedSize(6, itemSize, false);
+                x += PbUtil.accurateLengthDelimitedSize(6, itemSize);
             }
         }
         return x;
@@ -83,13 +83,12 @@ public class AppendReqWriteFrame extends WriteFrame {
         itemSize += PbUtil.accurateUnsignedIntSize(2, item.getTerm());
         itemSize += PbUtil.accurateFix64Size(3, item.getIndex());
         itemSize += PbUtil.accurateUnsignedIntSize(4, item.getPrevLogTerm());
-        itemSize += PbUtil.accurateLengthDelimitedSize(5, item.getActualBodySize(), false);
+        itemSize += PbUtil.accurateLengthDelimitedSize(5, item.getActualBodySize());
         return itemSize;
     }
 
     @Override
     protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
-        super.writeBodySize(buf, estimateBodySize());
         PbUtil.writeUnsignedInt32(buf, 1, groupId);
         PbUtil.writeUnsignedInt32(buf, 2, term);
         PbUtil.writeUnsignedInt32(buf, 3, leaderId);
@@ -97,7 +96,7 @@ public class AppendReqWriteFrame extends WriteFrame {
         PbUtil.writeUnsignedInt32(buf, 5, prevLogTerm);
         if (logs != null) {
             for (LogItem item : logs) {
-                PbUtil.writeLengthDelimitedPrefix(buf, 6, computeItemSize(item), false);
+                PbUtil.writeLengthDelimitedPrefix(buf, 6, computeItemSize(item));
 
                 PbUtil.writeUnsignedInt32(buf, 1, item.getType());
                 PbUtil.writeUnsignedInt32(buf, 2, item.getTerm());
@@ -105,7 +104,7 @@ public class AppendReqWriteFrame extends WriteFrame {
                 PbUtil.writeUnsignedInt32(buf, 4, item.getPrevLogTerm());
                 int dataSize = item.getActualBodySize();
                 if (dataSize > 0) {
-                    PbUtil.writeLengthDelimitedPrefix(buf, 5, dataSize, false);
+                    PbUtil.writeLengthDelimitedPrefix(buf, 5, dataSize);
                     RefBuffer rbb = item.getBodyBuffer();
                     if (rbb != null) {
                         ByteBuffer src = rbb.getBuffer();

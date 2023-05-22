@@ -30,17 +30,13 @@ public class ByteBufferWriteFrame extends WriteFrame {
     }
 
     @Override
-    protected int calcEstimateBodySize() {
+    protected int calcActualBodySize() {
         ByteBuffer body = this.body;
         return body == null ? 0 : body.remaining();
     }
 
     @Override
     protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
-        if (body == null) {
-            return;
-        }
-        writeBodySize(buf, estimateBodySize());
         body.mark();
         buf.put(body);
         body.reset();

@@ -26,13 +26,12 @@ public abstract class CopyWriteFrame extends WriteFrame {
 
     @Override
     protected final void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
-        int s = estimateBodySize();
+        int s = actualBodySize();
         if (s > 0) {
             ByteBuffer temp = pool.borrow(s);
             try {
                 encodeBody(temp);
                 temp.flip();
-                super.writeBodySize(buf, temp.remaining());
                 buf.put(temp);
             } finally {
                 pool.release(temp);
