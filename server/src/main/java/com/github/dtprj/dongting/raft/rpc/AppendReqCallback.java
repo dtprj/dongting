@@ -37,10 +37,9 @@ import java.util.ArrayList;
 //  uint32 leader_id = 3;
 //  fixed64 prev_log_index = 4;
 //  uint32 prev_log_term = 5;
-//  repeated LogItem entries = 6;
-//  fixed64 leader_commit = 7;
+//  fixed64 leader_commit = 6;
+//  repeated LogItem entries = 7;
 //}
-//
 public class AppendReqCallback extends PbCallback<AppendReqCallback> {
 
     private final DecodeContext context;
@@ -83,7 +82,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
             case 4:
                 prevLogIndex = value;
                 break;
-            case 7:
+            case 6:
                 leaderCommit = value;
                 break;
         }
@@ -92,7 +91,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
 
     @Override
     public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
-        if (index == 6) {
+        if (index == 7) {
             RaftGroupImpl group = raftGroups.get(groupId);
             if (group == null) {
                 // group id should encode before entries
@@ -216,6 +215,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                     result = Decoder.decodeToByteBuffer(buf, len, begin, end, (ByteBuffer) item.getBody());
                 }
                 if (end) {
+                    item.setActualHeaderSize(len);
                     item.setHeader(result);
                 }
             } else if (index == 7) {
@@ -229,6 +229,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                     result = Decoder.decodeToByteBuffer(buf, len, begin, end, (ByteBuffer) item.getBody());
                 }
                 if (end) {
+                    item.setActualBodySize(len);
                     item.setBody(result);
                 }
             }

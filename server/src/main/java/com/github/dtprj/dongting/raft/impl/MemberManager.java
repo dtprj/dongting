@@ -307,7 +307,7 @@ public class MemberManager {
                 req.logIndex = raftStatus.getLastLogIndex();
                 req.oldLeaderId = serverConfig.getNodeId();
                 req.groupId = groupId;
-                TransferLeaderReq.WriteFrame frame = new TransferLeaderReq.WriteFrame(req);
+                TransferLeaderReq.TransferLeaderReqWriteFrame frame = new TransferLeaderReq.TransferLeaderReqWriteFrame(req);
                 client.sendRequest(newLeader.getNode().getPeer(), frame,
                         null, new DtTime(5, TimeUnit.SECONDS))
                         .whenComplete((rf, ex) -> {

@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.net.WriteFrame;
@@ -34,8 +34,8 @@ import java.util.List;
 //  uint32 leader_id = 3;
 //  fixed64 prev_log_index = 4;
 //  uint32 prev_log_term = 5;
-//  repeated LogItem entries = 6;
-//  fixed64 leader_commit = 7;
+//  fixed64 leader_commit = 6;
+//  repeated LogItem entries = 7;
 //}
 //
 //message LogItem {
@@ -43,83 +43,177 @@ import java.util.List;
 //  uint32 term = 2;
 //  fixed64 index = 3;
 //  uint32 prev_log_term = 4;
-//  bytes data = 5;
+//  fixed64 timestamp = 5;
+//  bytes header = 6;
+//  bytes body = 7;
 //}
 public class AppendReqWriteFrame extends WriteFrame {
 
+    private final EncodeContext context;
+    private final Encoder headerEncoder;
     private final Encoder bodyEncoder;
     private int groupId;
     private int term;
     private int leaderId;
     private long prevLogIndex;
     private int prevLogTerm;
-    private List<LogItem> logs;
     private long leaderCommit;
+    private List<LogItem> logs;
 
-    public AppendReqWriteFrame(Encoder bodyEncoder) {
+    private int headerSize;
+
+    private static final int WRITE_HEADER = 0;
+    private static final int WRITE_ITEM_HEADER = 1;
+    private static final int WRITE_ITEM_BIZ_HEADER_LEN = 2;
+    private static final int WRITE_ITEM_BIZ_HEADER = 3;
+    private static final int WRITE_ITEM_BIZ_BODY_LEN = 4;
+    private static final int WRITE_ITEM_BIZ_BODY = 5;
+    private int writeStatus;
+    private int encodeLogIndex;
+    private int markedPosition;
+
+
+    public AppendReqWriteFrame(EncodeContext context, Encoder headerEncoder, Encoder bodyEncoder) {
+        this.context = context;
+        this.headerEncoder = headerEncoder;
         this.bodyEncoder = bodyEncoder;
     }
 
     @Override
-    protected int calcActualBodySize() {
-        int x = PbUtil.accurateUnsignedIntSize(1, groupId)
+    protected int calcActualBodySize(EncodeContext context) {
+        headerSize = PbUtil.accurateUnsignedIntSize(1, groupId)
                 + PbUtil.accurateUnsignedIntSize(2, term)
                 + PbUtil.accurateUnsignedIntSize(3, leaderId)
                 + PbUtil.accurateFix64Size(4, prevLogIndex)
                 + PbUtil.accurateUnsignedIntSize(5, prevLogTerm)
-                + PbUtil.accurateFix64Size(7, leaderCommit);
-        if (logs != null) {
-            for (LogItem item : logs) {
-                int itemSize = computeItemSize(item);
-                x += PbUtil.accurateLengthDelimitedSize(6, itemSize);
-            }
+                + PbUtil.accurateFix64Size(6, leaderCommit);
+        int x = headerSize;
+        for (LogItem item : logs) {
+            int itemSize = computeItemSize(item);
+            x += PbUtil.accurateLengthDelimitedSize(7, itemSize);
         }
         return x;
     }
 
     private int computeItemSize(LogItem item) {
-        int itemSize = 0;
-        itemSize += PbUtil.accurateUnsignedIntSize(1, item.getType());
-        itemSize += PbUtil.accurateUnsignedIntSize(2, item.getTerm());
-        itemSize += PbUtil.accurateFix64Size(3, item.getIndex());
-        itemSize += PbUtil.accurateUnsignedIntSize(4, item.getPrevLogTerm());
-        itemSize += PbUtil.accurateLengthDelimitedSize(5, item.getActualBodySize());
+        int itemSize = item.getItemSize();
+        if (itemSize > 0) {
+            return itemSize;
+        }
+        int itemHeaderSize = PbUtil.accurateUnsignedIntSize(1, item.getType())
+                + PbUtil.accurateUnsignedIntSize(2, item.getTerm())
+                + PbUtil.accurateFix64Size(3, item.getIndex())
+                + PbUtil.accurateUnsignedIntSize(4, item.getPrevLogTerm())
+                + PbUtil.accurateFix64Size(5, item.getTimestamp());
+        item.setItemHeaderSize(itemHeaderSize);
+        itemSize = itemHeaderSize
+                + PbUtil.accurateLengthDelimitedSize(6, item.getActualHeaderSize())
+                + PbUtil.accurateLengthDelimitedSize(7, item.getActualBodySize());
+        item.setItemSize(itemSize);
         return itemSize;
     }
 
     @Override
-    protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
-        PbUtil.writeUnsignedInt32(buf, 1, groupId);
-        PbUtil.writeUnsignedInt32(buf, 2, term);
-        PbUtil.writeUnsignedInt32(buf, 3, leaderId);
-        PbUtil.writeFix64(buf, 4, prevLogIndex);
-        PbUtil.writeUnsignedInt32(buf, 5, prevLogTerm);
-        if (logs != null) {
-            for (LogItem item : logs) {
-                PbUtil.writeLengthDelimitedPrefix(buf, 6, computeItemSize(item));
-
-                PbUtil.writeUnsignedInt32(buf, 1, item.getType());
-                PbUtil.writeUnsignedInt32(buf, 2, item.getTerm());
-                PbUtil.writeFix64(buf, 3, item.getIndex());
-                PbUtil.writeUnsignedInt32(buf, 4, item.getPrevLogTerm());
-                int dataSize = item.getActualBodySize();
-                if (dataSize > 0) {
-                    PbUtil.writeLengthDelimitedPrefix(buf, 5, dataSize);
-                    RefBuffer rbb = item.getBodyBuffer();
-                    if (rbb != null) {
-                        ByteBuffer src = rbb.getBuffer();
-                        src.mark();
-                        buf.put(src);
-                        src.reset();
-                        rbb.release();
-                    } else {
-                        bodyEncoder.encode(buf, item.getBody());
+    protected boolean encodeBody(EncodeContext context, ByteBuffer buf) {
+        LogItem item = null;
+        while (true) {
+            switch (writeStatus) {
+                case WRITE_HEADER:
+                    if (buf.remaining() < headerSize) {
+                        return false;
                     }
-                }
+                    PbUtil.writeUnsignedInt32(buf, 1, groupId);
+                    PbUtil.writeUnsignedInt32(buf, 2, term);
+                    PbUtil.writeUnsignedInt32(buf, 3, leaderId);
+                    PbUtil.writeFix64(buf, 4, prevLogIndex);
+                    PbUtil.writeUnsignedInt32(buf, 5, prevLogTerm);
+                    PbUtil.writeFix64(buf, 6, leaderCommit);
+                    writeStatus = WRITE_ITEM_HEADER;
+                    break;
+                case WRITE_ITEM_HEADER:
+                    if (item == null) {
+                        if (encodeLogIndex < logs.size()) {
+                            item = logs.get(encodeLogIndex);
+                        } else {
+                            return true;
+                        }
+                    }
+                    int require = PbUtil.accurateLengthDelimitedSize(7, computeItemSize(item))
+                            + item.getItemHeaderSize();
+                    if (buf.remaining() < require) {
+                        return false;
+                    }
+                    PbUtil.writeLengthDelimitedPrefix(buf, 7, computeItemSize(item));
+
+                    PbUtil.writeUnsignedInt32(buf, 1, item.getType());
+                    PbUtil.writeUnsignedInt32(buf, 2, item.getTerm());
+                    PbUtil.writeFix64(buf, 3, item.getIndex());
+                    PbUtil.writeUnsignedInt32(buf, 4, item.getPrevLogTerm());
+                    PbUtil.writeFix64(buf, 5, item.getTimestamp());
+                    writeStatus = WRITE_ITEM_BIZ_HEADER_LEN;
+                    break;
+                case WRITE_ITEM_BIZ_HEADER_LEN:
+                    if (buf.remaining() < item.getActualHeaderSize()) {
+                        return false;
+                    }
+                    PbUtil.writeLengthDelimitedPrefix(buf, 6, item.getActualHeaderSize());
+                    markedPosition = -1;
+                    writeStatus = WRITE_ITEM_BIZ_HEADER;
+                    break;
+                case WRITE_ITEM_BIZ_HEADER:
+                    if (!writeData(buf, item.getHeaderBuffer(), item.getHeader(), headerEncoder)) {
+                        return false;
+                    }
+                    writeStatus = WRITE_ITEM_BIZ_BODY_LEN;
+                    break;
+                case WRITE_ITEM_BIZ_BODY_LEN:
+                    if (buf.remaining() < item.getActualBodySize()) {
+                        return false;
+                    }
+                    PbUtil.writeLengthDelimitedPrefix(buf, 7, item.getActualBodySize());
+                    markedPosition = -1;
+                    writeStatus = WRITE_ITEM_BIZ_BODY;
+                    break;
+                case WRITE_ITEM_BIZ_BODY:
+                    if (!writeData(buf, item.getBodyBuffer(), item.getBody(), bodyEncoder)) {
+                        return false;
+                    }
+                    item = null;
+                    encodeLogIndex++;
+                    writeStatus = WRITE_ITEM_HEADER;
+                    break;
+                default:
+                    throw new IllegalStateException("unknown write status " + writeStatus);
             }
-            logs = null;
         }
-        PbUtil.writeFix64(buf, 7, leaderCommit);
+    }
+
+    private boolean writeData(ByteBuffer dest, RefBuffer buffer, Object data, Encoder encoder) {
+        if (!dest.hasRemaining()) {
+            return false;
+        }
+
+        if (buffer != null) {
+            ByteBuffer src = buffer.getBuffer();
+            src.mark();
+            if (markedPosition != -1) {
+                src.position(markedPosition);
+            }
+            dest.put(src);
+            markedPosition = src.position();
+            boolean finish = src.hasRemaining();
+            src.reset();
+            if (finish) {
+                buffer.release();
+                return true;
+            } else {
+                return false;
+            }
+        } else if (data != null) {
+            return encoder.encode(context, dest, data);
+        } else {
+            return true;
+        }
     }
 
     public void setGroupId(int groupId) {

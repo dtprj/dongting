@@ -54,7 +54,7 @@ public class InstallSnapshotProcessor extends AbstractProcessor<InstallSnapshotR
         InstallSnapshotReq req = frame.getBody();
         try {
             InstallSnapshotResp resp = new InstallSnapshotResp();
-            InstallSnapshotResp.WriteFrame respFrame = new InstallSnapshotResp.WriteFrame(resp);
+            InstallSnapshotResp.InstallRespWriteFrame respFrame = new InstallSnapshotResp.InstallRespWriteFrame(resp);
             int remoteTerm = req.term;
             RaftStatusImpl raftStatus = gc.getRaftStatus();
 

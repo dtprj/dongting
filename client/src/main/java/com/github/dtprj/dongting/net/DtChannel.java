@@ -84,7 +84,6 @@ class DtChannel extends PbCallback<Object> {
                      SocketChannel socketChannel, int channelIndexInWorker) throws IOException {
         this.nioStatus = nioStatus;
         this.channel = socketChannel;
-        this.subQueue = new IoSubQueue(workerStatus, this);
         this.nioConfig = nioConfig;
         this.workerStatus = workerStatus;
         this.channelIndexInWorker = channelIndexInWorker;
@@ -105,6 +104,8 @@ class DtChannel extends PbCallback<Object> {
 
         this.decodeContext = new DecodeContext();
         decodeContext.setHeapPool(refBufferFactory);
+
+        this.subQueue = new IoSubQueue(workerStatus, this, refBufferFactory);
     }
 
     private static ByteBufferPool createReleaseSafePool(TwoLevelPool heapPool, IoQueue ioQueue) {

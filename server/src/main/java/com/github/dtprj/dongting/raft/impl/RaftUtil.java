@@ -323,7 +323,11 @@ public class RaftUtil {
         //noinspection ForLoopReplaceableByForEach
         for (int i = 0; i < items.size(); i++) {
             LogItem li = items.get(i);
-            RefBuffer b = li.getBodyBuffer();
+            RefBuffer b = li.getHeaderBuffer();
+            if (b != null) {
+                b.release();
+            }
+            b = li.getBodyBuffer();
             if (b != null) {
                 b.release();
             }

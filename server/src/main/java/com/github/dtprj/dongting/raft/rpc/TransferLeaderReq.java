@@ -15,9 +15,10 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
+import com.github.dtprj.dongting.net.SmallNoCopyWriteFrame;
 
 import java.nio.ByteBuffer;
 
@@ -69,15 +70,15 @@ public class TransferLeaderReq {
         }
     }
 
-    public static class WriteFrame extends com.github.dtprj.dongting.net.WriteFrame {
+    public static class TransferLeaderReqWriteFrame extends SmallNoCopyWriteFrame {
         private final TransferLeaderReq req;
 
-        public WriteFrame(TransferLeaderReq req) {
+        public TransferLeaderReqWriteFrame(TransferLeaderReq req) {
             this.req = req;
         }
 
         @Override
-        protected int calcActualBodySize() {
+        protected int calcActualBodySize(EncodeContext context) {
             return PbUtil.accurateUnsignedIntSize(1, req.groupId)
                     + PbUtil.accurateUnsignedIntSize(2, req.term)
                     + PbUtil.accurateUnsignedIntSize(3, req.oldLeaderId)
@@ -85,7 +86,7 @@ public class TransferLeaderReq {
         }
 
         @Override
-        protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
+        protected void encodeBody(ByteBuffer buf) {
             PbUtil.writeUnsignedInt32(buf, 1, req.groupId);
             PbUtil.writeUnsignedInt32(buf, 2, req.term);
             PbUtil.writeUnsignedInt32(buf, 3, req.oldLeaderId);

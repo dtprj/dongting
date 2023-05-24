@@ -172,7 +172,7 @@ public class VoteManager implements BiConsumer<EventType, Object> {
         req.setLastLogIndex(raftStatus.getLastLogIndex());
         req.setLastLogTerm(raftStatus.getLastLogTerm());
         req.setPreVote(preVote);
-        VoteReq.WriteFrame wf = new VoteReq.WriteFrame(req);
+        VoteReq.VoteReqWriteFrame wf = new VoteReq.VoteReqWriteFrame(req);
         wf.setCommand(Commands.RAFT_REQUEST_VOTE);
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
 

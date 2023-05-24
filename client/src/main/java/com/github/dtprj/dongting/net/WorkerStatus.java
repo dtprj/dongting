@@ -27,7 +27,7 @@ class WorkerStatus {
     private LongObjMap<WriteData> pendingRequests;
     private ByteBufferPool directPool;
     private ByteBufferPool heapPool;
-    private int packetToWrite;
+    private int framesToWrite;
 
     public WorkerStatus() {
     }
@@ -72,11 +72,11 @@ class WorkerStatus {
         this.heapPool = heapPool;
     }
 
-    public int getPacketToWrite() {
-        return packetToWrite;
+    public int getFramesToWrite() {
+        return framesToWrite;
     }
 
-    public void setPacketToWrite(int packetToWrite) {
-        this.packetToWrite = packetToWrite;
+    public void setFramesToWrite(int framesToWrite) {
+        this.framesToWrite = framesToWrite;
     }
 }

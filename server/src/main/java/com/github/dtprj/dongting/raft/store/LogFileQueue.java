@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -52,11 +53,19 @@ class LogFileQueue extends FileQueue implements FileOps {
 
     private final ByteBuffer writeBuffer = ByteBuffer.allocateDirect(128 * 1024);
     private final CRC32C crc32c = new CRC32C();
+
+    private final EncodeContext encodeContext;
+    private final Encoder headerEncoder;
+    private final Encoder bodyEncoder;
+
     private long writePos;
 
     public LogFileQueue(File dir, ExecutorService ioExecutor, RaftGroupConfigEx groupConfig, IdxOps idxOps) {
         super(dir, ioExecutor, groupConfig);
         this.idxOps = idxOps;
+        this.encodeContext = groupConfig.getEncodeContext();
+        this.headerEncoder = groupConfig.getHeaderEncoder().get();
+        this.bodyEncoder = groupConfig.getBodyEncoder().get();
     }
 
     @Override
@@ -184,7 +193,7 @@ class LogFileQueue extends FileQueue implements FileOps {
                 return pos;
             }
             if (log.getType() == LogItem.TYPE_NORMAL) {
-                encoder = groupConfig.getBodyEncoder().get();
+                encoder = bodyEncoder;
             } else {
                 // TODO byte buffer encoder
                 encoder = null;
@@ -196,46 +205,29 @@ class LogFileQueue extends FileQueue implements FileOps {
                 return pos;
             }
             if (log.getType() == LogItem.TYPE_NORMAL) {
-                encoder = groupConfig.getHeaderEncoder().get();
+                encoder = headerEncoder;
             } else {
                 // TODO byte buffer encoder
                 encoder = null;
             }
             data = log.getHeader();
         }
+        encoder.reset();
         crc32c.reset();
 
-        if (encoder.supportMultiEncode()) {
-            if (writeBuffer.remaining() == 0) {
-                pos = writeAndClearBuffer(writeBuffer, file, pos);
+        if (writeBuffer.remaining() == 0) {
+            pos = writeAndClearBuffer(writeBuffer, file, pos);
+        }
+        while (true) {
+            int lastPos = writeBuffer.position();
+            boolean encodeFinish = encoder.encode(encodeContext, writeBuffer, data);
+            if (writeBuffer.position() > lastPos) {
+                updateCrc(crc32c, writeBuffer, lastPos, writeBuffer.position() - lastPos);
             }
-            while (true) {
-                int lastPos = writeBuffer.position();
-                boolean encodeFinish = encoder.encode(writeBuffer, data);
-                if (writeBuffer.position() > lastPos) {
-                    updateCrc(crc32c, writeBuffer, lastPos, writeBuffer.position() - lastPos);
-                }
-                if (encodeFinish) {
-                    break;
-                }
-                pos = writeAndClearBuffer(writeBuffer, file, pos);
+            if (encodeFinish) {
+                break;
             }
-        } else {
-            if (writeBuffer.remaining() > size) {
-                encoder.encode(writeBuffer, data);
-            } else {
-                pos = writeAndClearBuffer(writeBuffer, file, pos);
-                if (writeBuffer.remaining() > size) {
-                    encoder.encode(writeBuffer, data);
-                } else {
-                    ByteBuffer bigBuffer = groupConfig.getDirectPool().allocate(size);
-                    try {
-                        encoder.encode(writeBuffer, data);
-                    } finally {
-                        groupConfig.getDirectPool().release(bigBuffer);
-                    }
-                }
-            }
+            pos = writeAndClearBuffer(writeBuffer, file, pos);
         }
 
         if (writeBuffer.remaining() < 4) {

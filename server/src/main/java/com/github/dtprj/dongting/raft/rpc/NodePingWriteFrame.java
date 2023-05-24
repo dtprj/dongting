@@ -15,10 +15,10 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.net.Commands;
-import com.github.dtprj.dongting.net.WriteFrame;
+import com.github.dtprj.dongting.net.SmallNoCopyWriteFrame;
 
 import java.nio.ByteBuffer;
 import java.util.UUID;
@@ -26,7 +26,7 @@ import java.util.UUID;
 /**
  * @author huangli
  */
-public class NodePingWriteFrame extends WriteFrame {
+public class NodePingWriteFrame extends SmallNoCopyWriteFrame {
 
     private final int selfNodeId;
     private final UUID uuid;
@@ -38,14 +38,14 @@ public class NodePingWriteFrame extends WriteFrame {
     }
 
     @Override
-    protected int calcActualBodySize() {
+    protected int calcActualBodySize(EncodeContext context) {
         return PbUtil.accurateFix32Size(1, selfNodeId)
                 + PbUtil.accurateFix64Size(2, uuid.getMostSignificantBits())
                 + PbUtil.accurateFix64Size(3, uuid.getLeastSignificantBits());
     }
 
     @Override
-    protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
+    protected void encodeBody(ByteBuffer buf) {
         PbUtil.writeFix32(buf, 1, selfNodeId);
         PbUtil.writeFix64(buf, 2, uuid.getMostSignificantBits());
         PbUtil.writeFix64(buf, 3, uuid.getLeastSignificantBits());

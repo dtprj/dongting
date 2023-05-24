@@ -46,8 +46,8 @@ message AppendEntriesReq {
   uint32 leader_id = 3;
   fixed64 prev_log_index = 4;
   uint32 prev_log_term = 5;
-  repeated LogItem entries = 6;
-  fixed64 leader_commit = 7;
+  fixed64 leader_commit = 6;
+  repeated LogItem entries = 7;
 }
 
 message LogItem {
@@ -90,8 +90,8 @@ message InstallSnapshotReq {
   fixed64 last_included_index = 4;
   uint32 last_included_term = 5;
   fixed64 offset = 6;
-  bytes data = 7;
-  bool done = 8;
+  bool done = 7;
+  bytes data = 8;
 }
 
 message InstallSnapshotResp {

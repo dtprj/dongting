@@ -243,7 +243,7 @@ public class PbUtil {
         return MAX_TAG_LENGTH + MAX_UNSIGNED_LONG_LENGTH;
     }
 
-    static int accurateTagSize(int index) {
+    public static int accurateTagSize(int index) {
         if (index > MAX_SUPPORT_FIELD_INDEX || index <= 0) {
             throw new IllegalArgumentException(String.valueOf(index));
         }
@@ -338,5 +338,12 @@ public class PbUtil {
             return 0;
         }
         return accurateTagSize(index) + accurateUnsignedIntSize(bodyLen) + bodyLen;
+    }
+
+    public static int accurateLengthDelimitedPrefixSize(int index, int bodyLen) {
+        if (bodyLen == 0) {
+            return 0;
+        }
+        return accurateTagSize(index) + accurateUnsignedIntSize(bodyLen);
     }
 }

@@ -15,7 +15,8 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.codec.EncodeContext;
+import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.codec.PbUtil;
 
 import java.nio.ByteBuffer;
@@ -24,30 +25,56 @@ import java.nio.charset.StandardCharsets;
 /**
  * @author huangli
  */
-public abstract class WriteFrame extends Frame {
+public abstract class WriteFrame extends Frame implements Encoder<WriteFrame> {
+
+    private static final int STATUS_INIT = 0;
+    private static final int STATUS_HEADER_ENCODE_FINISHED = 1;
+    private static final int STATUS_ENCODE_FINISHED = 2;
+    private static final int STATUS_CLEANED = 3;
 
     private int dumpSize;
     private int bodySize;
+    private int status;
 
     private byte[] msgBytes;
 
-    protected abstract int calcActualBodySize();
+    private static final int MAX_HEADER_SIZE = 4 // length
+            + 1 + 1 // uint32 frame_type = 1;
+            + 1 + 5 // uint32 command = 2;
+            + 1 + 4 // fixed32 seq = 3;
+            + 1 + 5 // uint32 resp_code = 4;
+            // string resp_msg = 5;
+            + 1 + 8; // fixed32 timeout_millis = 6;
 
-    protected abstract void encodeBody(ByteBuffer buf, ByteBufferPool pool);
+    protected abstract int calcActualBodySize(EncodeContext context);
 
-    public final int actualBodySize() {
+    protected abstract boolean encodeBody(EncodeContext context, ByteBuffer buf);
+
+    public final int calcMaxFrameSize(EncodeContext context) {
+        return MAX_HEADER_SIZE + (msgBytes == null ? 0 : msgBytes.length) + actualBodySize(context);
+    }
+
+    public final int actualBodySize(EncodeContext context) {
+        int bodySize = this.bodySize;
         if (bodySize == 0) {
-            bodySize = calcActualBodySize();
+            bodySize = calcActualBodySize(context);
+            this.bodySize = bodySize;
         }
         return bodySize;
     }
 
-    public int actualSize() {
+    @Override
+    public void setMsg(String msg) {
+        super.setMsg(msg);
+        if (msg != null && !msg.isEmpty()) {
+            msgBytes = msg.getBytes(StandardCharsets.UTF_8);
+        }
+    }
+
+    @Override
+    public final int actualSize(EncodeContext context, WriteFrame data) {
         int dumpSize = this.dumpSize;
         if (dumpSize == 0) {
-            if (msg != null && !msg.isEmpty()) {
-                msgBytes = msg.getBytes(StandardCharsets.UTF_8);
-            }
             dumpSize = 4 // length
                     + PbUtil.accurateUnsignedIntSize(1, frameType) // uint32 frame_type = 1;
                     + PbUtil.accurateUnsignedIntSize(2, command) // uint32 command = 2;
@@ -55,24 +82,66 @@ public abstract class WriteFrame extends Frame {
                     + PbUtil.accurateUnsignedIntSize(4, respCode) // uint32 resp_code = 4;
                     + PbUtil.accurateLengthDelimitedSize(5, msgBytes == null ? 0 : msgBytes.length) // string resp_msg = 5;
                     + PbUtil.accurateFix64Size(6, timeout) // fixed64 timeout = 6;
-                    + PbUtil.accurateLengthDelimitedSize(15, actualBodySize()); // bytes body = 15;
+                    + PbUtil.accurateLengthDelimitedSize(15, actualBodySize(context)); // bytes body = 15;
             this.dumpSize = dumpSize;
         }
         return dumpSize;
     }
 
-    public void encode(ByteBuffer buf, ByteBufferPool pool) {
-        buf.putInt(actualSize());
-        PbUtil.writeUnsignedInt32(buf, Frame.IDX_TYPE, frameType);
-        PbUtil.writeUnsignedInt32(buf, Frame.IDX_COMMAND, command);
-        PbUtil.writeFix32(buf, Frame.IDX_SEQ, seq);
-        PbUtil.writeUnsignedInt32(buf, Frame.IDX_RESP_CODE, respCode);
-        PbUtil.writeUTF8(buf, Frame.IDX_MSG, msg);
-        PbUtil.writeFix64(buf, Frame.IDX_TIMOUT, timeout);
-        if (actualBodySize() > 0) {
-            PbUtil.writeLengthDelimitedPrefix(buf, Frame.IDX_BODY, actualBodySize());
-            encodeBody(buf, pool);
+    @Override
+    public final boolean encode(EncodeContext context, ByteBuffer buf, WriteFrame data) {
+        if (status == STATUS_INIT) {
+            int totalSize = actualSize(context, data);
+            int headerSize = totalSize - actualBodySize(context);
+            if (buf.remaining() < headerSize) {
+                return false;
+            } else {
+                buf.putInt(totalSize);
+                PbUtil.writeUnsignedInt32(buf, Frame.IDX_TYPE, frameType);
+                PbUtil.writeUnsignedInt32(buf, Frame.IDX_COMMAND, command);
+                PbUtil.writeFix32(buf, Frame.IDX_SEQ, seq);
+                PbUtil.writeUnsignedInt32(buf, Frame.IDX_RESP_CODE, respCode);
+                PbUtil.writeUTF8(buf, Frame.IDX_MSG, msg);
+                PbUtil.writeFix64(buf, Frame.IDX_TIMOUT, timeout);
+                if (bodySize > 0) {
+                    PbUtil.writeLengthDelimitedPrefix(buf, Frame.IDX_BODY, bodySize);
+                }
+                status = STATUS_HEADER_ENCODE_FINISHED;
+            }
+        }
+        if (status == STATUS_HEADER_ENCODE_FINISHED) {
+            boolean finish = false;
+            try {
+                if (bodySize > 0) {
+                    finish = encodeBody(context, buf);
+                } else {
+                    finish = true;
+                }
+            } finally {
+                if (finish) {
+                    status = STATUS_ENCODE_FINISHED;
+                }
+            }
+            return finish;
+        } else {
+            throw new NetException("invalid status: " + status);
         }
     }
 
+    public final void clean(EncodeContext context) {
+        if (status == STATUS_CLEANED) {
+            throw new NetException("already cleaned");
+        } else {
+            doClean(context);
+            status = STATUS_CLEANED;
+        }
+    }
+
+    protected void doClean(EncodeContext context) {
+    }
+
+    @Override
+    public final void reset() {
+        throw new UnsupportedOperationException();
+    }
 }

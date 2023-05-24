@@ -15,7 +15,8 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.EncodeContext;
 
 import java.nio.ByteBuffer;
 
@@ -24,20 +25,41 @@ import java.nio.ByteBuffer;
  */
 public abstract class CopyWriteFrame extends WriteFrame {
 
+    private RefBuffer tempRefBuffer;
+
+    public CopyWriteFrame() {
+    }
+
     @Override
-    protected final void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
-        int s = actualBodySize();
-        if (s > 0) {
-            ByteBuffer temp = pool.borrow(s);
-            try {
-                encodeBody(temp);
-                temp.flip();
-                buf.put(temp);
-            } finally {
-                pool.release(temp);
+    protected final boolean encodeBody(EncodeContext context, ByteBuffer buf) {
+        if (tempRefBuffer == null) {
+            int bodySize = actualBodySize(context);
+            if (buf.remaining() >= bodySize) {
+                encodeBody(buf);
+                return true;
+            } else {
+                tempRefBuffer = context.getHeapPool().create(bodySize);
+                ByteBuffer tempBuf = tempRefBuffer.getBuffer();
+                encodeBody(tempBuf);
+                tempBuf.flip();
+
+                buf.put(tempBuf);
+                return tempBuf.hasRemaining();
             }
+        } else {
+            ByteBuffer tempBuf = tempRefBuffer.getBuffer();
+            buf.put(tempBuf);
+            return tempBuf.hasRemaining();
         }
     }
 
-    protected abstract void encodeBody(ByteBuffer tempBuffer);
+    protected abstract void encodeBody(ByteBuffer buf);
+
+    @Override
+    protected void doClean(EncodeContext context) {
+        if (tempRefBuffer != null) {
+            tempRefBuffer.release();
+            tempRefBuffer = null;
+        }
+    }
 }

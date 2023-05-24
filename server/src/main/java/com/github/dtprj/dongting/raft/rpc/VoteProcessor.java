@@ -69,7 +69,7 @@ public class VoteProcessor extends AbstractProcessor<VoteReq> {
         }
 
         resp.setTerm(raftStatus.getCurrentTerm());
-        VoteResp.WriteFrame wf = new VoteResp.WriteFrame(resp);
+        VoteResp.VoteRespWriteFrame wf = new VoteResp.VoteRespWriteFrame(resp);
         wf.setRespCode(CmdCodes.SUCCESS);
         return wf;
     }

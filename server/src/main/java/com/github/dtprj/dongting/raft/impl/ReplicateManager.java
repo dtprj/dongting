@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.common.DtTime;
@@ -33,6 +34,7 @@ import com.github.dtprj.dongting.raft.rpc.AppendRespCallback;
 import com.github.dtprj.dongting.raft.rpc.InstallSnapshotReq;
 import com.github.dtprj.dongting.raft.rpc.InstallSnapshotResp;
 import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
@@ -61,6 +63,7 @@ public class ReplicateManager {
     private final RaftExecutor raftExecutor;
     private final CommitManager commitManager;
     private final Timestamp ts;
+    private final EncodeContext encodeContext;
 
     private final int maxReplicateItems;
     private final int restItemsToStartReplicate;
@@ -71,10 +74,10 @@ public class ReplicateManager {
     private static final PbNoCopyDecoder APPEND_RESP_DECODER = new PbNoCopyDecoder(c -> new AppendRespCallback());
     private static final PbNoCopyDecoder INSTALL_SNAPSHOT_RESP_DECODER = new PbNoCopyDecoder(c -> new InstallSnapshotResp.Callback());
 
-    public ReplicateManager(RaftServerConfig config, int groupId, RaftStatusImpl raftStatus, RaftLog raftLog,
+    public ReplicateManager(RaftServerConfig config, RaftGroupConfigEx groupConfig, RaftStatusImpl raftStatus, RaftLog raftLog,
                             StateMachine stateMachine, NioClient client, RaftExecutor executor,
                             CommitManager commitManager) {
-        this.groupId = groupId;
+        this.groupId = groupConfig.getGroupId();
         this.raftStatus = raftStatus;
         this.config = config;
         this.raftLog = raftLog;
@@ -83,6 +86,7 @@ public class ReplicateManager {
         this.raftExecutor = executor;
         this.commitManager = commitManager;
         this.ts = raftStatus.getTs();
+        this.encodeContext = groupConfig.getEncodeContext();
 
         this.maxReplicateItems = config.getMaxReplicateItems();
         this.maxReplicateBytes = config.getMaxReplicateBytes();
@@ -233,11 +237,10 @@ public class ReplicateManager {
             sendAppendRequest(member, items);
             replicate(member);
         } else {
-            //noinspection StatementWithEmptyBody
             if (member.getPendingStat().getPendingRequestsPlain() == 0) {
                 sendAppendRequest(member, items);
             } else {
-                // waiting all pending request complete
+                RaftUtil.release(items);
             }
         }
 
@@ -255,7 +258,17 @@ public class ReplicateManager {
     }
 
     private void sendAppendRequest(RaftMember member, long prevLogIndex, int prevLogTerm, List<LogItem> logs, long bytes) {
-        AppendReqWriteFrame req = new AppendReqWriteFrame((Encoder) stateMachine.getBodyEncoder().get());
+        Encoder headerEncoder = member.getHeaderEncoder();
+        if (headerEncoder == null) {
+            headerEncoder = (Encoder) stateMachine.getHeaderEncoder().get();
+            member.setHeaderEncoder(headerEncoder);
+        }
+        Encoder bodyEncoder = member.getBodyEncoder();
+        if (bodyEncoder == null) {
+            bodyEncoder = (Encoder) stateMachine.getBodyEncoder().get();
+            member.setBodyEncoder(bodyEncoder);
+        }
+        AppendReqWriteFrame req = new AppendReqWriteFrame(encodeContext, headerEncoder, bodyEncoder);
         req.setCommand(Commands.RAFT_APPEND_ENTRIES);
         req.setGroupId(groupId);
         req.setTerm(raftStatus.getCurrentTerm());
@@ -532,7 +545,7 @@ public class ReplicateManager {
             si.readFinished = true;
         }
 
-        InstallSnapshotReq.WriteFrame wf = new InstallSnapshotReq.WriteFrame(req);
+        InstallSnapshotReq.InstallReqWriteFrame wf = new InstallSnapshotReq.InstallReqWriteFrame(req);
         wf.setCommand(Commands.RAFT_INSTALL_SNAPSHOT);
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
         if (data != null) {

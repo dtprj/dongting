@@ -41,6 +41,9 @@ public class LogItem {
     private Object header;
     private int actualHeaderSize;
 
+    private int itemHeaderSize;
+    private int itemSize;
+
     public LogItem() {
     }
 
@@ -130,5 +133,21 @@ public class LogItem {
 
     public void setHeaderBuffer(RefBuffer headerBuffer) {
         this.headerBuffer = headerBuffer;
+    }
+
+    public int getItemHeaderSize() {
+        return itemHeaderSize;
+    }
+
+    public void setItemHeaderSize(int itemHeaderSize) {
+        this.itemHeaderSize = itemHeaderSize;
+    }
+
+    public int getItemSize() {
+        return itemSize;
+    }
+
+    public void setItemSize(int itemSize) {
+        this.itemSize = itemSize;
     }
 }

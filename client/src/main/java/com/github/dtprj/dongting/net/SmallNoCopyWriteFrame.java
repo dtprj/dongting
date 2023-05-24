@@ -15,26 +15,21 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.EncodeContext;
+
+import java.nio.ByteBuffer;
 
 /**
  * @author huangli
  */
-@SuppressWarnings("FieldMayBeFinal")
-public class RefBufWriteFrame extends ByteBufferWriteFrame {
-    private RefBuffer refBuffer;
-
-    public RefBufWriteFrame(RefBuffer refBuffer) {
-        super(refBuffer == null ? null : refBuffer.getBuffer());
-        this.refBuffer = refBuffer;
-    }
-
+public abstract class SmallNoCopyWriteFrame extends WriteFrame {
     @Override
-    protected void doClean(EncodeContext context) {
-        if (refBuffer != null) {
-            refBuffer.release();
-            this.refBuffer = null;
+    protected final boolean encodeBody(EncodeContext context, ByteBuffer buf) {
+        if(buf.remaining()<actualBodySize(context)){
+            return false;
         }
+        return true;
     }
+
+    protected abstract void encodeBody(ByteBuffer buf);
 }

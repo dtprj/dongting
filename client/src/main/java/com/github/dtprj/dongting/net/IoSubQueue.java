@@ -16,6 +16,8 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -40,18 +42,22 @@ class IoSubQueue {
     private Runnable registerForWrite;
 
     private ByteBuffer writeBuffer;
-    private int packetOfBuffer;
+    private int framesInBuffer;
 
     private final ArrayDeque<WriteData> subQueue = new ArrayDeque<>();
     private int subQueueBytes;
     private boolean writing;
 
+    private WriteData lastWriteData;
+    private final EncodeContext encodeContext;
 
-    public IoSubQueue(WorkerStatus workerStatus, DtChannel dtc) {
+    public IoSubQueue(WorkerStatus workerStatus, DtChannel dtc, RefBufferFactory heapPool) {
         this.directPool = workerStatus.getDirectPool();
         this.heapPool = workerStatus.getHeapPool();
         this.workerStatus = workerStatus;
         this.dtc = dtc;
+        this.encodeContext = new EncodeContext();
+        encodeContext.setHeapPool(heapPool);
     }
 
     public void setRegisterForWrite(Runnable registerForWrite) {
@@ -59,21 +65,37 @@ class IoSubQueue {
     }
 
     public void enqueue(WriteData writeData) {
+        WriteFrame wf = writeData.getData();
+        int estimateSize = wf.calcMaxFrameSize(encodeContext);
+        if (estimateSize < 0) {
+            wf.clean(encodeContext);
+            fail(writeData, "estimateSize overflow");
+            return;
+        }
+        writeData.setEstimateSize(estimateSize);
+
         ArrayDeque<WriteData> subQueue = this.subQueue;
         subQueue.addLast(writeData);
-        subQueueBytes += writeData.getData().actualSize();
+
+        // the subQueueBytes is not accurate
+        subQueueBytes += estimateSize;
         if (subQueue.size() == 1 && !writing) {
             registerForWrite.run();
         }
-        workerStatus.setPacketToWrite(workerStatus.getPacketToWrite() + 1);
+        workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() + 1);
+    }
+
+    private void fail(WriteData writeData, String msg) {
+        if (writeData.getFuture() != null) {
+            writeData.getFuture().completeExceptionally(new NetException(msg));
+        }
     }
 
     public void cleanSubQueue() {
         WriteData wd;
         while ((wd = subQueue.pollFirst()) != null) {
-            if (wd.getFuture() != null) {
-                wd.getFuture().completeExceptionally(new NetException("channel closed, future cancelled by subQueue clean"));
-            }
+            fail(wd, "channel closed, future cancelled by subQueue clean");
+            wd.getData().clean(encodeContext);
         }
     }
 
@@ -84,104 +106,115 @@ class IoSubQueue {
                 return writeBuffer;
             } else {
                 // current buffer write finished
-                workerStatus.setPacketToWrite(workerStatus.getPacketToWrite() - packetOfBuffer);
+                workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() - framesInBuffer);
                 directPool.release(writeBuffer);
                 this.writeBuffer = null;
-                packetOfBuffer = 0;
+                framesInBuffer = 0;
             }
         }
         int subQueueBytes = this.subQueueBytes;
-        if (subQueueBytes == 0) {
+        ArrayDeque<WriteData> subQueue = this.subQueue;
+        if (subQueue.size() == 0 && lastWriteData == null) {
             // no packet to write
             return null;
         }
-        ArrayDeque<WriteData> subQueue = this.subQueue;
-        ByteBuffer buf = null;
-        if (subQueueBytes <= MAX_BUFFER_SIZE) {
-            buf = directPool.borrow(subQueueBytes);
-            WriteData wd;
-            while ((wd = subQueue.pollFirst()) != null) {
-                encode(buf, wd, roundTime);
-            }
-            this.subQueueBytes = 0;
-        } else {
-            WriteData wd;
-            while ((wd = subQueue.pollFirst()) != null) {
-                WriteFrame f = wd.getData();
-                int size = f.actualSize();
-                if (buf == null) {
-                    if (size > MAX_BUFFER_SIZE) {
-                        buf = directPool.borrow(size);
-                        encode(buf, wd, roundTime);
-                        subQueueBytes -= size;
-                        break;
-                    } else {
-                        buf = directPool.borrow(MAX_BUFFER_SIZE);
-                    }
-                }
-                if (size > buf.remaining()) {
-                    subQueue.addFirst(wd);
-                    break;
+        ByteBuffer buf = subQueueBytes <= MAX_BUFFER_SIZE ? heapPool.borrow(subQueueBytes) : heapPool.borrow(MAX_BUFFER_SIZE);
+
+        WriteData wd = this.lastWriteData;
+        try {
+            while (subQueue.size() > 0 || wd != null) {
+                boolean encodeFinish;
+                if (wd == null) {
+                    wd = subQueue.pollFirst();
+                    encodeFinish = encode(buf, wd, roundTime);
                 } else {
-                    encode(buf, wd, roundTime);
-                    subQueueBytes -= size;
+                    encodeFinish = doEncode(buf, wd);
+                }
+                if (encodeFinish) {
+                    wd.getData().clean(encodeContext);
+                    subQueueBytes -= wd.getEstimateSize();
+                    framesInBuffer++;
+                    if (subQueueBytes < 0) {
+                        subQueueBytes = 0;
+                    }
+                    wd = null;
+                } else {
+                    return flipAndReturnBuffer(buf);
                 }
             }
+            subQueueBytes = 0;
+            return flipAndReturnBuffer(buf);
+        } finally {
+            this.lastWriteData = wd;
             this.subQueueBytes = subQueueBytes;
         }
-        assert buf != null;
+    }
+
+    private ByteBuffer flipAndReturnBuffer(ByteBuffer buf) {
         buf.flip();
         if (buf.remaining() == 0) {
             directPool.release(buf);
+            this.writeBuffer = null;
             return null;
+        } else {
+            this.writeBuffer = buf;
+            return buf;
         }
-        this.writeBuffer = buf;
-        return buf;
     }
 
-    private void encode(ByteBuffer buf, WriteData wd, Timestamp roundTime) {
+    private boolean encode(ByteBuffer buf, WriteData wd, Timestamp roundTime) {
         WriteFrame f = wd.getData();
         boolean request = f.getFrameType() == FrameType.TYPE_REQ;
         DtTime t = wd.getTimeout();
         long rest = t.rest(TimeUnit.NANOSECONDS, roundTime);
-        if (rest > 0) {
-            if (request) {
-                int seq = dtc.getAndIncSeq();
-                f.setSeq(seq);
-                f.setTimeout(rest);
-            }
-            try {
-                f.encode(buf, heapPool);
-            } catch (RuntimeException | Error e) {
-                if (wd.getFuture() != null) {
-                    wd.getFuture().completeExceptionally(e);
-                }
-                workerStatus.setPacketToWrite(workerStatus.getPacketToWrite() - 1);
-                throw e;
-            }
-            packetOfBuffer++;
-            if (!request) {
-                return;
-            }
-            long key = BitUtil.toLong(dtc.getChannelIndexInWorker(), f.getSeq());
-            WriteData old = workerStatus.getPendingRequests().put(key, wd);
-            if (old != null) {
-                String errMsg = "dup seq: old=" + old.getData() + ", new=" + f;
-                log.error(errMsg);
-                wd.getFuture().completeExceptionally(new NetException(errMsg));
-                workerStatus.getPendingRequests().put(key, old);
-            }
-        } else {
+        if (rest <= 0) {
             if (request) {
                 String msg = "timeout before send: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
-                wd.getFuture().completeExceptionally(new NetTimeoutException(msg));
                 log.info("request timeout before send: {}ms, channel={}",
                         t.getTimeout(TimeUnit.MILLISECONDS), wd.getDtc().getChannel());
+                fail(wd, msg);
             } else {
                 log.info("request timeout before send: {}ms, seq={}, channel={}",
                         t.getTimeout(TimeUnit.MILLISECONDS), f.getSeq(), wd.getDtc().getChannel());
             }
-            workerStatus.setPacketToWrite(workerStatus.getPacketToWrite() - 1);
+            workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() - 1);
+            return true;
+        }
+
+        if (request) {
+            int seq = dtc.getAndIncSeq();
+            f.setSeq(seq);
+            f.setTimeout(rest);
+        }
+        boolean encodeFinish = doEncode(buf, wd);
+        if (!request) {
+            return encodeFinish;
+        }
+        if (encodeFinish) {
+            long key = BitUtil.toLong(dtc.getChannelIndexInWorker(), f.getSeq());
+            WriteData old = workerStatus.getPendingRequests().put(key, wd);
+            if (old != null) {
+                // TODO change this behavior
+                String errMsg = "dup seq: old=" + old.getData() + ", new=" + f;
+                log.error(errMsg);
+                fail(wd, errMsg);
+                workerStatus.getPendingRequests().put(key, old);
+            }
+        }
+        return encodeFinish;
+    }
+
+    private boolean doEncode(ByteBuffer buf, WriteData wd) {
+        try {
+            WriteFrame wf = wd.getData();
+            return wf.encode(encodeContext, buf, wf);
+        } catch (RuntimeException | Error e) {
+            if (wd.getFuture() != null) {
+                wd.getFuture().completeExceptionally(e);
+            }
+            wd.getData().clean(encodeContext);
+            // channel will be closed
+            throw e;
         }
     }
 

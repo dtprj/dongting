@@ -22,11 +22,10 @@ import java.nio.ByteBuffer;
  */
 public interface Encoder<T> {
 
-    boolean encode(ByteBuffer buffer, T data);
+    boolean encode(EncodeContext context, ByteBuffer buffer, T data);
 
-    int actualSize(T data);
+    int actualSize(EncodeContext context, T data);
 
-    default boolean supportMultiEncode() {
-        return false;
-    }
+    void reset();
+
 }

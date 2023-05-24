@@ -15,9 +15,10 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
+import com.github.dtprj.dongting.net.SmallNoCopyWriteFrame;
 
 import java.nio.ByteBuffer;
 
@@ -77,16 +78,16 @@ public class VoteReq {
         }
     }
 
-    public static class WriteFrame extends com.github.dtprj.dongting.net.WriteFrame {
+    public static class VoteReqWriteFrame extends SmallNoCopyWriteFrame {
 
         private final VoteReq data;
 
-        public WriteFrame(VoteReq data) {
+        public VoteReqWriteFrame(VoteReq data) {
             this.data = data;
         }
 
         @Override
-        protected int calcActualBodySize() {
+        protected int calcActualBodySize(EncodeContext context) {
             return PbUtil.accurateUnsignedLongSize(1, data.groupId)
                     + PbUtil.accurateUnsignedLongSize(2, data.term)
                     + PbUtil.accurateUnsignedIntSize(3, data.candidateId)
@@ -96,7 +97,7 @@ public class VoteReq {
         }
 
         @Override
-        protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
+        protected void encodeBody(ByteBuffer buf) {
             PbUtil.writeUnsignedInt32(buf, 1, data.groupId);
             PbUtil.writeUnsignedInt32(buf, 2, data.term);
             PbUtil.writeUnsignedInt32(buf, 3, data.candidateId);

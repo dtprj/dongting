@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.codec.EncodeContext;
 
 import java.nio.ByteBuffer;
 
@@ -30,16 +30,20 @@ public class ByteBufferWriteFrame extends WriteFrame {
     }
 
     @Override
-    protected int calcActualBodySize() {
+    protected int calcActualBodySize(EncodeContext context) {
         ByteBuffer body = this.body;
         return body == null ? 0 : body.remaining();
     }
 
     @Override
-    protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
-        body.mark();
+    protected boolean encodeBody(EncodeContext context, ByteBuffer buf) {
+        ByteBuffer body = this.body;
         buf.put(body);
-        body.reset();
-        body = null;
+        if (body.hasRemaining()) {
+            return false;
+        } else {
+            this.body = null;
+            return true;
+        }
     }
 }

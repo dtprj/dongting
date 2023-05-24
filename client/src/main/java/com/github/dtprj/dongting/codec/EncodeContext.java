@@ -13,28 +13,21 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.net;
+package com.github.dtprj.dongting.codec;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.codec.EncodeContext;
+import com.github.dtprj.dongting.buf.RefBufferFactory;
 
 /**
  * @author huangli
  */
-@SuppressWarnings("FieldMayBeFinal")
-public class RefBufWriteFrame extends ByteBufferWriteFrame {
-    private RefBuffer refBuffer;
+public class EncodeContext {
+    private RefBufferFactory heapPool;
 
-    public RefBufWriteFrame(RefBuffer refBuffer) {
-        super(refBuffer == null ? null : refBuffer.getBuffer());
-        this.refBuffer = refBuffer;
+    public RefBufferFactory getHeapPool() {
+        return heapPool;
     }
 
-    @Override
-    protected void doClean(EncodeContext context) {
-        if (refBuffer != null) {
-            refBuffer.release();
-            this.refBuffer = null;
-        }
+    public void setHeapPool(RefBufferFactory heapPool) {
+        this.heapPool = heapPool;
     }
 }

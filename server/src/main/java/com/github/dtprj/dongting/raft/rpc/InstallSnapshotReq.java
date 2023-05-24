@@ -15,11 +15,12 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
+import com.github.dtprj.dongting.net.WriteFrame;
 
 import java.nio.ByteBuffer;
 
@@ -32,8 +33,8 @@ import java.nio.ByteBuffer;
 //  fixed64 last_included_index = 4;
 //  uint32 last_included_term = 5;
 //  fixed64 offset = 6;
-//  bytes data = 7;
-//  bool done = 8;
+//  bool done = 7;
+//  bytes data = 8;
 public class InstallSnapshotReq {
     public int groupId;
     public int term;
@@ -67,7 +68,7 @@ public class InstallSnapshotReq {
                 case 4:
                     result.lastIncludedTerm = (int) value;
                     break;
-                case 8:
+                case 7:
                     result.done = value != 0;
                     break;
             }
@@ -89,7 +90,7 @@ public class InstallSnapshotReq {
 
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
-            if (index == 7) {
+            if (index == 8) {
                 if (begin) {
                     result.data = heapPool.create(len);
                 }
@@ -107,42 +108,61 @@ public class InstallSnapshotReq {
         }
     }
 
-    public static class WriteFrame extends com.github.dtprj.dongting.net.WriteFrame {
+    public static class InstallReqWriteFrame extends WriteFrame {
 
         private final InstallSnapshotReq req;
+        private final int headerSize;
+        private final int bufferSize;
+        private boolean headerWritten = false;
 
-        public WriteFrame(InstallSnapshotReq req) {
+        public InstallReqWriteFrame(InstallSnapshotReq req) {
             this.req = req;
-        }
-
-        @Override
-        protected int calcActualBodySize() {
             int x = PbUtil.accurateUnsignedIntSize(1, req.groupId)
                     + PbUtil.accurateUnsignedIntSize(2, req.term)
                     + PbUtil.accurateUnsignedIntSize(3, req.leaderId)
                     + PbUtil.accurateFix64Size(4, req.lastIncludedIndex)
                     + PbUtil.accurateUnsignedIntSize(5, req.lastIncludedTerm)
-                    + PbUtil.accurateFix64Size(6, req.offset);
+                    + PbUtil.accurateFix64Size(6, req.offset)
+                    + PbUtil.accurateUnsignedIntSize(7, req.done ? 1 : 0);
             if (req.data != null && req.data.getBuffer().hasRemaining()) {
-                x += PbUtil.accurateLengthDelimitedSize(7, req.data.getBuffer().remaining());
+                this.bufferSize = req.data.getBuffer().remaining();
+                x += PbUtil.accurateLengthDelimitedSize(8, bufferSize);
+                this.headerSize = x - bufferSize;
+            } else {
+                this.bufferSize = 0;
+                this.headerSize = x;
             }
-            x += PbUtil.accurateUnsignedIntSize(8, req.done ? 1 : 0);
-            return x;
         }
 
         @Override
-        protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
-            PbUtil.writeUnsignedInt32(buf, 1, req.groupId);
-            PbUtil.writeUnsignedInt32(buf, 2, req.term);
-            PbUtil.writeUnsignedInt32(buf, 3, req.leaderId);
-            PbUtil.writeFix64(buf, 4, req.lastIncludedIndex);
-            PbUtil.writeUnsignedInt32(buf, 5, req.lastIncludedTerm);
-            PbUtil.writeFix64(buf, 6, req.offset);
-            if (req.data != null && req.data.getBuffer().hasRemaining()) {
-                PbUtil.writeLengthDelimitedPrefix(buf, 7, req.data.getBuffer().remaining());
-                buf.put(req.data.getBuffer());
+        protected int calcActualBodySize(EncodeContext context) {
+            return headerSize + bufferSize;
+        }
+
+        @Override
+        protected boolean encodeBody(EncodeContext context, ByteBuffer buf) {
+            if (!headerWritten) {
+                if (buf.remaining() >= headerSize) {
+                    PbUtil.writeUnsignedInt32(buf, 1, req.groupId);
+                    PbUtil.writeUnsignedInt32(buf, 2, req.term);
+                    PbUtil.writeUnsignedInt32(buf, 3, req.leaderId);
+                    PbUtil.writeFix64(buf, 4, req.lastIncludedIndex);
+                    PbUtil.writeUnsignedInt32(buf, 5, req.lastIncludedTerm);
+                    PbUtil.writeFix64(buf, 6, req.offset);
+                    PbUtil.writeUnsignedInt32(buf, 7, req.done ? 1 : 0);
+                    if (bufferSize > 0) {
+                        PbUtil.writeLengthDelimitedPrefix(buf, 8, bufferSize);
+                    }
+                    headerWritten = true;
+                } else {
+                    return false;
+                }
             }
-            PbUtil.writeUnsignedInt32(buf, 8, req.done ? 1 : 0);
+            if (bufferSize == 0) {
+                return true;
+            }
+            buf.put(req.data.getBuffer());
+            return !req.data.getBuffer().hasRemaining();
         }
 
     }

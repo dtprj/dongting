@@ -145,20 +145,39 @@ public class ApplyManager {
 
     private RaftTask buildRaftTask(LogItem item) {
         try {
-            RefBuffer rbb = item.getBodyBuffer();
-            if (item.getType() == LogItem.TYPE_NORMAL) {
-                ByteBuffer buf = rbb.getBuffer();
-                buf.mark();
-                Decoder decoder = (Decoder) stateMachine.getBodyDecoder().get();
-                Object o = decoder.decode(decodeContext, buf, buf.remaining(), true, true);
-                buf.reset();
-                item.setBody(o);
-            } else {
-                if (rbb != null) {
-                    item.setBody(RaftUtil.copy(rbb.getBuffer()));
+            RefBuffer headerRbb = item.getHeaderBuffer();
+            if (headerRbb != null) {
+                try {
+                    if (item.getType() == LogItem.TYPE_NORMAL) {
+                        ByteBuffer buf = headerRbb.getBuffer();
+                        Decoder decoder = (Decoder) stateMachine.getHeaderDecoder().get();
+                        Object o = decoder.decode(decodeContext, buf, buf.remaining(), true, true);
+                        item.setHeader(o);
+                    } else {
+                        item.setHeader(RaftUtil.copy(headerRbb.getBuffer()));
+                    }
+                } finally {
+                    headerRbb.release();
+                    item.setBodyBuffer(null);
                 }
             }
-            RaftInput input = new RaftInput(null, item.getBody(), null, false, item.getActualBodySize());
+            RefBuffer bodyRbb = item.getBodyBuffer();
+            if (bodyRbb != null) {
+                try {
+                    if (item.getType() == LogItem.TYPE_NORMAL) {
+                        ByteBuffer buf = bodyRbb.getBuffer();
+                        Decoder decoder = (Decoder) stateMachine.getBodyDecoder().get();
+                        Object o = decoder.decode(decodeContext, buf, buf.remaining(), true, true);
+                        item.setBody(o);
+                    } else {
+                        item.setBody(RaftUtil.copy(bodyRbb.getBuffer()));
+                    }
+                } finally {
+                    bodyRbb.release();
+                    item.setBodyBuffer(null);
+                }
+            }
+            RaftInput input = new RaftInput(item.getHeader(), item.getBody(), null, false, item.getActualBodySize());
             return new RaftTask(ts, item.getType(), input, null);
         } finally {
             decodeContext.setStatus(null);

@@ -15,12 +15,14 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftNode;
@@ -47,8 +49,10 @@ public class Raft implements BiConsumer<EventType, Object> {
 
     private final Timestamp ts;
 
-    public Raft(RaftStatusImpl raftStatus, RaftLog raftLog, ApplyManager applyManager,
-                CommitManager commitManager, ReplicateManager replicateManager, StateMachine stateMachine) {
+    private final EncodeContext encodeContext;
+
+    public Raft(RaftStatusImpl raftStatus, RaftLog raftLog, ApplyManager applyManager, CommitManager commitManager,
+                ReplicateManager replicateManager, StateMachine stateMachine, RaftGroupConfigEx groupConfig) {
         this.raftStatus = raftStatus;
         this.raftLog = raftLog;
         this.ts = raftStatus.getTs();
@@ -57,6 +61,8 @@ public class Raft implements BiConsumer<EventType, Object> {
         this.commitManager = commitManager;
         this.replicateManager = replicateManager;
         this.stateMachine = stateMachine;
+
+        this.encodeContext = groupConfig.getEncodeContext();
     }
 
     @Override
@@ -108,14 +114,14 @@ public class Raft implements BiConsumer<EventType, Object> {
                 item.setHeader(header);
                 if (header != null) {
                     Encoder encoder = (Encoder) stateMachine.getHeaderDecoder().get();
-                    item.setActualHeaderSize(encoder.actualSize(header));
+                    item.setActualHeaderSize(encoder.actualSize(encodeContext, header));
                 }
 
                 Object body = input.getBody();
                 item.setBody(body);
                 if (body != null) {
                     Encoder encoder = (Encoder) stateMachine.getBodyDecoder().get();
-                    item.setActualBodySize(encoder.actualSize(body));
+                    item.setActualBodySize(encoder.actualSize(encodeContext, body));
                 }
 
                 logs.add(item);

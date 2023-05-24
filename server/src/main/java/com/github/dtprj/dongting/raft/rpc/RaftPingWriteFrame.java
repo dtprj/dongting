@@ -15,9 +15,9 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbUtil;
-import com.github.dtprj.dongting.net.WriteFrame;
+import com.github.dtprj.dongting.net.SmallNoCopyWriteFrame;
 
 import java.nio.ByteBuffer;
 import java.util.Set;
@@ -25,7 +25,7 @@ import java.util.Set;
 /**
  * @author huangli
  */
-public class RaftPingWriteFrame extends WriteFrame {
+public class RaftPingWriteFrame extends SmallNoCopyWriteFrame {
 
     private final int groupId;
     private final int nodeId;
@@ -40,7 +40,7 @@ public class RaftPingWriteFrame extends WriteFrame {
     }
 
     @Override
-    protected int calcActualBodySize() {
+    protected int calcActualBodySize(EncodeContext context) {
         int size = PbUtil.accurateFix32Size(1, groupId);
         size += PbUtil.accurateFix32Size(2, nodeId);
         if (nodeIdOfMembers != null) {
@@ -57,7 +57,7 @@ public class RaftPingWriteFrame extends WriteFrame {
     }
 
     @Override
-    protected void encodeBody(ByteBuffer buf, ByteBufferPool pool) {
+    protected void encodeBody(ByteBuffer buf) {
         PbUtil.writeFix32(buf, 1, groupId);
         PbUtil.writeFix32(buf, 2, nodeId);
         if (nodeIdOfMembers != null) {
