@@ -155,7 +155,9 @@ class DtChannel extends PbCallback<Object> {
         ReqProcessor processorForRequest = this.processorForRequest;
         if (writeDataForResp == null && processorForRequest == null) {
             // empty body
-            initRelatedDataForFrame(false);
+            if (!initRelatedDataForFrame(false)) {
+                return;
+            }
             writeDataForResp = this.writeDataForResp;
             processorForRequest = this.processorForRequest;
             if (writeDataForResp == null && processorForRequest == null) {
@@ -230,7 +232,9 @@ class DtChannel extends PbCallback<Object> {
             throw new NetException("command invalid :" + frame.getCommand());
         }
         // the body field should encode as last field
-        initRelatedDataForFrame(true);
+        if (!initRelatedDataForFrame(true)) {
+            return false;
+        }
         if (currentDecoder == null) {
             return true;
         }
@@ -253,7 +257,7 @@ class DtChannel extends PbCallback<Object> {
         return true;
     }
 
-    private void initRelatedDataForFrame(boolean initDecoder) {
+    private boolean initRelatedDataForFrame(boolean initDecoder) {
         ReadFrame frame = this.frame;
         if (frame.getFrameType() == FrameType.TYPE_RESP) {
             WriteData writeDataForResp = this.writeDataForResp;
@@ -261,7 +265,7 @@ class DtChannel extends PbCallback<Object> {
                 writeDataForResp = this.workerStatus.getPendingRequests().remove(BitUtil.toLong(channelIndexInWorker, frame.getSeq()));
                 if (writeDataForResp == null) {
                     log.info("pending request not found. channel={}, resp={}", channel, frame);
-                    return;
+                    return false;
                 } else {
                     this.writeDataForResp = writeDataForResp;
                 }
@@ -272,7 +276,7 @@ class DtChannel extends PbCallback<Object> {
         } else {
             if (!running) {
                 writeErrorInIoThread(frame, CmdCodes.STOPPING, null);
-                return;
+                return false;
             }
             ReqProcessor processorForRequest = this.processorForRequest;
             if (processorForRequest == null) {
@@ -280,7 +284,7 @@ class DtChannel extends PbCallback<Object> {
                 if (processorForRequest == null) {
                     log.warn("command {} is not support", frame.getCommand());
                     writeErrorInIoThread(frame, CmdCodes.COMMAND_NOT_SUPPORT, null);
-                    return;
+                    return false;
                 }
                 if (processorForRequest.getExecutor() != null) {
                     // TODO can we eliminate this CAS operation?
@@ -293,7 +297,7 @@ class DtChannel extends PbCallback<Object> {
                             writeErrorInIoThread(frame, CmdCodes.FLOW_CONTROL,
                                     "max incoming request bytes: " + nioConfig.getMaxInBytes());
                             inReqBytes.addAndGet(-currentReadFrameSize);
-                            return;
+                            return false;
                         }
                     }
                 }
@@ -303,6 +307,7 @@ class DtChannel extends PbCallback<Object> {
                 currentDecoder = processorForRequest.createDecoder();
             }
         }
+        return true;
     }
 
     private void processIoDecodeFail(Throwable e) {
