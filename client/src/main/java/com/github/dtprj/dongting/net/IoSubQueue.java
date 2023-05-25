@@ -137,6 +137,18 @@ class IoSubQueue {
                     if (subQueueBytes < 0) {
                         subQueueBytes = 0;
                     }
+                    WriteFrame f = wd.getData();
+                    if (f.getFrameType() == FrameType.TYPE_REQ) {
+                        long key = BitUtil.toLong(dtc.getChannelIndexInWorker(), f.getSeq());
+                        WriteData old = workerStatus.getPendingRequests().put(key, wd);
+                        if (old != null) {
+                            // TODO change this behavior
+                            String errMsg = "dup seq: old=" + old.getData() + ", new=" + f;
+                            log.error(errMsg);
+                            fail(wd, errMsg);
+                            workerStatus.getPendingRequests().put(key, old);
+                        }
+                    }
                     wd = null;
                 } else {
                     return flipAndReturnBuffer(buf);
@@ -188,22 +200,7 @@ class IoSubQueue {
             f.setSeq(seq);
             f.setTimeout(rest);
         }
-        boolean encodeFinish = doEncode(buf, wd);
-        if (!request) {
-            return encodeFinish;
-        }
-        if (encodeFinish) {
-            long key = BitUtil.toLong(dtc.getChannelIndexInWorker(), f.getSeq());
-            WriteData old = workerStatus.getPendingRequests().put(key, wd);
-            if (old != null) {
-                // TODO change this behavior
-                String errMsg = "dup seq: old=" + old.getData() + ", new=" + f;
-                log.error(errMsg);
-                fail(wd, errMsg);
-                workerStatus.getPendingRequests().put(key, old);
-            }
-        }
-        return encodeFinish;
+        return doEncode(buf, wd);
     }
 
     private boolean doEncode(ByteBuffer buf, WriteData wd) {
