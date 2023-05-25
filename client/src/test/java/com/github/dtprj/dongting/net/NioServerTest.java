@@ -163,7 +163,7 @@ public class NioServerTest {
         Socket s = new Socket("127.0.0.1", PORT);
         try {
             s.setTcpNoDelay(true);
-            s.setSoTimeout(30000);
+            s.setSoTimeout(10000);
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
             Random r = new Random();

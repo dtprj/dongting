@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
  */
 public class ByteBufferWriteFrame extends WriteFrame {
     private ByteBuffer body;
+    private int markedPosition = -1;
 
     public ByteBufferWriteFrame(ByteBuffer body) {
         this.body = body;
@@ -35,15 +36,33 @@ public class ByteBufferWriteFrame extends WriteFrame {
         return body == null ? 0 : body.remaining();
     }
 
+    public static int copy(ByteBuffer src, ByteBuffer dest, int markedPosition) {
+        int srcStart = src.position();
+        if (markedPosition < 0) {
+            markedPosition = srcStart;
+        } else {
+            src.position(markedPosition);
+        }
+        int destRemaining = dest.remaining();
+        if (src.remaining() > destRemaining) {
+            int srcLimit = src.limit();
+            src.limit(markedPosition + destRemaining);
+            dest.put(src);
+
+            src.limit(srcLimit);
+            src.position(srcStart);
+            return markedPosition + destRemaining;
+        } else {
+            dest.put(src);
+            markedPosition = src.position();
+            src.position(srcStart);
+            return markedPosition;
+        }
+    }
+
     @Override
     protected boolean encodeBody(EncodeContext context, ByteBuffer buf) {
-        ByteBuffer body = this.body;
-        buf.put(body);
-        if (body.hasRemaining()) {
-            return false;
-        } else {
-            this.body = null;
-            return true;
-        }
+        markedPosition = copy(body, buf, markedPosition);
+        return markedPosition == body.limit();
     }
 }

@@ -96,7 +96,7 @@ public abstract class WriteFrame extends Frame implements Encoder<WriteFrame> {
             if (buf.remaining() < headerSize) {
                 return false;
             } else {
-                buf.putInt(totalSize);
+                buf.putInt(totalSize - 4); //not include total length
                 PbUtil.writeUnsignedInt32(buf, Frame.IDX_TYPE, frameType);
                 PbUtil.writeUnsignedInt32(buf, Frame.IDX_COMMAND, command);
                 PbUtil.writeFix32(buf, Frame.IDX_SEQ, seq);
