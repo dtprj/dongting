@@ -238,7 +238,7 @@ public class NioClientTest {
             expectCount++;
             loop++;
         } while (time.elapse(TimeUnit.MILLISECONDS) < timeMillis && loop < maxLoop);
-        int v = successCount.get(1, TimeUnit.SECONDS);
+        int v = successCount.get(tick(1), TimeUnit.SECONDS);
         assertTrue(v > 0);
         assertEquals(expectCount, v);
     }
