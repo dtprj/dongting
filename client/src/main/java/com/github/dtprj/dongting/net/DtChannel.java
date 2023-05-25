@@ -236,7 +236,7 @@ class DtChannel extends PbCallback<Object> {
             return false;
         }
         if (currentDecoder == null) {
-            return true;
+            return false;
         }
 
         try {
