@@ -39,7 +39,7 @@ class LogHeader {
     // negative value means end of file
     private static final int END_LEN_MAGIC = 0xF19A7BCB;
 
-    private CRC32C crc32c = new CRC32C();
+    private final CRC32C crc32c = new CRC32C();
 
     int totalLen;
     int contextLen;
@@ -124,14 +124,12 @@ class LogHeader {
         buffer.putInt((int) crc.getValue());
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public boolean checkHeader(long filePos, long fileLen) {
         int expectTotalLen = LogHeader.computeTotalLen(contextLen, bizHeaderLen, bodyLen);
-        if (type < 0 || totalLen <= 0 || bizHeaderLen < 0 || bodyLen < 0 || contextLen < 0
-                || expectTotalLen <= 0
-                || totalLen != expectTotalLen
-                || filePos + expectTotalLen > fileLen) {
-            return false;
-        }
-        return true;
+        return type >= 0 && totalLen > 0 && bizHeaderLen >= 0 && bodyLen >= 0 && contextLen >= 0
+                && expectTotalLen > 0
+                && totalLen == expectTotalLen
+                && filePos + expectTotalLen <= fileLen;
     }
 }

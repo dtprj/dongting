@@ -55,8 +55,11 @@ class LogFileQueue extends FileQueue implements FileOps {
     private final CRC32C crc32c = new CRC32C();
 
     private final EncodeContext encodeContext;
+    @SuppressWarnings("rawtypes")
     private final Encoder headerEncoder;
+    @SuppressWarnings("rawtypes")
     private final Encoder bodyEncoder;
+    @SuppressWarnings("rawtypes")
     private final Encoder byteBufferEncoder = new ByteBufferEncoder();
 
     private long writePos;
@@ -185,6 +188,7 @@ class LogFileQueue extends FileQueue implements FileOps {
     }
 
     private long writeData(ByteBuffer writeBuffer, long pos, LogFile file, LogItem log, boolean bizBody) throws IOException {
+        @SuppressWarnings("rawtypes")
         Encoder encoder;
         int size;
         Object data;
@@ -219,6 +223,7 @@ class LogFileQueue extends FileQueue implements FileOps {
         }
         while (true) {
             int lastPos = writeBuffer.position();
+            @SuppressWarnings("unchecked")
             boolean encodeFinish = encoder.encode(encodeContext, writeBuffer, data);
             if (writeBuffer.position() > lastPos) {
                 updateCrc(crc32c, writeBuffer, lastPos, writeBuffer.position() - lastPos);
