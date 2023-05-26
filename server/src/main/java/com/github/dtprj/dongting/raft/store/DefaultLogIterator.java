@@ -59,7 +59,6 @@ class DefaultLogIterator implements RaftLog.LogIterator {
     private long bufferStartPos = -1;
     private long bufferEndPos = -1;
 
-    // TODO check error handling
     private boolean error;
     private boolean close;
 
