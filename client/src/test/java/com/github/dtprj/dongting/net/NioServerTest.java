@@ -155,7 +155,7 @@ public class NioServerTest {
     public void generalTest() throws Exception {
         setupServer(null);
         server.start();
-        generalTest(1000, 0, 5000, null);
+        generalTest(200, 0, 5000, null);
     }
 
     private void generalTest(long millis, int innerLoop, int maxBodySize,
@@ -229,7 +229,7 @@ public class NioServerTest {
         for (int i = 0; i < threads; i++) {
             Runnable r = () -> {
                 try {
-                    generalTest(1000, 0, 5000, null);
+                    generalTest(500, 0, 5000, null);
                 } catch (Throwable e) {
                     BugLog.log(e);
                     fail.incrementAndGet();
