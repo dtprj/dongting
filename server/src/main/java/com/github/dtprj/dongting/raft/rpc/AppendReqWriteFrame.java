@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.codec.PbUtil;
+import com.github.dtprj.dongting.net.ByteBufferWriteFrame;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.server.LogItem;
 
@@ -195,15 +196,8 @@ public class AppendReqWriteFrame extends WriteFrame {
 
         if (buffer != null) {
             ByteBuffer src = buffer.getBuffer();
-            src.mark();
-            if (markedPosition != -1) {
-                src.position(markedPosition);
-            }
-            dest.put(src);
-            markedPosition = src.position();
-            boolean finish = src.hasRemaining();
-            src.reset();
-            if (finish) {
+            markedPosition = ByteBufferWriteFrame.copy(src, dest, markedPosition);
+            if (markedPosition == src.limit()) {
                 buffer.release();
                 return true;
             } else {
