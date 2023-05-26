@@ -57,6 +57,7 @@ class LogFileQueue extends FileQueue implements FileOps {
     private final EncodeContext encodeContext;
     private final Encoder headerEncoder;
     private final Encoder bodyEncoder;
+    private final Encoder byteBufferEncoder = new ByteBufferEncoder();
 
     private long writePos;
 
@@ -195,8 +196,7 @@ class LogFileQueue extends FileQueue implements FileOps {
             if (log.getType() == LogItem.TYPE_NORMAL) {
                 encoder = bodyEncoder;
             } else {
-                // TODO byte buffer encoder
-                encoder = null;
+                encoder = byteBufferEncoder;
             }
             data = log.getBody();
         } else {
@@ -207,8 +207,7 @@ class LogFileQueue extends FileQueue implements FileOps {
             if (log.getType() == LogItem.TYPE_NORMAL) {
                 encoder = headerEncoder;
             } else {
-                // TODO byte buffer encoder
-                encoder = null;
+                encoder = byteBufferEncoder;
             }
             data = log.getHeader();
         }
