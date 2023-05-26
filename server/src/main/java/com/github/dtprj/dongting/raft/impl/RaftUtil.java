@@ -16,8 +16,6 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.codec.DecodeContext;
-import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.HostPort;
@@ -307,6 +305,7 @@ public class RaftUtil {
         return set;
     }
 
+    @SuppressWarnings("rawtypes")
     public static RaftGroupImpl getGroupComponents(RaftGroups map, int groupId) {
         RaftGroupImpl gc = map.get(groupId);
         if (gc == null) {
@@ -341,17 +340,6 @@ public class RaftUtil {
         dest.flip();
         src.position(pos);
         return dest;
-    }
-
-    public static Object decode(DecodeContext context, ByteBuffer buf, Decoder<?> decoder, int pos, int len) {
-        int oldLimit = buf.limit();
-        int oldPos = buf.position();
-        buf.limit(pos + len);
-        buf.position(pos);
-        Object o = decoder.decode(context, buf,len,true,true);
-        buf.limit(oldLimit);
-        buf.position(oldPos);
-        return o;
     }
 
 }

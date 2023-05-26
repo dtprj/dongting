@@ -27,11 +27,11 @@ import java.util.function.Supplier;
 /**
  * @author huangli
  */
-public abstract class RaftGroup {
+public abstract class RaftGroup<H, B, O> {
     private final Supplier<Boolean> isServerRunning;
 
     protected RaftLog raftLog;
-    protected StateMachine stateMachine;
+    protected StateMachine<H, B, O> stateMachine;
 
     public RaftGroup(Supplier<Boolean> isServerRunning) {
         this.isServerRunning = isServerRunning;
@@ -46,7 +46,7 @@ public abstract class RaftGroup {
     public abstract int getGroupId();
 
     @SuppressWarnings("unused")
-    public abstract CompletableFuture<RaftOutput> submitLinearTask(RaftInput input) throws RaftException;
+    public abstract CompletableFuture<RaftOutput<O>> submitLinearTask(RaftInput<H, B> input) throws RaftException;
 
     @SuppressWarnings("unused")
     public abstract long getLogIndexForRead(DtTime deadline)
@@ -99,7 +99,7 @@ public abstract class RaftGroup {
         return raftLog;
     }
 
-    public StateMachine getStateMachine() {
+    public StateMachine<H, B, O> getStateMachine() {
         return stateMachine;
     }
 }

@@ -18,12 +18,12 @@ package com.github.dtprj.dongting.raft.server;
 /**
  * @author huangli
  */
-public class RaftOutput {
+public class RaftOutput<O> {
 
     private final long logIndex;
-    private final Object result;
+    private final O result;
 
-    public RaftOutput(long logIndex, Object result) {
+    public RaftOutput(long logIndex, O result) {
         this.logIndex = logIndex;
         this.result = result;
     }
@@ -32,7 +32,7 @@ public class RaftOutput {
         return logIndex;
     }
 
-    public Object getResult() {
+    public O getResult() {
         return result;
     }
 }

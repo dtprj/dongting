@@ -29,6 +29,7 @@ import java.util.concurrent.CompletableFuture;
 public class RaftTask {
 
     public final int type;
+    @SuppressWarnings("rawtypes")
     public final RaftInput input;
     final CompletableFuture<RaftOutput> future;
     public final long createTimeNanos;
@@ -37,7 +38,8 @@ public class RaftTask {
 
     ArrayList<RaftTask> nextReaders;
 
-    public RaftTask(Timestamp ts, int type, RaftInput input, CompletableFuture<RaftOutput> future) {
+    public RaftTask(Timestamp ts, int type, @SuppressWarnings("rawtypes") RaftInput input,
+                    CompletableFuture<RaftOutput> future) {
         this.createTimeNanos = ts.getNanoTime();
         this.type = type;
         this.input = input;

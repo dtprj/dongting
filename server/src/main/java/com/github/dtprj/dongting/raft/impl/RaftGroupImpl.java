@@ -41,7 +41,7 @@ import java.util.function.Supplier;
 /**
  * @author huangli
  */
-public class RaftGroupImpl extends RaftGroup {
+public class RaftGroupImpl<B, H, O> extends RaftGroup<H, B, O> {
     private static final DtLog log = DtLogs.getLogger(RaftGroupImpl.class);
     private final Timestamp readTimestamp = new Timestamp();
 
@@ -241,7 +241,7 @@ public class RaftGroupImpl extends RaftGroup {
         this.raftLog = raftLog;
     }
 
-    public void setStateMachine(StateMachine stateMachine) {
+    public void setStateMachine(StateMachine<H, B, O> stateMachine) {
         this.stateMachine = stateMachine;
     }
 

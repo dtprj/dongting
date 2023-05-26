@@ -21,6 +21,8 @@ import com.github.dtprj.dongting.raft.client.RaftException;
  * @author huangli
  */
 public class ChecksumException extends RaftException {
+    private static final long serialVersionUID = 3004591445172624623L;
+
     public ChecksumException(String msg) {
         super(msg);
     }

@@ -151,13 +151,14 @@ public class RaftServer extends AbstractLifeCircle {
     private void createRaftGroups(RaftServerConfig serverConfig, List<RaftGroupConfig> groupConfig,
                                   HashSet<Integer> allNodeIds) {
         for (RaftGroupConfig rgc : groupConfig) {
+            @SuppressWarnings("rawtypes")
             RaftGroupImpl gc = createRaftGroup(serverConfig, allNodeIds, rgc);
             raftGroups.put(rgc.getGroupId(), gc);
         }
     }
 
-    private RaftGroupImpl createRaftGroup(RaftServerConfig serverConfig, Set<Integer> allNodeIds,
-                                          RaftGroupConfig rgc) {
+    private RaftGroupImpl<?, ?, ?> createRaftGroup(
+            RaftServerConfig serverConfig, Set<Integer> allNodeIds, RaftGroupConfig rgc) {
         Objects.requireNonNull(rgc.getNodeIdOfMembers());
 
         EventBus eventBus = new EventBus();
@@ -200,13 +201,9 @@ public class RaftServer extends AbstractLifeCircle {
         //noinspection rawtypes
         StateMachine stateMachine = stateMachineFactory.apply(rgcEx);
         //noinspection unchecked
-        rgcEx.setHeaderDecoder(stateMachine.getHeaderDecoder());
-        //noinspection unchecked
         rgcEx.setHeaderEncoder(stateMachine.getHeaderEncoder());
         //noinspection unchecked
         rgcEx.setBodyEncoder(stateMachine.getBodyEncoder());
-        //noinspection unchecked
-        rgcEx.setBodyDecoder(stateMachine.getBodyDecoder());
         RaftLog raftLog = raftLogFactory.apply(rgcEx);
 
         MemberManager memberManager = new MemberManager(serverConfig, raftClient, raftExecutor,
@@ -222,10 +219,12 @@ public class RaftServer extends AbstractLifeCircle {
         eventBus.register(raft);
         eventBus.register(voteManager);
 
+        @SuppressWarnings({"rawtypes", "unchecked"})
         RaftGroupImpl gc = new RaftGroupImpl(() -> status == LifeStatus.running);
         gc.setServerConfig(serverConfig);
         gc.setGroupConfig(rgc);
         gc.setRaftLog(raftLog);
+        //noinspection unchecked
         gc.setStateMachine(stateMachine);
         gc.setRaftGroupThread(raftGroupThread);
         gc.setRaftStatus(raftStatus);
@@ -406,10 +405,10 @@ public class RaftServer extends AbstractLifeCircle {
     public void addGroup(RaftGroupConfig groupConfig) {
         doChange(() -> {
             try {
-                CompletableFuture<RaftGroupImpl> f = new CompletableFuture<>();
+                CompletableFuture<RaftGroupImpl<?, ?, ?>> f = new CompletableFuture<>();
                 RaftUtil.SCHEDULED_SERVICE.execute(() -> {
                     try {
-                        RaftGroupImpl gc = createRaftGroup(serverConfig, nodeManager.getAllNodeIds(), groupConfig);
+                        RaftGroupImpl<?, ?, ?> gc = createRaftGroup(serverConfig, nodeManager.getAllNodeIds(), groupConfig);
                         gc.getMemberManager().init(nodeManager.getAllNodesEx());
                         f.complete(gc);
                     } catch (Exception e) {
@@ -417,7 +416,7 @@ public class RaftServer extends AbstractLifeCircle {
                     }
                 });
 
-                RaftGroupImpl gc = f.get(5, TimeUnit.SECONDS);
+                RaftGroupImpl<?, ?, ?> gc = f.get(5, TimeUnit.SECONDS);
                 gc.getRaftGroupThread().init(gc, ioExecutor);
 
                 gc.getMemberManager().init(nodeManager.getAllNodesEx());
@@ -435,7 +434,7 @@ public class RaftServer extends AbstractLifeCircle {
     @SuppressWarnings("unused")
     public void removeGroup(int groupId) {
         doChange(() -> {
-            RaftGroupImpl gc = raftGroups.get(groupId);
+            RaftGroupImpl<?, ?, ?> gc = raftGroups.get(groupId);
             if (gc == null) {
                 log.warn("removeGroup failed: group not exist, groupId={}", groupId);
                 return;
@@ -446,7 +445,8 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     @SuppressWarnings("unused")
-    public RaftGroup getRaftGroup(int groupId) {
+    public <H, B, O> RaftGroup<H, B, O> getRaftGroup(int groupId) {
+        //noinspection unchecked
         return RaftUtil.getGroupComponents(raftGroups, groupId);
     }
 
