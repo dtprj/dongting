@@ -24,14 +24,25 @@ import java.nio.ByteBuffer;
  */
 public class RefBufferDecoder implements Decoder<RefBuffer> {
 
+    private final boolean plain;
+
     public RefBufferDecoder() {
+        this(false);
+    }
+
+    public RefBufferDecoder(boolean plain) {
+        this.plain = plain;
     }
 
     @Override
     public RefBuffer decode(DecodeContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
         RefBuffer result;
         if (start) {
-            result = context.getHeapPool().createPlain(bodyLen);
+            if (plain) {
+                result = context.getHeapPool().createPlain(bodyLen);
+            } else {
+                result = context.getHeapPool().create(bodyLen);
+            }
             if (!end) {
                 context.setStatus(result);
             }
