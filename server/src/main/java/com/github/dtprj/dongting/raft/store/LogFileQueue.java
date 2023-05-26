@@ -288,10 +288,13 @@ class LogFileQueue extends FileQueue implements FileOps {
         log.info("truncate tail, file zero from {} to {}, file={}", start, end, lf.file.getPath());
         for (long i = start; i < end; ) {
             buffer.clear();
-            if (i + buffer.capacity() > end) {
-                buffer.limit((int) (end - i));
+            int fileRest = (int) (end - i);
+            if (buffer.capacity() > fileRest) {
+                buffer.limit(fileRest);
             }
+            int count = buffer.remaining();
             FileUtil.syncWriteFull(lf.channel, buffer, i);
+            i += count;
         }
     }
 
