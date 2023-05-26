@@ -48,8 +48,8 @@ public class RaftMember {
     private CompletableFuture<?> replicateFuture;
     private RaftLog.LogIterator replicateIterator;
 
-    private Encoder headerEncoder;
-    private Encoder bodyEncoder;
+    private Encoder<?> headerEncoder;
+    private Encoder<?> bodyEncoder;
 
     public RaftMember(RaftNodeEx node) {
         this.node = node;
@@ -166,19 +166,19 @@ public class RaftMember {
         this.replicateIterator = replicateIterator;
     }
 
-    public Encoder getHeaderEncoder() {
+    public Encoder<?> getHeaderEncoder() {
         return headerEncoder;
     }
 
-    public void setHeaderEncoder(Encoder headerEncoder) {
+    public void setHeaderEncoder(Encoder<?> headerEncoder) {
         this.headerEncoder = headerEncoder;
     }
 
-    public Encoder getBodyEncoder() {
+    public Encoder<?> getBodyEncoder() {
         return bodyEncoder;
     }
 
-    public void setBodyEncoder(Encoder bodyEncoder) {
+    public void setBodyEncoder(Encoder<?> bodyEncoder) {
         this.bodyEncoder = bodyEncoder;
     }
 }

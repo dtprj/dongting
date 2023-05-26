@@ -145,7 +145,4 @@ public class StatusFile implements AutoCloseable {
         DtUtil.close(lock, channel);
     }
 
-    public boolean isUpdating() {
-        return updating;
-    }
 }

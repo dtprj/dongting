@@ -55,7 +55,7 @@ public class RaftGroupThread extends Thread {
     private Raft raft;
     private MemberManager memberManager;
     private VoteManager voteManager;
-    private StateMachine stateMachine;
+    private StateMachine<?, ?, ?> stateMachine;
     private RaftLog raftLog;
 
     private long heartbeatIntervalNanos;
@@ -67,7 +67,7 @@ public class RaftGroupThread extends Thread {
     public RaftGroupThread() {
     }
 
-    public void init(RaftGroupImpl gc, ExecutorService ioExecutor) {
+    public void init(RaftGroupImpl<?, ?, ?> gc, ExecutorService ioExecutor) {
         this.config = gc.getServerConfig();
         this.raftStatus = gc.getRaftStatus();
         this.queue = gc.getRaftExecutor().getQueue();
@@ -278,8 +278,9 @@ public class RaftGroupThread extends Thread {
         }
     }
 
-    public CompletableFuture<RaftOutput> submitRaftTask(RaftInput input) {
-        CompletableFuture<RaftOutput> f = new CompletableFuture<>();
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public CompletableFuture<RaftOutput<?>> submitRaftTask(RaftInput<?, ?> input) {
+        CompletableFuture f = new CompletableFuture<>();
         RaftTask t = new RaftTask(raftStatus.getTs(), LogItem.TYPE_NORMAL, input, f);
         queue.offer(t);
         return f;

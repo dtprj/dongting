@@ -69,7 +69,8 @@ public class RaftGroupImpl<B, H, O> extends RaftGroup<H, B, O> {
     }
 
     @Override
-    public CompletableFuture<RaftOutput> submitLinearTask(RaftInput input) throws RaftException {
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public CompletableFuture<RaftOutput<O>> submitLinearTask(RaftInput<H, B> input) throws RaftException {
         Objects.requireNonNull(input);
         Objects.requireNonNull(input.getBody());
         RaftStatusImpl raftStatus = this.raftStatus;
@@ -98,13 +99,12 @@ public class RaftGroupImpl<B, H, O> extends RaftGroup<H, B, O> {
             PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, -size);
             throw new RaftException(msg);
         }
-        CompletableFuture<RaftOutput> f = raftGroupThread.submitRaftTask(input);
-        registerCallback(f, size, input);
+        CompletableFuture f = raftGroupThread.submitRaftTask(input);
+        registerCallback(f, size);
         return f;
-
     }
 
-    private void registerCallback(CompletableFuture<?> f, int size, RaftInput input) {
+    private void registerCallback(CompletableFuture<?> f, int size) {
         f.whenComplete((o, ex) -> {
             PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, -1);
             PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, -size);

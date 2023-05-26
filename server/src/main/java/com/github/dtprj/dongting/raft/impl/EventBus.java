@@ -38,6 +38,7 @@ public class EventBus {
         }
     }
 
+    @SuppressWarnings("unused")
     public void remove(BiConsumer<EventType, Object> listener) {
         listeners.remove(listener);
     }

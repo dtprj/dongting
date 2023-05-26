@@ -50,7 +50,7 @@ public class ApplyManager {
 
     private final int selfNodeId;
     private final RaftLog raftLog;
-    private final StateMachine stateMachine;
+    private final StateMachine<?, ?, ?> stateMachine;
     private final Timestamp ts;
     private final EventBus eventBus;
     private final RaftStatusImpl raftStatus;
@@ -64,7 +64,7 @@ public class ApplyManager {
 
     private RaftLog.LogIterator logIterator;
 
-    public ApplyManager(int selfNodeId, RaftLog raftLog, StateMachine stateMachine,
+    public ApplyManager(int selfNodeId, RaftLog raftLog, StateMachine<?, ?, ?> stateMachine,
                         RaftStatusImpl raftStatus, EventBus eventBus, RefBufferFactory heapPool) {
         this.selfNodeId = selfNodeId;
         this.raftLog = raftLog;
@@ -150,7 +150,8 @@ public class ApplyManager {
                 try {
                     if (item.getType() == LogItem.TYPE_NORMAL) {
                         ByteBuffer buf = headerRbb.getBuffer();
-                        Decoder decoder = (Decoder) stateMachine.getHeaderDecoder().get();
+                        @SuppressWarnings("rawtypes")
+                        Decoder decoder = stateMachine.getHeaderDecoder().get();
                         Object o = decoder.decode(decodeContext, buf, buf.remaining(), true, true);
                         item.setHeader(o);
                     } else {
@@ -166,7 +167,8 @@ public class ApplyManager {
                 try {
                     if (item.getType() == LogItem.TYPE_NORMAL) {
                         ByteBuffer buf = bodyRbb.getBuffer();
-                        Decoder decoder = (Decoder) stateMachine.getBodyDecoder().get();
+                        @SuppressWarnings("rawtypes")
+                        Decoder decoder = stateMachine.getBodyDecoder().get();
                         Object o = decoder.decode(decodeContext, buf, buf.remaining(), true, true);
                         item.setBody(o);
                     } else {
@@ -177,7 +179,9 @@ public class ApplyManager {
                     item.setBodyBuffer(null);
                 }
             }
-            RaftInput input = new RaftInput(item.getHeader(), item.getBody(), null, false, item.getActualBodySize());
+            @SuppressWarnings({"rawtypes", "unchecked"})
+            RaftInput input = new RaftInput(item.getHeader(), item.getBody(), null,
+                    false, item.getActualBodySize());
             return new RaftTask(ts, item.getType(), input, null);
         } finally {
             decodeContext.setStatus(null);
@@ -218,7 +222,7 @@ public class ApplyManager {
 
     private void notifyConfigChange(long index, RaftTask rt) {
         if (rt.future != null) {
-            rt.future.complete(new RaftOutput(index, null));
+            rt.future.complete(new RaftOutput<>(index, null));
         }
     }
 
@@ -234,15 +238,17 @@ public class ApplyManager {
         }
     }
 
+    @SuppressWarnings("rawtypes")
     private void execWrite(long index, RaftTask rt) {
         RaftInput input = rt.input;
         CompletableFuture<RaftOutput> future = rt.future;
+        //noinspection unchecked
         stateMachine.exec(index, input).whenCompleteAsync((r, ex) -> {
             if (ex != null) {
                 log.warn("exec write failed. {}", (Throwable) ex);
                 future.completeExceptionally((Throwable) ex);
             } else {
-                future.complete(new RaftOutput(index, r));
+                future.complete(new RaftOutput<>(index, r));
             }
             RaftStatusImpl raftStatus = this.raftStatus;
             if (raftStatus.getFirstCommitOfApplied() != null && index >= raftStatus.getFirstIndexOfCurrentTerm()) {
@@ -254,6 +260,7 @@ public class ApplyManager {
         }, raftStatus.getRaftExecutor());
     }
 
+    @SuppressWarnings("rawtypes")
     public void execRead(long index, RaftTask rt) {
         RaftInput input = rt.input;
         CompletableFuture<RaftOutput> future = rt.future;
@@ -263,11 +270,12 @@ public class ApplyManager {
         }
         try {
             // no need run in raft thread
+            //noinspection unchecked
             stateMachine.exec(index, input).whenComplete((r, e) -> {
                 if (e != null) {
                     future.completeExceptionally((Throwable) e);
                 } else {
-                    future.complete(new RaftOutput(index, r));
+                    future.complete(new RaftOutput<>(index, r));
                 }
             });
         } catch (Exception e) {

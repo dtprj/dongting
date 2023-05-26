@@ -40,6 +40,7 @@ import java.util.function.BiConsumer;
 public class Raft implements BiConsumer<EventType, Object> {
 
     private final ReplicateManager replicateManager;
+    @SuppressWarnings("rawtypes")
     private final StateMachine stateMachine;
     private final ApplyManager applyManager;
     private final CommitManager commitManager;
@@ -51,6 +52,7 @@ public class Raft implements BiConsumer<EventType, Object> {
 
     private final EncodeContext encodeContext;
 
+    @SuppressWarnings("rawtypes")
     public Raft(RaftStatusImpl raftStatus, RaftLog raftLog, ApplyManager applyManager, CommitManager commitManager,
                 ReplicateManager replicateManager, StateMachine stateMachine, RaftGroupConfigEx groupConfig) {
         this.raftStatus = raftStatus;
@@ -73,7 +75,7 @@ public class Raft implements BiConsumer<EventType, Object> {
         }
     }
 
-    @SuppressWarnings("ForLoopReplaceableByForEach")
+    @SuppressWarnings({"ForLoopReplaceableByForEach", "rawtypes", "unchecked"})
     public void raftExec(List<RaftTask> inputs) {
         RaftStatusImpl raftStatus = this.raftStatus;
         if (raftStatus.getRole() != RaftRole.leader) {
@@ -167,6 +169,7 @@ public class Raft implements BiConsumer<EventType, Object> {
         replicateManager.replicateAfterRaftExec(raftStatus);
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public void sendHeartBeat() {
         DtTime deadline = new DtTime(ts, raftStatus.getElectTimeoutNanos(), TimeUnit.NANOSECONDS);
         RaftInput input = new RaftInput(null,null, deadline, false, 0);

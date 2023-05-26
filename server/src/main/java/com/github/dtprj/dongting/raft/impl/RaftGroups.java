@@ -21,14 +21,14 @@ import com.github.dtprj.dongting.common.IntObjMap;
  * @author huangli
  */
 public class RaftGroups {
-    private volatile IntObjMap<RaftGroupImpl> map = new IntObjMap<>();
+    private volatile IntObjMap<RaftGroupImpl<?, ?, ?>> map = new IntObjMap<>();
 
     public RaftGroupImpl get(int groupId) {
         return map.get(groupId);
     }
 
-    public void put(int groupId, RaftGroupImpl raftGroupImpl) {
-        IntObjMap<RaftGroupImpl> newMap = new IntObjMap<>();
+    public void put(int groupId, RaftGroupImpl<?, ?, ?> raftGroupImpl) {
+        IntObjMap<RaftGroupImpl<?, ?, ?>> newMap = new IntObjMap<>();
         map.forEach((k, v) -> {
             newMap.put(k, v);
             return true;
@@ -37,7 +37,7 @@ public class RaftGroups {
         this.map = newMap;
     }
 
-    public void forEach(IntObjMap.Visitor<RaftGroupImpl> visitor) {
+    public void forEach(IntObjMap.Visitor<RaftGroupImpl<?, ?, ?>> visitor) {
         map.forEach(visitor);
     }
 

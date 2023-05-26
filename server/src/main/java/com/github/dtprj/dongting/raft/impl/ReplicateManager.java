@@ -58,6 +58,7 @@ public class ReplicateManager {
     private final RaftStatusImpl raftStatus;
     private final RaftServerConfig config;
     private final RaftLog raftLog;
+    @SuppressWarnings("rawtypes")
     private final StateMachine stateMachine;
     private final NioClient client;
     private final RaftExecutor raftExecutor;
@@ -71,9 +72,10 @@ public class ReplicateManager {
 
     private long installSnapshotFailTime;
 
-    private static final PbNoCopyDecoder APPEND_RESP_DECODER = new PbNoCopyDecoder(c -> new AppendRespCallback());
-    private static final PbNoCopyDecoder INSTALL_SNAPSHOT_RESP_DECODER = new PbNoCopyDecoder(c -> new InstallSnapshotResp.Callback());
+    private static final PbNoCopyDecoder<AppendRespCallback> APPEND_RESP_DECODER = new PbNoCopyDecoder<>(c -> new AppendRespCallback());
+    private static final PbNoCopyDecoder<InstallSnapshotResp> INSTALL_SNAPSHOT_RESP_DECODER = new PbNoCopyDecoder<>(c -> new InstallSnapshotResp.Callback());
 
+    @SuppressWarnings("rawtypes")
     public ReplicateManager(RaftServerConfig config, RaftGroupConfigEx groupConfig, RaftStatusImpl raftStatus, RaftLog raftLog,
                             StateMachine stateMachine, NioClient client, RaftExecutor executor,
                             CommitManager commitManager) {
@@ -257,6 +259,7 @@ public class ReplicateManager {
         sendAppendRequest(member, firstItem.getIndex() - 1, firstItem.getPrevLogTerm(), items, bytes);
     }
 
+    @SuppressWarnings("rawtypes")
     private void sendAppendRequest(RaftMember member, long prevLogIndex, int prevLogTerm, List<LogItem> logs, long bytes) {
         Encoder headerEncoder = member.getHeaderEncoder();
         if (headerEncoder == null) {
@@ -281,12 +284,14 @@ public class ReplicateManager {
         member.setNextIndex(prevLogIndex + 1 + logs.size());
 
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        CompletableFuture<ReadFrame> f = client.sendRequest(member.getNode().getPeer(), req, APPEND_RESP_DECODER, timeout);
+        CompletableFuture<ReadFrame<AppendRespCallback>> f = client.sendRequest(member.getNode().getPeer(),
+                req, APPEND_RESP_DECODER, timeout);
         registerAppendResultCallback(member, prevLogIndex, prevLogTerm, f, logs, bytes);
     }
 
     private void registerAppendResultCallback(RaftMember member, long prevLogIndex, int prevLogTerm,
-                                              CompletableFuture<ReadFrame> f, List<LogItem> logs, long bytes) {
+                                              CompletableFuture<ReadFrame<AppendRespCallback>> f,
+                                              List<LogItem> logs, long bytes) {
         int reqTerm = raftStatus.getCurrentTerm();
         // the time refresh happens before this line
         long reqNanos = ts.getNanoTime();
@@ -335,10 +340,10 @@ public class ReplicateManager {
     }
 
     // in raft thread
-    private void processAppendResult(RaftMember member, ReadFrame rf, long prevLogIndex,
+    private void processAppendResult(RaftMember member, ReadFrame<AppendRespCallback> rf, long prevLogIndex,
                                      int prevLogTerm, int reqTerm, long reqNanos, int count, int reqEpoch) {
         long expectNewMatchIndex = prevLogIndex + count;
-        AppendRespCallback body = (AppendRespCallback) rf.getBody();
+        AppendRespCallback body = rf.getBody();
         RaftStatusImpl raftStatus = this.raftStatus;
         int remoteTerm = body.getTerm();
         if (checkTermFailed(remoteTerm)) {
@@ -551,7 +556,8 @@ public class ReplicateManager {
         if (data != null) {
             data.retain();
         }
-        CompletableFuture<ReadFrame> future = client.sendRequest(member.getNode().getPeer(), wf, INSTALL_SNAPSHOT_RESP_DECODER, timeout);
+        CompletableFuture<ReadFrame<InstallSnapshotResp>> future = client.sendRequest(
+                member.getNode().getPeer(), wf, INSTALL_SNAPSHOT_RESP_DECODER, timeout);
         future.whenComplete((rf, ex) -> {
             if (data != null) {
                 data.release();
@@ -562,7 +568,7 @@ public class ReplicateManager {
         registerInstallSnapshotCallback(future, member, si, req.term, req.offset, bytes, req.done, req.lastIncludedIndex);
     }
 
-    private void registerInstallSnapshotCallback(CompletableFuture<ReadFrame> future, RaftMember member,
+    private void registerInstallSnapshotCallback(CompletableFuture<ReadFrame<InstallSnapshotResp>> future, RaftMember member,
                                                  SnapshotInfo si, int reqTerm, long reqOffset,
                                                  int reqBytes, boolean reqDone, long reqLastIncludedIndex) {
         PendingStat pd = member.getPendingStat();
@@ -585,7 +591,7 @@ public class ReplicateManager {
                 processInstallSnapshotError(member, si, ex, reqEpoch);
                 return;
             }
-            InstallSnapshotResp respBody = (InstallSnapshotResp) rf.getBody();
+            InstallSnapshotResp respBody = rf.getBody();
             if (checkTermFailed(respBody.term)) {
                 return;
             }

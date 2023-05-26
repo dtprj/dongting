@@ -300,8 +300,8 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         }
     }
 
-    public void leaderPrepareJointConsensus(CompletableFuture<Void> f, RaftGroupImpl raftGroup, Set<Integer> memberIds,
-                                            Set<Integer> observerIds) {
+    public void leaderPrepareJointConsensus(CompletableFuture<Void> f, RaftGroupImpl<?, ?, ?> raftGroup,
+                                            Set<Integer> memberIds, Set<Integer> observerIds) {
         try {
             int groupId = raftGroup.getGroupId();
             for (int nodeId : memberIds) {
@@ -337,7 +337,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         return memberNodes;
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "rawtypes"})
     private void doPrepare(Object[] args) {
         RaftGroupImpl gc = null;
         Runnable callback = (Runnable) args[5];

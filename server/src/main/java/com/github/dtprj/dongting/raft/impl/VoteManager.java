@@ -49,7 +49,7 @@ public class VoteManager implements BiConsumer<EventType, Object> {
     private final int groupId;
     private final RaftExecutor raftExecutor;
 
-    private static final Decoder RESP_DECODER = new PbNoCopyDecoder(c -> new VoteResp.Callback());
+    private static final Decoder<VoteResp> RESP_DECODER = new PbNoCopyDecoder<>(c -> new VoteResp.Callback());
 
     private boolean voting;
     private HashSet<Integer> votes;
@@ -178,7 +178,7 @@ public class VoteManager implements BiConsumer<EventType, Object> {
 
         final int voteIdOfRequest = this.currentVoteId;
 
-        CompletableFuture<ReadFrame> f = client.sendRequest(member.getNode().getPeer(), wf, RESP_DECODER, timeout);
+        CompletableFuture<ReadFrame<VoteResp>> f = client.sendRequest(member.getNode().getPeer(), wf, RESP_DECODER, timeout);
         log.info("send {} request. remoteNode={}, groupId={}, term={}, lastLogIndex={}, lastLogTerm={}",
                 preVote ? "pre-vote" : "vote", member.getNode().getNodeId(), groupId,
                 currentTerm, req.getLastLogIndex(), req.getLastLogTerm());
@@ -201,7 +201,7 @@ public class VoteManager implements BiConsumer<EventType, Object> {
         }
     }
 
-    private void processPreVoteResp(ReadFrame rf, Throwable ex, RaftMember remoteMember, VoteReq req, int voteIdOfRequest) {
+    private void processPreVoteResp(ReadFrame<VoteResp> rf, Throwable ex, RaftMember remoteMember, VoteReq req, int voteIdOfRequest) {
         if (voteIdOfRequest != currentVoteId) {
             return;
         }
@@ -210,7 +210,7 @@ public class VoteManager implements BiConsumer<EventType, Object> {
         }
         int currentTerm = raftStatus.getCurrentTerm();
         if (ex == null) {
-            VoteResp preVoteResp = (VoteResp) rf.getBody();
+            VoteResp preVoteResp = rf.getBody();
             if (preVoteResp.isVoteGranted() && raftStatus.getRole() == RaftRole.follower
                     && preVoteResp.getTerm() == req.getTerm()) {
                 log.info("receive pre-vote grant success. term={}, remoteNode={}, groupId={}",
@@ -298,7 +298,7 @@ public class VoteManager implements BiConsumer<EventType, Object> {
         }
     }
 
-    private void processVoteResp(ReadFrame rf, Throwable ex, RaftMember remoteMember,
+    private void processVoteResp(ReadFrame<VoteResp> rf, Throwable ex, RaftMember remoteMember,
                                    VoteReq voteReq, int voteIdOfRequest, long leaseStartTime) {
         if (voteIdOfRequest != currentVoteId) {
             return;
@@ -316,8 +316,8 @@ public class VoteManager implements BiConsumer<EventType, Object> {
         descPending(voteIdOfRequest);
     }
 
-    private void processVoteResp(ReadFrame rf, RaftMember remoteMember, VoteReq voteReq, long leaseStartTime) {
-        VoteResp voteResp = (VoteResp) rf.getBody();
+    private void processVoteResp(ReadFrame<VoteResp> rf, RaftMember remoteMember, VoteReq voteReq, long leaseStartTime) {
+        VoteResp voteResp = rf.getBody();
         int remoteTerm = voteResp.getTerm();
         if (remoteTerm < raftStatus.getCurrentTerm()) {
             log.warn("receive outdated vote resp, ignore, remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
