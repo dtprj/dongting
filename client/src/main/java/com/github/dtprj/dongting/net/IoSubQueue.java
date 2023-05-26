@@ -133,7 +133,6 @@ class IoSubQueue {
                 if (encodeFinish) {
                     wd.getData().clean(encodeContext);
                     subQueueBytes -= wd.getEstimateSize();
-                    framesInBuffer++;
                     if (subQueueBytes < 0) {
                         subQueueBytes = 0;
                     }
@@ -194,6 +193,7 @@ class IoSubQueue {
             workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() - 1);
             return true;
         }
+        framesInBuffer++;
 
         if (request) {
             int seq = dtc.getAndIncSeq();
