@@ -42,12 +42,12 @@ abstract class AbstractProcessor<T> extends ReqProcessor<T> {
     protected abstract int getGroupId(ReadFrame<T> frame);
 
     protected abstract WriteFrame doProcess(ReadFrame<T> frame, ChannelContext channelContext,
-                                            RaftGroupImpl gc);
+                                            RaftGroupImpl<?, ?, ?> gc);
 
     @Override
     public final WriteFrame process(ReadFrame<T> frame, ChannelContext channelContext, ReqContext reqContext) {
         int groupId = getGroupId(frame);
-        RaftGroupImpl gc = raftGroups.get(groupId);
+        RaftGroupImpl<?, ?, ?> gc = raftGroups.get(groupId);
         if (gc == null) {
             log.error("raft group not found: {}", groupId);
             EmptyBodyRespFrame wf = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
@@ -65,7 +65,7 @@ abstract class AbstractProcessor<T> extends ReqProcessor<T> {
         }
     }
 
-    private void process(ReadFrame<T> frame, ChannelContext channelContext, ReqContext reqContext, RaftGroupImpl gc) {
+    private void process(ReadFrame<T> frame, ChannelContext channelContext, ReqContext reqContext, RaftGroupImpl<?, ?, ?> gc) {
         WriteFrame wf = doProcess(frame, channelContext, gc);
         if (wf != null) {
             channelContext.getRespWriter().writeRespInBizThreads(frame, wf, reqContext.getTimeout());

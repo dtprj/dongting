@@ -90,9 +90,10 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
     }
 
     @Override
+    @SuppressWarnings("rawtypes")
     public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
         if (index == 7) {
-            RaftGroupImpl group = raftGroups.get(groupId);
+            RaftGroupImpl<?, ?, ?> group = raftGroups.get(groupId);
             if (group == null) {
                 // group id should encode before entries
                 throw new PbException("can't find raft group: " + groupId);
@@ -161,6 +162,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
     //  bytes header = 6;
     //  bytes body = 7;
     //}
+    @SuppressWarnings("rawtypes")
     static class LogItemCallback extends PbCallback<Object> {
         private final LogItem item = new LogItem();
         private final Decoder headerDecoder;

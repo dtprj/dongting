@@ -23,7 +23,7 @@ import com.github.dtprj.dongting.common.IntObjMap;
 public class RaftGroups {
     private volatile IntObjMap<RaftGroupImpl<?, ?, ?>> map = new IntObjMap<>();
 
-    public RaftGroupImpl get(int groupId) {
+    public RaftGroupImpl<?, ?, ?> get(int groupId) {
         return map.get(groupId);
     }
 

@@ -41,7 +41,7 @@ public class RaftPingProcessor extends AbstractProcessor<RaftPingFrameCallback> 
     }
 
     @Override
-    protected WriteFrame doProcess(ReadFrame<RaftPingFrameCallback> frame, ChannelContext channelContext, RaftGroupImpl gc) {
+    protected WriteFrame doProcess(ReadFrame<RaftPingFrameCallback> frame, ChannelContext channelContext, RaftGroupImpl<?, ?, ?> gc) {
         RaftPingWriteFrame resp = new RaftPingWriteFrame(gc.getServerConfig().getNodeId(),
                 gc.getGroupConfig().getGroupId(), gc.getRaftStatus().getNodeIdOfMembers(),
                 gc.getRaftStatus().getNodeIdOfObservers());

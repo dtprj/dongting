@@ -50,7 +50,7 @@ public class InstallSnapshotProcessor extends AbstractProcessor<InstallSnapshotR
     }
 
     @Override
-    protected WriteFrame doProcess(ReadFrame<InstallSnapshotReq> frame, ChannelContext channelContext, RaftGroupImpl gc) {
+    protected WriteFrame doProcess(ReadFrame<InstallSnapshotReq> frame, ChannelContext channelContext, RaftGroupImpl<?, ?, ?> gc) {
         InstallSnapshotReq req = frame.getBody();
         try {
             InstallSnapshotResp resp = new InstallSnapshotResp();
@@ -101,7 +101,8 @@ public class InstallSnapshotProcessor extends AbstractProcessor<InstallSnapshotR
         }
     }
 
-    private void installSnapshot(RaftStatusImpl raftStatus, StateMachine stateMachine, InstallSnapshotReq req, InstallSnapshotResp resp) {
+    private void installSnapshot(RaftStatusImpl raftStatus, StateMachine<?, ?, ?> stateMachine,
+                                 InstallSnapshotReq req, InstallSnapshotResp resp) {
         boolean start = req.offset == 0;
         boolean finish = req.done;
         if (start) {

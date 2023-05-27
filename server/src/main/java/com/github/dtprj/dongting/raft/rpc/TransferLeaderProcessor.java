@@ -50,7 +50,8 @@ public class TransferLeaderProcessor extends AbstractProcessor<TransferLeaderReq
     }
 
     @Override
-    protected WriteFrame doProcess(ReadFrame<TransferLeaderReq> frame, ChannelContext channelContext, RaftGroupImpl gc) {
+    protected WriteFrame doProcess(ReadFrame<TransferLeaderReq> frame, ChannelContext channelContext,
+                                   RaftGroupImpl<?, ?, ?> gc) {
         TransferLeaderReq req = frame.getBody();
         RaftStatusImpl raftStatus = gc.getRaftStatus();
         if (raftStatus.isError()) {

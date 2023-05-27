@@ -48,7 +48,7 @@ public class VoteProcessor extends AbstractProcessor<VoteReq> {
     }
 
     @Override
-    protected WriteFrame doProcess(ReadFrame<VoteReq> rf, ChannelContext channelContext, RaftGroupImpl gc) {
+    protected WriteFrame doProcess(ReadFrame<VoteReq> rf, ChannelContext channelContext, RaftGroupImpl<?, ?, ?> gc) {
         VoteReq voteReq = rf.getBody();
         VoteResp resp = new VoteResp();
         RaftStatusImpl raftStatus = gc.getRaftStatus();

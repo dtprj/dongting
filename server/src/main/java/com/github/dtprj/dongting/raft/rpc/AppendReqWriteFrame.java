@@ -48,6 +48,7 @@ import java.util.List;
 //  bytes header = 6;
 //  bytes body = 7;
 //}
+@SuppressWarnings("rawtypes")
 public class AppendReqWriteFrame extends WriteFrame {
 
     private final EncodeContext context;
@@ -132,6 +133,7 @@ public class AppendReqWriteFrame extends WriteFrame {
                     writeStatus = WRITE_ITEM_HEADER;
                     break;
                 case WRITE_ITEM_HEADER:
+                    //noinspection ConstantValue
                     if (item == null) {
                         if (encodeLogIndex < logs.size()) {
                             item = logs.get(encodeLogIndex);
@@ -154,6 +156,7 @@ public class AppendReqWriteFrame extends WriteFrame {
                     writeStatus = WRITE_ITEM_BIZ_HEADER_LEN;
                     break;
                 case WRITE_ITEM_BIZ_HEADER_LEN:
+                    assert item != null;
                     if (buf.remaining() < item.getActualHeaderSize()) {
                         return false;
                     }
@@ -162,12 +165,14 @@ public class AppendReqWriteFrame extends WriteFrame {
                     writeStatus = WRITE_ITEM_BIZ_HEADER;
                     break;
                 case WRITE_ITEM_BIZ_HEADER:
+                    assert item != null;
                     if (!writeData(buf, item.getHeaderBuffer(), item.getHeader(), headerEncoder)) {
                         return false;
                     }
                     writeStatus = WRITE_ITEM_BIZ_BODY_LEN;
                     break;
                 case WRITE_ITEM_BIZ_BODY_LEN:
+                    assert item != null;
                     if (buf.remaining() < item.getActualBodySize()) {
                         return false;
                     }
@@ -176,6 +181,7 @@ public class AppendReqWriteFrame extends WriteFrame {
                     writeStatus = WRITE_ITEM_BIZ_BODY;
                     break;
                 case WRITE_ITEM_BIZ_BODY:
+                    assert item != null;
                     if (!writeData(buf, item.getBodyBuffer(), item.getBody(), bodyEncoder)) {
                         return false;
                     }
@@ -189,6 +195,7 @@ public class AppendReqWriteFrame extends WriteFrame {
         }
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     private boolean writeData(ByteBuffer dest, RefBuffer buffer, Object data, Encoder encoder) {
         if (!dest.hasRemaining()) {
             return false;
@@ -204,6 +211,7 @@ public class AppendReqWriteFrame extends WriteFrame {
                 return false;
             }
         } else if (data != null) {
+            //noinspection unchecked
             return encoder.encode(context, dest, data);
         } else {
             return true;
