@@ -15,13 +15,20 @@
  */
 package com.github.dtprj.dongting.raft.sm;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
  */
 public interface SnapshotManager {
+
+    void init(Supplier<Boolean> cancelIndicator) throws IOException;
+
     List<Snapshot> list();
 
-    void delete(Snapshot snapshot);
+    boolean delete(Snapshot snapshot) throws IOException;
+
+    void saveSnapshot(Snapshot snapshot, Supplier<Boolean> cancelIndicator) throws IOException;
 }

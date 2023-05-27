@@ -38,8 +38,6 @@ public interface StateMachine<H, B, O> extends AutoCloseable {
 
     CompletableFuture<O> exec(long index, RaftInput<H, B> input);
 
-    SnapshotManager getSnapshotManager();
-
     void installSnapshot(boolean start, boolean finish, RefBuffer data);
 
     Snapshot takeSnapshot();

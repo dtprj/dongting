@@ -38,7 +38,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -57,6 +56,7 @@ public class RaftGroupThread extends Thread {
     private VoteManager voteManager;
     private StateMachine<?, ?, ?> stateMachine;
     private RaftLog raftLog;
+    private SnapshotManager snapshotManager;
 
     private long heartbeatIntervalNanos;
     private long electTimeoutNanos;
@@ -67,7 +67,7 @@ public class RaftGroupThread extends Thread {
     public RaftGroupThread() {
     }
 
-    public void init(RaftGroupImpl<?, ?, ?> gc, ExecutorService ioExecutor) {
+    public void init(RaftGroupImpl<?, ?, ?> gc) {
         this.config = gc.getServerConfig();
         this.raftStatus = gc.getRaftStatus();
         this.queue = gc.getRaftExecutor().getQueue();
@@ -76,6 +76,7 @@ public class RaftGroupThread extends Thread {
         this.stateMachine = gc.getStateMachine();
         this.raftLog = gc.getRaftLog();
         this.voteManager = gc.getVoteManager();
+        this.snapshotManager = gc.getSnapshotManager();
 
         electTimeoutNanos = Duration.ofMillis(config.getElectTimeout()).toNanos();
         raftStatus.setElectTimeoutNanos(electTimeoutNanos);
@@ -92,7 +93,7 @@ public class RaftGroupThread extends Thread {
                 raftStatus.setCommitIndex(stateMachineLatestIndex);
             }
 
-            Pair<Integer, Long> initResult = raftLog.init(ioExecutor);
+            Pair<Integer, Long> initResult = raftLog.init();
             log.info("init raft log, maxTerm={}, maxIndex={}, groupId={}",
                     initResult.getLeft(), initResult.getRight(), groupConfig.getGroupId());
             raftStatus.setLastLogTerm(initResult.getLeft());
@@ -110,11 +111,11 @@ public class RaftGroupThread extends Thread {
     }
 
     private long recoverStateMachine() throws Exception {
-        SnapshotManager manager = stateMachine.getSnapshotManager();
-        if (manager == null) {
+        if (snapshotManager == null) {
             return 0;
         }
-        List<Snapshot> snapshots = manager.list();
+        snapshotManager.init(() -> false);
+        List<Snapshot> snapshots = snapshotManager.list();
         if (snapshots == null || snapshots.size() == 0) {
             return 0;
         }

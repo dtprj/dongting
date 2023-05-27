@@ -28,6 +28,7 @@ import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
+import com.github.dtprj.dongting.raft.sm.SnapshotManager;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.util.Objects;
@@ -55,6 +56,7 @@ public class RaftGroupImpl<B, H, O> extends RaftGroup<H, B, O> {
     private RaftExecutor raftExecutor;
     private ApplyManager applyManager;
     private EventBus eventBus;
+    private SnapshotManager snapshotManager;
 
     private NodeManager nodeManager;
     private PendingStat serverStat;
@@ -283,5 +285,13 @@ public class RaftGroupImpl<B, H, O> extends RaftGroup<H, B, O> {
 
     public void setServerStat(PendingStat serverStat) {
         this.serverStat = serverStat;
+    }
+
+    public SnapshotManager getSnapshotManager() {
+        return snapshotManager;
+    }
+
+    public void setSnapshotManager(SnapshotManager snapshotManager) {
+        this.snapshotManager = snapshotManager;
     }
 }

@@ -42,6 +42,7 @@ public class DefaultRaftLog implements RaftLog {
     private final Timestamp ts;
     private final Supplier<Boolean> stopIndicator;
     private final RaftStatus raftStatus;
+    private final ExecutorService ioExecutor;
     private LogFileQueue logFiles;
     private IdxFileQueue idxFiles;
 
@@ -51,17 +52,18 @@ public class DefaultRaftLog implements RaftLog {
     private StatusFile statusFile;
     private static final String KEY_TRUNCATE = "truncate";
 
-    public DefaultRaftLog(RaftGroupConfigEx groupConfig) {
+    public DefaultRaftLog(RaftGroupConfigEx groupConfig, ExecutorService ioExecutor) {
         this.groupConfig = groupConfig;
         this.ts = groupConfig.getTs();
         this.stopIndicator = groupConfig.getStopIndicator();
         this.raftStatus = groupConfig.getRaftStatus();
+        this.ioExecutor = ioExecutor;
 
         this.lastTaskNanos = ts.getNanoTime();
     }
 
     @Override
-    public Pair<Integer, Long> init(ExecutorService ioExecutor) throws Exception {
+    public Pair<Integer, Long> init() throws Exception {
         File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
 
         long knownMaxCommitIndex = raftStatus.getCommitIndex();

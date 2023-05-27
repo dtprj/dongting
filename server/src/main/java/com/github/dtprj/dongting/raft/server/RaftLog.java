@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.common.Pair;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 
 /**
@@ -29,7 +28,7 @@ import java.util.function.Supplier;
  */
 public interface RaftLog extends AutoCloseable {
 
-    Pair<Integer, Long> init(ExecutorService ioExecutor) throws Exception;
+    Pair<Integer, Long> init() throws Exception;
 
     /**
      * Batch append logs.
