@@ -50,6 +50,7 @@ public class LongObjMap<V> {
         return find(key, false);
     }
 
+    @SuppressWarnings("unchecked")
     private V find(long key, boolean remove) {
         int h = hashCode(key);
         Object[] values = this.values;
@@ -62,7 +63,6 @@ public class LongObjMap<V> {
             return null;
         }
         if (existData instanceof LongMapNode) {
-            @SuppressWarnings("unchecked")
             LongMapNode<V> mn = (LongMapNode<V>) existData;
             if (mn.getKey() == key) {
                 if (remove) {
@@ -97,7 +97,6 @@ public class LongObjMap<V> {
                     keys[idx] = 0L;
                     values[idx] = null;
                 }
-                //noinspection unchecked
                 return (V) existData;
             } else {
                 return null;
@@ -119,6 +118,7 @@ public class LongObjMap<V> {
         return r;
     }
 
+    @SuppressWarnings("unchecked")
     private V put0(long[] keys, Object[] values, long key, V value, int mask) {
         int h = hashCode(key);
         int idx = h & mask;
@@ -130,7 +130,6 @@ public class LongObjMap<V> {
         } else {
             LongMapNode<V> mn;
             if (existData instanceof LongMapNode) {
-                //noinspection unchecked
                 mn = (LongMapNode<V>) existData;
                 while (true) {
                     if (mn.getKey() == key) {
@@ -150,10 +149,8 @@ public class LongObjMap<V> {
             } else {
                 if (keys[idx] == key) {
                     values[idx] = value;
-                    //noinspection unchecked
                     return (V) existData;
                 } else {
-                    //noinspection unchecked
                     mn = new LongMapNode<>(keys[idx], (V) existData);
                     values[idx] = mn;
                     LongMapNode<V> newNode = new LongMapNode<>(key, value);
@@ -164,6 +161,7 @@ public class LongObjMap<V> {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private long[] resize() {
         int threshold = this.resizeThreshold;
         long[] oldKeys = this.keys;
@@ -194,14 +192,12 @@ public class LongObjMap<V> {
                 continue;
             }
             if (v instanceof LongMapNode) {
-                @SuppressWarnings("unchecked")
                 LongMapNode<V> mn = (LongMapNode<V>) v;
                 do {
                     put0(newKeys, newValues, mn.getKey(), mn.getValue(), mask);
                     mn = mn.getNext();
                 } while (mn != null);
             } else {
-                //noinspection unchecked
                 put0(newKeys, newValues, keys[i], (V) v, mask);
             }
         }
@@ -285,7 +281,7 @@ public class LongObjMap<V> {
                     first = false;
                 } while (mn != null);
             } else {
-                //noinspection unchecked
+                @SuppressWarnings("unchecked")
                 boolean keep = visitor.visit(keys[i], (V) v);
                 if (!keep) {
                     values[i] = null;

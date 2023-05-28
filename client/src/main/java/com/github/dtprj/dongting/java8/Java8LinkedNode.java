@@ -36,9 +36,9 @@ public class Java8LinkedNode<E> extends LinkedNode<E> {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected LinkedNode<E> getNextAcquire() {
         // volatile read
-        //noinspection unchecked
         return (LinkedNode<E>) NEXT.get(this);
     }
 

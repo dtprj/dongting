@@ -195,7 +195,7 @@ public class AppendReqWriteFrame extends WriteFrame {
         }
     }
 
-    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
+    @SuppressWarnings({"BooleanMethodIsAlwaysInverted", "unchecked"})
     private boolean writeData(ByteBuffer dest, RefBuffer buffer, Object data, Encoder encoder) {
         if (!dest.hasRemaining()) {
             return false;
@@ -211,7 +211,6 @@ public class AppendReqWriteFrame extends WriteFrame {
                 return false;
             }
         } else if (data != null) {
-            //noinspection unchecked
             return encoder.encode(context, dest, data);
         } else {
             return true;

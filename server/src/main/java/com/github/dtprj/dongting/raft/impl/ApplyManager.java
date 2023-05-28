@@ -238,11 +238,10 @@ public class ApplyManager {
         }
     }
 
-    @SuppressWarnings("rawtypes")
+    @SuppressWarnings({"rawtypes", "unchecked"})
     private void execWrite(long index, RaftTask rt) {
         RaftInput input = rt.input;
         CompletableFuture<RaftOutput> future = rt.future;
-        //noinspection unchecked
         stateMachine.exec(index, input).whenCompleteAsync((r, ex) -> {
             if (ex != null) {
                 log.warn("exec write failed. {}", (Throwable) ex);
@@ -260,7 +259,7 @@ public class ApplyManager {
         }, raftStatus.getRaftExecutor());
     }
 
-    @SuppressWarnings("rawtypes")
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public void execRead(long index, RaftTask rt) {
         RaftInput input = rt.input;
         CompletableFuture<RaftOutput> future = rt.future;
@@ -270,7 +269,6 @@ public class ApplyManager {
         }
         try {
             // no need run in raft thread
-            //noinspection unchecked
             stateMachine.exec(index, input).whenComplete((r, e) -> {
                 if (e != null) {
                     future.completeExceptionally((Throwable) e);

@@ -50,6 +50,7 @@ public class IntObjMap<V> {
         return find(key, false);
     }
 
+    @SuppressWarnings("unchecked")
     private V find(int key, boolean remove) {
         int h = hashCode(key);
         Object[] values = this.values;
@@ -97,7 +98,6 @@ public class IntObjMap<V> {
                     keys[idx] = 0;
                     values[idx] = null;
                 }
-                //noinspection unchecked
                 return (V) existData;
             } else {
                 return null;
@@ -119,6 +119,7 @@ public class IntObjMap<V> {
         return r;
     }
 
+    @SuppressWarnings("unchecked")
     private V put0(int[] keys, Object[] values, int key, V value, int mask) {
         int h = hashCode(key);
         int idx = h & mask;
@@ -130,7 +131,6 @@ public class IntObjMap<V> {
         } else {
             IntMapNode<V> mn;
             if (existData instanceof IntMapNode) {
-                //noinspection unchecked
                 mn = (IntMapNode<V>) existData;
                 while (true) {
                     if (mn.getKey() == key) {
@@ -150,10 +150,8 @@ public class IntObjMap<V> {
             } else {
                 if (keys[idx] == key) {
                     values[idx] = value;
-                    //noinspection unchecked
                     return (V) existData;
                 } else {
-                    //noinspection unchecked
                     mn = new IntMapNode<>(keys[idx], (V) existData);
                     values[idx] = mn;
                     IntMapNode<V> newNode = new IntMapNode<>(key, value);
@@ -164,6 +162,7 @@ public class IntObjMap<V> {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private int[] resize() {
         int threshold = this.resizeThreshold;
         int[] oldKeys = this.keys;
@@ -194,14 +193,12 @@ public class IntObjMap<V> {
                 continue;
             }
             if (v instanceof IntMapNode) {
-                @SuppressWarnings("unchecked")
                 IntMapNode<V> mn = (IntMapNode<V>) v;
                 do {
                     put0(newKeys, newValues, mn.getKey(), mn.getValue(), mask);
                     mn = mn.getNext();
                 } while (mn != null);
             } else {
-                //noinspection unchecked
                 put0(newKeys, newValues, keys[i], (V) v, mask);
             }
         }
@@ -285,7 +282,7 @@ public class IntObjMap<V> {
                     first = false;
                 } while (mn != null);
             } else {
-                //noinspection unchecked
+                @SuppressWarnings("unchecked")
                 boolean keep = visitor.visit(keys[i], (V) v);
                 if (!keep) {
                     values[i] = null;

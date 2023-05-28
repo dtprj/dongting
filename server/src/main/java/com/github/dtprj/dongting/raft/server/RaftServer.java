@@ -146,6 +146,7 @@ public class RaftServer extends AbstractLifeCircle {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private RaftGroupImpl<?, ?, ?> createRaftGroup(RaftServerConfig serverConfig,
                                                    Set<Integer> allNodeIds, RaftGroupConfig rgc) {
         Objects.requireNonNull(rgc.getNodeIdOfMembers());
@@ -187,11 +188,9 @@ public class RaftServer extends AbstractLifeCircle {
         RaftGroupThread raftGroupThread = new RaftGroupThread();
         RaftGroupConfigEx rgcEx = createGroupConfigEx(rgc, raftStatus, raftExecutor, raftGroupThread);
 
-        //noinspection rawtypes
-        StateMachine stateMachine = raftFactory.createStateMachine(rgcEx);
-        //noinspection unchecked
+
+        @SuppressWarnings("rawtypes") StateMachine stateMachine = raftFactory.createStateMachine(rgcEx);
         rgcEx.setHeaderEncoder(stateMachine.getHeaderEncoder());
-        //noinspection unchecked
         rgcEx.setBodyEncoder(stateMachine.getBodyEncoder());
         RaftLog raftLog = raftFactory.createRaftLog(rgcEx);
 
@@ -208,12 +207,11 @@ public class RaftServer extends AbstractLifeCircle {
         eventBus.register(raft);
         eventBus.register(voteManager);
 
-        @SuppressWarnings({"rawtypes", "unchecked"})
+        @SuppressWarnings("rawtypes")
         RaftGroupImpl gc = new RaftGroupImpl(() -> status == LifeStatus.running);
         gc.setServerConfig(serverConfig);
         gc.setGroupConfig(rgc);
         gc.setRaftLog(raftLog);
-        //noinspection unchecked
         gc.setStateMachine(stateMachine);
         gc.setRaftGroupThread(raftGroupThread);
         gc.setRaftStatus(raftStatus);
@@ -424,9 +422,8 @@ public class RaftServer extends AbstractLifeCircle {
         });
     }
 
-    @SuppressWarnings("unused")
+    @SuppressWarnings({"unused", "unchecked"})
     public <H, B, O> RaftGroup<H, B, O> getRaftGroup(int groupId) {
-        //noinspection unchecked
         return RaftUtil.getGroupComponents(raftGroups, groupId);
     }
 

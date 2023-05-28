@@ -41,8 +41,8 @@ public class Java11LinkedNode<E> extends LinkedNode<E> {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected LinkedNode<E> getNextAcquire() {
-        //noinspection unchecked
         return (LinkedNode<E>) NEXT.getAcquire(this);
     }
 

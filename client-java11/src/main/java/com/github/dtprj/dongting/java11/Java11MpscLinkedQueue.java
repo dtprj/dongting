@@ -42,8 +42,8 @@ public class Java11MpscLinkedQueue<E> extends MpscLinkedQueue<E> {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected LinkedNode<E> getAndSetProducerNodeRelease(LinkedNode<E> nextNode) {
-        //noinspection unchecked
         return (LinkedNode<E>) PRODUCER_NODE.getAndSetRelease(this, nextNode);
     }
 }

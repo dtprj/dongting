@@ -68,9 +68,9 @@ public class Raft implements BiConsumer<EventType, Object> {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public void accept(EventType eventType, Object o) {
         if (eventType == EventType.raftExec) {
-            //noinspection unchecked
             raftExec((List<RaftTask>) o);
         }
     }
