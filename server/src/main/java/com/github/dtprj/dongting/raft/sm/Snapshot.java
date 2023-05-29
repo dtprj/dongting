@@ -15,10 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.sm;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
-
-import java.util.concurrent.CompletableFuture;
-
 /**
  * @author huangli
  */
@@ -39,9 +35,6 @@ public abstract class Snapshot {
         return lastIncludedTerm;
     }
 
-    public abstract void open();
+    public abstract SnapshotIterator openIterator();
 
-    public abstract CompletableFuture<RefBuffer> readNext();
-
-    public abstract void close();
 }
