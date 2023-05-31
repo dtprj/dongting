@@ -77,7 +77,10 @@ public class DefaultSnapshotManager implements SnapshotManager {
         Arrays.sort(files);
         for (int i = files.length - 1; i >= 0; i--) {
             File f = files[i];
-            if (f.getName().endsWith(IDX_SUFFIX)) {
+            if (!f.getName().endsWith(IDX_SUFFIX)) {
+                continue;
+            }
+            if (f.length() == 0) {
                 continue;
             }
             String baseName = FileUtil.baseName(f);
@@ -251,8 +254,8 @@ public class DefaultSnapshotManager implements SnapshotManager {
                 if (shouldReturn(null)) {
                     return;
                 }
-                File idxfile = new File(snapshotDir, baseName + DATA_SUFFIX);
-                try (StatusFile sf = new StatusFile(idxfile)) {
+                File newIdxfile = new File(snapshotDir, baseName + DATA_SUFFIX);
+                try (StatusFile sf = new StatusFile(newIdxfile)) {
                     sf.init();
                     SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
                     sf.getProperties().setProperty(KEY_LAST_INDEX, String.valueOf(currentSnapshot.getLastIncludedIndex()));
@@ -264,8 +267,12 @@ public class DefaultSnapshotManager implements SnapshotManager {
                         return;
                     }
                 }
-                deleteInIoExecutor(idxfile);
-                deleteInIoExecutor(lastDataFile);
+                File oldIdxFile = lastIdxFile;
+                File oldDataFile = lastDataFile;
+                lastIdxFile = newIdxfile;
+                lastDataFile = newDataFile;
+                deleteInIoExecutor(oldDataFile);
+                deleteInIoExecutor(oldIdxFile);
                 future.complete(currentSnapshot.getLastIncludedIndex());
             } catch (Throwable ex) {
                 log.error("finish save snapshot fail", ex);

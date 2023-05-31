@@ -15,12 +15,12 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.common.DtException;
 
 /**
  * @author huangli
  */
-public class ChecksumException extends RaftException {
+public class ChecksumException extends DtException {
     private static final long serialVersionUID = 3004591445172624623L;
 
     public ChecksumException(String msg) {

@@ -15,10 +15,12 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.server.ChecksumException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -83,13 +85,13 @@ public class StatusFile implements AutoCloseable {
                 int actualCrc = Integer.parseInt(new String(bytes, 0, 8, StandardCharsets.UTF_8), 16);
 
                 if (actualCrc != expectCrc) {
-                    throw new RaftException("bad status file crc: " + actualCrc + ", expect: " + expectCrc);
+                    throw new ChecksumException("bad status file crc: " + actualCrc + ", expect: " + expectCrc);
                 }
 
                 properties.load(new StringReader(new String(bytes, CONTENT_START_POS, CONTENT_LENGTH, StandardCharsets.UTF_8)));
 
             }
-        } catch (RaftException e) {
+        } catch (DtException e) {
             DtUtil.close(lock, channel);
             throw e;
         } catch (Exception e) {
