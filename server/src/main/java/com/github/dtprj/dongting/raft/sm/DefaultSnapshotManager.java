@@ -55,6 +55,8 @@ public class DefaultSnapshotManager implements SnapshotManager {
     private final ExecutorService ioExecutor;
 
     private File snapshotDir;
+    private File lastIdxFile = null;
+    private File lastDataFile = null;
 
     private SnapshotSaveTask currentSaveTask;
 
@@ -73,8 +75,6 @@ public class DefaultSnapshotManager implements SnapshotManager {
             return null;
         }
         Arrays.sort(files);
-        File lastIdxFile = null;
-        File lastDataFile = null;
         for (int i = files.length - 1; i >= 0; i--) {
             File f = files[i];
             if (f.getName().endsWith(IDX_SUFFIX)) {
@@ -96,11 +96,8 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         for (File f : files) {
-            if (cancelIndicator.get()) {
-                return null;
-            }
             if (f != lastIdxFile && f != lastDataFile) {
-                delete(f);
+                deleteInIoExecutor(f);
             }
         }
 
@@ -113,11 +110,13 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
     }
 
-    private void delete(File f) {
-        log.info("delete file: {}", f.getPath());
-        if (!f.delete()) {
-            log.error("delete file failed: {}", f.getPath());
-        }
+    private void deleteInIoExecutor(File f) {
+        ioExecutor.submit(() -> {
+            log.info("delete file: {}", f.getPath());
+            if (!f.delete()) {
+                log.error("delete file failed: {}", f.getPath());
+            }
+        });
     }
 
     @Override
@@ -126,13 +125,14 @@ public class DefaultSnapshotManager implements SnapshotManager {
         return new SnapshotSaveTask(stateMachine, cancelIndicator).exec();
     }
 
-    protected class SnapshotSaveTask {
+    private class SnapshotSaveTask {
         private final StateMachine<?, ?, ?> stateMachine;
         private final Supplier<Boolean> cancelIndicator;
         private final long startTime = System.currentTimeMillis();
         private final CompletableFuture<Long> future = new CompletableFuture<>();
 
         private String baseName;
+        private File newDataFile;
 
         private AsynchronousFileChannel channel;
         private Snapshot currentSnapshot;
@@ -140,7 +140,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         private AsyncIoTask writeTask;
         private long writePos;
 
-        protected SnapshotSaveTask(StateMachine<?, ?, ?> stateMachine, Supplier<Boolean> cancelIndicator) {
+        public SnapshotSaveTask(StateMachine<?, ?, ?> stateMachine, Supplier<Boolean> cancelIndicator) {
             this.stateMachine = stateMachine;
             this.cancelIndicator = cancelIndicator;
         }
@@ -153,6 +153,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         private void updateSnapshot() {
             // currentSaveTask should access in raft thread
             if (currentSaveTask != null) {
+                log.warn("snapshot save task is running");
                 future.complete(-1L);
                 return;
             }
@@ -161,7 +162,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
                 currentSnapshot = stateMachine.takeSnapshot();
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss");
                 baseName = sdf.format(new Date()) + "_" + currentSnapshot.getId();
-                File datafile = new File(snapshotDir, baseName + DATA_SUFFIX);
+                newDataFile = new File(snapshotDir, baseName + DATA_SUFFIX);
                 currentIterator = currentSnapshot.openIterator();
 
                 writeTask = new AsyncIoTask(channel, cancelIndicator);
@@ -169,7 +170,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
                 HashSet<StandardOpenOption> options = new HashSet<>();
                 options.add(StandardOpenOption.CREATE_NEW);
                 options.add(StandardOpenOption.WRITE);
-                channel = AsynchronousFileChannel.open(datafile.toPath(), options, ioExecutor);
+                channel = AsynchronousFileChannel.open(newDataFile.toPath(), options, ioExecutor);
 
                 read();
             } catch (Throwable e) {
@@ -218,6 +219,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             } catch (Throwable unexpect) {
                 BugLog.log(unexpect);
                 future.completeExceptionally(unexpect);
+                reset();
             }
         }
 
@@ -235,6 +237,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             } catch (Throwable unexpect) {
                 BugLog.log(unexpect);
                 future.completeExceptionally(unexpect);
+                reset();
             }
         }
 
@@ -261,10 +264,14 @@ public class DefaultSnapshotManager implements SnapshotManager {
                         return;
                     }
                 }
+                deleteInIoExecutor(idxfile);
+                deleteInIoExecutor(lastDataFile);
                 future.complete(currentSnapshot.getLastIncludedIndex());
             } catch (Throwable ex) {
                 log.error("finish save snapshot fail", ex);
                 future.completeExceptionally(ex);
+            } finally {
+                reset();
             }
         }
 
