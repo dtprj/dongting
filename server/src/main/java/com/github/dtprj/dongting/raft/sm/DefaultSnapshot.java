@@ -15,17 +15,31 @@
  */
 package com.github.dtprj.dongting.raft.sm;
 
-import java.io.IOException;
-import java.util.concurrent.CompletableFuture;
-import java.util.function.Supplier;
+import java.io.File;
 
 /**
  * @author huangli
  */
-public interface SnapshotManager {
+public class DefaultSnapshot extends Snapshot {
+    private final File idxFile;
+    private final File dataFile;
 
-    Snapshot init(Supplier<Boolean> cancelIndicator) throws IOException;
+    public DefaultSnapshot(long lastIncludedIndex, int lastIncludedTerm, File idxFile, File dataFile) {
+        super(lastIncludedIndex, lastIncludedTerm);
+        this.idxFile = idxFile;
+        this.dataFile = dataFile;
+    }
 
-    CompletableFuture<Long> updateSnapshot(StateMachine<?, ?, ?> stateMachine,
-                                           Supplier<Boolean> cancelIndicator);
+    @Override
+    public SnapshotIterator openIterator() {
+        return null;
+    }
+
+    public File getIdxFile() {
+        return idxFile;
+    }
+
+    public File getDataFile() {
+        return dataFile;
+    }
 }

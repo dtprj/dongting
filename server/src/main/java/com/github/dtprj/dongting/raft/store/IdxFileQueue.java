@@ -58,6 +58,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     private CompletableFuture<Void> writeFuture;
     private AsyncIoTask writeTask;
+    private LogFile currentWriteFile;
     private long nextPersistIndexAfterWrite;
 
     public IdxFileQueue(File dir, ExecutorService ioExecutor, RaftGroupConfigEx groupConfig) {
@@ -198,15 +199,17 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
 
         nextPersistIndexAfterWrite = index;
-        writeTask = new AsyncIoTask(false, writeBuffer, startPos & FILE_LEN_MASK,
-                getLogFile(startPos), stopIndicator);
-        writeTask.logFile.use++;
-        writeFuture = writeTask.exec();
+        LogFile logFile = getLogFile(startPos);
+        writeTask = new AsyncIoTask(logFile.channel, stopIndicator);
+        currentWriteFile = logFile;
+        logFile.use++;
+        writeFuture = writeTask.write(false, false, writeBuffer, startPos & FILE_LEN_MASK);
     }
 
     private void cleanWriteState() {
         writeFuture = null;
         writeTask = null;
+        currentWriteFile = null;
         nextPersistIndexAfterWrite = 0;
     }
 
@@ -234,7 +237,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                     cleanWriteState();
                     return !stopIndicator.get();
                 } catch (ExecutionException e) {
-                    log.error("write idx file failed: {}", writeTask.logFile.file.getPath(), e);
+                    log.error("write idx file failed: {}", currentWriteFile.file.getPath(), e);
                     if (e.getCause() instanceof IOException) {
                         if (stopIndicator.get()) {
                             cleanWriteState();
@@ -242,7 +245,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                         } else {
                             //noinspection BusyWait
                             Thread.sleep(1000);
-                            writeTask.logFile.use++;
+                            currentWriteFile.use++;
                             writeFuture = writeTask.retry();
                         }
                     }
@@ -251,10 +254,10 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 }
             } catch (InterruptedException e) {
                 cleanWriteState();
-                log.info("write index interrupted: {}", writeTask.logFile.file.getPath());
+                log.info("write index interrupted: {}", currentWriteFile.file.getPath());
                 return false;
             } finally {
-                writeTask.logFile.use--;
+                currentWriteFile.use--;
             }
         }
     }

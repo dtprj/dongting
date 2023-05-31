@@ -15,14 +15,22 @@
  */
 package com.github.dtprj.dongting.raft.sm;
 
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
+
+import java.util.concurrent.atomic.AtomicLong;
+
 /**
  * @author huangli
  */
 public abstract class Snapshot {
+    private static final DtLog log = DtLogs.getLogger(Snapshot.class);
+    private static final AtomicLong NEXT_ID = new AtomicLong();
+    private final long id = NEXT_ID.incrementAndGet();
     private final long lastIncludedIndex;
     private final int lastIncludedTerm;
 
-    protected Snapshot(int lastIncludedTerm, long lastIncludedIndex) {
+    public Snapshot(long lastIncludedIndex, int lastIncludedTerm) {
         this.lastIncludedTerm = lastIncludedTerm;
         this.lastIncludedIndex = lastIncludedIndex;
     }
@@ -37,4 +45,21 @@ public abstract class Snapshot {
 
     public abstract SnapshotIterator openIterator();
 
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof Snapshot) {
+            Snapshot other = (Snapshot) obj;
+            return id == other.id;
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Long.hashCode(id);
+    }
+
+    public long getId() {
+        return id;
+    }
 }

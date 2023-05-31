@@ -29,7 +29,6 @@ public class RaftStatusImpl extends RaftStatus {
 
     private volatile ShareStatus shareStatus;
     private volatile boolean error;
-    private volatile boolean stop;
 
     private boolean installSnapshot;
 
@@ -132,10 +131,6 @@ public class RaftStatusImpl extends RaftStatus {
 
     public void setError(boolean errorState) {
         this.error = errorState;
-    }
-
-    public boolean isStop() {
-        return stop;
     }
 
     public void setStop(boolean stop) {

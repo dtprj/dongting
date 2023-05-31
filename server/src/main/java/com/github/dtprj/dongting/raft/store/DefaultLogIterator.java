@@ -181,9 +181,9 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         }
         bufferStartPos = pos - readBuffer.position();
         bufferEndPos = pos + readBuffer.remaining();
-        AsyncIoTask t = new AsyncIoTask(readBuffer, fileStartPos, logFile, fullIndicator);
+        AsyncIoTask t = new AsyncIoTask(logFile.channel, fullIndicator);
         logFile.use++;
-        t.exec().whenCompleteAsync((v, ex) -> resumeAfterLoad(logFile, ex), raftExecutor);
+        t.read(readBuffer, fileStartPos).whenCompleteAsync((v, ex) -> resumeAfterLoad(logFile, ex), raftExecutor);
     }
 
     private void resumeAfterLoad(LogFile logFile, Throwable ex) {

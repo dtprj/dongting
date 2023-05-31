@@ -67,6 +67,6 @@ public class DefaultRaftFactory extends AbstractLifeCircle implements RaftFactor
 
     @Override
     public SnapshotManager createSnapshotManager(RaftGroupConfigEx groupConfig) {
-        return new DefaultSnapshotManager(serverConfig, groupConfig);
+        return new DefaultSnapshotManager(groupConfig, ioExecutor);
     }
 }

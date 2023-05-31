@@ -36,7 +36,6 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -89,12 +88,18 @@ public class RaftGroupThread extends Thread {
         try {
             StatusUtil.initStatusFileChannel(groupConfig.getDataDir(), groupConfig.getStatusFile(), raftStatus);
             long stateMachineLatestIndex = recoverStateMachine();
+            if (raftStatus.isStop()) {
+                return;
+            }
             log.info("load snapshot to stateMachineLatestIndex {}, groupId={}", stateMachineLatestIndex, groupConfig.getGroupId());
             if (stateMachineLatestIndex > raftStatus.getCommitIndex()) {
                 raftStatus.setCommitIndex(stateMachineLatestIndex);
             }
 
             Pair<Integer, Long> initResult = raftLog.init();
+            if (raftStatus.isStop()) {
+                return;
+            }
             log.info("init raft log, maxTerm={}, maxIndex={}, groupId={}",
                     initResult.getLeft(), initResult.getRight(), groupConfig.getGroupId());
             raftStatus.setLastLogTerm(initResult.getLeft());
@@ -115,16 +120,17 @@ public class RaftGroupThread extends Thread {
         if (snapshotManager == null) {
             return 0;
         }
-        snapshotManager.init(() -> false);
-        List<Snapshot> snapshots = snapshotManager.list();
-        if (snapshots == null || snapshots.size() == 0) {
+        Snapshot snapshot = snapshotManager.init(() -> raftStatus.isStop());
+        if (snapshot == null) {
             return 0;
         }
-        Snapshot snapshot = snapshots.get(snapshots.size() - 1);
         SnapshotIterator iterator = snapshot.openIterator();
         try {
             boolean start = true;
             while (true) {
+                if (raftStatus.isStop()) {
+                    return 0;
+                }
                 CompletableFuture<RefBuffer> f = iterator.readNext();
                 RefBuffer rb = f.get();
                 if (rb == null || !rb.getBuffer().hasRemaining()) {
@@ -156,6 +162,9 @@ public class RaftGroupThread extends Thread {
     @Override
     public void run() {
         try {
+            if (raftStatus.isStop()) {
+                return;
+            }
             if (raftStatus.getElectQuorum() == 1 && raftStatus.getNodeIdOfMembers().contains(config.getNodeId())) {
                 RaftUtil.changeToLeader(raftStatus);
                 raft.sendHeartBeat();

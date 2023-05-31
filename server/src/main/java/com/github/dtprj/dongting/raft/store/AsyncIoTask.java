@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.raft.client.RaftException;
 
 import java.nio.ByteBuffer;
+import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.CompletionHandler;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
@@ -25,56 +26,57 @@ import java.util.function.Supplier;
 /**
  * @author huangli
  */
-class AsyncIoTask implements CompletionHandler<Integer, CompletableFuture<Void>> {
-    private final ByteBuffer ioBuffer;
-    private final long startPos;
-    final LogFile logFile;
+public class AsyncIoTask implements CompletionHandler<Integer, CompletableFuture<Void>> {
+    private final AsynchronousFileChannel channel;
     private final Supplier<Boolean> stopIndicator;
-    private final boolean read;
-    private final int position;
-    private final boolean flushMeta;
 
-    public AsyncIoTask(ByteBuffer ioBuffer, long startPos, LogFile logFile,
-                       Supplier<Boolean> stopIndicator) {
-        this.ioBuffer = ioBuffer;
-        this.startPos = startPos;
-        this.logFile = logFile;
+    private ByteBuffer ioBuffer;
+    private long filePos;
+    private boolean write;
+    private int position;
+    private boolean flush;
+    private boolean flushMeta;
+
+    public AsyncIoTask(AsynchronousFileChannel channel, Supplier<Boolean> stopIndicator) {
+        this.channel = channel;
         this.stopIndicator = stopIndicator;
-        this.position = ioBuffer.position();
-
-        this.read = true;
-        this.flushMeta = false;
     }
 
-    public AsyncIoTask(boolean flushMeta, ByteBuffer ioBuffer, long startPos, LogFile logFile,
-                       Supplier<Boolean> stopIndicator) {
-        this.ioBuffer = ioBuffer;
-        this.startPos = startPos;
-        this.logFile = logFile;
-        this.stopIndicator = stopIndicator;
-        this.position = ioBuffer.position();
+    public CompletableFuture<Void> read(ByteBuffer ioBuffer, long filePos) {
+        return exec(false, false, false, ioBuffer, filePos);
+    }
 
-        this.read = false;
+    public CompletableFuture<Void> write(boolean flush, boolean flushMeta, ByteBuffer ioBuffer, long filePos) {
+        return exec(true, flush, flushMeta, ioBuffer, filePos);
+    }
+
+    private CompletableFuture<Void> exec(boolean write, boolean flush, boolean flushMeta,
+                                         ByteBuffer ioBuffer, long filePos) {
+        this.write = write;
+        this.ioBuffer = ioBuffer;
+        this.filePos = filePos;
+        this.flush = flush;
         this.flushMeta = flushMeta;
-    }
+        this.position = ioBuffer.position();
 
-    public CompletableFuture<Void> exec() {
         CompletableFuture<Void> f = new CompletableFuture<>();
-        exec(f, startPos);
+        exec(f, filePos);
         return f;
     }
 
     public CompletableFuture<Void> retry() {
         ioBuffer.position(position);
-        return exec();
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        exec(f, filePos);
+        return f;
     }
 
     private void exec(CompletableFuture<Void> f, long pos) {
         try {
-            if (read) {
-                logFile.channel.read(ioBuffer, pos, f, this);
+            if (write) {
+                channel.write(ioBuffer, pos, f, this);
             } else {
-                logFile.channel.write(ioBuffer, pos, f, this);
+                channel.read(ioBuffer, pos, f, this);
             }
         } catch (Throwable e) {
             f.completeExceptionally(e);
@@ -96,11 +98,11 @@ class AsyncIoTask implements CompletionHandler<Integer, CompletableFuture<Void>>
                 return;
             }
             int readBytes = ioBuffer.position() - position;
-            exec(f, startPos + readBytes);
+            exec(f, filePos + readBytes);
         } else {
             try {
-                if (!read) {
-                    logFile.channel.force(flushMeta);
+                if (flush) {
+                    channel.force(flushMeta);
                 }
                 f.complete(null);
             } catch (Throwable e) {

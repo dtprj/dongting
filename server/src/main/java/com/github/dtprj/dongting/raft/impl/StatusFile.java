@@ -35,6 +35,7 @@ import java.util.zip.CRC32C;
 /**
  * @author huangli
  */
+// TODO check error handling
 public class StatusFile implements AutoCloseable {
     private static final DtLog log = DtLogs.getLogger(StatusUtil.class);
 
@@ -49,8 +50,6 @@ public class StatusFile implements AutoCloseable {
 
     private final Properties properties = new Properties();
 
-    private volatile boolean updating;
-
     public StatusFile(File file) {
         this.file = file;
     }
@@ -61,16 +60,11 @@ public class StatusFile implements AutoCloseable {
 
     public void init() {
         try {
-            boolean create = !file.exists();
-            if (create) {
-                if (!file.createNewFile()) {
-                    throw new RaftException("create status file failed: " + file.getPath());
-                }
-            }
-            channel = FileChannel.open(file.toPath(),
+            boolean needLoad = !file.exists() || file.length() == 0;
+            channel = FileChannel.open(file.toPath(), StandardOpenOption.CREATE,
                     StandardOpenOption.READ, StandardOpenOption.WRITE);
             lock = channel.lock();
-            if (!create) {
+            if (needLoad) {
                 log.info("loading status file: {}", file.getPath());
                 if (file.length() != FILE_LENGTH) {
                     throw new RaftException("bad status file length: " + file.length());
@@ -106,7 +100,6 @@ public class StatusFile implements AutoCloseable {
 
     public boolean update() {
         try {
-            updating = true;
             ByteArrayOutputStream bos = new ByteArrayOutputStream(128);
             properties.store(bos, null);
             byte[] propertiesBytes = bos.toByteArray();
@@ -135,8 +128,6 @@ public class StatusFile implements AutoCloseable {
         } catch (Exception e) {
             log.error("update status file failed. file={}", file.getPath(), e);
             return false;
-        } finally {
-            updating = false;
         }
     }
 

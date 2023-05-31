@@ -29,6 +29,8 @@ public abstract class RaftStatus {
 
     protected int groupId;
 
+    protected volatile boolean stop;
+
     public int getGroupId() {
         return groupId;
     }
@@ -47,5 +49,9 @@ public abstract class RaftStatus {
 
     public long getLastApplied() {
         return lastApplied;
+    }
+
+    public boolean isStop() {
+        return stop;
     }
 }

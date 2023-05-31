@@ -87,10 +87,14 @@ class LogFileQueue extends FileQueue implements FileOps {
         return writePos;
     }
 
-    public int restore(long commitIndex, long commitIndexPos) throws IOException {
+    public int restore(long commitIndex, long commitIndexPos, Supplier<Boolean> cancelIndicator) throws IOException {
         log.info("restore from {}, {}", commitIndex, commitIndexPos);
         Restorer restorer = new Restorer(idxOps, this, commitIndex, commitIndexPos);
         for (int i = 0; i < queue.size(); i++) {
+            // TODO need more fine-grained control
+            if (cancelIndicator.get()) {
+                return 0;
+            }
             LogFile lf = queue.get(i);
             Pair<Boolean, Long> result = restorer.restoreFile(this.writeBuffer, lf);
             writePos = result.getRight();

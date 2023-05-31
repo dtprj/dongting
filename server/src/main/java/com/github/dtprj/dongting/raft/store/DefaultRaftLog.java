@@ -71,7 +71,13 @@ public class DefaultRaftLog implements RaftLog {
         idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), ioExecutor, groupConfig);
         logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), ioExecutor, groupConfig, idxFiles);
         logFiles.init();
+        if (raftStatus.isStop()) {
+            return null;
+        }
         idxFiles.init();
+        if (raftStatus.isStop()) {
+            return null;
+        }
         idxFiles.initWithCommitIndex(knownMaxCommitIndex);
         long commitIndexPos;
         if (knownMaxCommitIndex > 0) {
@@ -81,6 +87,9 @@ public class DefaultRaftLog implements RaftLog {
             }
         } else {
             commitIndexPos = 0;
+        }
+        if (raftStatus.isStop()) {
+            return null;
         }
 
         statusFile = new StatusFile(new File(dataDir, "log.status"));
@@ -96,8 +105,15 @@ public class DefaultRaftLog implements RaftLog {
                 statusFile.update();
             }
         }
+        if (raftStatus.isStop()) {
+            return null;
+        }
 
-        int lastTerm = logFiles.restore(knownMaxCommitIndex, commitIndexPos);
+        // TODO check return value
+        int lastTerm = logFiles.restore(knownMaxCommitIndex, commitIndexPos, () -> raftStatus.isStop());
+        if (raftStatus.isStop()) {
+            return null;
+        }
         if (idxFiles.getNextIndex() == 1) {
             return new Pair<>(0, 0L);
         } else {

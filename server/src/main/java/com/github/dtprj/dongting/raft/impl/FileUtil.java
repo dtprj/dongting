@@ -84,4 +84,14 @@ public class FileUtil {
             getResult(f);
         }
     }
+
+    public static String baseName(File f) {
+        String name = f.getName();
+        int i = name.lastIndexOf('.');
+        if (i > 0) {
+            return name.substring(0, i);
+        } else {
+            return name;
+        }
+    }
 }
