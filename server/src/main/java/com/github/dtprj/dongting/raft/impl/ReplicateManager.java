@@ -447,7 +447,7 @@ public class ReplicateManager {
         }
         int reqEpoch = member.getReplicateEpoch();
         try {
-            CompletableFuture<RefBuffer> future = si.snapshotIterator.readNext();
+            CompletableFuture<RefBuffer> future = si.snapshot.readNext();
             member.setReplicateFuture(future);
             future.whenCompleteAsync(resumeAfterSnapshotLoad(member, si, reqEpoch), raftExecutor);
         } catch (Exception e) {
@@ -497,7 +497,7 @@ public class ReplicateManager {
     private void closeSnapshotAndResetStatus(RaftMember member, SnapshotInfo si) {
         try {
             if (si != null) {
-                si.snapshotIterator.close();
+                si.snapshot.close();
             }
         } catch (Throwable e) {
             log.error("close snapshot fail", e);
@@ -524,7 +524,6 @@ public class ReplicateManager {
             }
             si = new SnapshotInfo();
             si.snapshot = snapshot;
-            si.snapshotIterator = snapshot.openIterator();
             log.info("begin install snapshot for member: nodeId={}, groupId={}", member.getNode().getNodeId(), groupId);
             si.offset = 0;
             si.replicateEpoch = member.getReplicateEpoch();

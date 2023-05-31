@@ -16,10 +16,12 @@
 package com.github.dtprj.dongting.raft.sm;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
+import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 import com.github.dtprj.dongting.raft.impl.StatusFile;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.store.AsyncIoTask;
@@ -53,6 +55,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
     private final RaftGroupConfigEx groupConfig;
     private final ExecutorService ioExecutor;
+    private final RaftExecutor raftExecutor;
 
     private File snapshotDir;
     private File lastIdxFile = null;
@@ -63,6 +66,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
     public DefaultSnapshotManager(RaftGroupConfigEx groupConfig, ExecutorService ioExecutor) {
         this.groupConfig = groupConfig;
         this.ioExecutor = ioExecutor;
+        this.raftExecutor = (RaftExecutor) groupConfig.getRaftExecutor();
     }
 
     @Override
@@ -139,9 +143,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
         private AsynchronousFileChannel channel;
         private Snapshot currentSnapshot;
-        private SnapshotIterator currentIterator;
         private AsyncIoTask writeTask;
-        private long writePos;
 
         public SnapshotSaveTask(StateMachine<?, ?, ?> stateMachine, Supplier<Boolean> cancelIndicator) {
             this.stateMachine = stateMachine;
@@ -149,10 +151,11 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         public CompletableFuture<Long> exec() {
-            groupConfig.getRaftExecutor().execute(this::updateSnapshot);
+            runInRaftThread(this::updateSnapshot);
             return future;
         }
 
+        // run in raft thread
         private void updateSnapshot() {
             // currentSaveTask should access in raft thread
             if (currentSaveTask != null) {
@@ -163,19 +166,18 @@ public class DefaultSnapshotManager implements SnapshotManager {
             currentSaveTask = this;
             try {
                 currentSnapshot = stateMachine.takeSnapshot();
-                SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss");
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
                 baseName = sdf.format(new Date()) + "_" + currentSnapshot.getId();
                 newDataFile = new File(snapshotDir, baseName + DATA_SUFFIX);
-                currentIterator = currentSnapshot.openIterator();
-
-                writeTask = new AsyncIoTask(channel, cancelIndicator);
 
                 HashSet<StandardOpenOption> options = new HashSet<>();
                 options.add(StandardOpenOption.CREATE_NEW);
                 options.add(StandardOpenOption.WRITE);
                 channel = AsynchronousFileChannel.open(newDataFile.toPath(), options, ioExecutor);
 
-                read();
+                writeTask = new AsyncIoTask(channel, cancelIndicator);
+
+                read(0);
             } catch (Throwable e) {
                 log.error("update snapshot failed", e);
                 future.completeExceptionally(e);
@@ -183,11 +185,21 @@ public class DefaultSnapshotManager implements SnapshotManager {
             }
         }
 
-        private void read() {
-            // read next should be called in raft thread
-            currentIterator.readNext().whenCompleteAsync(
-                    this::whenReadFinish,
-                    groupConfig.getRaftExecutor());
+        private void read(long currentWritePos) {
+            // readNext() should call in raft thread
+            Runnable r = () -> {
+                CompletableFuture<RefBuffer> f = currentSnapshot.readNext();
+                f.whenCompleteAsync((rb, ex) -> whenReadFinish(rb, ex, currentWritePos), ioExecutor);
+            };
+            runInRaftThread(r);
+        }
+
+        private void runInRaftThread(Runnable r) {
+            if (raftExecutor.inRaftThread()) {
+                r.run();
+            } else {
+                raftExecutor.execute(r);
+            }
         }
 
         private boolean shouldReturn(Throwable ex) {
@@ -204,7 +216,8 @@ public class DefaultSnapshotManager implements SnapshotManager {
             return false;
         }
 
-        private void whenReadFinish(RefBuffer rb, Throwable ex) {
+        // run in io thread
+        private void whenReadFinish(RefBuffer rb, Throwable ex, long currentWritePos) {
             try {
                 if (ex != null) {
                     log.error("read snapshot fail", ex);
@@ -213,11 +226,11 @@ public class DefaultSnapshotManager implements SnapshotManager {
                     return;
                 }
                 if (rb != null && rb.getBuffer().hasRemaining()) {
-                    CompletableFuture<Void> f = writeTask.write(false, false, rb.getBuffer(), writePos);
-                    long bytes = rb.getBuffer().remaining();
-                    f.whenCompleteAsync((v, writeEx) -> whenWriteFinish(rb, writeEx, bytes), groupConfig.getRaftExecutor());
+                    CompletableFuture<Void> f = writeTask.write(false, false, rb.getBuffer(), currentWritePos);
+                    long nextWritePos = currentWritePos + rb.getBuffer().remaining();
+                    f.whenCompleteAsync((v, writeEx) -> whenWriteFinish(rb, writeEx, nextWritePos), ioExecutor);
                 } else {
-                    ioExecutor.submit(this::afterDataWriteFinish);
+                    afterDataWriteFinish();
                 }
             } catch (Throwable unexpect) {
                 BugLog.log(unexpect);
@@ -226,7 +239,8 @@ public class DefaultSnapshotManager implements SnapshotManager {
             }
         }
 
-        private void whenWriteFinish(RefBuffer rb, Throwable ex, long writeBytes) {
+        // run in io thread
+        private void whenWriteFinish(RefBuffer rb, Throwable ex, long nextWritePos) {
             try {
                 rb.release();
                 if (ex != null) {
@@ -235,8 +249,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
                 if (shouldReturn(ex)) {
                     return;
                 }
-                writePos += writeBytes;
-                read();
+                read(nextWritePos);
             } catch (Throwable unexpect) {
                 BugLog.log(unexpect);
                 future.completeExceptionally(unexpect);
@@ -283,7 +296,10 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         private void reset() {
-            currentSaveTask = null;
+            runInRaftThread(() -> {
+                currentSaveTask = null;
+                DtUtil.close(channel, currentSnapshot);
+            });
         }
     }
 

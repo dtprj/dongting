@@ -16,14 +16,12 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.raft.sm.Snapshot;
-import com.github.dtprj.dongting.raft.sm.SnapshotIterator;
 
 /**
  * @author huangli
  */
 class SnapshotInfo {
     Snapshot snapshot;
-    SnapshotIterator snapshotIterator;
     long offset;
     int replicateEpoch;
     boolean readFinished;

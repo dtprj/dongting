@@ -178,14 +178,15 @@ public class RaftServer extends AbstractLifeCircle {
             throw new IllegalArgumentException("self id not found in group members/observers list: " + serverConfig.getNodeId());
         }
 
+        RaftGroupThread raftGroupThread = new RaftGroupThread();
+        RaftExecutor raftExecutor = new RaftExecutor(raftGroupThread);
+
         RaftStatusImpl raftStatus = new RaftStatusImpl();
-        RaftExecutor raftExecutor = new RaftExecutor();
         raftStatus.setRaftExecutor(raftExecutor);
         raftStatus.setNodeIdOfMembers(nodeIdOfMembers);
         raftStatus.setNodeIdOfObservers(nodeIdOfObservers);
         raftStatus.setGroupId(rgc.getGroupId());
 
-        RaftGroupThread raftGroupThread = new RaftGroupThread();
         RaftGroupConfigEx rgcEx = createGroupConfigEx(rgc, raftStatus, raftExecutor, raftGroupThread);
 
 

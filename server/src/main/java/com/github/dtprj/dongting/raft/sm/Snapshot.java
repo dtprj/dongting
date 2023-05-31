@@ -15,20 +15,23 @@
  */
 package com.github.dtprj.dongting.raft.sm;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @author huangli
  */
-public abstract class Snapshot {
+public abstract class Snapshot implements AutoCloseable {
     private static final DtLog log = DtLogs.getLogger(Snapshot.class);
     private static final AtomicLong NEXT_ID = new AtomicLong();
     private final long id = NEXT_ID.incrementAndGet();
     private final long lastIncludedIndex;
     private final int lastIncludedTerm;
+    private boolean closed;
 
     public Snapshot(long lastIncludedIndex, int lastIncludedTerm) {
         this.lastIncludedTerm = lastIncludedTerm;
@@ -43,7 +46,20 @@ public abstract class Snapshot {
         return lastIncludedTerm;
     }
 
-    public abstract SnapshotIterator openIterator();
+
+    public abstract CompletableFuture<RefBuffer> readNext();
+
+    @Override
+    public void close() {
+        if (closed) {
+            log.warn("snapshot iterator already closed");
+            return;
+        }
+        doClose();
+        closed = true;
+    }
+
+    protected abstract void doClose();
 
     @Override
     public boolean equals(Object obj) {

@@ -24,8 +24,10 @@ import java.util.concurrent.TimeUnit;
  */
 public class RaftExecutor implements Executor {
     private final LinkedBlockingQueue<Object> queue = new LinkedBlockingQueue<>();
+    private final RaftGroupThread raftThread;
 
-    public RaftExecutor() {
+    public RaftExecutor(RaftGroupThread raftThread) {
+        this.raftThread = raftThread;
     }
 
     public void schedule(Runnable runnable, long delayMillis) {
@@ -39,6 +41,10 @@ public class RaftExecutor implements Executor {
         }
     }
 
+    public boolean inRaftThread() {
+        Thread currentThread = Thread.currentThread();
+        return currentThread == raftThread;
+    }
 
     @Override
     public void execute(Runnable command) {

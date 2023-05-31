@@ -15,7 +15,10 @@
  */
 package com.github.dtprj.dongting.raft.sm;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
+
 import java.io.File;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * @author huangli
@@ -30,16 +33,21 @@ public class DefaultSnapshot extends Snapshot {
         this.dataFile = dataFile;
     }
 
-    @Override
-    public SnapshotIterator openIterator() {
-        return null;
-    }
-
     public File getIdxFile() {
         return idxFile;
     }
 
     public File getDataFile() {
         return dataFile;
+    }
+
+    @Override
+    public CompletableFuture<RefBuffer> readNext() {
+        return null;
+    }
+
+    @Override
+    protected void doClose() {
+
     }
 }

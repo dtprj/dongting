@@ -30,7 +30,6 @@ import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
-import com.github.dtprj.dongting.raft.sm.SnapshotIterator;
 import com.github.dtprj.dongting.raft.sm.SnapshotManager;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
@@ -124,14 +123,13 @@ public class RaftGroupThread extends Thread {
         if (snapshot == null) {
             return 0;
         }
-        SnapshotIterator iterator = snapshot.openIterator();
         try {
             boolean start = true;
             while (true) {
                 if (raftStatus.isStop()) {
                     return 0;
                 }
-                CompletableFuture<RefBuffer> f = iterator.readNext();
+                CompletableFuture<RefBuffer> f = snapshot.readNext();
                 RefBuffer rb = f.get();
                 if (rb == null || !rb.getBuffer().hasRemaining()) {
                     stateMachine.installSnapshot(start, true, rb);
@@ -141,10 +139,10 @@ public class RaftGroupThread extends Thread {
                 start = false;
                 rb.release();
             }
+            return snapshot.getLastIncludedIndex();
         } finally {
-            iterator.close();
+            snapshot.close();
         }
-        return snapshot.getLastIncludedIndex();
     }
 
     public void waitReady() {
