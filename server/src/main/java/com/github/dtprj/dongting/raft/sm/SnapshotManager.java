@@ -26,6 +26,6 @@ public interface SnapshotManager {
 
     Snapshot init(Supplier<Boolean> cancelIndicator) throws IOException;
 
-    CompletableFuture<Long> updateSnapshot(StateMachine<?, ?, ?> stateMachine,
-                                           Supplier<Boolean> cancelIndicator);
+    CompletableFuture<Long> saveSnapshot(StateMachine<?, ?, ?> stateMachine,
+                                         Supplier<Boolean> cancelIndicator);
 }

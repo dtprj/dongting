@@ -119,11 +119,10 @@ public class RaftGroupThread extends Thread {
         if (snapshotManager == null) {
             return 0;
         }
-        Snapshot snapshot = snapshotManager.init(() -> raftStatus.isStop());
-        if (snapshot == null) {
-            return 0;
-        }
-        try {
+        try (Snapshot snapshot = snapshotManager.init(() -> raftStatus.isStop())) {
+            if (snapshot == null) {
+                return 0;
+            }
             boolean start = true;
             while (true) {
                 if (raftStatus.isStop()) {
@@ -140,8 +139,6 @@ public class RaftGroupThread extends Thread {
                 rb.release();
             }
             return snapshot.getLastIncludedIndex();
-        } finally {
-            snapshot.close();
         }
     }
 
