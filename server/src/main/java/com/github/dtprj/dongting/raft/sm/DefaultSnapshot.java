@@ -17,28 +17,18 @@ package com.github.dtprj.dongting.raft.sm;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
 
-import java.io.File;
+import java.nio.channels.AsynchronousFileChannel;
 import java.util.concurrent.CompletableFuture;
 
 /**
  * @author huangli
  */
 public class DefaultSnapshot extends Snapshot {
-    private final File idxFile;
-    private final File dataFile;
+    private final AsynchronousFileChannel channel;
 
-    public DefaultSnapshot(long lastIncludedIndex, int lastIncludedTerm, File idxFile, File dataFile) {
+    public DefaultSnapshot(long lastIncludedIndex, int lastIncludedTerm, AsynchronousFileChannel channel) {
         super(lastIncludedIndex, lastIncludedTerm);
-        this.idxFile = idxFile;
-        this.dataFile = dataFile;
-    }
-
-    public File getIdxFile() {
-        return idxFile;
-    }
-
-    public File getDataFile() {
-        return dataFile;
+        this.channel = channel;
     }
 
     @Override
@@ -48,6 +38,5 @@ public class DefaultSnapshot extends Snapshot {
 
     @Override
     protected void doClose() {
-
     }
 }

@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -31,7 +32,7 @@ public abstract class Snapshot implements AutoCloseable {
     private final long id = NEXT_ID.incrementAndGet();
     private final long lastIncludedIndex;
     private final int lastIncludedTerm;
-    private boolean closed;
+    private AtomicBoolean closed = new AtomicBoolean();
 
     public Snapshot(long lastIncludedIndex, int lastIncludedTerm) {
         this.lastIncludedTerm = lastIncludedTerm;
@@ -51,12 +52,11 @@ public abstract class Snapshot implements AutoCloseable {
 
     @Override
     public void close() {
-        if (closed) {
+        if (!closed.compareAndSet(false, true)) {
             log.warn("snapshot iterator already closed");
             return;
         }
         doClose();
-        closed = true;
     }
 
     protected abstract void doClose();
