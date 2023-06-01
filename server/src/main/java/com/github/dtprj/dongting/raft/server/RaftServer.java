@@ -398,7 +398,6 @@ public class RaftServer extends AbstractLifeCircle {
                 RaftGroupImpl<?, ?, ?> gc = f.get(5, TimeUnit.SECONDS);
                 gc.getRaftGroupThread().init(gc);
 
-                gc.getMemberManager().init(nodeManager.getAllNodesEx());
                 gc.getRaftGroupThread().start();
                 raftGroups.put(groupConfig.getGroupId(), gc);
             } catch (Exception e) {
