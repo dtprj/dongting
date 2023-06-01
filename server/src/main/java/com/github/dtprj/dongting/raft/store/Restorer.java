@@ -214,7 +214,7 @@ class Restorer {
         int needRead = dataLen - dataReadLength;
         if (needRead > 0 && buf.remaining() > 0) {
             int actualRead = Math.min(needRead, buf.remaining());
-            LogFileQueue.updateCrc(crc32c, buf, buf.position(), actualRead);
+            RaftUtil.updateCrc(crc32c, buf, buf.position(), actualRead);
             buf.position(buf.position() + actualRead);
             dataReadLength += actualRead;
         }

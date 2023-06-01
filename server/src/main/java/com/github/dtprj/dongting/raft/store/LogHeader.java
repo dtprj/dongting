@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 
 import java.nio.ByteBuffer;
@@ -76,7 +77,7 @@ class LogHeader {
 
         CRC32C crc32c = this.crc32c;
         crc32c.reset();
-        LogFileQueue.updateCrc(crc32c, buf, start, ITEM_HEADER_SIZE - 4);
+        RaftUtil.updateCrc(crc32c, buf, start, ITEM_HEADER_SIZE - 4);
         expectCrc = (int) crc32c.getValue();
     }
 
@@ -104,7 +105,7 @@ class LogHeader {
         buffer.putLong(log.getIndex());
         buffer.putLong(log.getTimestamp());
         crc.reset();
-        LogFileQueue.updateCrc(crc, buffer, startPos, ITEM_HEADER_SIZE);
+        RaftUtil.updateCrc(crc, buffer, startPos, ITEM_HEADER_SIZE);
         buffer.putInt((int) crc.getValue());
     }
 
@@ -120,7 +121,7 @@ class LogHeader {
         buffer.putLong(0L);
         buffer.putLong(0L);
         crc.reset();
-        LogFileQueue.updateCrc(crc, buffer, startPos, ITEM_HEADER_SIZE);
+        RaftUtil.updateCrc(crc, buffer, startPos, ITEM_HEADER_SIZE);
         buffer.putInt((int) crc.getValue());
     }
 

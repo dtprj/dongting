@@ -110,16 +110,6 @@ class LogFileQueue extends FileQueue implements FileOps {
         return restorer.previousTerm;
     }
 
-    static void updateCrc(CRC32C crc32c, ByteBuffer buf, int startPos, int len) {
-        int oldPos = buf.position();
-        int oldLimit = buf.limit();
-        buf.limit(startPos + len);
-        buf.position(startPos);
-        crc32c.update(buf);
-        buf.limit(oldLimit);
-        buf.position(oldPos);
-    }
-
     public void append(List<LogItem> logs) throws IOException {
         ensureWritePosReady();
         ByteBuffer writeBuffer = this.writeBuffer;
@@ -228,7 +218,7 @@ class LogFileQueue extends FileQueue implements FileOps {
             @SuppressWarnings("unchecked")
             boolean encodeFinish = encoder.encode(encodeContext, writeBuffer, data);
             if (writeBuffer.position() > lastPos) {
-                updateCrc(crc32c, writeBuffer, lastPos, writeBuffer.position() - lastPos);
+                RaftUtil.updateCrc(crc32c, writeBuffer, lastPos, writeBuffer.position() - lastPos);
             }
             if (encodeFinish) {
                 break;

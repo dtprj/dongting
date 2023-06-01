@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -294,7 +295,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         int needRead = dataLen - read;
         if (needRead > 0 && buf.remaining() > 0) {
             int actualRead = Math.min(needRead, buf.remaining());
-            LogFileQueue.updateCrc(crc32c, buf, buf.position(), actualRead);
+            RaftUtil.updateCrc(crc32c, buf, buf.position(), actualRead);
             buf.get(destBuf.array(), read, actualRead);
             destBuf.position(read + actualRead);
         }

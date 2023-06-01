@@ -37,6 +37,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
+import java.util.zip.CRC32C;
 
 /**
  * @author huangli
@@ -350,4 +351,13 @@ public class RaftUtil {
         }
     }
 
+    public static void updateCrc(CRC32C crc32c, ByteBuffer buf, int startPos, int len) {
+        int oldPos = buf.position();
+        int oldLimit = buf.limit();
+        buf.limit(startPos + len);
+        buf.position(startPos);
+        crc32c.update(buf);
+        buf.limit(oldLimit);
+        buf.position(oldPos);
+    }
 }
