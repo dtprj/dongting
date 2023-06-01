@@ -63,6 +63,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -84,7 +85,8 @@ public class RaftServer extends AbstractLifeCircle {
 
     private final PendingStat serverStat = new PendingStat();
 
-    public RaftServer(RaftServerConfig serverConfig, List<RaftGroupConfig> groupConfig, RaftFactory raftFactory) {
+    public RaftServer(Supplier<Boolean> cancelInitIndicator, RaftServerConfig serverConfig,
+                      List<RaftGroupConfig> groupConfig, RaftFactory raftFactory) {
         Objects.requireNonNull(serverConfig);
         Objects.requireNonNull(groupConfig);
         Objects.requireNonNull(raftFactory);
@@ -115,7 +117,7 @@ public class RaftServer extends AbstractLifeCircle {
         setupNioConfig(nioClientConfig);
         raftClient = new NioClient(nioClientConfig);
 
-        createRaftGroups(serverConfig, groupConfig, allNodeIds);
+        createRaftGroups(cancelInitIndicator, serverConfig, groupConfig, allNodeIds);
         nodeManager = new NodeManager(serverConfig, allRaftServers, raftClient, raftGroups);
         raftGroups.forEach((id, gc) -> {
             gc.getEventBus().register(nodeManager);
@@ -137,17 +139,17 @@ public class RaftServer extends AbstractLifeCircle {
         raftServer.register(Commands.RAFT_LEADER_TRANSFER, new TransferLeaderProcessor(raftGroups));
     }
 
-    private void createRaftGroups(RaftServerConfig serverConfig, List<RaftGroupConfig> groupConfig,
-                                  HashSet<Integer> allNodeIds) {
+    private void createRaftGroups(Supplier<Boolean> cancelInitIndicator, RaftServerConfig serverConfig,
+                                  List<RaftGroupConfig> groupConfig, HashSet<Integer> allNodeIds) {
         for (RaftGroupConfig rgc : groupConfig) {
             @SuppressWarnings("rawtypes")
-            RaftGroupImpl gc = createRaftGroup(serverConfig, allNodeIds, rgc);
+            RaftGroupImpl gc = createRaftGroup(cancelInitIndicator, serverConfig, allNodeIds, rgc);
             raftGroups.put(rgc.getGroupId(), gc);
         }
     }
 
     @SuppressWarnings("unchecked")
-    private RaftGroupImpl<?, ?, ?> createRaftGroup(RaftServerConfig serverConfig,
+    private RaftGroupImpl<?, ?, ?> createRaftGroup(Supplier<Boolean> cancelInitIndicator, RaftServerConfig serverConfig,
                                                    Set<Integer> allNodeIds, RaftGroupConfig rgc) {
         Objects.requireNonNull(rgc.getNodeIdOfMembers());
 
@@ -178,7 +180,7 @@ public class RaftServer extends AbstractLifeCircle {
             throw new IllegalArgumentException("self id not found in group members/observers list: " + serverConfig.getNodeId());
         }
 
-        RaftGroupThread raftGroupThread = new RaftGroupThread();
+        RaftGroupThread raftGroupThread = new RaftGroupThread(cancelInitIndicator);
         RaftExecutor raftExecutor = new RaftExecutor(raftGroupThread);
 
         RaftStatusImpl raftStatus = new RaftStatusImpl();
@@ -381,13 +383,14 @@ public class RaftServer extends AbstractLifeCircle {
      * ADMIN API.
      */
     @SuppressWarnings("unused")
-    public void addGroup(RaftGroupConfig groupConfig) {
+    public void addGroup(RaftGroupConfig groupConfig, Supplier<Boolean> cancelInitIndicator) {
         doChange(() -> {
             try {
                 CompletableFuture<RaftGroupImpl<?, ?, ?>> f = new CompletableFuture<>();
                 RaftUtil.SCHEDULED_SERVICE.execute(() -> {
                     try {
-                        RaftGroupImpl<?, ?, ?> gc = createRaftGroup(serverConfig, nodeManager.getAllNodeIds(), groupConfig);
+                        RaftGroupImpl<?, ?, ?> gc = createRaftGroup(cancelInitIndicator, serverConfig,
+                                nodeManager.getAllNodeIds(), groupConfig);
                         gc.getMemberManager().init(nodeManager.getAllNodesEx());
                         f.complete(gc);
                     } catch (Exception e) {

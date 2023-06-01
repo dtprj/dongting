@@ -28,7 +28,7 @@ import java.util.function.Supplier;
  */
 public interface RaftLog extends AutoCloseable {
 
-    Pair<Integer, Long> init() throws Exception;
+    Pair<Integer, Long> init(Supplier<Boolean> cancelInit) throws Exception;
 
     /**
      * Batch append logs.

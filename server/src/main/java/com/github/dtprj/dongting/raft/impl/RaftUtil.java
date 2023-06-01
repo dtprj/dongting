@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.server.InitCanceledException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftLog;
@@ -35,6 +36,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -340,6 +342,12 @@ public class RaftUtil {
         dest.flip();
         src.position(pos);
         return dest;
+    }
+
+    public static void checkCancel(Supplier<Boolean> cancelIndicator) {
+        if (cancelIndicator.get()) {
+            throw new InitCanceledException();
+        }
     }
 
 }

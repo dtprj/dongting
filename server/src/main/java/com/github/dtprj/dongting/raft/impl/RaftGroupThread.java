@@ -39,6 +39,7 @@ import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -47,6 +48,7 @@ public class RaftGroupThread extends Thread {
     private static final DtLog log = DtLogs.getLogger(RaftGroupThread.class);
 
     private final Random random = new Random();
+    private final Supplier<Boolean> cancelInit;
 
     private RaftServerConfig config;
     private RaftStatusImpl raftStatus;
@@ -63,7 +65,8 @@ public class RaftGroupThread extends Thread {
     // TODO optimise blocking queue
     private LinkedBlockingQueue<Object> queue;
 
-    public RaftGroupThread() {
+    public RaftGroupThread(Supplier<Boolean> cancelInit) {
+        this.cancelInit = cancelInit;
     }
 
     public void init(RaftGroupImpl<?, ?, ?> gc) {
@@ -87,18 +90,15 @@ public class RaftGroupThread extends Thread {
         try {
             StatusUtil.initStatusFileChannel(groupConfig.getDataDir(), groupConfig.getStatusFile(), raftStatus);
             long stateMachineLatestIndex = recoverStateMachine();
-            if (raftStatus.isStop()) {
-                return;
-            }
             log.info("load snapshot to stateMachineLatestIndex {}, groupId={}", stateMachineLatestIndex, groupConfig.getGroupId());
             if (stateMachineLatestIndex > raftStatus.getCommitIndex()) {
                 raftStatus.setCommitIndex(stateMachineLatestIndex);
             }
+            RaftUtil.checkCancel(cancelInit);
 
-            Pair<Integer, Long> initResult = raftLog.init();
-            if (raftStatus.isStop()) {
-                return;
-            }
+            Pair<Integer, Long> initResult = raftLog.init(cancelInit);
+            RaftUtil.checkCancel(cancelInit);
+
             log.info("init raft log, maxTerm={}, maxIndex={}, groupId={}",
                     initResult.getLeft(), initResult.getRight(), groupConfig.getGroupId());
             raftStatus.setLastLogTerm(initResult.getLeft());
@@ -109,8 +109,10 @@ public class RaftGroupThread extends Thread {
             }
             raftStatus.setLastApplied(stateMachineLatestIndex);
         } catch (RuntimeException e) {
+            clean();
             throw e;
         } catch (Exception e) {
+            clean();
             throw new RaftException(e);
         }
     }
@@ -119,15 +121,13 @@ public class RaftGroupThread extends Thread {
         if (snapshotManager == null) {
             return 0;
         }
-        try (Snapshot snapshot = snapshotManager.init(() -> raftStatus.isStop())) {
+        try (Snapshot snapshot = snapshotManager.init(cancelInit)) {
             if (snapshot == null) {
                 return 0;
             }
             boolean start = true;
             while (true) {
-                if (raftStatus.isStop()) {
-                    return 0;
-                }
+                RaftUtil.checkCancel(cancelInit);
                 CompletableFuture<RefBuffer> f = snapshot.readNext();
                 RefBuffer rb = f.get();
                 if (rb == null || !rb.getBuffer().hasRemaining()) {
@@ -154,12 +154,18 @@ public class RaftGroupThread extends Thread {
         }
     }
 
+    private void clean() {
+        if (raftStatus != null) {
+            DtUtil.close(raftStatus.getStatusFile());
+        }
+        DtUtil.close(stateMachine);
+        DtUtil.close(raftLog);
+    }
+
     @Override
     public void run() {
         try {
-            if (raftStatus.isStop()) {
-                return;
-            }
+            RaftUtil.checkCancel(cancelInit);
             if (raftStatus.getElectQuorum() == 1 && raftStatus.getNodeIdOfMembers().contains(config.getNodeId())) {
                 RaftUtil.changeToLeader(raftStatus);
                 raft.sendHeartBeat();
@@ -168,9 +174,7 @@ public class RaftGroupThread extends Thread {
         } catch (Throwable e) {
             BugLog.getLog().error("raft thread error", e);
         } finally {
-            DtUtil.close(raftStatus.getStatusFile());
-            DtUtil.close(stateMachine);
-            DtUtil.close(raftLog);
+            clean();
         }
     }
 

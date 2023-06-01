@@ -20,10 +20,12 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
+import java.util.function.Supplier;
 import java.util.zip.CRC32C;
 
 /**
@@ -65,7 +67,8 @@ class Restorer {
         this.commitIndexPos = commitIndexPos;
     }
 
-    public Pair<Boolean, Long> restoreFile(ByteBuffer buffer, LogFile lf) throws IOException {
+    public Pair<Boolean, Long> restoreFile(ByteBuffer buffer, LogFile lf,
+                                           Supplier<Boolean> cancelIndicator) throws IOException {
         buffer.clear();
         buffer.limit(LogHeader.ITEM_HEADER_SIZE);
         FileUtil.syncReadFull(lf.channel, buffer, 0);
@@ -78,7 +81,7 @@ class Restorer {
         }
 
         if (commitIndexPos < lf.endPos) {
-            return restoreFile0(buffer, lf);
+            return restoreFile0(buffer, lf, cancelIndicator);
         } else {
             if (header.crcMatch()) {
                 return new Pair<>(false, lf.endPos);
@@ -88,7 +91,8 @@ class Restorer {
         }
     }
 
-    private Pair<Boolean, Long> restoreFile0(ByteBuffer buffer, LogFile lf) throws IOException {
+    private Pair<Boolean, Long> restoreFile0(ByteBuffer buffer, LogFile lf,
+                                             Supplier<Boolean> cancelIndicator) throws IOException {
         log.info("try restore file {}", lf.file.getPath());
         if (commitIndexPos >= lf.startPos) {
             // check from commitIndexPos
@@ -102,6 +106,7 @@ class Restorer {
         buffer.clear();
         state = STATE_ITEM_HEADER;
         while (readPos < fileOps.fileLength()) {
+            RaftUtil.checkCancel(cancelIndicator);
             int read = FileUtil.syncRead(channel, buffer, readPos);
             if (read <= 0) {
                 continue;

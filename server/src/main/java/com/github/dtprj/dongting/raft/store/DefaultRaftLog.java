@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.StatusFile;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -63,69 +64,67 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public Pair<Integer, Long> init() throws Exception {
-        File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
+    public Pair<Integer, Long> init(Supplier<Boolean> cancelInit) throws Exception {
+        try {
+            File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
 
-        long knownMaxCommitIndex = raftStatus.getCommitIndex();
+            long knownMaxCommitIndex = raftStatus.getCommitIndex();
 
-        idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), ioExecutor, groupConfig);
-        logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), ioExecutor, groupConfig, idxFiles);
-        logFiles.init();
-        if (raftStatus.isStop()) {
-            return null;
-        }
-        idxFiles.init();
-        if (raftStatus.isStop()) {
-            return null;
-        }
-        idxFiles.initWithCommitIndex(knownMaxCommitIndex);
-        long commitIndexPos;
-        if (knownMaxCommitIndex > 0) {
-            commitIndexPos = idxFiles.findLogPosInMemCache(knownMaxCommitIndex);
-            if (commitIndexPos < 0) {
-                commitIndexPos = idxFiles.syncLoadLogPos(knownMaxCommitIndex);
+            idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), ioExecutor, groupConfig);
+            logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), ioExecutor, groupConfig, idxFiles);
+            logFiles.init();
+            RaftUtil.checkCancel(cancelInit);
+            idxFiles.init();
+            RaftUtil.checkCancel(cancelInit);
+
+            idxFiles.initWithCommitIndex(knownMaxCommitIndex);
+            long commitIndexPos;
+            if (knownMaxCommitIndex > 0) {
+                commitIndexPos = idxFiles.findLogPosInMemCache(knownMaxCommitIndex);
+                if (commitIndexPos < 0) {
+                    commitIndexPos = idxFiles.syncLoadLogPos(knownMaxCommitIndex);
+                }
+            } else {
+                commitIndexPos = 0;
             }
-        } else {
-            commitIndexPos = 0;
-        }
-        if (raftStatus.isStop()) {
-            return null;
-        }
+            RaftUtil.checkCancel(cancelInit);
 
-        statusFile = new StatusFile(new File(dataDir, "log.status"));
-        statusFile.init();
-        String truncateStatus = statusFile.getProperties().getProperty(KEY_TRUNCATE);
-        if (truncateStatus != null) {
-            String[] parts = truncateStatus.split(",");
-            if (parts.length == 2) {
-                long start = Long.parseLong(parts[0]);
-                long end = Long.parseLong(parts[1]);
-                logFiles.syncTruncateTail(start, end);
-                statusFile.getProperties().remove(KEY_TRUNCATE);
-                statusFile.update();
+            statusFile = new StatusFile(new File(dataDir, "log.status"));
+            statusFile.init();
+            RaftUtil.checkCancel(cancelInit);
+
+            String truncateStatus = statusFile.getProperties().getProperty(KEY_TRUNCATE);
+            if (truncateStatus != null) {
+                String[] parts = truncateStatus.split(",");
+                if (parts.length == 2) {
+                    long start = Long.parseLong(parts[0]);
+                    long end = Long.parseLong(parts[1]);
+                    logFiles.syncTruncateTail(start, end);
+                    statusFile.getProperties().remove(KEY_TRUNCATE);
+                    statusFile.update();
+                }
             }
-        }
-        if (raftStatus.isStop()) {
-            return null;
-        }
+            RaftUtil.checkCancel(cancelInit);
 
-        // TODO check return value
-        int lastTerm = logFiles.restore(knownMaxCommitIndex, commitIndexPos, () -> raftStatus.isStop());
-        if (raftStatus.isStop()) {
-            return null;
-        }
-        if (idxFiles.getNextIndex() == 1) {
-            return new Pair<>(0, 0L);
-        } else {
-            long lastIndex = idxFiles.getNextIndex() - 1;
-            return new Pair<>(lastTerm, lastIndex);
+            // TODO check return value
+            int lastTerm = logFiles.restore(knownMaxCommitIndex, commitIndexPos, cancelInit);
+            RaftUtil.checkCancel(cancelInit);
+
+            if (idxFiles.getNextIndex() == 1) {
+                return new Pair<>(0, 0L);
+            } else {
+                long lastIndex = idxFiles.getNextIndex() - 1;
+                return new Pair<>(lastTerm, lastIndex);
+            }
+        } catch (Throwable e) {
+            close();
+            throw e;
         }
     }
 
     @Override
     public void close() {
-        logFiles.close();
-        idxFiles.close();
+        DtUtil.close(statusFile, idxFiles, logFiles);
     }
 
     @Override

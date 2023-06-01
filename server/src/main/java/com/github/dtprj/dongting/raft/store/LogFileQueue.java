@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -91,12 +92,9 @@ class LogFileQueue extends FileQueue implements FileOps {
         log.info("restore from {}, {}", commitIndex, commitIndexPos);
         Restorer restorer = new Restorer(idxOps, this, commitIndex, commitIndexPos);
         for (int i = 0; i < queue.size(); i++) {
-            // TODO need more fine-grained control
-            if (cancelIndicator.get()) {
-                return 0;
-            }
+            RaftUtil.checkCancel(cancelIndicator);
             LogFile lf = queue.get(i);
-            Pair<Boolean, Long> result = restorer.restoreFile(this.writeBuffer, lf);
+            Pair<Boolean, Long> result = restorer.restoreFile(this.writeBuffer, lf, cancelIndicator);
             writePos = result.getRight();
             if (result.getLeft()) {
                 break;
