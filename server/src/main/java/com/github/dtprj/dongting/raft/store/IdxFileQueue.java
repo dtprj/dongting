@@ -154,7 +154,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     @Override
-    public void put(long itemIndex, long dataPosition, int len) throws IOException {
+    public void put(long itemIndex, long dataPosition) throws IOException {
         checkIndex(itemIndex, false);
         if (itemIndex < firstIndex) {
             BugLog.getLog().error("index is too small : firstIndex={}, index={}", firstIndex, itemIndex);

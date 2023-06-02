@@ -167,7 +167,7 @@ class LogFileQueue extends FileQueue implements FileOps {
             pos = writeData(writeBuffer, pos, file, log, false);
             pos = writeData(writeBuffer, pos, file, log, true);
 
-            idxOps.put(log.getIndex(), itemStartPos, totalLen);
+            idxOps.put(log.getIndex(), itemStartPos);
         }
         pos = writeAndClearBuffer(writeBuffer, file, pos);
         file.channel.force(false);

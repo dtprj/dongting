@@ -106,7 +106,6 @@ public class DefaultRaftLog implements RaftLog {
             }
             RaftUtil.checkCancel(cancelInit);
 
-            // TODO check return value
             int lastTerm = logFiles.restore(knownMaxCommitIndex, commitIndexPos, cancelInit);
             RaftUtil.checkCancel(cancelInit);
 
