@@ -39,14 +39,19 @@ public class RefBuffer extends RefCount {
         }
     }
 
-    private RefBuffer(int requestSize, boolean direct) {
+    private RefBuffer(ByteBuffer buffer) {
         super(true);
-        this.buffer = direct ? ByteBuffer.allocateDirect(requestSize) : ByteBuffer.allocate(requestSize);
+        this.buffer = buffer;
         this.pool = null;
     }
 
     public static RefBuffer createUnpooled(int requestSize, boolean direct) {
-        return new RefBuffer(requestSize, direct);
+        ByteBuffer buffer = direct ? ByteBuffer.allocateDirect(requestSize) : ByteBuffer.allocate(requestSize);
+        return new RefBuffer(buffer);
+    }
+
+    public static RefBuffer wrapUnpooled(ByteBuffer buffer) {
+        return new RefBuffer(buffer);
     }
 
     @Override

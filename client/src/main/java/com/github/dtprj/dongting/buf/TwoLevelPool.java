@@ -27,8 +27,8 @@ import java.util.function.Consumer;
  */
 public class TwoLevelPool extends ByteBufferPool {
     private final boolean direct;
-    private final SimpleByteBufferPool smallPool;
-    private final SimpleByteBufferPool largePool;
+    private final ByteBufferPool smallPool;
+    private final ByteBufferPool largePool;
     private final int threshold;
     private final boolean releaseInOtherThread;
     private final Consumer<ByteBuffer> releaseCallback;
@@ -56,11 +56,11 @@ public class TwoLevelPool extends ByteBufferPool {
         return new TwoLevelPool(direct, p1, GLOBAL_POOL, 16 * 1024);
     };
 
-    public TwoLevelPool(boolean direct, SimpleByteBufferPool smallPool, SimpleByteBufferPool largePool, int threshold) {
+    public TwoLevelPool(boolean direct, ByteBufferPool smallPool, ByteBufferPool largePool, int threshold) {
         this(direct, smallPool, largePool, threshold, false, null, null);
     }
 
-    private TwoLevelPool(boolean direct, SimpleByteBufferPool smallPool, SimpleByteBufferPool largePool,
+    private TwoLevelPool(boolean direct, ByteBufferPool smallPool, ByteBufferPool largePool,
                          int threshold, boolean releaseInOtherThread,
                          Consumer<ByteBuffer> releaseCallback, Thread owner) {
         this.direct = direct;
@@ -118,6 +118,15 @@ public class TwoLevelPool extends ByteBufferPool {
     public TwoLevelPool toReleaseInOtherThreadInstance(Thread owner, Consumer<ByteBuffer> releaseCallback) {
         return new TwoLevelPool(direct, smallPool, largePool,
                 threshold, true, releaseCallback, owner);
+    }
+
+    @SuppressWarnings("unused")
+    public ByteBufferPool getSmallPool() {
+        return smallPool;
+    }
+
+    public ByteBufferPool getLargePool() {
+        return largePool;
     }
 
     public static BiFunction<Timestamp, Boolean, ByteBufferPool> getDefaultFactory() {

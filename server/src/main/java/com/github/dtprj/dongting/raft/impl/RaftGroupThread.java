@@ -130,13 +130,18 @@ public class RaftGroupThread extends Thread {
                 RaftUtil.checkCancel(cancelInit);
                 CompletableFuture<RefBuffer> f = snapshot.readNext();
                 RefBuffer rb = f.get();
-                if (rb == null || !rb.getBuffer().hasRemaining()) {
-                    stateMachine.installSnapshot(start, true, rb);
-                    break;
+                try {
+                    if (rb == null || !rb.getBuffer().hasRemaining()) {
+                        stateMachine.installSnapshot(start, true, rb);
+                        break;
+                    }
+                    stateMachine.installSnapshot(start, false, rb);
+                    start = false;
+                } finally {
+                    if (rb != null) {
+                        rb.release();
+                    }
                 }
-                stateMachine.installSnapshot(start, false, rb);
-                start = false;
-                rb.release();
             }
             return snapshot.getLastIncludedIndex();
         }

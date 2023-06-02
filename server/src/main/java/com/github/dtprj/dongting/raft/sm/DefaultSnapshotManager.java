@@ -22,12 +22,14 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.StatusFile;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.store.AsyncIoTask;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
 import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
@@ -37,6 +39,7 @@ import java.util.HashSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
+import java.util.zip.CRC32C;
 
 /**
  * @author huangli
@@ -50,6 +53,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
     private static final String KEY_LAST_INDEX = "lastIncludedIndex";
     private static final String KEY_LAST_TERM = "lastIncludedTerm";
+    private static final String KEY_MAX_BLOCK = "maxBlock";
 
 
     private final RaftGroupConfigEx groupConfig;
@@ -113,10 +117,9 @@ public class DefaultSnapshotManager implements SnapshotManager {
             sf.init();
             String lastIndex = sf.getProperties().getProperty(KEY_LAST_INDEX);
             String lastTerm = sf.getProperties().getProperty(KEY_LAST_TERM);
-            HashSet<StandardOpenOption> options = new HashSet<>();
-            options.add(StandardOpenOption.READ);
-            AsynchronousFileChannel channel = AsynchronousFileChannel.open(lastDataFile.toPath(), options, ioExecutor);
-            return new DefaultSnapshot(Long.parseLong(lastIndex), Integer.parseInt(lastTerm), channel);
+            String maxBlock = sf.getProperties().getProperty(KEY_MAX_BLOCK);
+            return new DefaultSnapshot(Long.parseLong(lastIndex), Integer.parseInt(lastTerm),
+                    lastDataFile, ioExecutor, Integer.parseInt(maxBlock));
         }
     }
 
@@ -142,13 +145,16 @@ public class DefaultSnapshotManager implements SnapshotManager {
         private final Supplier<Boolean> cancelIndicator;
         private final long startTime = System.currentTimeMillis();
         private final CompletableFuture<Long> future = new CompletableFuture<>();
+        private final CRC32C crc32c = new CRC32C();
+        private final ByteBuffer headerBuffer = ByteBuffer.allocate(8);
 
+        // access reference in raft thread
         private File newDataFile;
         private File newIdxFile;
-
         private AsynchronousFileChannel channel;
         private Snapshot currentSnapshot;
         private AsyncIoTask writeTask;
+
 
         public SnapshotSaveTask(StateMachine<?, ?, ?> stateMachine, Supplier<Boolean> cancelIndicator) {
             this.stateMachine = stateMachine;
@@ -183,7 +189,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
                 writeTask = new AsyncIoTask(channel, cancelIndicator);
 
-                read(0);
+                read(0, 0);
             } catch (Throwable e) {
                 log.error("update snapshot failed", e);
                 future.completeExceptionally(e);
@@ -191,11 +197,11 @@ public class DefaultSnapshotManager implements SnapshotManager {
             }
         }
 
-        private void read(long currentWritePos) {
+        private void read(long currentWritePos, int maxBlock) {
             // readNext() should call in raft thread
             Runnable r = () -> {
                 CompletableFuture<RefBuffer> f = currentSnapshot.readNext();
-                f.whenCompleteAsync((rb, ex) -> whenReadFinish(rb, ex, currentWritePos), ioExecutor);
+                f.whenCompleteAsync((rb, ex) -> whenReadFinish(rb, ex, currentWritePos, maxBlock, true), ioExecutor);
             };
             runInRaftThread(r);
         }
@@ -223,7 +229,8 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         // run in io thread
-        private void whenReadFinish(RefBuffer rb, Throwable ex, long currentWritePos) {
+        private void whenReadFinish(RefBuffer rb, Throwable ex, long currentWritePos,
+                                    int maxBlock, boolean writeHeader) {
             try {
                 if (ex != null) {
                     log.error("read snapshot fail", ex);
@@ -232,11 +239,25 @@ public class DefaultSnapshotManager implements SnapshotManager {
                     return;
                 }
                 if (rb != null && rb.getBuffer().hasRemaining()) {
-                    CompletableFuture<Void> f = writeTask.write(false, false, rb.getBuffer(), currentWritePos);
-                    long nextWritePos = currentWritePos + rb.getBuffer().remaining();
-                    f.whenCompleteAsync((v, writeEx) -> whenWriteFinish(rb, writeEx, nextWritePos), ioExecutor);
+                    ByteBuffer buffer = rb.getBuffer();
+                    if (writeHeader) {
+                        crc32c.reset();
+                        RaftUtil.updateCrc(crc32c, buffer, buffer.position(), buffer.remaining());
+                        headerBuffer.clear();
+                        headerBuffer.putInt(buffer.remaining());
+                        headerBuffer.putInt((int) crc32c.getValue());
+                        CompletableFuture<Void> f = writeTask.write(false, false, headerBuffer, currentWritePos);
+                        long nextWritePos = currentWritePos + headerBuffer.remaining();
+                        final int newMaxBlock = Math.max(maxBlock, buffer.remaining());
+                        f.whenCompleteAsync((v, writeEx) -> whenReadFinish(
+                                rb, writeEx, nextWritePos, newMaxBlock, false), ioExecutor);
+                    } else {
+                        CompletableFuture<Void> f = writeTask.write(false, false, buffer, currentWritePos);
+                        long nextWritePos = currentWritePos + buffer.remaining();
+                        f.whenCompleteAsync((v, writeEx) -> whenWriteFinish(rb, writeEx, nextWritePos, maxBlock), ioExecutor);
+                    }
                 } else {
-                    afterDataWriteFinish();
+                    afterDataWriteFinish(maxBlock);
                 }
             } catch (Throwable unexpect) {
                 BugLog.log(unexpect);
@@ -246,7 +267,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         // run in io thread
-        private void whenWriteFinish(RefBuffer rb, Throwable ex, long nextWritePos) {
+        private void whenWriteFinish(RefBuffer rb, Throwable ex, long nextWritePos, int maxBlock) {
             try {
                 rb.release();
                 if (ex != null) {
@@ -255,7 +276,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
                 if (shouldReturn(ex)) {
                     return;
                 }
-                read(nextWritePos);
+                read(nextWritePos, maxBlock);
             } catch (Throwable unexpect) {
                 BugLog.log(unexpect);
                 future.completeExceptionally(unexpect);
@@ -264,7 +285,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         // run in io thread
-        private void afterDataWriteFinish() {
+        private void afterDataWriteFinish(int maxBlock) {
             try {
                 if (shouldReturn(null)) {
                     return;
@@ -278,6 +299,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
                     sf.init();
                     sf.getProperties().setProperty(KEY_LAST_INDEX, String.valueOf(currentSnapshot.getLastIncludedIndex()));
                     sf.getProperties().setProperty(KEY_LAST_TERM, String.valueOf(currentSnapshot.getLastIncludedTerm()));
+                    sf.getProperties().setProperty(KEY_MAX_BLOCK, String.valueOf(maxBlock));
 
                     // just for human reading
                     SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
