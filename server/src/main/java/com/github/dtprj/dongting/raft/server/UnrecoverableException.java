@@ -13,28 +13,17 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.client;
+package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.common.DtException;
+import com.github.dtprj.dongting.raft.client.RaftException;
 
 /**
  * @author huangli
  */
-public class RaftException extends DtException {
+public class UnrecoverableException extends RaftException {
     private static final long serialVersionUID = 761823722154991537L;
 
-    public RaftException() {
-    }
-
-    public RaftException(String message) {
+    public UnrecoverableException(String message) {
         super(message);
-    }
-
-    public RaftException(Throwable e) {
-        super(e);
-    }
-
-    public RaftException(String message, Throwable ex) {
-        super(message, ex);
     }
 }

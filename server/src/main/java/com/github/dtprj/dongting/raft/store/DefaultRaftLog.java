@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftStatus;
+import com.github.dtprj.dongting.raft.server.UnrecoverableException;
 
 import java.io.File;
 import java.util.List;
@@ -150,7 +151,7 @@ public class DefaultRaftLog implements RaftLog {
 
             logFiles.append(logs);
         } else {
-            throw new RaftException("bad index: " + firstIndex);
+            throw new UnrecoverableException("bad index: " + firstIndex);
         }
         if (ts.getNanoTime() - lastTaskNanos > TASK_INTERVAL_NANOS) {
             delete();

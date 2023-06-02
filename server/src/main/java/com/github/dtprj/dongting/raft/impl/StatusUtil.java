@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
+
 import java.io.File;
 import java.util.Properties;
 
@@ -22,6 +25,7 @@ import java.util.Properties;
  * @author huangli
  */
 public class StatusUtil {
+    private static final DtLog log = DtLogs.getLogger(StatusUtil.class);
 
     private static final String CURRENT_TERM_KEY = "currentTerm";
     private static final String VOTED_FOR_KEY = "votedFor";
@@ -39,24 +43,24 @@ public class StatusUtil {
         raftStatus.setCommitIndex(Integer.parseInt(p.getProperty(COMMIT_INDEX_KEY, "0")));
     }
 
-    public static void persist(RaftStatusImpl raftStatus) {
-        if (raftStatus.isStop()) {
-            return;
-        }
+    // TODO process the return value
+    public static boolean persist(RaftStatusImpl raftStatus) {
+        try {
+            if (raftStatus.isStop()) {
+                return false;
+            }
 
-        StatusFile sf = raftStatus.getStatusFile();
+            StatusFile sf = raftStatus.getStatusFile();
 
-        sf.getProperties().setProperty(CURRENT_TERM_KEY, String.valueOf(raftStatus.getCurrentTerm()));
-        sf.getProperties().setProperty(VOTED_FOR_KEY, String.valueOf(raftStatus.getVotedFor()));
-        sf.getProperties().setProperty(COMMIT_INDEX_KEY, String.valueOf(raftStatus.getCommitIndex()));
+            sf.getProperties().setProperty(CURRENT_TERM_KEY, String.valueOf(raftStatus.getCurrentTerm()));
+            sf.getProperties().setProperty(VOTED_FOR_KEY, String.valueOf(raftStatus.getVotedFor()));
+            sf.getProperties().setProperty(COMMIT_INDEX_KEY, String.valueOf(raftStatus.getCommitIndex()));
 
-        if (!sf.update() && !raftStatus.isRetrying()) {
-            // prevent concurrent saving or saving actions more and more
-            raftStatus.setRetrying(true);
-            raftStatus.getRaftExecutor().schedule(() -> {
-                raftStatus.setRetrying(false);
-                persist(raftStatus);
-            }, 1000);
+            sf.update();
+            return true;
+        } catch (Exception e) {
+            log.error("persist failed", e);
+            return false;
         }
     }
 

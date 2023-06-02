@@ -70,7 +70,6 @@ public class RaftStatusImpl extends RaftStatus {
     private StatusFile statusFile;
 
     private RaftExecutor raftExecutor;
-    private boolean retrying;
 
     private boolean holdRequest;
 
@@ -307,14 +306,6 @@ public class RaftStatusImpl extends RaftStatus {
 
     public void setRaftExecutor(RaftExecutor raftExecutor) {
         this.raftExecutor = raftExecutor;
-    }
-
-    public boolean isRetrying() {
-        return retrying;
-    }
-
-    public void setRetrying(boolean retrying) {
-        this.retrying = retrying;
     }
 
     public StatusFile getStatusFile() {

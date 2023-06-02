@@ -284,42 +284,52 @@ public class RaftServer extends AbstractLifeCircle {
 
     @Override
     protected void doStart() {
-        raftGroups.forEach((groupId, gc) -> {
-            gc.getRaftGroupThread().init(gc);
-            return true;
-        });
+        try {
+            raftGroups.forEach((groupId, gc) -> {
+                gc.getRaftGroupThread().init(gc);
+                return true;
+            });
 
-        raftServer.start();
-        raftClient.start();
-        raftClient.waitStart();
+            raftServer.start();
+            raftClient.start();
+            raftClient.waitStart();
 
-        nodeManager.start();
-        nodeManager.waitReady(RaftUtil.getElectQuorum(nodeManager.getAllNodesEx().size()));
-        log.info("nodeManager is ready");
+            nodeManager.start();
+            nodeManager.waitReady(RaftUtil.getElectQuorum(nodeManager.getAllNodesEx().size()));
+            log.info("nodeManager is ready");
 
-        raftGroups.forEach((groupId, gc) -> {
-            gc.getMemberManager().init(nodeManager.getAllNodesEx());
-            gc.getRaftGroupThread().start();
-            return true;
-        });
+            raftGroups.forEach((groupId, gc) -> {
+                gc.getMemberManager().init(nodeManager.getAllNodesEx());
+                gc.getRaftGroupThread().start();
+                return true;
+            });
 
-        raftGroups.forEach((groupId, gc) -> {
-            gc.getRaftGroupThread().waitReady();
-            log.info("raft group {} is ready", groupId);
-            return true;
-        });
+            raftGroups.forEach((groupId, gc) -> {
+                gc.getRaftGroupThread().waitReady();
+                log.info("raft group {} is ready", groupId);
+                return true;
+            });
+        } catch (RuntimeException | Error e) {
+            log.error("start raft server failed", e);
+            throw e;
+        }
     }
 
     @Override
     protected void doStop() {
-        raftGroups.forEach((groupId, gc) -> {
-            RaftGroupThread raftGroupThread = gc.getRaftGroupThread();
-            raftGroupThread.requestShutdown();
-            raftGroupThread.interrupt();
-            return true;
-        });
-        raftServer.stop();
-        raftClient.stop();
+        try {
+            raftGroups.forEach((groupId, gc) -> {
+                RaftGroupThread raftGroupThread = gc.getRaftGroupThread();
+                raftGroupThread.requestShutdown();
+                raftGroupThread.interrupt();
+                return true;
+            });
+            raftServer.stop();
+            raftClient.stop();
+        } catch (RuntimeException | Error e) {
+            log.error("stop raft server failed", e);
+            throw e;
+        }
     }
 
     private void checkStatus() {
@@ -329,19 +339,24 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     private void doChange(Runnable runnable) {
-        checkStatus();
-        if (change.compareAndSet(false, true)) {
-            try {
-                runnable.run();
-            } catch (RaftException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new RaftException(e);
-            } finally {
-                change.set(false);
+        try {
+            checkStatus();
+            if (change.compareAndSet(false, true)) {
+                try {
+                    runnable.run();
+                } catch (RaftException e) {
+                    throw e;
+                } catch (Exception e) {
+                    throw new RaftException(e);
+                } finally {
+                    change.set(false);
+                }
+            } else {
+                throw new RaftException("raft server in changing");
             }
-        } else {
-            throw new RaftException("raft server in changing");
+        } catch (RuntimeException | Error e) {
+            log.error("doChange failed", e);
+            throw e;
         }
     }
 

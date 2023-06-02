@@ -306,13 +306,8 @@ public class DefaultSnapshotManager implements SnapshotManager {
                     sf.getProperties().setProperty("saveStartTime", sdf.format(new Date(startTime)));
                     sf.getProperties().setProperty("saveEndTime", sdf.format(new Date()));
 
-                    if (!sf.update()) {
-                        log.error("snapshot status file write fail: {}", newIdxFile.getPath());
-                        future.completeExceptionally(new IOException("update status file fail"));
-                        return;
-                    } else {
-                        log.info("snapshot status file write success: {}", newIdxFile.getPath());
-                    }
+                    sf.update();
+                    log.info("snapshot status file write success: {}", newIdxFile.getPath());
                 }
 
                 future.complete(currentSnapshot.getLastIncludedIndex());

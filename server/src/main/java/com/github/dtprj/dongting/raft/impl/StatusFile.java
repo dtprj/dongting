@@ -100,7 +100,7 @@ public class StatusFile implements AutoCloseable {
         }
     }
 
-    public boolean update() {
+    public void update() {
         try {
             ByteArrayOutputStream bos = new ByteArrayOutputStream(128);
             properties.store(bos, null);
@@ -126,10 +126,8 @@ public class StatusFile implements AutoCloseable {
             }
             channel.force(false);
             log.info("saving status file success: {}", file.getPath());
-            return true;
         } catch (Exception e) {
-            log.error("update status file failed. file={}", file.getPath(), e);
-            return false;
+            throw new RaftException("update status file failed. file=" + file.getPath(), e);
         }
     }
 
