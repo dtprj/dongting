@@ -30,6 +30,7 @@ import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.impl.StatusUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 
@@ -43,12 +44,31 @@ public class AppendProcessor extends AbstractProcessor<AppendReqCallback> {
 
     public static final int CODE_LOG_NOT_MATCH = 1;
     public static final int CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT = 2;
-    public static final int CODE_CLIENT_REQ_ERROR = 3;
+    public static final int CODE_REQ_ERROR = 3;
     public static final int CODE_INSTALL_SNAPSHOT = 4;
     public static final int CODE_NOT_MEMBER_IN_GROUP = 5;
-    public static final int CODE_ERROR_STATE = 6;
+    public static final int CODE_SERVER_ERROR = 6;
 
     private final PbNoCopyDecoder<AppendReqCallback> decoder;
+
+    public static String getCodeStr(int code) {
+        switch (code) {
+            case CODE_LOG_NOT_MATCH:
+                return "CODE_LOG_NOT_MATCH";
+            case CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT:
+                return "CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT";
+            case CODE_REQ_ERROR:
+                return "CODE_REQ_ERROR";
+            case CODE_INSTALL_SNAPSHOT:
+                return "CODE_INSTALL_SNAPSHOT";
+            case CODE_NOT_MEMBER_IN_GROUP:
+                return "CODE_NOT_MEMBER_IN_GROUP";
+            case CODE_SERVER_ERROR:
+                return "CODE_SERVER_ERROR";
+            default:
+                return "CODE_UNKNOWN_" + code;
+        }
+    }
 
     public AppendProcessor(RaftGroups raftGroups) {
         super(raftGroups);
@@ -67,7 +87,8 @@ public class AppendProcessor extends AbstractProcessor<AppendReqCallback> {
         RaftStatusImpl raftStatus = gc.getRaftStatus();
         if (raftStatus.isError()) {
             resp.setSuccess(false);
-            resp.setAppendCode(CODE_ERROR_STATE);
+            resp.setAppendCode(CODE_SERVER_ERROR);
+            resp.setMsg("server in error state");
         } else if (gc.getMemberManager().checkLeader(req.getLeaderId())) {
             int remoteTerm = req.getTerm();
             int localTerm = raftStatus.getCurrentTerm();
@@ -89,6 +110,7 @@ public class AppendProcessor extends AbstractProcessor<AppendReqCallback> {
                 }
             } else if (remoteTerm > localTerm) {
                 RaftUtil.incrTerm(remoteTerm, raftStatus, req.getLeaderId());
+                StatusUtil.persist(raftStatus);// if failed, next append will retry
                 append(gc, raftStatus, req, resp);
             } else {
                 log.debug("receive append request with a smaller term, ignore, remoteTerm={}, localTerm={}, groupId={}",
@@ -136,7 +158,7 @@ public class AppendProcessor extends AbstractProcessor<AppendReqCallback> {
         if (logs == null || logs.size() == 0) {
             log.error("bad request: no logs");
             resp.setSuccess(false);
-            resp.setAppendCode(CODE_CLIENT_REQ_ERROR);
+            resp.setAppendCode(CODE_REQ_ERROR);
             return;
         }
 

@@ -280,7 +280,11 @@ public class VoteManager implements BiConsumer<EventType, Object> {
         raftStatus.setCurrentTerm(raftStatus.getCurrentTerm() + 1);
         raftStatus.setVotedFor(config.getNodeId());
         initStatusForVoting(voter.size());
-        StatusUtil.persist(raftStatus);
+
+        if (!StatusUtil.persist(raftStatus)) {
+            cancelVote();
+            return;
+        }
 
         log.info("start vote. groupId={}, newTerm={}, voteId={}", groupId, raftStatus.getCurrentTerm(), currentVoteId);
 
@@ -345,6 +349,9 @@ public class VoteManager implements BiConsumer<EventType, Object> {
             }
         } else {
             RaftUtil.incrTerm(remoteTerm, raftStatus, -1);
+            if (!StatusUtil.persist(raftStatus)) {
+                log.error("save status fail when incr term. groupId={}, term={}", groupId, remoteTerm);
+            }
         }
     }
 }

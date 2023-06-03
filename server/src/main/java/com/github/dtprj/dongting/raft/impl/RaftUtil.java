@@ -195,8 +195,6 @@ public class RaftUtil {
         }
         raftStatus.setCurrentTerm(remoteTerm);
         raftStatus.setVotedFor(0);
-        StatusUtil.persist(raftStatus);
-
     }
 
     public static void changeToFollower(RaftStatusImpl raftStatus, int leaderId) {

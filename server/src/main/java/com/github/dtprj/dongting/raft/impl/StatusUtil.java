@@ -43,7 +43,6 @@ public class StatusUtil {
         raftStatus.setCommitIndex(Integer.parseInt(p.getProperty(COMMIT_INDEX_KEY, "0")));
     }
 
-    // TODO process the return value
     public static boolean persist(RaftStatusImpl raftStatus) {
         try {
             if (raftStatus.isStop()) {

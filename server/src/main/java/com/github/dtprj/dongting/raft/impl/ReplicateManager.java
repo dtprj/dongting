@@ -333,6 +333,9 @@ public class ReplicateManager {
             log.info("find remote term greater than local term. remoteTerm={}, localTerm={}",
                     remoteTerm, raftStatus.getCurrentTerm());
             RaftUtil.incrTerm(remoteTerm, raftStatus, -1);
+            if (!StatusUtil.persist(raftStatus)) {
+                log.error("persist raft status failed. groupId={}, term={}", groupId, remoteTerm);
+            }
             return true;
         }
 
@@ -356,8 +359,7 @@ public class ReplicateManager {
         }
         if (body.isSuccess()) {
             if (member.getMatchIndex() <= prevLogIndex) {
-                member.setLastConfirmReqNanos(reqNanos);
-                RaftUtil.updateLease(raftStatus);
+                updateLease(member, reqNanos, raftStatus);
                 member.setMatchIndex(expectNewMatchIndex);
                 member.setMultiAppend(true);
                 commitManager.tryCommit(expectNewMatchIndex);
@@ -370,27 +372,35 @@ public class ReplicateManager {
                         member.getMatchIndex(), prevLogIndex, expectNewMatchIndex, member.getNode().getNodeId(),
                         groupId, raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
             }
-        } else if (body.getAppendCode() == AppendProcessor.CODE_LOG_NOT_MATCH) {
-            member.incrReplicateEpoch(reqEpoch);
-            processLogNotMatch(member, prevLogIndex, prevLogTerm, reqTerm, body, raftStatus);
-        } else if (body.getAppendCode() == AppendProcessor.CODE_INSTALL_SNAPSHOT) {
-            log.error("remote member is installing snapshot, prevLogIndex={}", prevLogIndex);
         } else {
-            BugLog.getLog().error("append fail. appendCode={}, old matchIndex={}, append prevLogIndex={}, " +
-                            "expectNewMatchIndex={}, remoteId={}, groupId={}, localTerm={}, reqTerm={}, remoteTerm={}",
-                    body.getAppendCode(), member.getMatchIndex(), prevLogIndex, expectNewMatchIndex,
-                    member.getNode().getNodeId(), groupId, raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
+            member.setMultiAppend(false);
+            member.incrReplicateEpoch(reqEpoch);
+            int appendCode = body.getAppendCode();
+            if (appendCode == AppendProcessor.CODE_LOG_NOT_MATCH) {
+                updateLease(member, reqNanos, raftStatus);
+                processLogNotMatch(member, prevLogIndex, prevLogTerm, body, raftStatus);
+            } else if (appendCode == AppendProcessor.CODE_SERVER_ERROR) {
+                updateLease(member, reqNanos, raftStatus);
+                log.error("append fail because of remote error. groupId={}, prevLogIndex={}, msg={}",
+                        groupId, prevLogIndex, rf.getMsg());
+            } else {
+                BugLog.getLog().error("append fail. appendCode={}, old matchIndex={}, append prevLogIndex={}, " +
+                                "expectNewMatchIndex={}, remoteId={}, groupId={}, localTerm={}, reqTerm={}, remoteTerm={}",
+                        AppendProcessor.getCodeStr(appendCode), member.getMatchIndex(), prevLogIndex, expectNewMatchIndex,
+                        member.getNode().getNodeId(), groupId, raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
+            }
         }
     }
 
-    private void processLogNotMatch(RaftMember member, long prevLogIndex, int prevLogTerm,
-                                    long reqNanos, AppendRespCallback body, RaftStatusImpl raftStatus) {
+    private void updateLease(RaftMember member, long reqNanos, RaftStatusImpl raftStatus) {
+        member.setLastConfirmReqNanos(reqNanos);
+        RaftUtil.updateLease(raftStatus);
+    }
+
+    private void processLogNotMatch(RaftMember member, long prevLogIndex, int prevLogTerm, AppendRespCallback body, RaftStatusImpl raftStatus) {
         log.info("log not match. remoteId={}, groupId={}, matchIndex={}, prevLogIndex={}, prevLogTerm={}, remoteLogTerm={}, remoteLogIndex={}, localTerm={}, remoteTerm={}",
                 member.getNode().getNodeId(), groupId, member.getMatchIndex(), prevLogIndex, prevLogTerm, body.getMaxLogTerm(),
                 body.getMaxLogIndex(), raftStatus.getCurrentTerm(), body.getTerm());
-        member.setLastConfirmReqNanos(reqNanos);
-        member.setMultiAppend(false);
-        RaftUtil.updateLease(raftStatus);
         if (body.getTerm() == raftStatus.getCurrentTerm()) {
             member.setNextIndex(body.getMaxLogIndex() + 1);
             replicate(member);

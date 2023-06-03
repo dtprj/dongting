@@ -81,14 +81,25 @@ public class VoteProcessor extends AbstractProcessor<VoteReq> {
     }
 
     private void processVote(RaftStatusImpl raftStatus, VoteReq voteReq, VoteResp resp, int localTerm) {
+        boolean needPersist = false;
         if (voteReq.getTerm() > localTerm) {
             RaftUtil.incrTerm(voteReq.getTerm(), raftStatus, -1);
+            needPersist = true;
         }
+
+        int oldVoteFor = raftStatus.getVotedFor();
 
         if (shouldGrant(raftStatus, voteReq, localTerm)) {
             raftStatus.setVotedFor(voteReq.getCandidateId());
             resp.setVoteGranted(true);
-            StatusUtil.persist(raftStatus);
+            needPersist = true;
+        }
+        if (needPersist) {
+            if (!StatusUtil.persist(raftStatus)) {
+                // rollback status
+                raftStatus.setVotedFor(oldVoteFor);
+                resp.setVoteGranted(false);
+            }
         }
     }
 
