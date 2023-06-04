@@ -89,25 +89,35 @@ public class RaftGroupThread extends Thread {
 
         try {
             StatusUtil.initStatusFileChannel(groupConfig.getDataDir(), groupConfig.getStatusFile(), raftStatus);
-            long stateMachineLatestIndex = recoverStateMachine();
-            log.info("load snapshot to stateMachineLatestIndex {}, groupId={}", stateMachineLatestIndex, groupConfig.getGroupId());
-            if (stateMachineLatestIndex > raftStatus.getCommitIndex()) {
-                raftStatus.setCommitIndex(stateMachineLatestIndex);
+            Pair<Integer, Long> snapshotResult = recoverStateMachine();
+            int snapshotTerm = snapshotResult == null ? 0 : snapshotResult.getLeft();
+            long snapshotIndex = snapshotResult == null ? 0 : snapshotResult.getRight();
+            log.info("load snapshot to term={}, index={}, groupId={}", snapshotTerm, snapshotIndex, groupConfig.getGroupId());
+            raftStatus.setLastApplied(snapshotIndex);
+            if (snapshotIndex > raftStatus.getCommitIndex()) {
+                raftStatus.setCommitIndex(snapshotIndex);
             }
             RaftUtil.checkCancel(cancelInit);
 
             Pair<Integer, Long> initResult = raftLog.init(cancelInit);
+            int initResultTerm = initResult.getLeft();
+            long initResultIndex = initResult.getRight();
+            if (initResultIndex < snapshotIndex || initResultIndex < raftStatus.getCommitIndex()) {
+                log.error("raft log last index invalid, {}, {}, {}", initResultIndex, snapshotIndex, raftStatus.getCommitIndex());
+                throw new RaftException("raft log last index invalid");
+            }
+            if (initResultTerm < snapshotTerm || initResultTerm < raftStatus.getCurrentTerm()) {
+                log.error("raft log last term invalid, {}, {}, {}", initResultTerm, snapshotTerm, raftStatus.getCurrentTerm());
+                throw new RaftException("raft log last term invalid");
+            }
             RaftUtil.checkCancel(cancelInit);
 
             log.info("init raft log, maxTerm={}, maxIndex={}, groupId={}",
                     initResult.getLeft(), initResult.getRight(), groupConfig.getGroupId());
-            raftStatus.setLastLogTerm(initResult.getLeft());
-            raftStatus.setLastLogIndex(initResult.getRight());
-            if (raftStatus.getLastLogIndex() < stateMachineLatestIndex) {
-                log.error("raft log stateMachineLatestIndex {} is less than snapshot index {}", raftStatus.getLastLogIndex(), stateMachineLatestIndex);
-                throw new RaftException("raft log stateMachineLatestIndex is less than snapshot index");
-            }
-            raftStatus.setLastApplied(stateMachineLatestIndex);
+            raftStatus.setLastLogTerm(initResultTerm);
+            raftStatus.setLastLogIndex(initResultIndex);
+
+            gc.getApplyManager().apply(raftStatus);
         } catch (RuntimeException e) {
             clean();
             throw e;
@@ -117,13 +127,13 @@ public class RaftGroupThread extends Thread {
         }
     }
 
-    private long recoverStateMachine() throws Exception {
+    private Pair<Integer, Long> recoverStateMachine() throws Exception {
         if (snapshotManager == null) {
-            return 0;
+            return null;
         }
         try (Snapshot snapshot = snapshotManager.init(cancelInit)) {
             if (snapshot == null) {
-                return 0;
+                return null;
             }
             boolean start = true;
             while (true) {
@@ -143,7 +153,7 @@ public class RaftGroupThread extends Thread {
                     }
                 }
             }
-            return snapshot.getLastIncludedIndex();
+            return new Pair<>(snapshot.getLastIncludedTerm(), snapshot.getLastIncludedIndex());
         }
     }
 
