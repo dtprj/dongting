@@ -172,7 +172,7 @@ public class Raft implements BiConsumer<EventType, Object> {
     @SuppressWarnings({"rawtypes", "unchecked"})
     public void sendHeartBeat() {
         DtTime deadline = new DtTime(ts, raftStatus.getElectTimeoutNanos(), TimeUnit.NANOSECONDS);
-        RaftInput input = new RaftInput(null, null, deadline, 0);
+        RaftInput input = new RaftInput(0, null, null, deadline, 0);
         RaftTask rt = new RaftTask(ts, LogItem.TYPE_HEARTBEAT, input, null);
         raftExec(Collections.singletonList(rt));
     }

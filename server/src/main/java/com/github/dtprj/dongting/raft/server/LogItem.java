@@ -28,6 +28,7 @@ public class LogItem {
     public static final int TYPE_COMMIT_CONFIG_CHANGE = 4;
 
     private int type;
+    private int bizType;
     private int term;
     private long index;
     private int prevLogTerm;
@@ -53,6 +54,14 @@ public class LogItem {
 
     public void setType(int type) {
         this.type = type;
+    }
+
+    public int getBizType() {
+        return bizType;
+    }
+
+    public void setBizType(int bizType) {
+        this.bizType = bizType;
     }
 
     public int getTerm() {

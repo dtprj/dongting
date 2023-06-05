@@ -30,12 +30,13 @@ class LogHeader {
     // biz header len 4 bytes
     // body len 4 bytes
     // type 1 byte
+    // bizType 1 byte
     // term 4 bytes
     // prevLogTerm 4 bytes
     // index 8 bytes
     // timestamp 8 bytes
     // header crc
-    static final int ITEM_HEADER_SIZE = 4 + 4 + 4 + 4 + 1 + 4 + 4 + 8 + 8 + 4;
+    static final int ITEM_HEADER_SIZE = 4 + 4 + 4 + 4 + 1 + 1 + 4 + 4 + 8 + 8 + 4;
 
     // negative value means end of file
     private static final int END_LEN_MAGIC = 0xF19A7BCB;
@@ -47,6 +48,7 @@ class LogHeader {
     int bizHeaderLen;
     int bodyLen;
     int type;
+    int bizType;
     int term;
     int prevLogTerm;
     long index;
@@ -69,6 +71,7 @@ class LogHeader {
         bizHeaderLen = buf.getInt();
         bodyLen = buf.getInt();
         type = buf.get();
+        bizType = buf.get();
         term = buf.getInt();
         prevLogTerm = buf.getInt();
         index = buf.getLong();
@@ -100,6 +103,7 @@ class LogHeader {
         buffer.putInt(bizHeaderLen);
         buffer.putInt(bodyLen);
         buffer.put((byte) log.getType());
+        buffer.put((byte) log.getBizType());
         buffer.putInt(log.getTerm());
         buffer.putInt(log.getPrevLogTerm());
         buffer.putLong(log.getIndex());
@@ -115,6 +119,7 @@ class LogHeader {
         buffer.putInt(0);
         buffer.putInt(0);
         buffer.putInt(0);
+        buffer.put((byte) 0);
         buffer.put((byte) 0);
         buffer.putInt(0);
         buffer.putInt(0);

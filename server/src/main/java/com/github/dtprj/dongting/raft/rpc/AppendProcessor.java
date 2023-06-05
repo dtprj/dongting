@@ -167,7 +167,7 @@ public class AppendProcessor extends AbstractProcessor<AppendReqCallback> {
         for (int i = 0; i < logs.size(); i++) {
             LogItem li = logs.get(i);
             @SuppressWarnings({"rawtypes", "unchecked"})
-            RaftInput raftInput = new RaftInput(li.getHeader(), li.getBody(), null, li.getActualBodySize());
+            RaftInput raftInput = new RaftInput(li.getBizType(), li.getHeader(), li.getBody(), null, li.getActualBodySize());
             RaftTask task = new RaftTask(raftStatus.getTs(), li.getType(), raftInput, null);
             raftStatus.getPendingRequests().put(li.getIndex(), task);
         }
