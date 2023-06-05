@@ -76,6 +76,7 @@ public class AppendReqWriteFrame extends WriteFrame {
     private int encodeLogIndex;
     private int markedPosition;
 
+    private LogItem currentItem;
 
     public AppendReqWriteFrame(EncodeContext context, StateMachine stateMachine) {
         this.context = context;
@@ -119,7 +120,6 @@ public class AppendReqWriteFrame extends WriteFrame {
 
     @Override
     protected boolean encodeBody(EncodeContext context, ByteBuffer buf) {
-        LogItem item = null;
         while (true) {
             switch (writeStatus) {
                 case WRITE_HEADER:
@@ -135,60 +135,53 @@ public class AppendReqWriteFrame extends WriteFrame {
                     writeStatus = WRITE_ITEM_HEADER;
                     break;
                 case WRITE_ITEM_HEADER:
-                    //noinspection ConstantValue
-                    if (item == null) {
-                        if (encodeLogIndex < logs.size()) {
-                            item = logs.get(encodeLogIndex);
-                        } else {
-                            return true;
-                        }
+                    if (encodeLogIndex < logs.size()) {
+                        currentItem = logs.get(encodeLogIndex);
+                    } else {
+                        return true;
                     }
-                    int require = PbUtil.accurateLengthDelimitedSize(7, computeItemSize(item))
-                            + item.getItemHeaderSize();
+                    int require = PbUtil.accurateLengthDelimitedSize(7, computeItemSize(currentItem))
+                            + currentItem.getItemHeaderSize();
                     if (buf.remaining() < require) {
                         return false;
                     }
-                    PbUtil.writeLengthDelimitedPrefix(buf, 7, computeItemSize(item));
+                    PbUtil.writeLengthDelimitedPrefix(buf, 7, computeItemSize(currentItem));
 
-                    PbUtil.writeUnsignedInt32(buf, 1, item.getType());
-                    PbUtil.writeUnsignedInt32(buf, 2, item.getBizType());
-                    PbUtil.writeUnsignedInt32(buf, 3, item.getTerm());
-                    PbUtil.writeFix64(buf, 4, item.getIndex());
-                    PbUtil.writeUnsignedInt32(buf, 5, item.getPrevLogTerm());
-                    PbUtil.writeFix64(buf, 6, item.getTimestamp());
+                    PbUtil.writeUnsignedInt32(buf, 1, currentItem.getType());
+                    PbUtil.writeUnsignedInt32(buf, 2, currentItem.getBizType());
+                    PbUtil.writeUnsignedInt32(buf, 3, currentItem.getTerm());
+                    PbUtil.writeFix64(buf, 4, currentItem.getIndex());
+                    PbUtil.writeUnsignedInt32(buf, 5, currentItem.getPrevLogTerm());
+                    PbUtil.writeFix64(buf, 6, currentItem.getTimestamp());
                     writeStatus = WRITE_ITEM_BIZ_HEADER_LEN;
                     break;
                 case WRITE_ITEM_BIZ_HEADER_LEN:
-                    assert item != null;
-                    if (buf.remaining() < item.getActualHeaderSize()) {
+                    if (buf.remaining() < currentItem.getActualHeaderSize()) {
                         return false;
                     }
-                    PbUtil.writeLengthDelimitedPrefix(buf, 7, item.getActualHeaderSize());
+                    PbUtil.writeLengthDelimitedPrefix(buf, 7, currentItem.getActualHeaderSize());
                     markedPosition = -1;
                     writeStatus = WRITE_ITEM_BIZ_HEADER;
                     break;
                 case WRITE_ITEM_BIZ_HEADER:
-                    assert item != null;
-                    if (!writeData(buf, item.getHeaderBuffer(), item.getHeader(), item.getBizType(), true)) {
+                    if (!writeData(buf, currentItem.getHeaderBuffer(), currentItem.getHeader(), currentItem.getBizType(), true)) {
                         return false;
                     }
                     writeStatus = WRITE_ITEM_BIZ_BODY_LEN;
                     break;
                 case WRITE_ITEM_BIZ_BODY_LEN:
-                    assert item != null;
-                    if (buf.remaining() < item.getActualBodySize()) {
+                    if (buf.remaining() < currentItem.getActualBodySize()) {
                         return false;
                     }
-                    PbUtil.writeLengthDelimitedPrefix(buf, 8, item.getActualBodySize());
+                    PbUtil.writeLengthDelimitedPrefix(buf, 8, currentItem.getActualBodySize());
                     markedPosition = -1;
                     writeStatus = WRITE_ITEM_BIZ_BODY;
                     break;
                 case WRITE_ITEM_BIZ_BODY:
-                    assert item != null;
-                    if (!writeData(buf, item.getBodyBuffer(), item.getBody(), item.getBizType(), false)) {
+                    if (!writeData(buf, currentItem.getBodyBuffer(), currentItem.getBody(), currentItem.getBizType(), false)) {
                         return false;
                     }
-                    item = null;
+                    currentItem = null;
                     encodeLogIndex++;
                     writeStatus = WRITE_ITEM_HEADER;
                     break;
