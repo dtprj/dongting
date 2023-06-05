@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.EncodeContext;
-import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -58,7 +57,6 @@ public class ReplicateManager {
     private final RaftStatusImpl raftStatus;
     private final RaftServerConfig config;
     private final RaftLog raftLog;
-    @SuppressWarnings("rawtypes")
     private final StateMachine stateMachine;
     private final NioClient client;
     private final RaftExecutor raftExecutor;
@@ -75,7 +73,6 @@ public class ReplicateManager {
     private static final PbNoCopyDecoder<AppendRespCallback> APPEND_RESP_DECODER = new PbNoCopyDecoder<>(c -> new AppendRespCallback());
     private static final PbNoCopyDecoder<InstallSnapshotResp> INSTALL_SNAPSHOT_RESP_DECODER = new PbNoCopyDecoder<>(c -> new InstallSnapshotResp.Callback());
 
-    @SuppressWarnings("rawtypes")
     public ReplicateManager(RaftServerConfig config, RaftGroupConfigEx groupConfig, RaftStatusImpl raftStatus, RaftLog raftLog,
                             StateMachine stateMachine, NioClient client, RaftExecutor executor,
                             CommitManager commitManager) {
@@ -259,19 +256,8 @@ public class ReplicateManager {
         sendAppendRequest(member, firstItem.getIndex() - 1, firstItem.getPrevLogTerm(), items, bytes);
     }
 
-    @SuppressWarnings("rawtypes")
     private void sendAppendRequest(RaftMember member, long prevLogIndex, int prevLogTerm, List<LogItem> logs, long bytes) {
-        Encoder headerEncoder = member.getHeaderEncoder();
-        if (headerEncoder == null) {
-            headerEncoder = (Encoder) stateMachine.getHeaderEncoder().get();
-            member.setHeaderEncoder(headerEncoder);
-        }
-        Encoder bodyEncoder = member.getBodyEncoder();
-        if (bodyEncoder == null) {
-            bodyEncoder = (Encoder) stateMachine.getBodyEncoder().get();
-            member.setBodyEncoder(bodyEncoder);
-        }
-        AppendReqWriteFrame req = new AppendReqWriteFrame(encodeContext, headerEncoder, bodyEncoder);
+        AppendReqWriteFrame req = new AppendReqWriteFrame(encodeContext, stateMachine);
         req.setCommand(Commands.RAFT_APPEND_ENTRIES);
         req.setGroupId(groupId);
         req.setTerm(raftStatus.getCurrentTerm());

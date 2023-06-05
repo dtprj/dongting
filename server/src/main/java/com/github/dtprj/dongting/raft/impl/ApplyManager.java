@@ -150,8 +150,7 @@ public class ApplyManager {
                 try {
                     if (item.getType() == LogItem.TYPE_NORMAL) {
                         ByteBuffer buf = headerRbb.getBuffer();
-                        @SuppressWarnings("rawtypes")
-                        Decoder decoder = stateMachine.getHeaderDecoder().get();
+                        Decoder<Object> decoder = stateMachine.createDecoder(item.getBizType(), true);
                         Object o = decoder.decode(decodeContext, buf, buf.remaining(), true, true);
                         item.setHeader(o);
                     } else {
@@ -167,8 +166,7 @@ public class ApplyManager {
                 try {
                     if (item.getType() == LogItem.TYPE_NORMAL) {
                         ByteBuffer buf = bodyRbb.getBuffer();
-                        @SuppressWarnings("rawtypes")
-                        Decoder decoder = stateMachine.getBodyDecoder().get();
+                        Decoder<Object> decoder = stateMachine.createDecoder(item.getBizType(), false);
                         Object o = decoder.decode(decodeContext, buf, buf.remaining(), true, true);
                         item.setBody(o);
                     } else {

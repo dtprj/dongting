@@ -15,20 +15,14 @@
  */
 package com.github.dtprj.dongting.raft.sm;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.raft.server.RaftInput;
-
-import java.util.concurrent.CompletableFuture;
+import com.github.dtprj.dongting.codec.Decoder;
+import com.github.dtprj.dongting.codec.Encoder;
 
 /**
  * @author huangli
  */
-public interface StateMachine extends AutoCloseable, RaftCodecFactory {
+public interface RaftCodecFactory {
+    Decoder<Object> createDecoder(int bizType, boolean header);
 
-    CompletableFuture<Object> exec(long index, RaftInput input);
-
-    void installSnapshot(long lastIncludeIndex, int lastIncludeTerm, long offset, boolean done, RefBuffer data);
-
-    Snapshot takeSnapshot();
-
+    Encoder<Object> createEncoder(int bizType, boolean header);
 }

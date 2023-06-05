@@ -256,6 +256,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         this.item = li;
         li.setIndex(header.index);
         li.setType(header.type);
+        li.setBizType(header.bizType);
         li.setTerm(header.term);
         li.setPrevLogTerm(header.prevLogTerm);
         li.setTimestamp(header.timestamp);

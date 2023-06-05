@@ -52,12 +52,13 @@ message AppendEntriesReq {
 
 message LogItem {
   uint32 type = 1;
-  uint32 term = 2;
-  fixed64 index = 3;
-  uint32 prev_log_term = 4;
-  fixed64 timestamp = 5;
-  bytes header = 6;
-  bytes body = 7;
+  uint32 bizType = 2;
+  uint32 term = 3;
+  fixed64 index = 4;
+  uint32 prev_log_term = 5;
+  fixed64 timestamp = 6;
+  bytes header = 7;
+  bytes body = 8;
 }
 
 message AppendEntriesResp {

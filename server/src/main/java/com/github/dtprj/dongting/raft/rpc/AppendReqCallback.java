@@ -23,7 +23,7 @@ import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.sm.StateMachine;
+import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -90,7 +90,6 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
     }
 
     @Override
-    @SuppressWarnings("rawtypes")
     public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
         if (index == 7) {
             RaftGroupImpl group = raftGroups.get(groupId);
@@ -101,10 +100,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
             PbParser logItemParser;
             DecodeContext nestedContext = context.createOrGetNestedContext(begin);
             if (begin) {
-                StateMachine sm = group.getStateMachine();
-                Decoder headerDecoder = sm.getHeaderDecoder().get();
-                Decoder bodyDecoder = sm.getBodyDecoder().get();
-                LogItemCallback c = new LogItemCallback(nestedContext, headerDecoder, bodyDecoder);
+                LogItemCallback c = new LogItemCallback(nestedContext, group.getStateMachine());
                 logItemParser = nestedContext.createOrResetPbParser(c, len);
             } else {
                 logItemParser = nestedContext.getPbParser();
@@ -155,24 +151,22 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
 
     //message LogItem {
     //  uint32 type = 1;
-    //  uint32 term = 2;
-    //  fixed64 index = 3;
-    //  uint32 prev_log_term = 4;
-    //  fixed64 timestamp = 5;
-    //  bytes header = 6;
-    //  bytes body = 7;
+    //  uint32 bizType = 2;
+    //  uint32 term = 3;
+    //  fixed64 index = 4;
+    //  uint32 prev_log_term = 5;
+    //  fixed64 timestamp = 6;
+    //  bytes header = 7;
+    //  bytes body = 8;
     //}
-    @SuppressWarnings("rawtypes")
     static class LogItemCallback extends PbCallback<Object> {
         private final LogItem item = new LogItem();
-        private final Decoder headerDecoder;
-        private final Decoder bodyDecoder;
         private final DecodeContext context;
+        private final RaftCodecFactory codecFactory;
 
-        public LogItemCallback(DecodeContext context, Decoder headerDecoder, Decoder bodyDecoder) {
+        public LogItemCallback(DecodeContext context, RaftCodecFactory codecFactory) {
             this.context = context;
-            this.headerDecoder = headerDecoder;
-            this.bodyDecoder = bodyDecoder;
+            this.codecFactory = codecFactory;
         }
 
         @Override
@@ -182,9 +176,12 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                     item.setType((int) value);
                     break;
                 case 2:
+                    item.setBizType((int) value);
+                    break;
+                case 3:
                     item.setTerm((int) value);
                     break;
-                case 4:
+                case 5:
                     item.setPrevLogTerm((int) value);
                     break;
             }
@@ -194,10 +191,10 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
         @Override
         public boolean readFix64(int index, long value) {
             switch (index) {
-                case 3:
+                case 4:
                     item.setIndex(value);
                     break;
-                case 5:
+                case 6:
                     item.setTimestamp(value);
                     break;
             }
@@ -206,12 +203,13 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
 
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
-            if (index == 6) {
+            if (index == 7) {
                 if (begin) {
                     item.setActualHeaderSize(len);
                 }
                 Object result;
                 if (item.getType() == LogItem.TYPE_NORMAL) {
+                    Decoder<Object> headerDecoder = codecFactory.createDecoder(item.getBizType(), true);
                     result = headerDecoder.decode(context, buf, len, begin, end);
                 } else {
                     result = Decoder.decodeToByteBuffer(buf, len, begin, end, (ByteBuffer) item.getBody());
@@ -220,12 +218,13 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                     item.setActualHeaderSize(len);
                     item.setHeader(result);
                 }
-            } else if (index == 7) {
+            } else if (index == 8) {
                 if (begin) {
                     item.setActualBodySize(len);
                 }
                 Object result;
                 if (item.getType() == LogItem.TYPE_NORMAL) {
+                    Decoder<Object> bodyDecoder = codecFactory.createDecoder(item.getBizType(), false);
                     result = bodyDecoder.decode(context, buf, len, begin, end);
                 } else {
                     result = Decoder.decodeToByteBuffer(buf, len, begin, end, (ByteBuffer) item.getBody());

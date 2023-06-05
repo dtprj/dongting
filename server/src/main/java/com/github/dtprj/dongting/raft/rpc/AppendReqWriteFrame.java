@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.net.ByteBufferWriteFrame;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -41,19 +42,20 @@ import java.util.List;
 //
 //message LogItem {
 //  uint32 type = 1;
-//  uint32 term = 2;
-//  fixed64 index = 3;
-//  uint32 prev_log_term = 4;
-//  fixed64 timestamp = 5;
-//  bytes header = 6;
-//  bytes body = 7;
+//  uint32 bizType = 2;
+//  uint32 term = 3;
+//  fixed64 index = 4;
+//  uint32 prev_log_term = 5;
+//  fixed64 timestamp = 6;
+//  bytes header = 7;
+//  bytes body = 8;
 //}
-@SuppressWarnings("rawtypes")
 public class AppendReqWriteFrame extends WriteFrame {
 
     private final EncodeContext context;
-    private final Encoder headerEncoder;
-    private final Encoder bodyEncoder;
+    private final StateMachine stateMachine;
+    private Encoder<Object> currentEncoder;
+
     private int groupId;
     private int term;
     private int leaderId;
@@ -75,10 +77,9 @@ public class AppendReqWriteFrame extends WriteFrame {
     private int markedPosition;
 
 
-    public AppendReqWriteFrame(EncodeContext context, Encoder headerEncoder, Encoder bodyEncoder) {
+    public AppendReqWriteFrame(EncodeContext context, StateMachine stateMachine) {
         this.context = context;
-        this.headerEncoder = headerEncoder;
-        this.bodyEncoder = bodyEncoder;
+        this.stateMachine = stateMachine;
     }
 
     @Override
@@ -103,14 +104,15 @@ public class AppendReqWriteFrame extends WriteFrame {
             return itemSize;
         }
         int itemHeaderSize = PbUtil.accurateUnsignedIntSize(1, item.getType())
-                + PbUtil.accurateUnsignedIntSize(2, item.getTerm())
-                + PbUtil.accurateFix64Size(3, item.getIndex())
-                + PbUtil.accurateUnsignedIntSize(4, item.getPrevLogTerm())
-                + PbUtil.accurateFix64Size(5, item.getTimestamp());
+                + PbUtil.accurateUnsignedIntSize(2, item.getBizType())
+                + PbUtil.accurateUnsignedIntSize(3, item.getTerm())
+                + PbUtil.accurateFix64Size(4, item.getIndex())
+                + PbUtil.accurateUnsignedIntSize(5, item.getPrevLogTerm())
+                + PbUtil.accurateFix64Size(6, item.getTimestamp());
         item.setItemHeaderSize(itemHeaderSize);
         itemSize = itemHeaderSize
-                + PbUtil.accurateLengthDelimitedSize(6, item.getActualHeaderSize())
-                + PbUtil.accurateLengthDelimitedSize(7, item.getActualBodySize());
+                + PbUtil.accurateLengthDelimitedSize(7, item.getActualHeaderSize())
+                + PbUtil.accurateLengthDelimitedSize(8, item.getActualBodySize());
         item.setItemSize(itemSize);
         return itemSize;
     }
@@ -149,10 +151,11 @@ public class AppendReqWriteFrame extends WriteFrame {
                     PbUtil.writeLengthDelimitedPrefix(buf, 7, computeItemSize(item));
 
                     PbUtil.writeUnsignedInt32(buf, 1, item.getType());
-                    PbUtil.writeUnsignedInt32(buf, 2, item.getTerm());
-                    PbUtil.writeFix64(buf, 3, item.getIndex());
-                    PbUtil.writeUnsignedInt32(buf, 4, item.getPrevLogTerm());
-                    PbUtil.writeFix64(buf, 5, item.getTimestamp());
+                    PbUtil.writeUnsignedInt32(buf, 2, item.getBizType());
+                    PbUtil.writeUnsignedInt32(buf, 3, item.getTerm());
+                    PbUtil.writeFix64(buf, 4, item.getIndex());
+                    PbUtil.writeUnsignedInt32(buf, 5, item.getPrevLogTerm());
+                    PbUtil.writeFix64(buf, 6, item.getTimestamp());
                     writeStatus = WRITE_ITEM_BIZ_HEADER_LEN;
                     break;
                 case WRITE_ITEM_BIZ_HEADER_LEN:
@@ -160,13 +163,13 @@ public class AppendReqWriteFrame extends WriteFrame {
                     if (buf.remaining() < item.getActualHeaderSize()) {
                         return false;
                     }
-                    PbUtil.writeLengthDelimitedPrefix(buf, 6, item.getActualHeaderSize());
+                    PbUtil.writeLengthDelimitedPrefix(buf, 7, item.getActualHeaderSize());
                     markedPosition = -1;
                     writeStatus = WRITE_ITEM_BIZ_HEADER;
                     break;
                 case WRITE_ITEM_BIZ_HEADER:
                     assert item != null;
-                    if (!writeData(buf, item.getHeaderBuffer(), item.getHeader(), headerEncoder)) {
+                    if (!writeData(buf, item.getHeaderBuffer(), item.getHeader(), item.getBizType(), true)) {
                         return false;
                     }
                     writeStatus = WRITE_ITEM_BIZ_BODY_LEN;
@@ -176,13 +179,13 @@ public class AppendReqWriteFrame extends WriteFrame {
                     if (buf.remaining() < item.getActualBodySize()) {
                         return false;
                     }
-                    PbUtil.writeLengthDelimitedPrefix(buf, 7, item.getActualBodySize());
+                    PbUtil.writeLengthDelimitedPrefix(buf, 8, item.getActualBodySize());
                     markedPosition = -1;
                     writeStatus = WRITE_ITEM_BIZ_BODY;
                     break;
                 case WRITE_ITEM_BIZ_BODY:
                     assert item != null;
-                    if (!writeData(buf, item.getBodyBuffer(), item.getBody(), bodyEncoder)) {
+                    if (!writeData(buf, item.getBodyBuffer(), item.getBody(), item.getBizType(), false)) {
                         return false;
                     }
                     item = null;
@@ -195,8 +198,8 @@ public class AppendReqWriteFrame extends WriteFrame {
         }
     }
 
-    @SuppressWarnings({"BooleanMethodIsAlwaysInverted", "unchecked"})
-    private boolean writeData(ByteBuffer dest, RefBuffer buffer, Object data, Encoder encoder) {
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
+    private boolean writeData(ByteBuffer dest, RefBuffer buffer, Object data, int bizType, boolean header) {
         if (!dest.hasRemaining()) {
             return false;
         }
@@ -211,8 +214,12 @@ public class AppendReqWriteFrame extends WriteFrame {
                 return false;
             }
         } else if (data != null) {
-            return encoder.encode(context, dest, data);
+            if(currentEncoder==null){
+                currentEncoder = stateMachine.createEncoder(bizType, header);
+            }
+            return currentEncoder.encode(context, dest, data);
         } else {
+            currentEncoder = null;
             return true;
         }
     }

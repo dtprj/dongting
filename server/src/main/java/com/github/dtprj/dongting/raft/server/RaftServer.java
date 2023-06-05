@@ -191,8 +191,7 @@ public class RaftServer extends AbstractLifeCircle {
 
 
         StateMachine stateMachine = raftFactory.createStateMachine(rgcEx);
-        rgcEx.setHeaderEncoder(stateMachine.getHeaderEncoder());
-        rgcEx.setBodyEncoder(stateMachine.getBodyEncoder());
+        rgcEx.setCodecFactory(stateMachine);
         RaftLog raftLog = raftFactory.createRaftLog(rgcEx);
 
         MemberManager memberManager = new MemberManager(serverConfig, raftClient, raftExecutor,

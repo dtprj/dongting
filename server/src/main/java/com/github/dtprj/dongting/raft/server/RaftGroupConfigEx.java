@@ -18,8 +18,8 @@ package com.github.dtprj.dongting.raft.server;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.codec.EncodeContext;
-import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
@@ -35,8 +35,7 @@ public class RaftGroupConfigEx extends RaftGroupConfig {
     private Executor raftExecutor;
     private Supplier<Boolean> stopIndicator;
     private RaftStatus raftStatus;
-    private Supplier<Encoder<Object>> headerEncoder;
-    private Supplier<Encoder<Object>> bodyEncoder;
+    private RaftCodecFactory codecFactory;
     private EncodeContext encodeContext;
 
     public RaftGroupConfigEx(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
@@ -91,20 +90,12 @@ public class RaftGroupConfigEx extends RaftGroupConfig {
         this.raftStatus = raftStatus;
     }
 
-    public Supplier<Encoder<Object>> getHeaderEncoder() {
-        return headerEncoder;
+    public RaftCodecFactory getCodecFactory() {
+        return codecFactory;
     }
 
-    public void setHeaderEncoder(Supplier<Encoder<Object>> headerEncoder) {
-        this.headerEncoder = headerEncoder;
-    }
-
-    public Supplier<Encoder<Object>> getBodyEncoder() {
-        return bodyEncoder;
-    }
-
-    public void setBodyEncoder(Supplier<Encoder<Object>> bodyEncoder) {
-        this.bodyEncoder = bodyEncoder;
+    public void setCodecFactory(RaftCodecFactory codecFactory) {
+        this.codecFactory = codecFactory;
     }
 
     public EncodeContext getEncodeContext() {

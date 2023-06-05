@@ -28,6 +28,7 @@ import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -56,12 +57,8 @@ class LogFileQueue extends FileQueue implements FileOps {
     private final CRC32C crc32c = new CRC32C();
 
     private final EncodeContext encodeContext;
-    @SuppressWarnings("rawtypes")
-    private final Encoder headerEncoder;
-    @SuppressWarnings("rawtypes")
-    private final Encoder bodyEncoder;
-    @SuppressWarnings("rawtypes")
-    private final Encoder byteBufferEncoder = new ByteBufferEncoder();
+    private final RaftCodecFactory codecFactory;
+    private final ByteBufferEncoder byteBufferEncoder = new ByteBufferEncoder();
 
     private long writePos;
 
@@ -69,8 +66,7 @@ class LogFileQueue extends FileQueue implements FileOps {
         super(dir, ioExecutor, groupConfig);
         this.idxOps = idxOps;
         this.encodeContext = groupConfig.getEncodeContext();
-        this.headerEncoder = groupConfig.getHeaderEncoder().get();
-        this.bodyEncoder = groupConfig.getBodyEncoder().get();
+        this.codecFactory = groupConfig.getCodecFactory();
     }
 
     @Override
@@ -190,7 +186,7 @@ class LogFileQueue extends FileQueue implements FileOps {
                 return pos;
             }
             if (log.getType() == LogItem.TYPE_NORMAL) {
-                encoder = bodyEncoder;
+                encoder = codecFactory.createEncoder(log.getBizType(), false);
             } else {
                 encoder = byteBufferEncoder;
             }
@@ -201,7 +197,7 @@ class LogFileQueue extends FileQueue implements FileOps {
                 return pos;
             }
             if (log.getType() == LogItem.TYPE_NORMAL) {
-                encoder = headerEncoder;
+                encoder = codecFactory.createEncoder(log.getBizType(), true);
             } else {
                 encoder = byteBufferEncoder;
             }
@@ -215,8 +211,7 @@ class LogFileQueue extends FileQueue implements FileOps {
         }
         while (true) {
             int lastPos = writeBuffer.position();
-            @SuppressWarnings("unchecked")
-            boolean encodeFinish = encoder.encode(encodeContext, writeBuffer, data);
+            @SuppressWarnings("unchecked") boolean encodeFinish = encoder.encode(encodeContext, writeBuffer, data);
             if (writeBuffer.position() > lastPos) {
                 RaftUtil.updateCrc(crc32c, writeBuffer, lastPos, writeBuffer.position() - lastPos);
             }

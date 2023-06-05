@@ -40,7 +40,6 @@ import java.util.function.BiConsumer;
 public class Raft implements BiConsumer<EventType, Object> {
 
     private final ReplicateManager replicateManager;
-    @SuppressWarnings("rawtypes")
     private final StateMachine stateMachine;
     private final ApplyManager applyManager;
     private final CommitManager commitManager;
@@ -52,7 +51,6 @@ public class Raft implements BiConsumer<EventType, Object> {
 
     private final EncodeContext encodeContext;
 
-    @SuppressWarnings("rawtypes")
     public Raft(RaftStatusImpl raftStatus, RaftLog raftLog, ApplyManager applyManager, CommitManager commitManager,
                 ReplicateManager replicateManager, StateMachine stateMachine, RaftGroupConfigEx groupConfig) {
         this.raftStatus = raftStatus;
@@ -75,7 +73,7 @@ public class Raft implements BiConsumer<EventType, Object> {
         }
     }
 
-    @SuppressWarnings({"ForLoopReplaceableByForEach", "rawtypes", "unchecked"})
+    @SuppressWarnings("ForLoopReplaceableByForEach")
     public void raftExec(List<RaftTask> inputs) {
         RaftStatusImpl raftStatus = this.raftStatus;
         if (raftStatus.getRole() != RaftRole.leader) {
@@ -107,6 +105,7 @@ public class Raft implements BiConsumer<EventType, Object> {
                 newIndex++;
                 LogItem item = new LogItem();
                 item.setType(rt.type);
+                item.setBizType(input.getBizType());
                 item.setTerm(currentTerm);
                 item.setIndex(newIndex);
                 item.setPrevLogTerm(oldTerm);
@@ -115,14 +114,15 @@ public class Raft implements BiConsumer<EventType, Object> {
                 Object header = input.getHeader();
                 item.setHeader(header);
                 if (header != null) {
-                    Encoder encoder = (Encoder) stateMachine.getHeaderDecoder().get();
+                    // TODO create encoder for each item
+                    Encoder<Object> encoder = stateMachine.createEncoder(item.getBizType(), true);
                     item.setActualHeaderSize(encoder.actualSize(encodeContext, header));
                 }
 
                 Object body = input.getBody();
                 item.setBody(body);
                 if (body != null) {
-                    Encoder encoder = (Encoder) stateMachine.getBodyDecoder().get();
+                    Encoder<Object> encoder = stateMachine.createEncoder(item.getBizType(), false);
                     item.setActualBodySize(encoder.actualSize(encodeContext, body));
                 }
 
@@ -169,7 +169,6 @@ public class Raft implements BiConsumer<EventType, Object> {
         replicateManager.replicateAfterRaftExec(raftStatus);
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
     public void sendHeartBeat() {
         DtTime deadline = new DtTime(ts, raftStatus.getElectTimeoutNanos(), TimeUnit.NANOSECONDS);
         RaftInput input = new RaftInput(0, null, null, deadline, 0);
