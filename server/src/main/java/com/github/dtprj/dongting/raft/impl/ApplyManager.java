@@ -50,7 +50,7 @@ public class ApplyManager {
 
     private final int selfNodeId;
     private final RaftLog raftLog;
-    private final StateMachine<?, ?, ?> stateMachine;
+    private final StateMachine stateMachine;
     private final Timestamp ts;
     private final EventBus eventBus;
     private final RaftStatusImpl raftStatus;
@@ -64,7 +64,7 @@ public class ApplyManager {
 
     private RaftLog.LogIterator logIterator;
 
-    public ApplyManager(int selfNodeId, RaftLog raftLog, StateMachine<?, ?, ?> stateMachine,
+    public ApplyManager(int selfNodeId, RaftLog raftLog, StateMachine stateMachine,
                         RaftStatusImpl raftStatus, EventBus eventBus, RefBufferFactory heapPool) {
         this.selfNodeId = selfNodeId;
         this.raftLog = raftLog;
@@ -179,7 +179,6 @@ public class ApplyManager {
                     item.setBodyBuffer(null);
                 }
             }
-            @SuppressWarnings({"rawtypes", "unchecked"})
             RaftInput input = new RaftInput(item.getBizType(), item.getHeader(), item.getBody(),
                     null, item.getActualBodySize());
             return new RaftTask(ts, item.getType(), input, null);
@@ -222,7 +221,7 @@ public class ApplyManager {
 
     private void notifyConfigChange(long index, RaftTask rt) {
         if (rt.future != null) {
-            rt.future.complete(new RaftOutput<>(index, null));
+            rt.future.complete(new RaftOutput(index, null));
         }
     }
 
@@ -238,16 +237,15 @@ public class ApplyManager {
         }
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
     private void execWrite(long index, RaftTask rt) {
         RaftInput input = rt.input;
         CompletableFuture<RaftOutput> future = rt.future;
         stateMachine.exec(index, input).whenCompleteAsync((r, ex) -> {
             if (ex != null) {
-                log.warn("exec write failed. {}", (Throwable) ex);
-                future.completeExceptionally((Throwable) ex);
+                log.warn("exec write failed. {}", ex);
+                future.completeExceptionally(ex);
             } else {
-                future.complete(new RaftOutput<>(index, r));
+                future.complete(new RaftOutput(index, r));
             }
             RaftStatusImpl raftStatus = this.raftStatus;
             if (raftStatus.getFirstCommitOfApplied() != null && index >= raftStatus.getFirstIndexOfCurrentTerm()) {
@@ -259,7 +257,6 @@ public class ApplyManager {
         }, raftStatus.getRaftExecutor());
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
     public void execRead(long index, RaftTask rt) {
         RaftInput input = rt.input;
         CompletableFuture<RaftOutput> future = rt.future;
@@ -271,9 +268,9 @@ public class ApplyManager {
             // no need run in raft thread
             stateMachine.exec(index, input).whenComplete((r, e) -> {
                 if (e != null) {
-                    future.completeExceptionally((Throwable) e);
+                    future.completeExceptionally(e);
                 } else {
-                    future.complete(new RaftOutput<>(index, r));
+                    future.complete(new RaftOutput(index, r));
                 }
             });
         } catch (Exception e) {

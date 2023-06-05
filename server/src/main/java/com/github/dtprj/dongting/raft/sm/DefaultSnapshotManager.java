@@ -135,13 +135,13 @@ public class DefaultSnapshotManager implements SnapshotManager {
     }
 
     @Override
-    public CompletableFuture<Long> saveSnapshot(StateMachine<?, ?, ?> stateMachine,
+    public CompletableFuture<Long> saveSnapshot(StateMachine stateMachine,
                                                 Supplier<Boolean> cancelIndicator) {
         return new SnapshotSaveTask(stateMachine, cancelIndicator).exec();
     }
 
     private class SnapshotSaveTask {
-        private final StateMachine<?, ?, ?> stateMachine;
+        private final StateMachine stateMachine;
         private final Supplier<Boolean> cancelIndicator;
         private final long startTime = System.currentTimeMillis();
         private final CompletableFuture<Long> future = new CompletableFuture<>();
@@ -156,7 +156,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         private AsyncIoTask writeTask;
 
 
-        public SnapshotSaveTask(StateMachine<?, ?, ?> stateMachine, Supplier<Boolean> cancelIndicator) {
+        public SnapshotSaveTask(StateMachine stateMachine, Supplier<Boolean> cancelIndicator) {
             this.stateMachine = stateMachine;
             this.cancelIndicator = cancelIndicator;
         }

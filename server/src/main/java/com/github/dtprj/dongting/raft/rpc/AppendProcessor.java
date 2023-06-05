@@ -81,7 +81,7 @@ public class AppendProcessor extends AbstractProcessor<AppendReqCallback> {
     }
 
     @Override
-    protected WriteFrame doProcess(ReadFrame<AppendReqCallback> rf, ChannelContext channelContext, RaftGroupImpl<?, ?, ?> gc) {
+    protected WriteFrame doProcess(ReadFrame<AppendReqCallback> rf, ChannelContext channelContext, RaftGroupImpl gc) {
         AppendRespWriteFrame resp = new AppendRespWriteFrame();
         AppendReqCallback req = rf.getBody();
         RaftStatusImpl raftStatus = gc.getRaftStatus();
@@ -130,7 +130,7 @@ public class AppendProcessor extends AbstractProcessor<AppendReqCallback> {
     }
 
     @SuppressWarnings("ForLoopReplaceableByForEach")
-    private void append(RaftGroupImpl<?, ?, ?> gc, RaftStatusImpl raftStatus, AppendReqCallback req, AppendRespWriteFrame resp) {
+    private void append(RaftGroupImpl gc, RaftStatusImpl raftStatus, AppendReqCallback req, AppendRespWriteFrame resp) {
         if (raftStatus.isInstallSnapshot()) {
             resp.setSuccess(false);
             resp.setAppendCode(CODE_INSTALL_SNAPSHOT);
@@ -166,7 +166,6 @@ public class AppendProcessor extends AbstractProcessor<AppendReqCallback> {
 
         for (int i = 0; i < logs.size(); i++) {
             LogItem li = logs.get(i);
-            @SuppressWarnings({"rawtypes", "unchecked"})
             RaftInput raftInput = new RaftInput(li.getBizType(), li.getHeader(), li.getBody(), null, li.getActualBodySize());
             RaftTask task = new RaftTask(raftStatus.getTs(), li.getType(), raftInput, null);
             raftStatus.getPendingRequests().put(li.getIndex(), task);

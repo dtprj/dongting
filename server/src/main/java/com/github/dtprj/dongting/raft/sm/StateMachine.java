@@ -26,17 +26,17 @@ import java.util.function.Supplier;
 /**
  * @author huangli
  */
-public interface StateMachine<H, B, O> extends AutoCloseable {
+public interface StateMachine extends AutoCloseable {
 
-    Supplier<Decoder<H>> getHeaderDecoder();
+    Supplier<Decoder<Object>> getHeaderDecoder();
 
-    Supplier<Encoder<H>> getHeaderEncoder();
+    Supplier<Encoder<Object>> getHeaderEncoder();
 
-    Supplier<Decoder<B>> getBodyDecoder();
+    Supplier<Decoder<Object>> getBodyDecoder();
 
-    Supplier<Encoder<B>> getBodyEncoder();
+    Supplier<Encoder<Object>> getBodyEncoder();
 
-    CompletableFuture<O> exec(long index, RaftInput<H, B> input);
+    CompletableFuture<Object> exec(long index, RaftInput input);
 
     void installSnapshot(long lastIncludeIndex, int lastIncludeTerm, long offset, boolean done, RefBuffer data);
 

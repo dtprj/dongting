@@ -42,7 +42,7 @@ import java.util.function.Supplier;
 /**
  * @author huangli
  */
-public class RaftGroupImpl<B, H, O> extends RaftGroup<H, B, O> {
+public class RaftGroupImpl extends RaftGroup {
     private static final DtLog log = DtLogs.getLogger(RaftGroupImpl.class);
     private final Timestamp readTimestamp = new Timestamp();
 
@@ -72,7 +72,7 @@ public class RaftGroupImpl<B, H, O> extends RaftGroup<H, B, O> {
 
     @Override
     @SuppressWarnings({"rawtypes", "unchecked"})
-    public CompletableFuture<RaftOutput<O>> submitLinearTask(RaftInput<H, B> input) throws RaftException {
+    public CompletableFuture<RaftOutput> submitLinearTask(RaftInput input) throws RaftException {
         Objects.requireNonNull(input);
         Objects.requireNonNull(input.getBody());
         RaftStatusImpl raftStatus = this.raftStatus;
@@ -243,7 +243,7 @@ public class RaftGroupImpl<B, H, O> extends RaftGroup<H, B, O> {
         this.raftLog = raftLog;
     }
 
-    public void setStateMachine(StateMachine<H, B, O> stateMachine) {
+    public void setStateMachine(StateMachine stateMachine) {
         this.stateMachine = stateMachine;
     }
 

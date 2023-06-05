@@ -35,8 +35,8 @@ public class RaftGroupConfigEx extends RaftGroupConfig {
     private Executor raftExecutor;
     private Supplier<Boolean> stopIndicator;
     private RaftStatus raftStatus;
-    private Supplier<Encoder<?>> headerEncoder;
-    private Supplier<Encoder<?>> bodyEncoder;
+    private Supplier<Encoder<Object>> headerEncoder;
+    private Supplier<Encoder<Object>> bodyEncoder;
     private EncodeContext encodeContext;
 
     public RaftGroupConfigEx(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
@@ -91,19 +91,19 @@ public class RaftGroupConfigEx extends RaftGroupConfig {
         this.raftStatus = raftStatus;
     }
 
-    public Supplier<Encoder<?>> getHeaderEncoder() {
+    public Supplier<Encoder<Object>> getHeaderEncoder() {
         return headerEncoder;
     }
 
-    public void setHeaderEncoder(Supplier<Encoder<?>> headerEncoder) {
+    public void setHeaderEncoder(Supplier<Encoder<Object>> headerEncoder) {
         this.headerEncoder = headerEncoder;
     }
 
-    public Supplier<Encoder<?>> getBodyEncoder() {
+    public Supplier<Encoder<Object>> getBodyEncoder() {
         return bodyEncoder;
     }
 
-    public void setBodyEncoder(Supplier<Encoder<?>> bodyEncoder) {
+    public void setBodyEncoder(Supplier<Encoder<Object>> bodyEncoder) {
         this.bodyEncoder = bodyEncoder;
     }
 

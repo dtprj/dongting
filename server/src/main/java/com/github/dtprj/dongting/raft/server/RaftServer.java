@@ -142,14 +142,12 @@ public class RaftServer extends AbstractLifeCircle {
     private void createRaftGroups(Supplier<Boolean> cancelInitIndicator, RaftServerConfig serverConfig,
                                   List<RaftGroupConfig> groupConfig, HashSet<Integer> allNodeIds) {
         for (RaftGroupConfig rgc : groupConfig) {
-            @SuppressWarnings("rawtypes")
             RaftGroupImpl gc = createRaftGroup(cancelInitIndicator, serverConfig, allNodeIds, rgc);
             raftGroups.put(rgc.getGroupId(), gc);
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private RaftGroupImpl<?, ?, ?> createRaftGroup(Supplier<Boolean> cancelInitIndicator, RaftServerConfig serverConfig,
+    private RaftGroupImpl createRaftGroup(Supplier<Boolean> cancelInitIndicator, RaftServerConfig serverConfig,
                                                    Set<Integer> allNodeIds, RaftGroupConfig rgc) {
         Objects.requireNonNull(rgc.getNodeIdOfMembers());
 
@@ -192,7 +190,7 @@ public class RaftServer extends AbstractLifeCircle {
         RaftGroupConfigEx rgcEx = createGroupConfigEx(rgc, raftStatus, raftExecutor, raftGroupThread);
 
 
-        @SuppressWarnings("rawtypes") StateMachine stateMachine = raftFactory.createStateMachine(rgcEx);
+        StateMachine stateMachine = raftFactory.createStateMachine(rgcEx);
         rgcEx.setHeaderEncoder(stateMachine.getHeaderEncoder());
         rgcEx.setBodyEncoder(stateMachine.getBodyEncoder());
         RaftLog raftLog = raftFactory.createRaftLog(rgcEx);
@@ -210,7 +208,6 @@ public class RaftServer extends AbstractLifeCircle {
         eventBus.register(raft);
         eventBus.register(voteManager);
 
-        @SuppressWarnings("rawtypes")
         RaftGroupImpl gc = new RaftGroupImpl(() -> status == LifeStatus.running);
         gc.setServerConfig(serverConfig);
         gc.setGroupConfig(rgc);
@@ -401,10 +398,10 @@ public class RaftServer extends AbstractLifeCircle {
     public void addGroup(RaftGroupConfig groupConfig, Supplier<Boolean> cancelInitIndicator) {
         doChange(() -> {
             try {
-                CompletableFuture<RaftGroupImpl<?, ?, ?>> f = new CompletableFuture<>();
+                CompletableFuture<RaftGroupImpl> f = new CompletableFuture<>();
                 RaftUtil.SCHEDULED_SERVICE.execute(() -> {
                     try {
-                        RaftGroupImpl<?, ?, ?> gc = createRaftGroup(cancelInitIndicator, serverConfig,
+                        RaftGroupImpl gc = createRaftGroup(cancelInitIndicator, serverConfig,
                                 nodeManager.getAllNodeIds(), groupConfig);
                         gc.getMemberManager().init(nodeManager.getAllNodesEx());
                         f.complete(gc);
@@ -413,7 +410,7 @@ public class RaftServer extends AbstractLifeCircle {
                     }
                 });
 
-                RaftGroupImpl<?, ?, ?> gc = f.get(5, TimeUnit.SECONDS);
+                RaftGroupImpl gc = f.get(5, TimeUnit.SECONDS);
                 gc.getRaftGroupThread().init(gc);
 
                 gc.getRaftGroupThread().start();
@@ -430,7 +427,7 @@ public class RaftServer extends AbstractLifeCircle {
     @SuppressWarnings("unused")
     public void removeGroup(int groupId) {
         doChange(() -> {
-            RaftGroupImpl<?, ?, ?> gc = raftGroups.get(groupId);
+            RaftGroupImpl gc = raftGroups.get(groupId);
             if (gc == null) {
                 log.warn("removeGroup failed: group not exist, groupId={}", groupId);
                 return;
@@ -440,8 +437,8 @@ public class RaftServer extends AbstractLifeCircle {
         });
     }
 
-    @SuppressWarnings({"unused", "unchecked"})
-    public <H, B, O> RaftGroup<H, B, O> getRaftGroup(int groupId) {
+    @SuppressWarnings("unused")
+    public  RaftGroup getRaftGroup(int groupId) {
         return RaftUtil.getGroupComponents(raftGroups, groupId);
     }
 

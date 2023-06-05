@@ -55,7 +55,7 @@ public class RaftGroupThread extends Thread {
     private Raft raft;
     private MemberManager memberManager;
     private VoteManager voteManager;
-    private StateMachine<?, ?, ?> stateMachine;
+    private StateMachine stateMachine;
     private RaftLog raftLog;
     private SnapshotManager snapshotManager;
 
@@ -69,7 +69,7 @@ public class RaftGroupThread extends Thread {
         this.cancelInit = cancelInit;
     }
 
-    public void init(RaftGroupImpl<?, ?, ?> gc) {
+    public void init(RaftGroupImpl gc) {
         this.config = gc.getServerConfig();
         this.raftStatus = gc.getRaftStatus();
         this.queue = gc.getRaftExecutor().getQueue();
@@ -307,7 +307,7 @@ public class RaftGroupThread extends Thread {
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public CompletableFuture<RaftOutput<?>> submitRaftTask(RaftInput<?, ?> input) {
+    public CompletableFuture<RaftOutput> submitRaftTask(RaftInput input) {
         CompletableFuture f = new CompletableFuture<>();
         RaftTask t = new RaftTask(raftStatus.getTs(), LogItem.TYPE_NORMAL, input, f);
         queue.offer(t);

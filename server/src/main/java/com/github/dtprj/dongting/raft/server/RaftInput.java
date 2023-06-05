@@ -20,15 +20,15 @@ import com.github.dtprj.dongting.common.DtTime;
 /**
  * @author huangli
  */
-public final class RaftInput<H, B> {
+public final class RaftInput {
     private final int bizType;
     private final DtTime deadline;
     private final boolean readOnly;
-    private final H header;
-    private final B body;
+    private final Object header;
+    private final Object body;
     private final int flowControlSize;
 
-    public RaftInput(int bizType, H header, B body, DtTime deadline, int flowControlSize) {
+    public RaftInput(int bizType, Object header, Object body, DtTime deadline, int flowControlSize) {
         this.bizType = bizType;
         this.body = body;
         this.header = header;
@@ -38,7 +38,7 @@ public final class RaftInput<H, B> {
     }
 
     @SuppressWarnings("unused")
-    public RaftInput(int bizType, H header, B body, DtTime deadline) {
+    public RaftInput(int bizType, Object header, Object body, DtTime deadline) {
         this.bizType = bizType;
         this.body = body;
         this.header = header;
@@ -55,11 +55,11 @@ public final class RaftInput<H, B> {
         return deadline;
     }
 
-    public B getBody() {
+    public Object getBody() {
         return body;
     }
 
-    public H getHeader() {
+    public Object getHeader() {
         return header;
     }
 
