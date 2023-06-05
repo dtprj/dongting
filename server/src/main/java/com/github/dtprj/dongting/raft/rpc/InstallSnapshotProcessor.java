@@ -113,7 +113,7 @@ public class InstallSnapshotProcessor extends AbstractProcessor<InstallSnapshotR
             raftStatus.setLastLogIndex(req.lastIncludedIndex);
         }
         try {
-            stateMachine.installSnapshot(start, finish, req.data);
+            stateMachine.installSnapshot(req.lastIncludedIndex, req.lastIncludedTerm, req.offset, finish, req.data);
             resp.success = true;
             if (finish) {
                 raftStatus.setInstallSnapshot(false);

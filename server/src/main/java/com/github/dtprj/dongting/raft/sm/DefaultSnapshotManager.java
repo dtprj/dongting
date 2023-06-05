@@ -238,7 +238,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
                 if (shouldReturn(ex)) {
                     return;
                 }
-                if (rb != null && rb.getBuffer().hasRemaining()) {
+                if (rb != null && rb.getBuffer() != null && rb.getBuffer().hasRemaining()) {
                     ByteBuffer buffer = rb.getBuffer();
                     if (writeHeader) {
                         crc32c.reset();

@@ -553,7 +553,7 @@ public class ReplicateManager {
         req.lastIncludedTerm = si.snapshot.getLastIncludedTerm();
         req.offset = si.offset;
         req.data = data;
-        req.done = data == null || !data.getBuffer().hasRemaining();
+        req.done = data == null || data.getBuffer() == null || !data.getBuffer().hasRemaining();
 
         if (req.done) {
             si.readFinished = true;
