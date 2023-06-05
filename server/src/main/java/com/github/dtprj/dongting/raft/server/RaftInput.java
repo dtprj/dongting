@@ -27,12 +27,21 @@ public final class RaftInput<H, B> {
     private final B body;
     private final int flowControlSize;
 
-    public RaftInput(H header, B body, DtTime deadline, boolean readOnly, int flowControlSize) {
+    public RaftInput(H header, B body, DtTime deadline, int flowControlSize) {
         this.body = body;
         this.header = header;
         this.deadline = deadline;
-        this.readOnly = readOnly;
+        this.readOnly = false;
         this.flowControlSize = flowControlSize;
+    }
+
+    @SuppressWarnings("unused")
+    public RaftInput(H header, B body, DtTime deadline) {
+        this.body = body;
+        this.header = header;
+        this.deadline = deadline;
+        this.readOnly = true;
+        this.flowControlSize = 0;
     }
 
     public int getFlowControlSize() {

@@ -350,7 +350,7 @@ public class MemberManager {
         }
         CompletableFuture<RaftOutput> outputFuture = new CompletableFuture<>();
         @SuppressWarnings("unchecked")
-        RaftInput input = new RaftInput(null, data, null, false, 0);
+        RaftInput input = new RaftInput(null, data, null, 0);
         RaftTask rt = new RaftTask(raftStatus.getTs(), type, input, outputFuture);
         eventBus.fire(EventType.raftExec, Collections.singletonList(rt));
 

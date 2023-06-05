@@ -180,8 +180,7 @@ public class ApplyManager {
                 }
             }
             @SuppressWarnings({"rawtypes", "unchecked"})
-            RaftInput input = new RaftInput(item.getHeader(), item.getBody(), null,
-                    false, item.getActualBodySize());
+            RaftInput input = new RaftInput(item.getHeader(), item.getBody(), null, item.getActualBodySize());
             return new RaftTask(ts, item.getType(), input, null);
         } finally {
             decodeContext.setStatus(null);
