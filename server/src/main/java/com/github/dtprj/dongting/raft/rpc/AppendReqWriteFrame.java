@@ -52,7 +52,6 @@ import java.util.List;
 //}
 public class AppendReqWriteFrame extends WriteFrame {
 
-    private final EncodeContext context;
     private final StateMachine stateMachine;
     private Encoder<Object> currentEncoder;
 
@@ -78,8 +77,7 @@ public class AppendReqWriteFrame extends WriteFrame {
 
     private LogItem currentItem;
 
-    public AppendReqWriteFrame(EncodeContext context, StateMachine stateMachine) {
-        this.context = context;
+    public AppendReqWriteFrame(StateMachine stateMachine) {
         this.stateMachine = stateMachine;
     }
 
@@ -164,7 +162,7 @@ public class AppendReqWriteFrame extends WriteFrame {
                     writeStatus = WRITE_ITEM_BIZ_HEADER;
                     break;
                 case WRITE_ITEM_BIZ_HEADER:
-                    if (!writeData(buf, currentItem.getHeaderBuffer(), currentItem.getHeader(), currentItem.getBizType(), true)) {
+                    if (!writeData(context, buf, currentItem, true)) {
                         return false;
                     }
                     writeStatus = WRITE_ITEM_BIZ_BODY_LEN;
@@ -178,7 +176,7 @@ public class AppendReqWriteFrame extends WriteFrame {
                     writeStatus = WRITE_ITEM_BIZ_BODY;
                     break;
                 case WRITE_ITEM_BIZ_BODY:
-                    if (!writeData(buf, currentItem.getBodyBuffer(), currentItem.getBody(), currentItem.getBizType(), false)) {
+                    if (!writeData(context, buf, currentItem, false)) {
                         return false;
                     }
                     currentItem = null;
@@ -192,11 +190,12 @@ public class AppendReqWriteFrame extends WriteFrame {
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    private boolean writeData(ByteBuffer dest, RefBuffer buffer, Object data, int bizType, boolean header) {
+    private boolean writeData(EncodeContext context, ByteBuffer dest, LogItem item, boolean header) {
         if (!dest.hasRemaining()) {
             return false;
         }
-
+        RefBuffer buffer = header? item.getHeaderBuffer() : item.getBodyBuffer();
+        Object data = header? item.getHeader() : item.getBody();
         if (buffer != null) {
             ByteBuffer src = buffer.getBuffer();
             markedPosition = ByteBufferWriteFrame.copy(src, dest, markedPosition);
@@ -207,8 +206,8 @@ public class AppendReqWriteFrame extends WriteFrame {
                 return false;
             }
         } else if (data != null) {
-            if(currentEncoder==null){
-                currentEncoder = stateMachine.createEncoder(bizType, header);
+            if (currentEncoder == null) {
+                currentEncoder = stateMachine.createEncoder(item.getBizType(), header);
             }
             return currentEncoder.encode(context, dest, data);
         } else {

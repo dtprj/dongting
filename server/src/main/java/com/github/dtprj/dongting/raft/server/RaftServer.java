@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
-import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -238,10 +237,6 @@ public class RaftServer extends AbstractLifeCircle {
         rgcEx.setRaftExecutor(raftExecutor);
         rgcEx.setStopIndicator(raftStatus::isStop);
         rgcEx.setRaftStatus(raftStatus);
-
-        EncodeContext encodeContext = new EncodeContext();
-        encodeContext.setHeapPool(rgcEx.getHeapPool());
-        rgcEx.setEncodeContext(encodeContext);
 
         return rgcEx;
     }

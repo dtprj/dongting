@@ -22,12 +22,21 @@ import com.github.dtprj.dongting.buf.RefBufferFactory;
  */
 public class EncodeContext {
     private RefBufferFactory heapPool;
+    private Object status;
+
+    public EncodeContext(RefBufferFactory heapPool) {
+        this.heapPool = heapPool;
+    }
 
     public RefBufferFactory getHeapPool() {
         return heapPool;
     }
 
-    public void setHeapPool(RefBufferFactory heapPool) {
-        this.heapPool = heapPool;
+    public Object getStatus() {
+        return status;
+    }
+
+    public void setStatus(Object status) {
+        this.status = status;
     }
 }

@@ -65,7 +65,7 @@ class LogFileQueue extends FileQueue implements FileOps {
     public LogFileQueue(File dir, ExecutorService ioExecutor, RaftGroupConfigEx groupConfig, IdxOps idxOps) {
         super(dir, ioExecutor, groupConfig);
         this.idxOps = idxOps;
-        this.encodeContext = groupConfig.getEncodeContext();
+        this.encodeContext = new EncodeContext(groupConfig.getHeapPool());
         this.codecFactory = groupConfig.getCodecFactory();
     }
 
@@ -203,22 +203,25 @@ class LogFileQueue extends FileQueue implements FileOps {
             }
             data = log.getHeader();
         }
-        encoder.reset();
         crc32c.reset();
 
         if (writeBuffer.remaining() == 0) {
             pos = writeAndClearBuffer(writeBuffer, file, pos);
         }
-        while (true) {
-            int lastPos = writeBuffer.position();
-            @SuppressWarnings("unchecked") boolean encodeFinish = encoder.encode(encodeContext, writeBuffer, data);
-            if (writeBuffer.position() > lastPos) {
-                RaftUtil.updateCrc(crc32c, writeBuffer, lastPos, writeBuffer.position() - lastPos);
+        try {
+            while (true) {
+                int lastPos = writeBuffer.position();
+                @SuppressWarnings("unchecked") boolean encodeFinish = encoder.encode(encodeContext, writeBuffer, data);
+                if (writeBuffer.position() > lastPos) {
+                    RaftUtil.updateCrc(crc32c, writeBuffer, lastPos, writeBuffer.position() - lastPos);
+                }
+                if (encodeFinish) {
+                    break;
+                }
+                pos = writeAndClearBuffer(writeBuffer, file, pos);
             }
-            if (encodeFinish) {
-                break;
-            }
-            pos = writeAndClearBuffer(writeBuffer, file, pos);
+        } finally {
+            encodeContext.setStatus(null);
         }
 
         if (writeBuffer.remaining() < 4) {

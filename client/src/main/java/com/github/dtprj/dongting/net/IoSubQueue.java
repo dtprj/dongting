@@ -56,8 +56,7 @@ class IoSubQueue {
         this.heapPool = workerStatus.getHeapPool();
         this.workerStatus = workerStatus;
         this.dtc = dtc;
-        this.encodeContext = new EncodeContext();
-        encodeContext.setHeapPool(heapPool);
+        this.encodeContext = new EncodeContext(heapPool);
     }
 
     public void setRegisterForWrite(Runnable registerForWrite) {

@@ -26,12 +26,22 @@ import java.nio.ByteBuffer;
  */
 class ByteBufferEncoder implements Encoder<ByteBuffer> {
 
-    private int markedPos = -1;
+    public ByteBufferEncoder(){
+    }
 
     @Override
     public boolean encode(EncodeContext context, ByteBuffer buffer, ByteBuffer data) {
+        int markedPos = 0;
+        Integer s = (Integer) context.getStatus();
+        if (s != null) {
+            markedPos = s;
+        }
         markedPos = ByteBufferWriteFrame.copy(buffer, data, markedPos);
-        return markedPos == data.limit();
+        boolean result = markedPos == data.limit();
+        if (!result) {
+            context.setStatus(markedPos);
+        }
+        return result;
     }
 
     @Override
@@ -39,8 +49,4 @@ class ByteBufferEncoder implements Encoder<ByteBuffer> {
         return data.remaining();
     }
 
-    @Override
-    public void reset() {
-        markedPos = -1;
-    }
 }

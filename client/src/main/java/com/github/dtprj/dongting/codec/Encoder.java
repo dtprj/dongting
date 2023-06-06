@@ -26,6 +26,4 @@ public interface Encoder<T> {
 
     int actualSize(EncodeContext context, T data);
 
-    void reset();
-
 }

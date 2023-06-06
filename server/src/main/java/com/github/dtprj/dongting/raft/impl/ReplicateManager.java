@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -62,7 +61,6 @@ public class ReplicateManager {
     private final RaftExecutor raftExecutor;
     private final CommitManager commitManager;
     private final Timestamp ts;
-    private final EncodeContext encodeContext;
 
     private final int maxReplicateItems;
     private final int restItemsToStartReplicate;
@@ -85,7 +83,6 @@ public class ReplicateManager {
         this.raftExecutor = executor;
         this.commitManager = commitManager;
         this.ts = raftStatus.getTs();
-        this.encodeContext = groupConfig.getEncodeContext();
 
         this.maxReplicateItems = config.getMaxReplicateItems();
         this.maxReplicateBytes = config.getMaxReplicateBytes();
@@ -257,7 +254,7 @@ public class ReplicateManager {
     }
 
     private void sendAppendRequest(RaftMember member, long prevLogIndex, int prevLogTerm, List<LogItem> logs, long bytes) {
-        AppendReqWriteFrame req = new AppendReqWriteFrame(encodeContext, stateMachine);
+        AppendReqWriteFrame req = new AppendReqWriteFrame(stateMachine);
         req.setCommand(Commands.RAFT_APPEND_ENTRIES);
         req.setGroupId(groupId);
         req.setTerm(raftStatus.getCurrentTerm());

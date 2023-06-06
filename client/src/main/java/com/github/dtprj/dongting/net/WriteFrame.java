@@ -91,22 +91,26 @@ public abstract class WriteFrame extends Frame implements Encoder<WriteFrame> {
     @Override
     public final boolean encode(EncodeContext context, ByteBuffer buf, WriteFrame data) {
         if (status == STATUS_INIT) {
-            int totalSize = actualSize(context, data);
-            int headerSize = totalSize - actualBodySize(context);
-            if (buf.remaining() < headerSize) {
-                return false;
-            } else {
-                buf.putInt(totalSize - 4); //not include total length
-                PbUtil.writeUnsignedInt32(buf, Frame.IDX_TYPE, frameType);
-                PbUtil.writeUnsignedInt32(buf, Frame.IDX_COMMAND, command);
-                PbUtil.writeFix32(buf, Frame.IDX_SEQ, seq);
-                PbUtil.writeUnsignedInt32(buf, Frame.IDX_RESP_CODE, respCode);
-                PbUtil.writeUTF8(buf, Frame.IDX_MSG, msg);
-                PbUtil.writeFix64(buf, Frame.IDX_TIMOUT, timeout);
-                if (bodySize > 0) {
-                    PbUtil.writeLengthDelimitedPrefix(buf, Frame.IDX_BODY, bodySize);
+            try {
+                int totalSize = actualSize(context, data);
+                int headerSize = totalSize - actualBodySize(context);
+                if (buf.remaining() < headerSize) {
+                    return false;
+                } else {
+                    buf.putInt(totalSize - 4); //not include total length
+                    PbUtil.writeUnsignedInt32(buf, Frame.IDX_TYPE, frameType);
+                    PbUtil.writeUnsignedInt32(buf, Frame.IDX_COMMAND, command);
+                    PbUtil.writeFix32(buf, Frame.IDX_SEQ, seq);
+                    PbUtil.writeUnsignedInt32(buf, Frame.IDX_RESP_CODE, respCode);
+                    PbUtil.writeUTF8(buf, Frame.IDX_MSG, msg);
+                    PbUtil.writeFix64(buf, Frame.IDX_TIMOUT, timeout);
+                    if (bodySize > 0) {
+                        PbUtil.writeLengthDelimitedPrefix(buf, Frame.IDX_BODY, bodySize);
+                    }
+                    status = STATUS_HEADER_ENCODE_FINISHED;
                 }
-                status = STATUS_HEADER_ENCODE_FINISHED;
+            } finally {
+                context.setStatus(null);
             }
         }
         if (status == STATUS_HEADER_ENCODE_FINISHED) {
@@ -117,8 +121,12 @@ public abstract class WriteFrame extends Frame implements Encoder<WriteFrame> {
                 } else {
                     finish = true;
                 }
+            } catch (RuntimeException | Error e) {
+                context.setStatus(null);
+                throw e;
             } finally {
                 if (finish) {
+                    context.setStatus(null);
                     status = STATUS_ENCODE_FINISHED;
                 }
             }
@@ -140,8 +148,4 @@ public abstract class WriteFrame extends Frame implements Encoder<WriteFrame> {
     protected void doClean(EncodeContext context) {
     }
 
-    @Override
-    public final void reset() {
-        throw new UnsupportedOperationException();
-    }
 }

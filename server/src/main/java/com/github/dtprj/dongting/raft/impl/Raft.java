@@ -62,7 +62,7 @@ public class Raft implements BiConsumer<EventType, Object> {
         this.replicateManager = replicateManager;
         this.stateMachine = stateMachine;
 
-        this.encodeContext = groupConfig.getEncodeContext();
+        this.encodeContext = new EncodeContext(groupConfig.getHeapPool());
     }
 
     @Override
@@ -114,16 +114,23 @@ public class Raft implements BiConsumer<EventType, Object> {
                 Object header = input.getHeader();
                 item.setHeader(header);
                 if (header != null) {
-                    // TODO create encoder for each item
                     Encoder<Object> encoder = stateMachine.createEncoder(item.getBizType(), true);
-                    item.setActualHeaderSize(encoder.actualSize(encodeContext, header));
+                    try {
+                        item.setActualHeaderSize(encoder.actualSize(encodeContext, header));
+                    } finally {
+                        encodeContext.setStatus(null);
+                    }
                 }
 
                 Object body = input.getBody();
                 item.setBody(body);
                 if (body != null) {
                     Encoder<Object> encoder = stateMachine.createEncoder(item.getBizType(), false);
-                    item.setActualBodySize(encoder.actualSize(encodeContext, body));
+                    try {
+                        item.setActualBodySize(encoder.actualSize(encodeContext, body));
+                    } finally {
+                        encodeContext.setStatus(null);
+                    }
                 }
 
                 logs.add(item);
