@@ -21,7 +21,7 @@ import com.github.dtprj.dongting.buf.RefBufferFactory;
  * @author huangli
  */
 public class EncodeContext {
-    private RefBufferFactory heapPool;
+    private final RefBufferFactory heapPool;
     private Object status;
 
     public EncodeContext(RefBufferFactory heapPool) {
