@@ -5,6 +5,7 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.codec.DtFrame;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.Test;
@@ -55,7 +56,7 @@ public class FramePbTest {
         f.setMsg(msg);
         f.setTimeout(timeout);
         ByteBuffer buf = ByteBuffer.allocate(f.actualSize(null, f));
-        f.encode(null, buf, f);
+        f.encode(new EncodeContext(null), buf, f);
         buf.flip();
         buf.position(4);
         DtFrame.Frame pbf = DtFrame.Frame.parseFrom(buf);
