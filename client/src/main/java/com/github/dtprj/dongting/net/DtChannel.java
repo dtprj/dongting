@@ -60,7 +60,6 @@ class DtChannel extends PbCallback<Object> {
     // read status
     private final ArrayList<ReadFrameInfo> frames = new ArrayList<>();
     private final PbParser parser;
-    private final StrDecoder strDecoder;
     private ReadFrame frame;
     private boolean readBody;
     private WriteData writeDataForResp;
@@ -88,7 +87,6 @@ class DtChannel extends PbCallback<Object> {
         this.workerStatus = workerStatus;
         this.channelIndexInWorker = channelIndexInWorker;
         this.parser = PbParser.multiParser(this, nioConfig.getMaxFrameSize());
-        this.strDecoder = new StrDecoder(workerStatus.getHeapPool());
 
         this.respWriter = new RespWriter(workerStatus.getIoQueue(), workerStatus.getWakeupRunnable(), this);
 
@@ -213,7 +211,7 @@ class DtChannel extends PbCallback<Object> {
         }
         switch (index) {
             case Frame.IDX_MSG: {
-                String msg = strDecoder.decode(decodeContext, buf, fieldLen, start, end);
+                String msg = StrDecoder.INSTANCE.decode(decodeContext, buf, fieldLen, start, end);
                 if (msg != null) {
                     this.frame.setMsg(msg);
                 }
@@ -243,18 +241,16 @@ class DtChannel extends PbCallback<Object> {
             Object o = currentDecoder.decode(decodeContext, buf, fieldLen, start, end);
             if (end) {
                 frame.setBody(o);
+                // so if the body is not last field, exception throws
+                readBody = true;
+                decodeContext.setStatus(null);
             }
+            return true;
         } catch (Throwable e) {
+            decodeContext.setStatus(null);
             processIoDecodeFail(e);
             return false;
         }
-
-        if (end) {
-            decodeContext.setStatus(null);
-            // so if the body is not last field, exception throws
-            readBody = true;
-        }
-        return true;
     }
 
     private boolean initRelatedDataForFrame(boolean initDecoder) {

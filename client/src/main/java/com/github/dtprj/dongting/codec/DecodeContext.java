@@ -21,9 +21,14 @@ import com.github.dtprj.dongting.buf.RefBufferFactory;
  * @author huangli
  */
 public class DecodeContext {
+    private static final int THREAD_LOCAL_BUFFER_SIZE = 4 * 1024;
+    private static final ThreadLocal<byte[]> THREAD_LOCAL_BUFFER = ThreadLocal.withInitial(() -> new byte[THREAD_LOCAL_BUFFER_SIZE]);
+
     private RefBufferFactory heapPool;
     private Object status;
     private PbParser pbParser;
+
+    private final byte[] threadLocalBuffer = THREAD_LOCAL_BUFFER.get();
 
     private DecodeContext nestedContext;
 
@@ -75,4 +80,7 @@ public class DecodeContext {
         this.status = status;
     }
 
+    public byte[] getThreadLocalBuffer() {
+        return threadLocalBuffer;
+    }
 }

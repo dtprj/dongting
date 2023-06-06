@@ -34,4 +34,8 @@ public class RefBufferFactory {
     public RefBuffer createPlain(int requestSize) {
         return new RefBuffer(true, pool, requestSize, threshold);
     }
+
+    public ByteBufferPool getPool() {
+        return pool;
+    }
 }

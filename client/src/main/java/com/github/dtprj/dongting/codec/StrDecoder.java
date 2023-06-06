@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.codec;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
-
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
@@ -27,40 +25,35 @@ import java.nio.charset.StandardCharsets;
  */
 public class StrDecoder implements Decoder<String> {
 
-    private static final int THREAD_LOCAL_BUFFER_SIZE = 32 * 1024;
-    private static final ThreadLocal<byte[]> THREAD_LOCAL_BUFFER = ThreadLocal.withInitial(() -> new byte[THREAD_LOCAL_BUFFER_SIZE]);
-    private final byte[] threadLocalBuffer;
-    private final ByteBufferPool pool;
+    public static final StrDecoder INSTANCE = new StrDecoder();
 
-    private ByteBuffer bufferFromPool;
-
-    public StrDecoder(ByteBufferPool pool) {
-        this.pool = pool;
-        this.threadLocalBuffer = THREAD_LOCAL_BUFFER.get();
+    private StrDecoder() {
     }
 
     @Override
     public String decode(DecodeContext decodeContext, ByteBuffer buf, int fieldLen, boolean start, boolean end) {
-        if (start && end && fieldLen <= THREAD_LOCAL_BUFFER_SIZE) {
-            byte[] threadLocalBuffer = this.threadLocalBuffer;
-            buf.get(threadLocalBuffer, 0, fieldLen);
-            return new String(threadLocalBuffer, 0, fieldLen, StandardCharsets.UTF_8);
+        if (start && end) {
+            byte[] threadLocalBuffer = decodeContext.getThreadLocalBuffer();
+            if (fieldLen <= threadLocalBuffer.length) {
+                buf.get(threadLocalBuffer, 0, fieldLen);
+                return new String(threadLocalBuffer, 0, fieldLen, StandardCharsets.UTF_8);
+            }
         }
         ByteBuffer bufferFromPool;
+
         if (start) {
-            bufferFromPool = pool.borrow(fieldLen);
+            bufferFromPool = decodeContext.getHeapPool().getPool().borrow(fieldLen);
         } else {
-            bufferFromPool = this.bufferFromPool;
+            bufferFromPool = (ByteBuffer) decodeContext.getStatus();
         }
         bufferFromPool.put(buf);
 
         if (end) {
             String s = new String(bufferFromPool.array(), 0, bufferFromPool.position(), StandardCharsets.UTF_8);
-            pool.release(bufferFromPool);
-            this.bufferFromPool = null;
+            decodeContext.getHeapPool().getPool().release(bufferFromPool);
             return s;
         } else {
-            this.bufferFromPool = bufferFromPool;
+            decodeContext.setStatus(bufferFromPool);
             return null;
         }
     }
