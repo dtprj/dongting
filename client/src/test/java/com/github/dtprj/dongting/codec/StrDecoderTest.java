@@ -64,59 +64,59 @@ public class StrDecoderTest {
     private void testFull() {
         buf.clear();
         buf.limit(100);
-        String s = decoder.decode(decodeContext, buf, 100, true, true);
+        String s = decoder.decode(decodeContext, buf, 100, 0);
         assertEquals(new String(bytes, 0, 100), s);
 
         buf.clear();
-        s = decoder.decode(decodeContext, buf, buf.capacity(), true, true);
+        s = decoder.decode(decodeContext, buf, buf.capacity(), 0);
         assertEquals(new String(bytes, 0, buf.capacity()), s);
     }
 
     private void testHalf1() {
         buf.clear();
         buf.limit(10);
-        assertNull(decoder.decode(decodeContext, buf, 100, true, false));
+        assertNull(decoder.decode(decodeContext, buf, 100, 0));
         buf.clear();
         buf.position(10);
         buf.limit(100);
-        String s = decoder.decode(decodeContext, buf, 100, false, true);
+        String s = decoder.decode(decodeContext, buf, 100, 10);
         assertEquals(new String(bytes, 0, 100), s);
 
         buf.clear();
         buf.limit(10);
-        assertNull(decoder.decode(decodeContext, buf, buf.capacity(), true, false));
+        assertNull(decoder.decode(decodeContext, buf, buf.capacity(), 0));
         buf.clear();
         buf.position(10);
         buf.limit(buf.capacity());
-        s = decoder.decode(decodeContext, buf, buf.capacity(), false, true);
+        s = decoder.decode(decodeContext, buf, buf.capacity(), 10);
         assertEquals(new String(bytes, 0, buf.capacity()), s);
     }
 
     private void testHalf2() {
         buf.clear();
         buf.limit(10);
-        assertNull(decoder.decode(decodeContext, buf, 100, true, false));
+        assertNull(decoder.decode(decodeContext, buf, 100, 0));
         buf.clear();
         buf.position(10);
         buf.limit(20);
-        assertNull(decoder.decode(decodeContext, buf, 100, false, false));
+        assertNull(decoder.decode(decodeContext, buf, 100, 10));
         buf.clear();
         buf.position(20);
         buf.limit(100);
-        String s = decoder.decode(decodeContext, buf, 100, false, true);
+        String s = decoder.decode(decodeContext, buf, 100, 20);
         assertEquals(new String(bytes, 0, 100), s);
 
         buf.clear();
         buf.limit(10);
-        assertNull(decoder.decode(decodeContext, buf, buf.capacity(), true, false));
+        assertNull(decoder.decode(decodeContext, buf, buf.capacity(), 0));
         buf.clear();
         buf.position(10);
         buf.limit(20);
-        assertNull(decoder.decode(decodeContext, buf, buf.capacity(), false, false));
+        assertNull(decoder.decode(decodeContext, buf, buf.capacity(), 10));
         buf.clear();
         buf.position(20);
         buf.limit(buf.capacity());
-        s = decoder.decode(decodeContext, buf, buf.capacity(), false, true);
+        s = decoder.decode(decodeContext, buf, buf.capacity(), 20);
         assertEquals(new String(bytes, 0, buf.capacity()), s);
     }
 }

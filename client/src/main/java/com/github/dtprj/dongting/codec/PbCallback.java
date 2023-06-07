@@ -36,7 +36,7 @@ public abstract class PbCallback<T> {
         return true;
     }
 
-    public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
+    public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
         return true;
     }
 

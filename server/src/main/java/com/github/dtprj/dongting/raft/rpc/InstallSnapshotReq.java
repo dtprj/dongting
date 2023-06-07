@@ -89,9 +89,10 @@ public class InstallSnapshotReq {
         }
 
         @Override
-        public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
+        public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
+            boolean end = buf.remaining() >= len - currentPos;
             if (index == 8) {
-                if (begin) {
+                if (currentPos == 0) {
                     result.data = heapPool.create(len);
                 }
                 result.data.getBuffer().put(buf);

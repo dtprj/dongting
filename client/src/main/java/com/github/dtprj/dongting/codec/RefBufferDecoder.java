@@ -35,9 +35,10 @@ public class RefBufferDecoder implements Decoder<RefBuffer> {
     }
 
     @Override
-    public RefBuffer decode(DecodeContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+    public RefBuffer decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
         RefBuffer result;
-        if (start) {
+        boolean end = buffer.remaining() >= bodyLen - currentPos;
+        if (currentPos == 0) {
             if (plain) {
                 result = context.getHeapPool().createPlain(bodyLen);
             } else {

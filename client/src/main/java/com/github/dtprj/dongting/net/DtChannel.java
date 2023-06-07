@@ -205,26 +205,26 @@ class DtChannel extends PbCallback<Object> {
     }
 
     @Override
-    public boolean readBytes(int index, ByteBuffer buf, int fieldLen, boolean start, boolean end) {
+    public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
         if (this.readBody) {
             throw new PbException("body has read");
         }
         switch (index) {
             case Frame.IDX_MSG: {
-                String msg = StrDecoder.INSTANCE.decode(decodeContext, buf, fieldLen, start, end);
+                String msg = StrDecoder.INSTANCE.decode(decodeContext, buf, fieldLen, currentPos);
                 if (msg != null) {
                     this.frame.setMsg(msg);
                 }
                 return true;
             }
             case Frame.IDX_BODY: {
-                return readBody(buf, fieldLen, start, end);
+                return readBody(buf, fieldLen, currentPos);
             }
         }
         return true;
     }
 
-    private boolean readBody(ByteBuffer buf, int fieldLen, boolean start, boolean end) {
+    private boolean readBody(ByteBuffer buf, int fieldLen, int currentPos) {
         ReadFrame frame = this.frame;
         if (frame.getCommand() <= 0) {
             throw new NetException("command invalid :" + frame.getCommand());
@@ -238,7 +238,8 @@ class DtChannel extends PbCallback<Object> {
         }
 
         try {
-            Object o = currentDecoder.decode(decodeContext, buf, fieldLen, start, end);
+            boolean end = buf.remaining() >= fieldLen - currentPos;
+            Object o = currentDecoder.decode(decodeContext, buf, fieldLen, currentPos);
             if (end) {
                 frame.setBody(o);
                 // so if the body is not last field, exception throws

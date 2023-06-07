@@ -31,7 +31,9 @@ public class StrDecoder implements Decoder<String> {
     }
 
     @Override
-    public String decode(DecodeContext decodeContext, ByteBuffer buf, int fieldLen, boolean start, boolean end) {
+    public String decode(DecodeContext decodeContext, ByteBuffer buf, int fieldLen, int currentPos) {
+        boolean start = currentPos == 0;
+        boolean end = buf.remaining() >= fieldLen - currentPos;
         if (start && end) {
             byte[] threadLocalBuffer = decodeContext.getThreadLocalBuffer();
             if (fieldLen <= threadLocalBuffer.length) {

@@ -98,14 +98,14 @@ public class FramePbTest {
             }
 
             @Override
-            public boolean readBytes(int index, ByteBuffer buf, int fieldLen, boolean start, boolean end) {
+            public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
                 if (index == Frame.IDX_BODY) {
                     byte[] readBytes = new byte[fieldLen];
                     buf.get(readBytes);
                     assertArrayEquals(bs, readBytes);
                     return true;
                 } else {
-                    return super.readBytes(index, buf, fieldLen, start, end);
+                    return super.readBytes(index, buf, fieldLen, currentPos);
                 }
             }
         };

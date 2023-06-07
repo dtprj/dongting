@@ -30,16 +30,17 @@ public class PbNoCopyDecoder<T> implements Decoder<T> {
     }
 
     @Override
-    public T decode(DecodeContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end) {
+    public T decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
         PbParser parser;
         PbCallback<T> callback;
-        if (start) {
+        if (currentPos == 0) {
             callback = callbackCreator.apply(context);
             parser = context.createOrResetPbParser(callback, bodyLen);
         } else {
             parser = context.getPbParser();
             callback = parser.getCallback();
         }
+        boolean end = buffer.remaining() >= bodyLen - currentPos;
         parser.parse(buffer);
         if (end) {
             return callback.getResult();

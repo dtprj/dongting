@@ -22,12 +22,13 @@ import java.nio.ByteBuffer;
  */
 public interface Decoder<T> {
 
-    T decode(DecodeContext context, ByteBuffer buffer, int bodyLen, boolean start, boolean end);
+    T decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos);
 
-    static ByteBuffer decodeToByteBuffer(ByteBuffer buffer, int bodyLen, boolean start, boolean end, ByteBuffer result) {
-        if (start) {
+    static ByteBuffer decodeToByteBuffer(ByteBuffer buffer, int bodyLen, int currentPos, ByteBuffer result) {
+        if (currentPos == 0) {
             result = ByteBuffer.allocate(bodyLen);
         }
+        boolean end = buffer.remaining() >= bodyLen - currentPos;
         result.put(buffer);
 
         if (end) {

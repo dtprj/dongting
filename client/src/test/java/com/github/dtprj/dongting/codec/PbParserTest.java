@@ -78,7 +78,8 @@ public class PbParserTest {
         }
 
         @Override
-        public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
+        public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
+            boolean end = buf.remaining() >= len - currentPos;
             if (index == 102) {
                 byte[] bs = new byte[buf.remaining()];
                 buf.get(bs);
@@ -88,7 +89,7 @@ public class PbParserTest {
                 } else {
                     msg.f102 += s;
                 }
-                begin102Count += begin ? 1 : 0;
+                begin102Count += currentPos==0 ? 1 : 0;
                 end102Count += end ? 1 : 0;
             }
             return true;
@@ -304,7 +305,9 @@ public class PbParserTest {
         }
 
         @Override
-        public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
+        public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
+            boolean begin = currentPos == 0;
+            boolean end = buf.remaining() >= len - currentPos;
             if (index == 3) {
                 byte[] bs = new byte[buf.remaining()];
                 buf.get(bs);
@@ -494,22 +497,22 @@ public class PbParserTest {
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
-            public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
+            public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
                 if (index == 3) {
                     return false;
                 }
-                return super.readBytes(index, buf, len, begin, end);
+                return super.readBytes(index, buf, len, currentPos);
             }
         };
         testCallbackFail0(supplier, 1, 0, 1);
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
-            public boolean readBytes(int index, ByteBuffer buf, int len, boolean begin, boolean end) {
+            public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
                 if (index == 4000) {
                     throw new ArrayIndexOutOfBoundsException();
                 }
-                return super.readBytes(index, buf, len, begin, end);
+                return super.readBytes(index, buf, len, currentPos);
             }
         };
         testCallbackFail0(supplier, 1, 0, 1);
