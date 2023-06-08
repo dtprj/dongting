@@ -212,7 +212,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                 }
                 Object result;
                 if (item.getType() == LogItem.TYPE_NORMAL) {
-                    Decoder<? extends Object> headerDecoder = codecFactory.createDecoder(item.getBizType(), true);
+                    Decoder<?> headerDecoder = codecFactory.createDecoder(item.getBizType(), true);
                     result = headerDecoder.decode(context, buf, len, currentPos);
                 } else {
                     result = Decoder.decodeToByteBuffer(buf, len, currentPos, (ByteBuffer) item.getBody());
@@ -227,7 +227,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                 }
                 Object result;
                 if (item.getType() == LogItem.TYPE_NORMAL) {
-                    Decoder<? extends Object> bodyDecoder = codecFactory.createDecoder(item.getBizType(), false);
+                    Decoder<?> bodyDecoder = codecFactory.createDecoder(item.getBizType(), false);
                     result = bodyDecoder.decode(context, buf, len, currentPos);
                 } else {
                     result = Decoder.decodeToByteBuffer(buf, len, currentPos, (ByteBuffer) item.getBody());

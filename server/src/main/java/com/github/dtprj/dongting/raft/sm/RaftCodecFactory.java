@@ -22,7 +22,7 @@ import com.github.dtprj.dongting.codec.Encoder;
  * @author huangli
  */
 public interface RaftCodecFactory {
-    Decoder<? extends Object> createDecoder(int bizType, boolean header);
+    Decoder<?> createDecoder(int bizType, boolean header);
 
-    Encoder<? extends Object> createEncoder(int bizType, boolean header);
+    Encoder<?> createEncoder(int bizType, boolean header);
 }

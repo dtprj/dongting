@@ -23,7 +23,7 @@ import java.nio.ByteBuffer;
  * @author huangli
  */
 public class ByteBufferWriteFrame extends WriteFrame {
-    private ByteBuffer body;
+    private final ByteBuffer body;
     private int markedPosition = -1;
 
     public ByteBufferWriteFrame(ByteBuffer body) {

@@ -28,6 +28,7 @@ public abstract class SmallNoCopyWriteFrame extends WriteFrame {
         if (buf.remaining() < actualBodySize()) {
             return false;
         }
+        encodeBody(buf);
         return true;
     }
 

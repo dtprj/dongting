@@ -41,7 +41,7 @@ public class DtKV implements StateMachine {
     private final DtKvImpl impl = new DtKvImpl();
 
     @Override
-    public Decoder<? extends Object> createDecoder(int bizType, boolean header) {
+    public Decoder<?> createDecoder(int bizType, boolean header) {
         switch (bizType) {
             case BIZ_TYPE_GET:
             case BIZ_TYPE_REMOVE:
@@ -54,7 +54,7 @@ public class DtKV implements StateMachine {
     }
 
     @Override
-    public Encoder<? extends Object> createEncoder(int bizType, boolean header) {
+    public Encoder<?> createEncoder(int bizType, boolean header) {
         switch (bizType) {
             case BIZ_TYPE_GET:
             case BIZ_TYPE_REMOVE:
