@@ -58,7 +58,6 @@ class LogFileQueue extends FileQueue implements FileOps {
 
     private final EncodeContext encodeContext;
     private final RaftCodecFactory codecFactory;
-    private final ByteBufferEncoder byteBufferEncoder = new ByteBufferEncoder();
 
     private long writePos;
 
@@ -106,6 +105,7 @@ class LogFileQueue extends FileQueue implements FileOps {
         return restorer.previousTerm;
     }
 
+    @SuppressWarnings("rawtypes")
     public void append(List<LogItem> logs) throws IOException {
         ensureWritePosReady();
         ByteBuffer writeBuffer = this.writeBuffer;
@@ -115,6 +115,9 @@ class LogFileQueue extends FileQueue implements FileOps {
         for (int i = 0; i < logs.size(); i++) {
             LogItem log = logs.get(i);
             long posOfFile = (pos + writeBuffer.position()) & FILE_LEN_MASK;
+            Encoder headerEncoder = initEncoderAndSize(log, true);
+            Encoder bodyEncoder = initEncoderAndSize(log, false);
+
             int totalLen = LogHeader.computeTotalLen(0, log.getActualHeaderSize(), log.getActualBodySize());
             if (posOfFile == 0) {
                 if (i != 0) {
@@ -160,8 +163,14 @@ class LogFileQueue extends FileQueue implements FileOps {
             LogHeader.writeHeader(crc32c, writeBuffer, log, 0, log.getActualHeaderSize(), log.getActualBodySize());
             pos += LogHeader.ITEM_HEADER_SIZE;
 
-            pos = writeData(writeBuffer, pos, file, log, false);
-            pos = writeData(writeBuffer, pos, file, log, true);
+            if (headerEncoder != null && log.getActualHeaderSize() > 0) {
+                Object data = log.getHeaderBuffer() != null ? log.getHeaderBuffer() : log.getHeader();
+                pos = writeData(writeBuffer, pos, file, data, headerEncoder);
+            }
+            if (bodyEncoder != null && log.getActualBodySize()>0) {
+                Object data = log.getBodyBuffer() != null ? log.getBodyBuffer() : log.getBody();
+                pos = writeData(writeBuffer, pos, file, data, bodyEncoder);
+            }
 
             idxOps.put(log.getIndex(), itemStartPos);
         }
@@ -175,36 +184,34 @@ class LogFileQueue extends FileQueue implements FileOps {
         return ((absolutePos >>> FILE_LEN_SHIFT_BITS) + 1) << FILE_LEN_SHIFT_BITS;
     }
 
-    private long writeData(ByteBuffer writeBuffer, long pos, LogFile file, LogItem log, boolean bizBody) throws IOException {
-        @SuppressWarnings("rawtypes")
-        Encoder encoder;
-        int size;
-        Object data;
-        if (bizBody) {
-            size = log.getActualBodySize();
-            if (size <= 0) {
-                return pos;
-            }
-            if (log.getType() == LogItem.TYPE_NORMAL) {
-                encoder = codecFactory.createEncoder(log.getBizType(), false);
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private Encoder initEncoderAndSize(LogItem item, boolean header) {
+        if (header) {
+            if (item.getHeaderBuffer() != null) {
+                return ByteBufferEncoder.INSTANCE;
+            } else if (item.getHeader() != null) {
+                Encoder encoder = codecFactory.createEncoder(item.getBizType(), true);
+                item.setActualHeaderSize(encoder.actualSize(item.getHeader()));
+                return encoder;
             } else {
-                encoder = byteBufferEncoder;
+                return null;
             }
-            data = log.getBody();
         } else {
-            size = log.getActualHeaderSize();
-            if (size <= 0) {
-                return pos;
-            }
-            if (log.getType() == LogItem.TYPE_NORMAL) {
-                encoder = codecFactory.createEncoder(log.getBizType(), true);
+            if (item.getBodyBuffer() != null) {
+                return ByteBufferEncoder.INSTANCE;
+            } else if (item.getBody() != null) {
+                Encoder encoder = codecFactory.createEncoder(item.getBizType(), false);
+                item.setActualBodySize(encoder.actualSize(item.getBody()));
+                return encoder;
             } else {
-                encoder = byteBufferEncoder;
+                return null;
             }
-            data = log.getHeader();
         }
-        crc32c.reset();
+    }
 
+    @SuppressWarnings("rawtypes")
+    private long writeData(ByteBuffer writeBuffer, long pos, LogFile file, Object data, Encoder encoder) throws IOException {
+        crc32c.reset();
         if (writeBuffer.remaining() == 0) {
             pos = writeAndClearBuffer(writeBuffer, file, pos);
         }

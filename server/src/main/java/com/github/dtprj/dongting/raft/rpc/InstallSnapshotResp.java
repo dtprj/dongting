@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.net.SmallNoCopyWriteFrame;
@@ -59,7 +58,7 @@ public class InstallSnapshotResp {
         }
 
         @Override
-        protected int calcActualBodySize(EncodeContext context) {
+        protected int calcActualBodySize() {
             return PbUtil.accurateUnsignedIntSize(1, resp.term) +
                     PbUtil.accurateUnsignedIntSize(2, resp.success ? 1 : 0);
         }

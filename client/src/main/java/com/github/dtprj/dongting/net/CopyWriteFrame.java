@@ -33,7 +33,7 @@ public abstract class CopyWriteFrame extends WriteFrame {
     @Override
     protected final boolean encodeBody(EncodeContext context, ByteBuffer buf) {
         if (tempRefBuffer == null) {
-            int bodySize = actualBodySize(context);
+            int bodySize = actualBodySize();
             if (buf.remaining() >= bodySize) {
                 encodeBody(buf);
                 return true;

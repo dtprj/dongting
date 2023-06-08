@@ -20,10 +20,21 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public interface Encoder<T> {
+public class ByteArrayDecoder implements Decoder<byte[]> {
+    public static final ByteArrayDecoder INSTANCE = new ByteArrayDecoder();
 
-    boolean encode(EncodeContext context, ByteBuffer buffer, T data);
+    private ByteArrayDecoder() {
+    }
 
-    int actualSize(T data);
-
+    @Override
+    public byte[] decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
+        byte[] data;
+        if (currentPos == 0) {
+            data = new byte[bodyLen];
+        } else {
+            data = (byte[]) context.getStatus();
+        }
+        buffer.get(data, currentPos, Math.min(buffer.remaining(), bodyLen - currentPos));
+        return data;
+    }
 }

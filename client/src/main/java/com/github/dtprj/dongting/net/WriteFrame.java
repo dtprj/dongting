@@ -46,18 +46,18 @@ public abstract class WriteFrame extends Frame implements Encoder<WriteFrame> {
             // string resp_msg = 5;
             + 1 + 8; // fixed32 timeout_millis = 6;
 
-    protected abstract int calcActualBodySize(EncodeContext context);
+    protected abstract int calcActualBodySize();
 
     protected abstract boolean encodeBody(EncodeContext context, ByteBuffer buf);
 
-    public final int calcMaxFrameSize(EncodeContext context) {
-        return MAX_HEADER_SIZE + (msgBytes == null ? 0 : msgBytes.length) + actualBodySize(context);
+    public final int calcMaxFrameSize() {
+        return MAX_HEADER_SIZE + (msgBytes == null ? 0 : msgBytes.length) + actualBodySize();
     }
 
-    public final int actualBodySize(EncodeContext context) {
+    public final int actualBodySize() {
         int bodySize = this.bodySize;
         if (bodySize == 0) {
-            bodySize = calcActualBodySize(context);
+            bodySize = calcActualBodySize();
             this.bodySize = bodySize;
         }
         return bodySize;
@@ -72,7 +72,7 @@ public abstract class WriteFrame extends Frame implements Encoder<WriteFrame> {
     }
 
     @Override
-    public final int actualSize(EncodeContext context, WriteFrame data) {
+    public final int actualSize(WriteFrame data) {
         int dumpSize = this.dumpSize;
         if (dumpSize == 0) {
             dumpSize = 4 // length
@@ -82,7 +82,7 @@ public abstract class WriteFrame extends Frame implements Encoder<WriteFrame> {
                     + PbUtil.accurateUnsignedIntSize(4, respCode) // uint32 resp_code = 4;
                     + PbUtil.accurateLengthDelimitedSize(5, msgBytes == null ? 0 : msgBytes.length) // string resp_msg = 5;
                     + PbUtil.accurateFix64Size(6, timeout) // fixed64 timeout = 6;
-                    + PbUtil.accurateLengthDelimitedSize(15, actualBodySize(context)); // bytes body = 15;
+                    + PbUtil.accurateLengthDelimitedSize(15, actualBodySize()); // bytes body = 15;
             this.dumpSize = dumpSize;
         }
         return dumpSize;
@@ -90,27 +90,24 @@ public abstract class WriteFrame extends Frame implements Encoder<WriteFrame> {
 
     @Override
     public final boolean encode(EncodeContext context, ByteBuffer buf, WriteFrame data) {
+        context.setStatus(null);
         if (status == STATUS_INIT) {
-            try {
-                int totalSize = actualSize(context, data);
-                int headerSize = totalSize - actualBodySize(context);
-                if (buf.remaining() < headerSize) {
-                    return false;
-                } else {
-                    buf.putInt(totalSize - 4); //not include total length
-                    PbUtil.writeUnsignedInt32(buf, Frame.IDX_TYPE, frameType);
-                    PbUtil.writeUnsignedInt32(buf, Frame.IDX_COMMAND, command);
-                    PbUtil.writeFix32(buf, Frame.IDX_SEQ, seq);
-                    PbUtil.writeUnsignedInt32(buf, Frame.IDX_RESP_CODE, respCode);
-                    PbUtil.writeUTF8(buf, Frame.IDX_MSG, msg);
-                    PbUtil.writeFix64(buf, Frame.IDX_TIMOUT, timeout);
-                    if (bodySize > 0) {
-                        PbUtil.writeLengthDelimitedPrefix(buf, Frame.IDX_BODY, bodySize);
-                    }
-                    status = STATUS_HEADER_ENCODE_FINISHED;
+            int totalSize = actualSize(data);
+            int headerSize = totalSize - actualBodySize();
+            if (buf.remaining() < headerSize) {
+                return false;
+            } else {
+                buf.putInt(totalSize - 4); //not include total length
+                PbUtil.writeUnsignedInt32(buf, Frame.IDX_TYPE, frameType);
+                PbUtil.writeUnsignedInt32(buf, Frame.IDX_COMMAND, command);
+                PbUtil.writeFix32(buf, Frame.IDX_SEQ, seq);
+                PbUtil.writeUnsignedInt32(buf, Frame.IDX_RESP_CODE, respCode);
+                PbUtil.writeUTF8(buf, Frame.IDX_MSG, msg);
+                PbUtil.writeFix64(buf, Frame.IDX_TIMOUT, timeout);
+                if (bodySize > 0) {
+                    PbUtil.writeLengthDelimitedPrefix(buf, Frame.IDX_BODY, bodySize);
                 }
-            } finally {
-                context.setStatus(null);
+                status = STATUS_HEADER_ENCODE_FINISHED;
             }
         }
         if (status == STATUS_HEADER_ENCODE_FINISHED) {

@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.SmallNoCopyWriteFrame;
@@ -38,7 +37,7 @@ public class NodePingWriteFrame extends SmallNoCopyWriteFrame {
     }
 
     @Override
-    protected int calcActualBodySize(EncodeContext context) {
+    protected int calcActualBodySize() {
         return PbUtil.accurateFix32Size(1, selfNodeId)
                 + PbUtil.accurateFix64Size(2, uuid.getMostSignificantBits())
                 + PbUtil.accurateFix64Size(3, uuid.getLeastSignificantBits());

@@ -136,7 +136,7 @@ public class InstallSnapshotReq {
         }
 
         @Override
-        protected int calcActualBodySize(EncodeContext context) {
+        protected int calcActualBodySize() {
             return headerSize + bufferSize;
         }
 

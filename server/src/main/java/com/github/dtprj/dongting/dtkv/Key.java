@@ -13,17 +13,34 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.codec;
-
-import java.nio.ByteBuffer;
+package com.github.dtprj.dongting.dtkv;
 
 /**
  * @author huangli
  */
-public interface Encoder<T> {
+class Key {
 
-    boolean encode(EncodeContext context, ByteBuffer buffer, T data);
+    private final String key;
 
-    int actualSize(T data);
+    public Key(String key) {
+        this.key = key;
+    }
 
+    public String getKey() {
+        return key;
+    }
+
+    @Override
+    public int hashCode() {
+        return key.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof Key) {
+            return key.equals(((Key) obj).key);
+        } else {
+            return false;
+        }
+    }
 }

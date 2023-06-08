@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.net.SmallNoCopyWriteFrame;
@@ -87,7 +86,7 @@ public class VoteReq {
         }
 
         @Override
-        protected int calcActualBodySize(EncodeContext context) {
+        protected int calcActualBodySize() {
             return PbUtil.accurateUnsignedLongSize(1, data.groupId)
                     + PbUtil.accurateUnsignedLongSize(2, data.term)
                     + PbUtil.accurateUnsignedIntSize(3, data.candidateId)

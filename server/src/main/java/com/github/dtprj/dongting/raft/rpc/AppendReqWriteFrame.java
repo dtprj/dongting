@@ -53,7 +53,8 @@ import java.util.List;
 public class AppendReqWriteFrame extends WriteFrame {
 
     private final StateMachine stateMachine;
-    private Encoder<Object> currentEncoder;
+    @SuppressWarnings("rawtypes")
+    private Encoder currentEncoder;
 
     private int groupId;
     private int term;
@@ -82,7 +83,7 @@ public class AppendReqWriteFrame extends WriteFrame {
     }
 
     @Override
-    protected int calcActualBodySize(EncodeContext context) {
+    protected int calcActualBodySize() {
         headerSize = PbUtil.accurateUnsignedIntSize(1, groupId)
                 + PbUtil.accurateUnsignedIntSize(2, term)
                 + PbUtil.accurateUnsignedIntSize(3, leaderId)
@@ -154,6 +155,10 @@ public class AppendReqWriteFrame extends WriteFrame {
                     writeStatus = WRITE_ITEM_BIZ_HEADER_LEN;
                     break;
                 case WRITE_ITEM_BIZ_HEADER_LEN:
+                    if (currentItem.getActualHeaderSize() <= 0) {
+                        writeStatus = WRITE_ITEM_BIZ_BODY_LEN;
+                        break;
+                    }
                     if (buf.remaining() < currentItem.getActualHeaderSize()) {
                         return false;
                     }
@@ -168,6 +173,10 @@ public class AppendReqWriteFrame extends WriteFrame {
                     writeStatus = WRITE_ITEM_BIZ_BODY_LEN;
                     break;
                 case WRITE_ITEM_BIZ_BODY_LEN:
+                    if (currentItem.getActualHeaderSize() <= 0) {
+                        writeStatus = WRITE_ITEM_HEADER;
+                        break;
+                    }
                     if (buf.remaining() < currentItem.getActualBodySize()) {
                         return false;
                     }
@@ -206,12 +215,25 @@ public class AppendReqWriteFrame extends WriteFrame {
                 return false;
             }
         } else if (data != null) {
-            if (currentEncoder == null) {
-                currentEncoder = stateMachine.createEncoder(item.getBizType(), header);
+            boolean result = false;
+            try {
+                if (currentEncoder == null) {
+                    currentEncoder = stateMachine.createEncoder(item.getBizType(), header);
+                }
+                //noinspection unchecked
+                result = currentEncoder.encode(context, dest, data);
+                return result;
+            } catch (RuntimeException | Error e) {
+                currentEncoder = null;
+                context.setStatus(null);
+                throw e;
+            } finally {
+                if (result) {
+                    currentEncoder = null;
+                    context.setStatus(null);
+                }
             }
-            return currentEncoder.encode(context, dest, data);
         } else {
-            currentEncoder = null;
             return true;
         }
     }

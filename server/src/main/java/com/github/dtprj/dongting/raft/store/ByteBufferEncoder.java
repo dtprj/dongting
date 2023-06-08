@@ -26,7 +26,9 @@ import java.nio.ByteBuffer;
  */
 class ByteBufferEncoder implements Encoder<ByteBuffer> {
 
-    public ByteBufferEncoder(){
+    public static final ByteBufferEncoder INSTANCE = new ByteBufferEncoder();
+
+    private ByteBufferEncoder(){
     }
 
     @Override
@@ -45,7 +47,7 @@ class ByteBufferEncoder implements Encoder<ByteBuffer> {
     }
 
     @Override
-    public int actualSize(EncodeContext context, ByteBuffer data) {
+    public int actualSize(ByteBuffer data) {
         return data.remaining();
     }
 

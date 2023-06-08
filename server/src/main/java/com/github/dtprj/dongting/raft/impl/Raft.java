@@ -15,18 +15,14 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.codec.EncodeContext;
-import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftNode;
-import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -40,7 +36,6 @@ import java.util.function.BiConsumer;
 public class Raft implements BiConsumer<EventType, Object> {
 
     private final ReplicateManager replicateManager;
-    private final StateMachine stateMachine;
     private final ApplyManager applyManager;
     private final CommitManager commitManager;
 
@@ -49,10 +44,8 @@ public class Raft implements BiConsumer<EventType, Object> {
 
     private final Timestamp ts;
 
-    private final EncodeContext encodeContext;
-
     public Raft(RaftStatusImpl raftStatus, RaftLog raftLog, ApplyManager applyManager, CommitManager commitManager,
-                ReplicateManager replicateManager, StateMachine stateMachine, RaftGroupConfigEx groupConfig) {
+                ReplicateManager replicateManager) {
         this.raftStatus = raftStatus;
         this.raftLog = raftLog;
         this.ts = raftStatus.getTs();
@@ -60,9 +53,6 @@ public class Raft implements BiConsumer<EventType, Object> {
         this.applyManager = applyManager;
         this.commitManager = commitManager;
         this.replicateManager = replicateManager;
-        this.stateMachine = stateMachine;
-
-        this.encodeContext = new EncodeContext(groupConfig.getHeapPool());
     }
 
     @Override
@@ -113,25 +103,31 @@ public class Raft implements BiConsumer<EventType, Object> {
 
                 Object header = input.getHeader();
                 item.setHeader(header);
+                /*
                 if (header != null) {
-                    Encoder<Object> encoder = stateMachine.createEncoder(item.getBizType(), true);
+                    @SuppressWarnings("rawtypes")
+                    Encoder encoder = stateMachine.createEncoder(item.getBizType(), true);
                     try {
+                        //noinspection unchecked
                         item.setActualHeaderSize(encoder.actualSize(encodeContext, header));
                     } finally {
                         encodeContext.setStatus(null);
                     }
-                }
+                }*/
 
                 Object body = input.getBody();
                 item.setBody(body);
+                /*
                 if (body != null) {
-                    Encoder<Object> encoder = stateMachine.createEncoder(item.getBizType(), false);
+                    @SuppressWarnings("rawtypes")
+                    Encoder encoder = stateMachine.createEncoder(item.getBizType(), false);
                     try {
+                        //noinspection unchecked
                         item.setActualBodySize(encoder.actualSize(encodeContext, body));
                     } finally {
                         encodeContext.setStatus(null);
                     }
-                }
+                }*/
 
                 logs.add(item);
 

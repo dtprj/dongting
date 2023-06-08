@@ -143,6 +143,7 @@ public class ApplyManager {
         }
     }
 
+    @SuppressWarnings("rawtypes")
     private RaftTask buildRaftTask(LogItem item) {
         try {
             RefBuffer headerRbb = item.getHeaderBuffer();
@@ -150,7 +151,7 @@ public class ApplyManager {
                 try {
                     if (item.getType() == LogItem.TYPE_NORMAL) {
                         ByteBuffer buf = headerRbb.getBuffer();
-                        Decoder<Object> decoder = stateMachine.createDecoder(item.getBizType(), true);
+                        Decoder decoder = stateMachine.createDecoder(item.getBizType(), true);
                         Object o = decoder.decode(decodeContext, buf, buf.remaining(), 0);
                         item.setHeader(o);
                     } else {
@@ -166,7 +167,7 @@ public class ApplyManager {
                 try {
                     if (item.getType() == LogItem.TYPE_NORMAL) {
                         ByteBuffer buf = bodyRbb.getBuffer();
-                        Decoder<Object> decoder = stateMachine.createDecoder(item.getBizType(), false);
+                        Decoder decoder = stateMachine.createDecoder(item.getBizType(), false);
                         Object o = decoder.decode(decodeContext, buf, buf.remaining(), 0);
                         item.setBody(o);
                     } else {

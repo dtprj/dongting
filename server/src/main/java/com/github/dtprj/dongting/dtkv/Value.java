@@ -13,17 +13,25 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.codec;
-
-import java.nio.ByteBuffer;
+package com.github.dtprj.dongting.dtkv;
 
 /**
  * @author huangli
  */
-public interface Encoder<T> {
+class Value {
+    private final byte[] data;
+    private final long raftIndex;
 
-    boolean encode(EncodeContext context, ByteBuffer buffer, T data);
+    public Value(long raftIndex, byte[] data) {
+        this.raftIndex = raftIndex;
+        this.data = data;
+    }
 
-    int actualSize(T data);
+    public byte[] getData() {
+        return data;
+    }
 
+    public long getRaftIndex() {
+        return raftIndex;
+    }
 }

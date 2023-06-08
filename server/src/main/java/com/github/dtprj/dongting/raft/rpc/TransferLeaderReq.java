@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.net.SmallNoCopyWriteFrame;
@@ -78,7 +77,7 @@ public class TransferLeaderReq {
         }
 
         @Override
-        protected int calcActualBodySize(EncodeContext context) {
+        protected int calcActualBodySize() {
             return PbUtil.accurateUnsignedIntSize(1, req.groupId)
                     + PbUtil.accurateUnsignedIntSize(2, req.term)
                     + PbUtil.accurateUnsignedIntSize(3, req.oldLeaderId)

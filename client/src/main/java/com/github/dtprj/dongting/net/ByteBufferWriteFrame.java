@@ -31,7 +31,7 @@ public class ByteBufferWriteFrame extends WriteFrame {
     }
 
     @Override
-    protected int calcActualBodySize(EncodeContext context) {
+    protected int calcActualBodySize() {
         ByteBuffer body = this.body;
         return body == null ? 0 : body.remaining();
     }

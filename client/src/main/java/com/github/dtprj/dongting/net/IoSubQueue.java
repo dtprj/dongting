@@ -65,7 +65,7 @@ class IoSubQueue {
 
     public void enqueue(WriteData writeData) {
         WriteFrame wf = writeData.getData();
-        int estimateSize = wf.calcMaxFrameSize(encodeContext);
+        int estimateSize = wf.calcMaxFrameSize();
         if (estimateSize < 0) {
             wf.clean(encodeContext);
             fail(writeData, "estimateSize overflow");
@@ -147,6 +147,7 @@ class IoSubQueue {
                             workerStatus.getPendingRequests().put(key, old);
                         }
                     }
+                    encodeContext.setStatus(null);
                     wd = null;
                 } else {
                     return flipAndReturnBuffer(buf);
@@ -199,6 +200,7 @@ class IoSubQueue {
             f.setSeq(seq);
             f.setTimeout(rest);
         }
+        encodeContext.setStatus(null);
         return doEncode(buf, wd);
     }
 
@@ -211,6 +213,7 @@ class IoSubQueue {
                 wd.getFuture().completeExceptionally(e);
             }
             wd.getData().clean(encodeContext);
+            encodeContext.setStatus(null);
             // channel will be closed
             throw e;
         }

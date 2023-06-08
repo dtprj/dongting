@@ -29,7 +29,7 @@ public class EmptyBodyRespFrame extends WriteFrame {
     }
 
     @Override
-    protected int calcActualBodySize(EncodeContext context) {
+    protected int calcActualBodySize() {
         return 0;
     }
 

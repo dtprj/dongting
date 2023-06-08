@@ -55,7 +55,7 @@ public class FramePbTest {
         f.setRespCode(respCode);
         f.setMsg(msg);
         f.setTimeout(timeout);
-        ByteBuffer buf = ByteBuffer.allocate(f.actualSize(null, f));
+        ByteBuffer buf = ByteBuffer.allocate(f.actualSize(f));
         f.encode(new EncodeContext(null), buf, f);
         buf.flip();
         buf.position(4);
