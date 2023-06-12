@@ -25,35 +25,37 @@ import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
  */
 class KvSnapshot extends Snapshot {
-    private final Runnable statusChecker;
+    private final Supplier<KvStatus> statusSupplier;
     private final RefBufferFactory heapPool;
     private final Consumer<Snapshot> closeCallback;
     private final Iterator<Map.Entry<String, Value>> iterator;
+    private final int epoch;
 
-    public KvSnapshot(long lastIncludedIndex, int lastIncludedTerm, Runnable statusChecker,
-                      ConcurrentSkipListMap<String, Value> map, RefBufferFactory heapPool,
+    public KvSnapshot(long lastIncludedIndex, int lastIncludedTerm, Supplier<KvStatus> statusSupplier,
+                      KvStatus kvStatus, RefBufferFactory heapPool,
                       Consumer<Snapshot> closeCallback) {
         super(lastIncludedIndex, lastIncludedTerm);
-        this.statusChecker = statusChecker;
+        this.statusSupplier = statusSupplier;
         this.heapPool = heapPool;
         this.closeCallback = closeCallback;
-        this.iterator = map.entrySet().iterator();
+        this.iterator = kvStatus.kv.map.entrySet().iterator();
+        this.epoch = kvStatus.epoch;
     }
 
     @Override
     public CompletableFuture<RefBuffer> readNext() {
-        try {
-            statusChecker.run();
-        } catch (Exception e) {
-            return CompletableFuture.failedFuture(e);
+        KvStatus current = statusSupplier.get();
+        if (current.status != KvStatus.RUNNING || current.epoch != epoch) {
+            return CompletableFuture.failedFuture(new RaftException("the snapshot is expired"));
         }
+
         RefBuffer refBuffer = null;
         Map.Entry<String, Value> en;
         while ((en = iterator.next()) != null) {

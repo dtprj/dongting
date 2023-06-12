@@ -48,7 +48,7 @@ public class DtKV implements StateMachine {
     private final ArrayList<Snapshot> openSnapshots = new ArrayList<>();
     private long minOpenSnapshotIndex;
 
-    private volatile KvStatus kvStatus = new KvStatus(KvStatus.RUNNING, new Kv());
+    private volatile KvStatus kvStatus = new KvStatus(KvStatus.RUNNING, new Kv(), 0);
 
     public DtKV(RaftGroupConfigEx groupConfig) {
         this.groupConfig = groupConfig;
@@ -107,18 +107,11 @@ public class DtKV implements StateMachine {
     public Snapshot takeSnapshot(int currentTerm) {
         KvStatus kvStatus = this.kvStatus;
         ensureRunning(kvStatus);
-        KvSnapshot snapshot = new KvSnapshot(raftStatus.getLastApplied(), raftStatus.getCurrentTerm(),
-                this::shouldStopSnapshotIterate, kvStatus.kv.map, groupConfig.getHeapPool(), this::closeSnapshot);
+        KvSnapshot snapshot = new KvSnapshot(raftStatus.getLastApplied(), raftStatus.getCurrentTerm(), () -> kvStatus,
+                kvStatus, groupConfig.getHeapPool(), this::closeSnapshot);
         openSnapshots.add(snapshot);
         updateMaxMin();
         return snapshot;
-    }
-
-    private void shouldStopSnapshotIterate() {
-        if (raftStatus.isStop()) {
-            throw new RaftException("raft is stopped");
-        }
-        ensureRunning(kvStatus);
     }
 
     private void closeSnapshot(Snapshot snapshot) {
@@ -150,6 +143,6 @@ public class DtKV implements StateMachine {
 
     @Override
     public void close() throws Exception {
-        kvStatus = new KvStatus(KvStatus.CLOSED, null);
+        kvStatus = new KvStatus(KvStatus.CLOSED, null, kvStatus.epoch + 1);
     }
 }

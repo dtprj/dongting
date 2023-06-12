@@ -25,9 +25,11 @@ class KvStatus {
 
     final int status;
     final Kv kv;
+    final int epoch;
 
-    public KvStatus(int status, Kv kv) {
+    public KvStatus(int status, Kv kv, int epoch) {
         this.status = status;
         this.kv = kv;
+        this.epoch = epoch;
     }
 }
