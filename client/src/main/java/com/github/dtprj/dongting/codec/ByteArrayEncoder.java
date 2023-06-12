@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.codec;
 
 import java.nio.ByteBuffer;
-import java.util.Objects;
 
 /**
  * @author huangli
@@ -38,7 +37,7 @@ public class ByteArrayEncoder implements Encoder<byte[]> {
             return true;
         }
         Integer lastPos = (Integer) context.getStatus();
-        int pos = Objects.requireNonNullElse(lastPos, 0);
+        int pos = lastPos == null ? 0 : lastPos;
 
         int count = Math.min(buffer.remaining(), totalLen - pos);
         buffer.put(data, pos, count);
