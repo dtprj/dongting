@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.StatusFile;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftStatus;
 import com.github.dtprj.dongting.raft.store.AsyncIoTask;
 
 import java.io.File;
@@ -59,6 +60,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
     private final RaftGroupConfigEx groupConfig;
     private final ExecutorService ioExecutor;
     private final RaftExecutor raftExecutor;
+    private final RaftStatus raftStatus;
 
     private File snapshotDir;
 
@@ -70,6 +72,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         this.groupConfig = groupConfig;
         this.ioExecutor = ioExecutor;
         this.raftExecutor = (RaftExecutor) groupConfig.getRaftExecutor();
+        this.raftStatus = groupConfig.getRaftStatus();
     }
 
     @Override
@@ -176,7 +179,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             }
             currentSaveTask = this;
             try {
-                currentSnapshot = stateMachine.takeSnapshot();
+                currentSnapshot = stateMachine.takeSnapshot(raftStatus.getCurrentTerm());
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
                 String baseName = sdf.format(new Date()) + "_" + currentSnapshot.getId();
                 newDataFile = new File(snapshotDir, baseName + DATA_SUFFIX);

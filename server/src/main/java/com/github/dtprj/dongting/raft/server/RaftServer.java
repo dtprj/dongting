@@ -206,7 +206,7 @@ public class RaftServer extends AbstractLifeCircle {
         eventBus.register(raft);
         eventBus.register(voteManager);
 
-        RaftGroupImpl gc = new RaftGroupImpl(() -> status == LifeStatus.running);
+        RaftGroupImpl gc = new RaftGroupImpl();
         gc.setServerConfig(serverConfig);
         gc.setGroupConfig(rgc);
         gc.setRaftLog(raftLog);

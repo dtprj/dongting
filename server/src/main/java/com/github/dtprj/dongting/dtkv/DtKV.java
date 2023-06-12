@@ -22,10 +22,14 @@ import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.codec.StrDecoder;
 import com.github.dtprj.dongting.codec.StrEncoder;
+import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.server.RaftStatus;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
+import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -38,7 +42,18 @@ public class DtKV implements StateMachine {
     // public static final int BIZ_TYPE_LIST = 3;
     // public static final int BIZ_TYPE_CAS = 4;
 
-    private final DtKvImpl impl = new DtKvImpl();
+    private final RaftGroupConfigEx groupConfig;
+    private final RaftStatus raftStatus;
+
+    private final ArrayList<Snapshot> openSnapshots = new ArrayList<>();
+    private long minOpenSnapshotIndex;
+
+    private volatile KvStatus kvStatus = new KvStatus(KvStatus.RUNNING, new Kv());
+
+    public DtKV(RaftGroupConfigEx groupConfig) {
+        this.groupConfig = groupConfig;
+        this.raftStatus = groupConfig.getRaftStatus();
+    }
 
     @Override
     public Decoder<?> createDecoder(int bizType, boolean header) {
@@ -68,14 +83,16 @@ public class DtKV implements StateMachine {
 
     @Override
     public CompletableFuture<Object> exec(long index, RaftInput input) {
+        KvStatus kvStatus = this.kvStatus;
+        ensureRunning(kvStatus);
         String key = (String) input.getHeader();
         switch (input.getBizType()) {
             case BIZ_TYPE_GET:
-                return impl.get(key);
+                return kvStatus.kv.get(key);
             case BIZ_TYPE_PUT:
-                return impl.put(index, key, (byte[]) input.getBody());
+                return kvStatus.kv.put(index, key, (byte[]) input.getBody(), minOpenSnapshotIndex);
             case BIZ_TYPE_REMOVE:
-                return impl.remove(key);
+                return kvStatus.kv.remove(index, key, minOpenSnapshotIndex);
             default:
                 throw new IllegalArgumentException("unknown bizType " + input.getBizType());
         }
@@ -87,12 +104,52 @@ public class DtKV implements StateMachine {
     }
 
     @Override
-    public Snapshot takeSnapshot() {
-        return null;
+    public Snapshot takeSnapshot(int currentTerm) {
+        KvStatus kvStatus = this.kvStatus;
+        ensureRunning(kvStatus);
+        KvSnapshot snapshot = new KvSnapshot(raftStatus.getLastApplied(), raftStatus.getCurrentTerm(),
+                this::shouldStopSnapshotIterate, kvStatus.kv.map, groupConfig.getHeapPool(), this::closeSnapshot);
+        openSnapshots.add(snapshot);
+        updateMaxMin();
+        return snapshot;
     }
+
+    private void shouldStopSnapshotIterate() {
+        if (raftStatus.isStop()) {
+            throw new RaftException("raft is stopped");
+        }
+        ensureRunning(kvStatus);
+    }
+
+    private void closeSnapshot(Snapshot snapshot) {
+        openSnapshots.remove(snapshot);
+        updateMaxMin();
+    }
+
+    private void updateMaxMin() {
+        long min = 0;
+        for (Snapshot s : openSnapshots) {
+            min = min == 0 ? s.getLastIncludedIndex() : Math.min(min, s.getLastIncludedIndex());
+        }
+        this.minOpenSnapshotIndex = min;
+    }
+
+    private static void ensureRunning(KvStatus kvStatus) {
+        switch (kvStatus.status) {
+            case KvStatus.RUNNING:
+                break;
+            case KvStatus.INSTALLING_SNAPSHOT:
+                throw new RaftException("state machine is installing snapshot");
+            case KvStatus.CLOSED:
+                throw new RaftException("state machine is closed");
+            default:
+                throw new RaftException(String.valueOf(kvStatus.status));
+        }
+    }
+
 
     @Override
     public void close() throws Exception {
-
+        kvStatus = new KvStatus(KvStatus.CLOSED, null);
     }
 }

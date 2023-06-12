@@ -22,25 +22,16 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Supplier;
 
 /**
  * @author huangli
  */
 public abstract class RaftGroup {
-    private final Supplier<Boolean> isServerRunning;
 
     protected RaftLog raftLog;
     protected StateMachine stateMachine;
 
-    public RaftGroup(Supplier<Boolean> isServerRunning) {
-        this.isServerRunning = isServerRunning;
-    }
-
-    protected void checkStatus() {
-        if (!isServerRunning.get()) {
-            throw new RaftException("raft server is not running");
-        }
+    public RaftGroup() {
     }
 
     public abstract int getGroupId();
@@ -94,6 +85,9 @@ public abstract class RaftGroup {
      */
     @SuppressWarnings("unused")
     public abstract CompletableFuture<Void> leaderCommitJointConsensus();
+
+    @SuppressWarnings("unused")
+    public abstract CompletableFuture<Long> saveSnapshot();
 
     public RaftLog getRaftLog() {
         return raftLog;

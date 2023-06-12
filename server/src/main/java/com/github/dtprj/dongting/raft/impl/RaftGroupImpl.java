@@ -37,7 +37,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -61,8 +60,14 @@ public class RaftGroupImpl extends RaftGroup {
     private NodeManager nodeManager;
     private PendingStat serverStat;
 
-    public RaftGroupImpl(Supplier<Boolean> isServerRunning) {
-        super(isServerRunning);
+    public RaftGroupImpl() {
+        super();
+    }
+
+    private void checkStatus() {
+        if (raftStatus.isStop()) {
+            throw new RaftException("raft server is not running");
+        }
     }
 
     @Override
@@ -189,6 +194,12 @@ public class RaftGroupImpl extends RaftGroup {
         CompletableFuture<Void> f = new CompletableFuture<>();
         raftExecutor.execute(() -> memberManager.leaderCommitJointConsensus(f));
         return f;
+    }
+
+    @Override
+    public CompletableFuture<Long> saveSnapshot() {
+        checkStatus();
+        return snapshotManager.saveSnapshot(stateMachine, () -> raftStatus.isStop());
     }
 
     public RaftGroupThread getRaftGroupThread() {

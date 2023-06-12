@@ -22,6 +22,8 @@ class Value {
     private final byte[] data;
     private final long raftIndex;
 
+    private Value previous;
+
     public Value(long raftIndex, byte[] data) {
         this.raftIndex = raftIndex;
         this.data = data;
@@ -33,5 +35,13 @@ class Value {
 
     public long getRaftIndex() {
         return raftIndex;
+    }
+
+    public Value getPrevious() {
+        return previous;
+    }
+
+    public void setPrevious(Value previous) {
+        this.previous = previous;
     }
 }

@@ -30,8 +30,8 @@ public abstract class Snapshot implements AutoCloseable {
     private static final DtLog log = DtLogs.getLogger(Snapshot.class);
     private static final AtomicLong NEXT_ID = new AtomicLong();
     private final long id = NEXT_ID.incrementAndGet();
-    private final long lastIncludedIndex;
-    private final int lastIncludedTerm;
+    protected final long lastIncludedIndex;
+    protected final int lastIncludedTerm;
     private AtomicBoolean closed = new AtomicBoolean();
 
     public Snapshot(long lastIncludedIndex, int lastIncludedTerm) {

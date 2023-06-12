@@ -18,29 +18,16 @@ package com.github.dtprj.dongting.dtkv;
 /**
  * @author huangli
  */
-class Key {
+class KvStatus {
+    public static final int RUNNING = 0;
+    public static final int INSTALLING_SNAPSHOT = 1;
+    public static final int CLOSED = 2;
 
-    private final String key;
+    final int status;
+    final Kv kv;
 
-    public Key(String key) {
-        this.key = key;
-    }
-
-    public String getKey() {
-        return key;
-    }
-
-    @Override
-    public int hashCode() {
-        return key.hashCode();
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj instanceof Key) {
-            return key.equals(((Key) obj).key);
-        } else {
-            return false;
-        }
+    public KvStatus(int status, Kv kv) {
+        this.status = status;
+        this.kv = kv;
     }
 }

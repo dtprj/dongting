@@ -27,6 +27,5 @@ public interface SnapshotManager {
     Snapshot init(Supplier<Boolean> cancelIndicator) throws IOException;
 
     @SuppressWarnings("unused")
-    CompletableFuture<Long> saveSnapshot(StateMachine stateMachine,
-                                         Supplier<Boolean> cancelIndicator);
+    CompletableFuture<Long> saveSnapshot(StateMachine stateMachine, Supplier<Boolean> cancelIndicator);
 }

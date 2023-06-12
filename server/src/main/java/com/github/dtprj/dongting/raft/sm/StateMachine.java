@@ -29,6 +29,6 @@ public interface StateMachine extends AutoCloseable, RaftCodecFactory {
 
     void installSnapshot(long lastIncludeIndex, int lastIncludeTerm, long offset, boolean done, RefBuffer data);
 
-    Snapshot takeSnapshot();
+    Snapshot takeSnapshot(int currentTerm);
 
 }

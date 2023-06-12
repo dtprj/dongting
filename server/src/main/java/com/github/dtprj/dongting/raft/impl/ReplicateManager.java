@@ -509,7 +509,7 @@ public class ReplicateManager {
             return;
         }
         try {
-            Snapshot snapshot = stateMachine.takeSnapshot();
+            Snapshot snapshot = stateMachine.takeSnapshot(raftStatus.getCurrentTerm());
             if (snapshot == null) {
                 installSnapshotFailTime = raftStatus.getTs().getNanoTime();
                 log.error("open recent snapshot fail, return null");
