@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentSkipListMap;
 /**
  * @author huangli
  */
-public class Kv {
+class Kv {
     final ConcurrentSkipListMap<String, Value> map = new ConcurrentSkipListMap<>();
 
     public CompletableFuture<Object> get(String key) {

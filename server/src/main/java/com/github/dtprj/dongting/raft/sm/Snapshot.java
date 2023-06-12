@@ -32,7 +32,7 @@ public abstract class Snapshot implements AutoCloseable {
     private final long id = NEXT_ID.incrementAndGet();
     protected final long lastIncludedIndex;
     protected final int lastIncludedTerm;
-    private AtomicBoolean closed = new AtomicBoolean();
+    private final AtomicBoolean closed = new AtomicBoolean();
 
     public Snapshot(long lastIncludedIndex, int lastIncludedTerm) {
         this.lastIncludedTerm = lastIncludedTerm;

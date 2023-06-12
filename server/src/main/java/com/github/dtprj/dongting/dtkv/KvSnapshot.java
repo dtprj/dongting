@@ -31,7 +31,7 @@ import java.util.function.Consumer;
 /**
  * @author huangli
  */
-public class KvSnapshot extends Snapshot {
+class KvSnapshot extends Snapshot {
     private final Runnable statusChecker;
     private final RefBufferFactory heapPool;
     private final Consumer<Snapshot> closeCallback;
