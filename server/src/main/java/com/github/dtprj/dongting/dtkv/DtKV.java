@@ -142,7 +142,9 @@ public class DtKV implements StateMachine {
 
 
     @Override
+    @SuppressWarnings("NonAtomicOperationOnVolatileField")
     public void close() throws Exception {
+        // this method is thread safe, since all methods defined on StateMachine interface are called in raft thread
         kvStatus = new KvStatus(KvStatus.CLOSED, null, kvStatus.epoch + 1);
     }
 }
