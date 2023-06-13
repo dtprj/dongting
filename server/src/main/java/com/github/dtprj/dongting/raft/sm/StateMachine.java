@@ -21,14 +21,25 @@ import com.github.dtprj.dongting.raft.server.RaftInput;
 import java.util.concurrent.CompletableFuture;
 
 /**
+ * All method defined in this class is called in raft thread except createEncoder/createDecoder method.
+ *
  * @author huangli
  */
 public interface StateMachine extends AutoCloseable, RaftCodecFactory {
 
+    /**
+     * this method is called in raft thread.
+     */
     CompletableFuture<Object> exec(long index, RaftInput input);
 
+    /**
+     * this method is called in raft thread.
+     */
     void installSnapshot(long lastIncludeIndex, int lastIncludeTerm, long offset, boolean done, RefBuffer data);
 
+    /**
+     * this method is called in raft thread.
+     */
     Snapshot takeSnapshot(int currentTerm);
 
 }

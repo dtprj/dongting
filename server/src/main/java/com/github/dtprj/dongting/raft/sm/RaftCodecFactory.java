@@ -22,7 +22,14 @@ import com.github.dtprj.dongting.codec.Encoder;
  * @author huangli
  */
 public interface RaftCodecFactory {
+
+    /**
+     * this method is called in raft thread or io thread.
+     */
     Decoder<?> createDecoder(int bizType, boolean header);
 
+    /**
+     * this method is called in raft thread or io thread.
+     */
     Encoder<?> createEncoder(int bizType, boolean header);
 }

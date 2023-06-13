@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.dtkv;
 
+import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.ByteArrayDecoder;
 import com.github.dtprj.dongting.codec.ByteArrayEncoder;
@@ -29,8 +30,11 @@ import com.github.dtprj.dongting.raft.server.RaftStatus;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
  * @author huangli
@@ -44,6 +48,7 @@ public class DtKV implements StateMachine {
 
     private final RaftGroupConfigEx groupConfig;
     private final RaftStatus raftStatus;
+    private final ByteBufferPool heapPool;
 
     private final ArrayList<Snapshot> openSnapshots = new ArrayList<>();
     private long minOpenSnapshotIndex;
@@ -53,6 +58,7 @@ public class DtKV implements StateMachine {
     public DtKV(RaftGroupConfigEx groupConfig) {
         this.groupConfig = groupConfig;
         this.raftStatus = groupConfig.getRaftStatus();
+        this.heapPool = groupConfig.getHeapPool().getPool();
     }
 
     @Override
@@ -100,7 +106,30 @@ public class DtKV implements StateMachine {
 
     @Override
     public void installSnapshot(long lastIncludeIndex, int lastIncludeTerm, long offset, boolean done, RefBuffer data) {
-
+        newStatus(KvStatus.INSTALLING_SNAPSHOT, new Kv());
+        ByteBuffer bb = data.getBuffer();
+        Kv kv = kvStatus.kv;
+        ConcurrentSkipListMap<String, Value> map = kv.map;
+        while (bb.hasRemaining()) {
+            long raftIndex = bb.getLong();
+            int keyLen = bb.getInt();
+            ByteBuffer keyBuf = heapPool.borrow(keyLen);
+            String key;
+            try {
+                keyBuf.limit(keyLen);
+                keyBuf.put(bb);
+                key = new String(keyBuf.array(), 0, keyLen, StandardCharsets.UTF_8);
+            } finally {
+                heapPool.release(keyBuf);
+            }
+            int valueLen = bb.getInt();
+            byte[] value = new byte[valueLen];
+            bb.get(value);
+            map.put(key, new Value(raftIndex, value));
+        }
+        if (done) {
+            newStatus(KvStatus.RUNNING, kv);
+        }
     }
 
     @Override
@@ -142,9 +171,13 @@ public class DtKV implements StateMachine {
 
 
     @Override
-    @SuppressWarnings("NonAtomicOperationOnVolatileField")
     public void close() throws Exception {
-        // this method is thread safe, since all methods defined on StateMachine interface are called in raft thread
-        kvStatus = new KvStatus(KvStatus.CLOSED, null, kvStatus.epoch + 1);
+        newStatus(KvStatus.CLOSED, null);
+    }
+
+    @SuppressWarnings("NonAtomicOperationOnVolatileField")
+    private void newStatus(int status, Kv kv) {
+        // close()/installSnapshot() are called in raft thread, so we don't need to use CAS here
+        kvStatus = new KvStatus(status, kv, kvStatus.epoch + 1);
     }
 }

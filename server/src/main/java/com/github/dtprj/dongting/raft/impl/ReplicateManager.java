@@ -483,7 +483,9 @@ public class ReplicateManager {
     private void processInstallSnapshotError(RaftMember member, SnapshotInfo si, Throwable e, int reqEpoch) {
         installSnapshotFailTime = raftStatus.getTs().getNanoTime();
         member.incrReplicateEpoch(reqEpoch);
-        log.error("install snapshot fail", e);
+        if (e != null) {
+            log.error("install snapshot fail", e);
+        }
         closeSnapshotAndResetStatus(member, si);
     }
 
@@ -578,12 +580,16 @@ public class ReplicateManager {
             }
             pd.decrPlain(1, reqBytes);
             if (ex != null) {
-                log.error("send install snapshot fail. remoteNode={}, groupId={}",
-                        member.getNode().getNodeId(), groupId, ex);
                 processInstallSnapshotError(member, si, ex, reqEpoch);
                 return;
             }
             InstallSnapshotResp respBody = rf.getBody();
+            if (!respBody.success) {
+                log.error("send install snapshot fail. remoteNode={}, groupId={}",
+                        member.getNode().getNodeId(), groupId);
+                processInstallSnapshotError(member, si, null, reqEpoch);
+                return;
+            }
             if (checkTermFailed(respBody.term)) {
                 return;
             }

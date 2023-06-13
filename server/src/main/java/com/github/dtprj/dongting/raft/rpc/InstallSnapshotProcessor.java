@@ -118,10 +118,15 @@ public class InstallSnapshotProcessor extends AbstractProcessor<InstallSnapshotR
             if (finish) {
                 raftStatus.setInstallSnapshot(false);
                 raftStatus.setLastApplied(req.lastIncludedIndex);
+                raftStatus.setCommitIndex(req.lastIncludedIndex);
             }
         } catch (Exception e) {
             log.error("install snapshot error", e);
             resp.success = false;
+        } finally {
+            if (req.data != null) {
+                req.data.release();
+            }
         }
     }
 

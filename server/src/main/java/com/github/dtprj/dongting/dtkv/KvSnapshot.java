@@ -69,7 +69,7 @@ class KvSnapshot extends Snapshot {
             String key = en.getKey();
             byte[] keyBytes = key.getBytes(StandardCharsets.UTF_8);
             byte[] data = value.getData();
-            int len = 4 + keyBytes.length + 4 + data.length;
+            int len = 16 + keyBytes.length + data.length;
             if (len < 0) {
                 return CompletableFuture.failedFuture(new RaftException("key + value overflow"));
             }
@@ -80,6 +80,7 @@ class KvSnapshot extends Snapshot {
             if (bb.remaining() < len) {
                 return CompletableFuture.completedFuture(refBuffer);
             }
+            bb.putLong(value.getRaftIndex());
             bb.putInt(keyBytes.length);
             bb.put(keyBytes);
             bb.putInt(data.length);
