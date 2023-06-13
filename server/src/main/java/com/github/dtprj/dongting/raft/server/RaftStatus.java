@@ -19,11 +19,11 @@ package com.github.dtprj.dongting.raft.server;
  * @author huangli
  */
 public abstract class RaftStatus {
-    // persistent state on all servers
+    // in raft paper: persistent state on all servers
     protected int currentTerm;
     protected int votedFor;
 
-    // volatile state on all servers
+    // in raft paper: volatile state on all servers
     protected long commitIndex;
     protected long lastApplied; // shared
 

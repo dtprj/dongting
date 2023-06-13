@@ -41,7 +41,7 @@ public class RaftMember {
     private boolean installSnapshot;
     private SnapshotInfo snapshotInfo;
 
-    // volatile state on leaders
+    // in raft paper: volatile state on leaders
     private long nextIndex;
     private long matchIndex;
 
