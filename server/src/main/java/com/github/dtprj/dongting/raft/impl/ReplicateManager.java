@@ -38,6 +38,7 @@ import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CancellationException;
@@ -51,6 +52,7 @@ import java.util.function.BiConsumer;
 public class ReplicateManager {
 
     private static final DtLog log = DtLogs.getLogger(ReplicateManager.class);
+    private static final long FAIL_TIMEOUT = Duration.ofSeconds(1).toNanos();
 
     private final int groupId;
     private final RaftStatusImpl raftStatus;
@@ -116,6 +118,9 @@ public class ReplicateManager {
             return;
         }
         if (member.getPendingStat().getPendingBytesPlain() >= maxReplicateBytes) {
+            return;
+        }
+        if (ts.getNanoTime() - member.getLastFailNanos() <= FAIL_TIMEOUT) {
             return;
         }
         if (member.isInstallSnapshot()) {
@@ -202,6 +207,7 @@ public class ReplicateManager {
                 // if log is deleted, the next load will never success, so we need to reset nextIndex.
                 // however, the exception may be caused by other reasons
                 member.setNextIndex(raftStatus.getLastLogIndex() + 1);
+                member.setLastFailNanos(ts.getNanoTime());
                 log.error("load raft log failed", ex);
             }
             RaftUtil.release(items);
@@ -297,6 +303,7 @@ public class ReplicateManager {
                 processAppendResult(member, rf, prevLogIndex, prevLogTerm, reqTerm, reqNanos, logs.size(), repEpoch);
             } else {
                 member.incrReplicateEpoch(repEpoch);
+                member.setLastFailNanos(ts.getNanoTime());
                 if (member.isMultiAppend()) {
                     member.setMultiAppend(false);
                     String msg = "append fail. remoteId={}, groupId={}, localTerm={}, reqTerm={}, prevLogIndex={}";
@@ -364,9 +371,11 @@ public class ReplicateManager {
                 processLogNotMatch(member, prevLogIndex, prevLogTerm, body, raftStatus);
             } else if (appendCode == AppendProcessor.CODE_SERVER_ERROR) {
                 updateLease(member, reqNanos, raftStatus);
+                member.setLastFailNanos(ts.getNanoTime());
                 log.error("append fail because of remote error. groupId={}, prevLogIndex={}, msg={}",
                         groupId, prevLogIndex, rf.getMsg());
             } else {
+                member.setLastFailNanos(ts.getNanoTime());
                 BugLog.getLog().error("append fail. appendCode={}, old matchIndex={}, append prevLogIndex={}, " +
                                 "expectNewMatchIndex={}, remoteId={}, groupId={}, localTerm={}, reqTerm={}, remoteTerm={}",
                         AppendProcessor.getCodeStr(appendCode), member.getMatchIndex(), prevLogIndex, expectNewMatchIndex,
@@ -411,6 +420,7 @@ public class ReplicateManager {
                     beginInstallSnapshot(member);
                 }
             } else {
+                member.setLastFailNanos(ts.getNanoTime());
                 log.error("nextIndexToReplicate fail", ex);
             }
         };
@@ -480,6 +490,7 @@ public class ReplicateManager {
     private void processInstallSnapshotError(RaftMember member, SnapshotInfo si, Throwable e, int reqEpoch) {
         installSnapshotFailTime = raftStatus.getTs().getNanoTime();
         member.incrReplicateEpoch(reqEpoch);
+        member.setLastFailNanos(ts.getNanoTime());
         if (e != null) {
             log.error("install snapshot fail", e);
         }

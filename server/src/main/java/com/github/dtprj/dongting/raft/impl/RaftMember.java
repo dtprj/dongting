@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.raft.server.RaftLog;
 
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -36,6 +37,7 @@ public class RaftMember {
     private PendingStat pendingStat;
 
     private long lastConfirmReqNanos;
+    private long lastFailNanos = System.nanoTime() - Duration.ofSeconds(30).toNanos();
 
     private boolean installSnapshot;
     private SnapshotInfo snapshotInfo;
@@ -162,4 +164,11 @@ public class RaftMember {
         this.replicateIterator = replicateIterator;
     }
 
+    public long getLastFailNanos() {
+        return lastFailNanos;
+    }
+
+    public void setLastFailNanos(long lastFailNanos) {
+        this.lastFailNanos = lastFailNanos;
+    }
 }
