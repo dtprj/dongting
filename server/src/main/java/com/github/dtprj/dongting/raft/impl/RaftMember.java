@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.raft.server.RaftLog;
 
 import java.util.concurrent.CompletableFuture;
@@ -47,9 +46,6 @@ public class RaftMember {
 
     private CompletableFuture<?> replicateFuture;
     private RaftLog.LogIterator replicateIterator;
-
-    private Encoder<?> headerEncoder;
-    private Encoder<?> bodyEncoder;
 
     public RaftMember(RaftNodeEx node) {
         this.node = node;
@@ -166,19 +162,4 @@ public class RaftMember {
         this.replicateIterator = replicateIterator;
     }
 
-    public Encoder<?> getHeaderEncoder() {
-        return headerEncoder;
-    }
-
-    public void setHeaderEncoder(Encoder<?> headerEncoder) {
-        this.headerEncoder = headerEncoder;
-    }
-
-    public Encoder<?> getBodyEncoder() {
-        return bodyEncoder;
-    }
-
-    public void setBodyEncoder(Encoder<?> bodyEncoder) {
-        this.bodyEncoder = bodyEncoder;
-    }
 }
