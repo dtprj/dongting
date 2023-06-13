@@ -115,6 +115,9 @@ public class ReplicateManager {
         if (member.getReplicateFuture() != null) {
             return;
         }
+        if (member.getPendingStat().getPendingBytesPlain() >= maxReplicateBytes) {
+            return;
+        }
         if (member.isInstallSnapshot()) {
             installSnapshot(member);
         } else if (member.isMultiAppend()) {
@@ -141,9 +144,6 @@ public class ReplicateManager {
         int rest = maxReplicateItems - ps.getPendingRequestsPlain();
         if (rest <= restItemsToStartReplicate) {
             // avoid silly window syndrome
-            return;
-        }
-        if (ps.getPendingBytesPlain() >= maxReplicateBytes) {
             return;
         }
 
@@ -433,9 +433,6 @@ public class ReplicateManager {
             return;
         }
         if (si.readFinished) {
-            return;
-        }
-        if (member.getPendingStat().getPendingBytesPlain() >= maxReplicateBytes) {
             return;
         }
         int reqEpoch = member.getReplicateEpoch();
