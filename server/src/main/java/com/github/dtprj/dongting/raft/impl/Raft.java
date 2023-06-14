@@ -103,31 +103,9 @@ public class Raft implements BiConsumer<EventType, Object> {
 
                 Object header = input.getHeader();
                 item.setHeader(header);
-                /*
-                if (header != null) {
-                    @SuppressWarnings("rawtypes")
-                    Encoder encoder = stateMachine.createEncoder(item.getBizType(), true);
-                    try {
-                        //noinspection unchecked
-                        item.setActualHeaderSize(encoder.actualSize(encodeContext, header));
-                    } finally {
-                        encodeContext.setStatus(null);
-                    }
-                }*/
 
                 Object body = input.getBody();
                 item.setBody(body);
-                /*
-                if (body != null) {
-                    @SuppressWarnings("rawtypes")
-                    Encoder encoder = stateMachine.createEncoder(item.getBizType(), false);
-                    try {
-                        //noinspection unchecked
-                        item.setActualBodySize(encoder.actualSize(encodeContext, body));
-                    } finally {
-                        encodeContext.setStatus(null);
-                    }
-                }*/
 
                 logs.add(item);
 
