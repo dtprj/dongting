@@ -555,16 +555,8 @@ public class ReplicateManager {
         InstallSnapshotReq.InstallReqWriteFrame wf = new InstallSnapshotReq.InstallReqWriteFrame(req);
         wf.setCommand(Commands.RAFT_INSTALL_SNAPSHOT);
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        if (data != null) {
-            data.retain();
-        }
         CompletableFuture<ReadFrame<InstallSnapshotResp>> future = client.sendRequest(
                 member.getNode().getPeer(), wf, INSTALL_SNAPSHOT_RESP_DECODER, timeout);
-        future.whenComplete((rf, ex) -> {
-            if (data != null) {
-                data.release();
-            }
-        });
         int bytes = data == null ? 0 : data.getBuffer().remaining();
         si.offset += bytes;
         registerInstallSnapshotCallback(future, member, si, req.term, req.offset, bytes, req.done, req.lastIncludedIndex);

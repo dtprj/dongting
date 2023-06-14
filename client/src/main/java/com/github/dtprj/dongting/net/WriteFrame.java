@@ -133,16 +133,16 @@ public abstract class WriteFrame extends Frame implements Encoder<WriteFrame> {
         }
     }
 
-    public final void clean(EncodeContext context) {
+    public final void clean() {
         if (status == STATUS_CLEANED) {
             throw new NetException("already cleaned");
         } else {
-            doClean(context);
+            doClean();
             status = STATUS_CLEANED;
         }
     }
 
-    protected void doClean(EncodeContext context) {
+    protected void doClean() {
     }
 
 }

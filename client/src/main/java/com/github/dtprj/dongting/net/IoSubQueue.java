@@ -67,7 +67,7 @@ class IoSubQueue {
         WriteFrame wf = writeData.getData();
         int estimateSize = wf.calcMaxFrameSize();
         if (estimateSize < 0) {
-            wf.clean(encodeContext);
+            wf.clean();
             fail(writeData, "estimateSize overflow");
             return;
         }
@@ -94,7 +94,7 @@ class IoSubQueue {
         WriteData wd;
         while ((wd = subQueue.pollFirst()) != null) {
             fail(wd, "channel closed, future cancelled by subQueue clean");
-            wd.getData().clean(encodeContext);
+            wd.getData().clean();
         }
     }
 
@@ -130,7 +130,7 @@ class IoSubQueue {
                     encodeFinish = doEncode(buf, wd);
                 }
                 if (encodeFinish) {
-                    wd.getData().clean(encodeContext);
+                    wd.getData().clean();
                     subQueueBytes -= wd.getEstimateSize();
                     if (subQueueBytes < 0) {
                         subQueueBytes = 0;
@@ -212,7 +212,7 @@ class IoSubQueue {
             if (wd.getFuture() != null) {
                 wd.getFuture().completeExceptionally(e);
             }
-            wd.getData().clean(encodeContext);
+            wd.getData().clean();
             encodeContext.setStatus(null);
             // channel will be closed
             throw e;

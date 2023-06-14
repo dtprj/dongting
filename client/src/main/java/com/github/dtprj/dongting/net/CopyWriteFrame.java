@@ -56,7 +56,7 @@ public abstract class CopyWriteFrame extends WriteFrame {
     protected abstract void encodeBody(ByteBuffer buf);
 
     @Override
-    protected void doClean(EncodeContext context) {
+    protected void doClean() {
         if (tempRefBuffer != null) {
             tempRefBuffer.release();
             tempRefBuffer = null;

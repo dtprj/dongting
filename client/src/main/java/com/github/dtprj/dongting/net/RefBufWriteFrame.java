@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.codec.EncodeContext;
 
 /**
  * @author huangli
@@ -31,7 +30,7 @@ public class RefBufWriteFrame extends ByteBufferWriteFrame {
     }
 
     @Override
-    protected void doClean(EncodeContext context) {
+    protected void doClean() {
         if (refBuffer != null) {
             refBuffer.release();
             this.refBuffer = null;

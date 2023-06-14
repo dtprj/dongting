@@ -166,5 +166,11 @@ public class InstallSnapshotReq {
             return !req.data.getBuffer().hasRemaining();
         }
 
+        @Override
+        protected void doClean() {
+            if (req.data != null) {
+                req.data.release();
+            }
+        }
     }
 }
