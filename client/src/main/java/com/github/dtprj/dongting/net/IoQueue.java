@@ -57,15 +57,11 @@ class IoQueue {
     public void dispatchActions() {
         Object data;
         while ((data = queue.relaxedPoll()) != null) {
-            process(data);
-        }
-    }
-
-    private void process(Object data) {
-        if (data instanceof WriteData) {
-            processWriteData((WriteData) data);
-        } else {
-            ((Runnable) data).run();
+            if (data instanceof WriteData) {
+                processWriteData((WriteData) data);
+            } else {
+                ((Runnable) data).run();
+            }
         }
     }
 
@@ -78,12 +74,14 @@ class IoQueue {
                 if (!server && frame.getFrameType() == FrameType.TYPE_REQ) {
                     dtc = selectChannel();
                     if (dtc == null) {
+                        wo.getData().clean();
                         wo.getFuture().completeExceptionally(new NetException("no available channel"));
                         return;
                     }
                 } else {
                     log.error("no peer set");
                     if (frame.getFrameType() == FrameType.TYPE_REQ) {
+                        wo.getData().clean();
                         wo.getFuture().completeExceptionally(new NetException("no peer set"));
                     }
                     return;
@@ -92,6 +90,7 @@ class IoQueue {
                 dtc = peer.getDtChannel();
                 if (dtc == null) {
                     if (frame.getFrameType() == FrameType.TYPE_REQ) {
+                        wo.getData().clean();
                         wo.getFuture().completeExceptionally(new NetException("not connected"));
                     }
                     return;
@@ -102,6 +101,7 @@ class IoQueue {
 
         if (dtc.isClosed()) {
             if (wo.getFuture() != null) {
+                wo.getData().clean();
                 wo.getFuture().completeExceptionally(new NetException("channel closed during dispatch"));
             }
             return;

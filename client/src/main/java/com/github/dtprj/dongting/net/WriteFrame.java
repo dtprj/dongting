@@ -18,6 +18,9 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.codec.PbUtil;
+import com.github.dtprj.dongting.log.BugLog;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -26,6 +29,7 @@ import java.nio.charset.StandardCharsets;
  * @author huangli
  */
 public abstract class WriteFrame extends Frame implements Encoder<WriteFrame> {
+    private static final DtLog log = DtLogs.getLogger(WriteFrame.class);
 
     private static final int STATUS_INIT = 0;
     private static final int STATUS_HEADER_ENCODE_FINISHED = 1;
@@ -135,9 +139,13 @@ public abstract class WriteFrame extends Frame implements Encoder<WriteFrame> {
 
     public final void clean() {
         if (status == STATUS_CLEANED) {
-            throw new NetException("already cleaned");
+            BugLog.log(new Exception("already cleaned"));
         } else {
-            doClean();
+            try {
+                doClean();
+            } catch (Exception e) {
+                log.error("clean error", e);
+            }
             status = STATUS_CLEANED;
         }
     }

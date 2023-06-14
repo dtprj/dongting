@@ -75,7 +75,7 @@ public abstract class NioNet extends AbstractLifeCircle {
     }
 
     CompletableFuture<ReadFrame<?>> sendRequest(NioWorker worker, Peer peer, WriteFrame request,
-                                                    Decoder<?> decoder, DtTime timeout) {
+                                                Decoder<?> decoder, DtTime timeout) {
         request.setFrameType(FrameType.TYPE_REQ);
         DtUtil.checkPositive(request.getCommand(), "request.command");
         boolean acquire = false;
@@ -99,7 +99,7 @@ public abstract class NioNet extends AbstractLifeCircle {
             write = true;
             return registerReqCallback(future);
 
-        } catch (Throwable e) {
+        } catch (Exception e) {
             request.clean();
             return errorFuture(new NetException("sendRequest error", e));
         } finally {

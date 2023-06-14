@@ -67,7 +67,6 @@ class IoSubQueue {
         WriteFrame wf = writeData.getData();
         int estimateSize = wf.calcMaxFrameSize();
         if (estimateSize < 0) {
-            wf.clean();
             fail(writeData, "estimateSize overflow");
             return;
         }
@@ -88,13 +87,13 @@ class IoSubQueue {
         if (writeData.getFuture() != null) {
             writeData.getFuture().completeExceptionally(new NetException(msg));
         }
+        writeData.getData().clean();
     }
 
     public void cleanSubQueue() {
         WriteData wd;
         while ((wd = subQueue.pollFirst()) != null) {
             fail(wd, "channel closed, future cancelled by subQueue clean");
-            wd.getData().clean();
         }
     }
 
