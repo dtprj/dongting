@@ -24,6 +24,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -116,13 +117,13 @@ public class TimeoutTest {
     public void dropBeforeRequestSendTest() throws Exception {
         setup(() -> registerDelayPingProcessor(0));
         try {
-            DtTime deadline = new DtTime(System.nanoTime() - 5 * 1000 * 1000, 1, TimeUnit.NANOSECONDS);
+            DtTime deadline = new DtTime(System.nanoTime() - Duration.ofSeconds(1).toNanos(), 1, TimeUnit.NANOSECONDS);
             CompletableFuture<?> f1 = send(deadline);
             f1.get(5, TimeUnit.SECONDS);
             fail();
         } catch (ExecutionException e) {
             assertEquals(NetTimeoutException.class, e.getCause().getClass());
-            assertTrue(e.getCause().getMessage().contains("timeout before send"));
+            assertTrue(e.getCause().getMessage().contains("timeout before send"), e.getCause().getMessage());
         }
         assertEquals(1, client.semaphore.availablePermits());
         //ensure connection status is correct after timeout
