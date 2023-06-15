@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.server.LogItem;
@@ -31,7 +32,6 @@ import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -84,10 +84,11 @@ public class ApplyManager {
             appliedIndex = raftStatus.getLastApplied();
         }
         long diff = raftStatus.getCommitIndex() - appliedIndex;
+        PendingMap pendingMap = raftStatus.getPendingRequests();
         while (diff > 0) {
             long index = appliedIndex + 1;
-            RaftTask rt = raftStatus.getPendingRequests().get(index);
-            if (rt == null) {
+            RaftTask rt = pendingMap.get(index);
+            if (rt == null || rt.input.isReadOnly()) {
                 waiting = true;
                 int limit = (int) Math.min(diff, 1024L);
                 if (logIterator == null) {
@@ -180,7 +181,16 @@ public class ApplyManager {
             }
             RaftInput input = new RaftInput(item.getBizType(), item.getHeader(), item.getBody(),
                     null, item.getActualBodySize());
-            return new RaftTask(ts, item.getType(), input, null);
+            RaftTask result = new RaftTask(ts, item.getType(), input, null);
+            RaftTask reader = raftStatus.getPendingRequests().get(item.getIndex());
+            if (reader != null) {
+                if (reader.input.isReadOnly()) {
+                    result.nextReader = reader;
+                } else {
+                    BugLog.getLog().error("not read only");
+                }
+            }
+            return result;
         } finally {
             decodeContext.setStatus(null);
         }
@@ -226,14 +236,10 @@ public class ApplyManager {
     }
 
     private void execReaders(long index, RaftTask rt) {
-        ArrayList<RaftTask> nextReaders = rt.nextReaders;
-        if (nextReaders == null) {
-            return;
-        }
-        //noinspection ForLoopReplaceableByForEach
-        for (int i = 0; i < nextReaders.size(); i++) {
-            RaftTask readerTask = nextReaders.get(i);
-            execRead(index, readerTask);
+        RaftTask nextReader = rt.nextReader;
+        while (nextReader != null) {
+            execRead(index, nextReader);
+            nextReader = nextReader.nextReader;
         }
     }
 

@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
 
-import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -35,7 +34,7 @@ public class RaftTask {
 
     LogItem item;
 
-    ArrayList<RaftTask> nextReaders;
+    RaftTask nextReader;
 
     public RaftTask(Timestamp ts, int type, RaftInput input,
                     CompletableFuture<RaftOutput> future) {
@@ -45,12 +44,7 @@ public class RaftTask {
         this.future = future;
     }
 
-
-
     public void addNext(RaftTask t) {
-        if (nextReaders == null) {
-            nextReaders = new ArrayList<>();
-        }
-        nextReaders.add(t);
+        nextReader = t;
     }
 }

@@ -176,12 +176,11 @@ public class RaftUtil {
                     if (task.future != null) {
                         task.future.completeExceptionally(new NotLeaderException(leaderNode));
                     }
-                    if (task.nextReaders != null) {
-                        task.nextReaders.forEach(readTask -> {
-                            if (readTask.future != null) {
-                                readTask.future.completeExceptionally(new NotLeaderException(leaderNode));
-                            }
-                        });
+                    RaftTask reader;
+                    while ((reader = task.nextReader) != null) {
+                        if (reader.future != null) {
+                            reader.future.completeExceptionally(new NotLeaderException(leaderNode));
+                        }
                     }
                     return true;
                 });
@@ -300,7 +299,6 @@ public class RaftUtil {
         return set;
     }
 
-    @SuppressWarnings("rawtypes")
     public static RaftGroupImpl getGroupComponents(RaftGroups map, int groupId) {
         RaftGroupImpl gc = map.get(groupId);
         if (gc == null) {
