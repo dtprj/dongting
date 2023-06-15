@@ -33,7 +33,6 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
@@ -88,7 +87,7 @@ public class DtKV implements StateMachine {
     }
 
     @Override
-    public CompletableFuture<Object> exec(long index, RaftInput input) {
+    public Object exec(long index, RaftInput input) {
         KvStatus kvStatus = this.kvStatus;
         ensureRunning(kvStatus);
         String key = (String) input.getHeader();
@@ -96,7 +95,8 @@ public class DtKV implements StateMachine {
             case BIZ_TYPE_GET:
                 return kvStatus.kv.get(key);
             case BIZ_TYPE_PUT:
-                return kvStatus.kv.put(index, key, (byte[]) input.getBody(), minOpenSnapshotIndex);
+                kvStatus.kv.put(index, key, (byte[]) input.getBody(), minOpenSnapshotIndex);
+                return null;
             case BIZ_TYPE_REMOVE:
                 return kvStatus.kv.remove(index, key, minOpenSnapshotIndex);
             default:

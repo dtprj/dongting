@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.dtkv;
 
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
@@ -24,24 +23,24 @@ import java.util.concurrent.ConcurrentSkipListMap;
 class Kv {
     final ConcurrentSkipListMap<String, Value> map = new ConcurrentSkipListMap<>();
 
-    public CompletableFuture<Object> get(String key) {
+    public Object get(String key) {
         if (key == null) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("key is null"));
+            throw new IllegalArgumentException("key is null");
         }
         Value value = map.get(key);
         if (value == null) {
-            return CompletableFuture.completedFuture(null);
+            return null;
         } else {
-            return CompletableFuture.completedFuture(value.getData());
+            return value.getData();
         }
     }
 
-    public CompletableFuture<Object> put(long index, String key, byte[] data, long minOpenSnapshotIndex) {
+    public void put(long index, String key, byte[] data, long minOpenSnapshotIndex) {
         if (key == null) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("key is null"));
+            throw new IllegalArgumentException("key is null");
         }
         if (data == null) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("value is null"));
+            throw new IllegalArgumentException("value is null");
         }
         Value newValue = new Value(index, data);
         Value oldValue = map.put(key, newValue);
@@ -49,7 +48,6 @@ class Kv {
             newValue.setPrevious(oldValue);
             gc(newValue, oldValue, minOpenSnapshotIndex);
         }
-        return CompletableFuture.completedFuture(null);
     }
 
     private void gc(Value newValue, Value oldValue, long minOpenSnapshotIndex) {
@@ -62,22 +60,22 @@ class Kv {
         }
     }
 
-    public CompletableFuture<Object> remove(long index, String key, long minOpenSnapshotIndex) {
+    public Boolean remove(long index, String key, long minOpenSnapshotIndex) {
         if (key == null) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("key is null"));
+            throw new IllegalArgumentException("key is null");
         }
         Value oldValue = map.remove(key);
         if (minOpenSnapshotIndex == 0) {
-            return CompletableFuture.completedFuture(oldValue != null && oldValue.getData() != null);
+            return oldValue != null && oldValue.getData() != null;
         } else {
             if (oldValue == null) {
-                return CompletableFuture.completedFuture(false);
+                return false;
             } else {
                 Value newValue = new Value(index, null);
                 newValue.setPrevious(oldValue);
                 map.put(key, newValue);
                 gc(newValue, oldValue, minOpenSnapshotIndex);
-                return CompletableFuture.completedFuture(oldValue.getData() != null);
+                return oldValue.getData() != null;
             }
         }
     }

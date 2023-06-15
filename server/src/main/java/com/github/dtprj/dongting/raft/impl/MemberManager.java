@@ -327,7 +327,6 @@ public class MemberManager {
         executor.schedule(r, 3);
     }
 
-    @SuppressWarnings("rawtypes")
     private void leaderConfigChange(int type, ByteBuffer data, CompletableFuture<Void> f) {
         if (raftStatus.getRole() != RaftRole.leader) {
             String stageStr;
@@ -349,7 +348,6 @@ public class MemberManager {
             f.completeExceptionally(new RaftException("not leader"));
         }
         CompletableFuture<RaftOutput> outputFuture = new CompletableFuture<>();
-        @SuppressWarnings("unchecked")
         RaftInput input = new RaftInput(0, null, data, null, 0);
         RaftTask rt = new RaftTask(raftStatus.getTs(), type, input, outputFuture);
         eventBus.fire(EventType.raftExec, Collections.singletonList(rt));
@@ -393,7 +391,6 @@ public class MemberManager {
                           Throwable ex, Runnable callback) {
         if (ex != null) {
             raftStatus.setError(true);
-            callback.run();
             return;
         }
 

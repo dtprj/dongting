@@ -190,9 +190,10 @@ public class ApplyManager {
         switch (rt.type) {
             case LogItem.TYPE_NORMAL:
                 execWrite(index, rt);
-                return;
+                break;
             case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
                 doPrepare(index, rt);
+                // notice here is RETURN!
                 return;
             case LogItem.TYPE_DROP_CONFIG_CHANGE:
                 doAbort();
@@ -239,21 +240,19 @@ public class ApplyManager {
     private void execWrite(long index, RaftTask rt) {
         RaftInput input = rt.input;
         CompletableFuture<RaftOutput> future = rt.future;
-        stateMachine.exec(index, input).whenCompleteAsync((r, ex) -> {
-            if (ex != null) {
-                log.warn("exec write failed. {}", ex);
-                future.completeExceptionally(ex);
-            } else {
-                future.complete(new RaftOutput(index, r));
-            }
+        try {
+            Object r = stateMachine.exec(index, input);
+            future.complete(new RaftOutput(index, r));
+        } catch (Exception ex) {
+            log.warn("exec write failed. {}", ex);
+            future.completeExceptionally(ex);
+        } finally {
             RaftStatusImpl raftStatus = this.raftStatus;
             if (raftStatus.getFirstCommitOfApplied() != null && index >= raftStatus.getFirstIndexOfCurrentTerm()) {
                 raftStatus.getFirstCommitOfApplied().complete(null);
                 raftStatus.setFirstCommitOfApplied(null);
             }
-            raftStatus.setLastApplied(index);
-            execReaders(index, rt);
-        }, raftStatus.getRaftExecutor());
+        }
     }
 
     public void execRead(long index, RaftTask rt) {
@@ -264,15 +263,10 @@ public class ApplyManager {
                     + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms"));
         }
         try {
-            // no need run in raft thread
-            stateMachine.exec(index, input).whenComplete((r, e) -> {
-                if (e != null) {
-                    future.completeExceptionally(e);
-                } else {
-                    future.complete(new RaftOutput(index, r));
-                }
-            });
-        } catch (Exception e) {
+            Object r = stateMachine.exec(index, input);
+            future.complete(new RaftOutput(index, r));
+        } catch (Throwable e) {
+            log.error("exec read failed. {}", e);
             future.completeExceptionally(e);
         }
     }
