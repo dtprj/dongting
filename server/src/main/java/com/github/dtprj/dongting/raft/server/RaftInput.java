@@ -41,16 +41,6 @@ public final class RaftInput {
         this.flowControlSize = flowControlSize;
     }
 
-    @SuppressWarnings("unused")
-    public RaftInput(int bizType, Object header, Object body, DtTime deadline) {
-        this.bizType = bizType;
-        this.body = body;
-        this.header = header;
-        this.deadline = deadline;
-        this.readOnly = true;
-        this.flowControlSize = 0;
-    }
-
     public int getFlowControlSize() {
         return flowControlSize;
     }
@@ -67,7 +57,6 @@ public final class RaftInput {
         return header;
     }
 
-    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public boolean isReadOnly() {
         return readOnly;
     }
