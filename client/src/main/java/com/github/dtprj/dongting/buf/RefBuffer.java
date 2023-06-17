@@ -67,11 +67,12 @@ public class RefBuffer extends RefCount {
         if (pool == null) {
             return false;
         }
-        boolean result = super.release(decrement);
-        if (result) {
-            pool.release(buffer);
-        }
-        return result;
+        return super.release(decrement);
+    }
+
+    @Override
+    protected void doClean() {
+        pool.release(buffer);
     }
 
     public ByteBuffer getBuffer() {

@@ -60,11 +60,17 @@ public class RefCount {
     }
 
     public boolean release(int decrement) {
-        return updater.release(this, decrement);
+        boolean r = updater.release(this, decrement);
+        if (r) {
+            doClean();
+        }
+        return r;
     }
 
     protected boolean isReleased() {
         return updater.isReleased(this);
     }
 
+    protected void doClean() {
+    }
 }
