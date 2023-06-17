@@ -32,7 +32,7 @@ public class RaftTask {
     final CompletableFuture<RaftOutput> future;
     public final long createTimeNanos;
 
-    LogItem item;
+    public LogItem item;
 
     RaftTask nextReader;
 

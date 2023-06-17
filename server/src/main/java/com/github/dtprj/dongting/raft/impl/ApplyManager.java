@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
@@ -102,6 +101,7 @@ public class ApplyManager {
                     DtUtil.close(logIterator);
                     this.logIterator = null;
                 }
+                rt.item.retain();
                 execChain(index, rt);
                 appliedIndex++;
                 diff--;
@@ -110,78 +110,63 @@ public class ApplyManager {
     }
 
     private void resumeAfterLoad(List<LogItem> items, Throwable ex) {
-        try {
-            waiting = false;
-            if (ex != null) {
-                if (ex instanceof CancellationException) {
-                    log.info("ApplyManager load raft log cancelled");
-                } else {
-                    log.error("load log failed", ex);
-                }
-                return;
+        waiting = false;
+        if (ex != null) {
+            if (ex instanceof CancellationException) {
+                log.info("ApplyManager load raft log cancelled");
+            } else {
+                log.error("load log failed", ex);
             }
-            if (items == null || items.size() == 0) {
-                log.error("load log failed, items is null");
-                return;
-            }
-            if (items.get(0).getIndex() != appliedIndex + 1) {
-                // previous load failed, ignore
-                log.warn("first index of load result not match appliedIndex, ignore.");
-                return;
-            }
-            int readCount = items.size();
-            //noinspection ForLoopReplaceableByForEach
-            for (int i = 0; i < readCount; i++) {
-                LogItem item = items.get(i);
-                RaftTask rt = buildRaftTask(item);
-                execChain(item.getIndex(), rt);
-            }
-            appliedIndex += readCount;
-
-            apply(raftStatus);
-        } finally {
-            RaftUtil.release(items);
+            return;
         }
+        if (items == null || items.size() == 0) {
+            log.error("load log failed, items is null");
+            return;
+        }
+        if (items.get(0).getIndex() != appliedIndex + 1) {
+            // previous load failed, ignore
+            log.warn("first index of load result not match appliedIndex, ignore.");
+            return;
+        }
+        int readCount = items.size();
+        //noinspection ForLoopReplaceableByForEach
+        for (int i = 0; i < readCount; i++) {
+            LogItem item = items.get(i);
+            RaftTask rt = buildRaftTask(item);
+            execChain(item.getIndex(), rt);
+        }
+        appliedIndex += readCount;
+
+        apply(raftStatus);
     }
 
     @SuppressWarnings("rawtypes")
     private RaftTask buildRaftTask(LogItem item) {
         try {
-            RefBuffer headerRbb = item.getHeaderBuffer();
+            ByteBuffer headerRbb = item.getHeaderBuffer();
             if (headerRbb != null) {
-                try {
-                    if (item.getType() == LogItem.TYPE_NORMAL) {
-                        ByteBuffer buf = headerRbb.getBuffer();
-                        Decoder decoder = stateMachine.createDecoder(item.getBizType(), true);
-                        Object o = decoder.decode(decodeContext, buf, buf.remaining(), 0);
-                        item.setHeader(o);
-                    } else {
-                        item.setHeader(RaftUtil.copy(headerRbb.getBuffer()));
-                    }
-                } finally {
-                    headerRbb.release();
-                    item.setBodyBuffer(null);
+                if (item.getType() == LogItem.TYPE_NORMAL) {
+                    Decoder decoder = stateMachine.createDecoder(item.getBizType(), true);
+                    Object o = decoder.decode(decodeContext, headerRbb, headerRbb.remaining(), 0);
+                    item.setHeader(o);
+                } else {
+                    item.setHeader(RaftUtil.copy(headerRbb));
                 }
             }
-            RefBuffer bodyRbb = item.getBodyBuffer();
+            ByteBuffer bodyRbb = item.getBodyBuffer();
             if (bodyRbb != null) {
-                try {
-                    if (item.getType() == LogItem.TYPE_NORMAL) {
-                        ByteBuffer buf = bodyRbb.getBuffer();
-                        Decoder decoder = stateMachine.createDecoder(item.getBizType(), false);
-                        Object o = decoder.decode(decodeContext, buf, buf.remaining(), 0);
-                        item.setBody(o);
-                    } else {
-                        item.setBody(RaftUtil.copy(bodyRbb.getBuffer()));
-                    }
-                } finally {
-                    bodyRbb.release();
-                    item.setBodyBuffer(null);
+                if (item.getType() == LogItem.TYPE_NORMAL) {
+                    Decoder decoder = stateMachine.createDecoder(item.getBizType(), false);
+                    Object o = decoder.decode(decodeContext, bodyRbb, bodyRbb.remaining(), 0);
+                    item.setBody(o);
+                } else {
+                    item.setBody(RaftUtil.copy(bodyRbb));
                 }
             }
             RaftInput input = new RaftInput(item.getBizType(), item.getHeader(), item.getBody(),
                     null, item.getActualBodySize());
             RaftTask result = new RaftTask(ts, item.getType(), input, null);
+            result.item = item;
             RaftTask reader = raftStatus.getPendingRequests().get(item.getIndex());
             if (reader != null) {
                 if (reader.input.isReadOnly()) {
@@ -200,32 +185,41 @@ public class ApplyManager {
         switch (rt.type) {
             case LogItem.TYPE_NORMAL:
                 execWrite(index, rt);
+                afterExec(index, rt);
                 break;
             case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
                 doPrepare(index, rt);
-                // notice here is RETURN!
-                return;
+                break;
             case LogItem.TYPE_DROP_CONFIG_CHANGE:
                 doAbort();
                 notifyConfigChange(index, rt);
+                afterExec(index, rt);
                 break;
             case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
                 doCommit();
                 notifyConfigChange(index, rt);
+                afterExec(index, rt);
                 break;
             default:
+                afterExec(index, rt);
                 // heartbeat etc.
                 break;
         }
+    }
+
+    private void afterExec(long index, RaftTask rt) {
         raftStatus.setLastApplied(index);
+        rt.item.release();
         execReaders(index, rt);
+
+        // release reader memory
+        rt.nextReader = null;
     }
 
     private void resumeAfterPrepare(long index, RaftTask rt) {
         waiting = false;
         notifyConfigChange(index, rt);
-        raftStatus.setLastApplied(index);
-        execReaders(index, rt);
+        afterExec(index, rt);
         apply(raftStatus);
     }
 
@@ -253,6 +247,7 @@ public class ApplyManager {
             log.warn("exec write failed. {}", ex);
             future.completeExceptionally(ex);
         } finally {
+            rt.item.release();
             RaftStatusImpl raftStatus = this.raftStatus;
             if (raftStatus.getFirstCommitOfApplied() != null && index >= raftStatus.getFirstIndexOfCurrentTerm()) {
                 raftStatus.getFirstCommitOfApplied().complete(null);

@@ -93,7 +93,7 @@ public class Raft implements BiConsumer<EventType, Object> {
 
             if (!input.isReadOnly()) {
                 newIndex++;
-                LogItem item = new LogItem();
+                LogItem item = new LogItem(null);
                 item.setType(rt.type);
                 item.setBizType(input.getBizType());
                 item.setTerm(currentTerm);

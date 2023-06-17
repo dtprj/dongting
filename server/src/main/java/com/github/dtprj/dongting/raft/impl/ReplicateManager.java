@@ -93,6 +93,16 @@ public class ReplicateManager {
         this.installSnapshotFailTime = ts.getNanoTime() - TimeUnit.SECONDS.toNanos(10);
     }
 
+    private static void release(List<LogItem> items) {
+        if (items == null) {
+            return;
+        }
+        //noinspection ForLoopReplaceableByForEach
+        for (int i = 0; i < items.size(); i++) {
+            items.get(i).release();
+        }
+    }
+
     @SuppressWarnings("ForLoopReplaceableByForEach")
     public void replicateAfterRaftExec(RaftStatusImpl raftStatus) {
         List<RaftMember> list = raftStatus.getReplicateList();
@@ -197,7 +207,7 @@ public class ReplicateManager {
         member.setReplicateFuture(null);
         if (epochNotMatch(member, repEpoch)) {
             log.info("replicate epoch changed, ignore load result");
-            RaftUtil.release(items);
+            release(items);
             return;
         }
         if (ex != null) {
@@ -210,27 +220,27 @@ public class ReplicateManager {
                 member.setLastFailNanos(ts.getNanoTime());
                 log.error("load raft log failed", ex);
             }
-            RaftUtil.release(items);
+            release(items);
             return;
         }
         if (!member.isReady()) {
             log.warn("member is not ready, ignore load result");
-            RaftUtil.release(items);
+            release(items);
             return;
         }
         if (member.isInstallSnapshot()) {
             log.warn("member is installing snapshot, ignore load result");
-            RaftUtil.release(items);
+            release(items);
             return;
         }
         if (items == null || items.size() == 0) {
             log.warn("load raft log return empty, ignore load result");
-            RaftUtil.release(items);
+            release(items);
             return;
         }
         if (member.getNextIndex() != items.get(0).getIndex()) {
             log.warn("the first load item index not match nextIndex, ignore load result");
-            RaftUtil.release(items);
+            release(items);
             return;
         }
 
@@ -242,7 +252,7 @@ public class ReplicateManager {
             if (member.getPendingStat().getPendingRequestsPlain() == 0) {
                 sendAppendRequest(member, items);
             } else {
-                RaftUtil.release(items);
+                release(items);
             }
         }
 

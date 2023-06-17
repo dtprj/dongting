@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -47,7 +47,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
     private final IdxOps idxFiles;
     private final FileOps logFiles;
     private final RaftExecutor raftExecutor;
-    private final RefBufferFactory heapPool;
+    private final ByteBufferPool heapPool;
     private final RaftGroupConfigEx groupConfig;
     private final ByteBuffer readBuffer;
 
@@ -77,7 +77,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         this.raftExecutor = (RaftExecutor) groupConfig.getRaftExecutor();
         this.readBuffer = groupConfig.getDirectPool().borrow(1024 * 1024);
         this.groupConfig = groupConfig;
-        this.heapPool = groupConfig.getHeapPool();
+        this.heapPool = groupConfig.getHeapPool().getPool();
         this.readBuffer.limit(0);
         this.fullIndicator = fullIndicator;
     }
@@ -252,7 +252,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
             throw new RaftException("invalid log item length: totalLen=" + header.totalLen + ", nextPos=" + nextPos);
         }
 
-        LogItem li = new LogItem();
+        LogItem li = new LogItem(heapPool);
         this.item = li;
         li.setIndex(header.index);
         li.setType(header.type);
@@ -264,12 +264,12 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         int bizHeaderLen = header.bizHeaderLen;
         li.setActualHeaderSize(bizHeaderLen);
         if (bizHeaderLen > 0) {
-            li.setHeaderBuffer(heapPool.create(bizHeaderLen));
+            li.setHeaderBuffer(heapPool.borrow(bizHeaderLen));
         }
 
         li.setActualBodySize(bodyLen);
         if (bodyLen > 0) {
-            li.setBodyBuffer(heapPool.create(bodyLen));
+            li.setBodyBuffer(heapPool.borrow(bodyLen));
         }
         return true;
     }
@@ -279,7 +279,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         if (bizHeaderLen == 0) {
             return true;
         }
-        ByteBuffer destBuf = item.getHeaderBuffer().getBuffer();
+        ByteBuffer destBuf = item.getHeaderBuffer();
         boolean readFinish = readData(buf, bizHeaderLen, destBuf);
         if (readFinish) {
             crc32c.reset();
@@ -319,7 +319,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
             item = null;
             return true;
         }
-        ByteBuffer destBuf = item.getBodyBuffer().getBuffer();
+        ByteBuffer destBuf = item.getBodyBuffer();
         boolean readFinish = readData(buf, bodyLen, destBuf);
         if (readFinish) {
             result.add(item);

@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.HostPort;
@@ -306,24 +305,6 @@ public class RaftUtil {
             throw new RaftException("group not exist: " + groupId);
         }
         return gc;
-    }
-
-    public static void release(List<LogItem> items) {
-        if (items == null) {
-            return;
-        }
-        //noinspection ForLoopReplaceableByForEach
-        for (int i = 0; i < items.size(); i++) {
-            LogItem li = items.get(i);
-            RefBuffer b = li.getHeaderBuffer();
-            if (b != null) {
-                b.release();
-            }
-            b = li.getBodyBuffer();
-            if (b != null) {
-                b.release();
-            }
-        }
     }
 
     public static ByteBuffer copy(ByteBuffer src) {

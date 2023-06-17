@@ -53,6 +53,11 @@ public class PendingMap extends LongObjMap<RaftTask> {
         if (t != null) {
             pending--;
             pendingBytes -= t.input.getFlowControlSize();
+            RaftTask x = t;
+            while (x != null) {
+                x.item.release();
+                x = x.nextReader;
+            }
         }
         if (size() == 0) {
             firstKey = -1;

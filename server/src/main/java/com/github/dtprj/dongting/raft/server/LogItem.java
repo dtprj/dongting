@@ -15,17 +15,22 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.common.RefCount;
+
+import java.nio.ByteBuffer;
 
 /**
  * @author huangli
  */
-public class LogItem {
+public class LogItem extends RefCount {
     public static final int TYPE_NORMAL = 0;
     public static final int TYPE_HEARTBEAT = 1;
     public static final int TYPE_PREPARE_CONFIG_CHANGE = 2;
     public static final int TYPE_DROP_CONFIG_CHANGE = 3;
     public static final int TYPE_COMMIT_CONFIG_CHANGE = 4;
+
+    private final ByteBufferPool heapPool;
 
     private int type;
     private int bizType;
@@ -34,18 +39,36 @@ public class LogItem {
     private int prevLogTerm;
     private long timestamp;
 
-    private RefBuffer bodyBuffer;
+    private ByteBuffer bodyBuffer;
     private Object body;
     private int actualBodySize;
 
-    private RefBuffer headerBuffer;
+    private ByteBuffer headerBuffer;
     private Object header;
     private int actualHeaderSize;
 
     private int itemHeaderSize;
     private int itemSize;
 
-    public LogItem() {
+    public LogItem(ByteBufferPool heapPool) {
+        super(true);
+        this.heapPool = heapPool;
+    }
+
+    @Override
+    protected void doClean() {
+        if (headerBuffer != null) {
+            heapPool.release(headerBuffer);
+        }
+        if (bodyBuffer != null) {
+            heapPool.release(bodyBuffer);
+        }
+        if (header instanceof RefCount) {
+            ((RefCount) header).release();
+        }
+        if (body instanceof RefCount) {
+            ((RefCount) body).release();
+        }
     }
 
     public int getType() {
@@ -112,11 +135,11 @@ public class LogItem {
         this.timestamp = timestamp;
     }
 
-    public RefBuffer getBodyBuffer() {
+    public ByteBuffer getBodyBuffer() {
         return bodyBuffer;
     }
 
-    public void setBodyBuffer(RefBuffer bodyBuffer) {
+    public void setBodyBuffer(ByteBuffer bodyBuffer) {
         this.bodyBuffer = bodyBuffer;
     }
 
@@ -136,11 +159,11 @@ public class LogItem {
         this.actualHeaderSize = actualHeaderSize;
     }
 
-    public RefBuffer getHeaderBuffer() {
+    public ByteBuffer getHeaderBuffer() {
         return headerBuffer;
     }
 
-    public void setHeaderBuffer(RefBuffer headerBuffer) {
+    public void setHeaderBuffer(ByteBuffer headerBuffer) {
         this.headerBuffer = headerBuffer;
     }
 

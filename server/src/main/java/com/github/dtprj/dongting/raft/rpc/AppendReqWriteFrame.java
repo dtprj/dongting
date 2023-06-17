@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.codec.PbUtil;
@@ -203,17 +202,11 @@ public class AppendReqWriteFrame extends WriteFrame {
         if (!dest.hasRemaining()) {
             return false;
         }
-        RefBuffer buffer = header? item.getHeaderBuffer() : item.getBodyBuffer();
+        ByteBuffer src = header? item.getHeaderBuffer() : item.getBodyBuffer();
         Object data = header? item.getHeader() : item.getBody();
-        if (buffer != null) {
-            ByteBuffer src = buffer.getBuffer();
+        if (src != null) {
             markedPosition = ByteBufferWriteFrame.copy(src, dest, markedPosition);
-            if (markedPosition == src.limit()) {
-                buffer.release();
-                return true;
-            } else {
-                return false;
-            }
+            return markedPosition == src.limit();
         } else if (data != null) {
             boolean result = false;
             try {
@@ -236,6 +229,11 @@ public class AppendReqWriteFrame extends WriteFrame {
         } else {
             return true;
         }
+    }
+
+    @Override
+    protected void doClean() {
+        currentItem.release();
     }
 
     public void setGroupId(int groupId) {
