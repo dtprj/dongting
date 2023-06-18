@@ -50,7 +50,7 @@ public interface RaftLog extends AutoCloseable {
     void markTruncateByIndex(long index, long delayMillis);
 
     /**
-     * try to delete logs before the timestamp(may include).
+     * try to delete logs before the timestamp(exclude).
      * @param timestampMillis the timestamp of the log
      * @param delayMillis delay millis to delete the logs, to wait read complete
      */
@@ -59,7 +59,7 @@ public interface RaftLog extends AutoCloseable {
     interface LogIterator extends AutoCloseable {
 
         /**
-         * load logs.
+         * load logs, if log is deleted the implementation should return a failed CompletableFuture.
          *
          * @param index the index of the first log to be loaded
          * @param limit max number of logs to return

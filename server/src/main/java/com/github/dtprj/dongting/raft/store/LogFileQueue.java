@@ -167,7 +167,7 @@ class LogFileQueue extends FileQueue implements FileOps {
                 Object data = log.getHeaderBuffer() != null ? log.getHeaderBuffer() : log.getHeader();
                 pos = writeData(writeBuffer, pos, file, data, headerEncoder);
             }
-            if (bodyEncoder != null && log.getActualBodySize()>0) {
+            if (bodyEncoder != null && log.getActualBodySize() > 0) {
                 Object data = log.getBodyBuffer() != null ? log.getBodyBuffer() : log.getBody();
                 pos = writeData(writeBuffer, pos, file, data, bodyEncoder);
             }
@@ -324,7 +324,7 @@ class LogFileQueue extends FileQueue implements FileOps {
     }
 
     public void markDeleteByTimestamp(long lastApplied, long timestampMillis, long deleteTimestamp) {
-        markDelete(deleteTimestamp, nextFile -> timestampMillis >= nextFile.firstTimestamp
+        markDelete(deleteTimestamp, nextFile -> timestampMillis > nextFile.firstTimestamp
                 && lastApplied >= nextFile.firstIndex);
     }
 
@@ -371,9 +371,6 @@ class LogFileQueue extends FileQueue implements FileOps {
         LogFile logFile = findLogFileToReplicate(remoteMaxTerm, remoteMaxIndex, nextIndex);
         if (logFile == null) {
             return CompletableFuture.completedFuture(-1L);
-        }
-        if (compare(logFile.firstTerm, logFile.firstIndex, remoteMaxTerm, remoteMaxIndex) == 0) {
-            return CompletableFuture.completedFuture(logFile.firstIndex);
         }
         CompletableFuture<Long> future = new CompletableFuture<>();
         ioExecutor.execute(() -> nextIndexToReplicate(fullIndicator, logFile, nextIndex,
@@ -461,7 +458,7 @@ class LogFileQueue extends FileQueue implements FileOps {
         int left = 0;
         int right = queue.size() - 1;
         while (left <= right) {
-            int mid = (left + right) >>> 1;
+            int mid = (left + right + 1) >>> 1;
             LogFile logFile = queue.get(mid);
             if (logFile.deleteTimestamp > 0) {
                 left = mid + 1;
@@ -477,14 +474,7 @@ class LogFileQueue extends FileQueue implements FileOps {
             } else if (c > 0) {
                 right = mid - 1;
             } else if (c < 0) {
-                if (right == left + 1) {
-                    // assert mid == left
-                    LogFile nextLogFile = queue.get(right);
-                    c = compare(nextLogFile.firstTerm, nextLogFile.firstIndex, remoteMaxTerm, remoteMaxIndex);
-                    return c <= 0 ? nextLogFile : logFile;
-                } else {
-                    left = mid;
-                }
+                left = mid;
             } else {
                 return logFile;
             }
@@ -492,7 +482,7 @@ class LogFileQueue extends FileQueue implements FileOps {
         return null;
     }
 
-    private static int compare(int term1, long index1, int term2, long index2) {
+    static int compare(int term1, long index1, int term2, long index2) {
         if (term1 < term2) {
             return -1;
         } else if (term1 > term2) {
