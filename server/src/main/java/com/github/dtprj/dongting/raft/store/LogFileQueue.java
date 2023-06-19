@@ -363,71 +363,56 @@ class LogFileQueue extends FileQueue implements FileOps {
         return 0;
     }
 
-    public CompletableFuture<Long> nextIndexToReplicate(int remoteMaxTerm, long remoteMaxIndex, long nextIndex,
-                                                        Supplier<Boolean> fullIndicator) {
+    public CompletableFuture<Pair<Integer, Long>> nextIndexToReplicate(
+            int suggestTerm, long suggestIndex, long lastIndex, Supplier<Boolean> cancelIndicator) {
         if (queue.size() == 0) {
-            return CompletableFuture.completedFuture(1L);
+            return CompletableFuture.completedFuture(null);
         }
-        LogFile logFile = findLogFileToReplicate(remoteMaxTerm, remoteMaxIndex, nextIndex);
+        LogFile logFile = findLogFile(suggestTerm, suggestIndex, lastIndex);
         if (logFile == null) {
-            return CompletableFuture.completedFuture(-1L);
+            return CompletableFuture.completedFuture(null);
         }
-        CompletableFuture<Long> future = new CompletableFuture<>();
-        ioExecutor.execute(() -> nextIndexToReplicate(fullIndicator, logFile, nextIndex,
-                remoteMaxTerm, remoteMaxIndex, future));
+        CompletableFuture<Pair<Integer, Long>> future = new CompletableFuture<>();
+        ioExecutor.execute(() -> nextIndexToReplicate(cancelIndicator, logFile, suggestTerm, suggestTerm, future));
         return future;
     }
 
     // in io thread
-    private void nextIndexToReplicate(Supplier<Boolean> fullIndicator, LogFile logFile, long nextIndex,
-                                      int remoteMaxTerm, long remoteMaxIndex, CompletableFuture<Long> future) {
+    private void nextIndexToReplicate(Supplier<Boolean> cancel, LogFile logFile, int suggestTerm,
+                                      long suggestIndex, CompletableFuture<Pair<Integer, Long>> future) {
         try {
-            if (fullIndicator.get()) {
+            if (cancel.get()) {
                 future.cancel(false);
                 return;
             }
             long leftIndex = logFile.firstIndex;
-            // findLogFileToReplicate ensures nextIndex>logFile.firstIndex
-            long rightIndex = nextIndex - 1;
+            int leftTerm = logFile.firstTerm;
+            long rightIndex = suggestIndex;
             LogHeader header = new LogHeader();
             loadHeaderInIoThread(logFile, rightIndex, header);
-            if (fullIndicator.get()) {
+            if (cancel.get()) {
                 future.cancel(false);
                 return;
             }
             while (leftIndex < rightIndex) {
-                long midIndex = (leftIndex + rightIndex) >>> 1;
+                long midIndex = (leftIndex + rightIndex + 1) >>> 1;
                 loadHeaderInIoThread(logFile, midIndex, header);
-                if (fullIndicator.get()) {
+                if (cancel.get()) {
                     future.cancel(false);
                     return;
                 }
-                int c = compare(header.term, midIndex, remoteMaxTerm, remoteMaxIndex);
+                int c = compare(header.term, midIndex, suggestTerm, suggestIndex);
                 if (c == 0) {
-                    future.complete(midIndex);
+                    future.complete(new Pair<>(header.term, midIndex));
                     return;
                 } else if (c > 0) {
                     rightIndex = midIndex - 1;
                 } else {
-                    if (rightIndex == leftIndex + 1) {
-                        loadHeaderInIoThread(logFile, rightIndex, header);
-                        if (fullIndicator.get()) {
-                            future.cancel(false);
-                            return;
-                        }
-                        c = compare(header.term, rightIndex, remoteMaxTerm, remoteMaxIndex);
-                        if (c > 0) {
-                            future.complete(leftIndex);
-                        } else {
-                            future.complete(rightIndex);
-                        }
-                        return;
-                    } else {
-                        leftIndex = midIndex;
-                    }
+                    leftIndex = midIndex;
+                    leftTerm = header.term;
                 }
             }
-            future.complete(leftIndex);
+            future.complete(new Pair<>(leftTerm, leftIndex));
         } catch (Throwable e) {
             future.completeExceptionally(e);
         }
@@ -454,7 +439,7 @@ class LogFileQueue extends FileQueue implements FileOps {
         }
     }
 
-    private LogFile findLogFileToReplicate(int remoteMaxTerm, long remoteMaxIndex, long nextIndex) {
+    private LogFile findLogFile(int suggestTerm, long suggestIndex, long lastIndex) {
         int left = 0;
         int right = queue.size() - 1;
         while (left <= right) {
@@ -464,11 +449,11 @@ class LogFileQueue extends FileQueue implements FileOps {
                 left = mid + 1;
                 continue;
             }
-            if (logFile.firstIndex >= nextIndex) {
+            if (logFile.firstIndex > lastIndex) {
                 right = mid - 1;
                 continue;
             }
-            int c = compare(logFile.firstTerm, logFile.firstIndex, remoteMaxTerm, remoteMaxIndex);
+            int c = compare(logFile.firstTerm, logFile.firstIndex, suggestTerm, suggestIndex);
             if (left == right) {
                 return c <= 0 ? logFile : null;
             } else if (c > 0) {
@@ -483,12 +468,12 @@ class LogFileQueue extends FileQueue implements FileOps {
     }
 
     static int compare(int term1, long index1, int term2, long index2) {
-        if (term1 < term2) {
+        if (term1 < term2 && index1 < index2) {
             return -1;
-        } else if (term1 > term2) {
-            return 1;
+        } else if (term1 == term2 && index1 == index2) {
+            return 0;
         } else {
-            return Long.compare(index1, index2);
+            return 1;
         }
     }
 

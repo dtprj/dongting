@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -400,40 +401,51 @@ public class ReplicateManager {
     }
 
     private void processLogNotMatch(RaftMember member, long prevLogIndex, int prevLogTerm, AppendRespCallback body, RaftStatusImpl raftStatus) {
-        log.info("log not match. remoteId={}, groupId={}, matchIndex={}, prevLogIndex={}, prevLogTerm={}, remoteLogTerm={}, remoteLogIndex={}, localTerm={}, remoteTerm={}",
-                member.getNode().getNodeId(), groupId, member.getMatchIndex(), prevLogIndex, prevLogTerm, body.getMaxLogTerm(),
-                body.getMaxLogIndex(), raftStatus.getCurrentTerm(), body.getTerm());
-        if (body.getTerm() == raftStatus.getCurrentTerm()) {
-            member.setNextIndex(body.getMaxLogIndex() + 1);
-            replicate(member);
-        } else {
-            int reqEpoch = member.getReplicateEpoch();
-            CompletableFuture<Long> future = raftLog.nextIndexToReplicate(body.getMaxLogTerm(), body.getMaxLogIndex(),
-                    () -> reqEpoch != member.getReplicateEpoch());
-            member.setReplicateFuture(future);
-            future.whenCompleteAsync(resumeAfterFindIndex(member, reqEpoch, body.getMaxLogIndex()), raftExecutor);
+        log.info("log not match. remoteId={}, groupId={}, matchIndex={}, prevLogIndex={}, prevLogTerm={}, remoteLogTerm={}, remoteLogIndex={}, localTerm={}",
+                member.getNode().getNodeId(), groupId, member.getMatchIndex(), prevLogIndex, prevLogTerm, body.getSuggestTerm(),
+                body.getSuggestIndex(), raftStatus.getCurrentTerm());
+        int reqEpoch = member.getReplicateEpoch();
+        if (body.getSuggestTerm() == 0 && body.getSuggestIndex() == 0) {
+            log.info("remote has no suggest match index, begin install snapshot. remoteId={}, groupId={}",
+                    member.getNode().getNodeId(), groupId);
+            beginInstallSnapshot(member);
+            return;
         }
+        CompletableFuture<Pair<Integer, Long>> future = raftLog.findReplicatePos(
+                body.getSuggestTerm(), body.getSuggestIndex(), raftStatus.getLastLogTerm(),
+                raftStatus.getLastLogIndex(), () -> raftStatus.isStop() || epochNotMatch(member, reqEpoch));
+        member.setReplicateFuture(future);
+        future.whenCompleteAsync((r, ex) -> resumeAfterFindMaxIndexOfTerm(r, ex, member, reqEpoch,
+                body.getSuggestTerm(), body.getSuggestIndex()), raftExecutor);
     }
 
-    private BiConsumer<Long, Throwable> resumeAfterFindIndex(RaftMember member, int reqEpoch, long remoteMayIndex) {
-        return (nextIndex, ex) -> {
-            member.setReplicateFuture(null);
-            if (epochNotMatch(member, reqEpoch)) {
-                log.info("epoch not match. ignore result of nextIndexToReplicate call");
-                return;
-            }
-            if (ex == null) {
-                if (nextIndex > 0) {
-                    member.setNextIndex(Math.min(nextIndex, remoteMayIndex));
-                    replicate(member);
-                } else {
-                    beginInstallSnapshot(member);
-                }
+    private void resumeAfterFindMaxIndexOfTerm(Pair<Integer, Long> result, Throwable ex, RaftMember member,
+                                               int reqEpoch, int suggestTerm, long suggestIndex) {
+        member.setReplicateFuture(null);
+        if (epochNotMatch(member, reqEpoch)) {
+            log.info("epoch not match. ignore result of nextIndexToReplicate call");
+            return;
+        }
+        if (ex == null) {
+            if (result == null) {
+                log.info("follower has no suggest match index, begin install snapshot. remoteId={}, groupId={}",
+                        member.getNode().getNodeId(), groupId);
+                beginInstallSnapshot(member);
             } else {
-                member.setLastFailNanos(ts.getNanoTime());
-                log.error("nextIndexToReplicate fail", ex);
+                if (result.getLeft() == suggestTerm && result.getRight() == suggestIndex) {
+                    log.info("match success: remote={}, group={}, term={}, index={}",
+                            member.getNode().getNodeId(), groupId, suggestTerm, suggestIndex);
+                } else {
+                    log.info("leader suggest: term={}, index={}, remote={}, group={}",
+                            result.getLeft(), result.getRight(), member.getNode().getNodeId(), groupId);
+                }
+                member.setNextIndex(result.getRight() + 1);
+                replicate(member);
             }
-        };
+        } else {
+            member.setLastFailNanos(ts.getNanoTime());
+            log.error("nextIndexToReplicate fail", ex);
+        }
     }
 
     private void beginInstallSnapshot(RaftMember member) {

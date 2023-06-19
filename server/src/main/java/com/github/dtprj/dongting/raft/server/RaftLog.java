@@ -38,9 +38,12 @@ public interface RaftLog extends AutoCloseable {
     LogIterator openIterator(Supplier<Boolean> epochChange);
 
     /**
-     * return -1 if the index can't find.
+     * return null if it can't match and will cause install snapshot
      */
-    CompletableFuture<Long> nextIndexToReplicate(int remoteMaxTerm, long remoteMaxIndex, Supplier<Boolean> epochChange);
+    CompletableFuture<Pair<Integer, Long>> findReplicatePos(int suggestTerm, long suggestIndex,
+                                                            int lastTerm, long lastIndex,
+                                                            Supplier<Boolean> cancelIndicator);
+
 
     /**
      * try to delete logs before the index(exclude).

@@ -25,20 +25,24 @@ import java.nio.ByteBuffer;
  */
 //  uint32 term = 1;
 //  uint32 success = 2;
+//  ///////////////////////////
+//  uint32 append_code = 3;
+//  uint32 suggest_term = 4;
+//  fixed64 suggest_index = 5;
 public class AppendRespWriteFrame extends SmallNoCopyWriteFrame {
     private int term;
     private boolean success;
     private int appendCode;
-    private int maxLogTerm;
-    private long maxLogIndex;
+    private int suggestTerm;
+    private long suggestIndex;
 
     @Override
     protected int calcActualBodySize() {
         return PbUtil.accurateUnsignedIntSize(1, term)
                 + PbUtil.accurateUnsignedIntSize(2, success ? 1 : 0)
                 + PbUtil.accurateUnsignedIntSize(3, appendCode)
-                + PbUtil.accurateUnsignedIntSize(4, maxLogTerm)
-                + PbUtil.accurateFix64Size(5, maxLogIndex);
+                + PbUtil.accurateUnsignedIntSize(4, suggestTerm)
+                + PbUtil.accurateFix64Size(5, suggestIndex);
     }
 
     @Override
@@ -46,8 +50,8 @@ public class AppendRespWriteFrame extends SmallNoCopyWriteFrame {
         PbUtil.writeUnsignedInt32(buf, 1, term);
         PbUtil.writeUnsignedInt32(buf, 2, success ? 1 : 0);
         PbUtil.writeUnsignedInt32(buf, 3, appendCode);
-        PbUtil.writeUnsignedInt32(buf, 4, maxLogTerm);
-        PbUtil.writeFix64(buf, 5, maxLogIndex);
+        PbUtil.writeUnsignedInt32(buf, 4, suggestTerm);
+        PbUtil.writeFix64(buf, 5, suggestIndex);
     }
 
     public void setTerm(int term) {
@@ -62,11 +66,11 @@ public class AppendRespWriteFrame extends SmallNoCopyWriteFrame {
         this.appendCode = appendCode;
     }
 
-    public void setMaxLogTerm(int maxLogTerm) {
-        this.maxLogTerm = maxLogTerm;
+    public void setSuggestTerm(int suggestTerm) {
+        this.suggestTerm = suggestTerm;
     }
 
-    public void setMaxLogIndex(long maxLogIndex) {
-        this.maxLogIndex = maxLogIndex;
+    public void setSuggestIndex(long suggestIndex) {
+        this.suggestIndex = suggestIndex;
     }
 }

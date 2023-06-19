@@ -53,41 +53,43 @@ public class MemRaftLog implements RaftLog {
     }
 
     @Override
-    public CompletableFuture<Long> nextIndexToReplicate(int remoteMaxTerm, long remoteMaxIndex,
-                                                        Supplier<Boolean> epochChange) {
-        return CompletableFuture.completedFuture(nextIndexToReplicate0(remoteMaxTerm, remoteMaxIndex));
+    public CompletableFuture<Pair<Integer, Long>> findReplicatePos(int suggestTerm, long suggestIndex,
+                                                                   int lastTerm, long lastIndex,
+                                                                   Supplier<Boolean> cancelIndicator) {
+        return CompletableFuture.completedFuture(findReplicatePos0(suggestTerm, suggestIndex));
     }
 
-    private long nextIndexToReplicate0(int remoteMaxTerm, long remoteMaxIndex) {
+    private Pair<Integer, Long> findReplicatePos0(int suggestTerm, long suggestIndex) {
         IndexedQueue<LogItem> logs = this.logs;
         if (logs.size() == 0) {
-            return -1L;
+            return null;
         }
         LogItem first = logs.get(0);
         LogItem last = logs.get(logs.size() - 1);
-        int c = LogFileQueue.compare(last.getTerm(), last.getIndex(), remoteMaxTerm, remoteMaxIndex);
+        int c = LogFileQueue.compare(last.getTerm(), last.getIndex(), suggestTerm, suggestIndex);
         if (c < 0) {
-            return last.getIndex();
+            return null;
         }
-        c = LogFileQueue.compare(first.getTerm(), first.getIndex(), remoteMaxTerm, remoteMaxIndex);
-        if (c < 0) {
-            return -1L;
+        c = LogFileQueue.compare(first.getTerm(), first.getIndex(), suggestTerm, suggestIndex);
+        if (c > 0) {
+            return null;
         }
         int left = 0;
         int right = logs.size() - 1;
         while (left < right) {
             int mid = (left + right + 1) >>> 1;
             LogItem i = logs.get(mid);
-            c = LogFileQueue.compare(i.getTerm(), i.getIndex(), remoteMaxTerm, remoteMaxIndex);
+            c = LogFileQueue.compare(i.getTerm(), i.getIndex(), suggestTerm, suggestIndex);
             if (c < 0) {
                 left = mid;
             } else if (c > 0) {
                 right = mid - 1;
             } else {
-                return i.getIndex() < last.getIndex() ? i.getIndex() + 1 : i.getIndex();
+                return new Pair<>(i.getTerm(), i.getIndex());
             }
         }
-        return left;
+        LogItem li = logs.get(left);
+        return new Pair<>(li.getTerm(), li.getIndex());
     }
 
     @Override

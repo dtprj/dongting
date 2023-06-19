@@ -22,12 +22,16 @@ import com.github.dtprj.dongting.codec.PbCallback;
  */
 //  uint32 term = 1;
 //  uint32 success = 2;
+//  ///////////////////////////
+//  uint32 append_code = 3;
+//  uint32 suggest_term = 4;
+//  fixed64 suggest_index = 5;
 public class AppendRespCallback extends PbCallback<AppendRespCallback> {
     private int term;
     private boolean success;
     private int appendCode;
-    private int maxLogTerm;
-    private long maxLogIndex;
+    private int suggestTerm;
+    private long suggestIndex;
 
     @Override
     public boolean readVarNumber(int index, long value) {
@@ -42,7 +46,7 @@ public class AppendRespCallback extends PbCallback<AppendRespCallback> {
                 appendCode = (int) value;
                 break;
             case 4:
-                maxLogTerm = (int) value;
+                suggestTerm = (int) value;
                 break;
         }
         return true;
@@ -51,7 +55,7 @@ public class AppendRespCallback extends PbCallback<AppendRespCallback> {
     @Override
     public boolean readFix64(int index, long value) {
         if (index == 5) {
-            maxLogIndex = value;
+            suggestIndex = value;
         }
         return true;
     }
@@ -73,11 +77,11 @@ public class AppendRespCallback extends PbCallback<AppendRespCallback> {
         return appendCode;
     }
 
-    public int getMaxLogTerm() {
-        return maxLogTerm;
+    public int getSuggestTerm() {
+        return suggestTerm;
     }
 
-    public long getMaxLogIndex() {
-        return maxLogIndex;
+    public long getSuggestIndex() {
+        return suggestIndex;
     }
 }

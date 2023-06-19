@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -35,6 +36,7 @@ import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 
 import java.util.ArrayList;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * @author huangli
@@ -141,11 +143,36 @@ public class AppendProcessor extends AbstractProcessor<AppendReqCallback> {
             log.info("log not match. prevLogIndex={}, localLastLogIndex={}, prevLogTerm={}, localLastLogTerm={}, leaderId={}, groupId={}",
                     req.getPrevLogIndex(), raftStatus.getLastLogIndex(), req.getPrevLogTerm(),
                     raftStatus.getLastLogTerm(), req.getLeaderId(), raftStatus.getGroupId());
-            resp.setSuccess(false);
-            resp.setAppendCode(CODE_LOG_NOT_MATCH);
-            resp.setMaxLogIndex(raftStatus.getLastLogIndex());
-            resp.setMaxLogTerm(raftStatus.getLastLogTerm());
-            return;
+            CompletableFuture<Pair<Integer, Long>> replicatePos = gc.getRaftLog().findReplicatePos(
+                    req.getPrevLogTerm(), req.getPrevLogIndex(), raftStatus.getLastLogTerm(),
+                    raftStatus.getLastLogIndex(), raftStatus::isStop);
+            try {
+                Pair<Integer, Long> pos = replicatePos.get();
+                if (pos == null) {
+                    log.info("follower has no suggest index, will install snapshot. groupId={}", raftStatus.getGroupId());
+                    resp.setSuccess(false);
+                    resp.setAppendCode(CODE_LOG_NOT_MATCH);
+                    resp.setSuggestTerm(0);
+                    resp.setSuggestIndex(0);
+                    return;
+                } else if (pos.getLeft() == req.getPrevLogTerm() && pos.getRight() == req.getPrevLogIndex()) {
+                    log.info("local log truncate to prevLogIndex={}, prevLogTerm={}, groupId={}",
+                            req.getPrevLogIndex(), req.getPrevLogTerm(), raftStatus.getGroupId());
+                    // not return here
+                } else {
+                    log.info("follower suggest term={}, index={}, groupId={}", pos.getLeft(), pos.getRight(), raftStatus.getGroupId());
+                    resp.setSuccess(false);
+                    resp.setAppendCode(CODE_LOG_NOT_MATCH);
+                    resp.setSuggestTerm(pos.getLeft());
+                    resp.setSuggestIndex(pos.getRight());
+                    return;
+                }
+            } catch (Exception ex) {
+                log.error("find replicate pos error", ex);
+                resp.setSuccess(false);
+                resp.setAppendCode(CODE_SERVER_ERROR);
+                return;
+            }
         }
         if (req.getPrevLogIndex() < raftStatus.getCommitIndex()) {
             BugLog.getLog().error("leader append request prevLogIndex less than local commit index. leaderId={}, prevLogIndex={}, commitIndex={}, groupId={}",
