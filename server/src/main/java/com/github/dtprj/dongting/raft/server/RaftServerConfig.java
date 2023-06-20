@@ -33,7 +33,6 @@ public class RaftServerConfig {
     private long rpcTimeout = 5 * 1000;
     private long connectTimeout = 2000;
     private long heartbeatInterval = 2000;
-    private int maxBodySize = 4 * 1024 * 1024;
     private int maxReplicateItems = 3000;
     private long maxReplicateBytes = 16 * 1024 * 1024;
     private int singleReplicateLimit = 1800 * 1024;
@@ -110,14 +109,6 @@ public class RaftServerConfig {
 
     public void setMaxReplicateBytes(long maxReplicateBytes) {
         this.maxReplicateBytes = maxReplicateBytes;
-    }
-
-    public int getMaxBodySize() {
-        return maxBodySize;
-    }
-
-    public void setMaxBodySize(int maxBodySize) {
-        this.maxBodySize = maxBodySize;
     }
 
     public int getMaxPendingWrites() {
