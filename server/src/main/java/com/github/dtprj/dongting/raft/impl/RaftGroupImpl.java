@@ -148,7 +148,11 @@ public class RaftGroupImpl extends RaftGroup {
 
     @Override
     public void markTruncateByIndex(long index, long delayMillis) {
-        raftExecutor.execute(() -> raftLog.markTruncateByIndex(index, delayMillis));
+        long finalIndex = Math.min(index, raftStatus.getLastApplied());
+        if (finalIndex <= 0) {
+            return;
+        }
+        raftExecutor.execute(() -> raftLog.markTruncateByIndex(finalIndex, delayMillis));
     }
 
     @Override

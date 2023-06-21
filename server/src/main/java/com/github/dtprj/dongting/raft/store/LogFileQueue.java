@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
+import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.client.RaftException;
@@ -58,12 +59,14 @@ class LogFileQueue extends FileQueue implements FileOps {
 
     private final EncodeContext encodeContext;
     private final RaftCodecFactory codecFactory;
+    private final Timestamp ts;
 
     private long writePos;
 
     public LogFileQueue(File dir, ExecutorService ioExecutor, RaftGroupConfigEx groupConfig, IdxOps idxOps) {
         super(dir, ioExecutor, groupConfig);
         this.idxOps = idxOps;
+        this.ts = groupConfig.getTs();
         this.encodeContext = new EncodeContext(groupConfig.getHeapPool());
         this.codecFactory = groupConfig.getCodecFactory();
     }
@@ -319,16 +322,17 @@ class LogFileQueue extends FileQueue implements FileOps {
         }
     }
 
-    public void markDeleteByIndex(long index, long deleteTimestamp) {
-        markDelete(deleteTimestamp, nextFile -> index >= nextFile.firstIndex);
+    public void markDeleteByIndex(long index, long delayMillis) {
+        markDelete(delayMillis, nextFile -> index >= nextFile.firstIndex);
     }
 
-    public void markDeleteByTimestamp(long lastApplied, long timestampMillis, long deleteTimestamp) {
-        markDelete(deleteTimestamp, nextFile -> timestampMillis > nextFile.firstTimestamp
+    public void markDeleteByTimestamp(long lastApplied, long timestampMillis, long delayMills) {
+        markDelete(delayMills, nextFile -> timestampMillis > nextFile.firstTimestamp
                 && lastApplied >= nextFile.firstIndex);
     }
 
-    private void markDelete(long deleteTimestamp, Predicate<LogFile> predicate) {
+    private void markDelete(long delayMillis, Predicate<LogFile> predicate) {
+        long deleteTimestamp = ts.getWallClockMillis() + delayMillis;
         int queueSize = queue.size();
         for (int i = 0; i < queueSize - 1; i++) {
             LogFile logFile = queue.get(i);
@@ -338,10 +342,10 @@ class LogFileQueue extends FileQueue implements FileOps {
                 return;
             }
             if (predicate.test(nextFile)) {
-                if (logFile.deleteTimestamp != 0) {
-                    logFile.deleteTimestamp = Math.min(deleteTimestamp, logFile.deleteTimestamp);
-                } else {
+                if (logFile.deleteTimestamp == 0) {
                     logFile.deleteTimestamp = deleteTimestamp;
+                } else {
+                    logFile.deleteTimestamp = Math.min(deleteTimestamp, logFile.deleteTimestamp);
                 }
             } else {
                 return;

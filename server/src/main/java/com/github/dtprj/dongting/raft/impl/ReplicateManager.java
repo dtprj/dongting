@@ -193,7 +193,7 @@ public class ReplicateManager {
         } else {
             if (logIterator == null) {
                 int currentEpoch = member.getReplicateEpoch();
-                logIterator = raftLog.openIterator(() -> member.getReplicateEpoch() != currentEpoch);
+                logIterator = raftLog.openIterator(() -> member.getReplicateEpoch() != currentEpoch || raftStatus.isStop());
                 member.setReplicateIterator(logIterator);
             }
             CompletableFuture<List<LogItem>> future = logIterator.next(nextIndex, Math.min(limit, 1024),

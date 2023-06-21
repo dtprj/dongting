@@ -42,7 +42,6 @@ public class DefaultRaftLog implements RaftLog {
 
     private final RaftGroupConfigEx groupConfig;
     private final Timestamp ts;
-    private final Supplier<Boolean> stopIndicator;
     private final RaftStatus raftStatus;
     private final ExecutorService ioExecutor;
     private LogFileQueue logFiles;
@@ -57,7 +56,6 @@ public class DefaultRaftLog implements RaftLog {
     public DefaultRaftLog(RaftGroupConfigEx groupConfig, ExecutorService ioExecutor) {
         this.groupConfig = groupConfig;
         this.ts = groupConfig.getTs();
-        this.stopIndicator = groupConfig.getStopIndicator();
         this.raftStatus = groupConfig.getRaftStatus();
         this.ioExecutor = ioExecutor;
 
@@ -153,15 +151,11 @@ public class DefaultRaftLog implements RaftLog {
         } else {
             throw new UnrecoverableException("bad index: " + firstIndex);
         }
-        if (ts.getNanoTime() - lastTaskNanos > TASK_INTERVAL_NANOS) {
-            delete();
-            lastTaskNanos = ts.getNanoTime();
-        }
     }
 
     @Override
-    public LogIterator openIterator(Supplier<Boolean> epochChange) {
-        return new DefaultLogIterator(idxFiles, logFiles, groupConfig, () -> stopIndicator.get() || epochChange.get());
+    public LogIterator openIterator(Supplier<Boolean> cancelIndicator) {
+        return new DefaultLogIterator(idxFiles, logFiles, groupConfig, cancelIndicator);
     }
 
     @Override
@@ -173,23 +167,21 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public void markTruncateByIndex(long index, long delayMillis) {
-        index = Math.min(index, raftStatus.getLastApplied());
-        if (index <= 0) {
-            return;
-        }
-        long deleteTimestamp = ts.getWallClockMillis() + delayMillis;
-        logFiles.markDeleteByIndex(index, deleteTimestamp);
+        logFiles.markDeleteByIndex(index, delayMillis);
     }
 
     @Override
     public void markTruncateByTimestamp(long timestampMillis, long delayMillis) {
-        long deleteTimestamp = ts.getWallClockMillis() + delayMillis;
-        logFiles.markDeleteByTimestamp(raftStatus.getLastApplied(), timestampMillis, deleteTimestamp);
+        logFiles.markDeleteByTimestamp(raftStatus.getLastApplied(), timestampMillis, delayMillis);
     }
 
-    private void delete() {
-        logFiles.submitDeleteTask(ts.getWallClockMillis());
-        idxFiles.submitDeleteTask(logFiles.getFirstIndex());
+    @Override
+    public void doDelete() {
+        if (ts.getNanoTime() - lastTaskNanos > TASK_INTERVAL_NANOS) {
+            logFiles.submitDeleteTask(ts.getWallClockMillis());
+            idxFiles.submitDeleteTask(logFiles.getFirstIndex());
+            lastTaskNanos = ts.getNanoTime();
+        }
     }
 
 }

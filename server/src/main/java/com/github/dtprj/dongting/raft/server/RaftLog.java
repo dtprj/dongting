@@ -35,7 +35,7 @@ public interface RaftLog extends AutoCloseable {
      */
     void append(List<LogItem> logs) throws Exception;
 
-    LogIterator openIterator(Supplier<Boolean> epochChange);
+    LogIterator openIterator(Supplier<Boolean> cancelIndicator);
 
     /**
      * return null if it can't match and will cause install snapshot
@@ -58,6 +58,8 @@ public interface RaftLog extends AutoCloseable {
      * @param delayMillis delay millis to delete the logs, to wait read complete
      */
     void markTruncateByTimestamp(long timestampMillis, long delayMillis);
+
+    void doDelete();
 
     interface LogIterator extends AutoCloseable {
 

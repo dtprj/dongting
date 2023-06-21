@@ -98,7 +98,7 @@ public class AppendReqWriteFrame extends WriteFrame {
     }
 
     private int computeItemSize(LogItem item) {
-        int itemSize = item.getItemSize();
+        int itemSize = item.getPbItemSize();
         if (itemSize > 0) {
             return itemSize;
         }
@@ -108,11 +108,11 @@ public class AppendReqWriteFrame extends WriteFrame {
                 + PbUtil.accurateFix64Size(4, item.getIndex())
                 + PbUtil.accurateUnsignedIntSize(5, item.getPrevLogTerm())
                 + PbUtil.accurateFix64Size(6, item.getTimestamp());
-        item.setItemHeaderSize(itemHeaderSize);
+        item.setPbHeaderSize(itemHeaderSize);
         itemSize = itemHeaderSize
                 + PbUtil.accurateLengthDelimitedSize(7, item.getActualHeaderSize())
                 + PbUtil.accurateLengthDelimitedSize(8, item.getActualBodySize());
-        item.setItemSize(itemSize);
+        item.setPbItemSize(itemSize);
         return itemSize;
     }
 
@@ -139,7 +139,7 @@ public class AppendReqWriteFrame extends WriteFrame {
                         return true;
                     }
                     int require = PbUtil.accurateLengthDelimitedSize(7, computeItemSize(currentItem))
-                            + currentItem.getItemHeaderSize();
+                            + currentItem.getPbHeaderSize();
                     if (buf.remaining() < require) {
                         return false;
                     }

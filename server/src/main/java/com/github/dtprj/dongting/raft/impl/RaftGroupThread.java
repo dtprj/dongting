@@ -221,8 +221,6 @@ public class RaftGroupThread extends Thread {
                 queueData.clear();
             }
             if (ts.getNanoTime() - lastCleanTime > 5 * 1000 * 1000) {
-                raftStatus.getPendingRequests().cleanPending(raftStatus,
-                        config.getMaxPendingWrites(), config.getMaxPendingWriteBytes());
                 idle(ts);
                 lastCleanTime = ts.getNanoTime();
             }
@@ -285,6 +283,12 @@ public class RaftGroupThread extends Thread {
         if (raftStatus.isError()) {
             return;
         }
+
+        raftStatus.getPendingRequests().cleanPending(raftStatus, config.getMaxPendingWrites(),
+                config.getMaxPendingWriteBytes());
+
+        raftLog.doDelete();
+
         if (raftStatus.getElectQuorum() <= 1) {
             return;
         }
