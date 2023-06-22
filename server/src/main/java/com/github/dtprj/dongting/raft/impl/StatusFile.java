@@ -19,8 +19,8 @@ import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
+import com.github.dtprj.dongting.raft.server.RaftException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;

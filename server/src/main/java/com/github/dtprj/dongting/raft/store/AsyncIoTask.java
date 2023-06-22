@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.server.RaftException;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;

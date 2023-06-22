@@ -17,7 +17,7 @@ package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
-import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.server.RaftException;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 
 import java.nio.ByteBuffer;

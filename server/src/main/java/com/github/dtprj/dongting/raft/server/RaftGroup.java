@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 

@@ -23,7 +23,7 @@ import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.codec.StrDecoder;
 import com.github.dtprj.dongting.codec.StrEncoder;
-import com.github.dtprj.dongting.raft.client.RaftException;
+import com.github.dtprj.dongting.raft.server.RaftException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftStatus;

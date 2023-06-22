@@ -29,7 +29,6 @@ import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.NioConfig;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
-import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.impl.ApplyManager;
 import com.github.dtprj.dongting.raft.impl.CommitManager;
 import com.github.dtprj.dongting.raft.impl.EventBus;

@@ -22,8 +22,8 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.server.RaftException;
 import com.github.dtprj.dongting.raft.store.AsyncIoTask;
 
 import java.io.File;
