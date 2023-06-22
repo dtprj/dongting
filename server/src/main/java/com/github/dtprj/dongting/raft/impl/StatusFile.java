@@ -37,7 +37,6 @@ import java.util.zip.CRC32C;
 /**
  * @author huangli
  */
-// TODO check error handling
 public class StatusFile implements AutoCloseable {
     private static final DtLog log = DtLogs.getLogger(StatusUtil.class);
 
