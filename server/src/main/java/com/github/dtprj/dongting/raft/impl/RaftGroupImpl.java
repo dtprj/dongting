@@ -25,11 +25,11 @@ import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftInput;
-import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.sm.SnapshotManager;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
+import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.util.Objects;
 import java.util.Set;

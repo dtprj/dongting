@@ -34,10 +34,10 @@ import com.github.dtprj.dongting.raft.rpc.InstallSnapshotReq;
 import com.github.dtprj.dongting.raft.rpc.InstallSnapshotResp;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
-import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
+import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.time.Duration;
 import java.util.ArrayList;

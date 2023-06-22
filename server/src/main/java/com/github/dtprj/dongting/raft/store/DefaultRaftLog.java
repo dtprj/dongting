@@ -25,7 +25,6 @@ import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.StatusFile;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
-import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftStatus;
 import com.github.dtprj.dongting.raft.server.UnrecoverableException;
 

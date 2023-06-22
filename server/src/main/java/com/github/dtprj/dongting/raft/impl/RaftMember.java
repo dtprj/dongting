@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.raft.server.RaftLog;
+import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;

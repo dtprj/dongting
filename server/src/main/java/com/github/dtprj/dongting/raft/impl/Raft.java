@@ -21,8 +21,8 @@ import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftInput;
-import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftNode;
+import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.util.ArrayList;
 import java.util.Collections;

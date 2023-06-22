@@ -22,9 +22,9 @@ import com.github.dtprj.dongting.raft.client.RaftException;
 import com.github.dtprj.dongting.raft.server.InitCanceledException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
-import com.github.dtprj.dongting.raft.server.RaftLog;
 import com.github.dtprj.dongting.raft.server.RaftNode;
 import com.github.dtprj.dongting.raft.server.UnrecoverableException;
+import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.nio.ByteBuffer;
 import java.time.Duration;

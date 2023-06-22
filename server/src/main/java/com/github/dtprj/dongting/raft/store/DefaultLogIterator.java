@@ -25,7 +25,6 @@ import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
-import com.github.dtprj.dongting.raft.server.RaftLog;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;

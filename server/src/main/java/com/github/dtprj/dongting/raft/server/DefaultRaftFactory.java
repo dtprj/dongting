@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.raft.sm.DefaultSnapshotManager;
 import com.github.dtprj.dongting.raft.sm.SnapshotManager;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.DefaultRaftLog;
+import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
