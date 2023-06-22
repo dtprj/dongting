@@ -71,9 +71,9 @@ public class DefaultRaftLog implements RaftLog {
             idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), ioExecutor, groupConfig);
             logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), ioExecutor, groupConfig, idxFiles);
             logFiles.init();
-            RaftUtil.checkCancel(cancelInit);
+            RaftUtil.checkInitCancel(cancelInit);
             idxFiles.init();
-            RaftUtil.checkCancel(cancelInit);
+            RaftUtil.checkInitCancel(cancelInit);
 
             idxFiles.initWithCommitIndex(knownMaxCommitIndex);
             long commitIndexPos;
@@ -85,11 +85,11 @@ public class DefaultRaftLog implements RaftLog {
             } else {
                 commitIndexPos = 0;
             }
-            RaftUtil.checkCancel(cancelInit);
+            RaftUtil.checkInitCancel(cancelInit);
 
             statusFile = new StatusFile(new File(dataDir, "log.status"));
             statusFile.init();
-            RaftUtil.checkCancel(cancelInit);
+            RaftUtil.checkInitCancel(cancelInit);
 
             String truncateStatus = statusFile.getProperties().getProperty(KEY_TRUNCATE);
             if (truncateStatus != null) {
@@ -102,10 +102,10 @@ public class DefaultRaftLog implements RaftLog {
                     statusFile.update();
                 }
             }
-            RaftUtil.checkCancel(cancelInit);
+            RaftUtil.checkInitCancel(cancelInit);
 
             int lastTerm = logFiles.restore(knownMaxCommitIndex, commitIndexPos, cancelInit);
-            RaftUtil.checkCancel(cancelInit);
+            RaftUtil.checkInitCancel(cancelInit);
 
             if (idxFiles.getNextIndex() == 1) {
                 return new Pair<>(0, 0L);

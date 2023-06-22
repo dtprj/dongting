@@ -90,7 +90,7 @@ class LogFileQueue extends FileQueue implements FileOps {
         log.info("restore from {}, {}", commitIndex, commitIndexPos);
         Restorer restorer = new Restorer(idxOps, this, commitIndex, commitIndexPos);
         for (int i = 0; i < queue.size(); i++) {
-            RaftUtil.checkCancel(cancelIndicator);
+            RaftUtil.checkInitCancel(cancelIndicator);
             LogFile lf = queue.get(i);
             Pair<Boolean, Long> result = restorer.restoreFile(this.writeBuffer, lf, cancelIndicator);
             writePos = result.getRight();

@@ -316,7 +316,7 @@ public class RaftUtil {
         return dest;
     }
 
-    public static void checkCancel(Supplier<Boolean> cancelIndicator) {
+    public static void checkInitCancel(Supplier<Boolean> cancelIndicator) {
         if (cancelIndicator.get()) {
             throw new InitCanceledException();
         }
