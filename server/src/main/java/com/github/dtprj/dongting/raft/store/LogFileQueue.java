@@ -393,11 +393,6 @@ class LogFileQueue extends FileQueue implements FileOps {
             int leftTerm = logFile.firstTerm;
             long rightIndex = suggestIndex;
             LogHeader header = new LogHeader();
-            loadHeaderInIoThread(logFile, rightIndex, header);
-            if (cancel.get()) {
-                future.cancel(false);
-                return;
-            }
             while (leftIndex < rightIndex) {
                 long midIndex = (leftIndex + rightIndex + 1) >>> 1;
                 loadHeaderInIoThread(logFile, midIndex, header);
