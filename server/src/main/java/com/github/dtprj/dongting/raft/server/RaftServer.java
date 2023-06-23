@@ -147,7 +147,7 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     private RaftGroupImpl createRaftGroup(Supplier<Boolean> cancelInitIndicator, RaftServerConfig serverConfig,
-                                                   Set<Integer> allNodeIds, RaftGroupConfig rgc) {
+                                          Set<Integer> allNodeIds, RaftGroupConfig rgc) {
         Objects.requireNonNull(rgc.getNodeIdOfMembers());
 
         EventBus eventBus = new EventBus();
@@ -356,12 +356,12 @@ public class RaftServer extends AbstractLifeCircle {
      * If the node is already in node list and connected, the future complete normally immediately.
      */
     @SuppressWarnings("unused")
-    public void addNode(RaftNode node) {
+    public void addNode(RaftNode node, long timeoutMillis) {
         doChange(() -> {
             CompletableFuture<RaftNodeEx> f = nodeManager.addToNioClient(node);
             f = f.thenComposeAsync(nodeManager::addNode, RaftUtil.SCHEDULED_SERVICE);
             try {
-                f.get();
+                f.get(timeoutMillis, TimeUnit.MILLISECONDS);
             } catch (Exception e) {
                 throw new RaftException(e);
             }
@@ -404,7 +404,7 @@ public class RaftServer extends AbstractLifeCircle {
                     }
                 });
 
-                RaftGroupImpl gc = f.get(5, TimeUnit.SECONDS);
+                RaftGroupImpl gc = f.get(30, TimeUnit.SECONDS);
                 gc.getRaftGroupThread().init(gc);
 
                 gc.getRaftGroupThread().start();
@@ -424,21 +424,22 @@ public class RaftServer extends AbstractLifeCircle {
             RaftGroupImpl gc = raftGroups.get(groupId);
             if (gc == null) {
                 log.warn("removeGroup failed: group not exist, groupId={}", groupId);
-                return;
+                throw new RaftException("group not exist: " + groupId);
             }
             gc.getRaftGroupThread().requestShutdown();
             try {
                 gc.getRaftGroupThread().join(timeoutMillis);
             } catch (InterruptedException e) {
-                DtUtil.restoreInterruptStatus();
                 log.warn("removeGroup join interrupted, groupId={}", groupId);
+                throw new RaftException("wait raft thread finish time out: " + timeoutMillis + "ms");
+            } finally {
+                raftGroups.remove(groupId);
             }
-            raftGroups.remove(groupId);
         });
     }
 
     @SuppressWarnings("unused")
-    public  RaftGroup getRaftGroup(int groupId) {
+    public RaftGroup getRaftGroup(int groupId) {
         return raftGroups.get(groupId);
     }
 
