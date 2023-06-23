@@ -348,7 +348,11 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
             Set<Integer> newMembers = (Set<Integer>) args[3];
             Set<Integer> newObservers = (Set<Integer>) args[4];
 
-            gc = RaftUtil.getGroupComponents(raftGroups, groupId);
+            gc = raftGroups.get(groupId);
+            if (gc == null) {
+                log.error("group not exist: groupId={}", groupId);
+                return;
+            }
             List<RaftNodeEx> newMemberNodes = checkNodeIdSet(groupId, newMembers);
             List<RaftNodeEx> newObserverNodes = checkNodeIdSet(groupId, newObservers);
             processUseCount(oldPrepareMembers, -1);

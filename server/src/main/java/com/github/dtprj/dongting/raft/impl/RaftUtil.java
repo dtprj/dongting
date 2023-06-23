@@ -298,15 +298,6 @@ public class RaftUtil {
         return set;
     }
 
-    public static RaftGroupImpl getGroupComponents(RaftGroups map, int groupId) {
-        RaftGroupImpl gc = map.get(groupId);
-        if (gc == null) {
-            log.error("group not exist: {}", groupId);
-            throw new RaftException("group not exist: " + groupId);
-        }
-        return gc;
-    }
-
     public static ByteBuffer copy(ByteBuffer src) {
         ByteBuffer dest = ByteBuffer.allocate(src.remaining());
         int pos = src.position();

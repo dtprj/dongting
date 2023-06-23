@@ -419,7 +419,7 @@ public class RaftServer extends AbstractLifeCircle {
      * ADMIN API. This method is idempotent.
      */
     @SuppressWarnings("unused")
-    public void removeGroup(int groupId) {
+    public void removeGroup(int groupId, long timeoutMillis) {
         doChange(() -> {
             RaftGroupImpl gc = raftGroups.get(groupId);
             if (gc == null) {
@@ -427,13 +427,19 @@ public class RaftServer extends AbstractLifeCircle {
                 return;
             }
             gc.getRaftGroupThread().requestShutdown();
+            try {
+                gc.getRaftGroupThread().join(timeoutMillis);
+            } catch (InterruptedException e) {
+                DtUtil.restoreInterruptStatus();
+                log.warn("removeGroup join interrupted, groupId={}", groupId);
+            }
             raftGroups.remove(groupId);
         });
     }
 
     @SuppressWarnings("unused")
     public  RaftGroup getRaftGroup(int groupId) {
-        return RaftUtil.getGroupComponents(raftGroups, groupId);
+        return raftGroups.get(groupId);
     }
 
 }
