@@ -211,7 +211,8 @@ public class AppendReqWriteFrame extends WriteFrame {
             boolean result = false;
             try {
                 if (currentEncoder == null) {
-                    currentEncoder = stateMachine.createEncoder(item.getBizType(), header);
+                    currentEncoder = header ? stateMachine.createHeaderEncoder(item.getBizType())
+                            : stateMachine.createBodyEncoder(item.getBizType());
                 }
                 //noinspection unchecked
                 result = currentEncoder.encode(context, dest, data);

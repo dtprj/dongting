@@ -102,7 +102,7 @@ public class MemRaftLog implements RaftLog {
                     LogItem li = it.item;
                     if (it.flowControlSize == 0 && li.getType() == LogItem.TYPE_NORMAL) {
                         @SuppressWarnings("rawtypes")
-                        Encoder encoder = groupConfig.getCodecFactory().createEncoder(li.getBizType(), false);
+                        Encoder encoder = groupConfig.getCodecFactory().createBodyEncoder(li.getBizType());
                         //noinspection unchecked
                         it.flowControlSize = encoder.actualSize(li.getBody());
                     }

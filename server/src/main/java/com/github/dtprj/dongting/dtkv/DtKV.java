@@ -61,26 +61,50 @@ public class DtKV implements StateMachine {
     }
 
     @Override
-    public Decoder<?> createDecoder(int bizType, boolean header) {
+    public Decoder<?> createHeaderDecoder(int bizType) {
         switch (bizType) {
             case BIZ_TYPE_GET:
             case BIZ_TYPE_REMOVE:
-                return header ? StrDecoder.INSTANCE : null;
             case BIZ_TYPE_PUT:
-                return header ? StrDecoder.INSTANCE : ByteArrayDecoder.INSTANCE;
+                return StrDecoder.INSTANCE;
             default:
                 throw new IllegalArgumentException("unknown bizType " + bizType);
         }
     }
 
     @Override
-    public Encoder<?> createEncoder(int bizType, boolean header) {
+    public Decoder<?> createBodyDecoder(int bizType) {
         switch (bizType) {
             case BIZ_TYPE_GET:
             case BIZ_TYPE_REMOVE:
-                return header ? new StrEncoder() : null;
+                return null;
             case BIZ_TYPE_PUT:
-                return header ? new StrEncoder() : ByteArrayEncoder.INSTANCE;
+                return ByteArrayDecoder.INSTANCE;
+            default:
+                throw new IllegalArgumentException("unknown bizType " + bizType);
+        }
+    }
+
+    @Override
+    public Encoder<?> createHeaderEncoder(int bizType) {
+        switch (bizType) {
+            case BIZ_TYPE_GET:
+            case BIZ_TYPE_REMOVE:
+            case BIZ_TYPE_PUT:
+                return new StrEncoder();
+            default:
+                throw new IllegalArgumentException("unknown bizType " + bizType);
+        }
+    }
+
+    @Override
+    public Encoder<?> createBodyEncoder(int bizType) {
+        switch (bizType) {
+            case BIZ_TYPE_GET:
+            case BIZ_TYPE_REMOVE:
+                return null;
+            case BIZ_TYPE_PUT:
+                return ByteArrayEncoder.INSTANCE;
             default:
                 throw new IllegalArgumentException("unknown bizType " + bizType);
         }

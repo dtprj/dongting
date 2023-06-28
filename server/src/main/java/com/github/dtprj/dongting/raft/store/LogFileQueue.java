@@ -193,7 +193,7 @@ class LogFileQueue extends FileQueue implements FileOps {
             if (item.getHeaderBuffer() != null) {
                 return ByteBufferEncoder.INSTANCE;
             } else if (item.getHeader() != null) {
-                Encoder encoder = codecFactory.createEncoder(item.getBizType(), true);
+                Encoder encoder = codecFactory.createHeaderEncoder(item.getBizType());
                 item.setActualHeaderSize(encoder.actualSize(item.getHeader()));
                 return encoder;
             } else {
@@ -203,7 +203,7 @@ class LogFileQueue extends FileQueue implements FileOps {
             if (item.getBodyBuffer() != null) {
                 return ByteBufferEncoder.INSTANCE;
             } else if (item.getBody() != null) {
-                Encoder encoder = codecFactory.createEncoder(item.getBizType(), false);
+                Encoder encoder = codecFactory.createBodyEncoder(item.getBizType());
                 item.setActualBodySize(encoder.actualSize(item.getBody()));
                 return encoder;
             } else {
