@@ -171,7 +171,7 @@ public class RaftUtil {
             raftStatus.setRole(RaftRole.follower);
             if (oldRole == RaftRole.leader) {
                 oldPending.forEach((idx, task) -> {
-                    RaftNode leaderNode = getLeader(raftStatus.getCurrentLeader());
+                    RaftNode leaderNode = raftStatus.getCurrentLeaderNode();
                     if (task.future != null) {
                         task.future.completeExceptionally(new NotLeaderException(leaderNode));
                     }
@@ -246,10 +246,6 @@ public class RaftUtil {
         if (!found) {
             raftStatus.setCurrentLeader(null);
         }
-    }
-
-    public static RaftNode getLeader(RaftMember leader) {
-        return leader == null ? null : leader.getNode();
     }
 
     public static void append(RaftLog raftLog, RaftStatusImpl raftStatus, ArrayList<LogItem> logs) {

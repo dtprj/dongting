@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.raft.server.RaftNode;
 import com.github.dtprj.dongting.raft.server.RaftStatus;
 
 import java.util.List;
@@ -90,6 +91,10 @@ public class RaftStatusImpl extends RaftStatus {
             this.shareStatusUpdated = false;
             this.shareStatus = ss;
         }
+    }
+
+    public RaftNode getCurrentLeaderNode() {
+        return currentLeader == null ? null : currentLeader.getNode();
     }
 
     public void setLastApplied(long lastApplied) {

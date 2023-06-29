@@ -21,7 +21,6 @@ import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftInput;
-import com.github.dtprj.dongting.raft.server.RaftNode;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.util.ArrayList;
@@ -67,10 +66,9 @@ public class Raft implements BiConsumer<EventType, Object> {
     public void raftExec(List<RaftTask> inputs) {
         RaftStatusImpl raftStatus = this.raftStatus;
         if (raftStatus.getRole() != RaftRole.leader) {
-            RaftNode leader = RaftUtil.getLeader(raftStatus.getCurrentLeader());
             for (RaftTask t : inputs) {
                 if (t.future != null) {
-                    t.future.completeExceptionally(new NotLeaderException(leader));
+                    t.future.completeExceptionally(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
                 }
             }
             return;

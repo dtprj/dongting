@@ -263,7 +263,7 @@ public class MemberManager {
         Runnable r = () -> {
             if (raftStatus.getRole() != RaftRole.leader) {
                 raftStatus.setHoldRequest(false);
-                f.completeExceptionally(new NotLeaderException(RaftUtil.getLeader(raftStatus.getCurrentLeader())));
+                f.completeExceptionally(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
                 return;
             }
             RaftMember newLeader = null;
@@ -345,7 +345,7 @@ public class MemberManager {
             }
             log.error("leader config change {}, not leader, role={}, groupId={}",
                     stageStr, raftStatus.getRole(), groupId);
-            f.completeExceptionally(new RaftException("not leader"));
+            f.completeExceptionally(new NotLeaderException(raftStatus.getCurrentLeader().getNode()));
         }
         CompletableFuture<RaftOutput> outputFuture = new CompletableFuture<>();
         RaftInput input = new RaftInput(0, null, data, null, 0);

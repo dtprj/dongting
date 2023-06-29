@@ -129,7 +129,7 @@ public class RaftGroupImpl extends RaftGroup {
         // NOTICE : timestamp is not thread safe
         readTimestamp.refresh(1);
         if (ss.role != RaftRole.leader) {
-            throw new NotLeaderException(RaftUtil.getLeader(ss.currentLeader));
+            throw new NotLeaderException(ss.currentLeader == null ? null : ss.currentLeader.getNode());
         }
         long t = readTimestamp.getNanoTime();
         if (ss.leaseEndNanos - t < 0) {
