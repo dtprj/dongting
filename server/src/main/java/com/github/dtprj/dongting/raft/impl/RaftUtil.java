@@ -172,13 +172,13 @@ public class RaftUtil {
             if (oldRole == RaftRole.leader) {
                 oldPending.forEach((idx, task) -> {
                     RaftNode leaderNode = raftStatus.getCurrentLeaderNode();
-                    if (task.future != null) {
-                        task.future.completeExceptionally(new NotLeaderException(leaderNode));
+                    if (task.getFuture() != null) {
+                        task.getFuture().completeExceptionally(new NotLeaderException(leaderNode));
                     }
                     RaftTask reader;
-                    while ((reader = task.nextReader) != null) {
-                        if (reader.future != null) {
-                            reader.future.completeExceptionally(new NotLeaderException(leaderNode));
+                    while ((reader = task.getNextReader()) != null) {
+                        if (reader.getFuture() != null) {
+                            reader.getFuture().completeExceptionally(new NotLeaderException(leaderNode));
                         }
                     }
                     return true;

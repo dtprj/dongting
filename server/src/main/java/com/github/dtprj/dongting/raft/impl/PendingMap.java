@@ -40,7 +40,7 @@ public class PendingMap extends LongObjMap<RaftTask> {
             }
         }
         pending++;
-        pendingBytes += value.input.getFlowControlSize();
+        pendingBytes += value.getInput().getFlowControlSize();
         return t;
     }
 
@@ -52,11 +52,11 @@ public class PendingMap extends LongObjMap<RaftTask> {
         RaftTask t = super.remove(key);
         if (t != null) {
             pending--;
-            pendingBytes -= t.input.getFlowControlSize();
+            pendingBytes -= t.getInput().getFlowControlSize();
             RaftTask x = t;
             while (x != null) {
-                x.item.release();
-                x = x.nextReader;
+                x.getItem().release();
+                x = x.getNextReader();
             }
         }
         if (size() == 0) {
@@ -99,7 +99,7 @@ public class PendingMap extends LongObjMap<RaftTask> {
         long k = firstKey;
         RaftTask task = get(k);
         while (task != null) {
-            if (k > boundIndex && now - task.createTimeNanos < TIMEOUT) {
+            if (k > boundIndex && now - task.getCreateTimeNanos() < TIMEOUT) {
                 if (pending <= maxPending && pendingBytes <= maxPendingBytes) {
                     break;
                 }

@@ -87,7 +87,7 @@ public class ApplyManager {
         while (diff > 0) {
             long index = appliedIndex + 1;
             RaftTask rt = pendingMap.get(index);
-            if (rt == null || rt.input.isReadOnly()) {
+            if (rt == null || rt.getInput().isReadOnly()) {
                 waiting = true;
                 int limit = (int) Math.min(diff, 1024L);
                 if (logIterator == null) {
@@ -101,7 +101,7 @@ public class ApplyManager {
                     DtUtil.close(logIterator);
                     this.logIterator = null;
                 }
-                rt.item.retain();
+                rt.getItem().retain();
                 execChain(index, rt);
                 appliedIndex++;
                 diff--;
@@ -166,11 +166,11 @@ public class ApplyManager {
             RaftInput input = new RaftInput(item.getBizType(), item.getHeader(), item.getBody(),
                     null, item.getActualBodySize());
             RaftTask result = new RaftTask(ts, item.getType(), input, null);
-            result.item = item;
+            result.setItem(item);
             RaftTask reader = raftStatus.getPendingRequests().get(item.getIndex());
             if (reader != null) {
-                if (reader.input.isReadOnly()) {
-                    result.nextReader = reader;
+                if (reader.getInput().isReadOnly()) {
+                    result.setNextReader(reader);
                 } else {
                     BugLog.getLog().error("not read only");
                 }
@@ -182,7 +182,7 @@ public class ApplyManager {
     }
 
     private void execChain(long index, RaftTask rt) {
-        switch (rt.type) {
+        switch (rt.getType()) {
             case LogItem.TYPE_NORMAL:
                 execWrite(index, rt);
                 afterExec(index, rt);
@@ -209,11 +209,11 @@ public class ApplyManager {
 
     private void afterExec(long index, RaftTask rt) {
         raftStatus.setLastApplied(index);
-        rt.item.release();
+        rt.getItem().release();
         execReaders(index, rt);
 
         // release reader memory
-        rt.nextReader = null;
+        rt.setNextReader(null);
     }
 
     private void resumeAfterPrepare(long index, RaftTask rt) {
@@ -224,22 +224,22 @@ public class ApplyManager {
     }
 
     private void notifyConfigChange(long index, RaftTask rt) {
-        if (rt.future != null) {
-            rt.future.complete(new RaftOutput(index, null));
+        if (rt.getFuture() != null) {
+            rt.getFuture().complete(new RaftOutput(index, null));
         }
     }
 
     private void execReaders(long index, RaftTask rt) {
-        RaftTask nextReader = rt.nextReader;
+        RaftTask nextReader = rt.getNextReader();
         while (nextReader != null) {
             execRead(index, nextReader);
-            nextReader = nextReader.nextReader;
+            nextReader = nextReader.getNextReader();
         }
     }
 
     private void execWrite(long index, RaftTask rt) {
-        RaftInput input = rt.input;
-        CompletableFuture<RaftOutput> future = rt.future;
+        RaftInput input = rt.getInput();
+        CompletableFuture<RaftOutput> future = rt.getFuture();
         try {
             Object r = stateMachine.exec(index, input);
             future.complete(new RaftOutput(index, r));
@@ -247,7 +247,7 @@ public class ApplyManager {
             log.warn("exec write failed. {}", ex);
             future.completeExceptionally(ex);
         } finally {
-            rt.item.release();
+            rt.getItem().release();
             RaftStatusImpl raftStatus = this.raftStatus;
             if (raftStatus.getFirstCommitOfApplied() != null && index >= raftStatus.getFirstIndexOfCurrentTerm()) {
                 raftStatus.getFirstCommitOfApplied().complete(null);
@@ -257,8 +257,8 @@ public class ApplyManager {
     }
 
     public void execRead(long index, RaftTask rt) {
-        RaftInput input = rt.input;
-        CompletableFuture<RaftOutput> future = rt.future;
+        RaftInput input = rt.getInput();
+        CompletableFuture<RaftOutput> future = rt.getFuture();
         if (input.getDeadline() != null && input.getDeadline().isTimeout(ts)) {
             future.completeExceptionally(new RaftExecTimeoutException("timeout "
                     + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms"));
@@ -275,7 +275,7 @@ public class ApplyManager {
     private void doPrepare(long index, RaftTask rt) {
         configChanging = true;
 
-        ByteBuffer logData = (ByteBuffer) rt.input.getBody();
+        ByteBuffer logData = (ByteBuffer) rt.getInput().getBody();
         byte[] data = new byte[logData.remaining()];
         logData.get(data);
         String dataStr = new String(data);

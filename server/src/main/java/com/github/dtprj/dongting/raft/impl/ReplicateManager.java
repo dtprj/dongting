@@ -167,7 +167,7 @@ public class ReplicateManager {
 
         RaftTask first = raftStatus.getPendingRequests().get(nextIndex);
         RaftLog.LogIterator logIterator = member.getReplicateIterator();
-        if (first != null && !first.input.isReadOnly()) {
+        if (first != null && !first.getInput().isReadOnly()) {
             if (logIterator != null) {
                 DtUtil.close(logIterator);
                 member.setReplicateIterator(null);
@@ -177,7 +177,7 @@ public class ReplicateManager {
                 ArrayList<LogItem> items = new ArrayList<>(limit);
                 long size = 0;
                 for (int i = 0; i < limit; i++) {
-                    LogItem li = raftStatus.getPendingRequests().get(nextIndex + i).item;
+                    LogItem li = raftStatus.getPendingRequests().get(nextIndex + i).getItem();
                     size += li.getActualBodySize();
                     if (size > sizeLimit && i != 0) {
                         break;

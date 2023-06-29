@@ -67,8 +67,8 @@ public class Raft implements BiConsumer<EventType, Object> {
         RaftStatusImpl raftStatus = this.raftStatus;
         if (raftStatus.getRole() != RaftRole.leader) {
             for (RaftTask t : inputs) {
-                if (t.future != null) {
-                    t.future.completeExceptionally(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
+                if (t.getFuture() != null) {
+                    t.getFuture().completeExceptionally(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
                 }
             }
             return;
@@ -81,10 +81,10 @@ public class Raft implements BiConsumer<EventType, Object> {
         PendingMap pending = raftStatus.getPendingRequests();
         for (int i = 0; i < inputs.size(); i++) {
             RaftTask rt = inputs.get(i);
-            RaftInput input = rt.input;
+            RaftInput input = rt.getInput();
 
             if (input.getDeadline() != null && input.getDeadline().isTimeout(ts)) {
-                rt.future.completeExceptionally(new RaftExecTimeoutException("timeout "
+                rt.getFuture().completeExceptionally(new RaftExecTimeoutException("timeout "
                         + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms"));
                 continue;
             }
@@ -92,7 +92,7 @@ public class Raft implements BiConsumer<EventType, Object> {
             if (!input.isReadOnly()) {
                 newIndex++;
                 LogItem item = new LogItem(null);
-                item.setType(rt.type);
+                item.setType(rt.getType());
                 item.setBizType(input.getBizType());
                 item.setTerm(currentTerm);
                 item.setIndex(newIndex);
@@ -107,7 +107,7 @@ public class Raft implements BiConsumer<EventType, Object> {
 
                 logs.add(item);
 
-                rt.item = item;
+                rt.setItem(item);
 
                 pending.put(newIndex, rt);
             } else {
@@ -119,7 +119,7 @@ public class Raft implements BiConsumer<EventType, Object> {
                     if (newTask == null) {
                         pending.put(newIndex, rt);
                     } else {
-                        newTask.addNext(rt);
+                        newTask.setNextReader(rt);
                     }
                 }
             }

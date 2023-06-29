@@ -27,14 +27,14 @@ import java.util.concurrent.CompletableFuture;
  */
 public class RaftTask {
 
-    public final int type;
-    public final RaftInput input;
-    final CompletableFuture<RaftOutput> future;
-    public final long createTimeNanos;
+    private final int type;
+    private final RaftInput input;
+    private final CompletableFuture<RaftOutput> future;
+    private final long createTimeNanos;
 
-    public LogItem item;
+    private LogItem item;
 
-    RaftTask nextReader;
+    private RaftTask nextReader;
 
     public RaftTask(Timestamp ts, int type, RaftInput input,
                     CompletableFuture<RaftOutput> future) {
@@ -44,7 +44,35 @@ public class RaftTask {
         this.future = future;
     }
 
-    public void addNext(RaftTask t) {
-        nextReader = t;
+    public void setNextReader(RaftTask nextReader) {
+        this.nextReader = nextReader;
+    }
+
+    public RaftTask getNextReader() {
+        return nextReader;
+    }
+
+    public CompletableFuture<RaftOutput> getFuture() {
+        return future;
+    }
+
+    public LogItem getItem() {
+        return item;
+    }
+
+    public void setItem(LogItem item) {
+        this.item = item;
+    }
+
+    public long getCreateTimeNanos() {
+        return createTimeNanos;
+    }
+
+    public RaftInput getInput() {
+        return input;
+    }
+
+    public int getType() {
+        return type;
     }
 }
