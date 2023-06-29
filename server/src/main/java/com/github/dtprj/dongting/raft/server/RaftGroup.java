@@ -47,6 +47,7 @@ public abstract class RaftGroup {
     /**
      * ADMIN API.
      * try to delete logs before the index(exclude).
+     * This method should be called on each member, respectively.
      * @param index the index of the last log to be deleted
      * @param delayMillis delay millis to delete the logs, to wait read complete
      */
@@ -56,6 +57,7 @@ public abstract class RaftGroup {
     /**
      * ADMIN API.
      * try to delete logs before the timestamp(may include).
+     * This method should be called on each member, respectively.
      * @param timestampMillis the timestamp of the log
      * @param delayMillis delay millis to delete the logs, to wait read complete
      */
@@ -64,30 +66,35 @@ public abstract class RaftGroup {
 
     /**
      * ADMIN API.
+     * This method should be called on each member, respectively.
+     * @return Future indicating the latest log index of the snapshot. If there is a saving action running, return -1.
+     */
+    @SuppressWarnings("unused")
+    public abstract CompletableFuture<Long> saveSnapshot();
+
+    /**
+     * ADMIN API. This method should be called on the leader; otherwise, it will throw a NotLeaderException.
      */
     @SuppressWarnings("unused")
     public abstract CompletableFuture<Void> transferLeadership(int nodeId, long timeoutMillis);
 
     /**
-     * ADMIN API. This method is idempotent.
+     * ADMIN API. This method is idempotent. This method should be called on the leader; otherwise, it will throw a NotLeaderException.
      */
     @SuppressWarnings("unused")
     public abstract CompletableFuture<Void> leaderPrepareJointConsensus(Set<Integer> members, Set<Integer> observers);
 
     /**
-     * ADMIN API. This method is idempotent.
+     * ADMIN API. This method is idempotent. This method should be called on the leader; otherwise, it will throw a NotLeaderException.
      */
     @SuppressWarnings("unused")
     public abstract CompletableFuture<Void> leaderAbortJointConsensus();
 
     /**
-     * ADMIN API. This method is idempotent.
+     * ADMIN API. This method is idempotent. This method should be called on the leader; otherwise, it will throw a NotLeaderException.
      */
     @SuppressWarnings("unused")
     public abstract CompletableFuture<Void> leaderCommitJointConsensus();
-
-    @SuppressWarnings("unused")
-    public abstract CompletableFuture<Long> saveSnapshot();
 
     public RaftLog getRaftLog() {
         return raftLog;
