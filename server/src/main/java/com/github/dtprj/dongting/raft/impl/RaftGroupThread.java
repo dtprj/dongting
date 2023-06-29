@@ -213,9 +213,7 @@ public class RaftGroupThread extends Thread {
             } catch (InterruptedException e) {
                 return;
             }
-            if (!process(rwTasks, runnables, queueData)) {
-                return;
-            }
+            process(rwTasks, runnables, queueData);
             if (queueData.size() > 0) {
                 ts.refresh(1);
                 queueData.clear();
@@ -227,7 +225,7 @@ public class RaftGroupThread extends Thread {
         }
     }
 
-    private boolean process(ArrayList<RaftTask> rwTasks, ArrayList<Runnable> runnables, ArrayList<Object> queueData) {
+    private void process(ArrayList<RaftTask> rwTasks, ArrayList<Runnable> runnables, ArrayList<Object> queueData) {
         RaftStatusImpl raftStatus = this.raftStatus;
         int len = queueData.size();
         for (int i = 0; i < len; i++) {
@@ -255,7 +253,6 @@ public class RaftGroupThread extends Thread {
             runnables.clear();
             raftStatus.copyShareStatus();
         }
-        return true;
     }
 
     private boolean pollAndRefreshTs(Timestamp ts, ArrayList<Object> queueData, boolean poll) throws InterruptedException {
