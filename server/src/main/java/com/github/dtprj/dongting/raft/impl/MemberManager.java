@@ -186,7 +186,7 @@ public class MemberManager {
             log.warn("raft ping fail, remote={}", raftNodeEx.getHostPort(), ex);
             setReady(member, false);
         } else {
-            if (callback.nodeId == 0 && callback.groupId == 0) {
+            if (callback.nodeId != raftNodeEx.getNodeId() || callback.groupId != groupId) {
                 log.error("raft ping error, groupId or nodeId not found, groupId={}, remote={}",
                         groupId, raftNodeEx.getHostPort());
                 setReady(member, false);
@@ -216,7 +216,7 @@ public class MemberManager {
             return raftStatus.getNodeIdOfMembers().equals(callback.nodeIdOfMembers)
                     && raftStatus.getNodeIdOfObservers().equals(callback.nodeIdOfObservers);
         }
-        return false;
+        return true;
     }
 
     public void setReady(RaftMember member, boolean ready) {
