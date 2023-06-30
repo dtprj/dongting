@@ -24,6 +24,8 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -172,5 +174,34 @@ public abstract class NioNet extends AbstractLifeCircle {
                 }
             }
         }
+    }
+
+    public static List<HostPort> parseServers(String serversList) {
+        String[] servers = serversList.split(";");
+        if (servers.length == 0) {
+            throw new IllegalArgumentException("servers list is empty");
+        }
+        try {
+            List<HostPort> list = new ArrayList<>();
+            for (String hostPortStr : servers) {
+                list.add(parseHostPort(hostPortStr));
+            }
+            return list;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("bad servers list: " + serversList);
+        }
+    }
+
+    public static HostPort parseHostPort(String hostPortStr) {
+        int x = hostPortStr.lastIndexOf(':');
+        if (x < 0 || x == hostPortStr.length() - 1) {
+            throw new IllegalArgumentException("not 'id,host:port' format:" + hostPortStr);
+        }
+        String host = hostPortStr.substring(0, x).trim();
+        if (host.startsWith("[") && host.endsWith("]")) {
+            host = host.substring(1, host.length() - 1);
+        }
+        int port = Integer.parseInt(hostPortStr.substring(x + 1).trim());
+        return new HostPort(host, port);
     }
 }

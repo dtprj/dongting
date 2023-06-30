@@ -17,7 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.net.HostPort;
+import com.github.dtprj.dongting.net.NioNet;
 import com.github.dtprj.dongting.raft.server.InitCanceledException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
@@ -64,17 +64,7 @@ public class RaftUtil {
                 }
                 int id = Integer.parseInt(arr[0].trim());
                 String hostPortStr = arr[1];
-                int x = hostPortStr.lastIndexOf(':');
-                if (x < 0 || x == hostPortStr.length() - 1) {
-                    throw new IllegalArgumentException("not 'id,host:port' format:" + server);
-                }
-                String host = hostPortStr.substring(0, x).trim();
-                if (host.startsWith("[") && host.endsWith("]")) {
-                    host = host.substring(1, host.length() - 1);
-                }
-                int port = Integer.parseInt(hostPortStr.substring(x + 1).trim());
-                boolean self = id == selfId;
-                list.add(new RaftNode(id, new HostPort(host, port), self));
+                list.add(new RaftNode(id, NioNet.parseHostPort(hostPortStr), id == selfId));
             }
             return list;
         } catch (NumberFormatException e) {
