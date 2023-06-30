@@ -31,6 +31,7 @@ public class RefBufWriteFrame extends ByteBufferWriteFrame {
 
     @Override
     protected void doClean() {
+        super.doClean();
         if (refBuffer != null) {
             refBuffer.release();
             this.refBuffer = null;

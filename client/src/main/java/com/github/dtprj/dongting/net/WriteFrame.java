@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.codec.PbUtil;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -34,7 +33,6 @@ public abstract class WriteFrame extends Frame implements Encoder<WriteFrame> {
     private static final int STATUS_INIT = 0;
     private static final int STATUS_HEADER_ENCODE_FINISHED = 1;
     private static final int STATUS_ENCODE_FINISHED = 2;
-    private static final int STATUS_CLEANED = 3;
 
     private int dumpSize;
     private int bodySize;
@@ -138,15 +136,15 @@ public abstract class WriteFrame extends Frame implements Encoder<WriteFrame> {
     }
 
     public final void clean() {
-        if (status == STATUS_CLEANED) {
-            BugLog.log(new Exception("already cleaned"));
-        } else {
-            try {
-                doClean();
-            } catch (Exception e) {
-                log.error("clean error", e);
-            }
-            status = STATUS_CLEANED;
+        if (status == STATUS_INIT) {
+            return;
+        }
+        try {
+            doClean();
+        } catch (Throwable e) {
+            log.error("clean error", e);
+        } finally {
+            status = STATUS_INIT;
         }
     }
 

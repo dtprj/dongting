@@ -65,4 +65,9 @@ public class ByteBufferWriteFrame extends WriteFrame {
         markedPosition = copy(body, buf, markedPosition);
         return markedPosition == body.limit();
     }
+
+    @Override
+    protected void doClean() {
+        markedPosition = -1;
+    }
 }
