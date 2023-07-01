@@ -68,6 +68,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private final Thread thread;
     private final NioStatus nioStatus;
     private final NioConfig config;
+    private final NioClient client;
     private volatile int stopStatus = SS_RUNNING;
     private Selector selector;
     private final AtomicInteger notified = new AtomicInteger(0);
@@ -92,21 +93,21 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private long readBufferUseTime;
     private final long readBufferTimeoutNanos;
 
-    public NioWorker(NioStatus nioStatus, String workerName, NioConfig config) {
+    public NioWorker(NioStatus nioStatus, String workerName, NioConfig config, NioClient client) {
         this.nioStatus = nioStatus;
         this.config = config;
+        this.client = client;
         this.thread = new Thread(this);
         this.workerName = workerName;
         this.thread.setName(workerName);
         this.readBufferTimeoutNanos = config.getReadBufferTimeout() * 1000 * 1000;
 
         this.channels = new IntObjMap<>();
-        if (config instanceof NioServerConfig) {
+        this.ioQueue = new IoQueue(this);
+        if (client == null) {
             this.channelsList = null;
-            this.ioQueue = new IoQueue(null);
         } else {
             this.channelsList = new ArrayList<>();
-            this.ioQueue = new IoQueue(channelsList);
         }
 
         this.directPool = config.getPoolFactory().apply(timestamp, true);
@@ -182,6 +183,11 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             for (DtChannel dtc : tempList) {
                 close(dtc);
             }
+
+            if (client != null) {
+                client.cleanWaitConnectReq(null);
+            }
+
             log.info("worker thread [{}] finished.\n" +
                             "markReadCount={}, markWriteCount={}\n" +
                             "readCount={}, readBytes={}, avgReadBytes={}\n" +
@@ -394,11 +400,17 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         DtTime deadline;
     }
 
-    private void doConnect(CompletableFuture<Void> f, Peer peer, DtTime deadline) {
+    void doConnect(CompletableFuture<Void> f, Peer peer, DtTime deadline) {
+        f.whenComplete((v, ex) -> {
+            if (ex != null) {
+                peer.cleanWaitingConnectList(wd -> new NetException(ex));
+            } else {
+                peer.enqueueAfterConnect();
+            }
+        });
         PeerStatus s = peer.getStatus();
         if (s != PeerStatus.not_connect) {
-            String msg = s == PeerStatus.connected ? "peer connected" : "peer connecting";
-            f.completeExceptionally(new NetException(msg));
+            f.completeExceptionally(new NetException("current status is " + s.toString()));
             return;
         } else {
             peer.setStatus(PeerStatus.connecting);
@@ -561,6 +573,14 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             }
             return true;
         });
+        if (client != null) {
+            client.cleanWaitConnectReq(wd -> {
+                if (wd.getTimeout().isTimeout(timestamp)) {
+                    return new NetTimeoutException("wait connect timeout");
+                }
+                return null;
+            });
+        }
     }
 
     private void cleanTimeoutConnect(Timestamp roundStartTime) {
@@ -615,5 +635,13 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     public CompletableFuture<Void> getPreCloseFuture() {
         return preCloseFuture;
+    }
+
+    public boolean isServer() {
+        return client == null;
+    }
+
+    public ArrayList<DtChannel> getChannelsList() {
+        return channelsList;
     }
 }

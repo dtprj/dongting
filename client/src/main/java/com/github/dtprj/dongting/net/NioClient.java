@@ -32,6 +32,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 
 /**
  * @author huangli
@@ -59,7 +60,7 @@ public class NioClient extends NioNet {
             }
         }
         this.peers = new CopyOnWriteArrayList<>(list);
-        this.worker = new NioWorker(nioStatus, config.getName() + "IoWorker", config);
+        this.worker = new NioWorker(nioStatus, config.getName() + "IoWorker", config, this);
     }
 
     @Override
@@ -214,9 +215,22 @@ public class NioClient extends NioNet {
                 worker.close(peer.getDtChannel());
             }
             peers.remove(peer);
+            peer.cleanWaitingConnectList(wd -> new NetException("peer removed"));
+            peer.setStatus(PeerStatus.removed);
             f.complete(null);
         }, f);
         return f;
+    }
+
+    // if ts is null, then clean all
+    void cleanWaitConnectReq(Function<WriteData, NetException> exceptionSupplier) {
+        // O(n)
+        List<Peer> list = this.peers;
+        //noinspection ForLoopReplaceableByForEach
+        for (int i = 0; i < list.size(); i++) {
+            Peer p = list.get(i);
+            p.cleanWaitingConnectList(exceptionSupplier);
+        }
     }
 
     public CompletableFuture<Void> connect(Peer peer, DtTime deadline) {

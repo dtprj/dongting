@@ -15,17 +15,22 @@
  */
 package com.github.dtprj.dongting.net;
 
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * @author huangli
  */
 public class Peer {
+    private volatile PeerStatus status;
     private final HostPort endPoint;
     private final NioNet owner;
     private DtChannel dtChannel;
     private int connectionId;
-    private volatile PeerStatus status;
+
+    private LinkedList<WriteData> waitConnectList;
 
     Peer(HostPort endPoint, NioNet owner) {
         Objects.requireNonNull(endPoint);
@@ -37,6 +42,55 @@ public class Peer {
 
     public HostPort getEndPoint() {
         return endPoint;
+    }
+
+    public PeerStatus getStatus() {
+        return status;
+    }
+
+    public int getConnectionId() {
+        return connectionId;
+    }
+
+    void addToWaitConnectList(WriteData data) {
+        if (waitConnectList == null) {
+            waitConnectList = new LinkedList<>();
+        }
+        waitConnectList.add(data);
+    }
+
+    void cleanWaitingConnectList(Function<WriteData, NetException> exceptionSupplier) {
+        if (waitConnectList == null) {
+            return;
+        }
+        for (Iterator<WriteData> it = waitConnectList.iterator(); it.hasNext(); ) {
+            WriteData wd = it.next();
+            NetException ex = exceptionSupplier.apply(wd);
+            if (ex != null) {
+                it.remove();
+                if (wd.getFuture() != null) {
+                    wd.getFuture().completeExceptionally(ex);
+                }
+            } else {
+                break;
+            }
+        }
+        if (waitConnectList.size() == 0) {
+            waitConnectList = null;
+        }
+    }
+
+    void enqueueAfterConnect() {
+        if (waitConnectList == null) {
+            return;
+        }
+        for(Iterator<WriteData> it = waitConnectList.iterator();it.hasNext();){
+            WriteData wd = it.next();
+            it.remove();
+            wd.setDtc(dtChannel);
+            dtChannel.getSubQueue().enqueue(wd);
+        }
+        waitConnectList = null;
     }
 
     NioNet getOwner() {
@@ -51,10 +105,6 @@ public class Peer {
         this.dtChannel = dtChannel;
     }
 
-    public PeerStatus getStatus() {
-        return status;
-    }
-
     void setStatus(PeerStatus status) {
         this.status = status;
     }
@@ -63,7 +113,4 @@ public class Peer {
         this.connectionId = connectionId;
     }
 
-    public int getConnectionId() {
-        return connectionId;
-    }
 }

@@ -15,11 +15,14 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 
 import java.util.ArrayList;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author huangli
@@ -27,15 +30,13 @@ import java.util.ArrayList;
 class IoQueue {
     private static final DtLog log = DtLogs.getLogger(IoQueue.class);
     private final MpscLinkedQueue<Object> queue = MpscLinkedQueue.newInstance();
-    private final ArrayList<DtChannel> channels;
-    private final boolean server;
+    private final NioWorker worker;
     private int invokeIndex;
 
     private volatile boolean close;
 
-    public IoQueue(ArrayList<DtChannel> channels) {
-        this.channels = channels;
-        this.server = channels == null;
+    public IoQueue(NioWorker worker) {
+        this.worker = worker;
     }
 
     public void writeFromBizThread(WriteData data) {
@@ -67,50 +68,58 @@ class IoQueue {
 
     private void processWriteData(WriteData wo) {
         WriteFrame frame = wo.getData();
-        DtChannel dtc = wo.getDtc();
-        if (dtc == null) {
-            Peer peer = wo.getPeer();
-            if (peer == null) {
-                if (!server && frame.getFrameType() == FrameType.TYPE_REQ) {
+        Peer peer = wo.getPeer();
+        if (peer != null) {
+            if (peer.getStatus() == PeerStatus.connected) {
+                DtChannel dtc = peer.getDtChannel();
+                wo.setDtc(dtc);
+                dtc.getSubQueue().enqueue(wo);
+            } else if (peer.getStatus() == PeerStatus.connecting) {
+                peer.addToWaitConnectList(wo);
+            } else if (peer.getStatus() == PeerStatus.not_connect) {
+                peer.addToWaitConnectList(wo);
+                CompletableFuture<Void> f = new CompletableFuture<>();
+                worker.doConnect(f, peer, new DtTime(10, TimeUnit.SECONDS));
+            } else {
+                if (wo.getFuture() != null) {
+                    frame.clean();
+                    wo.getFuture().completeExceptionally(new NetException("peer is removed"));
+                }
+            }
+        } else {
+            DtChannel dtc = wo.getDtc();
+            if (dtc == null) {
+                if (!worker.isServer() && frame.getFrameType() == FrameType.TYPE_REQ) {
                     dtc = selectChannel();
                     if (dtc == null) {
-                        wo.getData().clean();
+                        frame.clean();
                         wo.getFuture().completeExceptionally(new NetException("no available channel"));
-                        return;
+                    } else {
+                        wo.setDtc(dtc);
+                        dtc.getSubQueue().enqueue(wo);
                     }
                 } else {
                     log.error("no peer set");
                     if (frame.getFrameType() == FrameType.TYPE_REQ) {
-                        wo.getData().clean();
+                        frame.clean();
                         wo.getFuture().completeExceptionally(new NetException("no peer set"));
                     }
-                    return;
                 }
             } else {
-                dtc = peer.getDtChannel();
-                if (dtc == null) {
-                    if (frame.getFrameType() == FrameType.TYPE_REQ) {
-                        wo.getData().clean();
-                        wo.getFuture().completeExceptionally(new NetException("not connected"));
+                if (dtc.isClosed()) {
+                    if (wo.getFuture() != null) {
+                        frame.clean();
+                        wo.getFuture().completeExceptionally(new NetException("channel closed during dispatch"));
                     }
-                    return;
+                } else {
+                    dtc.getSubQueue().enqueue(wo);
                 }
             }
-            wo.setDtc(dtc);
         }
-
-        if (dtc.isClosed()) {
-            if (wo.getFuture() != null) {
-                wo.getData().clean();
-                wo.getFuture().completeExceptionally(new NetException("channel closed during dispatch"));
-            }
-            return;
-        }
-        dtc.getSubQueue().enqueue(wo);
     }
 
     private DtChannel selectChannel() {
-        ArrayList<DtChannel> list = this.channels;
+        ArrayList<DtChannel> list = worker.getChannelsList();
         int size = list.size();
         if (size == 0) {
             return null;

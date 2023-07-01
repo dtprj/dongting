@@ -19,5 +19,5 @@ package com.github.dtprj.dongting.net;
  * @author huangli
  */
 public enum PeerStatus {
-    not_connect, connecting, connected
+    not_connect, connecting, connected, removed
 }

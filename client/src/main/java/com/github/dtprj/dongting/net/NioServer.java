@@ -63,7 +63,7 @@ public class NioServer extends NioNet implements Runnable {
         acceptThread.setName(config.getName() + "IoAccept");
         workers = new NioWorker[config.getIoThreads()];
         for (int i = 0; i < workers.length; i++) {
-            workers[i] = new NioWorker(nioStatus, config.getName() + "IoWorker" + i, config);
+            workers[i] = new NioWorker(nioStatus, config.getName() + "IoWorker" + i, config, null);
         }
         register(Commands.CMD_PING, PING_PROCESSOR);
     }

@@ -356,11 +356,11 @@ public class NioClientTest {
     }
 
     @Test
-    public void reconnectTest() throws Exception {
+    public void reconnectTest1() throws Exception {
         BioServer server1 = null;
         BioServer server2 = null;
         NioClientConfig c = new NioClientConfig();
-        c.setWaitStartTimeout(tick(50));
+        c.setWaitStartTimeout(tick(100));
         HostPort hp1 = new HostPort("127.0.0.1", 9000);
         HostPort hp2 = new HostPort("127.0.0.1", 9001);
         c.setHostPorts(Arrays.asList(hp1, hp2));
@@ -433,6 +433,39 @@ public class NioClientTest {
 
         } finally {
             DtUtil.close(client, server1, server2);
+        }
+    }
+
+    @Test
+    public void reconnectTest2() throws Exception {
+        BioServer server1 = null;
+        NioClientConfig c = new NioClientConfig();
+        c.setWaitStartTimeout(tick(100));
+        HostPort hp1 = new HostPort("127.0.0.1", 9000);
+        c.setHostPorts(Arrays.asList(hp1));
+        NioClient client = new NioClient(c);
+        try {
+            server1 = new BioServer(9000);
+
+            client.start();
+            client.waitStart();
+
+            server1.close();
+
+            Peer p1 = client.getPeers().get(0);
+
+            try {
+                sendSyncByPeer(5000, client, p1, tick(500));
+            } catch (ExecutionException e) {
+                assertEquals(NetException.class, e.getCause().getClass());
+            }
+
+            server1 = new BioServer(9000);
+
+            // auto connect
+            sendSyncByPeer(5000, client, p1, 500);
+        } finally {
+            DtUtil.close(client, server1);
         }
     }
 
