@@ -44,6 +44,7 @@ public class NioClient extends NioNet {
     private final NioClientConfig config;
     final NioWorker worker;
 
+    //TODO use set?
     private final CopyOnWriteArrayList<Peer> peers;
     private List<CompletableFuture<Void>> startFutures;
 
@@ -96,7 +97,7 @@ public class NioClient extends NioNet {
                         DtUtil.restoreInterruptStatus();
                         sb.append("interrupted\n");
                         failCount++;
-                    }  catch (ExecutionException e) {
+                    } catch (ExecutionException e) {
                         sb.append("connect fail: ").append(e).append('\n');
                         failCount++;
                     } catch (TimeoutException e) {
@@ -211,13 +212,37 @@ public class NioClient extends NioNet {
                 f.complete(null);
                 return;
             }
-            if (peer.getDtChannel() != null) {
-                worker.close(peer.getDtChannel());
+            removePeer(peer, f);
+        }, f);
+        return f;
+    }
+
+    private void removePeer(Peer peer, CompletableFuture<Void> f) {
+        if (peer.getDtChannel() != null) {
+            worker.close(peer.getDtChannel());
+        }
+        peers.remove(peer);
+        peer.cleanWaitingConnectList(wd -> new NetException("peer removed"));
+        peer.setStatus(PeerStatus.removed);
+        f.complete(null);
+    }
+
+    public CompletableFuture<Void> removePeer(HostPort hp) {
+        Objects.requireNonNull(hp);
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        worker.doInIoThread(() -> {
+            Peer peer = null;
+            for (Peer p : peers) {
+                if (p.getEndPoint().equals(hp)) {
+                    peer = p;
+                    break;
+                }
             }
-            peers.remove(peer);
-            peer.cleanWaitingConnectList(wd -> new NetException("peer removed"));
-            peer.setStatus(PeerStatus.removed);
-            f.complete(null);
+            if (peer != null) {
+                removePeer(peer, f);
+            } else {
+                f.complete(null);
+            }
         }, f);
         return f;
     }
