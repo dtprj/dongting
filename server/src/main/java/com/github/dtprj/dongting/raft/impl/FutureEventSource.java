@@ -36,15 +36,15 @@ class FutureEventSource {
 
     public CompletableFuture<Void> registerInOtherThreads(Supplier<Boolean> predicate) {
         CompletableFuture<Void> f = new CompletableFuture<>();
-        Pair<CompletableFuture<Void>, Supplier<Boolean>> pair = new Pair<>(f, predicate);
         executor.execute(() -> {
             if (predicate.get()) {
                 f.complete(null);
             } else {
+                Pair<CompletableFuture<Void>, Supplier<Boolean>> pair = new Pair<>(f, predicate);
                 listeners.add(pair);
             }
         });
-        return pair.getLeft();
+        return f;
     }
 
     protected void fireInExecutorThread() {
@@ -52,8 +52,8 @@ class FutureEventSource {
             Pair<CompletableFuture<Void>, Supplier<Boolean>> pair = it.next();
             if (pair.getRight().get()) {
                 pair.getLeft().complete(null);
+                it.remove();
             }
-            it.remove();
         }
     }
 }
