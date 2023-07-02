@@ -265,7 +265,6 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
             return pingFuture.handleAsync((v, ex) -> {
                 if (ex == null) {
                     allNodesEx.put(nodeEx.getNodeId(), nodeEx);
-                    processResult(nodeEx, null);
                     return nodeEx;
                 } else {
                     log.error("add node {} fail", nodeEx.getPeer().getEndPoint(), ex);
