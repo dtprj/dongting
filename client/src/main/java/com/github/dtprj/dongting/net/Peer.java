@@ -31,6 +31,7 @@ public class Peer {
     private int connectionId;
 
     private LinkedList<WriteData> waitConnectList;
+    private NioWorker.ConnectInfo connectInfo;
 
     Peer(HostPort endPoint, NioNet owner) {
         Objects.requireNonNull(endPoint);
@@ -113,4 +114,11 @@ public class Peer {
         this.connectionId = connectionId;
     }
 
+    NioWorker.ConnectInfo getConnectInfo() {
+        return connectInfo;
+    }
+
+    void setConnectInfo(NioWorker.ConnectInfo connectInfo) {
+        this.connectInfo = connectInfo;
+    }
 }

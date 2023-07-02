@@ -37,6 +37,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -415,12 +416,8 @@ public class NioClientTest {
             client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get(tick(200), TimeUnit.MILLISECONDS);
             sendSyncByPeer(5000, client, p1, 500);
 
-            try {
-                client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get(tick(20), TimeUnit.MILLISECONDS);
-                fail();
-            } catch (ExecutionException e) {
-                assertEquals(NetException.class, e.getCause().getClass());
-            }
+            // connect is idempotent
+            client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get(tick(20), TimeUnit.MILLISECONDS);
 
             server1.close();
             server2.close();
@@ -442,7 +439,7 @@ public class NioClientTest {
         NioClientConfig c = new NioClientConfig();
         c.setWaitStartTimeout(tick(100));
         HostPort hp1 = new HostPort("127.0.0.1", 9000);
-        c.setHostPorts(Arrays.asList(hp1));
+        c.setHostPorts(List.of(hp1));
         NioClient client = new NioClient(c);
         try {
             server1 = new BioServer(9000);
@@ -490,7 +487,9 @@ public class NioClientTest {
             assertSame(p1, client.addPeer(hp1).get());
             client.connect(p1, new DtTime(tick(1), TimeUnit.SECONDS)).get();
             client.connect(p2, new DtTime(tick(1), TimeUnit.SECONDS)).get();
-            assertThrows(ExecutionException.class, () -> client.connect(p1, new DtTime(tick(1), TimeUnit.SECONDS)).get());
+            // connect is idempotent
+            client.connect(p1, new DtTime(tick(1), TimeUnit.SECONDS)).get();
+            client.connect(p2, new DtTime(tick(1), TimeUnit.SECONDS)).get();
             assertEquals(2, client.getPeers().size());
 
             sendSync(5000, client, tick(500));

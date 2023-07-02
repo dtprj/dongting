@@ -233,6 +233,9 @@ public class NioClient extends NioNet {
         }
     }
 
+    /**
+     * This method is idempotent.
+     */
     public CompletableFuture<Void> connect(Peer peer, DtTime deadline) {
         checkOwner(peer);
         return worker.connect(peer, deadline);

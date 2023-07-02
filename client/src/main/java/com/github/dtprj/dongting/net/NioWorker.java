@@ -121,31 +121,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         workerStatus.setHeapPool(heapPool);
     }
 
-    // invoke by NioServer accept thead
-    public void newChannelAccept(SocketChannel sc) {
-        doInIoThread(() -> {
-            try {
-                DtChannel dtc = initNewChannel(sc, null);
-                // TODO do handshake
-                channels.put(dtc.getChannelIndexInWorker(), dtc);
-            } catch (Throwable e) {
-                log.warn("accept channel fail: {}, {}", sc, e.toString());
-                closeChannel0(sc);
-            }
-        }, null);
-    }
-
-    // invoke by other threads
-    public CompletableFuture<Void> connect(Peer peer, DtTime deadline) {
-        CompletableFuture<Void> f = new CompletableFuture<>();
-        if (stopStatus >= SS_PRE_STOP) {
-            f.completeExceptionally(new NetException("worker closed"));
-        } else {
-            doInIoThread(() -> doConnect(f, peer, deadline), f);
-        }
-        return f;
-    }
-
     @Override
     public void run() {
         long cleanIntervalNanos = config.getCleanInterval() * 1000 * 1000;
@@ -400,20 +375,50 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         DtTime deadline;
     }
 
-    void doConnect(CompletableFuture<Void> f, Peer peer, DtTime deadline) {
-        f.whenComplete((v, ex) -> {
-            if (ex != null) {
-                peer.cleanWaitingConnectList(wd -> new NetException(ex));
-            } else {
-                peer.enqueueAfterConnect();
+    // invoke by NioServer accept thead
+    public void newChannelAccept(SocketChannel sc) {
+        doInIoThread(() -> {
+            try {
+                DtChannel dtc = initNewChannel(sc, null);
+                // TODO do handshake
+                channels.put(dtc.getChannelIndexInWorker(), dtc);
+            } catch (Throwable e) {
+                log.warn("accept channel fail: {}, {}", sc, e.toString());
+                closeChannel0(sc);
             }
-        });
+        }, null);
+    }
+
+    // invoke by other threads
+    public CompletableFuture<Void> connect(Peer peer, DtTime deadline) {
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        if (stopStatus >= SS_PRE_STOP) {
+            f.completeExceptionally(new NetException("worker closed"));
+        } else {
+            doInIoThread(() -> doConnect(f, peer, deadline), f);
+        }
+        return f;
+    }
+
+    void doConnect(CompletableFuture<Void> f, Peer peer, DtTime deadline) {
         PeerStatus s = peer.getStatus();
-        if (s != PeerStatus.not_connect) {
-            f.completeExceptionally(new NetException("current status is " + s.toString()));
+        if (s == PeerStatus.not_connect) {
+            peer.setStatus(PeerStatus.connecting);
+        } else if (s == PeerStatus.removed) {
+            NetException ex = new NetException("peer is removed");
+            f.completeExceptionally(ex);
+            return;
+        } else if (s == PeerStatus.connected) {
+            f.complete(null);
             return;
         } else {
-            peer.setStatus(PeerStatus.connecting);
+            peer.getConnectInfo().future.whenComplete((v, ex) -> {
+                if (ex == null) {
+                    f.complete(null);
+                } else {
+                    f.completeExceptionally(ex);
+                }
+            });
         }
         SocketChannel sc = null;
         try {
@@ -430,6 +435,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             ci.channel = sc;
             ci.deadline = deadline;
             outgoingConnects.add(ci);
+            peer.setConnectInfo(ci);
 
             sc.register(selector, SelectionKey.OP_CONNECT, ci);
             sc.connect(addr);
@@ -438,7 +444,10 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 closeChannel0(sc);
             }
             peer.setStatus(PeerStatus.not_connect);
-            f.completeExceptionally(new NetException(e));
+            peer.setConnectInfo(null);
+            NetException netEx = new NetException(e);
+            peer.cleanWaitingConnectList(wd -> netEx);
+            f.completeExceptionally(netEx);
         }
     }
 
@@ -452,13 +461,17 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 DtChannel dtc = initNewChannel(channel, ci.peer);
                 channels.put(dtc.getChannelIndexInWorker(), dtc);
                 channelsList.add(dtc);
+                ci.peer.enqueueAfterConnect();
                 ci.future.complete(null);
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             log.warn("connect channel fail: {}, {}", ci.peer.getEndPoint(), e.toString());
             closeChannel0(channel);
             ci.peer.setStatus(PeerStatus.not_connect);
-            ci.future.completeExceptionally(new NetException(e));
+            ci.peer.setConnectInfo(null);
+            NetException netEx = new NetException(e);
+            ci.peer.cleanWaitingConnectList(wd -> netEx);
+            ci.future.completeExceptionally(netEx);
         } finally {
             outgoingConnects.remove(ci);
         }
@@ -588,10 +601,13 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             ConnectInfo ci = it.next();
             if (ci.deadline.isTimeout(roundStartTime)) {
                 ci.peer.setStatus(PeerStatus.not_connect);
+                ci.peer.setConnectInfo(null);
                 log.warn("connect timeout: {}ms, {}", ci.deadline.getTimeout(TimeUnit.MILLISECONDS),
                         ci.peer.getEndPoint());
                 closeChannel0(ci.channel);
-                ci.future.completeExceptionally(new NetTimeoutException("connect timeout"));
+                NetTimeoutException netEx = new NetTimeoutException("connect timeout");
+                ci.peer.cleanWaitingConnectList(wd -> netEx);
+                ci.future.completeExceptionally(netEx);
                 it.remove();
             }
         }

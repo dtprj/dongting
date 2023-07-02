@@ -74,17 +74,15 @@ class IoQueue {
                 DtChannel dtc = peer.getDtChannel();
                 wo.setDtc(dtc);
                 dtc.getSubQueue().enqueue(wo);
-            } else if (peer.getStatus() == PeerStatus.connecting) {
-                peer.addToWaitConnectList(wo);
-            } else if (peer.getStatus() == PeerStatus.not_connect) {
-                peer.addToWaitConnectList(wo);
-                CompletableFuture<Void> f = new CompletableFuture<>();
-                worker.doConnect(f, peer, new DtTime(10, TimeUnit.SECONDS));
-            } else {
+            } else if (peer.getStatus() == PeerStatus.removed) {
                 if (wo.getFuture() != null) {
                     frame.clean();
                     wo.getFuture().completeExceptionally(new NetException("peer is removed"));
                 }
+            } else {
+                peer.addToWaitConnectList(wo);
+                CompletableFuture<Void> f = new CompletableFuture<>();
+                worker.doConnect(f, peer, new DtTime(10, TimeUnit.SECONDS));
             }
         } else {
             DtChannel dtc = wo.getDtc();
