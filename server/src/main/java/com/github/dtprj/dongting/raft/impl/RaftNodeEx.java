@@ -26,7 +26,7 @@ public class RaftNodeEx extends RaftNode {
 
     private final Peer peer;
 
-    private boolean connecting;
+    private boolean pinging;
 
     private volatile NodeStatus status = new NodeStatus(false, 0);
 
@@ -49,12 +49,12 @@ public class RaftNodeEx extends RaftNode {
         return peer;
     }
 
-    public boolean isConnecting() {
-        return connecting;
+    public boolean isPinging() {
+        return pinging;
     }
 
-    public void setConnecting(boolean connecting) {
-        this.connecting = connecting;
+    public void setPinging(boolean pinging) {
+        this.pinging = pinging;
     }
 
     public NodeStatus getStatus() {

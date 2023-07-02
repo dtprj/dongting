@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IntObjMap;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.NioClient;
@@ -110,7 +109,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
     protected void doStart() {
         initNodes();
         this.scheduledFuture = RaftUtil.SCHEDULED_SERVICE.scheduleWithFixedDelay(
-                this::tryConnectAndPingAll, 5, 2, TimeUnit.SECONDS);
+                this::tryNodePingAll, 5, 2, TimeUnit.SECONDS);
     }
 
     @Override
@@ -141,7 +140,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
 
         allNodesEx.forEach((nodeId, nodeEx) -> {
             if (!nodeEx.isSelf()) {
-                connectAndPing(nodeEx);
+                nodePing(nodeEx);
             }
             return true;
         });
@@ -149,7 +148,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
 
     private void doCheckSelf(RaftNodeEx nodeEx) {
         try {
-            CompletableFuture<Void> f = connectAndPing(nodeEx);
+            CompletableFuture<Void> f = nodePing(nodeEx);
             f.get(config.getConnectTimeout() + config.getRpcTimeout(), TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             throw new RaftException(e);
@@ -160,35 +159,24 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         }
     }
 
-    private void tryConnectAndPingAll() {
+    private void tryNodePingAll() {
         allNodesEx.forEach((nodeId, nodeEx) -> {
-            if (!nodeEx.isSelf() && !nodeEx.isConnecting()) {
-                connectAndPing(nodeEx);
+            if (!nodeEx.isSelf() && !nodeEx.isPinging()) {
+                nodePing(nodeEx);
             }
             return true;
         });
     }
 
-    private CompletableFuture<Void> connectAndPing(RaftNodeEx nodeEx) {
-        nodeEx.setConnecting(true);
-        CompletableFuture<Void> connectFuture;
-        PeerStatus peerStatus = nodeEx.getPeer().getStatus();
-        if (peerStatus == PeerStatus.connected) {
-            connectFuture = CompletableFuture.completedFuture(null);
-        } else if (peerStatus == PeerStatus.not_connect) {
-            DtTime deadline = new DtTime(config.getConnectTimeout(), TimeUnit.MILLISECONDS);
-            connectFuture = client.connect(nodeEx.getPeer(), deadline);
-        } else {
-            BugLog.getLog().error("assert false, peer status is connecting");
-            connectFuture = CompletableFuture.failedFuture(new RaftException("peer status is connecting"));
-        }
-        return connectFuture.thenCompose(v -> sendNodePing(nodeEx))
-                // we should set connecting status in schedule thread
-                .whenCompleteAsync((v, ex) -> processResult(nodeEx, ex), RaftUtil.SCHEDULED_SERVICE);
+    private CompletableFuture<Void> nodePing(RaftNodeEx nodeEx) {
+        nodeEx.setPinging(true);
+        // we should set connecting status in schedule thread
+        return sendNodePing(nodeEx).whenCompleteAsync(
+                (v, ex) -> processResult(nodeEx, ex), RaftUtil.SCHEDULED_SERVICE);
     }
 
     private void processResult(RaftNodeEx nodeEx, Throwable ex) {
-        nodeEx.setConnecting(false);
+        nodeEx.setPinging(false);
         if (ex != null) {
             log.warn("ping raft node {} fail: {}",
                     nodeEx.getPeer().getEndPoint(), ex.toString());
@@ -273,7 +261,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         if (existNode != null) {
             return CompletableFuture.completedFuture(existNode);
         } else {
-            CompletableFuture<Void> pingFuture = connectAndPing(nodeEx);
+            CompletableFuture<Void> pingFuture = nodePing(nodeEx);
             return pingFuture.handleAsync((v, ex) -> {
                 if (ex == null) {
                     allNodesEx.put(nodeEx.getNodeId(), nodeEx);
