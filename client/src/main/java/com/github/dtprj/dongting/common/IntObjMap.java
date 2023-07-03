@@ -219,9 +219,6 @@ public class IntObjMap<V> {
     }
 
     public void forEach(Visitor<V> visitor) {
-        if (inVisit) {
-            throw new IllegalStateException("can not iterate the map during iteration");
-        }
         inVisit = true;
         try {
             forEach0(visitor);
