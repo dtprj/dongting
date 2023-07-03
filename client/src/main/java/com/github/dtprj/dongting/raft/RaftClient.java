@@ -117,7 +117,7 @@ public class RaftClient extends AbstractLifeCircle {
                 }
             }
         }
-        groups.put(groupId, new GroupInfo(groupId, allPeers));
+        this.groups = IntObjMap.copyOnWritePut(groups, groupId, new GroupInfo(groupId, allPeers)).getRight();
         if (needRemoveList.size() > 0) {
             for (Peer peer : needRemoveList) {
                 client.removePeer(peer.getEndPoint());
@@ -126,7 +126,10 @@ public class RaftClient extends AbstractLifeCircle {
     }
 
     public synchronized void removeGroup(int groupId) throws NetException {
-        GroupInfo oldGroupInfo = groups.remove(groupId);
+        Pair<GroupInfo, IntObjMap<GroupInfo>> pair = IntObjMap.copyOnWriteRemove(groups, groupId);
+        GroupInfo oldGroupInfo = pair.getLeft();
+        this.groups = pair.getRight();
+
         if (oldGroupInfo != null) {
             for (Peer peer : oldGroupInfo.getServers()) {
                 Pair<RefCount, Peer> peerInfo = peers.get(peer.getEndPoint());

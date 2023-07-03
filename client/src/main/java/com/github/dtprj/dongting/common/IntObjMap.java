@@ -300,4 +300,35 @@ public class IntObjMap<V> {
          */
         boolean visit(int key, V value);
     }
+
+    public static <V> Pair<V, IntObjMap<V>> copyOnWritePut(IntObjMap<V> map, int key, V value) {
+        IntObjMap<V> newMap = copyMap(map);
+        V oldValue = newMap.put(key, value);
+        return new Pair<>(oldValue, newMap);
+    }
+
+    public static <V> Pair<V, IntObjMap<V>> copyOnWriteRemove(IntObjMap<V> map, int key) {
+        IntObjMap<V> newMap = copyMap(map);
+        V oldValue = newMap.remove(key);
+        return new Pair<>(oldValue, newMap);
+    }
+
+    private static <V> IntObjMap<V> copyMap(IntObjMap<V> map) {
+        IntObjMap<V> newMap;
+        int[] keys = map.keys;
+        if (keys == null) {
+            newMap = new IntObjMap<>(map.resizeThreshold, map.loadFactor);
+        } else {
+            if (map.size + 1 >= map.resizeThreshold && keys.length < MAX_ARRAY_SIZE) {
+                newMap = new IntObjMap<>(keys.length << 1, map.loadFactor);
+            } else {
+                newMap = new IntObjMap<>(keys.length, map.loadFactor);
+            }
+        }
+        map.forEach((k, v) -> {
+            newMap.put(k, v);
+            return true;
+        });
+        return newMap;
+    }
 }

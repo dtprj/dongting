@@ -299,4 +299,35 @@ public class LongObjMap<V> {
          */
         boolean visit(long key, V value);
     }
+
+    public static <V> Pair<V, LongObjMap<V>> copyOnWritePut(LongObjMap<V> map, long key, V value) {
+        LongObjMap<V> newMap = copyMap(map);
+        V oldValue = newMap.put(key, value);
+        return new Pair<>(oldValue, newMap);
+    }
+
+    public static <V> Pair<V, LongObjMap<V>> copyOnWriteRemove(LongObjMap<V> map, long key) {
+        LongObjMap<V> newMap = copyMap(map);
+        V oldValue = newMap.remove(key);
+        return new Pair<>(oldValue, newMap);
+    }
+
+    private static <V> LongObjMap<V> copyMap(LongObjMap<V> map) {
+        LongObjMap<V> newMap;
+        long[] keys = map.keys;
+        if (keys == null) {
+            newMap = new LongObjMap<>(map.resizeThreshold, map.loadFactor);
+        } else {
+            if (map.size + 1 >= map.resizeThreshold && keys.length < MAX_ARRAY_SIZE) {
+                newMap = new LongObjMap<>(keys.length << 1, map.loadFactor);
+            } else {
+                newMap = new LongObjMap<>(keys.length, map.loadFactor);
+            }
+        }
+        map.forEach((k, v) -> {
+            newMap.put(k, v);
+            return true;
+        });
+        return newMap;
+    }
 }

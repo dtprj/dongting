@@ -27,21 +27,15 @@ public class RaftGroups {
         return map.get(groupId);
     }
 
-    public void put(int groupId, RaftGroupImpl raftGroupImpl) {
-        IntObjMap<RaftGroupImpl> newMap = new IntObjMap<>();
-        map.forEach((k, v) -> {
-            newMap.put(k, v);
-            return true;
-        });
-        newMap.put(groupId, raftGroupImpl);
-        this.map = newMap;
+    public synchronized void put(int groupId, RaftGroupImpl raftGroupImpl) {
+        this.map = IntObjMap.copyOnWritePut(map, groupId, raftGroupImpl).getRight();
     }
 
-    public void forEach(IntObjMap.Visitor<RaftGroupImpl> visitor) {
+    public synchronized void forEach(IntObjMap.Visitor<RaftGroupImpl> visitor) {
         map.forEach(visitor);
     }
 
-    public void remove(int groupId) {
-        map.remove(groupId);
+    public synchronized void remove(int groupId) {
+        this.map = IntObjMap.copyOnWriteRemove(map, groupId).getRight();
     }
 }
