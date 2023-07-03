@@ -77,7 +77,6 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
                 RaftNodeEx nodeEx = allNodesEx.get(nodeId);
                 nodeEx.setUseCount(nodeEx.getUseCount() + 1);
             }
-            return true;
         });
 
         this.futureEventSource = new FutureEventSource(RaftUtil.SCHEDULED_SERVICE);
@@ -142,7 +141,6 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
             if (!nodeEx.isSelf()) {
                 nodePing(nodeEx);
             }
-            return true;
         });
     }
 
@@ -164,7 +162,6 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
             if (!nodeEx.isSelf() && !nodeEx.isPinging()) {
                 nodePing(nodeEx);
             }
-            return true;
         });
     }
 
@@ -242,7 +239,6 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         HashSet<Integer> ids = new HashSet<>();
         allNodesEx.forEach((nodeId, nodeEx) -> {
             ids.add(nodeId);
-            return true;
         });
         return ids;
     }

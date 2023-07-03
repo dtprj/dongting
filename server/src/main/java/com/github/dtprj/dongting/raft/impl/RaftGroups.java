@@ -31,7 +31,7 @@ public class RaftGroups {
         this.map = IntObjMap.copyOnWritePut(map, groupId, raftGroupImpl).getRight();
     }
 
-    public synchronized void forEach(IntObjMap.Visitor<RaftGroupImpl> visitor) {
+    public synchronized void forEach(IntObjMap.ReadOnlyVisitor<RaftGroupImpl> visitor) {
         map.forEach(visitor);
     }
 

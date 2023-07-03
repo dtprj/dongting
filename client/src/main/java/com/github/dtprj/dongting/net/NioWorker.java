@@ -153,7 +153,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             // can't modify channels map in foreach
             channels.forEach((index, dtc) -> {
                 tempList.add(dtc);
-                return true;
             });
             for (DtChannel dtc : tempList) {
                 close(dtc);

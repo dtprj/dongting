@@ -171,7 +171,6 @@ public class RaftUtil {
                             reader.getFuture().completeExceptionally(new NotLeaderException(leaderNode));
                         }
                     }
-                    return true;
                 });
             }
         } else {

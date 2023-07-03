@@ -67,13 +67,7 @@ public class PendingMap extends LongObjMap<RaftTask> {
 
     @Override
     public void forEach(Visitor<RaftTask> visitor) {
-        Visitor<RaftTask> newVisitor = (k, v) -> {
-            if (!visitor.visit(k, v)) {
-                throw new UnsupportedOperationException();
-            }
-            return true;
-        };
-        super.forEach(newVisitor);
+        throw new UnsupportedOperationException();
     }
 
     public void cleanPending(RaftStatusImpl raftStatus, int maxPending, long maxPendingBytes) {

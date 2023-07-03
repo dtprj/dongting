@@ -350,10 +350,7 @@ public class IntObjMap<V> {
                 newMap = new IntObjMap<>(keys.length, map.loadFactor);
             }
         }
-        map.forEach((k, v) -> {
-            newMap.put(k, v);
-            return true;
-        });
+        map.forEach(newMap::put);
         return newMap;
     }
 }

@@ -349,10 +349,7 @@ public class LongObjMap<V> {
                 newMap = new LongObjMap<>(keys.length, map.loadFactor);
             }
         }
-        map.forEach((k, v) -> {
-            newMap.put(k, v);
-            return true;
-        });
+        map.forEach(newMap::put);
         return newMap;
     }
 }

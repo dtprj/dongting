@@ -145,7 +145,6 @@ public abstract class NioNet extends AbstractLifeCircle {
                     p.setExecutor(bizExecutor);
                 }
             }
-            return true;
         });
     }
 

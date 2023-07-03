@@ -118,10 +118,7 @@ public class RaftServer extends AbstractLifeCircle {
 
         createRaftGroups(cancelInitIndicator, serverConfig, groupConfig, allNodeIds);
         nodeManager = new NodeManager(serverConfig, allRaftServers, raftClient, raftGroups);
-        raftGroups.forEach((id, gc) -> {
-            gc.getEventBus().register(nodeManager);
-            return true;
-        });
+        raftGroups.forEach((id, gc) -> gc.getEventBus().register(nodeManager));
 
         NioServerConfig nioServerConfig = new NioServerConfig();
         nioServerConfig.setPort(serverConfig.getRaftPort());
@@ -276,10 +273,7 @@ public class RaftServer extends AbstractLifeCircle {
     @Override
     protected void doStart() {
         try {
-            raftGroups.forEach((groupId, gc) -> {
-                gc.getRaftGroupThread().init(gc);
-                return true;
-            });
+            raftGroups.forEach((groupId, gc) -> gc.getRaftGroupThread().init(gc));
 
             raftServer.start();
             raftClient.start();
@@ -292,13 +286,11 @@ public class RaftServer extends AbstractLifeCircle {
             raftGroups.forEach((groupId, gc) -> {
                 gc.getMemberManager().init(nodeManager.getAllNodesEx());
                 gc.getRaftGroupThread().start();
-                return true;
             });
 
             raftGroups.forEach((groupId, gc) -> {
                 gc.getRaftGroupThread().waitReady();
                 log.info("raft group {} is ready", groupId);
-                return true;
             });
         } catch (RuntimeException | Error e) {
             log.error("start raft server failed", e);
@@ -313,7 +305,6 @@ public class RaftServer extends AbstractLifeCircle {
                 RaftGroupThread raftGroupThread = gc.getRaftGroupThread();
                 raftGroupThread.requestShutdown();
                 raftGroupThread.interrupt();
-                return true;
             });
             raftServer.stop();
             raftClient.stop();
