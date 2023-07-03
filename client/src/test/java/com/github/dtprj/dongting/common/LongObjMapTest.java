@@ -142,9 +142,13 @@ public class LongObjMapTest {
     }
 
     @Test
-    public void testInVisitStatus() {
+    public void testVisitStatus1() {
         LongObjMap<String> m = new LongObjMap<>();
         m.put(1L, "1");
+        assertThrows(IllegalStateException.class, () -> m.forEach((k, v) -> {
+            m.forEach((k2, v2) -> true);
+            return true;
+        }));
         assertThrows(IllegalStateException.class, () -> m.forEach((k, v) -> {
             m.put(2L, "2");
             return true;
@@ -152,6 +156,22 @@ public class LongObjMapTest {
         assertThrows(IllegalStateException.class, () -> m.forEach((k, v) -> {
             m.remove(3L);
             return true;
+        }));
+    }
+
+    @Test
+    public void testVisitStatus2() {
+        LongObjMap<String> m = new LongObjMap<>();
+        m.put(1L, "1");
+        m.forEach((k, v) -> {
+            m.forEach((k2, v2) -> {});
+            m.forEach((k2, v2) -> true);
+        });
+        assertThrows(IllegalStateException.class, () -> m.forEach((k, v) -> {
+            m.put(2L, "2");
+        }));
+        assertThrows(IllegalStateException.class, () -> m.forEach((k, v) -> {
+            m.remove(3L);
         }));
     }
 }

@@ -142,9 +142,13 @@ public class IntObjMapTest {
     }
 
     @Test
-    public void testInVisitStatus() {
+    public void testVisitStatus1() {
         IntObjMap<String> m = new IntObjMap<>();
         m.put(1, "1");
+        assertThrows(IllegalStateException.class, () -> m.forEach((k, v) -> {
+            m.forEach((k2, v2) -> true);
+            return true;
+        }));
         assertThrows(IllegalStateException.class, () -> m.forEach((k, v) -> {
             m.put(2, "2");
             return true;
@@ -152,6 +156,22 @@ public class IntObjMapTest {
         assertThrows(IllegalStateException.class, () -> m.forEach((k, v) -> {
             m.remove(3);
             return true;
+        }));
+    }
+
+    @Test
+    public void testVisitStatus2() {
+        IntObjMap<String> m = new IntObjMap<>();
+        m.put(1, "1");
+        m.forEach((k, v) -> {
+            m.forEach((k2, v2) -> {});
+            m.forEach((k2, v2) -> true);
+        });
+        assertThrows(IllegalStateException.class, () -> m.forEach((k, v) -> {
+            m.put(2, "2");
+        }));
+        assertThrows(IllegalStateException.class, () -> m.forEach((k, v) -> {
+            m.remove(3);
         }));
     }
 }

@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.log.BugLog;
 import java.util.Objects;
 
 /**
+ * This class is not thread safe.
  * @author huangli
  */
 public class IntObjMap<V> {
@@ -29,7 +30,8 @@ public class IntObjMap<V> {
     private final float loadFactor;
     private int[] keys;
     private Object[] values;
-    private boolean inVisit;
+    private boolean readVisit;
+    private boolean rwVisit;
 
     public IntObjMap() {
         this(8, 0.75f);
@@ -107,7 +109,7 @@ public class IntObjMap<V> {
 
     public V put(int key, V value) {
         Objects.requireNonNull(value);
-        if (inVisit) {
+        if (readVisit || rwVisit) {
             throw new IllegalStateException("can modify the map during iteration");
         }
         int[] keys = resize();
@@ -208,7 +210,7 @@ public class IntObjMap<V> {
     }
 
     public V remove(int key) {
-        if (inVisit) {
+        if (readVisit || rwVisit) {
             throw new IllegalStateException("can modify the map during iteration");
         }
         return find(key, true);
@@ -219,15 +221,27 @@ public class IntObjMap<V> {
     }
 
     public void forEach(Visitor<V> visitor) {
-        inVisit = true;
+        if (rwVisit) {
+            throw new IllegalStateException("can not iterate the map during iteration");
+        }
+        rwVisit = true;
         try {
-            forEach0(visitor);
+            forEach0(visitor, null);
         } finally {
-            inVisit = false;
+            rwVisit = false;
         }
     }
 
-    private void forEach0(Visitor<V> visitor) {
+    public void forEach(ReadOnlyVisitor<V> visitor) {
+        readVisit = true;
+        try {
+            forEach0(null, visitor);
+        } finally {
+            readVisit = false;
+        }
+    }
+
+    private void forEach0(Visitor<V> visitor, ReadOnlyVisitor<V> readOnlyVisitor) {
         int[] keys = this.keys;
         if (keys == null) {
             return;
@@ -245,7 +259,7 @@ public class IntObjMap<V> {
                 @SuppressWarnings("unchecked")
                 IntMapNode<V> mn = (IntMapNode<V>) v;
                 do {
-                    boolean keep = visitor.visit(mn.getKey(), mn.getValue());
+                    boolean keep = visit(visitor, readOnlyVisitor, mn.getKey(), mn.getValue());
                     if (!keep) {
                         if (first) {
                             IntMapNode<V> next = mn.getNext();
@@ -280,7 +294,7 @@ public class IntObjMap<V> {
                 } while (mn != null);
             } else {
                 @SuppressWarnings("unchecked")
-                boolean keep = visitor.visit(keys[i], (V) v);
+                boolean keep = visit(visitor, readOnlyVisitor, keys[i], (V) v);
                 if (!keep) {
                     values[i] = null;
                     keys[i] = 0;
@@ -290,12 +304,26 @@ public class IntObjMap<V> {
         }
     }
 
+    private boolean visit(Visitor<V> visitor, ReadOnlyVisitor<V> readOnlyVisitor, int key, V value) {
+        if (readOnlyVisitor == null) {
+            return visitor.visit(key, value);
+        } else {
+            readOnlyVisitor.visit(key, value);
+            return true;
+        }
+    }
+
     @FunctionalInterface
     public interface Visitor<V> {
         /**
          * return ture if this K/V should keep in Map, else remove it
          */
         boolean visit(int key, V value);
+    }
+
+    @FunctionalInterface
+    public interface ReadOnlyVisitor<V> {
+        void visit(int key, V value);
     }
 
     public static <V> Pair<V, IntObjMap<V>> copyOnWritePut(IntObjMap<V> map, int key, V value) {
