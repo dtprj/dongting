@@ -42,8 +42,8 @@ import java.util.concurrent.TimeoutException;
  */
 public class RaftClient extends AbstractLifeCircle {
     private final NioClient client;
+    private final Map<HostPort, Pair<RefCount, Peer>> peers = new HashMap<>();
     private volatile IntObjMap<GroupInfo> groups = new IntObjMap<>();
-    private Map<HostPort, Pair<RefCount, Peer>> peers = new HashMap<>();
 
     public RaftClient() {
         NioClientConfig nioClientConfig = new NioClientConfig();

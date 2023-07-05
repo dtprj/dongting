@@ -14,7 +14,7 @@
  * under the License.
  */
 syntax = "proto3";
-option java_package = "com.github.dtprj.dongting.raft";
+option java_package = "com.github.dtprj.dongting.raft.impl";
 
 message NodePingReq {
   fixed32 node_id = 1;

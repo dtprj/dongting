@@ -27,24 +27,27 @@ public class FramePbTest {
 
     @Test
     public void test() throws Exception {
-        test0(0, 0, 0, 0, "1", 0, 0);
-        test0(1, 1, 1, 1, "123", 1, 1);
-        test0(1000, 1000, 1000, 1000, "123", 10000, 1000);
-        test0(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, "汉字", Long.MAX_VALUE, 1000);
-        test0(-1, -1, -1, -1, "123", -1, 1000);
-        test0(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, "123", Long.MIN_VALUE, 1000);
+        test0(0, 0, 0, 0, "1", new byte[]{1}, 0, 0);
+        test0(1, 1, 1, 1, "123", new byte[]{1, 5}, 1, 1);
+        test0(1000, 1000, 1000, 1000, "123", null, 10000, 1000);
+        test0(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, "汉字", null, Long.MAX_VALUE, 1000);
+        test0(-1, -1, -1, -1, "123", null, -1, 1000);
+        test0(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, "123", null, Long.MIN_VALUE, 1000);
 
         char[] cs = new char[2000];
         Arrays.fill(cs, 'a');
-        test0(1000, 1000, 1000, 1000, new String(cs), 1000, 1000);
+        byte[] extra = new byte[2000];
+        new Random().nextBytes(extra);
+        test0(1000, 1000, 1000, 1000, new String(cs), null, 1000, 1000);
     }
 
-    private void test0(int frameType, int command, int seq, int respCode, String msg, long timeout, int bodySize) throws Exception {
-        testEncode0(frameType, command, seq, respCode, msg, timeout, bodySize);
-        testDecode0(frameType, command, seq, respCode, msg, timeout, bodySize);
+    private void test0(int frameType, int command, int seq, int respCode, String msg, byte[] extra,
+                       long timeout, int bodySize) throws Exception {
+        testEncode0(frameType, command, seq, respCode, msg, extra, timeout, bodySize);
+        testDecode0(frameType, command, seq, respCode, msg, extra, timeout, bodySize);
     }
 
-    private void testEncode0(int frameType, int command, int seq, int respCode, String msg,
+    private void testEncode0(int frameType, int command, int seq, int respCode, String msg, byte[] extra,
                              long timeout, int bodySize) throws Exception {
         byte[] bs = new byte[bodySize];
         new Random().nextBytes(bs);
@@ -55,6 +58,7 @@ public class FramePbTest {
         f.setRespCode(respCode);
         f.setMsg(msg);
         f.setTimeout(timeout);
+        f.setExtra(extra);
         ByteBuffer buf = ByteBuffer.allocate(f.actualSize(f));
         f.encode(new EncodeContext(null), buf, f);
         buf.flip();
@@ -66,23 +70,30 @@ public class FramePbTest {
         assertEquals(respCode, pbf.getRespCode());
         assertEquals(msg, pbf.getRespMsg());
         assertEquals(timeout, pbf.getTimeout());
+        if (extra != null) {
+            assertArrayEquals(extra, pbf.getExtra().toByteArray());
+        } else {
+            assertEquals(0, pbf.getExtra().size());
+        }
         assertArrayEquals(bs, pbf.getBody().toByteArray());
     }
 
     private void testDecode0(int frameType, int command, int seq, int respCode,
-                             String msg, long timeout, int bodySize) throws IOException {
+                             String msg, byte[] extra, long timeout, int bodySize) throws IOException {
         byte[] bs = new byte[bodySize];
         new Random().nextBytes(bs);
-        DtFrame.Frame pbf = DtFrame.Frame.newBuilder()
+        DtFrame.Frame.Builder builder = DtFrame.Frame.newBuilder()
                 .setFrameType(frameType)
                 .setCommand(command)
                 .setSeq(seq)
                 .setRespCode(respCode)
                 .setRespMsg(msg)
                 .setTimeout(timeout)
-                .setBody(ByteString.copyFrom(bs))
-                .build();
-        byte[] encodeBytes = pbf.toByteArray();
+                .setBody(ByteString.copyFrom(bs));
+        if (extra != null) {
+            builder.setExtra(ByteString.copyFrom(extra));
+        }
+        byte[] encodeBytes = builder.build().toByteArray();
         ByteBuffer buf = ByteBuffer.allocate(encodeBytes.length + 4);
         buf.putInt(encodeBytes.length);
         buf.put(encodeBytes);
@@ -116,6 +127,7 @@ public class FramePbTest {
         assertEquals(seq, dtc.getFrame().getSeq());
         assertEquals(respCode, dtc.getFrame().getRespCode());
         assertEquals(msg, dtc.getFrame().getMsg());
+        assertArrayEquals(extra, dtc.getFrame().getExtra());
         assertEquals(timeout, dtc.getFrame().getTimeout());
     }
 }

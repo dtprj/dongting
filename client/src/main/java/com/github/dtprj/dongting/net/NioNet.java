@@ -194,7 +194,7 @@ public abstract class NioNet extends AbstractLifeCircle {
     public static HostPort parseHostPort(String hostPortStr) {
         int x = hostPortStr.lastIndexOf(':');
         if (x < 0 || x == hostPortStr.length() - 1) {
-            throw new IllegalArgumentException("not 'id,host:port' format:" + hostPortStr);
+            throw new IllegalArgumentException("not 'host:port' format:" + hostPortStr);
         }
         String host = hostPortStr.substring(0, x).trim();
         if (host.startsWith("[") && host.endsWith("]")) {

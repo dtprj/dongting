@@ -44,9 +44,7 @@ public class RefBufferDecoder implements Decoder<RefBuffer> {
             } else {
                 result = context.getHeapPool().create(bodyLen);
             }
-            if (!end) {
-                context.setStatus(result);
-            }
+            context.setStatus(result);
         } else {
             result = (RefBuffer) context.getStatus();
         }

@@ -22,5 +22,6 @@ message Frame {
   uint32 resp_code = 4;
   string resp_msg = 5;
   fixed64 timeout = 6;
+  bytes extra = 7;
   bytes body = 15;
 }

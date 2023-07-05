@@ -47,13 +47,17 @@ public abstract class WriteFrame extends Frame implements Encoder<WriteFrame> {
             + 1 + 5 // uint32 resp_code = 4;
             // string resp_msg = 5;
             + 1 + 8; // fixed32 timeout_millis = 6;
+            // string extra = 7;
 
     protected abstract int calcActualBodySize();
 
     protected abstract boolean encodeBody(EncodeContext context, ByteBuffer buf);
 
     public final int calcMaxFrameSize() {
-        return MAX_HEADER_SIZE + (msgBytes == null ? 0 : msgBytes.length) + actualBodySize();
+        return MAX_HEADER_SIZE
+                + (msgBytes == null ? 0 : msgBytes.length)
+                + (extra == null ? 0 : extra.length)
+                + actualBodySize();
     }
 
     public final int actualBodySize() {
@@ -78,13 +82,14 @@ public abstract class WriteFrame extends Frame implements Encoder<WriteFrame> {
         int dumpSize = this.dumpSize;
         if (dumpSize == 0) {
             dumpSize = 4 // length
-                    + PbUtil.accurateUnsignedIntSize(1, frameType) // uint32 frame_type = 1;
-                    + PbUtil.accurateUnsignedIntSize(2, command) // uint32 command = 2;
-                    + PbUtil.accurateFix32Size(3, seq) // fixed32 seq = 3;
-                    + PbUtil.accurateUnsignedIntSize(4, respCode) // uint32 resp_code = 4;
-                    + PbUtil.accurateLengthDelimitedSize(5, msgBytes == null ? 0 : msgBytes.length) // string resp_msg = 5;
-                    + PbUtil.accurateFix64Size(6, timeout) // fixed64 timeout = 6;
-                    + PbUtil.accurateLengthDelimitedSize(15, actualBodySize()); // bytes body = 15;
+                    + PbUtil.accurateUnsignedIntSize(IDX_TYPE, frameType) // uint32 frame_type = 1;
+                    + PbUtil.accurateUnsignedIntSize(IDX_COMMAND, command) // uint32 command = 2;
+                    + PbUtil.accurateFix32Size(IDX_SEQ, seq) // fixed32 seq = 3;
+                    + PbUtil.accurateUnsignedIntSize(IDX_RESP_CODE, respCode) // uint32 resp_code = 4;
+                    + PbUtil.accurateLengthDelimitedSize(IDX_MSG, msgBytes == null ? 0 : msgBytes.length) // string resp_msg = 5;
+                    + PbUtil.accurateFix64Size(IDX_TIMOUT, timeout) // fixed64 timeout = 6;
+                    + PbUtil.accurateLengthDelimitedSize(IDX_EXTRA, extra == null ? 0 : extra.length) // bytes extra = 7;
+                    + PbUtil.accurateLengthDelimitedSize(IDX_BODY, actualBodySize()); // bytes body = 15;
             this.dumpSize = dumpSize;
         }
         return dumpSize;
@@ -100,12 +105,13 @@ public abstract class WriteFrame extends Frame implements Encoder<WriteFrame> {
                 return false;
             } else {
                 buf.putInt(totalSize - 4); //not include total length
-                PbUtil.writeUnsignedInt32(buf, Frame.IDX_TYPE, frameType);
-                PbUtil.writeUnsignedInt32(buf, Frame.IDX_COMMAND, command);
-                PbUtil.writeFix32(buf, Frame.IDX_SEQ, seq);
-                PbUtil.writeUnsignedInt32(buf, Frame.IDX_RESP_CODE, respCode);
-                PbUtil.writeUTF8(buf, Frame.IDX_MSG, msg);
-                PbUtil.writeFix64(buf, Frame.IDX_TIMOUT, timeout);
+                PbUtil.writeUnsignedInt32(buf, IDX_TYPE, frameType);
+                PbUtil.writeUnsignedInt32(buf, IDX_COMMAND, command);
+                PbUtil.writeFix32(buf, IDX_SEQ, seq);
+                PbUtil.writeUnsignedInt32(buf, IDX_RESP_CODE, respCode);
+                PbUtil.writeUTF8(buf, IDX_MSG, msg);
+                PbUtil.writeFix64(buf, IDX_TIMOUT, timeout);
+                PbUtil.writeBytes(buf, IDX_EXTRA, extra);
                 if (bodySize > 0) {
                     PbUtil.writeLengthDelimitedPrefix(buf, Frame.IDX_BODY, bodySize);
                 }

@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
+import com.github.dtprj.dongting.codec.ByteArrayDecoder;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.PbCallback;
@@ -212,9 +213,12 @@ class DtChannel extends PbCallback<Object> {
         switch (index) {
             case Frame.IDX_MSG: {
                 String msg = StrDecoder.INSTANCE.decode(decodeContext, buf, fieldLen, currentPos);
-                if (msg != null) {
-                    this.frame.setMsg(msg);
-                }
+                this.frame.setMsg(msg);
+                return true;
+            }
+            case Frame.IDX_EXTRA: {
+                byte[] extra = ByteArrayDecoder.INSTANCE.decode(decodeContext, buf, fieldLen, currentPos);
+                this.frame.setExtra(extra);
                 return true;
             }
             case Frame.IDX_BODY: {

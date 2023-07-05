@@ -31,6 +31,7 @@ public class ByteArrayDecoder implements Decoder<byte[]> {
         byte[] data;
         if (currentPos == 0) {
             data = new byte[bodyLen];
+            context.setStatus(data);
         } else {
             data = (byte[]) context.getStatus();
         }

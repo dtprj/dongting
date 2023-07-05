@@ -25,6 +25,7 @@ public abstract class Frame {
     public static final int IDX_RESP_CODE = 4;
     public static final int IDX_MSG = 5;
     public static final int IDX_TIMOUT = 6;
+    public static final int IDX_EXTRA = 7;
     public static final int IDX_BODY = 15;
 
     protected int frameType;
@@ -33,6 +34,7 @@ public abstract class Frame {
     protected int respCode;
     protected String msg;
     protected long timeout;
+    protected byte[] extra;
 
     @Override
     public String toString() {
@@ -90,5 +92,13 @@ public abstract class Frame {
 
     public void setTimeout(long timeout) {
         this.timeout = timeout;
+    }
+
+    public byte[] getExtra() {
+        return extra;
+    }
+
+    public void setExtra(byte[] extra) {
+        this.extra = extra;
     }
 }
