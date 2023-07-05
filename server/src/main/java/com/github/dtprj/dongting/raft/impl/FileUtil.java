@@ -17,7 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.raft.server.RaftException;
+import com.github.dtprj.dongting.raft.RaftException;
 
 import java.io.File;
 import java.io.IOException;

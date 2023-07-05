@@ -18,9 +18,9 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.server.RaftException;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
