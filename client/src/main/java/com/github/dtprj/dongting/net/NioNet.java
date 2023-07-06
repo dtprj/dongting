@@ -102,11 +102,13 @@ public abstract class NioNet extends AbstractLifeCircle {
             return registerReqCallback(future);
 
         } catch (Exception e) {
-            request.clean();
             return errorFuture(new NetException("sendRequest error", e));
         } finally {
-            if (acquire && !write) {
-                this.semaphore.release();
+            if (!write) {
+                request.clean();
+                if (acquire) {
+                    this.semaphore.release();
+                }
             }
         }
     }

@@ -296,10 +296,20 @@ public class ReplicateManager {
         // the time refresh happens before this line
         long reqNanos = ts.getNanoTime();
         // if PendingStat is reset, we should not invoke decrAndGetPendingRequests() on new instance
-        PendingStat ps = member.getPendingStat();
-        ps.incrPlain(logs.size(), bytes);
+        final int logSize = logs.size();
+        member.getPendingStat().incrPlain(logSize, bytes);
         int repEpoch = member.getReplicateEpoch();
+        for (int i = 0; i < logSize; i++) {
+            LogItem item = logs.get(i);
+            item.retain();
+        }
         f.whenCompleteAsync((rf, ex) -> {
+            for (int i = 0; i < logSize; i++) {
+                LogItem item = logs.get(i);
+                item.release();
+            }
+            // can't access logs after release
+
             if (reqTerm != raftStatus.getCurrentTerm()) {
                 log.info("receive outdated append result, term not match. reqTerm={}, currentTerm={}",
                         reqTerm, raftStatus.getCurrentTerm());
@@ -309,9 +319,9 @@ public class ReplicateManager {
                 log.info("receive outdated append result, replicateEpoch not match. ignore.");
                 return;
             }
-            ps.decrPlain(logs.size(), bytes);
+            member.getPendingStat().decrPlain(logSize, bytes);
             if (ex == null) {
-                processAppendResult(member, rf, prevLogIndex, prevLogTerm, reqTerm, reqNanos, logs.size(), repEpoch);
+                processAppendResult(member, rf, prevLogIndex, prevLogTerm, reqTerm, reqNanos, logSize, repEpoch);
             } else {
                 member.incrReplicateEpoch(repEpoch);
                 member.setLastFailNanos(ts.getNanoTime());

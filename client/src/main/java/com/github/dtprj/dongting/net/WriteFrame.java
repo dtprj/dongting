@@ -154,6 +154,9 @@ public abstract class WriteFrame extends Frame implements Encoder<WriteFrame> {
         }
     }
 
+    /**
+     * may be called in io thread (or other thread).
+     */
     protected void doClean() {
     }
 

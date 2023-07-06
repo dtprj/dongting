@@ -232,11 +232,6 @@ public class AppendReqWriteFrame extends WriteFrame {
         }
     }
 
-    @Override
-    protected void doClean() {
-        currentItem.release();
-    }
-
     public void setGroupId(int groupId) {
         this.groupId = groupId;
     }

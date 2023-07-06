@@ -101,7 +101,6 @@ public class ApplyManager {
                     DtUtil.close(logIterator);
                     this.logIterator = null;
                 }
-                rt.getItem().retain();
                 execChain(index, rt);
                 appliedIndex++;
                 diff--;
