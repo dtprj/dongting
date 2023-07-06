@@ -23,16 +23,20 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-public class PendingMap extends LongObjMap<RaftTask> {
+public class PendingMap {
     private static final long TIMEOUT = TimeUnit.SECONDS.toNanos(10);
     private long firstKey = -1;
     private int pending;
     private long pendingBytes;
+    private final LongObjMap<RaftTask> map = new LongObjMap<>();
 
-    @Override
+    public RaftTask get(long key) {
+        return map.get(key);
+    }
+
     public RaftTask put(long key, RaftTask value) {
-        RaftTask t = super.put(key, value);
-        if (size() == 1) {
+        RaftTask t = map.put(key, value);
+        if (map.size() == 1) {
             firstKey = key;
         } else {
             if (key <= firstKey) {
@@ -44,12 +48,11 @@ public class PendingMap extends LongObjMap<RaftTask> {
         return t;
     }
 
-    @Override
     public RaftTask remove(long key) {
         if (key > firstKey && firstKey != -1) {
             BugLog.getLog().error("key {} is greater than firstKey {}", key, firstKey);
         }
-        RaftTask t = super.remove(key);
+        RaftTask t = map.remove(key);
         if (t != null) {
             pending--;
             pendingBytes -= t.getInput().getFlowControlSize();
@@ -59,15 +62,14 @@ public class PendingMap extends LongObjMap<RaftTask> {
                 x = x.getNextReader();
             }
         }
-        if (size() == 0) {
+        if (map.size() == 0) {
             firstKey = -1;
         }
         return t;
     }
 
-    @Override
-    public void forEach(Visitor<RaftTask> visitor) {
-        throw new UnsupportedOperationException();
+    public void forEach(LongObjMap.ReadOnlyVisitor<RaftTask> visitor) {
+        map.forEach(visitor);
     }
 
     public void cleanPending(RaftStatusImpl raftStatus, int maxPending, long maxPendingBytes) {
@@ -91,7 +93,7 @@ public class PendingMap extends LongObjMap<RaftTask> {
     private void doClean(RaftStatusImpl raftStatus, int maxPending, long maxPendingBytes, long boundIndex) {
         long now = raftStatus.getTs().getNanoTime();
         long k = firstKey;
-        RaftTask task = get(k);
+        RaftTask task = map.get(k);
         while (task != null) {
             if (k > boundIndex && now - task.getCreateTimeNanos() < TIMEOUT) {
                 if (pending <= maxPending && pendingBytes <= maxPendingBytes) {
@@ -99,7 +101,7 @@ public class PendingMap extends LongObjMap<RaftTask> {
                 }
             }
             remove(k);
-            task = get(++k);
+            task = map.get(++k);
         }
     }
 }
