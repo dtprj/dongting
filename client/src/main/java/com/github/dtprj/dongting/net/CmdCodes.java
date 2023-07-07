@@ -25,4 +25,5 @@ public interface CmdCodes {
     int STOPPING = 3;
     int BIZ_ERROR = 4;
     int FLOW_CONTROL = 5;
+    int NOT_RAFT_LEADER = 6;
 }

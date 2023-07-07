@@ -122,7 +122,7 @@ public abstract class NioNet extends AbstractLifeCircle {
                 return;
             }
             if (frame.getRespCode() != CmdCodes.SUCCESS) {
-                throw new NetCodeException(frame.getRespCode(), frame.getMsg());
+                throw new NetCodeException(frame.getRespCode(), frame.getMsg(), frame);
             }
         });
     }

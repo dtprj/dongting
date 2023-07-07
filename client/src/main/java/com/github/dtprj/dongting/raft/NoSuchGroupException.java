@@ -13,25 +13,11 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.net;
+package com.github.dtprj.dongting.raft;
 
 /**
  * @author huangli
  */
-public interface Commands {
-    // 1 ~ 15
-    int CMD_PING = 1;
-    int RAFT_APPEND_ENTRIES = 2;
-
-    // 16 ~ 29 for rpc
-
-    // 100 ~ 109 for raft server
-    int NODE_PING = 100;
-    int RAFT_PING = 101;
-    int RAFT_REQUEST_VOTE = 102;
-    int RAFT_INSTALL_SNAPSHOT = 103;
-    int RAFT_LEADER_TRANSFER = 104;
-
-    // 110 ~ 119 for raft client
-    int RAFT_QUERY_LEADER = 110;
+public class NoSuchGroupException extends RaftException {
+    private static final long serialVersionUID = -1812071008632894155L;
 }

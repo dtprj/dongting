@@ -15,23 +15,26 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.codec.EncodeContext;
+
+import java.nio.ByteBuffer;
+
 /**
  * @author huangli
  */
-public interface Commands {
-    // 1 ~ 15
-    int CMD_PING = 1;
-    int RAFT_APPEND_ENTRIES = 2;
+public class EmptyBodyReqFrame extends WriteFrame {
 
-    // 16 ~ 29 for rpc
+    public EmptyBodyReqFrame(int command) {
+        setCommand(command);
+    }
 
-    // 100 ~ 109 for raft server
-    int NODE_PING = 100;
-    int RAFT_PING = 101;
-    int RAFT_REQUEST_VOTE = 102;
-    int RAFT_INSTALL_SNAPSHOT = 103;
-    int RAFT_LEADER_TRANSFER = 104;
+    @Override
+    protected int calcActualBodySize() {
+        return 0;
+    }
 
-    // 110 ~ 119 for raft client
-    int RAFT_QUERY_LEADER = 110;
+    @Override
+    protected boolean encodeBody(EncodeContext context, ByteBuffer buf) {
+        return true;
+    }
 }

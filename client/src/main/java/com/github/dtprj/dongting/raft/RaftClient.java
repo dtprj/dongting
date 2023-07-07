@@ -15,24 +15,38 @@
  */
 package com.github.dtprj.dongting.raft;
 
+import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.RefCount;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.CmdCodes;
+import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.EmptyBodyReqFrame;
 import com.github.dtprj.dongting.net.HostPort;
+import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.NetException;
 import com.github.dtprj.dongting.net.NetTimeoutException;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.NioClientConfig;
+import com.github.dtprj.dongting.net.NioNet;
 import com.github.dtprj.dongting.net.Peer;
+import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.WriteFrame;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -41,6 +55,7 @@ import java.util.concurrent.TimeoutException;
  * @author huangli
  */
 public class RaftClient extends AbstractLifeCircle {
+    private static final DtLog log = DtLogs.getLogger(RaftClient.class);
     private final NioClient client;
     private final Map<HostPort, Pair<RefCount, Peer>> peers = new HashMap<>();
     private volatile IntObjMap<GroupInfo> groups = new IntObjMap<>();
@@ -63,7 +78,7 @@ public class RaftClient extends AbstractLifeCircle {
                 needAddList.add(hp);
             }
         }
-        HashMap<HostPort, Pair<RefCount, Peer>> newPeers = new HashMap<>(peers);
+        HashMap<HostPort, Pair<RefCount, Peer>> newPeers = new HashMap<>();
         if (needAddList.size() > 0) {
             boolean success = false;
             try {
@@ -138,6 +153,133 @@ public class RaftClient extends AbstractLifeCircle {
                 }
             }
         }
+    }
+
+    public <T> CompletableFuture<ReadFrame<T>> sendRequest(int groupId, WriteFrame request,
+                                                           Decoder<T> decoder, DtTime timeout) {
+        GroupInfo groupInfo = groups.get(groupId);
+        if (groupInfo == null) {
+            return CompletableFuture.failedFuture(new NoSuchGroupException());
+        }
+        Pair<Peer, CompletableFuture<Peer>> leaderInfo = groupInfo.getLeader();
+        CompletableFuture<ReadFrame<T>> finalResult = new CompletableFuture<>();
+        CompletableFuture<ReadFrame<T>> result;
+        if (leaderInfo != null && leaderInfo.getLeft() != null) {
+            Peer leader = leaderInfo.getLeft();
+            result = client.sendRequest(leader, request, decoder, timeout);
+        } else {
+            CompletableFuture<Peer> leaderFuture;
+            if (leaderInfo == null) {
+                leaderFuture = updateLeaderInfo(groupInfo, timeout);
+            } else {
+                leaderFuture = leaderInfo.getRight();
+            }
+            result = leaderFuture.thenCompose(leader -> {
+                if (leader == null) {
+                    return CompletableFuture.failedFuture(new RaftException("no leader"));
+                }
+                if (timeout.isTimeout()) {
+                    return CompletableFuture.failedFuture(new NetTimeoutException("timeout after find leader"));
+                }
+                return client.sendRequest(leader, request, decoder, timeout);
+            });
+        }
+        result.whenComplete((rf, ex) -> {
+            if (ex == null) {
+                finalResult.complete(rf);
+                return;
+            }
+            if (ex instanceof CompletionException) {
+                ex = ex.getCause();
+            }
+            if (ex instanceof NetCodeException) {
+                NetCodeException ncEx = (NetCodeException) ex;
+                if (ncEx.getCode() == CmdCodes.NOT_RAFT_LEADER) {
+                    Peer newLeader = parseLeader(ncEx.getRespFrame(), groupInfo);
+                    if (newLeader != null) {
+                        groupInfo.setLeader(new Pair<>(newLeader, null));
+                        if (timeout.isTimeout()) {
+                            finalResult.completeExceptionally(new NetTimeoutException("timeout after find new leader"));
+                        } else {
+                            client.sendRequest(newLeader, request, decoder, timeout).whenComplete((rf2, ex2) -> {
+                                if (ex2 == null) {
+                                    finalResult.complete(rf2);
+                                } else {
+                                    finalResult.completeExceptionally(ex2);
+                                }
+                            });
+                        }
+                        return;
+                    }
+                }
+                finalResult.completeExceptionally(ex);
+            }
+        });
+        return finalResult;
+    }
+
+    private synchronized CompletableFuture<Peer> updateLeaderInfo(GroupInfo groupInfo, DtTime timeout) {
+        Pair<Peer, CompletableFuture<Peer>> leaderInfo = groupInfo.getLeader();
+        if (leaderInfo == null) {
+            CompletableFuture<Peer> f = new CompletableFuture<>();
+            leaderInfo = new Pair<>(null, f);
+            groupInfo.setLeader(leaderInfo);
+            findLeader(f, groupInfo, timeout);
+            return f;
+        } else {
+            return leaderInfo.getRight();
+        }
+    }
+
+    private void findLeader(CompletableFuture<Peer> f, GroupInfo groupInfo, DtTime timeout) {
+        Iterator<Peer> it = groupInfo.getServers().iterator();
+        findLeader0(f, groupInfo, timeout, it);
+    }
+
+    private void findLeader0(CompletableFuture<Peer> f, GroupInfo groupInfo, DtTime timeout, Iterator<Peer> it) {
+        if (timeout.isTimeout()) {
+            groupInfo.setLeader(null);
+            f.completeExceptionally(new NetTimeoutException("find leader timeout"));
+            return;
+        }
+        if (!it.hasNext()) {
+            groupInfo.setLeader(null);
+            f.complete(null);
+            return;
+        }
+        Peer p = it.next();
+        EmptyBodyReqFrame req = new EmptyBodyReqFrame(Commands.RAFT_QUERY_LEADER);
+        client.sendRequest(p, req, null, timeout).whenComplete((rf, ex) -> {
+            if (ex != null) {
+                log.warn("query leader from {} fail: {}", p.getEndPoint(), ex.toString());
+                findLeader0(f, groupInfo, timeout, it);
+            } else {
+                Peer leader = parseLeader(rf, groupInfo);
+                if (leader != null) {
+                    groupInfo.setLeader(new Pair<>(leader, null));
+                    f.complete(leader);
+                } else {
+                    findLeader0(f, groupInfo, timeout, it);
+                }
+            }
+        });
+    }
+
+    private Peer parseLeader(ReadFrame<?> frame, GroupInfo groupInfo) {
+        byte[] bs = frame.getExtra();
+        if (bs == null) {
+            log.error("extra is null");
+            return null;
+        }
+        String s = new String(bs, StandardCharsets.UTF_8);
+        HostPort hp = NioNet.parseHostPort(s);
+        for (Peer p : groupInfo.getServers()) {
+            if (p.getEndPoint().equals(hp)) {
+                return p;
+            }
+        }
+        log.warn("leader {} not in group {}", s, groupInfo.getGroupId());
+        return null;
     }
 
     @Override

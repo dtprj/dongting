@@ -15,10 +15,12 @@
  */
 package com.github.dtprj.dongting.raft;
 
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.net.Peer;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * @author huangli
@@ -26,7 +28,7 @@ import java.util.List;
 public class GroupInfo {
     private final int groupId;
     private final List<Peer> servers;
-    private volatile Peer leader;
+    private volatile Pair<Peer, CompletableFuture<Peer>> leader;
 
     public GroupInfo(int groupId, List<Peer> servers) {
         this.groupId = groupId;
@@ -41,11 +43,11 @@ public class GroupInfo {
         return servers;
     }
 
-    public Peer getLeader() {
+    public Pair<Peer, CompletableFuture<Peer>> getLeader() {
         return leader;
     }
 
-    public void setLeader(Peer leader) {
+    public void setLeader(Pair<Peer, CompletableFuture<Peer>> leader) {
         this.leader = leader;
     }
 }

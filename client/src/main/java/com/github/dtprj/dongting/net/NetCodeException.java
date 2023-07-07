@@ -22,14 +22,29 @@ public class NetCodeException extends NetException {
     private static final long serialVersionUID = -5950474263583156637L;
     private final int code;
     private final String msg;
+    private final ReadFrame<?> respFrame;
 
     public NetCodeException(int code, String msg) {
         this.code = code;
         this.msg = msg;
+        this.respFrame = null;
+    }
+
+    NetCodeException(int code, String msg, ReadFrame<?> respFrame) {
+        this.code = code;
+        this.msg = msg;
+        this.respFrame = respFrame;
     }
 
     public int getCode() {
         return code;
+    }
+
+    /**
+     * be called in client side
+     */
+    public ReadFrame<?> getRespFrame() {
+        return respFrame;
     }
 
     @Override
