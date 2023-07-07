@@ -76,7 +76,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
     }
 
     @Override
-    public DefaultSnapshot init(Supplier<Boolean> cancelIndicator) throws IOException {
+    public FileSnapshot init(Supplier<Boolean> cancelIndicator) throws IOException {
         File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
         snapshotDir = FileUtil.ensureDir(dataDir, "snapshot");
         File[] files = snapshotDir.listFiles(f -> f.isFile() &&
@@ -121,7 +121,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             String lastIndex = sf.getProperties().getProperty(KEY_LAST_INDEX);
             String lastTerm = sf.getProperties().getProperty(KEY_LAST_TERM);
             String maxBlock = sf.getProperties().getProperty(KEY_MAX_BLOCK);
-            return new DefaultSnapshot(Long.parseLong(lastIndex), Integer.parseInt(lastTerm),
+            return new FileSnapshot(Long.parseLong(lastIndex), Integer.parseInt(lastTerm),
                     lastDataFile, ioExecutor, Integer.parseInt(maxBlock));
         }
     }

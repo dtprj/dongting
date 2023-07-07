@@ -39,8 +39,8 @@ import java.util.zip.CRC32C;
 /**
  * @author huangli
  */
-public class DefaultSnapshot extends Snapshot {
-    private static final DtLog log = DtLogs.getLogger(DefaultSnapshot.class);
+public class FileSnapshot extends Snapshot {
+    private static final DtLog log = DtLogs.getLogger(FileSnapshot.class);
     static final int MAX_BLOCK_SIZE = 1024 * 1024 * 1024;
 
     private final AsynchronousFileChannel channel;
@@ -54,8 +54,8 @@ public class DefaultSnapshot extends Snapshot {
 
     private long filePos;
 
-    public DefaultSnapshot(long lastIncludedIndex, int lastIncludedTerm, File dataFile,
-                           ExecutorService ioExecutor, int maxBlock) throws IOException {
+    public FileSnapshot(long lastIncludedIndex, int lastIncludedTerm, File dataFile,
+                        ExecutorService ioExecutor, int maxBlock) throws IOException {
         super(lastIncludedIndex, lastIncludedTerm);
         this.ioExecutor = ioExecutor;
 
