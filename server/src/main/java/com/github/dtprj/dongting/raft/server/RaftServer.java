@@ -126,7 +126,7 @@ public class RaftServer extends AbstractLifeCircle {
         repServerConfig.setPort(serverConfig.getReplicatePort());
         repServerConfig.setName("RaftRepServer");
         repServerConfig.setBizThreads(0);
-        repServerConfig.setIoThreads(1);
+        // use multi io threads
         setupNioConfig(repServerConfig);
         replicateNioServer = new NioServer(repServerConfig);
         replicateNioServer.register(Commands.NODE_PING, new NodePingProcessor(serverConfig.getNodeId(), nodeManager.getUuid()));
