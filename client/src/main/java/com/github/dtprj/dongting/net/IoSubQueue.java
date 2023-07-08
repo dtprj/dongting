@@ -67,7 +67,7 @@ class IoSubQueue {
 
     public void enqueue(WriteData writeData) {
         WriteFrame wf = writeData.getData();
-        int size = wf.actualSize(wf);
+        int size = wf.actualSize();
         if (size > config.getMaxFrameSize() || size < 0) {
             fail(writeData, "frame size " + size + " exceeds max frame size " + config.getMaxFrameSize());
             return;
@@ -213,7 +213,7 @@ class IoSubQueue {
     private boolean doEncode(ByteBuffer buf, WriteData wd) {
         try {
             WriteFrame wf = wd.getData();
-            return wf.encode(encodeContext, buf, wf);
+            return wf.encode(encodeContext, buf);
         } catch (RuntimeException | Error e) {
             if (wd.getFuture() != null) {
                 wd.getFuture().completeExceptionally(e);
