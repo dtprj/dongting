@@ -104,7 +104,7 @@ class DtChannel extends PbCallback<Object> {
         this.decodeContext = new DecodeContext();
         decodeContext.setHeapPool(refBufferFactory);
 
-        this.subQueue = new IoSubQueue(workerStatus, this, refBufferFactory);
+        this.subQueue = new IoSubQueue(nioConfig, workerStatus, this, refBufferFactory);
     }
 
     private static ByteBufferPool createReleaseSafePool(TwoLevelPool heapPool, IoQueue ioQueue) {

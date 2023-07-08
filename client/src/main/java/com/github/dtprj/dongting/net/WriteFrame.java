@@ -40,25 +40,9 @@ public abstract class WriteFrame extends Frame implements Encoder<WriteFrame> {
 
     private byte[] msgBytes;
 
-    private static final int MAX_HEADER_SIZE = 4 // length
-            + 1 + 1 // uint32 frame_type = 1;
-            + 1 + 5 // uint32 command = 2;
-            + 1 + 4 // fixed32 seq = 3;
-            + 1 + 5 // uint32 resp_code = 4;
-            // string resp_msg = 5;
-            + 1 + 8; // fixed32 timeout_millis = 6;
-            // string extra = 7;
-
     protected abstract int calcActualBodySize();
 
     protected abstract boolean encodeBody(EncodeContext context, ByteBuffer buf);
-
-    public final int calcMaxFrameSize() {
-        return MAX_HEADER_SIZE
-                + (msgBytes == null ? 0 : msgBytes.length)
-                + (extra == null ? 0 : extra.length)
-                + actualBodySize();
-    }
 
     public final int actualBodySize() {
         int bodySize = this.bodySize;

@@ -35,6 +35,7 @@ class IoSubQueue {
     private static final DtLog log = DtLogs.getLogger(IoSubQueue.class);
 
     private static final int MAX_BUFFER_SIZE = 512 * 1024;
+    private final NioConfig config;
     private final ByteBufferPool directPool;
     private final ByteBufferPool heapPool;
     private final WorkerStatus workerStatus;
@@ -51,7 +52,8 @@ class IoSubQueue {
     private WriteData lastWriteData;
     private final EncodeContext encodeContext;
 
-    public IoSubQueue(WorkerStatus workerStatus, DtChannel dtc, RefBufferFactory heapPool) {
+    public IoSubQueue(NioConfig config, WorkerStatus workerStatus, DtChannel dtc, RefBufferFactory heapPool) {
+        this.config = config;
         this.directPool = workerStatus.getDirectPool();
         this.heapPool = workerStatus.getHeapPool();
         this.workerStatus = workerStatus;
@@ -65,18 +67,23 @@ class IoSubQueue {
 
     public void enqueue(WriteData writeData) {
         WriteFrame wf = writeData.getData();
-        int estimateSize = wf.calcMaxFrameSize();
-        if (estimateSize < 0) {
-            fail(writeData, "estimateSize overflow");
+        int size = wf.actualSize(wf);
+        if (size > config.getMaxFrameSize() || size < 0) {
+            fail(writeData, "frame size " + size + " exceeds max frame size " + config.getMaxFrameSize());
             return;
         }
-        writeData.setEstimateSize(estimateSize);
+        if(wf.actualBodySize() > config.getMaxBodySize() || wf.actualBodySize() < 0) {
+            fail(writeData, "frame body size " + wf.actualBodySize() + " exceeds max body size " + config.getMaxBodySize());
+            return;
+        }
+
+        writeData.setSize(size);
 
         ArrayDeque<WriteData> subQueue = this.subQueue;
         subQueue.addLast(writeData);
 
         // the subQueueBytes is not accurate
-        subQueueBytes += estimateSize;
+        subQueueBytes += size;
         if (subQueue.size() == 1 && !writing) {
             registerForWrite.run();
         }
@@ -130,7 +137,7 @@ class IoSubQueue {
                 }
                 if (encodeFinish) {
                     wd.getData().clean();
-                    subQueueBytes -= wd.getEstimateSize();
+                    subQueueBytes -= wd.getSize();
                     if (subQueueBytes < 0) {
                         subQueueBytes = 0;
                     }
