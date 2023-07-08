@@ -33,7 +33,7 @@ import com.github.dtprj.dongting.raft.impl.StatusUtil;
 /**
  * @author huangli
  */
-public class VoteProcessor extends AbstractProcessor<VoteReq> {
+public class VoteProcessor extends RaftGroupProcessor<VoteReq> {
     private static final DtLog log = DtLogs.getLogger(VoteProcessor.class);
 
     private static final PbNoCopyDecoder<VoteReq> decoder = new PbNoCopyDecoder<>(c -> new VoteReq.Callback());

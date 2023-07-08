@@ -27,7 +27,7 @@ import com.github.dtprj.dongting.raft.impl.RaftGroups;
 /**
  * @author huangli
  */
-public class RaftPingProcessor extends AbstractProcessor<RaftPingFrameCallback> {
+public class RaftPingProcessor extends RaftGroupProcessor<RaftPingFrameCallback> {
     public static final PbNoCopyDecoder<RaftPingFrameCallback> DECODER = new PbNoCopyDecoder<>(context ->
             new RaftPingFrameCallback());
 

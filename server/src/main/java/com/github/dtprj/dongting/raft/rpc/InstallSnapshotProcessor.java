@@ -35,7 +35,7 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 /**
  * @author huangli
  */
-public class InstallSnapshotProcessor extends AbstractProcessor<InstallSnapshotReq> {
+public class InstallSnapshotProcessor extends RaftGroupProcessor<InstallSnapshotReq> {
 
     private static final DtLog log = DtLogs.getLogger(InstallSnapshotProcessor.class);
 

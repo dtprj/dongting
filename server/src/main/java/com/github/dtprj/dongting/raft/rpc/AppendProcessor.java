@@ -41,7 +41,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * @author huangli
  */
-public class AppendProcessor extends AbstractProcessor<AppendReqCallback> {
+public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
     private static final DtLog log = DtLogs.getLogger(AppendProcessor.class);
 
     public static final int CODE_LOG_NOT_MATCH = 1;

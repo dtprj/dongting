@@ -34,7 +34,7 @@ import com.github.dtprj.dongting.raft.impl.RaftUtil;
 /**
  * @author huangli
  */
-public class TransferLeaderProcessor extends AbstractProcessor<TransferLeaderReq> {
+public class TransferLeaderProcessor extends RaftGroupProcessor<TransferLeaderReq> {
 
     private static final DtLog log = DtLogs.getLogger(TransferLeaderProcessor.class);
 

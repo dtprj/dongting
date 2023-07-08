@@ -30,12 +30,12 @@ import com.github.dtprj.dongting.raft.impl.RaftGroups;
 /**
  * @author huangli
  */
-abstract class AbstractProcessor<T> extends ReqProcessor<T> {
-    private static final DtLog log = DtLogs.getLogger(AbstractProcessor.class);
+abstract class RaftGroupProcessor<T> extends ReqProcessor<T> {
+    private static final DtLog log = DtLogs.getLogger(RaftGroupProcessor.class);
 
     protected final RaftGroups raftGroups;
 
-    public AbstractProcessor(RaftGroups raftGroups) {
+    public RaftGroupProcessor(RaftGroups raftGroups) {
         this.raftGroups = raftGroups;
     }
 
