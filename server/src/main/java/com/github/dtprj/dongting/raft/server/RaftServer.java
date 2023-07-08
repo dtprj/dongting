@@ -72,8 +72,9 @@ public class RaftServer extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(RaftServer.class);
     private final RaftFactory raftFactory;
 
-    private final NioServer raftServer;
-    private final NioClient raftClient;
+    private final NioServer replicateNioServer;
+    private final NioClient replicateNioClient;
+    private final NioServer serviceNioServer;
 
     private final RaftGroups raftGroups = new RaftGroups();
 
@@ -95,7 +96,7 @@ public class RaftServer extends AbstractLifeCircle {
 
         Objects.requireNonNull(serverConfig.getServers());
         DtUtil.checkPositive(serverConfig.getNodeId(), "id");
-        DtUtil.checkPositive(serverConfig.getRaftPort(), "port");
+        DtUtil.checkPositive(serverConfig.getReplicatePort(), "replicatePort");
 
         List<RaftNode> allRaftServers = RaftUtil.parseServers(serverConfig.getNodeId(), serverConfig.getServers());
         HashSet<Integer> allNodeIds = new HashSet<>();
@@ -112,28 +113,39 @@ public class RaftServer extends AbstractLifeCircle {
             throw new IllegalArgumentException("self id not found in servers list: " + serverConfig.getNodeId());
         }
 
-        NioClientConfig nioClientConfig = new NioClientConfig();
-        nioClientConfig.setName("RaftClient");
-        setupNioConfig(nioClientConfig);
-        raftClient = new NioClient(nioClientConfig);
+        NioClientConfig repClientConfig = new NioClientConfig();
+        repClientConfig.setName("RaftClient");
+        setupNioConfig(repClientConfig);
+        replicateNioClient = new NioClient(repClientConfig);
 
         createRaftGroups(cancelInitIndicator, serverConfig, groupConfig, allNodeIds);
-        nodeManager = new NodeManager(serverConfig, allRaftServers, raftClient, raftGroups);
+        nodeManager = new NodeManager(serverConfig, allRaftServers, replicateNioClient, raftGroups);
         raftGroups.forEach((id, gc) -> gc.getEventBus().register(nodeManager));
 
-        NioServerConfig nioServerConfig = new NioServerConfig();
-        nioServerConfig.setPort(serverConfig.getRaftPort());
-        nioServerConfig.setName("RaftServer");
-        nioServerConfig.setBizThreads(0);
-        nioServerConfig.setIoThreads(1);
-        setupNioConfig(nioServerConfig);
-        raftServer = new NioServer(nioServerConfig);
-        raftServer.register(Commands.NODE_PING, new NodePingProcessor(serverConfig.getNodeId(), nodeManager.getUuid()));
-        raftServer.register(Commands.RAFT_PING, new RaftPingProcessor(raftGroups));
-        raftServer.register(Commands.RAFT_APPEND_ENTRIES, new AppendProcessor(raftGroups));
-        raftServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(raftGroups));
-        raftServer.register(Commands.RAFT_INSTALL_SNAPSHOT, new InstallSnapshotProcessor(raftGroups));
-        raftServer.register(Commands.RAFT_LEADER_TRANSFER, new TransferLeaderProcessor(raftGroups));
+        NioServerConfig repServerConfig = new NioServerConfig();
+        repServerConfig.setPort(serverConfig.getReplicatePort());
+        repServerConfig.setName("RaftRepServer");
+        repServerConfig.setBizThreads(0);
+        repServerConfig.setIoThreads(1);
+        setupNioConfig(repServerConfig);
+        replicateNioServer = new NioServer(repServerConfig);
+        replicateNioServer.register(Commands.NODE_PING, new NodePingProcessor(serverConfig.getNodeId(), nodeManager.getUuid()));
+        replicateNioServer.register(Commands.RAFT_PING, new RaftPingProcessor(raftGroups));
+        replicateNioServer.register(Commands.RAFT_APPEND_ENTRIES, new AppendProcessor(raftGroups));
+        replicateNioServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(raftGroups));
+        replicateNioServer.register(Commands.RAFT_INSTALL_SNAPSHOT, new InstallSnapshotProcessor(raftGroups));
+        replicateNioServer.register(Commands.RAFT_LEADER_TRANSFER, new TransferLeaderProcessor(raftGroups));
+
+        if (serverConfig.getServicePort() > 0) {
+            NioServerConfig serviceServerConfig = new NioServerConfig();
+            serviceServerConfig.setPort(serverConfig.getServicePort());
+            serviceServerConfig.setName("RaftServiceServer");
+            serviceServerConfig.setBizThreads(0);
+            // use multi io threads
+            serviceNioServer = new NioServer(serviceServerConfig);
+        } else {
+            serviceNioServer = null;
+        }
     }
 
     private void createRaftGroups(Supplier<Boolean> cancelInitIndicator, RaftServerConfig serverConfig,
@@ -191,15 +203,15 @@ public class RaftServer extends AbstractLifeCircle {
         rgcEx.setCodecFactory(stateMachine);
         RaftLog raftLog = raftFactory.createRaftLog(rgcEx);
 
-        MemberManager memberManager = new MemberManager(serverConfig, raftClient, raftExecutor,
+        MemberManager memberManager = new MemberManager(serverConfig, replicateNioClient, raftExecutor,
                 raftStatus, eventBus);
         ApplyManager applyManager = new ApplyManager(serverConfig.getNodeId(), raftLog, stateMachine, raftStatus, eventBus, rgcEx.getHeapPool());
         CommitManager commitManager = new CommitManager(raftStatus, applyManager);
         ReplicateManager replicateManager = new ReplicateManager(serverConfig, rgcEx, raftStatus, raftLog,
-                stateMachine, raftClient, raftExecutor, commitManager);
+                stateMachine, replicateNioClient, raftExecutor, commitManager);
 
         Raft raft = new Raft(raftStatus, raftLog, applyManager, commitManager, replicateManager);
-        VoteManager voteManager = new VoteManager(serverConfig, rgc.getGroupId(), raftStatus, raftClient, raftExecutor, raft);
+        VoteManager voteManager = new VoteManager(serverConfig, rgc.getGroupId(), raftStatus, replicateNioClient, raftExecutor, raft);
 
         eventBus.register(raft);
         eventBus.register(voteManager);
@@ -276,9 +288,9 @@ public class RaftServer extends AbstractLifeCircle {
         try {
             raftGroups.forEach((groupId, gc) -> gc.getRaftGroupThread().init(gc));
 
-            raftServer.start();
-            raftClient.start();
-            raftClient.waitStart();
+            replicateNioServer.start();
+            replicateNioClient.start();
+            replicateNioClient.waitStart();
 
             nodeManager.start();
             nodeManager.waitReady(RaftUtil.getElectQuorum(nodeManager.getAllNodesEx().size()));
@@ -293,6 +305,8 @@ public class RaftServer extends AbstractLifeCircle {
                 gc.getRaftGroupThread().waitReady();
                 log.info("raft group {} is ready", groupId);
             });
+
+            serviceNioServer.start();
         } catch (RuntimeException | Error e) {
             log.error("start raft server failed", e);
             throw e;
@@ -302,13 +316,16 @@ public class RaftServer extends AbstractLifeCircle {
     @Override
     protected void doStop() {
         try {
+            if (serviceNioServer != null) {
+                serviceNioServer.stop();
+            }
             raftGroups.forEach((groupId, gc) -> {
                 RaftGroupThread raftGroupThread = gc.getRaftGroupThread();
                 raftGroupThread.requestShutdown();
                 raftGroupThread.interrupt();
             });
-            raftServer.stop();
-            raftClient.stop();
+            replicateNioServer.stop();
+            replicateNioClient.stop();
         } catch (RuntimeException | Error e) {
             log.error("stop raft server failed", e);
             throw e;

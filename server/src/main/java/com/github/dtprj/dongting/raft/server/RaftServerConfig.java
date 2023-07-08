@@ -27,7 +27,8 @@ import java.util.function.BiFunction;
 @SuppressWarnings("unused")
 public class RaftServerConfig {
     private String servers;
-    private int raftPort;
+    private int replicatePort;
+    private int servicePort;
     private int nodeId;
     private long electTimeout = 15 * 1000;
     private long rpcTimeout = 5 * 1000;
@@ -55,12 +56,20 @@ public class RaftServerConfig {
         this.servers = servers;
     }
 
-    public int getRaftPort() {
-        return raftPort;
+    public int getReplicatePort() {
+        return replicatePort;
     }
 
-    public void setRaftPort(int raftPort) {
-        this.raftPort = raftPort;
+    public void setReplicatePort(int replicatePort) {
+        this.replicatePort = replicatePort;
+    }
+
+    public int getServicePort() {
+        return servicePort;
+    }
+
+    public void setServicePort(int servicePort) {
+        this.servicePort = servicePort;
     }
 
     public int getNodeId() {
