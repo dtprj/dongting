@@ -18,6 +18,8 @@ package com.github.dtprj.dongting.common;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * @author huangli
  */
@@ -119,5 +121,11 @@ public class DtUtil {
             CPU_COUNT = RUNTIME.availableProcessors();
         }
         return CPU_COUNT;
+    }
+
+    public static <T> CompletableFuture<T> failedFuture(Throwable e) {
+        CompletableFuture<T> f = new CompletableFuture<>();
+        f.completeExceptionally(e);
+        return f;
     }
 }

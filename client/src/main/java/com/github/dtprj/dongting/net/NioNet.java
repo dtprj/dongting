@@ -84,13 +84,13 @@ public abstract class NioNet extends AbstractLifeCircle {
         boolean write = false;
         try {
             if (status != LifeStatus.running) {
-                return errorFuture(new NetException("error state: " + status));
+                return DtUtil.failedFuture(new NetException("error state: " + status));
             }
 
             if (this.semaphore != null) {
                 acquire = this.semaphore.tryAcquire(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
                 if (!acquire) {
-                    return errorFuture(new NetTimeoutException(
+                    return DtUtil.failedFuture(new NetTimeoutException(
                             "too many pending requests, client wait permit timeout in "
                                     + timeout.getTimeout(TimeUnit.MILLISECONDS) + " ms"));
                 }
@@ -102,7 +102,7 @@ public abstract class NioNet extends AbstractLifeCircle {
             return registerReqCallback(future);
 
         } catch (Exception e) {
-            return errorFuture(new NetException("sendRequest error", e));
+            return DtUtil.failedFuture(new NetException("sendRequest error", e));
         } finally {
             if (!write) {
                 request.clean();
@@ -125,12 +125,6 @@ public abstract class NioNet extends AbstractLifeCircle {
                 throw new NetCodeException(frame.getRespCode(), frame.getMsg(), frame);
             }
         });
-    }
-
-    protected <T> CompletableFuture<T> errorFuture(Throwable e) {
-        CompletableFuture<T> f = new CompletableFuture<>();
-        f.completeExceptionally(e);
-        return f;
     }
 
     protected void initBizExecutor() {

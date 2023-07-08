@@ -159,7 +159,7 @@ public class RaftClient extends AbstractLifeCircle {
                                                            Decoder<T> decoder, DtTime timeout) {
         GroupInfo groupInfo = groups.get(groupId);
         if (groupInfo == null) {
-            return CompletableFuture.failedFuture(new NoSuchGroupException());
+            return DtUtil.failedFuture(new NoSuchGroupException());
         }
         Pair<Peer, CompletableFuture<Peer>> leaderInfo = groupInfo.getLeader();
         CompletableFuture<ReadFrame<T>> finalResult = new CompletableFuture<>();
@@ -176,10 +176,10 @@ public class RaftClient extends AbstractLifeCircle {
             }
             result = leaderFuture.thenCompose(leader -> {
                 if (leader == null) {
-                    return CompletableFuture.failedFuture(new RaftException("no leader"));
+                    return DtUtil.failedFuture(new RaftException("no leader"));
                 }
                 if (timeout.isTimeout()) {
-                    return CompletableFuture.failedFuture(new NetTimeoutException("timeout after find leader"));
+                    return DtUtil.failedFuture(new NetTimeoutException("timeout after find leader"));
                 }
                 return client.sendRequest(leader, request, decoder, timeout);
             });
