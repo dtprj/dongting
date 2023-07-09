@@ -23,15 +23,19 @@ import java.nio.charset.StandardCharsets;
  *
  * @author huangli
  */
-public class StrDecoder implements Decoder<String> {
+public class StrFiledDecoder implements Decoder<String> {
 
-    public static final StrDecoder INSTANCE = new StrDecoder();
+    public static final StrFiledDecoder INSTANCE = new StrFiledDecoder();
 
-    private StrDecoder() {
+    private StrFiledDecoder() {
     }
 
     @Override
     public String decode(DecodeContext decodeContext, ByteBuffer buf, int fieldLen, int currentPos) {
+        return parseUTF8(decodeContext, buf, fieldLen, currentPos);
+    }
+
+    public static String parseUTF8(DecodeContext decodeContext, ByteBuffer buf, int fieldLen, int currentPos) {
         boolean start = currentPos == 0;
         boolean end = buf.remaining() >= fieldLen - currentPos;
         if (start && end) {

@@ -21,12 +21,12 @@ import java.nio.charset.StandardCharsets;
 /**
  * @author huangli
  */
-public class StrEncoder implements Encoder<String> {
+public class StrFieldEncoder implements Encoder<String> {
 
     private byte[] bytes;
     private int pos;
 
-    public StrEncoder() {
+    public StrFieldEncoder() {
     }
 
     @Override

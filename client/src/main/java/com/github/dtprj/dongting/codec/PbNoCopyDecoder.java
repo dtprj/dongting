@@ -49,4 +49,47 @@ public class PbNoCopyDecoder<T> implements Decoder<T> {
         }
     }
 
+    public static final PbNoCopyDecoder<Integer> SIMPLE_INT_DECODER = new PbNoCopyDecoder<>(c-> new PbCallback<>() {
+        private int value;
+        @Override
+        public boolean readFix32(int index, int value) {
+            this.value = value;
+            return true;
+        }
+
+        @Override
+        public Integer getResult() {
+            return value;
+        }
+    });
+
+    public static final PbNoCopyDecoder<Long> SIMPLE_LONG_DECODER = new PbNoCopyDecoder<>(c-> new PbCallback<>() {
+        private long value;
+        @Override
+        public boolean readFix64(int index, long value) {
+            this.value = value;
+            return true;
+        }
+
+        @Override
+        public Long getResult() {
+            return value;
+        }
+    });
+
+    public static final PbNoCopyDecoder<String> SIMPLE_STR_DECODER = new PbNoCopyDecoder<>(c -> new PbCallback<>() {
+        private String value;
+
+        @Override
+        public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
+            value = StrFiledDecoder.parseUTF8(c, buf, fieldLen, currentPos);
+            return true;
+        }
+
+        @Override
+        public String getResult() {
+            return value;
+        }
+    });
+
 }

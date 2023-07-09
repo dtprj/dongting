@@ -24,7 +24,7 @@ import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.codec.PbParser;
-import com.github.dtprj.dongting.codec.StrDecoder;
+import com.github.dtprj.dongting.codec.StrFiledDecoder;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -212,7 +212,7 @@ class DtChannel extends PbCallback<Object> {
         }
         switch (index) {
             case Frame.IDX_MSG: {
-                String msg = StrDecoder.INSTANCE.decode(decodeContext, buf, fieldLen, currentPos);
+                String msg = StrFiledDecoder.INSTANCE.decode(decodeContext, buf, fieldLen, currentPos);
                 this.frame.setMsg(msg);
                 return true;
             }

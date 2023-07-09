@@ -23,8 +23,8 @@ import com.github.dtprj.dongting.codec.ByteArrayDecoder;
 import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.Encoder;
-import com.github.dtprj.dongting.codec.StrDecoder;
-import com.github.dtprj.dongting.codec.StrEncoder;
+import com.github.dtprj.dongting.codec.StrFieldEncoder;
+import com.github.dtprj.dongting.codec.StrFiledDecoder;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -68,7 +68,7 @@ public class DtKV implements StateMachine {
             case BIZ_TYPE_GET:
             case BIZ_TYPE_REMOVE:
             case BIZ_TYPE_PUT:
-                return StrDecoder.INSTANCE;
+                return StrFiledDecoder.INSTANCE;
             default:
                 throw new IllegalArgumentException("unknown bizType " + bizType);
         }
@@ -107,7 +107,7 @@ public class DtKV implements StateMachine {
             case BIZ_TYPE_GET:
             case BIZ_TYPE_REMOVE:
             case BIZ_TYPE_PUT:
-                return new StrEncoder();
+                return new StrFieldEncoder();
             default:
                 throw new IllegalArgumentException("unknown bizType " + bizType);
         }

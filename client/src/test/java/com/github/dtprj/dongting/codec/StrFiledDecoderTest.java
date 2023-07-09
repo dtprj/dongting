@@ -29,9 +29,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 /**
  * @author huangli
  */
-public class StrDecoderTest {
+public class StrFiledDecoderTest {
 
-    private StrDecoder decoder;
+    private StrFiledDecoder decoder;
     private byte[] bytes;
     private ByteBuffer buf;
     private DecodeContext decodeContext;
@@ -41,7 +41,7 @@ public class StrDecoderTest {
         decodeContext = new DecodeContext();
         ByteBufferPool byteBufferPool = new SimpleByteBufferPool(new Timestamp(), false);
         decodeContext.setHeapPool(new RefBufferFactory(byteBufferPool, 128));
-        decoder = StrDecoder.INSTANCE;
+        decoder = StrFiledDecoder.INSTANCE;
         bytes = new byte[5 * 1024];
         byte c = 'a';
         for (int i = 0; i < bytes.length; i++) {
