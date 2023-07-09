@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.SimpleStrWriteFrame;
 import com.github.dtprj.dongting.net.WriteFrame;
-import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.impl.RaftMember;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
@@ -32,10 +31,6 @@ import com.github.dtprj.dongting.raft.server.RaftGroupProcessor;
  * @author huangli
  */
 public class QueryLeaderProcessor extends RaftGroupProcessor<Integer> {
-
-    public QueryLeaderProcessor(RaftGroups raftGroups) {
-        super(raftGroups);
-    }
 
     @Override
     public Decoder<Integer> createDecoder() {
@@ -55,8 +50,7 @@ public class QueryLeaderProcessor extends RaftGroupProcessor<Integer> {
             return new SimpleStrWriteFrame(null);
         } else {
             HostPort hp = leader.getNode().getPeer().getEndPoint();
-            StringBuilder sb = new StringBuilder();
-            return new SimpleStrWriteFrame(sb.append(hp.getHost()).append(":").append(hp.getPort()).toString());
+            return new SimpleStrWriteFrame(hp.getHost() + ":" + hp.getPort());
         }
     }
 }

@@ -33,9 +33,12 @@ import com.github.dtprj.dongting.raft.impl.RaftGroups;
 public abstract class RaftGroupProcessor<T> extends ReqProcessor<T> {
     private static final DtLog log = DtLogs.getLogger(RaftGroupProcessor.class);
 
-    private final RaftGroups raftGroups;
+    private RaftGroups raftGroups;
 
-    public RaftGroupProcessor(RaftGroups raftGroups) {
+    public RaftGroupProcessor() {
+    }
+
+    void setRaftGroups(RaftGroups raftGroups) {
         this.raftGroups = raftGroups;
     }
 

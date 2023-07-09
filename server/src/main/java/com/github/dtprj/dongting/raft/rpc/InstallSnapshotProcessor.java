@@ -25,7 +25,6 @@ import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
-import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -43,8 +42,7 @@ public class InstallSnapshotProcessor extends RaftGroupProcessor<InstallSnapshot
 
     private static final Decoder<InstallSnapshotReq> DECODER = new PbNoCopyDecoder<>(c -> new InstallSnapshotReq.Callback(c.getHeapPool()));
 
-    public InstallSnapshotProcessor(RaftGroups raftGroups) {
-        super(raftGroups);
+    public InstallSnapshotProcessor() {
     }
 
     @Override
