@@ -33,6 +33,8 @@ import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.StatusUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.server.RaftGroup;
+import com.github.dtprj.dongting.raft.server.RaftGroupProcessor;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 
 import java.util.ArrayList;
@@ -83,9 +85,10 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
     }
 
     @Override
-    protected WriteFrame doProcess(ReadFrame<AppendReqCallback> rf, ChannelContext channelContext, RaftGroupImpl gc) {
+    protected WriteFrame doProcess(ReadFrame<AppendReqCallback> rf, ChannelContext channelContext, RaftGroup rg) {
         AppendRespWriteFrame resp = new AppendRespWriteFrame();
         AppendReqCallback req = rf.getBody();
+        RaftGroupImpl gc = (RaftGroupImpl) rg;
         RaftStatusImpl raftStatus = gc.getRaftStatus();
         if (raftStatus.isError()) {
             resp.setSuccess(false);

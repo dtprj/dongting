@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.rpc;
+package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -30,10 +30,10 @@ import com.github.dtprj.dongting.raft.impl.RaftGroups;
 /**
  * @author huangli
  */
-abstract class RaftGroupProcessor<T> extends ReqProcessor<T> {
+public abstract class RaftGroupProcessor<T> extends ReqProcessor<T> {
     private static final DtLog log = DtLogs.getLogger(RaftGroupProcessor.class);
 
-    protected final RaftGroups raftGroups;
+    private final RaftGroups raftGroups;
 
     public RaftGroupProcessor(RaftGroups raftGroups) {
         this.raftGroups = raftGroups;
@@ -41,8 +41,7 @@ abstract class RaftGroupProcessor<T> extends ReqProcessor<T> {
 
     protected abstract int getGroupId(ReadFrame<T> frame);
 
-    protected abstract WriteFrame doProcess(ReadFrame<T> frame, ChannelContext channelContext,
-                                            RaftGroupImpl gc);
+    protected abstract WriteFrame doProcess(ReadFrame<T> frame, ChannelContext channelContext, RaftGroup gc);
 
     @Override
     public final WriteFrame process(ReadFrame<T> frame, ChannelContext channelContext, ReqContext reqContext) {
@@ -65,8 +64,8 @@ abstract class RaftGroupProcessor<T> extends ReqProcessor<T> {
         }
     }
 
-    private void process(ReadFrame<T> frame, ChannelContext channelContext, ReqContext reqContext, RaftGroupImpl gc) {
-        WriteFrame wf = doProcess(frame, channelContext, gc);
+    private void process(ReadFrame<T> frame, ChannelContext channelContext, ReqContext reqContext, RaftGroup rg) {
+        WriteFrame wf = doProcess(frame, channelContext, rg);
         if (wf != null) {
             channelContext.getRespWriter().writeRespInBizThreads(frame, wf, reqContext.getTimeout());
         }

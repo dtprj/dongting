@@ -207,6 +207,7 @@ public class RaftGroupImpl extends RaftGroup {
         return raftGroupThread;
     }
 
+    @Override
     public RaftStatusImpl getRaftStatus() {
         return raftStatus;
     }

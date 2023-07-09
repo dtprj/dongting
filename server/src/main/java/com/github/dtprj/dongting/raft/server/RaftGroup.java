@@ -104,4 +104,6 @@ public abstract class RaftGroup {
     public StateMachine getStateMachine() {
         return stateMachine;
     }
+
+    public abstract RaftStatus getRaftStatus();
 }

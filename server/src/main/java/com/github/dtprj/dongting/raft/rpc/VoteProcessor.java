@@ -29,6 +29,8 @@ import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.StatusUtil;
+import com.github.dtprj.dongting.raft.server.RaftGroup;
+import com.github.dtprj.dongting.raft.server.RaftGroupProcessor;
 
 /**
  * @author huangli
@@ -48,9 +50,10 @@ public class VoteProcessor extends RaftGroupProcessor<VoteReq> {
     }
 
     @Override
-    protected WriteFrame doProcess(ReadFrame<VoteReq> rf, ChannelContext channelContext, RaftGroupImpl gc) {
+    protected WriteFrame doProcess(ReadFrame<VoteReq> rf, ChannelContext channelContext, RaftGroup rg) {
         VoteReq voteReq = rf.getBody();
         VoteResp resp = new VoteResp();
+        RaftGroupImpl gc = (RaftGroupImpl) rg;
         RaftStatusImpl raftStatus = gc.getRaftStatus();
         if (MemberManager.validCandidate(raftStatus, voteReq.getCandidateId())) {
             int localTerm = raftStatus.getCurrentTerm();

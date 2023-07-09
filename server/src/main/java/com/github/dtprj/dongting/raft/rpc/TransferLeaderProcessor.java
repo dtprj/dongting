@@ -30,6 +30,8 @@ import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.server.RaftGroup;
+import com.github.dtprj.dongting.raft.server.RaftGroupProcessor;
 
 /**
  * @author huangli
@@ -50,9 +52,9 @@ public class TransferLeaderProcessor extends RaftGroupProcessor<TransferLeaderRe
     }
 
     @Override
-    protected WriteFrame doProcess(ReadFrame<TransferLeaderReq> frame, ChannelContext channelContext,
-                                   RaftGroupImpl gc) {
+    protected WriteFrame doProcess(ReadFrame<TransferLeaderReq> frame, ChannelContext channelContext, RaftGroup rg) {
         TransferLeaderReq req = frame.getBody();
+        RaftGroupImpl gc = (RaftGroupImpl) rg;
         RaftStatusImpl raftStatus = gc.getRaftStatus();
         if (raftStatus.isError()) {
             log.error("transfer leader fail, error state, groupId={}", req.groupId);

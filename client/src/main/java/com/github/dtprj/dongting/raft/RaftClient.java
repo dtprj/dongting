@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft;
 
 import com.github.dtprj.dongting.codec.Decoder;
+import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -26,7 +27,6 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
-import com.github.dtprj.dongting.net.EmptyBodyReqFrame;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.NetException;
@@ -36,6 +36,7 @@ import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.NioNet;
 import com.github.dtprj.dongting.net.Peer;
 import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.SimpleIntWriteFrame;
 import com.github.dtprj.dongting.net.WriteFrame;
 
 import java.nio.charset.StandardCharsets;
@@ -195,7 +196,7 @@ public class RaftClient extends AbstractLifeCircle {
             if (ex instanceof NetCodeException) {
                 NetCodeException ncEx = (NetCodeException) ex;
                 if (ncEx.getCode() == CmdCodes.NOT_RAFT_LEADER) {
-                    Peer newLeader = parseLeader(ncEx.getRespFrame(), groupInfo);
+                    Peer newLeader = parseLeaderFromExtra(ncEx.getRespFrame(), groupInfo);
                     if (newLeader != null) {
                         groupInfo.setLeader(new Pair<>(newLeader, null));
                         if (timeout.isTimeout()) {
@@ -248,8 +249,9 @@ public class RaftClient extends AbstractLifeCircle {
             return;
         }
         Peer p = it.next();
-        EmptyBodyReqFrame req = new EmptyBodyReqFrame(Commands.RAFT_QUERY_LEADER);
-        client.sendRequest(p, req, null, timeout).whenComplete((rf, ex) -> {
+        SimpleIntWriteFrame req = new SimpleIntWriteFrame(groupInfo.getGroupId());
+        req.setCommand(Commands.RAFT_QUERY_LEADER);
+        client.sendRequest(p, req, PbNoCopyDecoder.SIMPLE_STR_DECODER, timeout).whenComplete((rf, ex) -> {
             if (ex != null) {
                 log.warn("query leader from {} fail: {}", p.getEndPoint(), ex.toString());
                 findLeader0(f, groupInfo, timeout, it);
@@ -265,13 +267,25 @@ public class RaftClient extends AbstractLifeCircle {
         });
     }
 
-    private Peer parseLeader(ReadFrame<?> frame, GroupInfo groupInfo) {
+    private Peer parseLeaderFromExtra(ReadFrame<?> frame, GroupInfo groupInfo) {
         byte[] bs = frame.getExtra();
         if (bs == null) {
             log.error("extra is null");
             return null;
         }
         String s = new String(bs, StandardCharsets.UTF_8);
+        return parseLeader(groupInfo, s);
+    }
+
+    private Peer parseLeader(ReadFrame<String> frame, GroupInfo groupInfo) {
+        String s = frame.getBody();
+        if (s == null) {
+            return null;
+        }
+        return parseLeader(groupInfo, s);
+    }
+
+    private static Peer parseLeader(GroupInfo groupInfo, String s) {
         HostPort hp = NioNet.parseHostPort(s);
         for (Peer p : groupInfo.getServers()) {
             if (p.getEndPoint().equals(hp)) {

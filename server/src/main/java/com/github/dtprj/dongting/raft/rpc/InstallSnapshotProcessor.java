@@ -30,6 +30,8 @@ import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.StatusUtil;
+import com.github.dtprj.dongting.raft.server.RaftGroup;
+import com.github.dtprj.dongting.raft.server.RaftGroupProcessor;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 /**
@@ -51,12 +53,13 @@ public class InstallSnapshotProcessor extends RaftGroupProcessor<InstallSnapshot
     }
 
     @Override
-    protected WriteFrame doProcess(ReadFrame<InstallSnapshotReq> frame, ChannelContext channelContext, RaftGroupImpl gc) {
+    protected WriteFrame doProcess(ReadFrame<InstallSnapshotReq> frame, ChannelContext channelContext, RaftGroup rg) {
         InstallSnapshotReq req = frame.getBody();
         try {
             InstallSnapshotResp resp = new InstallSnapshotResp();
             InstallSnapshotResp.InstallRespWriteFrame respFrame = new InstallSnapshotResp.InstallRespWriteFrame(resp);
             int remoteTerm = req.term;
+            RaftGroupImpl gc = (RaftGroupImpl) rg;
             RaftStatusImpl raftStatus = gc.getRaftStatus();
 
             if (raftStatus.isError()) {
