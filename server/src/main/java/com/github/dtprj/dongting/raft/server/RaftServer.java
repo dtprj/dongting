@@ -166,8 +166,12 @@ public class RaftServer extends AbstractLifeCircle {
                                   List<RaftGroupConfig> groupConfig, HashSet<Integer> allNodeIds) {
         for (RaftGroupConfig rgc : groupConfig) {
             RaftGroupImpl gc = createRaftGroup(cancelInitIndicator, serverConfig, allNodeIds, rgc);
+            if (raftGroups.get(rgc.getGroupId()) != null) {
+                throw new IllegalArgumentException("duplicate group id: " + rgc.getGroupId());
+            }
             raftGroups.put(rgc.getGroupId(), gc);
         }
+
     }
 
     private RaftGroupImpl createRaftGroup(Supplier<Boolean> cancelInitIndicator, RaftServerConfig serverConfig,
@@ -415,6 +419,9 @@ public class RaftServer extends AbstractLifeCircle {
     public void addGroup(RaftGroupConfig groupConfig, Supplier<Boolean> cancelInitIndicator) {
         doChange(() -> {
             try {
+                if (raftGroups.get(groupConfig.getGroupId()) != null) {
+                    throw new RaftException("group already exist: " + groupConfig.getGroupId());
+                }
                 CompletableFuture<RaftGroupImpl> f = new CompletableFuture<>();
                 RaftUtil.SCHEDULED_SERVICE.execute(() -> {
                     try {
