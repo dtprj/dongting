@@ -160,10 +160,14 @@ public class DtKV implements StateMachine {
 
     @Override
     public void installSnapshot(long lastIncludeIndex, int lastIncludeTerm, long offset, boolean done, RefBuffer data) {
-        newStatus(KvStatus.INSTALLING_SNAPSHOT, new Kv());
+        if (offset == 0) {
+            newStatus(KvStatus.INSTALLING_SNAPSHOT, new Kv());
+        } else if (kvStatus.status != KvStatus.INSTALLING_SNAPSHOT) {
+            throw new IllegalStateException("current status error: " + kvStatus.status);
+        }
         ByteBuffer bb = data.getBuffer();
         Kv kv = kvStatus.kv;
-        ConcurrentSkipListMap<String, Value> map = kv.map;
+        ConcurrentSkipListMap<String, Value> map = kv.getMap();
         while (bb.hasRemaining()) {
             long raftIndex = bb.getLong();
             int keyLen = bb.getInt();
@@ -193,16 +197,16 @@ public class DtKV implements StateMachine {
         KvSnapshot snapshot = new KvSnapshot(raftStatus.getLastApplied(), raftStatus.getCurrentTerm(), () -> kvStatus,
                 kvStatus, groupConfig.getHeapPool(), this::closeSnapshot);
         openSnapshots.add(snapshot);
-        updateMaxMin();
+        updateMin();
         return snapshot;
     }
 
     private void closeSnapshot(Snapshot snapshot) {
         openSnapshots.remove(snapshot);
-        updateMaxMin();
+        updateMin();
     }
 
-    private void updateMaxMin() {
+    private void updateMin() {
         long min = 0;
         for (Snapshot s : openSnapshots) {
             min = min == 0 ? s.getLastIncludedIndex() : Math.min(min, s.getLastIncludedIndex());

@@ -45,7 +45,7 @@ class KvSnapshot extends Snapshot {
         this.statusSupplier = statusSupplier;
         this.heapPool = heapPool;
         this.closeCallback = closeCallback;
-        this.iterator = kvStatus.kv.map.entrySet().iterator();
+        this.iterator = kvStatus.kv.getMap().entrySet().iterator();
         this.epoch = kvStatus.epoch;
     }
 

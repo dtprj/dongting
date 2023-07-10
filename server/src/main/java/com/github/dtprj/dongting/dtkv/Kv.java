@@ -15,15 +15,17 @@
  */
 package com.github.dtprj.dongting.dtkv;
 
+import java.util.LinkedList;
 import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
  * @author huangli
  */
 class Kv {
-    final ConcurrentSkipListMap<String, Value> map = new ConcurrentSkipListMap<>();
+    private final ConcurrentSkipListMap<String, Value> map = new ConcurrentSkipListMap<>();
+    private final LinkedList<Value> needCleanList = new LinkedList<>();
 
-    public Object get(String key) {
+    public byte[] get(String key) {
         if (key == null) {
             throw new IllegalArgumentException("key is null");
         }
@@ -46,17 +48,21 @@ class Kv {
         Value oldValue = map.put(key, newValue);
         if (minOpenSnapshotIndex != 0 && oldValue != null) {
             newValue.setPrevious(oldValue);
-            gc(newValue, oldValue, minOpenSnapshotIndex);
+            needCleanList.add(newValue);
         }
+        gc(minOpenSnapshotIndex);
     }
 
-    private void gc(Value newValue, Value oldValue, long minOpenSnapshotIndex) {
-        while (oldValue != null) {
-            if (newValue.getRaftIndex() <= minOpenSnapshotIndex) {
-                newValue.setPrevious(null);
+    private void gc(long minOpenSnapshotIndex) {
+        Value value;
+        LinkedList<Value> needCleanList = this.needCleanList;
+        while ((value = needCleanList.peekFirst()) != null) {
+            Value oldValue = value.getPrevious();
+            if (oldValue.getRaftIndex() >= minOpenSnapshotIndex) {
+                break;
             }
-            newValue = oldValue;
-            oldValue = oldValue.getPrevious();
+            value.setPrevious(null);
+            needCleanList.removeFirst();
         }
     }
 
@@ -66,17 +72,24 @@ class Kv {
         }
         Value oldValue = map.remove(key);
         if (minOpenSnapshotIndex == 0) {
+            gc(minOpenSnapshotIndex);
             return oldValue != null && oldValue.getData() != null;
         } else {
             if (oldValue == null) {
+                gc(minOpenSnapshotIndex);
                 return false;
             } else {
                 Value newValue = new Value(index, null);
                 newValue.setPrevious(oldValue);
                 map.put(key, newValue);
-                gc(newValue, oldValue, minOpenSnapshotIndex);
+                needCleanList.add(newValue);
+                gc(minOpenSnapshotIndex);
                 return oldValue.getData() != null;
             }
         }
+    }
+
+    public ConcurrentSkipListMap<String, Value> getMap() {
+        return map;
     }
 }
