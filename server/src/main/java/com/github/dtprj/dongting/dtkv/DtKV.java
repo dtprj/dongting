@@ -54,7 +54,7 @@ public class DtKV implements StateMachine {
     private final ArrayList<Snapshot> openSnapshots = new ArrayList<>();
     private long minOpenSnapshotIndex;
 
-    private volatile KvStatus kvStatus = new KvStatus(KvStatus.RUNNING, new Kv(), 0);
+    private volatile KvStatus kvStatus = new KvStatus(KvStatus.RUNNING, new KvImpl(), 0);
 
     public DtKV(RaftGroupConfigEx groupConfig) {
         this.groupConfig = groupConfig;
@@ -147,12 +147,12 @@ public class DtKV implements StateMachine {
         String key = (String) input.getHeader();
         switch (input.getBizType()) {
             case BIZ_TYPE_GET:
-                return kvStatus.kv.get(key);
+                return kvStatus.kvImpl.get(key);
             case BIZ_TYPE_PUT:
-                kvStatus.kv.put(index, key, (byte[]) input.getBody(), minOpenSnapshotIndex);
+                kvStatus.kvImpl.put(index, key, (byte[]) input.getBody(), minOpenSnapshotIndex);
                 return null;
             case BIZ_TYPE_REMOVE:
-                return kvStatus.kv.remove(index, key, minOpenSnapshotIndex);
+                return kvStatus.kvImpl.remove(index, key, minOpenSnapshotIndex);
             default:
                 throw new IllegalArgumentException("unknown bizType " + input.getBizType());
         }
@@ -161,13 +161,13 @@ public class DtKV implements StateMachine {
     @Override
     public void installSnapshot(long lastIncludeIndex, int lastIncludeTerm, long offset, boolean done, RefBuffer data) {
         if (offset == 0) {
-            newStatus(KvStatus.INSTALLING_SNAPSHOT, new Kv());
+            newStatus(KvStatus.INSTALLING_SNAPSHOT, new KvImpl());
         } else if (kvStatus.status != KvStatus.INSTALLING_SNAPSHOT) {
             throw new IllegalStateException("current status error: " + kvStatus.status);
         }
         ByteBuffer bb = data.getBuffer();
-        Kv kv = kvStatus.kv;
-        ConcurrentSkipListMap<String, Value> map = kv.getMap();
+        KvImpl kvImpl = kvStatus.kvImpl;
+        ConcurrentSkipListMap<String, Value> map = kvImpl.getMap();
         while (bb.hasRemaining()) {
             long raftIndex = bb.getLong();
             int keyLen = bb.getInt();
@@ -186,7 +186,7 @@ public class DtKV implements StateMachine {
             map.put(key, new Value(raftIndex, value));
         }
         if (done) {
-            newStatus(KvStatus.RUNNING, kv);
+            newStatus(KvStatus.RUNNING, kvImpl);
         }
     }
 
@@ -234,8 +234,8 @@ public class DtKV implements StateMachine {
     }
 
     @SuppressWarnings("NonAtomicOperationOnVolatileField")
-    private void newStatus(int status, Kv kv) {
+    private void newStatus(int status, KvImpl kvImpl) {
         // close()/installSnapshot() are called in raft thread, so we don't need to use CAS here
-        kvStatus = new KvStatus(status, kv, kvStatus.epoch + 1);
+        kvStatus = new KvStatus(status, kvImpl, kvStatus.epoch + 1);
     }
 }

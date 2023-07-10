@@ -24,12 +24,12 @@ class KvStatus {
     public static final int CLOSED = 2;
 
     final int status;
-    final Kv kv;
+    final KvImpl kvImpl;
     final int epoch;
 
-    public KvStatus(int status, Kv kv, int epoch) {
+    public KvStatus(int status, KvImpl kvImpl, int epoch) {
         this.status = status;
-        this.kv = kv;
+        this.kvImpl = kvImpl;
         this.epoch = epoch;
     }
 }

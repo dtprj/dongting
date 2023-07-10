@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentSkipListMap;
 /**
  * @author huangli
  */
-class Kv {
+class KvImpl {
     private final ConcurrentSkipListMap<String, Value> map = new ConcurrentSkipListMap<>();
     private final LinkedList<Value> needCleanList = new LinkedList<>();
 
