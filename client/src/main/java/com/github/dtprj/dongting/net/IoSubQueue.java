@@ -67,23 +67,23 @@ class IoSubQueue {
 
     public void enqueue(WriteData writeData) {
         WriteFrame wf = writeData.getData();
-        int size = wf.actualSize();
-        if (size > config.getMaxFrameSize() || size < 0) {
-            fail(writeData, "frame size " + size + " exceeds max frame size " + config.getMaxFrameSize());
+        // can't invoke actualSize() here because seq and timeout field is not set yet
+        int estimateSize = wf.calcMaxFrameSize();
+        if (estimateSize < 0 || estimateSize > config.getMaxFrameSize()) {
+            fail(writeData, "estimateSize overflow");
             return;
         }
+        writeData.setEstimateSize(estimateSize);
         if(wf.actualBodySize() > config.getMaxBodySize() || wf.actualBodySize() < 0) {
             fail(writeData, "frame body size " + wf.actualBodySize() + " exceeds max body size " + config.getMaxBodySize());
             return;
         }
 
-        writeData.setSize(size);
-
         ArrayDeque<WriteData> subQueue = this.subQueue;
         subQueue.addLast(writeData);
 
         // the subQueueBytes is not accurate
-        subQueueBytes += size;
+        subQueueBytes += estimateSize;
         if (subQueue.size() == 1 && !writing) {
             registerForWrite.run();
         }
@@ -137,7 +137,7 @@ class IoSubQueue {
                 }
                 if (encodeFinish) {
                     wd.getData().clean();
-                    subQueueBytes -= wd.getSize();
+                    subQueueBytes -= wd.getEstimateSize();
                     if (subQueueBytes < 0) {
                         subQueueBytes = 0;
                     }

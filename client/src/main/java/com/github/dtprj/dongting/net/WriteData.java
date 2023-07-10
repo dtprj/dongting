@@ -32,7 +32,7 @@ final class WriteData {
     private final CompletableFuture<ReadFrame<?>> future;
     private final Decoder<?> respDecoder;
 
-    private int size;
+    private int estimateSize;
 
     public WriteData(Peer peer, WriteFrame data, DtTime timeout,
                      CompletableFuture<ReadFrame<?>> future, Decoder<?> respDecoder) {
@@ -52,12 +52,12 @@ final class WriteData {
         this.respDecoder = null;
     }
 
-    public int getSize() {
-        return size;
+    public int getEstimateSize() {
+        return estimateSize;
     }
 
-    public void setSize(int estimateSize) {
-        this.size = estimateSize;
+    public void setEstimateSize(int estimateSize) {
+        this.estimateSize = estimateSize;
     }
 
     public DtChannel getDtc() {

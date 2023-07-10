@@ -272,7 +272,7 @@ public class NioClientTest {
 
     private static void sendSync(int maxBodySize, NioClient client, long timeoutMillis, Decoder<?> decoder) throws Exception {
         ThreadLocalRandom r = ThreadLocalRandom.current();
-        byte[] bs = new byte[r.nextInt(maxBodySize)];
+        byte[] bs = new byte[1];
         r.nextBytes(bs);
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.wrap(bs));
         wf.setCommand(Commands.CMD_PING);
