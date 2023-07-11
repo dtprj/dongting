@@ -13,35 +13,23 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.dtkv;
+package com.github.dtprj.dongting.dtkv.server;
 
 /**
  * @author huangli
  */
-class Value {
-    private final byte[] data;
-    private final long raftIndex;
+class KvStatus {
+    public static final int RUNNING = 0;
+    public static final int INSTALLING_SNAPSHOT = 1;
+    public static final int CLOSED = 2;
 
-    private Value previous;
+    final int status;
+    final KvImpl kvImpl;
+    final int epoch;
 
-    public Value(long raftIndex, byte[] data) {
-        this.raftIndex = raftIndex;
-        this.data = data;
-    }
-
-    public byte[] getData() {
-        return data;
-    }
-
-    public long getRaftIndex() {
-        return raftIndex;
-    }
-
-    public Value getPrevious() {
-        return previous;
-    }
-
-    public void setPrevious(Value previous) {
-        this.previous = previous;
+    public KvStatus(int status, KvImpl kvImpl, int epoch) {
+        this.status = status;
+        this.kvImpl = kvImpl;
+        this.epoch = epoch;
     }
 }
