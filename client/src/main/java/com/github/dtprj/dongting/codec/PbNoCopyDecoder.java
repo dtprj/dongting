@@ -49,7 +49,7 @@ public class PbNoCopyDecoder<T> implements Decoder<T> {
         }
     }
 
-    public static final PbNoCopyDecoder<Integer> SIMPLE_INT_DECODER = new PbNoCopyDecoder<>(c-> new PbCallback<>() {
+    public static final PbNoCopyDecoder<Integer> SIMPLE_INT_DECODER = new PbNoCopyDecoder<Integer>(c-> new PbCallback<Integer>() {
         private int value;
         @Override
         public boolean readFix32(int index, int value) {
@@ -63,7 +63,7 @@ public class PbNoCopyDecoder<T> implements Decoder<T> {
         }
     });
 
-    public static final PbNoCopyDecoder<Long> SIMPLE_LONG_DECODER = new PbNoCopyDecoder<>(c-> new PbCallback<>() {
+    public static final PbNoCopyDecoder<Long> SIMPLE_LONG_DECODER = new PbNoCopyDecoder<Long>(c-> new PbCallback<Long>() {
         private long value;
         @Override
         public boolean readFix64(int index, long value) {
@@ -77,7 +77,7 @@ public class PbNoCopyDecoder<T> implements Decoder<T> {
         }
     });
 
-    public static final PbNoCopyDecoder<String> SIMPLE_STR_DECODER = new PbNoCopyDecoder<>(c -> new PbCallback<>() {
+    public static final PbNoCopyDecoder<String> SIMPLE_STR_DECODER = new PbNoCopyDecoder<String>(c -> new PbCallback<String>() {
         private String value;
 
         @Override
