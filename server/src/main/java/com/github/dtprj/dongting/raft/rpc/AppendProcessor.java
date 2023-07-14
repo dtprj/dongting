@@ -36,6 +36,7 @@ import com.github.dtprj.dongting.raft.impl.StatusUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.server.RaftServer;
 
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
@@ -74,7 +75,8 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
         }
     }
 
-    public AppendProcessor(RaftGroups raftGroups) {
+    public AppendProcessor(boolean runInCurrentThread, RaftServer raftServer, RaftGroups raftGroups) {
+        super(runInCurrentThread, raftServer);
         decoder = new PbNoCopyDecoder<>(decodeContext -> new AppendReqCallback(decodeContext, raftGroups));
     }
 

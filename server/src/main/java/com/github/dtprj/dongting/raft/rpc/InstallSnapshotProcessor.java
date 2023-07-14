@@ -31,6 +31,7 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.StatusUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
+import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 /**
@@ -42,7 +43,8 @@ public class InstallSnapshotProcessor extends RaftGroupProcessor<InstallSnapshot
 
     private static final Decoder<InstallSnapshotReq> DECODER = new PbNoCopyDecoder<>(c -> new InstallSnapshotReq.Callback(c.getHeapPool()));
 
-    public InstallSnapshotProcessor() {
+    public InstallSnapshotProcessor(boolean runInCurrentThread, RaftServer raftServer) {
+        super(runInCurrentThread, raftServer);
     }
 
     @Override

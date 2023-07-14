@@ -28,8 +28,8 @@ import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespFrame;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
-import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
+import com.github.dtprj.dongting.raft.rpc.RaftGroupProcessor;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
@@ -42,7 +42,7 @@ import java.nio.charset.StandardCharsets;
 /**
  * @author huangli
  */
-public class GetProcessor extends ReqProcessor<GetReq> {
+public class GetProcessor extends RaftGroupProcessor<GetReq> {
     private static final DtLog log = DtLogs.getLogger(GetProcessor.class);
 
     private static final PbNoCopyDecoder<GetReq> DECODER = new PbNoCopyDecoder<>(c -> new PbCallback<>() {
@@ -70,10 +70,8 @@ public class GetProcessor extends ReqProcessor<GetReq> {
         }
     });
 
-    private final RaftServer server;
-
-    public GetProcessor(RaftServer server) {
-        this.server = server;
+    public GetProcessor(boolean runInCurrentThread, RaftServer server) {
+        super(runInCurrentThread, server);
     }
 
     @Override
@@ -81,26 +79,17 @@ public class GetProcessor extends ReqProcessor<GetReq> {
         return DECODER;
     }
 
+    @Override
+    protected int getGroupId(ReadFrame<GetReq> frame) {
+        return frame.getBody().getGroupId();
+    }
 
     /**
      * should run in io thread.
      */
     @Override
-    public WriteFrame process(ReadFrame<GetReq> frame, ChannelContext channelContext, ReqContext reqContext) {
-        GetReq body = frame.getBody();
-        if (body == null) {
-            EmptyBodyRespFrame error = new EmptyBodyRespFrame(CmdCodes.CLIENT_ERROR);
-            error.setMsg("empty body");
-            return error;
-        }
-        RaftGroup group = server.getRaftGroup(body.getGroupId());
-        if (group == null) {
-            EmptyBodyRespFrame wf = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
-            wf.setMsg("raft group not found: " + body.getGroupId());
-            log.error(wf.getMsg());
-            return wf;
-        }
-
+    public WriteFrame doProcess(ReadFrame<GetReq> frame, ChannelContext channelContext,
+                                ReqContext reqContext, RaftGroup group) {
         group.getLogIndexForRead(reqContext.getTimeout()).whenComplete((logIndex, ex) -> {
             if (ex != null) {
                 if (ex instanceof RaftExecTimeoutException) {
@@ -124,7 +113,7 @@ public class GetProcessor extends ReqProcessor<GetReq> {
                 channelContext.getRespWriter().writeRespInBizThreads(frame, error, reqContext.getTimeout());
             } else {
                 DtKV dtKV = (DtKV) group.getStateMachine();
-                byte[] bytes = dtKV.get(body.getKey());
+                byte[] bytes = dtKV.get(frame.getBody().getKey());
                 ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.wrap(bytes));
                 wf.setRespCode(CmdCodes.SUCCESS);
                 channelContext.getRespWriter().writeRespInBizThreads(frame, wf, reqContext.getTimeout());

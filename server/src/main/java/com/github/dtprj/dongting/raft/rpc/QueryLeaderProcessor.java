@@ -26,11 +26,16 @@ import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.RaftMember;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
+import com.github.dtprj.dongting.raft.server.RaftServer;
 
 /**
  * @author huangli
  */
 public class QueryLeaderProcessor extends RaftGroupProcessor<Integer> {
+
+    public QueryLeaderProcessor(boolean runInCurrentThread, RaftServer raftServer) {
+        super(runInCurrentThread, raftServer);
+    }
 
     @Override
     public Decoder<Integer> createDecoder() {

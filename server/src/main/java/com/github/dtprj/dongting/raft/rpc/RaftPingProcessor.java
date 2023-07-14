@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
+import com.github.dtprj.dongting.raft.server.RaftServer;
 
 /**
  * @author huangli
@@ -32,7 +33,8 @@ public class RaftPingProcessor extends RaftGroupProcessor<RaftPingFrameCallback>
     public static final PbNoCopyDecoder<RaftPingFrameCallback> DECODER = new PbNoCopyDecoder<>(context ->
             new RaftPingFrameCallback());
 
-    public RaftPingProcessor() {
+    public RaftPingProcessor(boolean runInCurrentThread, RaftServer raftServer) {
+        super(runInCurrentThread, raftServer);
     }
 
     @Override

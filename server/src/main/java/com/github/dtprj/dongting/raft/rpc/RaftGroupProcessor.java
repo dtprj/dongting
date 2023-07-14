@@ -25,22 +25,22 @@ import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
-import com.github.dtprj.dongting.raft.impl.RaftGroups;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
+import com.github.dtprj.dongting.raft.server.RaftServer;
 
 /**
  * @author huangli
  */
 public abstract class RaftGroupProcessor<T> extends ReqProcessor<T> {
     private static final DtLog log = DtLogs.getLogger(RaftGroupProcessor.class);
+    private final boolean runInCurrentThread;
 
-    private RaftGroups raftGroups;
+    private RaftServer raftServer;
 
-    public RaftGroupProcessor() {
-    }
-
-    public void setRaftGroups(RaftGroups raftGroups) {
-        this.raftGroups = raftGroups;
+    public RaftGroupProcessor(boolean runInCurrentThread, RaftServer raftServer) {
+        this.runInCurrentThread = runInCurrentThread;
+        this.raftServer = raftServer;
     }
 
     protected abstract int getGroupId(ReadFrame<T> frame);
@@ -50,27 +50,52 @@ public abstract class RaftGroupProcessor<T> extends ReqProcessor<T> {
 
     @Override
     public final WriteFrame process(ReadFrame<T> frame, ChannelContext channelContext, ReqContext reqContext) {
+        Object body = frame.getBody();
+        if (body == null) {
+            EmptyBodyRespFrame errorResp = new EmptyBodyRespFrame(CmdCodes.CLIENT_ERROR);
+            errorResp.setMsg("empty body");
+            return errorResp;
+        }
         int groupId = getGroupId(frame);
-        RaftGroupImpl gc = raftGroups.get(groupId);
+        RaftGroupImpl gc = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
         if (gc == null) {
-            EmptyBodyRespFrame wf = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
-            wf.setMsg("raft group not found: " + groupId);
-            log.error(wf.getMsg());
-            return wf;
+            EmptyBodyRespFrame errorResp = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
+            errorResp.setMsg("raft group not found: " + groupId);
+            log.error(errorResp.getMsg());
+            return errorResp;
         }
 
-        if (gc.getRaftStatus().isStop()) {
+        RaftStatusImpl status = gc.getRaftStatus();
+        if (status.isStop()) {
             EmptyBodyRespFrame wf = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
             wf.setMsg("raft group is stopped: " + groupId);
             return wf;
+        } else if (status.isError()) {
+            EmptyBodyRespFrame wf = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
+            wf.setMsg("raft group is in error state: " + gc.getGroupId());
+            return wf;
         } else {
-            gc.getRaftExecutor().execute(() -> process(frame, channelContext, reqContext, gc));
-            return null;
+            if (runInCurrentThread) {
+                return doProcess(frame, channelContext, reqContext, gc);
+            } else {
+                gc.getRaftExecutor().execute(() -> process(frame, channelContext, reqContext, gc, status));
+                return null;
+            }
         }
     }
 
-    private void process(ReadFrame<T> frame, ChannelContext channelContext, ReqContext reqContext, RaftGroup rg) {
-        WriteFrame wf = doProcess(frame, channelContext, reqContext, rg);
+    private void process(ReadFrame<T> frame, ChannelContext channelContext, ReqContext reqContext,
+                         RaftGroup rg, RaftStatusImpl status) {
+        WriteFrame wf;
+        if (status.isStop()) {
+            wf = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
+            wf.setMsg("raft group is stopped: " + rg.getGroupId());
+        } else if (status.isError()) {
+            wf = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
+            wf.setMsg("raft group is in error state: " + rg.getGroupId());
+        } else {
+            wf = doProcess(frame, channelContext, reqContext, rg);
+        }
         if (wf != null) {
             channelContext.getRespWriter().writeRespInBizThreads(frame, wf, reqContext.getTimeout());
         }

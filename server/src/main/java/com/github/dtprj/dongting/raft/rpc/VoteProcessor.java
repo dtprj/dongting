@@ -30,6 +30,7 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.StatusUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
+import com.github.dtprj.dongting.raft.server.RaftServer;
 
 /**
  * @author huangli
@@ -39,7 +40,8 @@ public class VoteProcessor extends RaftGroupProcessor<VoteReq> {
 
     private static final PbNoCopyDecoder<VoteReq> decoder = new PbNoCopyDecoder<>(c -> new VoteReq.Callback());
 
-    public VoteProcessor() {
+    public VoteProcessor(boolean runInCurrentThread, RaftServer raftServer) {
+        super(runInCurrentThread, raftServer);
     }
 
     @Override

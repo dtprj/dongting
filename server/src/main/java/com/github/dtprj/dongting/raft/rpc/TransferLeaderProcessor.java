@@ -31,6 +31,7 @@ import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
+import com.github.dtprj.dongting.raft.server.RaftServer;
 
 /**
  * @author huangli
@@ -40,6 +41,10 @@ public class TransferLeaderProcessor extends RaftGroupProcessor<TransferLeaderRe
     private static final DtLog log = DtLogs.getLogger(TransferLeaderProcessor.class);
 
     private static final Decoder<TransferLeaderReq> DECODER = new PbNoCopyDecoder<>(context -> new TransferLeaderReq.Callback());
+
+    public TransferLeaderProcessor(boolean runInCurrentThread, RaftServer raftServer) {
+        super(runInCurrentThread, raftServer);
+    }
 
     @Override
     protected int getGroupId(ReadFrame<TransferLeaderReq> frame) {
