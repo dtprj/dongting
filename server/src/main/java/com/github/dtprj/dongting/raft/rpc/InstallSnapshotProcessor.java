@@ -43,8 +43,8 @@ public class InstallSnapshotProcessor extends RaftGroupProcessor<InstallSnapshot
 
     private static final Decoder<InstallSnapshotReq> DECODER = new PbNoCopyDecoder<>(c -> new InstallSnapshotReq.Callback(c.getHeapPool()));
 
-    public InstallSnapshotProcessor(boolean runInCurrentThread, RaftServer raftServer) {
-        super(runInCurrentThread, raftServer);
+    public InstallSnapshotProcessor(RaftServer raftServer) {
+        super(false, raftServer);
     }
 
     @Override

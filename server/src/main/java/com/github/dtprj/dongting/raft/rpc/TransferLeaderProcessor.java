@@ -42,8 +42,8 @@ public class TransferLeaderProcessor extends RaftGroupProcessor<TransferLeaderRe
 
     private static final Decoder<TransferLeaderReq> DECODER = new PbNoCopyDecoder<>(context -> new TransferLeaderReq.Callback());
 
-    public TransferLeaderProcessor(boolean runInCurrentThread, RaftServer raftServer) {
-        super(runInCurrentThread, raftServer);
+    public TransferLeaderProcessor(RaftServer raftServer) {
+        super(false, raftServer);
     }
 
     @Override

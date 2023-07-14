@@ -70,8 +70,8 @@ public class GetProcessor extends RaftGroupProcessor<GetReq> {
         }
     });
 
-    public GetProcessor(boolean runInCurrentThread, RaftServer server) {
-        super(runInCurrentThread, server);
+    public GetProcessor(RaftServer server) {
+        super(true, server);
     }
 
     @Override

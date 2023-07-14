@@ -40,8 +40,8 @@ public class VoteProcessor extends RaftGroupProcessor<VoteReq> {
 
     private static final PbNoCopyDecoder<VoteReq> decoder = new PbNoCopyDecoder<>(c -> new VoteReq.Callback());
 
-    public VoteProcessor(boolean runInCurrentThread, RaftServer raftServer) {
-        super(runInCurrentThread, raftServer);
+    public VoteProcessor(RaftServer raftServer) {
+        super(false, raftServer);
     }
 
     @Override

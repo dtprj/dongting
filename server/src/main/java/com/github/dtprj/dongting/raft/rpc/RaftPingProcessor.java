@@ -33,8 +33,8 @@ public class RaftPingProcessor extends RaftGroupProcessor<RaftPingFrameCallback>
     public static final PbNoCopyDecoder<RaftPingFrameCallback> DECODER = new PbNoCopyDecoder<>(context ->
             new RaftPingFrameCallback());
 
-    public RaftPingProcessor(boolean runInCurrentThread, RaftServer raftServer) {
-        super(runInCurrentThread, raftServer);
+    public RaftPingProcessor(RaftServer raftServer) {
+        super(false, raftServer);
     }
 
     @Override

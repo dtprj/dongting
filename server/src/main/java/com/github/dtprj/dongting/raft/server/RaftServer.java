@@ -131,11 +131,11 @@ public class RaftServer extends AbstractLifeCircle {
         setupNioConfig(repServerConfig);
         replicateNioServer = new NioServer(repServerConfig);
         replicateNioServer.register(Commands.NODE_PING, new NodePingProcessor(serverConfig.getNodeId(), nodeManager.getUuid()));
-        replicateNioServer.register(Commands.RAFT_PING, new RaftPingProcessor(false, this));
-        replicateNioServer.register(Commands.RAFT_APPEND_ENTRIES, new AppendProcessor(false, this, raftGroups));
-        replicateNioServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(false, this));
-        replicateNioServer.register(Commands.RAFT_INSTALL_SNAPSHOT, new InstallSnapshotProcessor(false, this));
-        replicateNioServer.register(Commands.RAFT_LEADER_TRANSFER, new TransferLeaderProcessor(false, this));
+        replicateNioServer.register(Commands.RAFT_PING, new RaftPingProcessor(this));
+        replicateNioServer.register(Commands.RAFT_APPEND_ENTRIES, new AppendProcessor(this, raftGroups));
+        replicateNioServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(this));
+        replicateNioServer.register(Commands.RAFT_INSTALL_SNAPSHOT, new InstallSnapshotProcessor(this));
+        replicateNioServer.register(Commands.RAFT_LEADER_TRANSFER, new TransferLeaderProcessor(this));
 
         if (serverConfig.getServicePort() > 0) {
             NioServerConfig serviceServerConfig = new NioServerConfig();
@@ -144,7 +144,7 @@ public class RaftServer extends AbstractLifeCircle {
             serviceServerConfig.setBizThreads(0);
             // use multi io threads
             serviceNioServer = new NioServer(serviceServerConfig);
-            serviceNioServer.register(Commands.RAFT_QUERY_LEADER, new QueryLeaderProcessor(false, this));
+            serviceNioServer.register(Commands.RAFT_QUERY_LEADER, new QueryLeaderProcessor(this));
         } else {
             serviceNioServer = null;
         }

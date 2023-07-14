@@ -33,8 +33,8 @@ import com.github.dtprj.dongting.raft.server.RaftServer;
  */
 public class QueryLeaderProcessor extends RaftGroupProcessor<Integer> {
 
-    public QueryLeaderProcessor(boolean runInCurrentThread, RaftServer raftServer) {
-        super(runInCurrentThread, raftServer);
+    public QueryLeaderProcessor(RaftServer raftServer) {
+        super(false, raftServer);
     }
 
     @Override

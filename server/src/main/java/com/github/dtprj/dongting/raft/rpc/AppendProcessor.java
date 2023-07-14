@@ -75,8 +75,8 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
         }
     }
 
-    public AppendProcessor(boolean runInCurrentThread, RaftServer raftServer, RaftGroups raftGroups) {
-        super(runInCurrentThread, raftServer);
+    public AppendProcessor(RaftServer raftServer, RaftGroups raftGroups) {
+        super(false, raftServer);
         decoder = new PbNoCopyDecoder<>(decodeContext -> new AppendReqCallback(decodeContext, raftGroups));
     }
 
