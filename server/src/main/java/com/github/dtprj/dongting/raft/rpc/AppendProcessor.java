@@ -92,11 +92,7 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
         AppendReqCallback req = rf.getBody();
         RaftGroupImpl gc = (RaftGroupImpl) rg;
         RaftStatusImpl raftStatus = gc.getRaftStatus();
-        if (raftStatus.isError()) {
-            resp.setSuccess(false);
-            resp.setAppendCode(CODE_SERVER_ERROR);
-            resp.setMsg("server in error state");
-        } else if (gc.getMemberManager().checkLeader(req.getLeaderId())) {
+        if (gc.getMemberManager().checkLeader(req.getLeaderId())) {
             int remoteTerm = req.getTerm();
             int localTerm = raftStatus.getCurrentTerm();
             if (remoteTerm == localTerm) {

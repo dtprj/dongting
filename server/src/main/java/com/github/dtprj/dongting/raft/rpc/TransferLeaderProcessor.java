@@ -57,10 +57,6 @@ public class TransferLeaderProcessor extends RaftGroupProcessor<TransferLeaderRe
         TransferLeaderReq req = frame.getBody();
         RaftGroupImpl gc = (RaftGroupImpl) rg;
         RaftStatusImpl raftStatus = gc.getRaftStatus();
-        if (raftStatus.isError()) {
-            log.error("transfer leader fail, error state, groupId={}", req.groupId);
-            throw new NetCodeException(CmdCodes.BIZ_ERROR, "in error state");
-        }
         if (raftStatus.getRole() != RaftRole.follower) {
             log.error("transfer leader fail, not follower, groupId={}, role={}", req.groupId, raftStatus.getRole());
             throw new NetCodeException(CmdCodes.BIZ_ERROR, "transfer leader fail, not follower");

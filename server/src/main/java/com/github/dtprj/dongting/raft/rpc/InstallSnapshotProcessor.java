@@ -63,9 +63,7 @@ public class InstallSnapshotProcessor extends RaftGroupProcessor<InstallSnapshot
             RaftGroupImpl gc = (RaftGroupImpl) rg;
             RaftStatusImpl raftStatus = gc.getRaftStatus();
 
-            if (raftStatus.isError()) {
-                resp.success = false;
-            } else if (gc.getMemberManager().checkLeader(req.leaderId)) {
+            if (gc.getMemberManager().checkLeader(req.leaderId)) {
                 int localTerm = raftStatus.getCurrentTerm();
                 if (remoteTerm == localTerm) {
                     if (raftStatus.getRole() == RaftRole.follower) {

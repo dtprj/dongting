@@ -36,7 +36,7 @@ public abstract class RaftGroupProcessor<T> extends ReqProcessor<T> {
     private static final DtLog log = DtLogs.getLogger(RaftGroupProcessor.class);
     private final boolean runInCurrentThread;
 
-    private RaftServer raftServer;
+    private final RaftServer raftServer;
 
     public RaftGroupProcessor(boolean runInCurrentThread, RaftServer raftServer) {
         this.runInCurrentThread = runInCurrentThread;
