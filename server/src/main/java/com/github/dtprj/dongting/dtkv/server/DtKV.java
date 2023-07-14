@@ -158,6 +158,13 @@ public class DtKV implements StateMachine {
         }
     }
 
+    /**
+     * read in other threads.
+     */
+    public byte[] get(String key) {
+        return kvStatus.kvImpl.get(key);
+    }
+
     @Override
     public void installSnapshot(long lastIncludeIndex, int lastIncludeTerm, long offset, boolean done, RefBuffer data) {
         if (offset == 0) {

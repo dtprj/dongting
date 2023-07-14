@@ -50,6 +50,7 @@ import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.InstallSnapshotProcessor;
 import com.github.dtprj.dongting.raft.rpc.NodePingProcessor;
 import com.github.dtprj.dongting.raft.rpc.QueryLeaderProcessor;
+import com.github.dtprj.dongting.raft.rpc.RaftGroupProcessor;
 import com.github.dtprj.dongting.raft.rpc.RaftPingProcessor;
 import com.github.dtprj.dongting.raft.rpc.TransferLeaderProcessor;
 import com.github.dtprj.dongting.raft.rpc.VoteProcessor;
@@ -144,17 +145,10 @@ public class RaftServer extends AbstractLifeCircle {
             serviceServerConfig.setBizThreads(0);
             // use multi io threads
             serviceNioServer = new NioServer(serviceServerConfig);
-            registerServiceProcessor(Commands.RAFT_QUERY_LEADER, new QueryLeaderProcessor());
+            registerProcessor(serviceNioServer, Commands.RAFT_QUERY_LEADER, new QueryLeaderProcessor());
         } else {
             serviceNioServer = null;
         }
-    }
-
-    public void registerServiceProcessor(int command, RaftGroupProcessor<?> processor) {
-        if (serviceNioServer == null) {
-            throw new IllegalStateException("service port not configured");
-        }
-        registerProcessor(serviceNioServer, command, processor);
     }
 
     private void registerProcessor(NioServer nioServer, int command, RaftGroupProcessor<?> processor) {
@@ -473,4 +467,7 @@ public class RaftServer extends AbstractLifeCircle {
         return raftGroups.get(groupId);
     }
 
+    public NioServer getServiceNioServer() {
+        return serviceNioServer;
+    }
 }

@@ -24,13 +24,13 @@ import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespFrame;
 import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
-import com.github.dtprj.dongting.raft.server.RaftGroupProcessor;
 
 /**
  * @author huangli
@@ -47,7 +47,8 @@ public class TransferLeaderProcessor extends RaftGroupProcessor<TransferLeaderRe
     }
 
     @Override
-    protected WriteFrame doProcess(ReadFrame<TransferLeaderReq> frame, ChannelContext channelContext, RaftGroup rg) {
+    protected WriteFrame doProcess(ReadFrame<TransferLeaderReq> frame, ChannelContext channelContext,
+                                   ReqContext reqContext, RaftGroup rg) {
         TransferLeaderReq req = frame.getBody();
         RaftGroupImpl gc = (RaftGroupImpl) rg;
         RaftStatusImpl raftStatus = gc.getRaftStatus();

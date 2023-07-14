@@ -21,7 +21,7 @@ import java.util.function.Function;
 /**
  * @author huangli
  */
-public class PbNoCopyDecoder<T> implements Decoder<T> {
+public final class PbNoCopyDecoder<T> implements Decoder<T> {
 
     private final Function<DecodeContext, PbCallback<T>> callbackCreator;
 

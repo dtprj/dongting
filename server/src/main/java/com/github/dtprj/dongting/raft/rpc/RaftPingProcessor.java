@@ -20,10 +20,10 @@ import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.net.ChannelContext;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
-import com.github.dtprj.dongting.raft.server.RaftGroupProcessor;
 
 /**
  * @author huangli
@@ -41,7 +41,8 @@ public class RaftPingProcessor extends RaftGroupProcessor<RaftPingFrameCallback>
     }
 
     @Override
-    protected WriteFrame doProcess(ReadFrame<RaftPingFrameCallback> frame, ChannelContext channelContext, RaftGroup rg) {
+    protected WriteFrame doProcess(ReadFrame<RaftPingFrameCallback> frame, ChannelContext channelContext,
+                                   ReqContext reqContext, RaftGroup rg) {
         RaftGroupImpl gc = (RaftGroupImpl) rg;
         RaftPingWriteFrame resp = new RaftPingWriteFrame(gc.getServerConfig().getNodeId(),
                 gc.getGroupConfig().getGroupId(), gc.getRaftStatus().getNodeIdOfMembers(),

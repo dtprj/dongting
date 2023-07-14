@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.ChannelContext;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
@@ -29,7 +30,6 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.StatusUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
-import com.github.dtprj.dongting.raft.server.RaftGroupProcessor;
 
 /**
  * @author huangli
@@ -48,7 +48,8 @@ public class VoteProcessor extends RaftGroupProcessor<VoteReq> {
     }
 
     @Override
-    protected WriteFrame doProcess(ReadFrame<VoteReq> rf, ChannelContext channelContext, RaftGroup rg) {
+    protected WriteFrame doProcess(ReadFrame<VoteReq> rf, ChannelContext channelContext,
+                                   ReqContext reqContext, RaftGroup rg) {
         VoteReq voteReq = rf.getBody();
         VoteResp resp = new VoteResp();
         RaftGroupImpl gc = (RaftGroupImpl) rg;

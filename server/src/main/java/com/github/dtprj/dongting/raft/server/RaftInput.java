@@ -26,9 +26,9 @@ public final class RaftInput {
     private final boolean readOnly;
     private final Object header;
     private final Object body;
-    private final int flowControlSize;
+    private final long flowControlSize;
 
-    public RaftInput(int bizType, Object header, Object body, DtTime deadline, int flowControlSize) {
+    public RaftInput(int bizType, Object header, Object body, DtTime deadline, long flowControlSize) {
         if (bizType < 0 || bizType > 127) {
             // we use 1 byte to store bizType in raft log
             throw new IllegalArgumentException("bizType must be in [0, 127]");
@@ -41,7 +41,7 @@ public final class RaftInput {
         this.flowControlSize = flowControlSize;
     }
 
-    public int getFlowControlSize() {
+    public long getFlowControlSize() {
         return flowControlSize;
     }
 

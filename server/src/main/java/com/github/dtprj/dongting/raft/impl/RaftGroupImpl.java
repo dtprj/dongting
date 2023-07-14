@@ -17,11 +17,11 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
+import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -34,9 +34,7 @@ import com.github.dtprj.dongting.raft.store.RaftLog;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 /**
  * @author huangli
@@ -79,7 +77,6 @@ public class RaftGroupImpl extends RaftGroup {
     @SuppressWarnings({"rawtypes", "unchecked"})
     public CompletableFuture<RaftOutput> submitLinearTask(RaftInput input) throws RaftException {
         Objects.requireNonNull(input);
-        Objects.requireNonNull(input.getBody());
         RaftStatusImpl raftStatus = this.raftStatus;
         if (raftStatus.isError()) {
             throw new RaftException("raft status is error");
@@ -94,7 +91,7 @@ public class RaftGroupImpl extends RaftGroup {
             PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, -1);
             throw new RaftException(msg);
         }
-        int size = input.getFlowControlSize();
+        long size = input.getFlowControlSize();
         long currentPendingWriteBytes = (long) PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, size);
         if (currentPendingWriteBytes >= serverConfig.getMaxPendingWriteBytes()) {
             String msg = "too many pending write bytes,currentPendingWriteBytes="
@@ -108,7 +105,7 @@ public class RaftGroupImpl extends RaftGroup {
         return f;
     }
 
-    private void registerCallback(CompletableFuture<?> f, int size) {
+    private void registerCallback(CompletableFuture<?> f, long size) {
         f.whenComplete((o, ex) -> {
             PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, -1);
             PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, -size);
@@ -116,34 +113,37 @@ public class RaftGroupImpl extends RaftGroup {
     }
 
     @Override
-    public long getLogIndexForRead(DtTime deadline)
-            throws RaftException, InterruptedException, TimeoutException {
+    public CompletableFuture<Long> getLogIndexForRead(DtTime deadline) {
         RaftStatusImpl raftStatus = this.raftStatus;
         if (raftStatus.isError()) {
-            throw new RaftException("raft status error");
+            return CompletableFuture.failedFuture(new RaftException("raft status error"));
         }
         if (raftStatus.isStop()) {
-            throw new RaftException("raft group thread is stop");
+            return CompletableFuture.failedFuture(new RaftException("raft group thread is stop"));
         }
         ShareStatus ss = raftStatus.getShareStatus();
         // NOTICE : timestamp is not thread safe
         readTimestamp.refresh(1);
         if (ss.role != RaftRole.leader) {
-            throw new NotLeaderException(ss.currentLeader == null ? null : ss.currentLeader.getNode());
+            return CompletableFuture.failedFuture(new NotLeaderException(
+                    ss.currentLeader == null ? null : ss.currentLeader.getNode()));
         }
         long t = readTimestamp.getNanoTime();
         if (ss.leaseEndNanos - t < 0) {
-            throw new NotLeaderException(null);
+            return CompletableFuture.failedFuture(new NotLeaderException(null));
         }
-        if (ss.firstCommitOfApplied != null) {
-            try {
-                ss.firstCommitOfApplied.get(deadline.rest(TimeUnit.NANOSECONDS), TimeUnit.NANOSECONDS);
-            } catch (ExecutionException e) {
-                BugLog.log(e);
-                throw new RaftException(e);
+        if (ss.firstCommitOfApplied == null) {
+            return CompletableFuture.completedFuture(ss.lastApplied);
+        }
+
+        // wait fist commit of applied
+        return ss.firstCommitOfApplied.thenCompose(v -> {
+            if (deadline.isTimeout()) {
+                return CompletableFuture.failedFuture(new RaftExecTimeoutException());
             }
-        }
-        return ss.lastApplied;
+            // ss should re-read
+            return getLogIndexForRead(deadline);
+        });
     }
 
     @Override

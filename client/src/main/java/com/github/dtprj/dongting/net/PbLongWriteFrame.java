@@ -18,31 +18,25 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.codec.PbUtil;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 
 /**
  * @author huangli
  */
-public class SimpleStrWriteFrame extends SmallNoCopyWriteFrame {
+public class PbLongWriteFrame extends SmallNoCopyWriteFrame {
 
-    private final byte[] bytes;
+    private final long value;
 
-    public SimpleStrWriteFrame(String value) {
-        if (value != null) {
-            bytes = value.getBytes(StandardCharsets.UTF_8);
-        } else {
-            bytes = null;
-        }
+    public PbLongWriteFrame(long value) {
+        this.value = value;
     }
 
     @Override
     protected void encodeBody(ByteBuffer buf) {
-        PbUtil.writeLengthDelimitedPrefix(buf, 1, bytes.length);
-        buf.put(bytes);
+        PbUtil.writeFix64(buf, 1, value);
     }
 
     @Override
     protected int calcActualBodySize() {
-        return bytes == null ? 0 : PbUtil.accurateLengthDelimitedSize(1, bytes.length);
+        return value == 0 ? 0 : 9;
     }
 }

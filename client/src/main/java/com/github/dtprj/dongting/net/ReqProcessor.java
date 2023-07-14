@@ -27,7 +27,8 @@ public abstract class ReqProcessor<T> {
     private Executor executor;
     private boolean useDefaultExecutor;
 
-    public abstract WriteFrame process(ReadFrame<T> frame, ChannelContext channelContext, ReqContext reqContext);
+    public abstract WriteFrame process(ReadFrame<T> frame, ChannelContext channelContext,
+                                       ReqContext reqContext) throws Exception;
 
     public abstract Decoder<T> createDecoder();
 

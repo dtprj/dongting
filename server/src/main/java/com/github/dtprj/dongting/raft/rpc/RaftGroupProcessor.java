@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.server;
+package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -26,6 +26,7 @@ import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftGroups;
+import com.github.dtprj.dongting.raft.server.RaftGroup;
 
 /**
  * @author huangli
@@ -38,22 +39,23 @@ public abstract class RaftGroupProcessor<T> extends ReqProcessor<T> {
     public RaftGroupProcessor() {
     }
 
-    void setRaftGroups(RaftGroups raftGroups) {
+    public void setRaftGroups(RaftGroups raftGroups) {
         this.raftGroups = raftGroups;
     }
 
     protected abstract int getGroupId(ReadFrame<T> frame);
 
-    protected abstract WriteFrame doProcess(ReadFrame<T> frame, ChannelContext channelContext, RaftGroup gc);
+    protected abstract WriteFrame doProcess(ReadFrame<T> frame, ChannelContext channelContext,
+                                            ReqContext reqContext, RaftGroup raftGroup);
 
     @Override
     public final WriteFrame process(ReadFrame<T> frame, ChannelContext channelContext, ReqContext reqContext) {
         int groupId = getGroupId(frame);
         RaftGroupImpl gc = raftGroups.get(groupId);
         if (gc == null) {
-            log.error("raft group not found: {}", groupId);
             EmptyBodyRespFrame wf = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
             wf.setMsg("raft group not found: " + groupId);
+            log.error(wf.getMsg());
             return wf;
         }
 
@@ -68,7 +70,7 @@ public abstract class RaftGroupProcessor<T> extends ReqProcessor<T> {
     }
 
     private void process(ReadFrame<T> frame, ChannelContext channelContext, ReqContext reqContext, RaftGroup rg) {
-        WriteFrame wf = doProcess(frame, channelContext, rg);
+        WriteFrame wf = doProcess(frame, channelContext, reqContext, rg);
         if (wf != null) {
             channelContext.getRespWriter().writeRespInBizThreads(frame, wf, reqContext.getTimeout());
         }

@@ -23,6 +23,9 @@ import com.github.dtprj.dongting.common.DtTime;
 public class ReqContext {
     private DtTime timeout;
 
+    public ReqContext() {
+    }
+
     public DtTime getTimeout() {
         return timeout;
     }

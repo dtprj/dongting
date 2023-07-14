@@ -34,9 +34,9 @@ import com.github.dtprj.dongting.net.NetTimeoutException;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.NioNet;
+import com.github.dtprj.dongting.net.PbIntWriteFrame;
 import com.github.dtprj.dongting.net.Peer;
 import com.github.dtprj.dongting.net.ReadFrame;
-import com.github.dtprj.dongting.net.SimpleIntWriteFrame;
 import com.github.dtprj.dongting.net.WriteFrame;
 
 import java.nio.charset.StandardCharsets;
@@ -249,7 +249,7 @@ public class RaftClient extends AbstractLifeCircle {
             return;
         }
         Peer p = it.next();
-        SimpleIntWriteFrame req = new SimpleIntWriteFrame(groupInfo.getGroupId());
+        PbIntWriteFrame req = new PbIntWriteFrame(groupInfo.getGroupId());
         req.setCommand(Commands.RAFT_QUERY_LEADER);
         client.sendRequest(p, req, PbNoCopyDecoder.SIMPLE_STR_DECODER, timeout).whenComplete((rf, ex) -> {
             if (ex != null) {
@@ -270,7 +270,6 @@ public class RaftClient extends AbstractLifeCircle {
     private Peer parseLeaderFromExtra(ReadFrame<?> frame, GroupInfo groupInfo) {
         byte[] bs = frame.getExtra();
         if (bs == null) {
-            log.error("extra is null");
             return null;
         }
         String s = new String(bs, StandardCharsets.UTF_8);

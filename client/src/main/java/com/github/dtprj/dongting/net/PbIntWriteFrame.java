@@ -13,5 +13,30 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-syntax = "proto3";
-option java_package = "com.github.dtprj.dongting.raft";
+package com.github.dtprj.dongting.net;
+
+import com.github.dtprj.dongting.codec.PbUtil;
+
+import java.nio.ByteBuffer;
+
+/**
+ * @author huangli
+ */
+public class PbIntWriteFrame extends SmallNoCopyWriteFrame {
+
+    private final int value;
+
+    public PbIntWriteFrame(int value) {
+        this.value = value;
+    }
+
+    @Override
+    protected void encodeBody(ByteBuffer buf) {
+        PbUtil.writeFix32(buf, 1, value);
+    }
+
+    @Override
+    protected int calcActualBodySize() {
+        return value == 0 ? 0 : 5;
+    }
+}

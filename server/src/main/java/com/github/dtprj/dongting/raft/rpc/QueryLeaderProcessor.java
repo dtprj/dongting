@@ -19,13 +19,13 @@ import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.net.ChannelContext;
 import com.github.dtprj.dongting.net.HostPort;
+import com.github.dtprj.dongting.net.PbStrWriteFrame;
 import com.github.dtprj.dongting.net.ReadFrame;
-import com.github.dtprj.dongting.net.SimpleStrWriteFrame;
+import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.RaftMember;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
-import com.github.dtprj.dongting.raft.server.RaftGroupProcessor;
 
 /**
  * @author huangli
@@ -43,14 +43,15 @@ public class QueryLeaderProcessor extends RaftGroupProcessor<Integer> {
     }
 
     @Override
-    protected WriteFrame doProcess(ReadFrame<Integer> frame, ChannelContext channelContext, RaftGroup rg) {
+    protected WriteFrame doProcess(ReadFrame<Integer> frame, ChannelContext channelContext,
+                                   ReqContext reqContext, RaftGroup rg) {
         RaftStatusImpl raftStatus = (RaftStatusImpl) rg.getRaftStatus();
         RaftMember leader = raftStatus.getCurrentLeader();
         if (leader == null) {
-            return new SimpleStrWriteFrame(null);
+            return new PbStrWriteFrame(null);
         } else {
             HostPort hp = leader.getNode().getPeer().getEndPoint();
-            return new SimpleStrWriteFrame(hp.getHost() + ":" + hp.getPort());
+            return new PbStrWriteFrame(hp.getHost() + ":" + hp.getPort());
         }
     }
 }

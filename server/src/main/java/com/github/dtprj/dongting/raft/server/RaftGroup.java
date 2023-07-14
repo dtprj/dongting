@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeoutException;
 
 /**
  * @author huangli
@@ -41,8 +40,7 @@ public abstract class RaftGroup {
     public abstract CompletableFuture<RaftOutput> submitLinearTask(RaftInput input) throws RaftException;
 
     @SuppressWarnings("unused")
-    public abstract long getLogIndexForRead(DtTime deadline)
-            throws RaftException, InterruptedException, TimeoutException;
+    public abstract CompletableFuture<Long> getLogIndexForRead(DtTime deadline);
 
 
     /**

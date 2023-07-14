@@ -13,18 +13,19 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.net;
+package com.github.dtprj.dongting.raft;
 
 /**
  * @author huangli
  */
-public interface CmdCodes {
-    int SUCCESS = 0;
-    int CLIENT_ERROR = 1;
-    int SYS_ERROR = 2;
-    int COMMAND_NOT_SUPPORT = 3;
-    int STOPPING = 4;
-    int BIZ_ERROR = 5;
-    int FLOW_CONTROL = 6;
-    int NOT_RAFT_LEADER = 7;
+public abstract class RaftReq {
+    private int groupId;
+
+    public int getGroupId() {
+        return groupId;
+    }
+
+    public void setGroupId(int groupId) {
+        this.groupId = groupId;
+    }
 }

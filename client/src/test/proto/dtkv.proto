@@ -13,18 +13,9 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.net;
-
-/**
- * @author huangli
- */
-public interface CmdCodes {
-    int SUCCESS = 0;
-    int CLIENT_ERROR = 1;
-    int SYS_ERROR = 2;
-    int COMMAND_NOT_SUPPORT = 3;
-    int STOPPING = 4;
-    int BIZ_ERROR = 5;
-    int FLOW_CONTROL = 6;
-    int NOT_RAFT_LEADER = 7;
+syntax = "proto3";
+option java_package = "com.github.dtprj.dongting.dtkv";
+message GetReq {
+  fixed32 group_id = 1;
+  string key = 2;
 }

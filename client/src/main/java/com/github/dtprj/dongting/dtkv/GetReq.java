@@ -13,30 +13,21 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.net;
+package com.github.dtprj.dongting.dtkv;
 
-import com.github.dtprj.dongting.codec.PbUtil;
-
-import java.nio.ByteBuffer;
+import com.github.dtprj.dongting.raft.RaftReq;
 
 /**
  * @author huangli
  */
-public class SimpleIntWriteFrame extends SmallNoCopyWriteFrame {
+public class GetReq extends RaftReq {
+    private String key;
 
-    private final int value;
-
-    public SimpleIntWriteFrame(int value) {
-        this.value = value;
+    public String getKey() {
+        return key;
     }
 
-    @Override
-    protected void encodeBody(ByteBuffer buf) {
-        PbUtil.writeFix32(buf, 1, value);
-    }
-
-    @Override
-    protected int calcActualBodySize() {
-        return value == 0 ? 0 : 5;
+    public void setKey(String key) {
+        this.key = key;
     }
 }
