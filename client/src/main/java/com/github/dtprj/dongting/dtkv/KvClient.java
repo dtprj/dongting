@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.net.NioClientConfig;
+import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.SmallNoCopyWriteFrame;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.RaftClient;
@@ -85,7 +86,7 @@ public class KvClient extends AbstractLifeCircle {
             }
         };
         return raftClient.sendRequest(groupId, wf, ByteArrayDecoder.INSTANCE, timeout)
-                .thenApply(f -> f.getBody());
+                .thenApply(ReadFrame::getBody);
     }
 
     public CompletableFuture<Boolean> remove(int groupId, String key, DtTime timeout) {
@@ -107,7 +108,7 @@ public class KvClient extends AbstractLifeCircle {
             }
         };
         return raftClient.sendRequest(groupId, wf, PbNoCopyDecoder.SIMPLE_INT_DECODER, timeout)
-                .thenApply(f -> f.getBody() == null ? false : f.getBody() != 0);
+                .thenApply(f -> f.getBody() != null && f.getBody() != 0);
     }
 
     @Override
