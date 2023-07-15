@@ -15,15 +15,14 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.codec.ByteArrayDecoder;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.codec.StrFiledDecoder;
-import com.github.dtprj.dongting.dtkv.PutReq;
+import com.github.dtprj.dongting.dtkv.RemoveReq;
 import com.github.dtprj.dongting.net.ChannelContext;
 import com.github.dtprj.dongting.net.CmdCodes;
-import com.github.dtprj.dongting.net.EmptyBodyRespFrame;
+import com.github.dtprj.dongting.net.PbIntWriteFrame;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WriteFrame;
@@ -40,12 +39,10 @@ import java.util.concurrent.CompletableFuture;
 /**
  * @author huangli
  */
-public class PutProcessor extends RaftGroupProcessor<PutReq> {
+public class RemoveProcessor extends RaftGroupProcessor<RemoveReq> {
 
-    private static final PbNoCopyDecoder<PutReq> DECODER = new PbNoCopyDecoder<>(c -> new PbCallback<>() {
-
-        private final PutReq result = new PutReq();
-
+    private static final PbNoCopyDecoder<RemoveReq> DECODER = new PbNoCopyDecoder<>(c -> new PbCallback<>() {
+        private final RemoveReq result = new RemoveReq();
         @Override
         public boolean readVarNumber(int index, long value) {
             if (index == 1) {
@@ -58,49 +55,44 @@ public class PutProcessor extends RaftGroupProcessor<PutReq> {
         public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == 2) {
                 result.setKey(StrFiledDecoder.parseUTF8(c, buf, fieldLen, currentPos));
-            } else if (index == 3) {
-                result.setValue(ByteArrayDecoder.decodeToArray(c, buf, fieldLen, currentPos));
             }
             return true;
         }
 
         @Override
-        public PutReq getResult() {
+        public RemoveReq getResult() {
             return result;
         }
     });
 
-    public PutProcessor(RaftServer raftServer) {
+    public RemoveProcessor(RaftServer raftServer) {
         super(true, raftServer);
     }
 
-
     @Override
-    public Decoder<PutReq> createDecoder() {
+    public Decoder<RemoveReq> createDecoder() {
         return DECODER;
     }
 
     @Override
-    protected int getGroupId(ReadFrame<PutReq> frame) {
+    protected int getGroupId(ReadFrame<RemoveReq> frame) {
         return frame.getBody().getGroupId();
     }
 
-    /**
-     * run in io thread.
-     */
     @Override
-    protected WriteFrame doProcess(ReadFrame<PutReq> frame, ChannelContext channelContext,
+    protected WriteFrame doProcess(ReadFrame<RemoveReq> frame, ChannelContext channelContext,
                                    ReqContext reqContext, RaftGroup raftGroup) {
-        PutReq req = frame.getBody();
-        byte[] data = req.getValue();
-        RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_PUT, req.getKey(), data,
-                reqContext.getTimeout(), data == null ? 0 : data.length);
+        RemoveReq req = frame.getBody();
+        RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_REMOVE, req.getKey(), null,
+                reqContext.getTimeout(), 0);
         CompletableFuture<RaftOutput> f = raftGroup.submitLinearTask(ri);
         f.whenComplete((output, ex) -> {
             if (ex != null) {
                 RaftUtil.processError(frame, channelContext, reqContext, ex);
             } else {
-                EmptyBodyRespFrame resp = new EmptyBodyRespFrame(CmdCodes.SUCCESS);
+                Boolean result = (Boolean) output.getResult();
+                PbIntWriteFrame resp = new PbIntWriteFrame(result ? 1 : 0);
+                resp.setRespCode(CmdCodes.SUCCESS);
                 channelContext.getRespWriter().writeRespInBizThreads(frame, resp, reqContext.getTimeout());
             }
         });
