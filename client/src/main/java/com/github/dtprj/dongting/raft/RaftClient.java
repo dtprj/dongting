@@ -61,8 +61,7 @@ public class RaftClient extends AbstractLifeCircle {
     private final Map<HostPort, Pair<RefCount, Peer>> peers = new HashMap<>();
     private volatile IntObjMap<GroupInfo> groups = new IntObjMap<>();
 
-    public RaftClient() {
-        NioClientConfig nioClientConfig = new NioClientConfig();
+    public RaftClient(NioClientConfig nioClientConfig) {
         this.client = new NioClient(nioClientConfig);
     }
 

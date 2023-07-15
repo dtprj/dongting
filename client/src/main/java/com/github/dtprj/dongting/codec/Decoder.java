@@ -37,4 +37,6 @@ public interface Decoder<T> {
         return result;
     }
 
+    Decoder<Void> VOID_DECODER = (context, buffer, bodyLen, currentPos) -> null;
+
 }
