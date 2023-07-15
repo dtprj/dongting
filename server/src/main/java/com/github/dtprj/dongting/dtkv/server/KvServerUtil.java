@@ -13,30 +13,24 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.net;
+package com.github.dtprj.dongting.dtkv.server;
+
+import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.NioServer;
+import com.github.dtprj.dongting.raft.server.RaftServer;
 
 /**
  * @author huangli
  */
-public interface Commands {
-    // 1 ~ 15
-    int CMD_PING = 1;
-    int RAFT_APPEND_ENTRIES = 2;
+public class KvServerUtil {
 
-    // 16 ~ 29 for rpc
-
-    // 100 ~ 109 for raft server
-    int NODE_PING = 100;
-    int RAFT_PING = 101;
-    int RAFT_REQUEST_VOTE = 102;
-    int RAFT_INSTALL_SNAPSHOT = 103;
-    int RAFT_LEADER_TRANSFER = 104;
-
-    // 110 ~ 119 for raft client
-    int RAFT_QUERY_LEADER = 110;
-
-    // 120 ~ 139 for dt kv
-    int DTKV_GET = 120;
-    int DTKV_PUT = 121;
-    int DTKV_REMOVE = 122;
+    /**
+     * call after RaftServer init, before RaftServer start
+     */
+    public static void initKvServer(RaftServer server){
+        NioServer nioServer = server.getServiceNioServer();
+        nioServer.register(Commands.DTKV_GET, new GetProcessor(server));
+        nioServer.register(Commands.DTKV_PUT, new PutProcessor(server));
+        nioServer.register(Commands.DTKV_REMOVE, new RemoveProcessor(server));
+    }
 }
