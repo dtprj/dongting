@@ -15,18 +15,26 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.FlowControlException;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.ChannelContext;
+import com.github.dtprj.dongting.net.CmdCodes;
+import com.github.dtprj.dongting.net.EmptyBodyRespFrame;
 import com.github.dtprj.dongting.net.NioNet;
+import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.InitCanceledException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
+import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftNode;
 import com.github.dtprj.dongting.raft.server.UnrecoverableException;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -34,6 +42,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
@@ -306,5 +315,33 @@ public class RaftUtil {
         crc32c.update(buf);
         buf.limit(oldLimit);
         buf.position(oldPos);
+    }
+
+    public static void processError(ReadFrame<?> frame, ChannelContext channelContext,
+                                    ReqContext reqContext, Throwable ex) {
+        if (ex instanceof RaftExecTimeoutException) {
+            log.warn("raft operation timeout");
+            return;
+        }
+        if (ex instanceof CompletionException) {
+            ex = ex.getCause();
+        }
+        EmptyBodyRespFrame errorResp;
+        if (ex instanceof FlowControlException) {
+            errorResp = new EmptyBodyRespFrame(CmdCodes.FLOW_CONTROL);
+        } else if (ex instanceof NotLeaderException) {
+            errorResp = new EmptyBodyRespFrame(CmdCodes.NOT_RAFT_LEADER);
+            RaftNode leader = ((NotLeaderException) ex).getCurrentLeader();
+            if (leader != null) {
+                String hpStr = leader.getHostPort().getHost() + ":" + leader.getHostPort().getPort();
+                errorResp.setExtra(hpStr.getBytes(StandardCharsets.UTF_8));
+            }
+            log.warn("not leader, current leader is {}", leader);
+        } else {
+            errorResp = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
+            log.warn("raft processor error: {}", ex.toString());
+        }
+        errorResp.setMsg(ex.toString());
+        channelContext.getRespWriter().writeRespInBizThreads(frame, errorResp, reqContext.getTimeout());
     }
 }

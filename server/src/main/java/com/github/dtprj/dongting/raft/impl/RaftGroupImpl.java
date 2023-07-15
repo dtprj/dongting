@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.FlowControlException;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -75,21 +76,21 @@ public class RaftGroupImpl extends RaftGroup {
 
     @Override
     @SuppressWarnings({"rawtypes", "unchecked"})
-    public CompletableFuture<RaftOutput> submitLinearTask(RaftInput input) throws RaftException {
+    public CompletableFuture<RaftOutput> submitLinearTask(RaftInput input) {
         Objects.requireNonNull(input);
         RaftStatusImpl raftStatus = this.raftStatus;
         if (raftStatus.isError()) {
-            throw new RaftException("raft status is error");
+            return CompletableFuture.failedFuture(new RaftException("raft status is error"));
         }
         if (raftStatus.isStop()) {
-            throw new RaftException("raft group thread is stop");
+            return CompletableFuture.failedFuture(new RaftException("raft group thread is stop"));
         }
         int currentPendingWrites = (int) PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, 1);
         if (currentPendingWrites >= serverConfig.getMaxPendingWrites()) {
             String msg = "submitRaftTask failed: too many pending writes, currentPendingWrites=" + currentPendingWrites;
             log.warn(msg);
             PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, -1);
-            throw new RaftException(msg);
+            return CompletableFuture.failedFuture(new FlowControlException(msg));
         }
         long size = input.getFlowControlSize();
         long currentPendingWriteBytes = (long) PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, size);
@@ -98,7 +99,7 @@ public class RaftGroupImpl extends RaftGroup {
                     + currentPendingWriteBytes + ", currentRequestBytes=" + size;
             log.warn(msg);
             PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, -size);
-            throw new RaftException(msg);
+            return CompletableFuture.failedFuture(new FlowControlException(msg));
         }
         CompletableFuture f = raftGroupThread.submitRaftTask(input);
         registerCallback(f, size);

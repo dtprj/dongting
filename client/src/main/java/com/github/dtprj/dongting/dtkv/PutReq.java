@@ -13,15 +13,30 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-syntax = "proto3";
-option java_package = "com.github.dtprj.dongting.dtkv";
-message GetReq {
-  uint32 group_id = 1;
-  string key = 2;
-}
+package com.github.dtprj.dongting.dtkv;
 
-message PutReq {
-  uint32 group_id = 1;
-  string key = 2;
-  bytes value = 3;
+import com.github.dtprj.dongting.raft.RaftReq;
+
+/**
+ * @author huangli
+ */
+public class PutReq extends RaftReq {
+    private String key;
+    private byte[] value;
+
+    public String getKey() {
+        return key;
+    }
+
+    public void setKey(String key) {
+        this.key = key;
+    }
+
+    public byte[] getValue() {
+        return value;
+    }
+
+    public void setValue(byte[] value) {
+        this.value = value;
+    }
 }

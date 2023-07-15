@@ -13,15 +13,15 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-syntax = "proto3";
-option java_package = "com.github.dtprj.dongting.dtkv";
-message GetReq {
-  uint32 group_id = 1;
-  string key = 2;
-}
+package com.github.dtprj.dongting.common;
 
-message PutReq {
-  uint32 group_id = 1;
-  string key = 2;
-  bytes value = 3;
+/**
+ * @author huangli
+ */
+public class FlowControlException extends DtException {
+    private static final long serialVersionUID = -6618236160408545535L;
+
+    public FlowControlException(String msg) {
+        super(msg);
+    }
 }

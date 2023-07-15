@@ -28,14 +28,21 @@ public class ByteArrayDecoder implements Decoder<byte[]> {
 
     @Override
     public byte[] decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
+        return decodeToArray(context, buffer, bodyLen, currentPos);
+    }
+
+    public static byte[] decodeToArray(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
+        boolean start = currentPos == 0;
+        int remaining = buffer.remaining();
+        boolean end = remaining >= bodyLen - currentPos;
         byte[] data;
-        if (currentPos == 0) {
+        if (start) {
             data = new byte[bodyLen];
             context.setStatus(data);
         } else {
             data = (byte[]) context.getStatus();
         }
-        buffer.get(data, currentPos, Math.min(buffer.remaining(), bodyLen - currentPos));
-        return data;
+        buffer.get(data, currentPos, Math.min(remaining, bodyLen - currentPos));
+        return end ? data : null;
     }
 }

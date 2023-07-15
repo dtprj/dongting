@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 
@@ -37,7 +36,7 @@ public abstract class RaftGroup {
     public abstract int getGroupId();
 
     @SuppressWarnings("unused")
-    public abstract CompletableFuture<RaftOutput> submitLinearTask(RaftInput input) throws RaftException;
+    public abstract CompletableFuture<RaftOutput> submitLinearTask(RaftInput input);
 
     @SuppressWarnings("unused")
     public abstract CompletableFuture<Long> getLogIndexForRead(DtTime deadline);
