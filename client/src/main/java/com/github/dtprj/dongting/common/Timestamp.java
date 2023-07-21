@@ -43,10 +43,16 @@ public class Timestamp {
     public boolean refresh(long millisDiff) {
         long t = System.currentTimeMillis();
         long old = this.wallClockMillis;
-        if (t < old || t - old >= millisDiff) {
-            this.wallClockMillis = t;
-            this.nanoTime = System.nanoTime();
-            return true;
+        if (t - old >= millisDiff || t < old) {
+            long newNano = System.nanoTime();
+            if (newNano - this.nanoTime < 0) {
+                // assert false, nanoTime() should not go back
+                return false;
+            } else {
+                this.wallClockMillis = t;
+                this.nanoTime = System.nanoTime();
+                return true;
+            }
         } else {
             return false;
         }
