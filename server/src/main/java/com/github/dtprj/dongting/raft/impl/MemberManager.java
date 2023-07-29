@@ -309,7 +309,7 @@ public class MemberManager {
                 req.groupId = groupId;
                 TransferLeaderReq.TransferLeaderReqWriteFrame frame = new TransferLeaderReq.TransferLeaderReqWriteFrame(req);
                 client.sendRequest(newLeader.getNode().getPeer(), frame,
-                        null, new DtTime(5, TimeUnit.SECONDS))
+                                null, new DtTime(5, TimeUnit.SECONDS))
                         .whenComplete((rf, ex) -> {
                             if (ex != null) {
                                 log.error("transfer leader failed, groupId={}", groupId, ex);
@@ -411,6 +411,14 @@ public class MemberManager {
                 m = new RaftMember(node);
                 if (node.getNodeId() == serverConfig.getNodeId()) {
                     initSelf(node, m, RaftRole.follower);
+                }
+            } else {
+                if (node.getNodeId() == serverConfig.getNodeId() && raftStatus.getRole() == RaftRole.observer) {
+                    if (raftStatus.getCurrentLeader() == null) {
+                        RaftUtil.changeToFollower(raftStatus, -1);
+                    } else {
+                        RaftUtil.changeToFollower(raftStatus, raftStatus.getCurrentLeader().getNode().getNodeId());
+                    }
                 }
             }
             newMembers.add(m);
