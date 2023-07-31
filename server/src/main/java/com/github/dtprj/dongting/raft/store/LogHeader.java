@@ -138,4 +138,13 @@ class LogHeader {
                 && totalLen == expectTotalLen
                 && filePos + expectTotalLen <= fileLen;
     }
+
+    public void copy(LogItem li) {
+        li.setIndex(index);
+        li.setType(type);
+        li.setBizType(bizType);
+        li.setTerm(term);
+        li.setPrevLogTerm(prevLogTerm);
+        li.setTimestamp(timestamp);
+    }
 }
