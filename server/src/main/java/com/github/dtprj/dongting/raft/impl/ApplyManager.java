@@ -59,7 +59,6 @@ public class ApplyManager {
     private boolean configChanging = false;
 
     private boolean waiting;
-    private long appliedIndex;
 
     private RaftLog.LogIterator logIterator;
 
@@ -79,9 +78,7 @@ public class ApplyManager {
         if (waiting) {
             return;
         }
-        if (appliedIndex < raftStatus.getLastApplied()) {
-            appliedIndex = raftStatus.getLastApplied();
-        }
+        long appliedIndex = raftStatus.getLastApplied();
         long diff = raftStatus.getCommitIndex() - appliedIndex;
         PendingMap pendingMap = raftStatus.getPendingRequests();
         while (diff > 0) {
@@ -94,7 +91,8 @@ public class ApplyManager {
                     logIterator = raftLog.openIterator(raftStatus::isStop);
                 }
                 logIterator.next(index, limit, 16 * 1024 * 1024)
-                        .whenCompleteAsync(this::resumeAfterLoad, raftStatus.getRaftExecutor());
+                        .whenCompleteAsync((items, ex) -> resumeAfterLoad(items, ex, index),
+                                raftStatus.getRaftExecutor());
                 return;
             } else {
                 if (logIterator != null) {
@@ -108,7 +106,7 @@ public class ApplyManager {
         }
     }
 
-    private void resumeAfterLoad(List<LogItem> items, Throwable ex) {
+    private void resumeAfterLoad(List<LogItem> items, Throwable ex, long loadStartIndex) {
         waiting = false;
         if (ex != null) {
             if (ex instanceof CancellationException) {
@@ -122,7 +120,7 @@ public class ApplyManager {
             log.error("load log failed, items is null");
             return;
         }
-        if (items.get(0).getIndex() != appliedIndex + 1) {
+        if (items.get(0).getIndex() != loadStartIndex) {
             // previous load failed, ignore
             log.warn("first index of load result not match appliedIndex, ignore.");
             return;
@@ -134,7 +132,6 @@ public class ApplyManager {
             RaftTask rt = buildRaftTask(item);
             execChain(item.getIndex(), rt);
         }
-        appliedIndex += readCount;
 
         apply(raftStatus);
     }
