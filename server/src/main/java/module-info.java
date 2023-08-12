@@ -6,5 +6,4 @@ module dongting.server {
     exports com.github.dtprj.dongting.raft.store;
     exports com.github.dtprj.dongting.raft.sm;
     exports com.github.dtprj.dongting.dtkv.server;
-    exports com.github.dtprj.dongting.raft.impl;
 }
