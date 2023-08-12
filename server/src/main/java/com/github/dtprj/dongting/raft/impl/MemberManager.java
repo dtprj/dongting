@@ -60,14 +60,14 @@ public class MemberManager {
     private final EventBus eventBus;
 
     public MemberManager(RaftServerConfig serverConfig, NioClient client, RaftExecutor executor,
-                         RaftStatusImpl raftStatus, EventBus eventBus) {
+                         RaftStatusImpl raftStatus, EventBus eventBus, FutureEventSource raftFutureEventSource) {
         this.serverConfig = serverConfig;
         this.client = client;
         this.executor = executor;
         this.raftStatus = raftStatus;
         this.groupId = raftStatus.getGroupId();
 
-        this.futureEventSource = new FutureEventSource(executor);
+        this.futureEventSource = raftFutureEventSource;
         this.eventBus = eventBus;
     }
 

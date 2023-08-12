@@ -26,7 +26,7 @@ import java.util.function.Supplier;
 /**
  * @author huangli
  */
-class FutureEventSource {
+public class FutureEventSource {
     private final Executor executor;
     protected final LinkedList<Pair<CompletableFuture<Void>, Supplier<Boolean>>> listeners = new LinkedList<>();
 
@@ -48,6 +48,9 @@ class FutureEventSource {
     }
 
     protected void fireInExecutorThread() {
+        if (listeners.size() == 0) {
+            return;
+        }
         for (Iterator<Pair<CompletableFuture<Void>, Supplier<Boolean>>> it = listeners.iterator(); it.hasNext(); ) {
             Pair<CompletableFuture<Void>, Supplier<Boolean>> pair = it.next();
             if (pair.getRight().get()) {

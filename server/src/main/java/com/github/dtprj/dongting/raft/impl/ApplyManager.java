@@ -52,6 +52,7 @@ public class ApplyManager {
     private final StateMachine stateMachine;
     private final Timestamp ts;
     private final EventBus eventBus;
+    private final FutureEventSource futureEventSource;
     private final RaftStatusImpl raftStatus;
 
     private final DecodeContext decodeContext;
@@ -63,13 +64,15 @@ public class ApplyManager {
     private RaftLog.LogIterator logIterator;
 
     public ApplyManager(int selfNodeId, RaftLog raftLog, StateMachine stateMachine,
-                        RaftStatusImpl raftStatus, EventBus eventBus, RefBufferFactory heapPool) {
+                        RaftStatusImpl raftStatus, EventBus eventBus, FutureEventSource futureEventSource,
+                        RefBufferFactory heapPool) {
         this.selfNodeId = selfNodeId;
         this.raftLog = raftLog;
         this.stateMachine = stateMachine;
         this.ts = raftStatus.getTs();
         this.raftStatus = raftStatus;
         this.eventBus = eventBus;
+        this.futureEventSource = futureEventSource;
         this.decodeContext = new DecodeContext();
         this.decodeContext.setHeapPool(heapPool);
     }
@@ -210,6 +213,7 @@ public class ApplyManager {
 
         // release reader memory
         rt.setNextReader(null);
+        futureEventSource.fireInExecutorThread();
     }
 
     private void resumeAfterPrepare(long index, RaftTask rt) {
@@ -355,5 +359,10 @@ public class ApplyManager {
 
         eventBus.fire(EventType.commitConfChange, ids);
         configChanging = false;
+    }
+
+    public CompletableFuture<Void> initReadyFuture() {
+        long initCommitIndex = raftStatus.getCommitIndex();
+        return futureEventSource.registerInOtherThreads(() -> raftStatus.getLastApplied() >= initCommitIndex);
     }
 }

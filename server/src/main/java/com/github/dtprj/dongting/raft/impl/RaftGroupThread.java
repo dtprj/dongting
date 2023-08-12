@@ -58,6 +58,7 @@ public class RaftGroupThread extends Thread {
     private StateMachine stateMachine;
     private RaftLog raftLog;
     private SnapshotManager snapshotManager;
+    private ApplyManager applyManager;
 
     private long heartbeatIntervalNanos;
     private long electTimeoutNanos;
@@ -79,6 +80,7 @@ public class RaftGroupThread extends Thread {
         this.raftLog = gc.getRaftLog();
         this.voteManager = gc.getVoteManager();
         this.snapshotManager = gc.getSnapshotManager();
+        this.applyManager = gc.getApplyManager();
 
         electTimeoutNanos = Duration.ofMillis(config.getElectTimeout()).toNanos();
         raftStatus.setElectTimeoutNanos(electTimeoutNanos);
@@ -117,7 +119,6 @@ public class RaftGroupThread extends Thread {
             raftStatus.setLastLogTerm(initResultTerm);
             raftStatus.setLastLogIndex(initResultIndex);
 
-            gc.getApplyManager().apply(raftStatus);
         } catch (RuntimeException e) {
             clean();
             throw e;
@@ -160,16 +161,20 @@ public class RaftGroupThread extends Thread {
         }
     }
 
-    public void waitReady() {
+    public CompletableFuture<Void> readyFuture() {
+        return CompletableFuture.allOf(memberReadyFuture(),applyReadyFuture());
+    }
+
+    private CompletableFuture<Void> memberReadyFuture() {
         int electQuorum = raftStatus.getElectQuorum();
         if (electQuorum <= 1) {
-            return;
+            return CompletableFuture.completedFuture(null);
         }
-        try {
-            memberManager.createReadyFuture(electQuorum).get();
-        } catch (Exception e) {
-            throw new RaftException(e);
-        }
+        return memberManager.createReadyFuture(electQuorum);
+    }
+
+    private CompletableFuture<Void> applyReadyFuture() {
+        return applyManager.initReadyFuture();
     }
 
     private void clean() {
@@ -188,6 +193,7 @@ public class RaftGroupThread extends Thread {
                 RaftUtil.changeToLeader(raftStatus);
                 raft.sendHeartBeat();
             }
+            applyManager.apply(raftStatus);
             run0();
         } catch (Throwable e) {
             BugLog.getLog().error("raft thread error", e);

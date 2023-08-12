@@ -33,6 +33,7 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.ApplyManager;
 import com.github.dtprj.dongting.raft.impl.CommitManager;
 import com.github.dtprj.dongting.raft.impl.EventBus;
+import com.github.dtprj.dongting.raft.impl.FutureEventSource;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.NodeManager;
 import com.github.dtprj.dongting.raft.impl.PendingStat;
@@ -61,7 +62,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -209,9 +212,11 @@ public class RaftServer extends AbstractLifeCircle {
         rgcEx.setCodecFactory(stateMachine);
         RaftLog raftLog = raftFactory.createRaftLog(rgcEx);
 
+        FutureEventSource fes = new FutureEventSource(raftExecutor);
         MemberManager memberManager = new MemberManager(serverConfig, replicateNioClient, raftExecutor,
-                raftStatus, eventBus);
-        ApplyManager applyManager = new ApplyManager(serverConfig.getNodeId(), raftLog, stateMachine, raftStatus, eventBus, rgcEx.getHeapPool());
+                raftStatus, eventBus, fes);
+        ApplyManager applyManager = new ApplyManager(serverConfig.getNodeId(), raftLog, stateMachine, raftStatus,
+                eventBus, fes, rgcEx.getHeapPool());
         CommitManager commitManager = new CommitManager(raftStatus, applyManager);
         ReplicateManager replicateManager = new ReplicateManager(serverConfig, rgcEx, raftStatus, raftLog,
                 stateMachine, replicateNioClient, raftExecutor, commitManager);
@@ -308,7 +313,8 @@ public class RaftServer extends AbstractLifeCircle {
             });
 
             raftGroups.forEach((groupId, gc) -> {
-                gc.getRaftGroupThread().waitReady();
+                CompletableFuture<Void> f = gc.getRaftGroupThread().readyFuture();
+                waitFuture(f);
                 log.info("raft group {} is ready", groupId);
             });
 
@@ -316,6 +322,17 @@ public class RaftServer extends AbstractLifeCircle {
         } catch (RuntimeException | Error e) {
             log.error("start raft server failed", e);
             throw e;
+        }
+    }
+
+    private void waitFuture(CompletableFuture<Void> f) {
+        try {
+            f.get();
+        } catch (InterruptedException e) {
+            DtUtil.restoreInterruptStatus();
+            throw new CancellationException();
+        } catch (ExecutionException e) {
+            throw new RaftException(e);
         }
     }
 
