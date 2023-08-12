@@ -243,13 +243,8 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         return ids;
     }
 
-    public void waitReady(int targetReadyCount) {
-        try {
-            CompletableFuture<Void> f = futureEventSource.registerInOtherThreads(() -> currentReadyNodes >= targetReadyCount);
-            f.get();
-        } catch (Exception e) {
-            throw new RaftException(e);
-        }
+    public CompletableFuture<Void> readyFuture(int targetReadyCount) {
+        return futureEventSource.registerInOtherThreads(() -> currentReadyNodes >= targetReadyCount);
     }
 
     public CompletableFuture<RaftNodeEx> addNode(RaftNodeEx nodeEx) {

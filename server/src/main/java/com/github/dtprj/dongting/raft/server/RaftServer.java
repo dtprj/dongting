@@ -304,7 +304,7 @@ public class RaftServer extends AbstractLifeCircle {
             replicateNioClient.waitStart();
 
             nodeManager.start();
-            nodeManager.waitReady(RaftUtil.getElectQuorum(nodeManager.getAllNodesEx().size()));
+            waitFuture(nodeManager.readyFuture(RaftUtil.getElectQuorum(nodeManager.getAllNodesEx().size())));
             log.info("nodeManager is ready");
 
             raftGroups.forEach((groupId, gc) -> {
