@@ -106,3 +106,5 @@ message TransferLeaderReq {
   uint32 old_leader_id = 3;
   fixed64 log_index = 4;
 }
+
+// return EmptyBodyRespFrame

@@ -15,7 +15,26 @@
  */
 syntax = "proto3";
 option java_package = "com.github.dtprj.dongting.config";
-message SetReq {
-  string key = 1;
-  bytes value = 2;
+message GetReq {
+  int32 group_id = 1;
+  string key = 2;
+}
+
+// return bytes array
+
+message PutReq {
+  int32 group_id = 1;
+  string key = 2;
+  bytes value = 3;
+}
+
+// return EmptyBodyRespFrame
+
+message RemoveReq {
+  int32 group_id = 1;
+  string key = 2;
+}
+
+message RemoveResp {
+  int32 result = 1;
 }
