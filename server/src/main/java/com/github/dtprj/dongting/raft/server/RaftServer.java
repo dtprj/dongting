@@ -315,6 +315,7 @@ public class RaftServer extends AbstractLifeCircle {
             raftGroups.forEach((groupId, gc) -> {
                 CompletableFuture<Void> f = gc.getRaftGroupThread().readyFuture();
                 waitFuture(f);
+                gc.getRaftStatus().setInitialized(true);
                 log.info("raft group {} is ready", groupId);
             });
 
