@@ -184,7 +184,7 @@ public class ApplyManager {
         switch (rt.getType()) {
             case LogItem.TYPE_NORMAL:
                 execWrite(index, rt);
-                afterExec(index, rt);
+                afterExec(index, rt, false);
                 break;
             case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
                 doPrepare(index, rt);
@@ -192,21 +192,30 @@ public class ApplyManager {
             case LogItem.TYPE_DROP_CONFIG_CHANGE:
                 doAbort();
                 notifyConfigChange(index, rt);
-                afterExec(index, rt);
+                afterExec(index, rt, true);
                 break;
             case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
                 doCommit();
                 notifyConfigChange(index, rt);
-                afterExec(index, rt);
+                afterExec(index, rt, true);
                 break;
             default:
-                afterExec(index, rt);
                 // heartbeat etc.
+                afterExec(index, rt, false);
                 break;
         }
     }
 
-    private void afterExec(long index, RaftTask rt) {
+    private void afterExec(long index, RaftTask rt, boolean configChange) {
+        if (configChange) {
+            while (!StatusUtil.persist(raftStatus, index)) {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    log.error("interrupted", e);
+                }
+            }
+        }
         raftStatus.setLastApplied(index);
         rt.getItem().release();
         execReaders(index, rt);
@@ -219,7 +228,7 @@ public class ApplyManager {
     private void resumeAfterPrepare(long index, RaftTask rt) {
         waiting = false;
         notifyConfigChange(index, rt);
-        afterExec(index, rt);
+        afterExec(index, rt, true);
         apply(raftStatus);
     }
 

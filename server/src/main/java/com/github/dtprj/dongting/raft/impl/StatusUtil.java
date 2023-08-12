@@ -44,6 +44,10 @@ public class StatusUtil {
     }
 
     public static boolean persist(RaftStatusImpl raftStatus) {
+        return persist(raftStatus, raftStatus.getCommitIndex());
+    }
+
+    public static boolean persist(RaftStatusImpl raftStatus, long commitIndex) {
         try {
             if (raftStatus.isStop()) {
                 return false;
@@ -53,7 +57,7 @@ public class StatusUtil {
 
             sf.getProperties().setProperty(CURRENT_TERM_KEY, String.valueOf(raftStatus.getCurrentTerm()));
             sf.getProperties().setProperty(VOTED_FOR_KEY, String.valueOf(raftStatus.getVotedFor()));
-            sf.getProperties().setProperty(COMMIT_INDEX_KEY, String.valueOf(raftStatus.getCommitIndex()));
+            sf.getProperties().setProperty(COMMIT_INDEX_KEY, String.valueOf(commitIndex));
 
             sf.update();
             return true;
