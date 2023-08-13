@@ -28,7 +28,6 @@ public class RaftOutput {
         this.result = result;
     }
 
-    @SuppressWarnings("unused")
     public long getLogIndex() {
         return logIndex;
     }

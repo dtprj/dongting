@@ -327,7 +327,7 @@ public class MemberManager {
         executor.schedule(r, 3);
     }
 
-    private void leaderConfigChange(int type, ByteBuffer data, CompletableFuture<Void> f) {
+    private CompletableFuture<RaftOutput> leaderConfigChange(int type, ByteBuffer data) {
         if (raftStatus.getRole() != RaftRole.leader) {
             String stageStr;
             switch (type) {
@@ -345,26 +345,26 @@ public class MemberManager {
             }
             log.error("leader config change {}, not leader, role={}, groupId={}",
                     stageStr, raftStatus.getRole(), groupId);
-            f.completeExceptionally(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
-            return;
+            return CompletableFuture.failedFuture(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
         }
         CompletableFuture<RaftOutput> outputFuture = new CompletableFuture<>();
         RaftInput input = new RaftInput(0, null, data, null, 0);
         RaftTask rt = new RaftTask(raftStatus.getTs(), type, input, outputFuture);
         eventBus.fire(EventType.raftExec, Collections.singletonList(rt));
 
-        outputFuture.whenComplete((v, ex) -> {
-            if (ex != null) {
-                f.completeExceptionally(ex);
-            } else {
-                f.complete(null);
-            }
-        });
+        return outputFuture;
     }
 
     public void leaderPrepareJointConsensus(Set<Integer> newMemberNodes, Set<Integer> newObserverNodes,
-                                            CompletableFuture<Void> f) {
-        leaderConfigChange(LogItem.TYPE_PREPARE_CONFIG_CHANGE, getInputData(newMemberNodes, newObserverNodes), f);
+                                            CompletableFuture<Long> f) {
+        leaderConfigChange(LogItem.TYPE_PREPARE_CONFIG_CHANGE, getInputData(newMemberNodes, newObserverNodes))
+                .whenComplete((output, ex) -> {
+                    if (ex != null) {
+                        f.completeExceptionally(ex);
+                    } else {
+                        f.complete(output.getLogIndex());
+                    }
+                });
     }
 
     private ByteBuffer getInputData(Set<Integer> newMemberNodes, Set<Integer> newObserverNodes) {
@@ -444,11 +444,23 @@ public class MemberManager {
     }
 
     public void leaderAbortJointConsensus(CompletableFuture<Void> f) {
-        leaderConfigChange(LogItem.TYPE_DROP_CONFIG_CHANGE, null, f);
+        leaderConfigChange(LogItem.TYPE_DROP_CONFIG_CHANGE, null).whenComplete((output, ex) -> {
+            if (ex != null) {
+                f.completeExceptionally(ex);
+            } else {
+                f.complete(null);
+            }
+        });
     }
 
     public void leaderCommitJointConsensus(CompletableFuture<Void> f) {
-        leaderConfigChange(LogItem.TYPE_COMMIT_CONFIG_CHANGE, null, f);
+        leaderConfigChange(LogItem.TYPE_COMMIT_CONFIG_CHANGE, null).whenComplete((output, ex) -> {
+            if (ex != null) {
+                f.completeExceptionally(ex);
+            } else {
+                f.complete(null);
+            }
+        });
     }
 
 }

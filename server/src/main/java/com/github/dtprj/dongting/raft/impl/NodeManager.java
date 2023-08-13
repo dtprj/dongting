@@ -278,7 +278,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         }
     }
 
-    public void leaderPrepareJointConsensus(CompletableFuture<Void> f, RaftGroupImpl raftGroup,
+    public void leaderPrepareJointConsensus(CompletableFuture<Long> f, RaftGroupImpl raftGroup,
                                             Set<Integer> memberIds, Set<Integer> observerIds) {
         try {
             int groupId = raftGroup.getGroupId();

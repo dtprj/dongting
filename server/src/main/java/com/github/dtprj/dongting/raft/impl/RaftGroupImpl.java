@@ -175,12 +175,12 @@ public class RaftGroupImpl extends RaftGroup {
     }
 
     @Override
-    public CompletableFuture<Void> leaderPrepareJointConsensus(Set<Integer> members, Set<Integer> observers) {
+    public CompletableFuture<Long> leaderPrepareJointConsensus(Set<Integer> members, Set<Integer> observers) {
         Objects.requireNonNull(members);
         Objects.requireNonNull(observers);
         checkStatus();
         // node state change in scheduler thread, member state change in raft thread
-        CompletableFuture<Void> f = new CompletableFuture<>();
+        CompletableFuture<Long> f = new CompletableFuture<>();
         RaftUtil.SCHEDULED_SERVICE.execute(() -> nodeManager.leaderPrepareJointConsensus(f, this, members, observers));
         return f;
     }
