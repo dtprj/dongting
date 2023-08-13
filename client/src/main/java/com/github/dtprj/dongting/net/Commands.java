@@ -31,6 +31,7 @@ public interface Commands {
     int RAFT_REQUEST_VOTE = 102;
     int RAFT_INSTALL_SNAPSHOT = 103;
     int RAFT_LEADER_TRANSFER = 104;
+    int RAFT_QUERY_STATUS = 105;
 
     // 110 ~ 119 for raft client
     int RAFT_QUERY_LEADER = 110;

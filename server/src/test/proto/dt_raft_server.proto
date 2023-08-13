@@ -108,3 +108,16 @@ message TransferLeaderReq {
 }
 
 // return EmptyBodyRespFrame
+
+message QueryStatusReq {
+  uint32 group_id = 1;
+}
+
+message QueryStatusResp {
+  uint32 group_id = 1;
+  uint32 term = 2;
+  uint32 leader_id = 3;
+  fixed64 commit_index = 4;
+  fixed64 last_applied = 5;
+  fixed64 last_log_index = 6;
+}

@@ -51,6 +51,7 @@ import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.InstallSnapshotProcessor;
 import com.github.dtprj.dongting.raft.rpc.NodePingProcessor;
 import com.github.dtprj.dongting.raft.rpc.QueryLeaderProcessor;
+import com.github.dtprj.dongting.raft.rpc.QueryStatusProcessor;
 import com.github.dtprj.dongting.raft.rpc.RaftPingProcessor;
 import com.github.dtprj.dongting.raft.rpc.TransferLeaderProcessor;
 import com.github.dtprj.dongting.raft.rpc.VoteProcessor;
@@ -139,6 +140,7 @@ public class RaftServer extends AbstractLifeCircle {
         replicateNioServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(this));
         replicateNioServer.register(Commands.RAFT_INSTALL_SNAPSHOT, new InstallSnapshotProcessor(this));
         replicateNioServer.register(Commands.RAFT_LEADER_TRANSFER, new TransferLeaderProcessor(this));
+        replicateNioServer.register(Commands.RAFT_QUERY_STATUS, new QueryStatusProcessor(this));
 
         if (serverConfig.getServicePort() > 0) {
             NioServerConfig serviceServerConfig = new NioServerConfig();
