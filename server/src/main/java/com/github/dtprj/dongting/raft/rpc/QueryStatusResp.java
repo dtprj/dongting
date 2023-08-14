@@ -107,4 +107,28 @@ public class QueryStatusResp {
             PbUtil.writeFix64(buf, 6, resp.lastLogIndex);
         }
     }
+
+    public int getGroupId() {
+        return groupId;
+    }
+
+    public int getTerm() {
+        return term;
+    }
+
+    public int getLeaderId() {
+        return leaderId;
+    }
+
+    public long getCommitIndex() {
+        return commitIndex;
+    }
+
+    public long getLastApplied() {
+        return lastApplied;
+    }
+
+    public long getLastLogIndex() {
+        return lastLogIndex;
+    }
 }

@@ -192,12 +192,12 @@ public class ApplyManager {
                 break;
             case LogItem.TYPE_DROP_CONFIG_CHANGE:
                 doAbort();
-                notifyConfigChange(index, rt);
+                postConfigChange(index, rt);
                 afterExec(index, rt, true);
                 break;
             case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
                 doCommit();
-                notifyConfigChange(index, rt);
+                postConfigChange(index, rt);
                 afterExec(index, rt, true);
                 break;
             default:
@@ -232,12 +232,13 @@ public class ApplyManager {
 
     private void resumeAfterPrepare(long index, RaftTask rt) {
         waiting = false;
-        notifyConfigChange(index, rt);
+        postConfigChange(index, rt);
         afterExec(index, rt, true);
         apply(raftStatus);
     }
 
-    private void notifyConfigChange(long index, RaftTask rt) {
+    private void postConfigChange(long index, RaftTask rt) {
+        raftStatus.setLastConfigChangeIndex(index);
         if (rt.getFuture() != null) {
             rt.getFuture().complete(new RaftOutput(index, null));
         }

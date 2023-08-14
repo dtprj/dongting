@@ -49,6 +49,7 @@ public class RaftStatusImpl extends RaftStatus {
     private Set<Integer> nodeIdOfObservers;
     private Set<Integer> nodeIdOfPreparedMembers;
     private Set<Integer> nodeIdOfPreparedObservers;
+    private long lastConfigChangeIndex;
 
     private List<RaftMember> replicateList;
 
@@ -377,5 +378,13 @@ public class RaftStatusImpl extends RaftStatus {
 
     public void setInitialized(boolean initialized) {
         this.initialized = initialized;
+    }
+
+    public long getLastConfigChangeIndex() {
+        return lastConfigChangeIndex;
+    }
+
+    public void setLastConfigChangeIndex(long lastConfigChangeIndex) {
+        this.lastConfigChangeIndex = lastConfigChangeIndex;
     }
 }

@@ -15,14 +15,17 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.NioClient;
+import com.github.dtprj.dongting.net.PbIntWriteFrame;
 import com.github.dtprj.dongting.net.PeerStatus;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.rpc.QueryStatusResp;
 import com.github.dtprj.dongting.raft.rpc.RaftPingFrameCallback;
 import com.github.dtprj.dongting.raft.rpc.RaftPingProcessor;
 import com.github.dtprj.dongting.raft.rpc.RaftPingWriteFrame;
@@ -36,6 +39,7 @@ import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -453,14 +457,97 @@ public class MemberManager {
         });
     }
 
-    public void leaderCommitJointConsensus(CompletableFuture<Void> f) {
-        leaderConfigChange(LogItem.TYPE_COMMIT_CONFIG_CHANGE, null).whenComplete((output, ex) -> {
-            if (ex != null) {
-                f.completeExceptionally(ex);
-            } else {
-                f.complete(null);
+    public void leaderCommitJointConsensus(CompletableFuture<Void> finalFuture, long prepareIndex) {
+        final HashMap<Integer, CompletableFuture<Boolean>> resultMap = new HashMap<>();
+
+        for (RaftMember m : raftStatus.getMembers()) {
+            queryPrepareStatus(prepareIndex, resultMap, m);
+        }
+        for (RaftMember m : raftStatus.getPreparedMembers()) {
+            if (resultMap.containsKey(m.getNode().getNodeId())) {
+                continue;
             }
-        });
+            queryPrepareStatus(prepareIndex, resultMap, m);
+        }
+
+        List<CompletableFuture<Boolean>> list = new ArrayList<>(resultMap.values());
+        for (CompletableFuture<Boolean> resultFuture : list) {
+            resultFuture.thenRun(() -> {
+                if (executor.inRaftThread()) {
+                    checkPrepareStatus(resultMap, prepareIndex, finalFuture);
+                } else {
+                    executor.execute(() -> checkPrepareStatus(resultMap, prepareIndex, finalFuture));
+                }
+            });
+        }
+    }
+
+    private void queryPrepareStatus(long prepareIndex, HashMap<Integer, CompletableFuture<Boolean>> resultMap, RaftMember m) {
+        RaftNodeEx n = m.getNode();
+        if (n.isSelf()) {
+            log.info("self prepare status, groupId={}, lastApplied={}, prepareIndex={}",
+                    groupId, raftStatus.getLastApplied(), prepareIndex);
+            boolean result = raftStatus.getLastApplied() >= prepareIndex;
+            resultMap.put(n.getNodeId(), CompletableFuture.completedFuture(result));
+        } else {
+            final PbNoCopyDecoder<QueryStatusResp> decoder = new PbNoCopyDecoder<>(
+                    c -> new QueryStatusResp.QueryStatusRespCallback());
+            CompletableFuture<Boolean> queryFuture = client.sendRequest(n.getPeer(), new PbIntWriteFrame(groupId),
+                            decoder, new DtTime(3, TimeUnit.SECONDS))
+                    .handle((resp, ex) -> {
+                        if (ex != null) {
+                            log.warn("query prepare status failed, groupId={}, remoteId={}", n.getNodeId(), groupId, ex);
+                            return Boolean.FALSE;
+                        } else {
+                            QueryStatusResp body = resp.getBody();
+                            log.info("query prepare status success, groupId={}, remoteId={}, lastApplied={}, prepareIndex={}",
+                                    groupId, n.getNodeId(), body.getLastApplied(), prepareIndex);
+                            return body.getLastApplied() >= prepareIndex;
+                        }
+                    });
+            resultMap.put(n.getNodeId(), queryFuture);
+        }
+    }
+
+    private void checkPrepareStatus(HashMap<Integer, CompletableFuture<Boolean>> resultMap, long prepareIndex,
+                                    CompletableFuture<Void> finalFuture) {
+        if (resultMap.isEmpty()) {
+            // prevent duplicate change
+            return;
+        }
+        if (prepareIndex != raftStatus.getLastConfigChangeIndex()) {
+            return;
+        }
+        int memberReadyCount = 0;
+        for (RaftMember m : raftStatus.getMembers()) {
+            CompletableFuture<Boolean> queryResult = resultMap.get(m.getNode().getNodeId());
+            if (queryResult != null && queryResult.getNow(false)) {
+                memberReadyCount++;
+            }
+        }
+        int preparedMemberReadyCount = 0;
+        for (RaftMember m : raftStatus.getPreparedMembers()) {
+            CompletableFuture<Boolean> queryResult = resultMap.get(m.getNode().getNodeId());
+            if (queryResult != null && queryResult.getNow(false)) {
+                preparedMemberReadyCount++;
+            }
+        }
+        if (memberReadyCount >= raftStatus.getElectQuorum()
+                && preparedMemberReadyCount >= RaftUtil.getElectQuorum(raftStatus.getPreparedMembers().size())) {
+            log.info("members prepare status check success, groupId={}, memberReadyCount={}, preparedMemberReadyCount={}",
+                    groupId, memberReadyCount, preparedMemberReadyCount);
+
+            // prevent duplicate change
+            resultMap.clear();
+
+            leaderConfigChange(LogItem.TYPE_COMMIT_CONFIG_CHANGE, null).whenComplete((output, ex) -> {
+                if (ex != null) {
+                    finalFuture.completeExceptionally(ex);
+                } else {
+                    finalFuture.complete(null);
+                }
+            });
+        }
     }
 
 }

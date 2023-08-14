@@ -194,10 +194,10 @@ public class RaftGroupImpl extends RaftGroup {
     }
 
     @Override
-    public CompletableFuture<Void> leaderCommitJointConsensus() {
+    public CompletableFuture<Void> leaderCommitJointConsensus(long prepareIndex) {
         checkStatus();
         CompletableFuture<Void> f = new CompletableFuture<>();
-        raftExecutor.execute(() -> memberManager.leaderCommitJointConsensus(f));
+        raftExecutor.execute(() -> memberManager.leaderCommitJointConsensus(f, prepareIndex));
         return f;
     }
 
