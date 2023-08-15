@@ -513,6 +513,12 @@ public class NioClientTest {
             client.removePeer(p1).get();
             client.removePeer(p1).get(); //idempotent
 
+            try {
+                client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get();
+            } catch (ExecutionException e) {
+                assertEquals(NetException.class, e.getCause().getClass());
+                assertEquals("peer is removed", e.getCause().getMessage());
+            }
 
             assertEquals(1, client.getPeers().size());
             sendSync(5000, client, tick(100));
