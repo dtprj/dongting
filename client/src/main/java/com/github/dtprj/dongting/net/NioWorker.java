@@ -141,7 +141,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     lastCleanNano = ts.getNanoTime();
                 }
             } catch (Throwable e) {
-                log.error("", e);
+                log.error("NioWorker loop exception", e);
             }
         }
         try {
