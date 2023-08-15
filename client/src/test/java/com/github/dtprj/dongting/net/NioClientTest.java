@@ -415,7 +415,9 @@ public class NioClientTest {
                 // ignore
             }
             server1 = new BioServer(9000);
-            client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get(tick(200), TimeUnit.MILLISECONDS);
+            client.connect(p1, new DtTime(1, TimeUnit.SECONDS));
+            // connect is idempotent
+            client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get(tick(20), TimeUnit.MILLISECONDS);
             sendSyncByPeer(5000, client, p1, 500);
 
             // connect is idempotent
