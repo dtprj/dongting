@@ -45,9 +45,12 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.github.dtprj.dongting.common.Tick.tick;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -714,6 +717,50 @@ public class NioClientTest {
         } finally {
             DtUtil.close(client);
         }
+    }
+
+    @Test
+    public void failOrderTest() throws Exception {
+        BioServer server = new BioServer(9000);
+        NioClientConfig c = new NioClientConfig();
+        c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+        c.setCleanInterval(0);
+        c.setSelectTimeout(1);
+        c.setCloseTimeout(0);
+        NioClient client = new NioClient(c);
+        client.start();
+        client.waitStart();
+        server.sleep = tick(100);
+
+        byte[] bs = new byte[1];
+        ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.wrap(bs));
+        wf.setCommand(Commands.CMD_PING);
+
+        AtomicInteger lastFinishIndex = new AtomicInteger(-1);
+        AtomicBoolean fail = new AtomicBoolean();
+        int loop = 40;
+        //noinspection rawtypes
+        CompletableFuture[] allFutures = new CompletableFuture[40];
+        for (int i = 0; i < loop; i++) {
+            CompletableFuture<?> f = client.sendRequest(wf, new RefBufferDecoder(),
+                    new DtTime(100, TimeUnit.MILLISECONDS));
+            int index = i;
+            allFutures[i] = f.handle((v, e) -> {
+                if (e == null) {
+                    fail.set(true);
+                }
+                if (lastFinishIndex.get() >= index) {
+                    fail.set(true);
+                } else {
+                    lastFinishIndex.set(index);
+                }
+                return null;
+            });
+        }
+
+        DtUtil.close(client, server);
+        CompletableFuture.allOf(allFutures).get();
+        assertFalse(fail.get());
     }
 
     @Test

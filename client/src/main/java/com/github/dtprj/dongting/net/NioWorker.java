@@ -93,6 +93,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private long readBufferUseTime;
     private final long readBufferTimeoutNanos;
 
+    private final ArrayList<Pair<Long, WriteData>> tempSortList = new ArrayList<>();
+
     public NioWorker(NioStatus nioStatus, String workerName, NioConfig config, NioClient client) {
         this.nioStatus = nioStatus;
         this.config = config;
@@ -179,25 +181,28 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    private int compare(Pair<Long, WriteData> a, Pair<Long, WriteData> b) {
+    private int compare(Pair<Long, ?> a, Pair<Long, ?> b) {
         // we only need keep order in same connection, so we only use lower 32 bits.
         // the lower 32 bits may overflow, so we use subtraction to compare, can't use < or >
         return a.getLeft().intValue() - b.getLeft().intValue();
     }
 
     private void finishPendingReq() {
-        List<Pair<Long, WriteData>> tempList = new ArrayList<>(pendingOutgoingRequests.size());
-        pendingOutgoingRequests.forEach((key, value) -> {
-            if (value.getFuture() != null) {
-                tempList.add(new Pair<>(key, value));
+        try {
+            pendingOutgoingRequests.forEach((key, value) -> {
+                if (value.getFuture() != null) {
+                    tempSortList.add(new Pair<>(key, value));
+                }
+                // return false to remove it
+                return false;
+            });
+            // sort to keep fail order
+            tempSortList.sort(this::compare);
+            for (Pair<Long, WriteData> p : tempSortList) {
+                p.getRight().getFuture().completeExceptionally(new NetException("client closed"));
             }
-            // return false to remove it
-            return false;
-        });
-        // sort to keep fail order
-        tempList.sort(this::compare);
-        for (Pair<Long, WriteData> p : tempList) {
-            p.getRight().getFuture().completeExceptionally(new NetException("client closed"));
+        } finally {
+            tempSortList.clear();
         }
     }
 
@@ -535,20 +540,23 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
         closeChannel0(dtc.getChannel());
         if (config.isFinishPendingImmediatelyWhenChannelClose()) {
-            ArrayList<Pair<Long, WriteData>> list = new ArrayList<>();
-            pendingOutgoingRequests.forEach((key, wd) -> {
-                if (wd.getDtc() == dtc) {
-                    if (wd.getFuture() != null) {
-                        list.add(new Pair<>(key, wd));
+            try {
+                pendingOutgoingRequests.forEach((key, wd) -> {
+                    if (wd.getDtc() == dtc) {
+                        if (wd.getFuture() != null) {
+                            tempSortList.add(new Pair<>(key, wd));
+                        }
+                        return false;
                     }
-                    return false;
+                    return true;
+                });
+                // sort to keep fail order
+                tempSortList.sort(this::compare);
+                for (Pair<Long, WriteData> p : tempSortList) {
+                    p.getRight().getFuture().completeExceptionally(new NetException("channel closed"));
                 }
-                return true;
-            });
-            // sort to keep fail order
-            list.sort(this::compare);
-            for (Pair<Long, WriteData> p : list) {
-                p.getRight().getFuture().completeExceptionally(new NetException("channel closed"));
+            } finally {
+                tempSortList.clear();
             }
         }
         dtc.getSubQueue().cleanSubQueue();
@@ -566,25 +574,38 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     private void cleanTimeoutReq(Timestamp roundStartTime) {
-        this.pendingOutgoingRequests.forEach((key, wd) -> {
-            DtTime t = wd.getTimeout();
-            if (wd.getDtc().isClosed()) {
-                if (wd.getFuture() != null) {
-                    wd.getFuture().completeExceptionally(new NetException("channel closed, future cancelled by timeout cleaner"));
+        try {
+            this.pendingOutgoingRequests.forEach((key, wd) -> {
+                DtTime t = wd.getTimeout();
+                if (wd.getDtc().isClosed() || t.isTimeout(roundStartTime)) {
+                    tempSortList.add(new Pair<>(key, wd));
+                    return false;
                 }
-                return false;
-            } else if (t.isTimeout(roundStartTime)) {
-                log.debug("drop timeout request: {}ms, seq={}, {}",
-                        t.getTimeout(TimeUnit.MILLISECONDS), wd.getData().getSeq(),
-                        wd.getDtc());
-                if (wd.getFuture() != null) {
-                    String msg = "timeout: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
-                    wd.getFuture().completeExceptionally(new NetTimeoutException(msg));
+                return true;
+            });
+
+            tempSortList.sort(this::compare);
+            for (Pair<Long, WriteData> p : tempSortList) {
+                WriteData wd = p.getRight();
+                DtTime t = wd.getTimeout();
+                if (wd.getDtc().isClosed()) {
+                    if (wd.getFuture() != null) {
+                        wd.getFuture().completeExceptionally(new NetException("channel closed, future cancelled by timeout cleaner"));
+                    }
+                } else if (t.isTimeout(roundStartTime)) {
+                    log.debug("drop timeout request: {}ms, seq={}, {}",
+                            t.getTimeout(TimeUnit.MILLISECONDS), wd.getData().getSeq(),
+                            wd.getDtc());
+                    if (wd.getFuture() != null) {
+                        String msg = "timeout: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
+                        wd.getFuture().completeExceptionally(new NetTimeoutException(msg));
+                    }
                 }
-                return false;
             }
-            return true;
-        });
+        } finally {
+            tempSortList.clear();
+        }
+
         if (client != null) {
             client.cleanWaitConnectReq(wd -> {
                 if (wd.getTimeout().isTimeout(timestamp)) {
