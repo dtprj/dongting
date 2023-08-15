@@ -31,6 +31,7 @@ import org.junit.jupiter.api.Test;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
@@ -68,8 +69,9 @@ public class NioClientTest {
         private int resultCode = CmdCodes.SUCCESS;
 
         public BioServer(int port) throws Exception {
-            ss = new ServerSocket(port);
+            ss = new ServerSocket();
             ss.setReuseAddress(true);
+            ss.bind(new InetSocketAddress(port));
             new Thread(this::runAcceptThread).start();
         }
 
@@ -272,7 +274,7 @@ public class NioClientTest {
 
     private static void sendSync(int maxBodySize, NioClient client, long timeoutMillis, Decoder<?> decoder) throws Exception {
         ThreadLocalRandom r = ThreadLocalRandom.current();
-        byte[] bs = new byte[1];
+        byte[] bs = new byte[r.nextInt(maxBodySize)];
         r.nextBytes(bs);
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.wrap(bs));
         wf.setCommand(Commands.CMD_PING);
@@ -678,6 +680,31 @@ public class NioClientTest {
             }
         } finally {
             DtUtil.close(client, server);
+        }
+    }
+
+    @Test
+    public void waitAutoConnectTimeoutTest() throws Exception {
+        NioClient client = null;
+        try {
+            NioClientConfig c = new NioClientConfig();
+            c.setCleanInterval(0);
+            c.setSelectTimeout(1);
+            client = new NioClient(c);
+            client.start();
+            client.waitStart();
+            Peer peer = client.addPeer(new HostPort("110.110.110.110", 2345)).get();
+
+            try {
+                // auto connect
+                sendSyncByPeer(5000, client, peer, 1);
+                fail();
+            } catch (ExecutionException e) {
+                assertEquals(NetTimeoutException.class, e.getCause().getClass());
+                assertEquals("wait connect timeout", e.getCause().getMessage());
+            }
+        } finally {
+            DtUtil.close(client);
         }
     }
 
