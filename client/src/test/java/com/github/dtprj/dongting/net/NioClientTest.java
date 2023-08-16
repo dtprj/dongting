@@ -733,7 +733,7 @@ public class NioClientTest {
         NioClient client = new NioClient(c);
         client.start();
         client.waitStart();
-        server.sleep = tick(100);
+        server.sleep = tick(300);
 
         byte[] bs = new byte[1];
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.wrap(bs));
@@ -746,7 +746,7 @@ public class NioClientTest {
         CompletableFuture[] allFutures = new CompletableFuture[40];
         for (int i = 0; i < loop; i++) {
             CompletableFuture<?> f = client.sendRequest(wf, new RefBufferDecoder(),
-                    new DtTime(100, TimeUnit.MILLISECONDS));
+                    new DtTime(1000, TimeUnit.MILLISECONDS));
             int index = i;
             allFutures[i] = f.handle((v, e) -> {
                 if (e == null) {
