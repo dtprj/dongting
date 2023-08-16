@@ -220,13 +220,14 @@ public class NioClientTest {
             client = new NioClient(c);
             client.start();
             client.waitStart();
-            generalTest(client, tick(100), 5000);
+            generalTest(client, tick(100));
         } finally {
             DtUtil.close(client, server);
         }
     }
 
-    private static void generalTest(NioClient client, long timeMillis, int maxBodySize) throws Exception {
+    private static void generalTest(NioClient client, long timeMillis) throws Exception {
+        int maxBodySize = 5000;
         DtTime time = new DtTime();
         do {
             sendSync(maxBodySize, client, tick(500));
@@ -266,7 +267,7 @@ public class NioClientTest {
             client = new NioClient(c);
             client.start();
             client.waitStart();
-            generalTest(client, tick(100), 5000);
+            generalTest(client, tick(100));
         } finally {
             DtUtil.close(client, server1, server2);
         }
@@ -530,7 +531,7 @@ public class NioClientTest {
             assertThrows(ExecutionException.class, () -> sendSyncByPeer(5000, client, p1, tick(500)));
             sendSyncByPeer(5000, client, p2, tick(500));
 
-            client.removePeer(p2).get();
+            client.removePeer(p2.getEndPoint()).get();
         } finally {
             DtUtil.close(client, server1, server2);
         }
