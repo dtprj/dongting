@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -67,15 +68,23 @@ class IoSubQueue {
 
     public void enqueue(WriteData writeData) {
         WriteFrame wf = writeData.getData();
-        // can't invoke actualSize() here because seq and timeout field is not set yet
-        int estimateSize = wf.calcMaxFrameSize();
-        if (estimateSize < 0 || estimateSize > config.getMaxFrameSize()) {
-            fail(writeData, "estimateSize overflow");
-            return;
-        }
-        writeData.setEstimateSize(estimateSize);
-        if(wf.actualBodySize() > config.getMaxBodySize() || wf.actualBodySize() < 0) {
-            fail(writeData, "frame body size " + wf.actualBodySize() + " exceeds max body size " + config.getMaxBodySize());
+        int estimateSize;
+        try {
+            // can't invoke actualSize() here because seq and timeout field is not set yet
+            estimateSize = wf.calcMaxFrameSize();
+            if (estimateSize > config.getMaxFrameSize() || estimateSize < 0) {
+                fail(writeData, () -> new NetException("estimateSize overflow"));
+                return;
+            }
+            writeData.setEstimateSize(estimateSize);
+            int bodySize = wf.actualBodySize();
+            if (bodySize > config.getMaxBodySize() || bodySize < 0) {
+                fail(writeData, () -> new NetException("frame body size " + bodySize
+                        + " exceeds max body size " + config.getMaxBodySize()));
+                return;
+            }
+        } catch (RuntimeException | Error e) {
+            fail(writeData, () -> new NetException("encode calc size fail", e));
             return;
         }
 
@@ -90,9 +99,9 @@ class IoSubQueue {
         workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() + 1);
     }
 
-    private void fail(WriteData writeData, String msg) {
+    private void fail(WriteData writeData, Supplier<NetException> ex) {
         if (writeData.getFuture() != null) {
-            writeData.getFuture().completeExceptionally(new NetException(msg));
+            writeData.getFuture().completeExceptionally(ex.get());
         }
         writeData.getData().clean();
     }
@@ -100,7 +109,7 @@ class IoSubQueue {
     public void cleanSubQueue() {
         WriteData wd;
         while ((wd = subQueue.pollFirst()) != null) {
-            fail(wd, "channel closed, future cancelled by subQueue clean");
+            fail(wd, () -> new NetException("channel closed, future cancelled by subQueue clean"));
         }
     }
 
@@ -149,7 +158,7 @@ class IoSubQueue {
                             // TODO change this behavior
                             String errMsg = "dup seq: old=" + old.getData() + ", new=" + f;
                             log.error(errMsg);
-                            fail(wd, errMsg);
+                            fail(wd, () -> new NetException(errMsg));
                             workerStatus.getPendingRequests().put(key, old);
                         }
                     }

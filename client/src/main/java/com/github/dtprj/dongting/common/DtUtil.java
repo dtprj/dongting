@@ -128,4 +128,17 @@ public class DtUtil {
         f.completeExceptionally(e);
         return f;
     }
+
+    public static Throwable rootCause(Throwable ex) {
+        if (ex == null) {
+            return null;
+        }
+        for (int i = 0; i < 1000; i++) {
+            if (ex.getCause() == null) {
+                return ex;
+            }
+            ex = ex.getCause();
+        }
+        throw new IllegalStateException("loop cause?");
+    }
 }

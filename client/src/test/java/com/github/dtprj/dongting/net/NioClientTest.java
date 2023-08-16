@@ -16,9 +16,11 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.ByteArrayDecoder;
 import com.github.dtprj.dongting.codec.CopyDecoder;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.DtFrame;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.RefBufferDecoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -250,11 +252,6 @@ public class NioClientTest {
         assertEquals(expectCount, v);
     }
 
-    private static void sendSync(int maxBodySize, NioClient client, long timeoutMillis) throws Exception {
-        sendSync(maxBodySize, client, timeoutMillis, new RefBufferDecoder());
-        sendSync(maxBodySize, client, timeoutMillis, new IoFullPackByteBufferDecoder());
-    }
-
     @Test
     public void multiServerTest() throws Exception {
         BioServer server1 = null;
@@ -273,6 +270,11 @@ public class NioClientTest {
         } finally {
             DtUtil.close(client, server1, server2);
         }
+    }
+
+    private static void sendSync(int maxBodySize, NioClient client, long timeoutMillis) throws Exception {
+        sendSync(maxBodySize, client, timeoutMillis, new RefBufferDecoder());
+        sendSync(maxBodySize, client, timeoutMillis, new IoFullPackByteBufferDecoder());
     }
 
     private static void sendSync(int maxBodySize, NioClient client, long timeoutMillis, Decoder<?> decoder) throws Exception {
@@ -792,8 +794,8 @@ public class NioClientTest {
 
                 try {
                     f.get(tick(5), TimeUnit.SECONDS);
+                    fail();
                 } catch (ExecutionException e) {
-                    e.printStackTrace();
                     assertEquals(ArrayIndexOutOfBoundsException.class, e.getCause().getClass());
                 }
             }
@@ -802,6 +804,84 @@ public class NioClientTest {
             for (int i = 0; i < 10; i++) {
                 sendSync(5000, client, tick(1000));
             }
+        } finally {
+            DtUtil.close(client, server);
+        }
+    }
+
+    @Test
+    public void badEncoderTest() throws Exception {
+        BioServer server = null;
+        NioClientConfig c = new NioClientConfig();
+        c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+        NioClient client = new NioClient(c);
+        try {
+            server = new BioServer(9000);
+            client.start();
+            client.waitStart();
+
+            sendSync(5000, client, tick(1000));
+
+            {
+                // decoder fail in io thread
+                WriteFrame wf = new WriteFrame() {
+                    @Override
+                    protected int calcActualBodySize() {
+                        throw new ArrayIndexOutOfBoundsException();
+                    }
+
+                    @Override
+                    protected boolean encodeBody(EncodeContext context, ByteBuffer buf) {
+                        return true;
+                    }
+                };
+                wf.setCommand(Commands.CMD_PING);
+                CompletableFuture<?> f = client.sendRequest(wf, ByteArrayDecoder.INSTANCE,
+                        new DtTime(tick(1), TimeUnit.SECONDS));
+
+                try {
+                    f.get(tick(5), TimeUnit.SECONDS);
+                    fail();
+                } catch (ExecutionException e) {
+                    assertEquals(ArrayIndexOutOfBoundsException.class, DtUtil.rootCause(e).getClass());
+                }
+            }
+
+            // not affect the following requests
+            for (int i = 0; i < 10; i++) {
+                sendSync(5000, client, tick(1000));
+            }
+
+            {
+                // decoder fail in io thread
+                WriteFrame wf = new WriteFrame() {
+                    @Override
+                    protected int calcActualBodySize() {
+                        return 1;
+                    }
+
+                    @Override
+                    protected boolean encodeBody(EncodeContext context, ByteBuffer buf) {
+                        throw new ArrayIndexOutOfBoundsException();
+                    }
+                };
+                wf.setCommand(Commands.CMD_PING);
+                CompletableFuture<?> f = client.sendRequest(wf, ByteArrayDecoder.INSTANCE,
+                        new DtTime(tick(1), TimeUnit.SECONDS));
+
+                try {
+                    f.get(tick(5), TimeUnit.SECONDS);
+                    fail();
+                } catch (ExecutionException e) {
+                    assertEquals(ArrayIndexOutOfBoundsException.class, DtUtil.rootCause(e).getClass());
+                }
+            }
+
+            // not affect the following requests
+            for (int i = 0; i < 10; i++) {
+                sendSyncByPeer(5000, client, client.getPeers().get(0), tick(1000));
+            }
+
         } finally {
             DtUtil.close(client, server);
         }
