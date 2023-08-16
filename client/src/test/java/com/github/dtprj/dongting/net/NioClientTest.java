@@ -886,4 +886,47 @@ public class NioClientTest {
             DtUtil.close(client, server);
         }
     }
+
+    @Test
+    public void largeFrameTest() throws Exception {
+        BioServer server = null;
+        NioClientConfig c = new NioClientConfig();
+        c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+        c.setMaxFrameSize(100 + 128 * 1024);
+        c.setMaxBodySize(100);
+        NioClient client = new NioClient(c);
+        try {
+            server = new BioServer(9000);
+            client.start();
+            client.waitStart();
+
+            Peer peer = client.getPeers().get(0);
+
+            ByteBuffer buf = ByteBuffer.allocate(101 + 128 * 1024);
+            try {
+                ByteBufferWriteFrame f = new ByteBufferWriteFrame(buf);
+                f.setCommand(Commands.CMD_PING);
+                client.sendRequest(peer, f, ByteArrayDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS)).get();
+                fail();
+            } catch (Exception e) {
+                assertEquals(NetException.class, DtUtil.rootCause(e).getClass());
+                assertEquals("estimateSize overflow", DtUtil.rootCause(e).getMessage());
+            }
+
+            buf.limit(101);
+            try {
+                ByteBufferWriteFrame f = new ByteBufferWriteFrame(buf);
+                f.setCommand(Commands.CMD_PING);
+                client.sendRequest(peer, f, ByteArrayDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS)).get();
+                fail();
+            } catch (Exception e) {
+                assertEquals(NetException.class, DtUtil.rootCause(e).getClass());
+                assertTrue(DtUtil.rootCause(e).getMessage().contains("exceeds max body size"));
+            }
+
+            sendSyncByPeer(100, client, peer, tick(1000));
+        } finally {
+            DtUtil.close(client, server);
+        }
+    }
 }
