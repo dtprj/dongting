@@ -180,7 +180,8 @@ public class MemRaftLog implements RaftLog {
 
     @Override
     public void markTruncateByIndex(long index, long delayMillis) {
-        markDelete(delayMillis, li -> li.getIndex() < index);
+        markDelete(delayMillis, li -> li.getIndex() < index
+                && li.getIndex() < raftStatus.getLastApplied());
     }
 
     @Override
@@ -231,5 +232,10 @@ public class MemRaftLog implements RaftLog {
         while ((i = logs.removeFirst()) != null) {
             i.item.release();
         }
+    }
+
+    // for test
+    IndexedQueue<MemLog> getLogs() {
+        return logs;
     }
 }
