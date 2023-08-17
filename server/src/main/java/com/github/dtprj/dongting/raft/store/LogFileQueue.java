@@ -322,8 +322,9 @@ class LogFileQueue extends FileQueue implements FileOps {
         }
     }
 
-    public void markDeleteByIndex(long index, long delayMillis) {
-        markDelete(delayMillis, nextFile -> index >= nextFile.firstIndex);
+    public void markDeleteByIndex(long lastApplied, long index, long delayMillis) {
+        markDelete(delayMillis, nextFile -> index >= nextFile.firstIndex
+                && lastApplied >= nextFile.firstIndex);
     }
 
     public void markDeleteByTimestamp(long lastApplied, long timestampMillis, long delayMills) {

@@ -166,7 +166,7 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public void markTruncateByIndex(long index, long delayMillis) {
-        logFiles.markDeleteByIndex(index, delayMillis);
+        logFiles.markDeleteByIndex(raftStatus.getLastApplied(), index, delayMillis);
     }
 
     @Override
