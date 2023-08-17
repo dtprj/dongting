@@ -128,7 +128,6 @@ public class MemRaftLog implements RaftLog {
 
     @Override
     public CompletableFuture<Pair<Integer, Long>> findReplicatePos(int suggestTerm, long suggestIndex,
-                                                                   int lastTerm, long lastIndex,
                                                                    Supplier<Boolean> cancelIndicator) {
         return CompletableFuture.completedFuture(findReplicatePos0(suggestTerm, suggestIndex));
     }

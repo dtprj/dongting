@@ -42,7 +42,6 @@ public interface RaftLog extends AutoCloseable {
      * return null if it can't match and will cause install snapshot
      */
     CompletableFuture<Pair<Integer, Long>> findReplicatePos(int suggestTerm, long suggestIndex,
-                                                            int lastTerm, long lastIndex,
                                                             Supplier<Boolean> cancelIndicator);
 
 

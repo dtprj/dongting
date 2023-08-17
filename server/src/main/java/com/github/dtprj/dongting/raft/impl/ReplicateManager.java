@@ -422,8 +422,8 @@ public class ReplicateManager {
             return;
         }
         CompletableFuture<Pair<Integer, Long>> future = raftLog.findReplicatePos(
-                body.getSuggestTerm(), body.getSuggestIndex(), raftStatus.getLastLogTerm(),
-                raftStatus.getLastLogIndex(), () -> raftStatus.isStop() || epochNotMatch(member, reqEpoch));
+                body.getSuggestTerm(), body.getSuggestIndex(),
+                () -> raftStatus.isStop() || epochNotMatch(member, reqEpoch));
         member.setReplicateFuture(future);
         future.whenCompleteAsync((r, ex) -> resumeAfterFindMaxIndexOfTerm(r, ex, member, reqEpoch,
                 body.getSuggestTerm(), body.getSuggestIndex()), raftExecutor);

@@ -21,11 +21,11 @@ import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.StatusFile;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
-import com.github.dtprj.dongting.raft.server.RaftStatus;
 import com.github.dtprj.dongting.raft.server.UnrecoverableException;
 
 import java.io.File;
@@ -41,7 +41,7 @@ public class DefaultRaftLog implements RaftLog {
 
     private final RaftGroupConfigEx groupConfig;
     private final Timestamp ts;
-    private final RaftStatus raftStatus;
+    private final RaftStatusImpl raftStatus;
     private final ExecutorService ioExecutor;
     private LogFileQueue logFiles;
     private IdxFileQueue idxFiles;
@@ -55,7 +55,7 @@ public class DefaultRaftLog implements RaftLog {
     public DefaultRaftLog(RaftGroupConfigEx groupConfig, ExecutorService ioExecutor) {
         this.groupConfig = groupConfig;
         this.ts = groupConfig.getTs();
-        this.raftStatus = groupConfig.getRaftStatus();
+        this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
         this.ioExecutor = ioExecutor;
 
         this.lastTaskNanos = ts.getNanoTime();
@@ -159,9 +159,8 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public CompletableFuture<Pair<Integer, Long>> findReplicatePos(int suggestTerm, long suggestIndex,
-                                                                   int lastTerm, long lastIndex,
                                                                    Supplier<Boolean> cancelIndicator) {
-        return logFiles.nextIndexToReplicate(suggestTerm, suggestIndex, lastIndex, cancelIndicator);
+        return logFiles.nextIndexToReplicate(suggestTerm, suggestIndex, raftStatus.getLastLogIndex(), cancelIndicator);
     }
 
     @Override
