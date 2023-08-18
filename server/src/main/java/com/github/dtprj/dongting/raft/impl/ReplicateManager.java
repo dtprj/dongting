@@ -425,11 +425,11 @@ public class ReplicateManager {
                 body.getSuggestTerm(), body.getSuggestIndex(),
                 () -> raftStatus.isStop() || epochNotMatch(member, reqEpoch));
         member.setReplicateFuture(future);
-        future.whenCompleteAsync((r, ex) -> resumeAfterFindMaxIndexOfTerm(r, ex, member, reqEpoch,
+        future.whenCompleteAsync((r, ex) -> resumeAfterFindReplicatePos(r, ex, member, reqEpoch,
                 body.getSuggestTerm(), body.getSuggestIndex()), raftExecutor);
     }
 
-    private void resumeAfterFindMaxIndexOfTerm(Pair<Integer, Long> result, Throwable ex, RaftMember member,
+    private void resumeAfterFindReplicatePos(Pair<Integer, Long> result, Throwable ex, RaftMember member,
                                                int reqEpoch, int suggestTerm, long suggestIndex) {
         member.setReplicateFuture(null);
         if (epochNotMatch(member, reqEpoch)) {

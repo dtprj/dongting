@@ -30,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * @author huangli
  */
+@SuppressWarnings({"resource", "StatementWithEmptyBody", "SameParameterValue"})
 public class MemRaftLogTest {
 
     private RaftStatusImpl raftStatus;
@@ -98,7 +99,7 @@ public class MemRaftLogTest {
         log.markTruncateByIndex(2, 0);
         assertEquals(2, log.getLogs().size());
 
-        while (!raftStatus.getTs().refresh(1)) ;
+        while (!raftStatus.getTs().refresh(1));
         log.doDelete();
         // not apply, so not delete
         assertEquals(2, log.getLogs().size());
