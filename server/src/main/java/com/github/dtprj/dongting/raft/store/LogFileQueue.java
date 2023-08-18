@@ -368,23 +368,20 @@ class LogFileQueue extends FileQueue implements FileOps {
         return 0;
     }
 
-    public CompletableFuture<Pair<Integer, Long>> nextIndexToReplicate(
+    public CompletableFuture<Pair<Integer, Long>> tryFindMatchPos(
             int suggestTerm, long suggestIndex, long lastIndex, Supplier<Boolean> cancelIndicator) {
-        if (queue.size() == 0) {
-            return CompletableFuture.completedFuture(null);
-        }
-        LogFile logFile = findLogFile(suggestTerm, suggestIndex, lastIndex);
+        LogFile logFile = findMatchLogFile(suggestTerm, suggestIndex, lastIndex);
         if (logFile == null) {
             return CompletableFuture.completedFuture(null);
         }
         CompletableFuture<Pair<Integer, Long>> future = new CompletableFuture<>();
-        ioExecutor.execute(() -> nextIndexToReplicate(cancelIndicator, logFile, suggestTerm, suggestTerm, future));
+        ioExecutor.execute(() -> tryFindMatchPos(cancelIndicator, logFile, suggestTerm, suggestTerm, future));
         return future;
     }
 
     // in io thread
-    private void nextIndexToReplicate(Supplier<Boolean> cancel, LogFile logFile, int suggestTerm,
-                                      long suggestIndex, CompletableFuture<Pair<Integer, Long>> future) {
+    private void tryFindMatchPos(Supplier<Boolean> cancel, LogFile logFile, int suggestTerm,
+                                 long suggestIndex, CompletableFuture<Pair<Integer, Long>> future) {
         try {
             if (cancel.get()) {
                 future.cancel(false);
@@ -401,15 +398,14 @@ class LogFileQueue extends FileQueue implements FileOps {
                     future.cancel(false);
                     return;
                 }
-                int c = compare(header.term, midIndex, suggestTerm, suggestIndex);
-                if (c == 0) {
+                if (midIndex == suggestIndex && header.term == suggestTerm) {
                     future.complete(new Pair<>(header.term, midIndex));
                     return;
-                } else if (c > 0) {
-                    rightIndex = midIndex - 1;
-                } else {
+                } else if (midIndex < suggestIndex && header.term <= suggestTerm) {
                     leftIndex = midIndex;
                     leftTerm = header.term;
+                } else {
+                    rightIndex = midIndex - 1;
                 }
             }
             future.complete(new Pair<>(leftTerm, leftIndex));
@@ -439,7 +435,10 @@ class LogFileQueue extends FileQueue implements FileOps {
         }
     }
 
-    private LogFile findLogFile(int suggestTerm, long suggestIndex, long lastIndex) {
+    private LogFile findMatchLogFile(int suggestTerm, long suggestIndex, long lastIndex) {
+        if (queue.size() == 0) {
+            return null;
+        }
         int left = 0;
         int right = queue.size() - 1;
         while (left <= right) {
@@ -453,28 +452,19 @@ class LogFileQueue extends FileQueue implements FileOps {
                 right = mid - 1;
                 continue;
             }
-            int c = compare(logFile.firstTerm, logFile.firstIndex, suggestTerm, suggestIndex);
-            if (left == right) {
-                return c <= 0 ? logFile : null;
-            } else if (c > 0) {
-                right = mid - 1;
-            } else if (c < 0) {
-                left = mid;
-            } else {
+            if (logFile.firstIndex == suggestIndex && logFile.firstTerm == suggestTerm) {
                 return logFile;
+            } else if (logFile.firstIndex < suggestIndex && logFile.firstTerm <= suggestTerm) {
+                if (left == right) {
+                    return logFile;
+                } else {
+                    left = mid;
+                }
+            } else {
+                right = mid - 1;
             }
         }
         return null;
-    }
-
-    static int compare(int term1, long index1, int term2, long index2) {
-        if (term1 < term2 && index1 < index2) {
-            return -1;
-        } else if (term1 == term2 && index1 == index2) {
-            return 0;
-        } else {
-            return 1;
-        }
     }
 
     @Override

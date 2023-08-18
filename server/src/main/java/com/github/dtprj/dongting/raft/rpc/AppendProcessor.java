@@ -144,7 +144,7 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
             log.info("log not match. prevLogIndex={}, localLastLogIndex={}, prevLogTerm={}, localLastLogTerm={}, leaderId={}, groupId={}",
                     req.getPrevLogIndex(), raftStatus.getLastLogIndex(), req.getPrevLogTerm(),
                     raftStatus.getLastLogTerm(), req.getLeaderId(), raftStatus.getGroupId());
-            CompletableFuture<Pair<Integer, Long>> replicatePos = gc.getRaftLog().findReplicatePos(
+            CompletableFuture<Pair<Integer, Long>> replicatePos = gc.getRaftLog().tryFindMatchPos(
                     req.getPrevLogTerm(), req.getPrevLogIndex(), raftStatus::isStop);
             try {
                 Pair<Integer, Long> pos = replicatePos.get();

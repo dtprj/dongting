@@ -127,54 +127,39 @@ public class MemRaftLog implements RaftLog {
     }
 
     @Override
-    public CompletableFuture<Pair<Integer, Long>> findReplicatePos(int suggestTerm, long suggestIndex,
-                                                                   Supplier<Boolean> cancelIndicator) {
-        return CompletableFuture.completedFuture(findReplicatePos0(suggestTerm, suggestIndex));
+    public CompletableFuture<Pair<Integer, Long>> tryFindMatchPos(int suggestTerm, long suggestIndex,
+                                                                  Supplier<Boolean> cancelIndicator) {
+        return CompletableFuture.completedFuture(tryFindMatchPos0(suggestTerm, suggestIndex));
     }
 
-    private Pair<Integer, Long> findReplicatePos0(int suggestTerm, long suggestIndex) {
+    private Pair<Integer, Long> tryFindMatchPos0(int suggestTerm, long suggestIndex) {
         IndexedQueue<MemLog> logs = this.logs;
         if (logs.size() == 0) {
             return null;
         }
-        LogItem first = logs.get(0).item;
-        LogItem last = logs.get(logs.size() - 1).item;
-        int c = LogFileQueue.compare(last.getTerm(), last.getIndex(), suggestTerm, suggestIndex);
-        if (c < 0) {
-            return null;
-        }
-        c = LogFileQueue.compare(first.getTerm(), first.getIndex(), suggestTerm, suggestIndex);
-        if (c > 0) {
-            return null;
-        }
         int left = 0;
         int right = logs.size() - 1;
-        while (left < right) {
+        while (left <= right) {
             int mid = (left + right + 1) >>> 1;
             MemLog memLog = logs.get(mid);
             if (memLog.deleteTimestamp > 0) {
                 left = mid + 1;
+                continue;
             }
             LogItem i = memLog.item;
-
-            c = LogFileQueue.compare(i.getTerm(), i.getIndex(), suggestTerm, suggestIndex);
-            if (c < 0) {
-                left = mid;
-            } else if (c > 0) {
-                right = mid - 1;
-            } else {
+            if (i.getIndex() == suggestIndex && i.getTerm() == suggestTerm) {
                 return new Pair<>(i.getTerm(), i.getIndex());
+            } else if (i.getIndex() < suggestIndex && i.getTerm() <= suggestTerm) {
+                if (left == right) {
+                    return new Pair<>(i.getTerm(), i.getIndex());
+                } else {
+                    left = mid;
+                }
+            } else {
+                right = mid - 1;
             }
         }
-        if (left >= logs.size()) {
-            return null;
-        }
-        MemLog memLog = logs.get(left);
-        if (memLog.deleteTimestamp > 0) {
-            return null;
-        }
-        LogItem li = memLog.item;
-        return new Pair<>(li.getTerm(), li.getIndex());
+        return null;
     }
 
     @Override

@@ -158,9 +158,9 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public CompletableFuture<Pair<Integer, Long>> findReplicatePos(int suggestTerm, long suggestIndex,
-                                                                   Supplier<Boolean> cancelIndicator) {
-        return logFiles.nextIndexToReplicate(suggestTerm, suggestIndex, raftStatus.getLastLogIndex(), cancelIndicator);
+    public CompletableFuture<Pair<Integer, Long>> tryFindMatchPos(int suggestTerm, long suggestIndex,
+                                                                  Supplier<Boolean> cancelIndicator) {
+        return logFiles.tryFindMatchPos(suggestTerm, suggestIndex, raftStatus.getLastLogIndex(), cancelIndicator);
     }
 
     @Override

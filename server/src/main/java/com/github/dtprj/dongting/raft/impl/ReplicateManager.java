@@ -421,7 +421,7 @@ public class ReplicateManager {
             beginInstallSnapshot(member);
             return;
         }
-        CompletableFuture<Pair<Integer, Long>> future = raftLog.findReplicatePos(
+        CompletableFuture<Pair<Integer, Long>> future = raftLog.tryFindMatchPos(
                 body.getSuggestTerm(), body.getSuggestIndex(),
                 () -> raftStatus.isStop() || epochNotMatch(member, reqEpoch));
         member.setReplicateFuture(future);
