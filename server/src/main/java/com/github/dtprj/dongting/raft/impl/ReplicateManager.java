@@ -389,6 +389,10 @@ public class ReplicateManager {
             int appendCode = body.getAppendCode();
             if (appendCode == AppendProcessor.CODE_LOG_NOT_MATCH) {
                 updateLease(member, reqNanos, raftStatus);
+                if (member.getReplicateIterator() != null) {
+                    DtUtil.close(member.getReplicateIterator());
+                    member.setReplicateIterator(null);
+                }
                 processLogNotMatch(member, prevLogIndex, prevLogTerm, body, raftStatus);
             } else if (appendCode == AppendProcessor.CODE_SERVER_ERROR) {
                 updateLease(member, reqNanos, raftStatus);
