@@ -264,7 +264,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
                 .append('\n');
         for (int s : bufSizes) {
             if (s < 1024) {
-                sb.append(s);
+                sb.append(s).append("B, ");
             } else {
                 sb.append(s / 1024).append("KB, ");
             }
