@@ -132,7 +132,7 @@ class IoSubQueue {
             // no packet to write
             return null;
         }
-        ByteBuffer buf = subQueueBytes <= MAX_BUFFER_SIZE ? heapPool.borrow(subQueueBytes) : heapPool.borrow(MAX_BUFFER_SIZE);
+        ByteBuffer buf = subQueueBytes <= MAX_BUFFER_SIZE ? directPool.borrow(subQueueBytes) : directPool.borrow(MAX_BUFFER_SIZE);
 
         WriteData wd = this.lastWriteData;
         try {
