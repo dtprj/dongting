@@ -17,8 +17,6 @@ package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.codec.BoolDecoder;
-import com.github.dtprj.dongting.codec.BoolEncoder;
 import com.github.dtprj.dongting.codec.ByteArrayDecoder;
 import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.Decoder;
@@ -88,20 +86,6 @@ public class DtKV implements StateMachine {
     }
 
     @Override
-    public Decoder<?> createResultDecoder(int bizType) {
-        switch (bizType) {
-            case BIZ_TYPE_GET:
-                return ByteArrayDecoder.INSTANCE;
-            case BIZ_TYPE_REMOVE:
-                return BoolDecoder.INSTANCE;
-            case BIZ_TYPE_PUT:
-                return null;
-            default:
-                throw new IllegalArgumentException("unknown bizType " + bizType);
-        }
-    }
-
-    @Override
     public Encoder<?> createHeaderEncoder(int bizType) {
         switch (bizType) {
             case BIZ_TYPE_GET:
@@ -121,20 +105,6 @@ public class DtKV implements StateMachine {
                 return null;
             case BIZ_TYPE_PUT:
                 return ByteArrayEncoder.INSTANCE;
-            default:
-                throw new IllegalArgumentException("unknown bizType " + bizType);
-        }
-    }
-
-    @Override
-    public Encoder<?> createResultEncoder(int bizType) {
-        switch (bizType) {
-            case BIZ_TYPE_GET:
-                return ByteArrayEncoder.INSTANCE;
-            case BIZ_TYPE_REMOVE:
-                return BoolEncoder.INSTANCE;
-            case BIZ_TYPE_PUT:
-                return null;
             default:
                 throw new IllegalArgumentException("unknown bizType " + bizType);
         }

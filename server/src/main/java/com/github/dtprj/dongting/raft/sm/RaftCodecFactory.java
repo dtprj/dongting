@@ -36,11 +36,6 @@ public interface RaftCodecFactory {
     /**
      * this method is called in raft thread or io thread.
      */
-    Decoder<?> createResultDecoder(int bizType);
-
-    /**
-     * this method is called in raft thread or io thread.
-     */
     Encoder<?> createHeaderEncoder(int bizType);
 
     /**
@@ -48,8 +43,4 @@ public interface RaftCodecFactory {
      */
     Encoder<?> createBodyEncoder(int bizType);
 
-    /**
-     * this method is called in raft thread or io thread.
-     */
-    Encoder<?> createResultEncoder(int bizType);
 }
