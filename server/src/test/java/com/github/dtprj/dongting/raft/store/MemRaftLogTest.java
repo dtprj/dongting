@@ -15,16 +15,19 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
 import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -99,7 +102,7 @@ public class MemRaftLogTest {
         log.markTruncateByIndex(2, 0);
         assertEquals(2, log.getLogs().size());
 
-        while (!raftStatus.getTs().refresh(1));
+        while (!raftStatus.getTs().refresh(1)) ;
         log.doDelete();
         // not apply, so not delete
         assertEquals(2, log.getLogs().size());
@@ -210,5 +213,89 @@ public class MemRaftLogTest {
         while (!raftStatus.getTs().refresh(1)) ;
         log.doDelete();
         assertEquals(1, log.getLogs().size());
+    }
+
+    @Test
+    public void testTryFindMatchPos1() throws Exception {
+        MemRaftLog log = setup(2, 1);
+        assertNull(log.tryFindMatchPos(1, 1, null).get());
+
+        items[0].setIndex(100);
+        items[0].setTerm(10);
+        log.append(Collections.singletonList(items[0]));
+
+        assertNull(log.tryFindMatchPos(1, 1, null).get());
+        assertNull(log.tryFindMatchPos(9, 100, null).get());
+        assertNull(log.tryFindMatchPos(10, 99, null).get());
+        assertNull(log.tryFindMatchPos(11, 100, null).get());
+
+        assertEquals(new Pair<>(10, 100L),
+                log.tryFindMatchPos(10, 100, null).get());
+        assertEquals(new Pair<>(10, 100L),
+                log.tryFindMatchPos(10, 101, null).get());
+        assertEquals(new Pair<>(10, 100L),
+                log.tryFindMatchPos(11, 101, null).get());
+
+        log.getLogs().get(0).deleteTimestamp = 100;
+        assertNull(log.tryFindMatchPos(10, 100, null).get());
+    }
+
+    @Test
+    public void testTryFindMatchPos2() throws Exception {
+        MemRaftLog log = setup(5, 5);
+        for (int i = 0; i < items.length; i++) {
+            items[i].setIndex(100 + i);
+            items[i].setTerm(10);
+        }
+        log.append(Arrays.asList(items));
+
+        assertNull(log.tryFindMatchPos(1, 1, null).get());
+        assertNull(log.tryFindMatchPos(9, 100, null).get());
+        assertNull(log.tryFindMatchPos(10, 99, null).get());
+        assertNull(log.tryFindMatchPos(11, 100, null).get());
+
+        for (int i = 0; i < items.length; i++) {
+            assertEquals(new Pair<>(10, 100L + i),
+                    log.tryFindMatchPos(10, 100 + i, null).get());
+        }
+
+        assertEquals(new Pair<>(10, 104L),
+                log.tryFindMatchPos(10, 105, null).get());
+        assertEquals(new Pair<>(10, 104L),
+                log.tryFindMatchPos(11, 105, null).get());
+        assertEquals(new Pair<>(10, 103L),
+                log.tryFindMatchPos(11, 104, null).get());
+
+        log.getLogs().get(0).deleteTimestamp = 100;
+        assertNull(log.tryFindMatchPos(10, 100, null).get());
+    }
+
+    @Test
+    public void testTryFindMatchPos3() throws Exception {
+        MemRaftLog log = setup(5, 5);
+        for (int i = 0; i < items.length; i++) {
+            items[i].setIndex(100 + i);
+            items[i].setTerm(10 + i);
+        }
+        log.append(Arrays.asList(items));
+
+        assertNull(log.tryFindMatchPos(1, 1, null).get());
+        assertNull(log.tryFindMatchPos(9, 100, null).get());
+        assertNull(log.tryFindMatchPos(10, 99, null).get());
+        assertNull(log.tryFindMatchPos(11, 100, null).get());
+
+        for (int i = 0; i < items.length; i++) {
+            assertEquals(new Pair<>(10 + i, 100L + i),
+                    log.tryFindMatchPos(10 + i, 100 + i, null).get());
+        }
+
+        assertEquals(new Pair<>(12, 102L),
+                log.tryFindMatchPos(12, 103, null).get());
+        assertEquals(new Pair<>(10, 100L),
+                log.tryFindMatchPos(12, 101, null).get());
+        assertEquals(new Pair<>(13, 103L),
+                log.tryFindMatchPos(13, 200, null).get());
+        assertEquals(new Pair<>(12, 102L),
+                log.tryFindMatchPos(200, 103, null).get());
     }
 }

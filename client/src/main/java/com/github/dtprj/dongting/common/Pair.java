@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.common;
 
+import java.util.Objects;
+
 /**
  * @author huangli
  */
@@ -22,7 +24,7 @@ public class Pair<L, R> {
     private L left;
     private R right;
 
-    public Pair(L left, R right){
+    public Pair(L left, R right) {
         this.left = left;
         this.right = right;
     }
@@ -41,5 +43,19 @@ public class Pair<L, R> {
 
     public void setRight(R right) {
         this.right = right;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof Pair) {
+            Pair<L, R> p = (Pair<L, R>) obj;
+            return Objects.equals(left, p.left) && Objects.equals(right, p.right);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(left, right);
     }
 }

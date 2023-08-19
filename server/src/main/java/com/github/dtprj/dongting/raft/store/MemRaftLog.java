@@ -42,7 +42,7 @@ public class MemRaftLog implements RaftLog {
     private final int maxItems;
     private boolean closed;
 
-    private static final class MemLog {
+    static final class MemLog {
         LogItem item;
         long deleteTimestamp;
         int flowControlSize;
