@@ -15,19 +15,27 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.codec.EncodeContext;
+import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.sm.MockRaftCodecFactory;
 import org.junit.jupiter.api.Test;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -38,6 +46,7 @@ public class MemRaftLogTest {
 
     private RaftStatusImpl raftStatus;
     private LogItem[] items;
+    private RaftGroupConfigEx config;
 
     private MemRaftLog setup(int maxItems, int itemsSize) {
         items = new LogItem[itemsSize];
@@ -47,11 +56,11 @@ public class MemRaftLogTest {
         }
 
         raftStatus = new RaftStatusImpl();
-        RaftGroupConfigEx c = new RaftGroupConfigEx(0, "1", "1");
-        c.setTs(raftStatus.getTs());
-        c.setRaftStatus(raftStatus);
+        config = new RaftGroupConfigEx(0, "1", "1");
+        config.setTs(raftStatus.getTs());
+        config.setRaftStatus(raftStatus);
 
-        return new MemRaftLog(c, maxItems);
+        return new MemRaftLog(config, maxItems);
     }
 
     @Test
@@ -298,4 +307,88 @@ public class MemRaftLogTest {
         assertEquals(new Pair<>(12, 102L),
                 log.tryFindMatchPos(200, 103, null).get());
     }
+
+    @Test
+    public void testIterator1() throws Exception {
+        MemRaftLog log = setup(1, 1);
+        {
+            RaftLog.LogIterator it = log.openIterator(() -> true);
+            assertThrows(CancellationException.class, () -> it.next(0, 1, 1).get());
+        }
+        {
+            RaftLog.LogIterator it = log.openIterator(() -> false);
+            assertEquals(0, it.next(0, 1, 1).get().size());
+        }
+        {
+            RaftLog.LogIterator it = log.openIterator(() -> false);
+            log.close();
+            assertThrows(CancellationException.class, () -> it.next(0, 1, 1).get());
+        }
+    }
+
+    private void initEncoder() {
+        config.setCodecFactory(new MockRaftCodecFactory() {
+            @Override
+            public Encoder<?> createBodyEncoder(int bizType) {
+                return new Encoder<>() {
+                    @Override
+                    public boolean encode(EncodeContext context, ByteBuffer buffer, Object data) {
+                        return false;
+                    }
+
+                    @Override
+                    public int actualSize(Object data) {
+                        return 100;
+                    }
+                };
+            }
+        });
+    }
+
+    @Test
+    public void testIterator2() throws Exception {
+        MemRaftLog log = setup(5, 5);
+        initEncoder();
+        log.append(Arrays.asList(items));
+        RaftLog.LogIterator it = log.openIterator(() -> false);
+        List<LogItem> list = it.next(1, 3, 10000).get();
+        assertEquals(3, list.size());
+        list = it.next(4, 3, 10000).get();
+        assertEquals(2, list.size());
+        log.close();
+        for (LogItem li : items) {
+            assertFalse(li.release());
+            assertTrue(li.release());
+        }
+        it.close();
+    }
+
+    @Test
+    public void testIterator3() throws Exception {
+        MemRaftLog log = setup(5, 5);
+        initEncoder();
+        log.append(Arrays.asList(items));
+        RaftLog.LogIterator it = log.openIterator(() -> false);
+        List<LogItem> list = it.next(1, 200, 350).get();
+        assertEquals(3, list.size());
+        list = it.next(4, 200, 350).get();
+        assertEquals(2, list.size());
+        log.close();
+        for (LogItem li : items) {
+            assertFalse(li.release());
+            assertTrue(li.release());
+        }
+        it.close();
+    }
+
+    @Test
+    public void testIterator4() throws Exception {
+        MemRaftLog log = setup(5, 5);
+        initEncoder();
+        log.append(Arrays.asList(items));
+        RaftLog.LogIterator it = log.openIterator(() -> false);
+        assertThrows(ExecutionException.class, () -> it.next(6, 200, 350).get());
+        it.close();
+    }
+
 }

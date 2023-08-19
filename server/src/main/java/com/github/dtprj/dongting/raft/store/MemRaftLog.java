@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftStatus;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -88,17 +89,17 @@ public class MemRaftLog implements RaftLog {
                 }
                 IndexedQueue<MemLog> logs = MemRaftLog.this.logs;
                 if (logs.size() == 0) {
-                    return CompletableFuture.failedFuture(new RaftException("no logs"));
+                    return CompletableFuture.completedFuture(Collections.emptyList());
                 }
                 MemLog first = logs.get(0);
-                int logIndex = (int) (index - first.item.getIndex());
-                if (logIndex < 0 || logIndex > logs.size()) {
+                long logIndex = index - first.item.getIndex();
+                if (logIndex < 0 || logIndex >= logs.size()) {
                     return CompletableFuture.failedFuture(new RaftException("bad index " + index +
                             ", fist index is " + first.item.getIndex()));
                 }
                 ArrayList<LogItem> list = new ArrayList<>(limit);
                 while (logIndex < logs.size()) {
-                    MemLog it = logs.get(logIndex);
+                    MemLog it = logs.get((int) logIndex);
                     LogItem li = it.item;
                     if (it.flowControlSize == 0 && li.getType() == LogItem.TYPE_NORMAL) {
                         @SuppressWarnings("rawtypes")
