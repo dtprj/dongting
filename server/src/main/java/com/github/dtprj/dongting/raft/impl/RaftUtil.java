@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.FlowControlException;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -126,6 +127,14 @@ public class RaftUtil {
         raftStatus.setLastElectTime(raftStatus.getTs().getNanoTime());
     }
 
+    public static void closeIterator(RaftMember member) {
+        RaftLog.LogIterator it = member.getReplicateIterator();
+        if (it != null) {
+            DtUtil.close(it);
+            member.setReplicateIterator(null);
+        }
+    }
+
     public static void resetStatus(RaftStatusImpl raftStatus) {
         raftStatus.setFirstIndexOfCurrentTerm(0);
         raftStatus.setFirstCommitOfApplied(new CompletableFuture<>());
@@ -146,6 +155,7 @@ public class RaftUtil {
             if (member.getReplicateFuture() != null) {
                 member.getReplicateFuture().cancel(false);
             }
+            closeIterator(member);
             if (member.getSnapshotInfo() != null) {
                 try {
                     SnapshotInfo si = member.getSnapshotInfo();

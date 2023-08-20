@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
@@ -166,12 +165,8 @@ public class ReplicateManager {
         int limit = member.isMultiAppend() ? (int) Math.min(rest, diff) : 1;
 
         RaftTask first = raftStatus.getPendingRequests().get(nextIndex);
-        RaftLog.LogIterator logIterator = member.getReplicateIterator();
         if (first != null && !first.getInput().isReadOnly()) {
-            if (logIterator != null) {
-                DtUtil.close(logIterator);
-                member.setReplicateIterator(null);
-            }
+            RaftUtil.closeIterator(member);
             long sizeLimit = config.getSingleReplicateLimit();
             while (limit > 0) {
                 ArrayList<LogItem> items = new ArrayList<>(limit);
@@ -191,6 +186,7 @@ public class ReplicateManager {
                 }
             }
         } else {
+            RaftLog.LogIterator logIterator = member.getReplicateIterator();
             if (logIterator == null) {
                 int currentEpoch = member.getReplicateEpoch();
                 logIterator = raftLog.openIterator(() -> member.getReplicateEpoch() != currentEpoch || raftStatus.isStop());
@@ -209,6 +205,7 @@ public class ReplicateManager {
         if (epochNotMatch(member, repEpoch)) {
             log.info("replicate epoch changed, ignore load result");
             release(items);
+            RaftUtil.closeIterator(member);
             return;
         }
         if (ex != null) {
@@ -222,38 +219,46 @@ public class ReplicateManager {
                 log.error("load raft log failed", ex);
             }
             release(items);
+            RaftUtil.closeIterator(member);
             return;
         }
         if (!member.isReady()) {
             log.warn("member is not ready, ignore load result");
             release(items);
+            RaftUtil.closeIterator(member);
             return;
         }
         if (member.isInstallSnapshot()) {
             log.warn("member is installing snapshot, ignore load result");
             release(items);
+            RaftUtil.closeIterator(member);
             return;
         }
         if (items == null || items.size() == 0) {
             log.warn("load raft log return empty, ignore load result");
             release(items);
+            RaftUtil.closeIterator(member);
             return;
         }
         if (member.getNextIndex() != items.get(0).getIndex()) {
             log.warn("the first load item index not match nextIndex, ignore load result");
             release(items);
+            RaftUtil.closeIterator(member);
             return;
         }
 
-        // release in AppendReqWriteFrame
         if (member.isMultiAppend()) {
+            // release in AppendReqWriteFrame
             sendAppendRequest(member, items);
             replicate(member);
         } else {
             if (member.getPendingStat().getPendingRequestsPlain() == 0) {
+                // release in AppendReqWriteFrame
                 sendAppendRequest(member, items);
             } else {
+                BugLog.getLog().error("pending request not empty, ignore load result");
                 release(items);
+                RaftUtil.closeIterator(member);
             }
         }
 
@@ -313,16 +318,19 @@ public class ReplicateManager {
             if (reqTerm != raftStatus.getCurrentTerm()) {
                 log.info("receive outdated append result, term not match. reqTerm={}, currentTerm={}",
                         reqTerm, raftStatus.getCurrentTerm());
+                RaftUtil.closeIterator(member);
                 return;
             }
             if (epochNotMatch(member, repEpoch)) {
                 log.info("receive outdated append result, replicateEpoch not match. ignore.");
+                RaftUtil.closeIterator(member);
                 return;
             }
             member.getPendingStat().decrPlain(logSize, bytes);
             if (ex == null) {
                 processAppendResult(member, rf, prevLogIndex, prevLogTerm, reqTerm, reqNanos, logSize, repEpoch);
             } else {
+                RaftUtil.closeIterator(member);
                 member.incrReplicateEpoch(repEpoch);
                 member.setLastFailNanos(ts.getNanoTime());
                 if (member.isMultiAppend()) {
@@ -361,11 +369,13 @@ public class ReplicateManager {
         RaftStatusImpl raftStatus = this.raftStatus;
         int remoteTerm = body.getTerm();
         if (checkTermFailed(remoteTerm)) {
+            RaftUtil.closeIterator(member);
             return;
         }
         if (member.isInstallSnapshot()) {
             BugLog.getLog().error("receive append result when install snapshot, ignore. prevLogIndex={}, prevLogTerm={}, remoteId={}, groupId={}",
                     prevLogIndex, prevLogTerm, member.getNode().getNodeId(), groupId);
+            RaftUtil.closeIterator(member);
             return;
         }
         if (body.isSuccess()) {
@@ -382,17 +392,15 @@ public class ReplicateManager {
                                 " expectNewMatchIndex={}, remoteId={}, groupId={}, localTerm={}, reqTerm={}, remoteTerm={}",
                         member.getMatchIndex(), prevLogIndex, expectNewMatchIndex, member.getNode().getNodeId(),
                         groupId, raftStatus.getCurrentTerm(), reqTerm, body.getTerm());
+                RaftUtil.closeIterator(member);
             }
         } else {
+            RaftUtil.closeIterator(member);
             member.setMultiAppend(false);
             member.incrReplicateEpoch(reqEpoch);
             int appendCode = body.getAppendCode();
             if (appendCode == AppendProcessor.CODE_LOG_NOT_MATCH) {
                 updateLease(member, reqNanos, raftStatus);
-                if (member.getReplicateIterator() != null) {
-                    DtUtil.close(member.getReplicateIterator());
-                    member.setReplicateIterator(null);
-                }
                 processLogNotMatch(member, prevLogIndex, prevLogTerm, body, raftStatus);
             } else if (appendCode == AppendProcessor.CODE_SERVER_ERROR) {
                 updateLease(member, reqNanos, raftStatus);

@@ -86,14 +86,14 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         try {
             if (error || future != null || close) {
                 BugLog.getLog().error("iterator state error: {},{},{}", error, future, close);
-                throw new RaftException("iterator state error");
+                return CompletableFuture.failedFuture(new RaftException("iterator state error"));
             }
             if (nextIndex == -1) {
                 nextPos = idxFiles.syncLoadLogPos(index);
                 nextIndex = index;
             } else {
                 if (nextIndex != index) {
-                    throw new RaftException("nextIndex!=index");
+                    return CompletableFuture.failedFuture(new RaftException("nextIndex!=index"));
                 }
             }
 
