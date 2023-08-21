@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.raft.RaftException;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.CompletionHandler;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
@@ -38,6 +39,8 @@ public class AsyncIoTask implements CompletionHandler<Integer, CompletableFuture
     private boolean flushMeta;
 
     public AsyncIoTask(AsynchronousFileChannel channel, Supplier<Boolean> stopIndicator) {
+        Objects.requireNonNull(channel);
+        Objects.requireNonNull(stopIndicator);
         this.channel = channel;
         this.stopIndicator = stopIndicator;
     }
@@ -93,12 +96,12 @@ public class AsyncIoTask implements CompletionHandler<Integer, CompletableFuture
             return;
         }
         if (ioBuffer.hasRemaining()) {
-            if (stopIndicator != null && stopIndicator.get()) {
+            if (stopIndicator.get()) {
                 f.cancel(false);
                 return;
             }
-            int readBytes = ioBuffer.position() - position;
-            exec(f, filePos + readBytes);
+            int bytes = ioBuffer.position() - position;
+            exec(f, filePos + bytes);
         } else {
             try {
                 if (flush) {
