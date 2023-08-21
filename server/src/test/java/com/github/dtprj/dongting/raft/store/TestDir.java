@@ -26,10 +26,6 @@ public class TestDir {
     private static final String TEST_DIR = "target/test-data";
     private static final SimpleDateFormat sdf = new SimpleDateFormat("HHmmss_SSS");
 
-    public static File createTestDir() {
-        return createTestDir("");
-    }
-
     public static File createTestDir(String prefix) {
         File dir = new File(TEST_DIR);
         if (!dir.exists()) {

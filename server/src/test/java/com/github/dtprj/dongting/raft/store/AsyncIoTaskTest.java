@@ -42,6 +42,7 @@ public class AsyncIoTaskTest {
         dir = TestDir.createTestDir(AsyncIoTaskTest.class.getSimpleName());
     }
 
+    @SuppressWarnings("ResultOfMethodCallIgnored")
     @AfterEach
     public void clean() {
         if (file != null && file.exists()) {
@@ -49,6 +50,7 @@ public class AsyncIoTaskTest {
         }
     }
 
+    @SuppressWarnings("ResultOfMethodCallIgnored")
     @AfterAll
     public static void cleanDir() {
         if (dir.exists()) {
