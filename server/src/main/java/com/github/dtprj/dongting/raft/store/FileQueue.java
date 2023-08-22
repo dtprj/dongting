@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -50,12 +48,9 @@ abstract class FileQueue implements AutoCloseable {
     protected final IndexedQueue<LogFile> queue = new IndexedQueue<>();
     protected final File dir;
 
-    protected final RaftGroupConfigEx groupConfig;
     protected final ExecutorService ioExecutor;
     protected final Executor raftExecutor;
     protected final Supplier<Boolean> stopIndicator;
-    protected final RefBufferFactory heapPool;
-    protected final ByteBufferPool directPool;
 
     protected long queueStartPosition;
     protected long queueEndPosition;
@@ -69,9 +64,6 @@ abstract class FileQueue implements AutoCloseable {
         this.ioExecutor = ioExecutor;
         this.raftExecutor = groupConfig.getRaftExecutor();
         this.stopIndicator = groupConfig.getStopIndicator();
-        this.heapPool = groupConfig.getHeapPool();
-        this.directPool = groupConfig.getDirectPool();
-        this.groupConfig = groupConfig;
     }
 
     protected abstract long getFileSize();

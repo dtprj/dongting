@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.common.BitUtil;
@@ -52,6 +54,9 @@ class LogFileQueue extends FileQueue implements FileOps {
     private static final long FILE_LEN_MASK = LOG_FILE_SIZE - 1;
     private static final int FILE_LEN_SHIFT_BITS = BitUtil.zeroCountOfBinary(LOG_FILE_SIZE);
 
+    protected final RefBufferFactory heapPool;
+    protected final ByteBufferPool directPool;
+
     private final IdxOps idxOps;
 
     private final ByteBuffer writeBuffer = ByteBuffer.allocateDirect(128 * 1024);
@@ -69,6 +74,8 @@ class LogFileQueue extends FileQueue implements FileOps {
         this.ts = groupConfig.getTs();
         this.encodeContext = new EncodeContext(groupConfig.getHeapPool());
         this.codecFactory = groupConfig.getCodecFactory();
+        this.heapPool = groupConfig.getHeapPool();
+        this.directPool = groupConfig.getDirectPool();
     }
 
     @Override
