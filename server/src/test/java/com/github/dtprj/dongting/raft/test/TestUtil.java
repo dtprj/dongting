@@ -24,15 +24,16 @@ import java.util.function.Supplier;
  * @author huangli
  */
 public class TestUtil {
+    @SuppressWarnings({"unchecked", "unused", "rawtypes"})
     public static void waitUtil(Supplier<Boolean> condition) {
-        waitUtil(Boolean.TRUE, condition, 5000);
+        waitUtil(Boolean.TRUE, (Supplier) condition, 5000);
     }
 
-    public static void waitUtil(Object expectValue, Supplier<? extends Object> actual) {
+    public static void waitUtil(Object expectValue, Supplier<Object> actual) {
         waitUtil(expectValue, actual, 5000);
     }
 
-    public static void waitUtil(Object expectValue, Supplier<? extends Object> actual, long timeoutMillis) {
+    public static void waitUtil(Object expectValue, Supplier<Object> actual, long timeoutMillis) {
         long start = System.nanoTime();
         long deadline = start + timeoutMillis * 1000 * 1000;
         Object obj = actual.get();
@@ -42,7 +43,8 @@ public class TestUtil {
         int waitCount = 0;
         while (deadline - System.nanoTime() > 0) {
             try {
-                Thread.sleep(5);
+                //noinspection BusyWait
+                Thread.sleep(2);
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
