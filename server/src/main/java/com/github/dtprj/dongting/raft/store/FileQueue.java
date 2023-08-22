@@ -85,8 +85,7 @@ abstract class FileQueue implements AutoCloseable {
             Matcher matcher = PATTERN.matcher(f.getName());
             if (matcher.matches()) {
                 if (f.length() != getFileSize()) {
-                    log.warn("file size error: {}, size={}", f.getPath(), f.length());
-                    break;
+                    throw new RaftException("file size error: " + f.getPath() + ", size=" + f.length());
                 }
                 long startPos = Long.parseLong(matcher.group(1));
                 log.info("load file: {}", f.getPath());
