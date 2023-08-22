@@ -27,14 +27,15 @@ import java.util.concurrent.LinkedBlockingQueue;
 public class MockExecutors {
     private static final Thread MOCK_RAFT_THREAD;
     private static final RaftExecutor RAFT_EXECUTOR;
-    private static final ExecutorService MOCK_IO_EXECUTOR = Executors.newSingleThreadExecutor(
-            r -> new Thread(r, "MockIOExecutor"));
+    private static final ExecutorService MOCK_IO_EXECUTOR;
 
     private static volatile boolean stop = false;
 
     static {
         MOCK_RAFT_THREAD = new Thread(MockExecutors::runMockRaftThread, "MockRaftThread");
+        MOCK_RAFT_THREAD.start();
         RAFT_EXECUTOR = new RaftExecutor(MOCK_RAFT_THREAD);
+        MOCK_IO_EXECUTOR = Executors.newSingleThreadExecutor(r -> new Thread(r, "MockIOExecutor"));
     }
 
     private static void runMockRaftThread() {

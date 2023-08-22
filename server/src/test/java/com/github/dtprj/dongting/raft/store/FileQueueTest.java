@@ -18,12 +18,14 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
+import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.RandomAccessFile;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -137,6 +139,21 @@ public class FileQueueTest {
         fileQueue.ensureWritePosReady(0);
         assertEquals(1, fileQueue.queue.size());
         assertNotNull(fileQueue.allocateFuture);
+    }
+
+    @Test
+    public void testDelete() throws Exception {
+        fileQueue.ensureWritePosReady(0);
+        fileQueue.ensureWritePosReady(1024);
+        fileQueue.ensureWritePosReady(2048);
+        assertEquals(3, fileQueue.queue.size());
+        Predicate<LogFile> p = lf -> {
+            String n = lf.file.getName();
+            return n.endsWith("0000") || n.endsWith("1024");
+        };
+        fileQueue.submitDeleteTask(p);
+        fileQueue.submitDeleteTask(p);
+        TestUtil.waitUtil(1, () -> fileQueue.queue.size());
     }
 
 }
