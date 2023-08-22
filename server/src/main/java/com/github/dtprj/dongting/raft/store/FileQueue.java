@@ -33,6 +33,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Predicate;
@@ -82,7 +83,6 @@ abstract class FileQueue implements AutoCloseable {
     public void init() throws IOException {
         File[] files = dir.listFiles();
         if (files == null || files.length == 0) {
-            tryAllocate();
             return;
         }
         Arrays.sort(files);
@@ -119,7 +119,6 @@ abstract class FileQueue implements AutoCloseable {
             queueStartPosition = queue.get(0).startPos;
             queueEndPosition = queue.get(queue.size() - 1).endPos;
         }
-        tryAllocate();
     }
 
     protected LogFile getLogFile(long filePos) {
@@ -127,18 +126,16 @@ abstract class FileQueue implements AutoCloseable {
         return queue.get(index);
     }
 
-    private void tryAllocate() {
+    private void tryAllocate() throws InterruptedException, ExecutionException {
         if (getWritePos() >= queueEndPosition - getFileSize()) {
             if (allocateFuture == null) {
                 allocateFuture = allocate(queueEndPosition);
             } else {
                 if (allocateFuture.isDone()) {
                     try {
-                        LogFile newFile = allocateFuture.join();
+                        LogFile newFile = allocateFuture.get();
                         queue.addLast(newFile);
                         queueEndPosition = newFile.endPos;
-                    } catch (Throwable e) {
-                        log.error("allocate file error", e);
                     } finally {
                         allocateFuture = null;
                     }
@@ -147,41 +144,30 @@ abstract class FileQueue implements AutoCloseable {
         }
     }
 
-    private void processAllocResult() throws InterruptedException {
+    private void processAllocResult() throws InterruptedException, ExecutionException {
         try {
             LogFile newFile = allocateFuture.get();
             queue.addLast(newFile);
             queueEndPosition = newFile.endPos;
-        } catch (InterruptedException e) {
-            log.info("interrupted while allocate file");
-            throw e;
-        } catch (Throwable e) {
-            log.error("allocate file error", e);
         } finally {
             allocateFuture = null;
         }
     }
 
-    protected boolean ensureWritePosReady() {
-        return ensureWritePosReady(getWritePos());
-    }
-
-    protected boolean ensureWritePosReady(long pos) {
+    protected void ensureWritePosReady(long pos) throws InterruptedException, IOException {
         try {
             while (pos >= queueEndPosition) {
                 if (allocateFuture != null) {
                     processAllocResult();
                 } else {
-                    log.error("allocate future is null");
                     tryAllocate();
                     processAllocResult();
                 }
             }
             // pre allocate next file
             tryAllocate();
-            return true;
-        } catch (InterruptedException e) {
-            return false;
+        } catch (ExecutionException e) {
+            throw new IOException(e);
         }
     }
 

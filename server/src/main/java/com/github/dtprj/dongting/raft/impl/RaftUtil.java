@@ -267,6 +267,8 @@ public class RaftUtil {
                 return;
             } catch (UnrecoverableException e) {
                 throw e;
+            } catch (InterruptedException ex) {
+                throw new RaftException(ex);
             } catch (Exception e) {
                 failCount++;
                 log.error("raft append fail", e);

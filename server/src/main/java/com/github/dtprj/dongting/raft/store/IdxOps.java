@@ -21,6 +21,6 @@ import java.io.IOException;
  * @author huangli
  */
 interface IdxOps {
-    void put(long index, long position) throws IOException;
+    void put(long index, long position) throws InterruptedException, IOException;
     long syncLoadLogPos(long itemIndex) throws IOException;
 }

@@ -154,7 +154,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     @Override
-    public void put(long itemIndex, long dataPosition) throws IOException {
+    public void put(long itemIndex, long dataPosition) throws InterruptedException, IOException {
         checkIndex(itemIndex, false);
         if (itemIndex < firstIndex) {
             BugLog.getLog().error("index is too small : firstIndex={}, index={}", firstIndex, itemIndex);
@@ -174,10 +174,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         }
     }
 
-    private void writeAndFlush() {
-        if (!ensureWritePosReady()) {
-            return;
-        }
+    private void writeAndFlush() throws InterruptedException, IOException {
+        ensureWritePosReady(getWritePos());
         if (!ensureLastWriteFinish()) {
             return;
         }
@@ -213,52 +211,27 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         nextPersistIndexAfterWrite = 0;
     }
 
-    private boolean ensureLastWriteFinish() {
-        AsyncIoTask writeTask = this.writeTask;
+    private boolean ensureLastWriteFinish() throws InterruptedException, IOException {
         if (writeTask == null) {
             return true;
         }
-        //noinspection LoopStatementThatDoesntLoop
-        while (true) {
-            try {
-                if (stopIndicator.get()) {
-                    cleanWriteState();
-                    return false;
-                }
-                try {
-                    writeFuture.get();
-                    if (nextPersistIndexAfterWrite > nextPersistIndex && nextPersistIndexAfterWrite <= nextIndex) {
-                        nextPersistIndex = nextPersistIndexAfterWrite;
-                    }
-                    cleanWriteState();
-                    return true;
-                } catch (CancellationException e) {
-                    log.info("previous write canceled");
-                    cleanWriteState();
-                    return !stopIndicator.get();
-                } catch (ExecutionException e) {
-                    log.error("write idx file failed: {}", currentWriteFile.file.getPath(), e);
-                    if (e.getCause() instanceof IOException) {
-                        if (stopIndicator.get()) {
-                            cleanWriteState();
-                            return false;
-                        } else {
-                            //noinspection BusyWait
-                            Thread.sleep(1000);
-                            currentWriteFile.use++;
-                            writeFuture = writeTask.retry();
-                        }
-                    }
-                    cleanWriteState();
-                    throw new RaftException(e);
-                }
-            } catch (InterruptedException e) {
-                cleanWriteState();
-                log.info("write index interrupted: {}", currentWriteFile.file.getPath());
+        try {
+            if (stopIndicator.get()) {
                 return false;
-            } finally {
-                currentWriteFile.use--;
             }
+            writeFuture.get();
+            if (nextPersistIndexAfterWrite > nextPersistIndex && nextPersistIndexAfterWrite <= nextIndex) {
+                nextPersistIndex = nextPersistIndexAfterWrite;
+            }
+            return true;
+        } catch (CancellationException e) {
+            log.info("previous write canceled");
+            return !stopIndicator.get();
+        } catch (ExecutionException e){
+            throw new IOException(e);
+        } finally {
+            cleanWriteState();
+            currentWriteFile.use--;
         }
     }
 

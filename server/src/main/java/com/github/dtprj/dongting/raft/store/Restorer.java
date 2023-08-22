@@ -67,8 +67,8 @@ class Restorer {
         this.commitIndexPos = commitIndexPos;
     }
 
-    public Pair<Boolean, Long> restoreFile(ByteBuffer buffer, LogFile lf,
-                                           Supplier<Boolean> cancelIndicator) throws IOException {
+    public Pair<Boolean, Long> restoreFile(ByteBuffer buffer, LogFile lf, Supplier<Boolean> cancelIndicator)
+            throws IOException, InterruptedException {
         buffer.clear();
         buffer.limit(LogHeader.ITEM_HEADER_SIZE);
         FileUtil.syncReadFull(lf.channel, buffer, 0);
@@ -91,8 +91,8 @@ class Restorer {
         }
     }
 
-    private Pair<Boolean, Long> restoreFile0(ByteBuffer buffer, LogFile lf,
-                                             Supplier<Boolean> cancelIndicator) throws IOException {
+    private Pair<Boolean, Long> restoreFile0(ByteBuffer buffer, LogFile lf, Supplier<Boolean> cancelIndicator)
+            throws IOException, InterruptedException {
         log.info("try restore file {}", lf.file.getPath());
         if (commitIndexPos >= lf.startPos) {
             // check from commitIndexPos
@@ -139,7 +139,7 @@ class Restorer {
         }
     }
 
-    private int restore(ByteBuffer buf, LogFile lf, long lastReadEndPos) throws IOException {
+    private int restore(ByteBuffer buf, LogFile lf, long lastReadEndPos) throws IOException, InterruptedException {
         long fileLen = fileOps.fileLength();
         while (true) {
             int result;

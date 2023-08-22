@@ -86,7 +86,8 @@ class LogFileQueue extends FileQueue implements FileOps {
         return writePos;
     }
 
-    public int restore(long commitIndex, long commitIndexPos, Supplier<Boolean> cancelIndicator) throws IOException {
+    public int restore(long commitIndex, long commitIndexPos, Supplier<Boolean> cancelIndicator)
+            throws IOException, InterruptedException {
         log.info("restore from {}, {}", commitIndex, commitIndexPos);
         Restorer restorer = new Restorer(idxOps, this, commitIndex, commitIndexPos);
         for (int i = 0; i < queue.size(); i++) {
@@ -109,8 +110,8 @@ class LogFileQueue extends FileQueue implements FileOps {
     }
 
     @SuppressWarnings("rawtypes")
-    public void append(List<LogItem> logs) throws IOException {
-        ensureWritePosReady();
+    public void append(List<LogItem> logs) throws IOException, InterruptedException {
+        ensureWritePosReady(writePos);
         ByteBuffer writeBuffer = this.writeBuffer;
         writeBuffer.clear();
         long pos = writePos;

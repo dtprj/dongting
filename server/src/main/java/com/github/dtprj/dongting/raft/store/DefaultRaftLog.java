@@ -78,10 +78,7 @@ public class DefaultRaftLog implements RaftLog {
             idxFiles.initWithCommitIndex(knownMaxCommitIndex);
             long commitIndexPos;
             if (knownMaxCommitIndex > 0) {
-                commitIndexPos = idxFiles.findLogPosInMemCache(knownMaxCommitIndex);
-                if (commitIndexPos < 0) {
-                    commitIndexPos = idxFiles.syncLoadLogPos(knownMaxCommitIndex);
-                }
+                commitIndexPos = idxFiles.syncLoadLogPos(knownMaxCommitIndex);
             } else {
                 commitIndexPos = 0;
             }
