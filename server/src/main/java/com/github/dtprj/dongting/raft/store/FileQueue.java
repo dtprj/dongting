@@ -120,35 +120,17 @@ abstract class FileQueue implements AutoCloseable {
     protected void ensureWritePosReady(long pos) throws InterruptedException, IOException {
         try {
             while (pos >= queueEndPosition) {
-                if (allocateFuture != null) {
-                    processAllocResult();
-                } else {
-                    tryAllocate();
-                    processAllocResult();
+                if (allocateFuture == null) {
+                    allocateFuture = allocate(queueEndPosition);
                 }
+                processAllocResult();
             }
             // pre allocate next file
-            tryAllocate();
-        } catch (ExecutionException e) {
-            throw new IOException(e);
-        }
-    }
-
-    private void tryAllocate() throws InterruptedException, ExecutionException {
-        if (getWritePos() >= queueEndPosition - getFileSize()) {
             if (allocateFuture == null) {
                 allocateFuture = allocate(queueEndPosition);
-            } else {
-                if (allocateFuture.isDone()) {
-                    try {
-                        LogFile newFile = allocateFuture.get();
-                        queue.addLast(newFile);
-                        queueEndPosition = newFile.endPos;
-                    } finally {
-                        allocateFuture = null;
-                    }
-                }
             }
+        } catch (ExecutionException e) {
+            throw new IOException(e);
         }
     }
 
@@ -167,7 +149,7 @@ abstract class FileQueue implements AutoCloseable {
         ioExecutor.execute(() -> {
             AsynchronousFileChannel channel = null;
             try {
-                File f = new File(dir, String.valueOf(currentEndPosition));
+                File f = new File(dir, String.format("%020d", currentEndPosition));
                 HashSet<OpenOption> openOptions = new HashSet<>();
                 openOptions.add(StandardOpenOption.READ);
                 openOptions.add(StandardOpenOption.WRITE);
