@@ -58,11 +58,6 @@ public class FileQueueTest {
         }
 
         @Override
-        protected long getWritePos() {
-            return 0;
-        }
-
-        @Override
         protected int getFileLenShiftBits() {
             return 0;
         }

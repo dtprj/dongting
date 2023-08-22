@@ -68,8 +68,6 @@ abstract class FileQueue implements AutoCloseable {
 
     protected abstract long getFileSize();
 
-    protected abstract long getWritePos();
-
     protected abstract int getFileLenShiftBits();
 
     public void init() throws IOException {

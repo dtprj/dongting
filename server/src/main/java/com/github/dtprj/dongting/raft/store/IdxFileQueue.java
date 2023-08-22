@@ -77,11 +77,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     @Override
-    protected long getWritePos() {
-        return indexToPos(nextIndex);
-    }
-
-    @Override
     public int getFileLenShiftBits() {
         return FILE_LEN_SHIFT_BITS;
     }
@@ -175,7 +170,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     private void writeAndFlush() throws InterruptedException, IOException {
-        ensureWritePosReady(getWritePos());
+        ensureWritePosReady(indexToPos(nextIndex));
         if (!ensureLastWriteFinish()) {
             return;
         }

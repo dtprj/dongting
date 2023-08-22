@@ -88,7 +88,6 @@ class LogFileQueue extends FileQueue implements FileOps {
         return FILE_LEN_SHIFT_BITS;
     }
 
-    @Override
     protected long getWritePos() {
         return writePos;
     }
