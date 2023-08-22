@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.codec;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -55,12 +56,12 @@ public class StrFieldEncoderTest {
         assertEquals(9, e.actualSize(str));
         assertTrue(e.encode(null, buffer, str));
         assertEquals(9, buffer.position());
-        assertEquals(str, new String(buffer.array(), 0, 9));
+        assertEquals(str, new String(buffer.array(), 0, 9, StandardCharsets.UTF_8));
 
         buffer.clear();
         assertTrue(new StrFieldEncoder().encode(null, buffer, str));
         assertEquals(9, buffer.position());
-        assertEquals(str, new String(buffer.array(), 0, 9));
+        assertEquals(str, new String(buffer.array(), 0, 9, StandardCharsets.UTF_8));
     }
 
     @Test
@@ -77,7 +78,7 @@ public class StrFieldEncoderTest {
         buffer.position(5);
         assertTrue(e.encode(null, buffer, str));
         assertEquals(9, buffer.position());
-        assertEquals(str, new String(buffer.array(), 0, 9));
+        assertEquals(str, new String(buffer.array(), 0, 9, StandardCharsets.UTF_8));
 
         buffer.clear();
         buffer.limit(5);
@@ -88,6 +89,6 @@ public class StrFieldEncoderTest {
         buffer.position(5);
         assertTrue(e.encode(null, buffer, str));
         assertEquals(9, buffer.position());
-        assertEquals(str, new String(buffer.array(), 0, 9));
+        assertEquals(str, new String(buffer.array(), 0, 9, StandardCharsets.UTF_8));
     }
 }
