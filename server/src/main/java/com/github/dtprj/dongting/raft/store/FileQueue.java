@@ -117,6 +117,23 @@ abstract class FileQueue implements AutoCloseable {
         return queue.get(index);
     }
 
+    protected void ensureWritePosReady(long pos) throws InterruptedException, IOException {
+        try {
+            while (pos >= queueEndPosition) {
+                if (allocateFuture != null) {
+                    processAllocResult();
+                } else {
+                    tryAllocate();
+                    processAllocResult();
+                }
+            }
+            // pre allocate next file
+            tryAllocate();
+        } catch (ExecutionException e) {
+            throw new IOException(e);
+        }
+    }
+
     private void tryAllocate() throws InterruptedException, ExecutionException {
         if (getWritePos() >= queueEndPosition - getFileSize()) {
             if (allocateFuture == null) {
@@ -142,23 +159,6 @@ abstract class FileQueue implements AutoCloseable {
             queueEndPosition = newFile.endPos;
         } finally {
             allocateFuture = null;
-        }
-    }
-
-    protected void ensureWritePosReady(long pos) throws InterruptedException, IOException {
-        try {
-            while (pos >= queueEndPosition) {
-                if (allocateFuture != null) {
-                    processAllocResult();
-                } else {
-                    tryAllocate();
-                    processAllocResult();
-                }
-            }
-            // pre allocate next file
-            tryAllocate();
-        } catch (ExecutionException e) {
-            throw new IOException(e);
         }
     }
 
