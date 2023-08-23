@@ -23,6 +23,8 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
+import com.github.dtprj.dongting.raft.impl.StatusUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.File;
@@ -47,9 +49,12 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private static final int FILE_LEN_MASK = IDX_FILE_SIZE - 1;
     private static final int FILE_LEN_SHIFT_BITS = BitUtil.zeroCountOfBinary(IDX_FILE_SIZE);
 
+    private static final String IDX_FILE_PERSIST_INDEX_KEY = "idxFilePersistIndex";
+
     private static final int FLUSH_ITEMS = MAX_CACHE_ITEMS / 2;
     private final LongLongSeqMap tailCache = new LongLongSeqMap();
     private final Timestamp ts;
+    private final RaftStatusImpl raftStatus;
 
     private long nextPersistIndex;
     private long nextIndex;
@@ -69,6 +74,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         super(dir, ioExecutor, groupConfig);
         this.ts = groupConfig.getTs();
         this.lastFlushNanos = ts.getNanoTime();
+        this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
     }
 
     @Override
@@ -76,9 +82,16 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         return IDX_FILE_SIZE;
     }
 
-    public void initWithCommitIndex(long commitIndex) {
-        this.nextPersistIndex = commitIndex + 1;
-        this.nextIndex = commitIndex + 1;
+    @Override
+    public void init() throws IOException {
+        super.init();
+        long persistIndex = Long.parseLong(raftStatus.getExtraPersistProps().getProperty(IDX_FILE_PERSIST_INDEX_KEY, "0"));
+
+        // persistIndex may be rollback after truncate, but never rollback before commit index
+        persistIndex = Math.min(persistIndex, raftStatus.getCommitIndex());
+
+        this.nextPersistIndex = persistIndex + 1;
+        this.nextIndex = persistIndex + 1;
         this.firstIndex = posToIndex(queueStartPosition);
     }
 
@@ -233,6 +246,9 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             if (nextPersistIndexAfterWrite > nextPersistIndex && nextPersistIndexAfterWrite <= nextIndex) {
                 nextPersistIndex = nextPersistIndexAfterWrite;
             }
+            long idxPersisIndex = nextPersistIndex - 1;
+            raftStatus.getExtraPersistProps().setProperty(IDX_FILE_PERSIST_INDEX_KEY, String.valueOf(idxPersisIndex));
+            StatusUtil.persist(raftStatus);
         } catch (CancellationException e) {
             log.info("previous write canceled");
         } catch (ExecutionException e) {

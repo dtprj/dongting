@@ -92,10 +92,10 @@ class LogFileQueue extends FileQueue implements FileOps {
         return writePos;
     }
 
-    public int restore(long commitIndex, long commitIndexPos, Supplier<Boolean> cancelIndicator)
+    public int restore(long restoreIndex, long restoreIndexPos, Supplier<Boolean> cancelIndicator)
             throws IOException, InterruptedException {
-        log.info("restore from {}, {}", commitIndex, commitIndexPos);
-        Restorer restorer = new Restorer(idxOps, this, commitIndex, commitIndexPos);
+        log.info("restore from {}, {}", restoreIndex, restoreIndexPos);
+        Restorer restorer = new Restorer(idxOps, this, restoreIndex, restoreIndexPos);
         for (int i = 0; i < queue.size(); i++) {
             RaftUtil.checkInitCancel(cancelIndicator);
             LogFile lf = queue.get(i);
@@ -106,8 +106,8 @@ class LogFileQueue extends FileQueue implements FileOps {
             }
         }
         if (queue.size() > 0) {
-            if (commitIndexPos >= queue.get(queue.size() - 1).endPos) {
-                throw new RaftException("commitIndexPos is illegal. " + commitIndexPos);
+            if (restoreIndexPos >= queue.get(queue.size() - 1).endPos) {
+                throw new RaftException("restoreIndexPos is illegal. " + restoreIndexPos);
             }
             log.info("restore finished. lastTerm={}, lastIndex={}, lastPos={}, lastFile={}",
                     restorer.previousTerm, restorer.previousIndex, writePos, queue.get(queue.size() - 1).file.getPath());

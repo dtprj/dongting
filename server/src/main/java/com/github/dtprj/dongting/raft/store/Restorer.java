@@ -47,8 +47,8 @@ class Restorer {
     private final CRC32C crc32c = new CRC32C();
     private final IdxOps idxOps;
     private final FileOps fileOps;
-    private final long commitIndex;
-    private final long commitIndexPos;
+    private final long restoreIndex;
+    private final long restoreIndexPos;
 
     private boolean commitIndexChecked;
 
@@ -60,11 +60,11 @@ class Restorer {
     long previousIndex;
     int previousTerm;
 
-    public Restorer(IdxOps idxOps, FileOps fileOps, long commitIndex, long commitIndexPos) {
+    public Restorer(IdxOps idxOps, FileOps fileOps, long restoreIndex, long restoreIndexPos) {
         this.idxOps = idxOps;
         this.fileOps = fileOps;
-        this.commitIndex = commitIndex;
-        this.commitIndexPos = commitIndexPos;
+        this.restoreIndex = restoreIndex;
+        this.restoreIndexPos = restoreIndexPos;
     }
 
     public Pair<Boolean, Long> restoreFile(ByteBuffer buffer, LogFile lf, Supplier<Boolean> cancelIndicator)
@@ -80,7 +80,7 @@ class Restorer {
             lf.firstTimestamp = header.timestamp;
         }
 
-        if (commitIndexPos < lf.endPos) {
+        if (restoreIndexPos < lf.endPos) {
             return restoreFile0(buffer, lf, cancelIndicator);
         } else {
             if (header.crcMatch()) {
@@ -94,9 +94,9 @@ class Restorer {
     private Pair<Boolean, Long> restoreFile0(ByteBuffer buffer, LogFile lf, Supplier<Boolean> cancelIndicator)
             throws IOException, InterruptedException {
         log.info("try restore file {}", lf.file.getPath());
-        if (commitIndexPos >= lf.startPos) {
+        if (restoreIndexPos >= lf.startPos) {
             // check from commitIndexPos
-            itemStartPosOfFile = fileOps.filePos(commitIndexPos);
+            itemStartPosOfFile = fileOps.filePos(restoreIndexPos);
         } else {
             // check full file
             itemStartPosOfFile = 0;
@@ -135,7 +135,7 @@ class Restorer {
             log.info("reach end of file. file={}, pos={}", lf.file.getPath(), itemStartPosOfFile);
             return RT_RESTORE_FINISHED;
         } else {
-            throw new RaftException("commit index crc not match. " + commitIndex + "," + commitIndexPos);
+            throw new RaftException("commit index crc not match. " + restoreIndex + "," + restoreIndexPos);
         }
     }
 
@@ -192,7 +192,7 @@ class Restorer {
                 throwEx("term not match", lf, itemStartPosOfFile);
             }
         } else {
-            if (header.index != commitIndex) {
+            if (header.index != restoreIndex) {
                 throwEx("commitIndex not match", lf, itemStartPosOfFile);
             }
             if (header.term <= 0 || header.prevLogTerm < 0) {

@@ -66,8 +66,6 @@ public class DefaultRaftLog implements RaftLog {
         try {
             File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
 
-            long knownMaxCommitIndex = raftStatus.getCommitIndex();
-
             idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), ioExecutor, groupConfig);
             logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), ioExecutor, groupConfig, idxFiles);
             logFiles.init();
@@ -75,12 +73,12 @@ public class DefaultRaftLog implements RaftLog {
             idxFiles.init();
             RaftUtil.checkInitCancel(cancelInit);
 
-            idxFiles.initWithCommitIndex(knownMaxCommitIndex);
-            long commitIndexPos;
-            if (knownMaxCommitIndex > 0) {
-                commitIndexPos = idxFiles.syncLoadLogPos(knownMaxCommitIndex);
+            long restoreIndex = idxFiles.getNextIndex() - 1;
+            long restoreIndexPos;
+            if (restoreIndex > 0) {
+                restoreIndexPos = idxFiles.syncLoadLogPos(restoreIndex);
             } else {
-                commitIndexPos = 0;
+                restoreIndexPos = 0;
             }
             RaftUtil.checkInitCancel(cancelInit);
 
@@ -97,7 +95,7 @@ public class DefaultRaftLog implements RaftLog {
             }
             RaftUtil.checkInitCancel(cancelInit);
 
-            int lastTerm = logFiles.restore(knownMaxCommitIndex, commitIndexPos, cancelInit);
+            int lastTerm = logFiles.restore(restoreIndex, restoreIndexPos, cancelInit);
             RaftUtil.checkInitCancel(cancelInit);
 
             if (idxFiles.getNextIndex() == 1) {
@@ -131,19 +129,21 @@ public class DefaultRaftLog implements RaftLog {
             if (firstIndex < idxFiles.queueStartPosition || firstIndex < logFiles.queueStartPosition) {
                 throw new RaftException("bad index: " + firstIndex);
             }
-            long dataPosition = idxFiles.truncateTail(firstIndex);
-
-            Properties props = raftStatus.getExtraPersistProps();
-            props.setProperty(KEY_TRUNCATE, dataPosition + "," + logFiles.getWritePos());
-            StatusUtil.persist(raftStatus);
-            logFiles.syncTruncateTail(dataPosition, logFiles.getWritePos());
-            props.remove(KEY_TRUNCATE);
-            StatusUtil.persist(raftStatus);
-
+            truncateTail(firstIndex);
             logFiles.append(logs);
         } else {
             throw new UnrecoverableException("bad index: " + firstIndex);
         }
+    }
+
+    private void truncateTail(long firstIndex) throws Exception {
+        long dataPosition = idxFiles.truncateTail(firstIndex);
+        Properties props = raftStatus.getExtraPersistProps();
+        props.setProperty(KEY_TRUNCATE, dataPosition + "," + logFiles.getWritePos());
+        StatusUtil.persist(raftStatus);
+        logFiles.syncTruncateTail(dataPosition, logFiles.getWritePos());
+        props.remove(KEY_TRUNCATE);
+        StatusUtil.persist(raftStatus);
     }
 
     @Override
