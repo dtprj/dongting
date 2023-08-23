@@ -149,7 +149,7 @@ public class RaftGroupThread extends Thread {
                         break;
                     }
                     stateMachine.installSnapshot(snapshot.getLastIncludedIndex(), snapshot.getLastIncludedTerm(),
-                            offset , false, rb);
+                            offset, false, rb);
                     offset += count;
                 } finally {
                     if (rb != null) {
@@ -162,7 +162,7 @@ public class RaftGroupThread extends Thread {
     }
 
     public CompletableFuture<Void> readyFuture() {
-        return CompletableFuture.allOf(memberReadyFuture(),applyReadyFuture());
+        return CompletableFuture.allOf(memberReadyFuture(), applyReadyFuture());
     }
 
     private CompletableFuture<Void> memberReadyFuture() {
@@ -196,7 +196,11 @@ public class RaftGroupThread extends Thread {
             applyManager.apply(raftStatus);
             run0();
         } catch (Throwable e) {
-            BugLog.getLog().error("raft thread error", e);
+            if (DtUtil.rootCause(e) instanceof InterruptedException) {
+                log.info("raft thread interrupted, groupId={}", raftStatus.getGroupId());
+            } else {
+                BugLog.getLog().error("raft thread error", e);
+            }
         } finally {
             clean();
         }
