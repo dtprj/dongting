@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import java.util.Properties;
+
 /**
  * @author huangli
  */
@@ -30,6 +32,8 @@ public abstract class RaftStatus {
     protected int groupId;
 
     protected volatile boolean stop;
+
+    private final Properties extraPersistProps = new Properties();
 
     public int getGroupId() {
         return groupId;
@@ -53,5 +57,9 @@ public abstract class RaftStatus {
 
     public boolean isStop() {
         return stop;
+    }
+
+    public Properties getExtraPersistProps() {
+        return extraPersistProps;
     }
 }

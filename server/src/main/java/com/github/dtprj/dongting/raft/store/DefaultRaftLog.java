@@ -23,13 +23,14 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.impl.StatusFile;
+import com.github.dtprj.dongting.raft.impl.StatusUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.UnrecoverableException;
 
 import java.io.File;
 import java.util.List;
+import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
@@ -49,7 +50,6 @@ public class DefaultRaftLog implements RaftLog {
     private long lastTaskNanos;
     private static final long TASK_INTERVAL_NANOS = 10 * 1000 * 1000 * 1000L;
 
-    private StatusFile statusFile;
     private static final String KEY_TRUNCATE = "truncate";
 
     public DefaultRaftLog(RaftGroupConfigEx groupConfig, ExecutorService ioExecutor) {
@@ -84,19 +84,15 @@ public class DefaultRaftLog implements RaftLog {
             }
             RaftUtil.checkInitCancel(cancelInit);
 
-            statusFile = new StatusFile(new File(dataDir, "log.status"));
-            statusFile.init();
-            RaftUtil.checkInitCancel(cancelInit);
-
-            String truncateStatus = statusFile.getProperties().getProperty(KEY_TRUNCATE);
+            String truncateStatus = raftStatus.getExtraPersistProps().getProperty(KEY_TRUNCATE);
             if (truncateStatus != null) {
                 String[] parts = truncateStatus.split(",");
                 if (parts.length == 2) {
                     long start = Long.parseLong(parts[0]);
                     long end = Long.parseLong(parts[1]);
                     logFiles.syncTruncateTail(start, end);
-                    statusFile.getProperties().remove(KEY_TRUNCATE);
-                    statusFile.update();
+                    raftStatus.getExtraPersistProps().remove(KEY_TRUNCATE);
+                    StatusUtil.persist(raftStatus);
                 }
             }
             RaftUtil.checkInitCancel(cancelInit);
@@ -118,7 +114,7 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public void close() {
-        DtUtil.close(statusFile, idxFiles, logFiles);
+        DtUtil.close(idxFiles, logFiles);
     }
 
     @Override
@@ -137,11 +133,12 @@ public class DefaultRaftLog implements RaftLog {
             }
             long dataPosition = idxFiles.truncateTail(firstIndex);
 
-            statusFile.getProperties().setProperty(KEY_TRUNCATE, dataPosition + "," + logFiles.getWritePos());
-            statusFile.update();
+            Properties props = raftStatus.getExtraPersistProps();
+            props.setProperty(KEY_TRUNCATE, dataPosition + "," + logFiles.getWritePos());
+            StatusUtil.persist(raftStatus);
             logFiles.syncTruncateTail(dataPosition, logFiles.getWritePos());
-            statusFile.getProperties().remove(KEY_TRUNCATE);
-            statusFile.update();
+            props.remove(KEY_TRUNCATE);
+            StatusUtil.persist(raftStatus);
 
             logFiles.append(logs);
         } else {

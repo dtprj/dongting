@@ -37,10 +37,16 @@ public class StatusUtil {
         StatusFile sf = new StatusFile(file);
         sf.init();
         raftStatus.setStatusFile(sf);
-        Properties p = sf.getProperties();
-        raftStatus.setCurrentTerm(Integer.parseInt(p.getProperty(CURRENT_TERM_KEY, "0")));
-        raftStatus.setVotedFor(Integer.parseInt(p.getProperty(VOTED_FOR_KEY, "0")));
-        raftStatus.setCommitIndex(Integer.parseInt(p.getProperty(COMMIT_INDEX_KEY, "0")));
+        Properties loadedProps = sf.getProperties();
+
+        raftStatus.getExtraPersistProps().putAll(loadedProps);
+        raftStatus.getExtraPersistProps().remove(CURRENT_TERM_KEY);
+        raftStatus.getExtraPersistProps().remove(VOTED_FOR_KEY);
+        raftStatus.getExtraPersistProps().remove(COMMIT_INDEX_KEY);
+
+        raftStatus.setCurrentTerm(Integer.parseInt(loadedProps.getProperty(CURRENT_TERM_KEY, "0")));
+        raftStatus.setVotedFor(Integer.parseInt(loadedProps.getProperty(VOTED_FOR_KEY, "0")));
+        raftStatus.setCommitIndex(Integer.parseInt(loadedProps.getProperty(COMMIT_INDEX_KEY, "0")));
     }
 
     public static boolean persist(RaftStatusImpl raftStatus) {
@@ -51,9 +57,14 @@ public class StatusUtil {
 
             StatusFile sf = raftStatus.getStatusFile();
 
-            sf.getProperties().setProperty(CURRENT_TERM_KEY, String.valueOf(raftStatus.getCurrentTerm()));
-            sf.getProperties().setProperty(VOTED_FOR_KEY, String.valueOf(raftStatus.getVotedFor()));
-            sf.getProperties().setProperty(COMMIT_INDEX_KEY, String.valueOf(raftStatus.getCommitIndex()));
+            Properties destProps = sf.getProperties();
+            destProps.clear();
+
+            destProps.putAll(raftStatus.getExtraPersistProps());
+
+            destProps.setProperty(CURRENT_TERM_KEY, String.valueOf(raftStatus.getCurrentTerm()));
+            destProps.setProperty(VOTED_FOR_KEY, String.valueOf(raftStatus.getVotedFor()));
+            destProps.setProperty(COMMIT_INDEX_KEY, String.valueOf(raftStatus.getCommitIndex()));
 
             sf.update();
             return true;
