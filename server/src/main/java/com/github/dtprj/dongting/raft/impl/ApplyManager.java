@@ -209,7 +209,7 @@ public class ApplyManager {
 
     private void afterExec(long index, RaftTask rt, boolean configChange) {
         if (configChange) {
-            while (!StatusUtil.persist(raftStatus, index)) {
+            while (!StatusUtil.persist(raftStatus)) {
                 if (raftStatus.isStop()) {
                     throw new RaftException("raft group stopped");
                 }
