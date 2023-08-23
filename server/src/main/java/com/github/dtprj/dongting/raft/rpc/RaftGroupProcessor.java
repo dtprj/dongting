@@ -78,14 +78,14 @@ public abstract class RaftGroupProcessor<T> extends ReqProcessor<T> {
             if (runInCurrentThread) {
                 return doProcess(frame, channelContext, reqContext, gc);
             } else {
-                gc.getRaftExecutor().execute(() -> process(frame, channelContext, reqContext, gc, status));
+                gc.getRaftExecutor().execute(() -> processInRaftThread(frame, channelContext, reqContext, gc, status));
                 return null;
             }
         }
     }
 
-    private void process(ReadFrame<T> frame, ChannelContext channelContext, ReqContext reqContext,
-                         RaftGroup rg, RaftStatusImpl status) {
+    private void processInRaftThread(ReadFrame<T> frame, ChannelContext channelContext, ReqContext reqContext,
+                                     RaftGroup rg, RaftStatusImpl status) {
         WriteFrame wf;
         if (status.isStop()) {
             wf = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
