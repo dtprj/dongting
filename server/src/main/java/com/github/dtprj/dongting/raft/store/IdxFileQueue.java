@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -47,8 +48,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private static final int FILE_LEN_SHIFT_BITS = BitUtil.zeroCountOfBinary(IDX_FILE_SIZE);
 
     private static final int FLUSH_ITEMS = MAX_CACHE_ITEMS / 2;
-    private static final int FLUSH_ITEMS_MAST = FLUSH_ITEMS - 1;
     private final LongLongSeqMap tailCache = new LongLongSeqMap();
+    private final Timestamp ts;
 
     private long nextPersistIndex;
     private long nextIndex;
@@ -61,8 +62,13 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private LogFile currentWriteFile;
     private long nextPersistIndexAfterWrite;
 
+    private long lastFlushNanos;
+    private static final long FLUSH_INTERVAL_NANOS = 15L * 1000 * 1000 * 1000;
+
     public IdxFileQueue(File dir, ExecutorService ioExecutor, RaftGroupConfigEx groupConfig) {
         super(dir, ioExecutor, groupConfig);
+        this.ts = groupConfig.getTs();
+        this.lastFlushNanos = ts.getNanoTime();
     }
 
     @Override
@@ -164,16 +170,32 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         }
         cache.put(itemIndex, dataPosition);
         nextIndex = itemIndex + 1;
-        if ((nextIndex & FLUSH_ITEMS_MAST) == 0) {
-            writeAndFlush();
+        if (ts.getNanoTime() - lastFlushNanos > FLUSH_INTERVAL_NANOS) {
+            if (writeTask == null) {
+                writeAndFlush();
+            } else {
+                log.warn("last index write not finished");
+                flushIfTooManyPending();
+            }
+        } else {
+            flushIfTooManyPending();
+        }
+    }
+
+    private void flushIfTooManyPending() throws InterruptedException, IOException {
+        if (nextIndex - nextPersistIndex >= FLUSH_ITEMS) {
+            ensureLastWriteFinish();
+            if (nextIndex - nextPersistIndex >= FLUSH_ITEMS) {
+                writeAndFlush();
+            }
         }
     }
 
     private void writeAndFlush() throws InterruptedException, IOException {
         ensureWritePosReady(indexToPos(nextIndex));
-        if (!ensureLastWriteFinish()) {
-            return;
-        }
+
+        this.lastFlushNanos = ts.getNanoTime();
+
         ByteBuffer writeBuffer = this.writeBuffer;
         LongLongSeqMap cache = this.tailCache;
         writeBuffer.clear();
@@ -181,8 +203,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         long startPos = indexToPos(index);
         long lastKey = cache.getLastKey();
         for (int i = 0; i < FLUSH_ITEMS && index <= lastKey; i++, index++) {
-            if ((index & FLUSH_ITEMS_MAST) == 0 && i != 0) {
-                // don't pass end of file or sections
+            if ((indexToPos(index) & FILE_LEN_MASK) == 0 && i != 0) {
+                // don't pass end of file
                 break;
             }
             long value = cache.get(index);
@@ -199,35 +221,33 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         writeFuture = writeTask.write(false, false, writeBuffer, startPos & FILE_LEN_MASK);
     }
 
-    private void cleanWriteState() {
-        writeFuture = null;
-        writeTask = null;
-        currentWriteFile = null;
-        nextPersistIndexAfterWrite = 0;
-    }
-
-    private boolean ensureLastWriteFinish() throws InterruptedException, IOException {
+    private void ensureLastWriteFinish() throws InterruptedException, IOException {
         if (writeTask == null) {
-            return true;
+            return;
         }
         try {
             if (stopIndicator.get()) {
-                return false;
+                return;
             }
             writeFuture.get();
             if (nextPersistIndexAfterWrite > nextPersistIndex && nextPersistIndexAfterWrite <= nextIndex) {
                 nextPersistIndex = nextPersistIndexAfterWrite;
             }
-            return true;
         } catch (CancellationException e) {
             log.info("previous write canceled");
-            return !stopIndicator.get();
-        } catch (ExecutionException e){
+        } catch (ExecutionException e) {
             throw new IOException(e);
         } finally {
             cleanWriteState();
             currentWriteFile.use--;
         }
+    }
+
+    private void cleanWriteState() {
+        writeFuture = null;
+        writeTask = null;
+        currentWriteFile = null;
+        nextPersistIndexAfterWrite = 0;
     }
 
     public void submitDeleteTask(long firstIndex) {
