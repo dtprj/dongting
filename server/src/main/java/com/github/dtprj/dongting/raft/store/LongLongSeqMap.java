@@ -15,22 +15,15 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.common.DtUtil;
-
 /**
  * @author huangli
  */
 class LongLongSeqMap {
-    private static final int DEFAULT_INITIAL_CAPACITY = 16;
 
     private long[] data;
     private long firstKey;
     private long lastKey;
     private int size;
-
-    public LongLongSeqMap() {
-        this(DEFAULT_INITIAL_CAPACITY);
-    }
 
     public LongLongSeqMap(int initialCapacity) {
         int capacity = 1;
@@ -64,16 +57,15 @@ class LongLongSeqMap {
         return 0;
     }
 
-    public void remove(int count) {
-        DtUtil.checkPositive(count, "count");
-        for (int i = 0; i < count && size > 0; i++) {
+    public void remove() {
+        if (size > 0) {
             data[idx(firstKey, data.length)] = 0;
             firstKey++;
             size--;
-        }
-        if (size == 0) {
-            firstKey = -1;
-            lastKey = -1;
+            if (size == 0) {
+                firstKey = -1;
+                lastKey = -1;
+            }
         }
     }
 
@@ -109,6 +101,9 @@ class LongLongSeqMap {
         data = newData;
     }
 
+    /**
+     * truncate tail to the given key (inclusive)
+     */
     public void truncate(long key) {
         if (key < firstKey || key > lastKey) {
             throw new IllegalArgumentException("Invalid key to truncate");

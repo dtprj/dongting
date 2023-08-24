@@ -42,7 +42,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private static final DtLog log = DtLogs.getLogger(IdxFileQueue.class);
     private static final int ITEM_LEN = 8;
     private static final int ITEMS_PER_FILE = 1024 * 1024;
-    private static final int REMOVE_ITEMS = 512;
     private static final int MAX_CACHE_ITEMS = 16 * 1024;
 
     private static final int IDX_FILE_SIZE = ITEM_LEN * ITEMS_PER_FILE; //should divisible by FLUSH_ITEMS
@@ -52,7 +51,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private static final String IDX_FILE_PERSIST_INDEX_KEY = "idxFilePersistIndex";
 
     private static final int FLUSH_ITEMS = MAX_CACHE_ITEMS / 2;
-    private final LongLongSeqMap tailCache = new LongLongSeqMap();
+    private final LongLongSeqMap tailCache = new LongLongSeqMap(1024);
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
 
@@ -116,10 +115,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     public long findLogPosInMemCache(long itemIndex) {
-        checkIndex(itemIndex, true);
-        if (itemIndex < firstIndex) {
-            throw new RaftException("index too small:" + itemIndex);
-        }
+        checkReadIndex(itemIndex);
         long result = tailCache.get(itemIndex);
         if (result > 0) {
             return result;
@@ -129,10 +125,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     @Override
     public long syncLoadLogPos(long itemIndex) throws IOException {
-        checkIndex(itemIndex, true);
-        if (itemIndex < firstIndex) {
-            throw new RaftException("index too small:" + itemIndex);
-        }
+        checkReadIndex(itemIndex);
         long pos = indexToPos(itemIndex);
         long filePos = pos & FILE_LEN_MASK;
         LogFile lf = getLogFile(pos);
@@ -142,68 +135,55 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         return buffer.getLong();
     }
 
-    public long truncateTail(long index) throws Exception {
+    public long truncateTail(long index) {
         DtUtil.checkPositive(index, "index");
-        if (index < firstIndex) {
+        if (index < firstIndex || index <= raftStatus.getCommitIndex()) {
             throw new RaftException("truncateTail index is too small: " + index);
         }
         long value = findLogPosInMemCache(index);
         if (value < 0) {
-            value = syncLoadLogPos(index);
+            throw new RaftException("can't find log pos:" + index);
         }
         tailCache.truncate(index);
         nextIndex = index;
-        if (nextPersistIndex > index) {
-            nextPersistIndex = index;
-        }
-        if (writeTask != null && nextPersistIndexAfterWrite > index) {
-            writeFuture.cancel(false);
-            cleanWriteState();
-        }
         return value;
     }
 
-    private void checkIndex(long index, boolean read) {
+    private void checkReadIndex(long index) {
         DtUtil.checkPositive(index, "index");
-        boolean ok = read ? index < nextIndex : index <= nextIndex;
-        if (!ok) {
+        if (index >= nextIndex) {
             BugLog.getLog().error("index is too large : lastIndex={}, index={}", nextIndex, index);
             throw new RaftException("index is too large");
+        }
+        if (index < firstIndex) {
+            BugLog.getLog().error("index is too small : firstIndex={}, index={}", firstIndex, index);
+            throw new RaftException("index too small");
         }
     }
 
     @Override
     public void put(long itemIndex, long dataPosition) throws InterruptedException, IOException {
-        checkIndex(itemIndex, false);
-        if (itemIndex < firstIndex) {
-            BugLog.getLog().error("index is too small : firstIndex={}, index={}", firstIndex, itemIndex);
-            throw new RaftException("index is too small");
+        if (itemIndex != nextIndex) {
+            throw new RaftException("index not match : " + nextIndex + ", " + itemIndex);
         }
-        LongLongSeqMap cache = this.tailCache;
-        if (itemIndex < nextIndex) {
-            cache.truncate(itemIndex);
+        LongLongSeqMap tailCache = this.tailCache;
+        while (tailCache.size() >= MAX_CACHE_ITEMS && tailCache.getFirstKey() < nextPersistIndex) {
+            tailCache.remove();
         }
-        if (cache.size() >= MAX_CACHE_ITEMS) {
-            cache.remove(REMOVE_ITEMS);
-        }
-        cache.put(itemIndex, dataPosition);
+        tailCache.put(itemIndex, dataPosition);
         nextIndex = itemIndex + 1;
-        if (ts.getNanoTime() - lastFlushNanos > FLUSH_INTERVAL_NANOS) {
-            if (writeTask == null) {
+        if (writeTask == null) {
+            if (ts.getNanoTime() - lastFlushNanos > FLUSH_INTERVAL_NANOS) {
                 writeAndFlush();
             } else {
-                log.warn("last index write not finished");
-                flushIfTooManyPending();
+                if (raftStatus.getCommitIndex() - nextPersistIndex >= FLUSH_ITEMS) {
+                    writeAndFlush();
+                }
             }
         } else {
-            flushIfTooManyPending();
-        }
-    }
-
-    private void flushIfTooManyPending() throws InterruptedException, IOException {
-        if (nextIndex - nextPersistIndex >= FLUSH_ITEMS) {
-            ensureLastWriteFinish();
-            if (nextIndex - nextPersistIndex >= FLUSH_ITEMS) {
+            if (tailCache.size() >= MAX_CACHE_ITEMS) {
+                log.warn("last idx file write not finished");
+                ensureLastWriteFinish();
                 writeAndFlush();
             }
         }
@@ -215,21 +195,23 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         this.lastFlushNanos = ts.getNanoTime();
 
         ByteBuffer writeBuffer = this.writeBuffer;
-        LongLongSeqMap cache = this.tailCache;
         writeBuffer.clear();
         long index = nextPersistIndex;
         long startPos = indexToPos(index);
-        long lastKey = cache.getLastKey();
+        long lastKey = raftStatus.getCommitIndex();
+        LongLongSeqMap tailCache = this.tailCache;
         for (int i = 0; i < FLUSH_ITEMS && index <= lastKey; i++, index++) {
             if ((indexToPos(index) & FILE_LEN_MASK) == 0 && i != 0) {
                 // don't pass end of file
                 break;
             }
-            long value = cache.get(index);
+            long value = tailCache.get(index);
             writeBuffer.putLong(value);
         }
         writeBuffer.flip();
-
+        if (writeBuffer.remaining() == 0) {
+            return;
+        }
 
         nextPersistIndexAfterWrite = index;
         LogFile logFile = getLogFile(startPos);

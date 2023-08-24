@@ -49,7 +49,8 @@ public class LongLongSeqMapTest {
         map.put(0, 100);
         map.put(1, 200);
         map.put(2, 300);
-        map.remove(2);
+        map.remove();
+        map.remove();
 
         assertEquals(0, map.get(0));
         assertEquals(0, map.get(1));
@@ -63,7 +64,7 @@ public class LongLongSeqMapTest {
         map.put(2, 300);
 
         assertEquals(3, map.size());
-        map.remove(1);
+        map.remove();
         assertEquals(2, map.size());
     }
 
@@ -74,7 +75,7 @@ public class LongLongSeqMapTest {
         map.put(2, 300);
 
         assertEquals(0, map.getFirstKey());
-        map.remove(1);
+        map.remove();
         assertEquals(1, map.getFirstKey());
     }
 
@@ -85,7 +86,7 @@ public class LongLongSeqMapTest {
         map.put(2, 300);
 
         assertEquals(2, map.getLastKey());
-        map.remove(1);
+        map.remove();
         assertEquals(2, map.getLastKey());
     }
 
@@ -106,7 +107,10 @@ public class LongLongSeqMapTest {
         for (long i = 0; i < 8; i++) {
             map.put(i, i * 100);
         }
-        map.remove(4);
+        map.remove();
+        map.remove();
+        map.remove();
+        map.remove();
 
         map.put(8, 800);
         map.put(9, 900);
@@ -122,32 +126,6 @@ public class LongLongSeqMapTest {
         }
 
         for (int i = 4; i < 100; i++) {
-            assertEquals(i * 100, map.get(i));
-        }
-    }
-
-    @Test
-    public void testRemoveAll() {
-        map.put(0, 100);
-        map.put(1, 200);
-        map.remove(10000);
-        map.put(5, 500);
-        assertEquals(500, map.get(5));
-        map.remove(10000);
-        for (int i = 0; i < 8; i++) {
-            map.put(i, i * 100);
-        }
-        for (int i = 0; i < 8; i++) {
-            assertEquals(i * 100, map.get(i));
-        }
-        map.remove(2);
-        map.put(8, 800);
-        map.put(9, 900);
-        map.remove(10000);
-        for (int i = 0; i < 8; i++) {
-            map.put(i, i * 100);
-        }
-        for (int i = 0; i < 8; i++) {
             assertEquals(i * 100, map.get(i));
         }
     }
@@ -181,7 +159,8 @@ public class LongLongSeqMapTest {
         for (long i = 0; i < 8; i++) {
             map.put(i, i * 100);
         }
-        map.remove(2);
+        map.remove();
+        map.remove();
         map.put(8, 800);
         map.put(9, 900);
 
