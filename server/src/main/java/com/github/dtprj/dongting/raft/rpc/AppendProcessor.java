@@ -113,7 +113,7 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
                 }
             } else if (remoteTerm > localTerm) {
                 RaftUtil.incrTerm(remoteTerm, raftStatus, req.getLeaderId());
-                StatusUtil.persist(raftStatus);// if failed, next append will retry
+                StatusUtil.persistUntilSuccess(raftStatus);
                 append(gc, raftStatus, req, resp);
             } else {
                 log.debug("receive append request with a smaller term, ignore, remoteTerm={}, localTerm={}, groupId={}",

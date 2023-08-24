@@ -352,9 +352,7 @@ public class ReplicateManager {
             log.info("find remote term greater than local term. remoteTerm={}, localTerm={}",
                     remoteTerm, raftStatus.getCurrentTerm());
             RaftUtil.incrTerm(remoteTerm, raftStatus, -1);
-            if (!StatusUtil.persist(raftStatus)) {
-                log.error("persist raft status failed. groupId={}, term={}", groupId, remoteTerm);
-            }
+            StatusUtil.persistUntilSuccess(raftStatus);
             return true;
         }
 

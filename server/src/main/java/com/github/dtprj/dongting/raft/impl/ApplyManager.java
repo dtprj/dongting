@@ -23,7 +23,6 @@ import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -209,17 +208,7 @@ public class ApplyManager {
 
     private void afterExec(long index, RaftTask rt, boolean configChange) {
         if (configChange) {
-            while (!StatusUtil.persist(raftStatus)) {
-                if (raftStatus.isStop()) {
-                    throw new RaftException("raft group stopped");
-                }
-                try {
-                    //noinspection BusyWait
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    log.error("interrupted", e);
-                }
-            }
+            StatusUtil.persistUntilSuccess(raftStatus);
         }
         raftStatus.setLastApplied(index);
         rt.getItem().release();

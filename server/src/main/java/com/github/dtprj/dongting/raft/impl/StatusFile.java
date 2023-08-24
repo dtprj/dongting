@@ -99,7 +99,7 @@ public class StatusFile implements AutoCloseable {
         }
     }
 
-    public void update() {
+    public void update(boolean flush) {
         try {
             ByteArrayOutputStream bos = new ByteArrayOutputStream(128);
             properties.store(bos, null);
@@ -123,7 +123,9 @@ public class StatusFile implements AutoCloseable {
                 //noinspection ResultOfMethodCallIgnored
                 channel.write(buf);
             }
-            channel.force(false);
+            if (flush) {
+                channel.force(false);
+            }
             log.info("saving status file success: {}", file.getPath());
         } catch (Exception e) {
             throw new RaftException("update status file failed. file=" + file.getPath(), e);

@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.RaftException;
 
 import java.io.File;
 import java.util.Properties;
@@ -49,12 +50,10 @@ public class StatusUtil {
         raftStatus.setCommitIndex(Integer.parseInt(loadedProps.getProperty(COMMIT_INDEX_KEY, "0")));
     }
 
-    public static boolean persist(RaftStatusImpl raftStatus) {
-        try {
-            if (raftStatus.isStop()) {
-                return false;
-            }
-
+    public static void persist(RaftStatusImpl raftStatus, boolean flush) {
+        // may run in io executor
+        // noinspection SynchronizationOnLocalVariableOrMethodParameter
+        synchronized (raftStatus) {
             StatusFile sf = raftStatus.getStatusFile();
 
             Properties destProps = sf.getProperties();
@@ -66,11 +65,29 @@ public class StatusUtil {
             destProps.setProperty(VOTED_FOR_KEY, String.valueOf(raftStatus.getVotedFor()));
             destProps.setProperty(COMMIT_INDEX_KEY, String.valueOf(raftStatus.getCommitIndex()));
 
-            sf.update();
-            return true;
+            sf.update(flush);
+        }
+    }
+
+    public static void persistUntilSuccess(RaftStatusImpl raftStatus) {
+        try {
+            while (!raftStatus.isStop()) {
+                try {
+                    persist(raftStatus, true);
+                    return;
+                } catch (Exception e) {
+                    log.error("persist raft status file failed", e);
+                    try {
+                        //noinspection BusyWait
+                        Thread.sleep(1000);
+                    } catch (InterruptedException ex) {
+                        throw new RaftException(ex);
+                    }
+                }
+            }
+            throw new StoppedException();
         } catch (Exception e) {
             log.error("persist failed", e);
-            return false;
         }
     }
 

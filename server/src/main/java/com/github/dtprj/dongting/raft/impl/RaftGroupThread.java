@@ -196,8 +196,11 @@ public class RaftGroupThread extends Thread {
             applyManager.apply(raftStatus);
             run0();
         } catch (Throwable e) {
-            if (DtUtil.rootCause(e) instanceof InterruptedException) {
+            Throwable cause = DtUtil.rootCause(e);
+            if (cause instanceof InterruptedException) {
                 log.info("raft thread interrupted, groupId={}", raftStatus.getGroupId());
+            } else if (cause instanceof StoppedException) {
+                log.info("raft thread stopped, groupId={}", raftStatus.getGroupId());
             } else {
                 BugLog.getLog().error("raft thread error", e);
             }

@@ -91,19 +91,13 @@ public class VoteProcessor extends RaftGroupProcessor<VoteReq> {
             needPersist = true;
         }
 
-        int oldVoteFor = raftStatus.getVotedFor();
-
         if (shouldGrant(raftStatus, voteReq, localTerm)) {
             raftStatus.setVotedFor(voteReq.getCandidateId());
             resp.setVoteGranted(true);
             needPersist = true;
         }
         if (needPersist) {
-            if (!StatusUtil.persist(raftStatus)) {
-                // rollback status
-                raftStatus.setVotedFor(oldVoteFor);
-                resp.setVoteGranted(false);
-            }
+            StatusUtil.persistUntilSuccess(raftStatus);
         }
     }
 
