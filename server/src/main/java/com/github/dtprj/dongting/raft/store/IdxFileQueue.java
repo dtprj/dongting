@@ -85,14 +85,19 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     @Override
     public void init() throws IOException {
         super.init();
+        this.firstIndex = posToIndex(queueStartPosition);
+
         long persistIndex = Long.parseLong(raftStatus.getExtraPersistProps().getProperty(IDX_FILE_PERSIST_INDEX_KEY, "0"));
 
         // persistIndex may be rollback after truncate, but never rollback before commit index
         persistIndex = Math.min(persistIndex, raftStatus.getCommitIndex());
-
-        this.nextPersistIndex = persistIndex + 1;
-        this.nextIndex = persistIndex + 1;
-        this.firstIndex = posToIndex(queueStartPosition);
+        if (persistIndex < firstIndex) {
+            this.nextPersistIndex = firstIndex;
+            this.nextIndex = firstIndex;
+        } else {
+            this.nextPersistIndex = persistIndex + 1;
+            this.nextIndex = persistIndex + 1;
+        }
     }
 
     @Override
