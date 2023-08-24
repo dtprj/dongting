@@ -271,11 +271,15 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         nextPersistIndexAfterWrite = 0;
     }
 
-    public void submitDeleteTask(long firstIndex) {
-        submitDeleteTask(logFile -> posToIndex(logFile.endPos) < firstIndex);
+    public void submitDeleteTask(long bound) {
+        submitDeleteTask(logFile -> posToIndex(logFile.endPos) < bound);
     }
 
     public long getNextIndex() {
         return nextIndex;
+    }
+
+    public long getNextPersistIndex() {
+        return nextPersistIndex;
     }
 }

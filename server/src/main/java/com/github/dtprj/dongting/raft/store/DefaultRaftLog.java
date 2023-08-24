@@ -159,12 +159,14 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public void markTruncateByIndex(long index, long delayMillis) {
-        logFiles.markDeleteByIndex(raftStatus.getLastApplied(), index, delayMillis);
+        long bound = Math.min(raftStatus.getLastApplied(), idxFiles.getNextPersistIndex() - 1);
+        logFiles.markDeleteByIndex(bound, index, delayMillis);
     }
 
     @Override
     public void markTruncateByTimestamp(long timestampMillis, long delayMillis) {
-        logFiles.markDeleteByTimestamp(raftStatus.getLastApplied(), timestampMillis, delayMillis);
+        long bound = Math.min(raftStatus.getLastApplied(), idxFiles.getNextPersistIndex() - 1);
+        logFiles.markDeleteByTimestamp(bound, timestampMillis, delayMillis);
     }
 
     @Override
