@@ -151,10 +151,15 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     @Override
     public void put(long itemIndex, long dataPosition) throws InterruptedException, IOException {
-        if (itemIndex != nextIndex) {
+        LongLongSeqMap tailCache = this.tailCache;
+        if (itemIndex > nextIndex) {
             throw new RaftException("index not match : " + nextIndex + ", " + itemIndex);
         }
-        LongLongSeqMap tailCache = this.tailCache;
+        if (itemIndex < nextIndex) {
+            // last put failed
+            log.info("put index!=nextIndex, truncate tailCache: {}, {}", itemIndex, nextIndex);
+            tailCache.truncate(itemIndex);
+        }
         while (tailCache.size() >= MAX_CACHE_ITEMS && tailCache.getFirstKey() < nextPersistIndex) {
             tailCache.remove();
         }
