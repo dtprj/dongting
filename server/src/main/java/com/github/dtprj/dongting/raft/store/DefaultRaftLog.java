@@ -73,14 +73,29 @@ public class DefaultRaftLog implements RaftLog {
             idxFiles.init();
             RaftUtil.checkInitCancel(cancelInit);
 
-            long restoreIndex = idxFiles.getNextIndex() - 1;
+            long persistIndex = Long.parseLong(raftStatus.getExtraPersistProps()
+                    .getProperty(IdxFileQueue.IDX_FILE_PERSIST_INDEX_KEY, "0"));
+
+            // persistIndex may be rollback after truncate tail, but never rollback before commit index
+            long restoreIndex = Math.min(persistIndex, raftStatus.getCommitIndex());
             long restoreIndexPos;
-            if (restoreIndex > 0) {
-                restoreIndexPos = idxFiles.syncLoadLogPos(restoreIndex);
-            } else {
+            if (restoreIndex == 0) {
+                restoreIndex = 1;
                 restoreIndexPos = 0;
+            } else {
+                if (restoreIndex < idxFiles.getFirstIndex()) {
+                    // truncate head may cause persistIndex < firstIndex, since it save to raft.status asynchronously.
+                    // however, in this case the firstIndex must have data, so we can restore from firstIndex.
+                    idxFiles.setNextPersistIndex(idxFiles.getFirstIndex());
+                    idxFiles.setNextIndex(idxFiles.getFirstIndex());
+                    restoreIndex = idxFiles.getFirstIndex();
+                } else {
+                    idxFiles.setNextPersistIndex(restoreIndex);
+                    idxFiles.setNextIndex(restoreIndex);
+                }
+                restoreIndexPos = idxFiles.syncLoadLogPos(restoreIndex);
+                RaftUtil.checkInitCancel(cancelInit);
             }
-            RaftUtil.checkInitCancel(cancelInit);
 
             String truncateStatus = raftStatus.getExtraPersistProps().getProperty(KEY_TRUNCATE);
             if (truncateStatus != null) {
@@ -159,14 +174,15 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public void markTruncateByIndex(long index, long delayMillis) {
-        long bound = Math.min(raftStatus.getLastApplied(), idxFiles.getNextPersistIndex() - 1);
-        logFiles.markDeleteByIndex(bound, index, delayMillis);
+        long bound = Math.min(raftStatus.getLastApplied(), idxFiles.getNextPersistIndex());
+        bound = Math.min(bound, index);
+        logFiles.markDelete(bound, Long.MAX_VALUE, delayMillis);
     }
 
     @Override
     public void markTruncateByTimestamp(long timestampMillis, long delayMillis) {
-        long bound = Math.min(raftStatus.getLastApplied(), idxFiles.getNextPersistIndex() - 1);
-        logFiles.markDeleteByTimestamp(bound, timestampMillis, delayMillis);
+        long bound = Math.min(raftStatus.getLastApplied(), idxFiles.getNextPersistIndex());
+        logFiles.markDelete(bound, timestampMillis, delayMillis);
     }
 
     @Override

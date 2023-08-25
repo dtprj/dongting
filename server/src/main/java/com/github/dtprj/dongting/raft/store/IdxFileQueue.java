@@ -48,7 +48,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private static final int FILE_LEN_MASK = IDX_FILE_SIZE - 1;
     private static final int FILE_LEN_SHIFT_BITS = BitUtil.zeroCountOfBinary(IDX_FILE_SIZE);
 
-    private static final String IDX_FILE_PERSIST_INDEX_KEY = "idxFilePersistIndex";
+    static final String IDX_FILE_PERSIST_INDEX_KEY = "idxFilePersistIndex";
 
     private static final int FLUSH_ITEMS = MAX_CACHE_ITEMS / 2;
     private final LongLongSeqMap tailCache = new LongLongSeqMap(1024);
@@ -85,18 +85,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     public void init() throws IOException {
         super.init();
         this.firstIndex = posToIndex(queueStartPosition);
-
-        long persistIndex = Long.parseLong(raftStatus.getExtraPersistProps().getProperty(IDX_FILE_PERSIST_INDEX_KEY, "0"));
-
-        // persistIndex may be rollback after truncate, but never rollback before commit index
-        persistIndex = Math.min(persistIndex, raftStatus.getCommitIndex());
-        if (persistIndex < firstIndex) {
-            this.nextPersistIndex = firstIndex;
-            this.nextIndex = firstIndex;
-        } else {
-            this.nextPersistIndex = persistIndex + 1;
-            this.nextIndex = persistIndex + 1;
-        }
     }
 
     @Override
@@ -263,5 +251,17 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     public long getNextPersistIndex() {
         return nextPersistIndex;
+    }
+
+    public long getFirstIndex() {
+        return firstIndex;
+    }
+
+    public void setNextIndex(long nextIndex) {
+        this.nextIndex = nextIndex;
+    }
+
+    public void setNextPersistIndex(long nextPersistIndex) {
+        this.nextPersistIndex = nextPersistIndex;
     }
 }
