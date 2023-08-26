@@ -73,30 +73,7 @@ public class DefaultRaftLog implements RaftLog {
             idxFiles.init();
             RaftUtil.checkInitCancel(cancelInit);
 
-            idxFiles.setFirstIndex(idxFiles.posToIndex(idxFiles.queueStartPosition));
-            long persistIndex = Long.parseLong(raftStatus.getExtraPersistProps()
-                    .getProperty(IdxFileQueue.IDX_FILE_PERSIST_INDEX_KEY, "0"));
-
-            // persistIndex may be rollback after truncate tail, but never rollback before commit index
-            long restoreIndex = Math.min(persistIndex, raftStatus.getCommitIndex());
-            long restoreIndexPos;
-            if (restoreIndex == 0) {
-                restoreIndex = 1;
-                restoreIndexPos = 0;
-            } else {
-                if (restoreIndex < idxFiles.getFirstIndex()) {
-                    // truncate head may cause persistIndex < firstIndex, since it save to raft.status asynchronously.
-                    // however, in this case the firstIndex must have data, so we can restore from firstIndex.
-                    idxFiles.setNextPersistIndex(idxFiles.getFirstIndex());
-                    idxFiles.setNextIndex(idxFiles.getFirstIndex());
-                    restoreIndex = idxFiles.getFirstIndex();
-                } else {
-                    idxFiles.setNextPersistIndex(restoreIndex);
-                    idxFiles.setNextIndex(restoreIndex);
-                }
-                restoreIndexPos = idxFiles.syncLoadLogPos(restoreIndex);
-                RaftUtil.checkInitCancel(cancelInit);
-            }
+            Pair<Long, Long> p = idxFiles.initRestorePos();
 
             String truncateStatus = raftStatus.getExtraPersistProps().getProperty(KEY_TRUNCATE);
             if (truncateStatus != null) {
@@ -111,7 +88,7 @@ public class DefaultRaftLog implements RaftLog {
             }
             RaftUtil.checkInitCancel(cancelInit);
 
-            int lastTerm = logFiles.restore(restoreIndex, restoreIndexPos, cancelInit);
+            int lastTerm = logFiles.restore(p.getLeft(), p.getRight(), cancelInit);
             RaftUtil.checkInitCancel(cancelInit);
 
             if (idxFiles.getNextIndex() == 1) {

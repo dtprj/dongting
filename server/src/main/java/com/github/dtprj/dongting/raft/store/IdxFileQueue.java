@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -85,6 +86,33 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         this.fileLenShiftBits = BitUtil.zeroCountOfBinary(idxFileSize);
         this.flushItems = this.maxCacheItems / 2;
         this.writeBuffer = ByteBuffer.allocateDirect(flushItems * ITEM_LEN);
+    }
+
+    public Pair<Long, Long> initRestorePos() throws IOException {
+        firstIndex = posToIndex(queueStartPosition);
+        long persistIndex = Long.parseLong(raftStatus.getExtraPersistProps()
+                .getProperty(IDX_FILE_PERSIST_INDEX_KEY, "0"));
+
+        // persistIndex may be rollback after truncate tail, but never rollback before commit index
+        long restoreIndex = Math.min(persistIndex, raftStatus.getCommitIndex());
+        long restoreIndexPos;
+        if (restoreIndex == 0) {
+            restoreIndex = 1;
+            restoreIndexPos = 0;
+        } else {
+            if (restoreIndex < firstIndex) {
+                // truncate head may cause persistIndex < firstIndex, since it save to raft.status asynchronously.
+                // however, in this case the firstIndex must have data, so we can restore from firstIndex.
+                nextPersistIndex = firstIndex;
+                nextIndex = firstIndex;
+                restoreIndex = firstIndex;
+            } else {
+                nextPersistIndex = restoreIndex;
+                nextIndex = restoreIndex;
+            }
+            restoreIndexPos = syncLoadLogPos(restoreIndex);
+        }
+        return new Pair<>(restoreIndex, restoreIndexPos);
     }
 
     @Override
@@ -263,19 +291,4 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         return nextPersistIndex;
     }
 
-    public long getFirstIndex() {
-        return firstIndex;
-    }
-
-    public void setNextIndex(long nextIndex) {
-        this.nextIndex = nextIndex;
-    }
-
-    public void setNextPersistIndex(long nextPersistIndex) {
-        this.nextPersistIndex = nextPersistIndex;
-    }
-
-    public void setFirstIndex(long firstIndex) {
-        this.firstIndex = firstIndex;
-    }
 }
