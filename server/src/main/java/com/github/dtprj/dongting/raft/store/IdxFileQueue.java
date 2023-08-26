@@ -41,25 +41,24 @@ import java.util.concurrent.ExecutorService;
 class IdxFileQueue extends FileQueue implements IdxOps {
     private static final DtLog log = DtLogs.getLogger(IdxFileQueue.class);
     private static final int ITEM_LEN = 8;
-    private static final int ITEMS_PER_FILE = 1024 * 1024;
-    private static final int MAX_CACHE_ITEMS = 16 * 1024;
-
-    private static final int IDX_FILE_SIZE = ITEM_LEN * ITEMS_PER_FILE; //should divisible by FLUSH_ITEMS
-    private static final int FILE_LEN_MASK = IDX_FILE_SIZE - 1;
-    private static final int FILE_LEN_SHIFT_BITS = BitUtil.zeroCountOfBinary(IDX_FILE_SIZE);
-
     static final String IDX_FILE_PERSIST_INDEX_KEY = "idxFilePersistIndex";
 
-    private static final int FLUSH_ITEMS = MAX_CACHE_ITEMS / 2;
+    private final int maxCacheItems;
+
+    private final int idxFileSize;
+    private final int fileLenMask;
+    private final int fileLenShiftBits;
+
+    private final int flushItems;
     private final LongLongSeqMap tailCache = new LongLongSeqMap(1024);
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
 
+    private final ByteBuffer writeBuffer;
+
     private long nextPersistIndex;
     private long nextIndex;
     private long firstIndex;
-
-    private final ByteBuffer writeBuffer = ByteBuffer.allocateDirect(FLUSH_ITEMS * ITEM_LEN);
 
     private CompletableFuture<Void> writeFuture;
     private AsyncIoTask writeTask;
@@ -70,15 +69,27 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private static final long FLUSH_INTERVAL_NANOS = 15L * 1000 * 1000 * 1000;
 
     public IdxFileQueue(File dir, ExecutorService ioExecutor, RaftGroupConfigEx groupConfig) {
+        this(dir, ioExecutor, groupConfig, 1024 * 1024, 16 * 1024);
+    }
+
+    public IdxFileQueue(File dir, ExecutorService ioExecutor, RaftGroupConfigEx groupConfig,
+                        int itemsPerFile, int maxCacheItems) {
         super(dir, ioExecutor, groupConfig);
         this.ts = groupConfig.getTs();
         this.lastFlushNanos = ts.getNanoTime();
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
+
+        this.maxCacheItems = maxCacheItems;
+        this.idxFileSize = ITEM_LEN * itemsPerFile;
+        this.fileLenMask = idxFileSize - 1;
+        this.fileLenShiftBits = BitUtil.zeroCountOfBinary(idxFileSize);
+        this.flushItems = this.maxCacheItems / 2;
+        this.writeBuffer = ByteBuffer.allocateDirect(flushItems * ITEM_LEN);
     }
 
     @Override
     protected long getFileSize() {
-        return IDX_FILE_SIZE;
+        return idxFileSize;
     }
 
     @Override
@@ -89,7 +100,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     @Override
     public int getFileLenShiftBits() {
-        return FILE_LEN_SHIFT_BITS;
+        return fileLenShiftBits;
     }
 
     private static long indexToPos(long index) {
@@ -115,7 +126,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     public long syncLoadLogPos(long itemIndex) throws IOException {
         checkReadIndex(itemIndex);
         long pos = indexToPos(itemIndex);
-        long filePos = pos & FILE_LEN_MASK;
+        long filePos = pos & fileLenMask;
         LogFile lf = getLogFile(pos);
         ByteBuffer buffer = ByteBuffer.allocate(8);
         FileUtil.syncReadFull(lf.channel, buffer, filePos);
@@ -160,7 +171,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             log.info("put index!=nextIndex, truncate tailCache: {}, {}", itemIndex, nextIndex);
             tailCache.truncate(itemIndex);
         }
-        while (tailCache.size() >= MAX_CACHE_ITEMS && tailCache.getFirstKey() < nextPersistIndex) {
+        while (tailCache.size() >= maxCacheItems && tailCache.getFirstKey() < nextPersistIndex) {
             tailCache.remove();
         }
         tailCache.put(itemIndex, dataPosition);
@@ -169,12 +180,12 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             if (ts.getNanoTime() - lastFlushNanos > FLUSH_INTERVAL_NANOS) {
                 writeAndFlush();
             } else {
-                if (raftStatus.getCommitIndex() - nextPersistIndex >= FLUSH_ITEMS) {
+                if (raftStatus.getCommitIndex() - nextPersistIndex >= flushItems) {
                     writeAndFlush();
                 }
             }
         } else {
-            if (tailCache.size() >= MAX_CACHE_ITEMS) {
+            if (tailCache.size() >= maxCacheItems) {
                 log.warn("last idx file write not finished");
                 ensureLastWriteFinish();
                 writeAndFlush();
@@ -193,8 +204,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         long startPos = indexToPos(index);
         long lastKey = raftStatus.getCommitIndex();
         LongLongSeqMap tailCache = this.tailCache;
-        for (int i = 0; i < FLUSH_ITEMS && index <= lastKey; i++, index++) {
-            if ((indexToPos(index) & FILE_LEN_MASK) == 0 && i != 0) {
+        for (int i = 0; i < flushItems && index <= lastKey; i++, index++) {
+            if ((indexToPos(index) & fileLenMask) == 0 && i != 0) {
                 // don't pass end of file
                 break;
             }
@@ -211,7 +222,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         writeTask = new AsyncIoTask(logFile.channel, stopIndicator);
         currentWriteFile = logFile;
         logFile.use++;
-        writeFuture = writeTask.write(false, false, writeBuffer, startPos & FILE_LEN_MASK);
+        writeFuture = writeTask.write(false, false, writeBuffer, startPos & fileLenMask);
     }
 
     private void ensureLastWriteFinish() throws InterruptedException, IOException {
