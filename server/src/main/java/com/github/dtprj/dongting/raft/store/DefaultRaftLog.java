@@ -73,6 +73,7 @@ public class DefaultRaftLog implements RaftLog {
             idxFiles.init();
             RaftUtil.checkInitCancel(cancelInit);
 
+            idxFiles.setFirstIndex(idxFiles.posToIndex(idxFiles.queueStartPosition));
             long persistIndex = Long.parseLong(raftStatus.getExtraPersistProps()
                     .getProperty(IdxFileQueue.IDX_FILE_PERSIST_INDEX_KEY, "0"));
 

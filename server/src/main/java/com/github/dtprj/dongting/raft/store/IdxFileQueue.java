@@ -93,27 +93,21 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     @Override
-    public void init() throws IOException {
-        super.init();
-        this.firstIndex = posToIndex(queueStartPosition);
-    }
-
-    @Override
     public int getFileLenShiftBits() {
         return fileLenShiftBits;
     }
 
-    private static long indexToPos(long index) {
+    private long indexToPos(long index) {
         // each item 8 bytes
         return index << 3;
     }
 
-    private static long posToIndex(long pos) {
+    long posToIndex(long pos) {
         // each item 8 bytes
         return pos >>> 3;
     }
 
-    public long findLogPosInMemCache(long itemIndex) {
+    private long findLogPosInMemCache(long itemIndex) {
         checkReadIndex(itemIndex);
         long result = tailCache.get(itemIndex);
         if (result > 0) {
@@ -279,5 +273,9 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     public void setNextPersistIndex(long nextPersistIndex) {
         this.nextPersistIndex = nextPersistIndex;
+    }
+
+    public void setFirstIndex(long firstIndex) {
+        this.firstIndex = firstIndex;
     }
 }
