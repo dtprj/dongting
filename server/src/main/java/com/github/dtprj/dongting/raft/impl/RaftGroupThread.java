@@ -90,7 +90,7 @@ public class RaftGroupThread extends Thread {
         setName("raft-" + groupConfig.getGroupId());
 
         try {
-            StatusUtil.initStatusFileChannel(groupConfig.getDataDir(), groupConfig.getStatusFile(), raftStatus);
+            gc.getStatusManager().initStatusFileChannel(groupConfig.getDataDir(), groupConfig.getStatusFile(), raftStatus);
             Pair<Integer, Long> snapshotResult = recoverStateMachine();
             int snapshotTerm = snapshotResult == null ? 0 : snapshotResult.getLeft();
             long snapshotIndex = snapshotResult == null ? 0 : snapshotResult.getRight();
@@ -99,7 +99,7 @@ public class RaftGroupThread extends Thread {
             if (snapshotIndex > raftStatus.getCommitIndex()) {
                 raftStatus.setCommitIndex(snapshotIndex);
             }
-            RaftUtil.checkInitCancel(cancelInit);
+            RaftUtil.checkStop(cancelInit);
 
             Pair<Integer, Long> initResult = raftLog.init(cancelInit);
             int initResultTerm = initResult.getLeft();
@@ -112,7 +112,7 @@ public class RaftGroupThread extends Thread {
                 log.error("raft log last term invalid, {}, {}, {}", initResultTerm, snapshotTerm, raftStatus.getCurrentTerm());
                 throw new RaftException("raft log last term invalid");
             }
-            RaftUtil.checkInitCancel(cancelInit);
+            RaftUtil.checkStop(cancelInit);
 
             log.info("init raft log, maxTerm={}, maxIndex={}, groupId={}",
                     initResult.getLeft(), initResult.getRight(), groupConfig.getGroupId());
@@ -138,7 +138,7 @@ public class RaftGroupThread extends Thread {
             }
             long offset = 0;
             while (true) {
-                RaftUtil.checkInitCancel(cancelInit);
+                RaftUtil.checkStop(cancelInit);
                 CompletableFuture<RefBuffer> f = snapshot.readNext();
                 RefBuffer rb = f.get();
                 try {
@@ -188,7 +188,7 @@ public class RaftGroupThread extends Thread {
     @Override
     public void run() {
         try {
-            RaftUtil.checkInitCancel(cancelInit);
+            RaftUtil.checkStop(cancelInit);
             if (raftStatus.getElectQuorum() == 1 && raftStatus.getNodeIdOfMembers().contains(config.getNodeId())) {
                 RaftUtil.changeToLeader(raftStatus);
                 raft.sendHeartBeat();

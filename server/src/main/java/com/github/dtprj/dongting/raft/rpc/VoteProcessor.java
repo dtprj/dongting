@@ -28,7 +28,7 @@ import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.impl.StatusUtil;
+import com.github.dtprj.dongting.raft.impl.StatusManager;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 
@@ -62,7 +62,7 @@ public class VoteProcessor extends RaftGroupProcessor<VoteReq> {
                 processPreVote(raftStatus, voteReq, resp, localTerm);
             } else {
                 RaftUtil.resetElectTimer(raftStatus);
-                processVote(raftStatus, voteReq, resp, localTerm);
+                processVote(raftStatus, voteReq, resp, localTerm, gc.getStatusManager());
             }
             log.info("receive {} request. granted={}. reqTerm={}, localTerm={}",
                     voteReq.isPreVote() ? "pre-vote" : "vote", resp.isVoteGranted(), voteReq.getTerm(), localTerm);
@@ -84,7 +84,8 @@ public class VoteProcessor extends RaftGroupProcessor<VoteReq> {
         }
     }
 
-    private void processVote(RaftStatusImpl raftStatus, VoteReq voteReq, VoteResp resp, int localTerm) {
+    private void processVote(RaftStatusImpl raftStatus, VoteReq voteReq, VoteResp resp,
+                             int localTerm, StatusManager statusManager) {
         boolean needPersist = false;
         if (voteReq.getTerm() > localTerm) {
             RaftUtil.incrTerm(voteReq.getTerm(), raftStatus, -1);
@@ -97,7 +98,7 @@ public class VoteProcessor extends RaftGroupProcessor<VoteReq> {
             needPersist = true;
         }
         if (needPersist) {
-            StatusUtil.persistUntilSuccess(raftStatus);
+            statusManager.persistSync(raftStatus);
         }
     }
 

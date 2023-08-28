@@ -39,7 +39,6 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutorService;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.zip.CRC32C;
@@ -68,8 +67,8 @@ class LogFileQueue extends FileQueue implements FileOps {
 
     private long writePos;
 
-    public LogFileQueue(File dir, ExecutorService ioExecutor, RaftGroupConfigEx groupConfig, IdxOps idxOps) {
-        super(dir, ioExecutor, groupConfig);
+    public LogFileQueue(File dir, RaftGroupConfigEx groupConfig, IdxOps idxOps) {
+        super(dir, groupConfig);
         this.idxOps = idxOps;
         this.ts = groupConfig.getTs();
         this.encodeContext = new EncodeContext(groupConfig.getHeapPool());
@@ -97,7 +96,7 @@ class LogFileQueue extends FileQueue implements FileOps {
         log.info("restore from {}, {}", restoreIndex, restoreIndexPos);
         Restorer restorer = new Restorer(idxOps, this, restoreIndex, restoreIndexPos);
         for (int i = 0; i < queue.size(); i++) {
-            RaftUtil.checkInitCancel(cancelIndicator);
+            RaftUtil.checkStop(cancelIndicator);
             LogFile lf = queue.get(i);
             Pair<Boolean, Long> result = restorer.restoreFile(this.writeBuffer, lf, cancelIndicator);
             writePos = result.getRight();

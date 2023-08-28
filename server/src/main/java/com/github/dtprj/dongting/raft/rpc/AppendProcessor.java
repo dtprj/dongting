@@ -32,7 +32,6 @@ import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.impl.StatusUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -113,7 +112,7 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
                 }
             } else if (remoteTerm > localTerm) {
                 RaftUtil.incrTerm(remoteTerm, raftStatus, req.getLeaderId());
-                StatusUtil.persistUntilSuccess(raftStatus);
+                gc.getStatusManager().persistSync(raftStatus);
                 append(gc, raftStatus, req, resp);
             } else {
                 log.debug("receive append request with a smaller term, ignore, remoteTerm={}, localTerm={}, groupId={}",

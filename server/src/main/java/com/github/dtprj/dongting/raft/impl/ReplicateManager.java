@@ -67,6 +67,7 @@ public class ReplicateManager {
     private final int maxReplicateItems;
     private final int restItemsToStartReplicate;
     private final long maxReplicateBytes;
+    private final StatusManager statusManager;
 
     private long installSnapshotFailTime;
 
@@ -75,7 +76,7 @@ public class ReplicateManager {
 
     public ReplicateManager(RaftServerConfig config, RaftGroupConfigEx groupConfig, RaftStatusImpl raftStatus, RaftLog raftLog,
                             StateMachine stateMachine, NioClient client, RaftExecutor executor,
-                            CommitManager commitManager) {
+                            CommitManager commitManager, StatusManager statusManager) {
         this.groupId = groupConfig.getGroupId();
         this.raftStatus = raftStatus;
         this.config = config;
@@ -88,6 +89,7 @@ public class ReplicateManager {
 
         this.maxReplicateItems = config.getMaxReplicateItems();
         this.maxReplicateBytes = config.getMaxReplicateBytes();
+        this.statusManager = statusManager;
         this.restItemsToStartReplicate = (int) (maxReplicateItems * 0.1);
 
         this.installSnapshotFailTime = ts.getNanoTime() - TimeUnit.SECONDS.toNanos(10);
@@ -352,7 +354,7 @@ public class ReplicateManager {
             log.info("find remote term greater than local term. remoteTerm={}, localTerm={}",
                     remoteTerm, raftStatus.getCurrentTerm());
             RaftUtil.incrTerm(remoteTerm, raftStatus, -1);
-            StatusUtil.persistUntilSuccess(raftStatus);
+            statusManager.persistSync(raftStatus);
             return true;
         }
 

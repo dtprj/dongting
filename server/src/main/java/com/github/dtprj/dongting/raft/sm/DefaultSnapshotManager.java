@@ -309,7 +309,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
                     sf.getProperties().setProperty("saveStartTime", sdf.format(new Date(startTime)));
                     sf.getProperties().setProperty("saveEndTime", sdf.format(new Date()));
 
-                    sf.update(true);
+                    sf.update(sf.getProperties(), true);
                     log.info("snapshot status file write success: {}", newIdxFile.getPath());
                 }
 

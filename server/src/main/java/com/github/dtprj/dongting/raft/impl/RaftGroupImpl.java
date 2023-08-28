@@ -55,6 +55,7 @@ public class RaftGroupImpl extends RaftGroup {
     private ApplyManager applyManager;
     private EventBus eventBus;
     private SnapshotManager snapshotManager;
+    private StatusManager statusManager;
 
     private NodeManager nodeManager;
     private PendingStat serverStat;
@@ -310,5 +311,13 @@ public class RaftGroupImpl extends RaftGroup {
 
     public void setSnapshotManager(SnapshotManager snapshotManager) {
         this.snapshotManager = snapshotManager;
+    }
+
+    public StatusManager getStatusManager() {
+        return statusManager;
+    }
+
+    public void setStatusManager(StatusManager statusManager) {
+        this.statusManager = statusManager;
     }
 }

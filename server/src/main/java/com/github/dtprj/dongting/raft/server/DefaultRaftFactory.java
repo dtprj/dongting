@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
+import com.github.dtprj.dongting.raft.impl.StatusManager;
 import com.github.dtprj.dongting.raft.sm.DefaultSnapshotManager;
 import com.github.dtprj.dongting.raft.sm.SnapshotManager;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
@@ -40,13 +41,14 @@ public class DefaultRaftFactory extends AbstractLifeCircle implements RaftFactor
 
     @Override
     protected void doStart() {
-        ioExecutor = createIoExecutor();
+        AtomicInteger count = new AtomicInteger();
+        ioExecutor =  Executors.newFixedThreadPool(serverConfig.getIoThreads(),
+                r -> new Thread(r, "raft-io-" + count.incrementAndGet()));
     }
 
-    protected ExecutorService createIoExecutor() {
-        AtomicInteger count = new AtomicInteger();
-        return Executors.newFixedThreadPool(serverConfig.getIoThreads(),
-                r -> new Thread(r, "raft-io-" + count.incrementAndGet()));
+    @Override
+    public ExecutorService createIoExecutor() {
+        return ioExecutor;
     }
 
     @Override
@@ -62,8 +64,8 @@ public class DefaultRaftFactory extends AbstractLifeCircle implements RaftFactor
     }
 
     @Override
-    public RaftLog createRaftLog(RaftGroupConfigEx groupConfig) {
-        return new DefaultRaftLog(groupConfig, ioExecutor);
+    public RaftLog createRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager) {
+        return new DefaultRaftLog(groupConfig, statusManager);
     }
 
     @Override

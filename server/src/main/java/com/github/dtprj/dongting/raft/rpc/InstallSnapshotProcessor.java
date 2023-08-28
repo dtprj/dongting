@@ -29,7 +29,6 @@ import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.impl.StatusUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
@@ -83,7 +82,7 @@ public class InstallSnapshotProcessor extends RaftGroupProcessor<InstallSnapshot
                     }
                 } else if (remoteTerm > localTerm) {
                     RaftUtil.incrTerm(remoteTerm, raftStatus, req.leaderId);
-                    StatusUtil.persistUntilSuccess(raftStatus);
+                    gc.getStatusManager().persistSync(raftStatus);
                     installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
                 } else {
                     log.debug("receive raft install snapshot request with a smaller term, ignore, remoteTerm={}, localTerm={}", remoteTerm, localTerm);

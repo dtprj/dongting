@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.impl.StoppedException;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
@@ -97,7 +98,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, CompletableFuture
         }
         if (ioBuffer.hasRemaining()) {
             if (stopIndicator.get()) {
-                f.cancel(false);
+                f.completeExceptionally(new StoppedException());
                 return;
             }
             int bytes = ioBuffer.position() - position;

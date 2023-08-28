@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 
 /**
@@ -31,6 +32,7 @@ public class RaftGroupConfigEx extends RaftGroupConfig {
     private Timestamp ts;
     private RefBufferFactory heapPool;
     private ByteBufferPool directPool;
+    private ExecutorService ioExecutor;
     private Executor raftExecutor;
     private Supplier<Boolean> stopIndicator;
     private RaftStatus raftStatus;
@@ -96,4 +98,11 @@ public class RaftGroupConfigEx extends RaftGroupConfig {
         this.codecFactory = codecFactory;
     }
 
+    public ExecutorService getIoExecutor() {
+        return ioExecutor;
+    }
+
+    public void setIoExecutor(ExecutorService ioExecutor) {
+        this.ioExecutor = ioExecutor;
+    }
 }

@@ -106,7 +106,7 @@ class Restorer {
         buffer.clear();
         state = STATE_ITEM_HEADER;
         while (readPos < fileOps.fileLength()) {
-            RaftUtil.checkInitCancel(cancelIndicator);
+            RaftUtil.checkStop(cancelIndicator);
             int read = FileUtil.syncRead(channel, buffer, readPos);
             if (read <= 0) {
                 continue;

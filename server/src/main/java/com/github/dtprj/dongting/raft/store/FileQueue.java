@@ -59,9 +59,9 @@ abstract class FileQueue implements AutoCloseable {
 
     private boolean deleting;
 
-    public FileQueue(File dir, ExecutorService ioExecutor, RaftGroupConfigEx groupConfig) {
+    public FileQueue(File dir, RaftGroupConfigEx groupConfig) {
         this.dir = dir;
-        this.ioExecutor = ioExecutor;
+        this.ioExecutor = groupConfig.getIoExecutor();
         this.raftExecutor = groupConfig.getRaftExecutor();
         this.stopIndicator = groupConfig.getStopIndicator();
     }

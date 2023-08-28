@@ -38,7 +38,7 @@ import java.util.zip.CRC32C;
  * @author huangli
  */
 public class StatusFile implements AutoCloseable {
-    private static final DtLog log = DtLogs.getLogger(StatusUtil.class);
+    private static final DtLog log = DtLogs.getLogger(StatusManager.class);
 
     private static final int FILE_LENGTH = 4096;
     private static final int CRC_HEX_LENGTH = 8;
@@ -99,10 +99,13 @@ public class StatusFile implements AutoCloseable {
         }
     }
 
-    public void update(boolean flush) {
+    public void update(Properties props, boolean flush) {
         try {
             ByteArrayOutputStream bos = new ByteArrayOutputStream(128);
-            properties.store(bos, null);
+            if (this.properties != props) {
+                this.properties.putAll(props);
+            }
+            this.properties.store(bos, null);
             byte[] propertiesBytes = bos.toByteArray();
             byte[] fileContent = new byte[FILE_LENGTH];
             Arrays.fill(fileContent, (byte) ' ');
@@ -126,8 +129,9 @@ public class StatusFile implements AutoCloseable {
             if (flush) {
                 channel.force(false);
             }
-            log.info("saving status file success: {}", file.getPath());
+            log.debug("saving status file success: {}", file.getPath());
         } catch (Exception e) {
+            log.error("update status file failed. file={}", file.getPath(), e);
             throw new RaftException("update status file failed. file=" + file.getPath(), e);
         }
     }

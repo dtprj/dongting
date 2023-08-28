@@ -26,7 +26,6 @@ import com.github.dtprj.dongting.net.NioNet;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.server.InitCanceledException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
@@ -313,9 +312,9 @@ public class RaftUtil {
         return dest;
     }
 
-    public static void checkInitCancel(Supplier<Boolean> cancelIndicator) {
+    public static void checkStop(Supplier<Boolean> cancelIndicator) {
         if (cancelIndicator.get()) {
-            throw new InitCanceledException();
+            throw new StoppedException();
         }
     }
 

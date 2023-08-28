@@ -48,6 +48,7 @@ public class VoteManager implements BiConsumer<EventType, Object> {
     private final RaftServerConfig config;
     private final int groupId;
     private final RaftExecutor raftExecutor;
+    private final StatusManager statusManager;
 
     private static final Decoder<VoteResp> RESP_DECODER = new PbNoCopyDecoder<>(c -> new VoteResp.Callback());
 
@@ -57,13 +58,14 @@ public class VoteManager implements BiConsumer<EventType, Object> {
     private int currentVoteId;
 
     public VoteManager(RaftServerConfig serverConfig, int groupId, RaftStatusImpl raftStatus,
-                       NioClient client, RaftExecutor executor, Raft raft) {
+                       NioClient client, RaftExecutor executor, Raft raft, StatusManager statusManager) {
         this.raft = raft;
         this.client = client;
         this.raftStatus = raftStatus;
         this.config = serverConfig;
         this.groupId = groupId;
         this.raftExecutor = executor;
+        this.statusManager = statusManager;
     }
 
     @Override
@@ -281,7 +283,7 @@ public class VoteManager implements BiConsumer<EventType, Object> {
         raftStatus.setVotedFor(config.getNodeId());
         initStatusForVoting(voter.size());
 
-        StatusUtil.persistUntilSuccess(raftStatus);
+        statusManager.persistSync(raftStatus);
 
         log.info("start vote. groupId={}, newTerm={}, voteId={}", groupId, raftStatus.getCurrentTerm(), currentVoteId);
 
@@ -346,7 +348,7 @@ public class VoteManager implements BiConsumer<EventType, Object> {
             }
         } else {
             RaftUtil.incrTerm(remoteTerm, raftStatus, -1);
-            StatusUtil.persistUntilSuccess(raftStatus);
+            statusManager.persistSync(raftStatus);
         }
     }
 }

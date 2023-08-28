@@ -25,7 +25,9 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
-import com.github.dtprj.dongting.raft.impl.StatusUtil;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.impl.StatusManager;
+import com.github.dtprj.dongting.raft.impl.StoppedException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.File;
@@ -34,7 +36,6 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
 
 /**
  * @author huangli
@@ -44,6 +45,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private static final int ITEM_LEN = 8;
     static final String IDX_FILE_PERSIST_INDEX_KEY = "idxFilePersistIndex";
 
+    private final StatusManager statusManager;
+
     private final int maxCacheItems;
 
     private final int idxFileSize;
@@ -51,7 +54,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private final int fileLenShiftBits;
 
     private final int flushItems;
-    private final LongLongSeqMap tailCache = new LongLongSeqMap(1024);
+    final LongLongSeqMap tailCache = new LongLongSeqMap(1024);
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
 
@@ -62,20 +65,20 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private long firstIndex;
 
     private CompletableFuture<Void> writeFuture;
-    private AsyncIoTask writeTask;
     private LogFile currentWriteFile;
     private long nextPersistIndexAfterWrite;
 
     private long lastFlushNanos;
     private static final long FLUSH_INTERVAL_NANOS = 15L * 1000 * 1000 * 1000;
 
-    public IdxFileQueue(File dir, ExecutorService ioExecutor, RaftGroupConfigEx groupConfig) {
-        this(dir, ioExecutor, groupConfig, 1024 * 1024, 16 * 1024);
+    public IdxFileQueue(File dir, StatusManager statusManager, RaftGroupConfigEx groupConfig) {
+        this(dir, statusManager, groupConfig, 1024 * 1024, 16 * 1024);
     }
 
-    public IdxFileQueue(File dir, ExecutorService ioExecutor, RaftGroupConfigEx groupConfig,
+    public IdxFileQueue(File dir, StatusManager statusManager, RaftGroupConfigEx groupConfig,
                         int itemsPerFile, int maxCacheItems) {
-        super(dir, ioExecutor, groupConfig);
+        super(dir, groupConfig);
+        this.statusManager = statusManager;
         this.ts = groupConfig.getTs();
         this.lastFlushNanos = ts.getNanoTime();
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
@@ -90,15 +93,14 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     public Pair<Long, Long> initRestorePos() throws IOException {
         firstIndex = posToIndex(queueStartPosition);
-        long persistIndex = Long.parseLong(raftStatus.getExtraPersistProps()
+        long restoreIndex = Long.parseLong(raftStatus.getExtraPersistProps()
                 .getProperty(IDX_FILE_PERSIST_INDEX_KEY, "0"));
 
-        // persistIndex may be rollback after truncate tail, but never rollback before commit index
-        long restoreIndex = Math.min(persistIndex, raftStatus.getCommitIndex());
         long restoreIndexPos;
         if (restoreIndex == 0) {
             restoreIndex = 1;
             restoreIndexPos = 0;
+            nextIndex = 1;
         } else {
             if (restoreIndex < firstIndex) {
                 // truncate head may cause persistIndex < firstIndex, since it save to raft.status asynchronously.
@@ -198,7 +200,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         }
         tailCache.put(itemIndex, dataPosition);
         nextIndex = itemIndex + 1;
-        if (writeTask == null) {
+        if (writeFuture == null) {
             if (ts.getNanoTime() - lastFlushNanos > FLUSH_INTERVAL_NANOS) {
                 writeAndFlush();
             } else {
@@ -209,10 +211,11 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         } else {
             if (tailCache.size() >= maxCacheItems) {
                 log.warn("last idx file write not finished");
-                ensureLastWriteFinish();
+                processWriteResult(true);
                 writeAndFlush();
             }
         }
+        processWriteResult(false);
     }
 
     private void writeAndFlush() throws InterruptedException, IOException {
@@ -241,40 +244,39 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
         nextPersistIndexAfterWrite = index;
         LogFile logFile = getLogFile(startPos);
-        writeTask = new AsyncIoTask(logFile.channel, stopIndicator);
+        AsyncIoTask writeTask = new AsyncIoTask(logFile.channel, stopIndicator);
         currentWriteFile = logFile;
         logFile.use++;
         writeFuture = writeTask.write(false, false, writeBuffer, startPos & fileLenMask);
     }
 
-    private void ensureLastWriteFinish() throws InterruptedException, IOException {
-        if (writeTask == null) {
+    private void processWriteResult(boolean wait) throws InterruptedException, IOException {
+        if (writeFuture == null) {
             return;
         }
-        try {
-            if (stopIndicator.get()) {
-                return;
+        if (writeFuture.isDone() || wait) {
+            try {
+                RaftUtil.checkStop(stopIndicator);
+                writeFuture.get();
+                if (nextPersistIndexAfterWrite > nextPersistIndex && nextPersistIndexAfterWrite <= nextIndex) {
+                    nextPersistIndex = nextPersistIndexAfterWrite;
+                }
+                long idxPersisIndex = nextPersistIndex - 1;
+                raftStatus.getExtraPersistProps().setProperty(IDX_FILE_PERSIST_INDEX_KEY, String.valueOf(idxPersisIndex));
+                statusManager.persistAsync(raftStatus, false);
+            } catch (CancellationException e) {
+                throw new StoppedException();
+            } catch (ExecutionException e) {
+                throw new IOException(e);
+            } finally {
+                currentWriteFile.use--;
+                cleanWriteState();
             }
-            writeFuture.get();
-            if (nextPersistIndexAfterWrite > nextPersistIndex && nextPersistIndexAfterWrite <= nextIndex) {
-                nextPersistIndex = nextPersistIndexAfterWrite;
-            }
-            long idxPersisIndex = nextPersistIndex - 1;
-            raftStatus.getExtraPersistProps().setProperty(IDX_FILE_PERSIST_INDEX_KEY, String.valueOf(idxPersisIndex));
-            ioExecutor.execute(() -> StatusUtil.persist(raftStatus, false));
-        } catch (CancellationException e) {
-            log.info("previous write canceled");
-        } catch (ExecutionException e) {
-            throw new IOException(e);
-        } finally {
-            cleanWriteState();
-            currentWriteFile.use--;
         }
     }
 
     private void cleanWriteState() {
         writeFuture = null;
-        writeTask = null;
         currentWriteFile = null;
         nextPersistIndexAfterWrite = 0;
     }

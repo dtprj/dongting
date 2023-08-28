@@ -54,6 +54,7 @@ public class ApplyManager {
     private final EventBus eventBus;
     private final FutureEventSource futureEventSource;
     private final RaftStatusImpl raftStatus;
+    private final StatusManager statusManager;
 
     private final DecodeContext decodeContext;
 
@@ -65,7 +66,7 @@ public class ApplyManager {
 
     public ApplyManager(int selfNodeId, RaftLog raftLog, StateMachine stateMachine,
                         RaftStatusImpl raftStatus, EventBus eventBus, FutureEventSource futureEventSource,
-                        RefBufferFactory heapPool) {
+                        RefBufferFactory heapPool, StatusManager statusManager) {
         this.selfNodeId = selfNodeId;
         this.raftLog = raftLog;
         this.stateMachine = stateMachine;
@@ -75,6 +76,7 @@ public class ApplyManager {
         this.futureEventSource = futureEventSource;
         this.decodeContext = new DecodeContext();
         this.decodeContext.setHeapPool(heapPool);
+        this.statusManager = statusManager;
     }
 
     public void apply(RaftStatusImpl raftStatus) {
@@ -208,7 +210,7 @@ public class ApplyManager {
 
     private void afterExec(long index, RaftTask rt, boolean configChange) {
         if (configChange) {
-            StatusUtil.persistUntilSuccess(raftStatus);
+            statusManager.persistSync(raftStatus);
         }
         raftStatus.setLastApplied(index);
         rt.getItem().release();

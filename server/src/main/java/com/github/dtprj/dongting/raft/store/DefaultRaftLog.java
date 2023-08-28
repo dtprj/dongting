@@ -23,7 +23,7 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.impl.StatusUtil;
+import com.github.dtprj.dongting.raft.impl.StatusManager;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.UnrecoverableException;
@@ -32,7 +32,6 @@ import java.io.File;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 
 /**
@@ -43,7 +42,7 @@ public class DefaultRaftLog implements RaftLog {
     private final RaftGroupConfigEx groupConfig;
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
-    private final ExecutorService ioExecutor;
+    private final StatusManager statusManager;
     private LogFileQueue logFiles;
     private IdxFileQueue idxFiles;
 
@@ -52,11 +51,11 @@ public class DefaultRaftLog implements RaftLog {
 
     private static final String KEY_TRUNCATE = "truncate";
 
-    public DefaultRaftLog(RaftGroupConfigEx groupConfig, ExecutorService ioExecutor) {
+    public DefaultRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager) {
         this.groupConfig = groupConfig;
         this.ts = groupConfig.getTs();
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
-        this.ioExecutor = ioExecutor;
+        this.statusManager = statusManager;
 
         this.lastTaskNanos = ts.getNanoTime();
     }
@@ -66,12 +65,12 @@ public class DefaultRaftLog implements RaftLog {
         try {
             File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
 
-            idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), ioExecutor, groupConfig);
-            logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), ioExecutor, groupConfig, idxFiles);
+            idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), statusManager, groupConfig);
+            logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), groupConfig, idxFiles);
             logFiles.init();
-            RaftUtil.checkInitCancel(cancelInit);
+            RaftUtil.checkStop(cancelInit);
             idxFiles.init();
-            RaftUtil.checkInitCancel(cancelInit);
+            RaftUtil.checkStop(cancelInit);
 
             Pair<Long, Long> p = idxFiles.initRestorePos();
 
@@ -83,13 +82,13 @@ public class DefaultRaftLog implements RaftLog {
                     long end = Long.parseLong(parts[1]);
                     logFiles.syncTruncateTail(start, end);
                     raftStatus.getExtraPersistProps().remove(KEY_TRUNCATE);
-                    StatusUtil.persistUntilSuccess(raftStatus);
+                    statusManager.persistSync(raftStatus);
                 }
             }
-            RaftUtil.checkInitCancel(cancelInit);
+            RaftUtil.checkStop(cancelInit);
 
             int lastTerm = logFiles.restore(p.getLeft(), p.getRight(), cancelInit);
-            RaftUtil.checkInitCancel(cancelInit);
+            RaftUtil.checkStop(cancelInit);
 
             if (idxFiles.getNextIndex() == 1) {
                 return new Pair<>(0, 0L);
@@ -133,10 +132,10 @@ public class DefaultRaftLog implements RaftLog {
         long dataPosition = idxFiles.truncateTail(firstIndex);
         Properties props = raftStatus.getExtraPersistProps();
         props.setProperty(KEY_TRUNCATE, dataPosition + "," + logFiles.getWritePos());
-        StatusUtil.persistUntilSuccess(raftStatus);
+        statusManager.persistSync(raftStatus);
         logFiles.syncTruncateTail(dataPosition, logFiles.getWritePos());
         props.remove(KEY_TRUNCATE);
-        StatusUtil.persistUntilSuccess(raftStatus);
+        statusManager.persistSync(raftStatus);
     }
 
     @Override

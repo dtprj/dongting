@@ -46,6 +46,7 @@ import com.github.dtprj.dongting.raft.impl.RaftNodeEx;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.ReplicateManager;
+import com.github.dtprj.dongting.raft.impl.StatusManager;
 import com.github.dtprj.dongting.raft.impl.VoteManager;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.InstallSnapshotProcessor;
@@ -212,19 +213,21 @@ public class RaftServer extends AbstractLifeCircle {
 
         StateMachine stateMachine = raftFactory.createStateMachine(rgcEx);
         rgcEx.setCodecFactory(stateMachine);
-        RaftLog raftLog = raftFactory.createRaftLog(rgcEx);
+        StatusManager statusManager = new StatusManager(rgcEx.getIoExecutor());
+        RaftLog raftLog = raftFactory.createRaftLog(rgcEx, statusManager);
 
         FutureEventSource fes = new FutureEventSource(raftExecutor);
         MemberManager memberManager = new MemberManager(serverConfig, replicateNioClient, raftExecutor,
                 raftStatus, eventBus, fes);
         ApplyManager applyManager = new ApplyManager(serverConfig.getNodeId(), raftLog, stateMachine, raftStatus,
-                eventBus, fes, rgcEx.getHeapPool());
+                eventBus, fes, rgcEx.getHeapPool(), statusManager);
         CommitManager commitManager = new CommitManager(raftStatus, applyManager);
         ReplicateManager replicateManager = new ReplicateManager(serverConfig, rgcEx, raftStatus, raftLog,
-                stateMachine, replicateNioClient, raftExecutor, commitManager);
+                stateMachine, replicateNioClient, raftExecutor, commitManager, statusManager);
 
         Raft raft = new Raft(raftStatus, raftLog, applyManager, commitManager, replicateManager);
-        VoteManager voteManager = new VoteManager(serverConfig, rgc.getGroupId(), raftStatus, replicateNioClient, raftExecutor, raft);
+        VoteManager voteManager = new VoteManager(serverConfig, rgc.getGroupId(), raftStatus, replicateNioClient,
+                raftExecutor, raft, statusManager);
 
         eventBus.register(raft);
         eventBus.register(voteManager);
@@ -244,6 +247,7 @@ public class RaftServer extends AbstractLifeCircle {
         gc.setNodeManager(nodeManager);
         gc.setServerStat(serverStat);
         gc.setSnapshotManager(raftFactory.createSnapshotManager(rgcEx));
+        gc.setStatusManager(statusManager);
         return gc;
     }
 
@@ -260,6 +264,7 @@ public class RaftServer extends AbstractLifeCircle {
         rgcEx.setRaftExecutor(raftExecutor);
         rgcEx.setStopIndicator(raftStatus::isStop);
         rgcEx.setRaftStatus(raftStatus);
+        rgcEx.setIoExecutor(raftFactory.createIoExecutor());
 
         return rgcEx;
     }

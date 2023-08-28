@@ -24,7 +24,6 @@ import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.RandomAccessFile;
-import java.util.concurrent.ExecutorService;
 import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -44,12 +43,13 @@ public class FileQueueTest {
         RaftGroupConfigEx c = new RaftGroupConfigEx(1, "1", "1");
         c.setRaftExecutor(MockExecutors.raftExecutor());
         c.setStopIndicator(() -> false);
-        fileQueue = new MockFileQueue(dir, MockExecutors.ioExecutor(), c);
+        c.setIoExecutor(MockExecutors.ioExecutor());
+        fileQueue = new MockFileQueue(dir, c);
     }
 
     private static class MockFileQueue extends FileQueue {
-        public MockFileQueue(File dir, ExecutorService ioExecutor, RaftGroupConfigEx groupConfig) {
-            super(dir, ioExecutor, groupConfig);
+        public MockFileQueue(File dir, RaftGroupConfigEx groupConfig) {
+            super(dir, groupConfig);
         }
 
         @Override
