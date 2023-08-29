@@ -269,15 +269,11 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 throw new IOException(e);
             } finally {
                 currentWriteFile.use--;
-                cleanWriteState();
+                writeFuture = null;
+                currentWriteFile = null;
+                nextPersistIndexAfterWrite = 0;
             }
         }
-    }
-
-    private void cleanWriteState() {
-        writeFuture = null;
-        currentWriteFile = null;
-        nextPersistIndexAfterWrite = 0;
     }
 
     public void submitDeleteTask(long bound) {
