@@ -71,8 +71,8 @@ public class StatusFile implements AutoCloseable {
                     throw new RaftException("bad status file length: " + file.length());
                 }
                 ByteBuffer buf = ByteBuffer.allocate(FILE_LENGTH);
-                if (channel.read(buf) != FILE_LENGTH) {
-                    throw new RaftException("read length not " + FILE_LENGTH);
+                while (buf.hasRemaining()) {
+                    channel.read(buf);
                 }
                 byte[] bytes = buf.array();
 
@@ -81,7 +81,7 @@ public class StatusFile implements AutoCloseable {
                 crc32c.update(bytes, CONTENT_START_POS, CONTENT_LENGTH);
                 int expectCrc = (int) crc32c.getValue();
 
-                int actualCrc = Integer.parseInt(new String(bytes, 0, 8, StandardCharsets.UTF_8), 16);
+                int actualCrc = Integer.parseUnsignedInt(new String(bytes, 0, 8, StandardCharsets.UTF_8), 16);
 
                 if (actualCrc != expectCrc) {
                     throw new ChecksumException("bad status file crc: " + actualCrc + ", expect: " + expectCrc);
