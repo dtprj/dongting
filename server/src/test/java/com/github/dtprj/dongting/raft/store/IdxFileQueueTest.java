@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
-import com.github.dtprj.dongting.raft.impl.StatusManager;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import org.junit.jupiter.api.AfterEach;

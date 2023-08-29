@@ -31,6 +31,7 @@ import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.sm.SnapshotManager;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
+import com.github.dtprj.dongting.raft.store.StatusManager;
 
 import java.util.Objects;
 import java.util.Set;

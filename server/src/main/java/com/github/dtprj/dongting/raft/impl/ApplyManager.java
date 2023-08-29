@@ -29,6 +29,7 @@ import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
+import com.github.dtprj.dongting.raft.store.StatusManager;
 
 import java.nio.ByteBuffer;
 import java.util.HashSet;

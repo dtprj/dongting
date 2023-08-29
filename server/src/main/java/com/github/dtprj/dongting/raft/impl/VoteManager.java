@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.raft.rpc.VoteReq;
 import com.github.dtprj.dongting.raft.rpc.VoteResp;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
+import com.github.dtprj.dongting.raft.store.StatusManager;
 
 import java.util.Collection;
 import java.util.HashSet;

@@ -46,7 +46,6 @@ import com.github.dtprj.dongting.raft.impl.RaftNodeEx;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.ReplicateManager;
-import com.github.dtprj.dongting.raft.impl.StatusManager;
 import com.github.dtprj.dongting.raft.impl.VoteManager;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.InstallSnapshotProcessor;
@@ -58,6 +57,7 @@ import com.github.dtprj.dongting.raft.rpc.TransferLeaderProcessor;
 import com.github.dtprj.dongting.raft.rpc.VoteProcessor;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
+import com.github.dtprj.dongting.raft.store.StatusManager;
 
 import java.util.Collections;
 import java.util.HashSet;
