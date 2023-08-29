@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import com.github.dtprj.dongting.raft.store.StatusFile;
+
 import java.util.Properties;
 
 /**
@@ -35,6 +37,8 @@ public abstract class RaftStatus {
 
     private final Properties extraPersistProps = new Properties();
 
+    private StatusFile statusFile;
+
     public int getGroupId() {
         return groupId;
     }
@@ -43,12 +47,24 @@ public abstract class RaftStatus {
         return currentTerm;
     }
 
+    public void setCurrentTerm(int currentTerm) {
+        this.currentTerm = currentTerm;
+    }
+
     public int getVotedFor() {
         return votedFor;
     }
 
+    public void setVotedFor(int votedFor) {
+        this.votedFor = votedFor;
+    }
+
     public long getCommitIndex() {
         return commitIndex;
+    }
+
+    public void setCommitIndex(long commitIndex) {
+        this.commitIndex = commitIndex;
     }
 
     public long getLastApplied() {
@@ -61,5 +77,13 @@ public abstract class RaftStatus {
 
     public Properties getExtraPersistProps() {
         return extraPersistProps;
+    }
+
+    public StatusFile getStatusFile() {
+        return statusFile;
+    }
+
+    public void setStatusFile(StatusFile statusFile) {
+        this.statusFile = statusFile;
     }
 }

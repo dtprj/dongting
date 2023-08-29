@@ -20,9 +20,8 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
-import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
-import com.github.dtprj.dongting.raft.impl.StatusFile;
 import com.github.dtprj.dongting.raft.impl.StoppedException;
+import com.github.dtprj.dongting.raft.server.RaftStatus;
 
 import java.io.File;
 import java.util.Properties;
@@ -50,7 +49,7 @@ public class StatusManager {
         this.ioExecutor = ioExecutor;
     }
 
-    public void initStatusFileChannel(String dataDir, String filename, RaftStatusImpl raftStatus) {
+    public void initStatusFileChannel(String dataDir, String filename, RaftStatus raftStatus) {
         File dir = FileUtil.ensureDir(dataDir);
         File file = new File(dir, filename);
         StatusFile sf = new StatusFile(file);
@@ -68,7 +67,7 @@ public class StatusManager {
         raftStatus.setCommitIndex(Integer.parseInt(loadedProps.getProperty(COMMIT_INDEX_KEY, "0")));
     }
 
-    public void persistAsync(RaftStatusImpl raftStatus, boolean flush) {
+    public void persistAsync(RaftStatus raftStatus, boolean flush) {
         try {
             waitFinish();
             persist(raftStatus, flush);
@@ -78,7 +77,7 @@ public class StatusManager {
         }
     }
 
-    private void persist(RaftStatusImpl raftStatus, boolean flush) {
+    private void persist(RaftStatus raftStatus, boolean flush) {
         StatusFile sf = raftStatus.getStatusFile();
 
         Properties destProps = new Properties();
@@ -110,7 +109,7 @@ public class StatusManager {
         }
     }
 
-    public void persistSync(RaftStatusImpl raftStatus) {
+    public void persistSync(RaftStatus raftStatus) {
         while (!raftStatus.isStop()) {
             try {
                 waitFinish();

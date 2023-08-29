@@ -23,10 +23,10 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.impl.StatusFile;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftStatus;
 import com.github.dtprj.dongting.raft.store.AsyncIoTask;
+import com.github.dtprj.dongting.raft.store.StatusFile;
 
 import java.io.File;
 import java.io.IOException;

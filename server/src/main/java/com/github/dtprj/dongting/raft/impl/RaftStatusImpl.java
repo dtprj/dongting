@@ -69,8 +69,6 @@ public class RaftStatusImpl extends RaftStatus {
     private long lastLogIndex;
     private int lastLogTerm;
 
-    private StatusFile statusFile;
-
     private RaftExecutor raftExecutor;
 
     private boolean holdRequest;
@@ -142,18 +140,6 @@ public class RaftStatusImpl extends RaftStatus {
 
     public void setStop(boolean stop) {
         this.stop = stop;
-    }
-
-    public void setCurrentTerm(int currentTerm) {
-        this.currentTerm = currentTerm;
-    }
-
-    public void setVotedFor(int votedFor) {
-        this.votedFor = votedFor;
-    }
-
-    public void setCommitIndex(long commitIndex) {
-        this.commitIndex = commitIndex;
     }
 
     public RaftRole getRole() {
@@ -314,14 +300,6 @@ public class RaftStatusImpl extends RaftStatus {
 
     public void setRaftExecutor(RaftExecutor raftExecutor) {
         this.raftExecutor = raftExecutor;
-    }
-
-    public StatusFile getStatusFile() {
-        return statusFile;
-    }
-
-    public void setStatusFile(StatusFile statusFile) {
-        this.statusFile = statusFile;
     }
 
     public long[] getLeaseComputeArray() {
