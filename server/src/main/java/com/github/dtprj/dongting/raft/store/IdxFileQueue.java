@@ -26,13 +26,11 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.impl.StoppedException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
@@ -100,6 +98,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             restoreIndex = 1;
             restoreIndexPos = 0;
             nextIndex = 1;
+            nextPersistIndex = 1;
         } else {
             if (restoreIndex < firstIndex) {
                 // truncate head may cause persistIndex < firstIndex, since it save to raft.status asynchronously.
@@ -194,27 +193,32 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             log.info("put index!=nextIndex, truncate tailCache: {}, {}", itemIndex, nextIndex);
             tailCache.truncate(itemIndex);
         }
-        while (tailCache.size() >= maxCacheItems && tailCache.getFirstKey() < nextPersistIndex) {
-            tailCache.remove();
-        }
+        removeHead(tailCache);
         tailCache.put(itemIndex, dataPosition);
         nextIndex = itemIndex + 1;
         if (writeFuture == null) {
             if (ts.getNanoTime() - lastFlushNanos > FLUSH_INTERVAL_NANOS) {
                 writeAndFlush();
             } else {
-                if (raftStatus.getCommitIndex() - nextPersistIndex >= flushItems) {
+                if (raftStatus.getCommitIndex() - nextPersistIndex + 1 >= flushItems) {
                     writeAndFlush();
                 }
             }
         } else {
-            if (tailCache.size() >= maxCacheItems) {
-                log.warn("last idx file write not finished");
+            if (tailCache.size() > maxCacheItems) {
+                log.warn("cache size exceed {}: {}", maxCacheItems, tailCache.size());
                 processWriteResult(true);
+                removeHead(tailCache);
                 writeAndFlush();
             }
         }
         processWriteResult(false);
+    }
+
+    private void removeHead(LongLongSeqMap tailCache) {
+        while (tailCache.size() >= maxCacheItems && tailCache.getFirstKey() < nextPersistIndex) {
+            tailCache.remove();
+        }
     }
 
     private void writeAndFlush() throws InterruptedException, IOException {
@@ -263,8 +267,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 long idxPersisIndex = nextPersistIndex - 1;
                 raftStatus.getExtraPersistProps().setProperty(IDX_FILE_PERSIST_INDEX_KEY, String.valueOf(idxPersisIndex));
                 statusManager.persistAsync(raftStatus, false);
-            } catch (CancellationException e) {
-                throw new StoppedException();
             } catch (ExecutionException e) {
                 throw new IOException(e);
             } finally {

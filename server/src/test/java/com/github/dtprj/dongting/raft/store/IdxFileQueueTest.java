@@ -44,9 +44,11 @@ public class IdxFileQueueTest {
         c.setStopIndicator(() -> false);
         c.setTs(new Timestamp());
         raftStatus = new RaftStatusImpl();
+        raftStatus.setStatusFile(new StatusFile(new File(dir, "test.status")));
+        raftStatus.getStatusFile().init();
         c.setRaftStatus(raftStatus);
         c.setIoExecutor(MockExecutors.ioExecutor());
-        idxFileQueue = new IdxFileQueue(dir, new StatusManager(MockExecutors.ioExecutor()), c, 8, 2);
+        idxFileQueue = new IdxFileQueue(dir, new StatusManager(MockExecutors.ioExecutor()), c, 8, 4);
     }
 
     @AfterEach
@@ -72,6 +74,6 @@ public class IdxFileQueueTest {
             raftStatus.setCommitIndex(i - 1);
             idxFileQueue.put(i, i * 100);
         }
-        assertTrue(idxFileQueue.tailCache.size() < 10);
+        assertTrue(idxFileQueue.tailCache.size() <= 5);
     }
 }

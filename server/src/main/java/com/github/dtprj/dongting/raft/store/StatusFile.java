@@ -61,7 +61,7 @@ public class StatusFile implements AutoCloseable {
 
     public void init() {
         try {
-            boolean needLoad = !file.exists() || file.length() == 0;
+            boolean needLoad = file.exists() && file.length() != 0;
             channel = FileChannel.open(file.toPath(), StandardOpenOption.CREATE,
                     StandardOpenOption.READ, StandardOpenOption.WRITE);
             lock = channel.lock();
