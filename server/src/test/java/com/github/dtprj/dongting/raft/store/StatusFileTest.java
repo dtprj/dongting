@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
+import com.github.dtprj.dongting.raft.test.MockExecutors;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
@@ -33,26 +34,26 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 public class StatusFileTest {
     @Test
-    public void testUpdateAndInit() {
+    public void testUpdateAndInit() throws Exception {
         File dir = TestDir.createTestDir(StatusFileTest.class.getSimpleName());
         File file = new File(dir, "status");
-        StatusFile statusFile = new StatusFile(file);
+        StatusFile statusFile = new StatusFile(file, MockExecutors.ioExecutor());
         statusFile.init();
         statusFile.getProperties().setProperty("1", "100");
         statusFile.getProperties().setProperty("2", "200");
-        statusFile.update(statusFile.getProperties(), true);
+        statusFile.update(statusFile.getProperties(), true).get();
         statusFile.close();
 
-        statusFile = new StatusFile(file);
+        statusFile = new StatusFile(file, MockExecutors.ioExecutor());
         statusFile.init();
         assertEquals("100", statusFile.getProperties().getProperty("1"));
         assertEquals("200", statusFile.getProperties().getProperty("2"));
         Properties p = new Properties();
         p.setProperty("3", "300");
-        statusFile.update(p, true);
+        statusFile.update(p, true).get();
         statusFile.close();
 
-        statusFile = new StatusFile(file);
+        statusFile = new StatusFile(file, MockExecutors.ioExecutor());
         statusFile.init();
         assertEquals("100", statusFile.getProperties().getProperty("1"));
         assertEquals("200", statusFile.getProperties().getProperty("2"));
@@ -64,11 +65,11 @@ public class StatusFileTest {
     public void testChecksumError() throws Exception {
         File dir = TestDir.createTestDir(StatusFileTest.class.getSimpleName());
         File file = new File(dir, "status");
-        StatusFile statusFile = new StatusFile(file);
+        StatusFile statusFile = new StatusFile(file, MockExecutors.ioExecutor());
         statusFile.init();
         statusFile.getProperties().setProperty("1", "100");
         statusFile.getProperties().setProperty("2", "200");
-        statusFile.update(statusFile.getProperties(), true);
+        statusFile.update(statusFile.getProperties(), true).get();
         statusFile.close();
 
         FileInputStream in = new FileInputStream(file);
@@ -78,7 +79,7 @@ public class StatusFileTest {
         FileOutputStream fos = new FileOutputStream(file);
         fos.write(bs);
         fos.close();
-        StatusFile sf2 = new StatusFile(file);
+        StatusFile sf2 = new StatusFile(file, MockExecutors.ioExecutor());
         assertThrows(ChecksumException.class, sf2::init);
     }
 
@@ -89,7 +90,7 @@ public class StatusFileTest {
         RandomAccessFile raf = new RandomAccessFile(file, "rw");
         raf.setLength(1);
         raf.close();
-        StatusFile statusFile = new StatusFile(file);
+        StatusFile statusFile = new StatusFile(file, MockExecutors.ioExecutor());
         assertThrows(RaftException.class, statusFile::init);
     }
 }

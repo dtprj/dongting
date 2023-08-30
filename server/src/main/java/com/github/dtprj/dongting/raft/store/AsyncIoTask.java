@@ -39,6 +39,10 @@ public class AsyncIoTask implements CompletionHandler<Integer, CompletableFuture
     private boolean flush;
     private boolean flushMeta;
 
+    public AsyncIoTask(AsynchronousFileChannel channel) {
+        this(channel, () -> false);
+    }
+
     public AsyncIoTask(AsynchronousFileChannel channel, Supplier<Boolean> stopIndicator) {
         Objects.requireNonNull(channel);
         Objects.requireNonNull(stopIndicator);

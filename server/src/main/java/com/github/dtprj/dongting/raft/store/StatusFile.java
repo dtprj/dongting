@@ -26,12 +26,17 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.StringReader;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
+import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.OpenOption;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Properties;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.CRC32C;
 
 /**
@@ -46,13 +51,17 @@ public class StatusFile implements AutoCloseable {
     private static final int CONTENT_LENGTH = FILE_LENGTH - CONTENT_START_POS;
 
     private final File file;
+    private final ExecutorService ioExecutor;
     private FileLock lock;
-    private FileChannel channel;
+    private AsynchronousFileChannel channel;
+    private final byte[] data = new byte[FILE_LENGTH];
+    private final ByteArrayOutputStream bos = new ByteArrayOutputStream(128);
 
     private final Properties properties = new Properties();
 
-    public StatusFile(File file) {
+    public StatusFile(File file, ExecutorService ioExecutor) {
         this.file = file;
+        this.ioExecutor = ioExecutor;
     }
 
     public Properties getProperties() {
@@ -62,32 +71,33 @@ public class StatusFile implements AutoCloseable {
     public void init() {
         try {
             boolean needLoad = file.exists() && file.length() != 0;
-            channel = FileChannel.open(file.toPath(), StandardOpenOption.CREATE,
-                    StandardOpenOption.READ, StandardOpenOption.WRITE);
-            lock = channel.lock();
+            HashSet<OpenOption> options = new HashSet<>();
+            options.add(StandardOpenOption.CREATE);
+            options.add(StandardOpenOption.READ);
+            options.add(StandardOpenOption.WRITE);
+            channel = AsynchronousFileChannel.open(file.toPath(), options, ioExecutor);
+            lock = channel.tryLock();
             if (needLoad) {
                 log.info("loading status file: {}", file.getPath());
                 if (file.length() != FILE_LENGTH) {
                     throw new RaftException("bad status file length: " + file.length());
                 }
-                ByteBuffer buf = ByteBuffer.allocate(FILE_LENGTH);
-                while (buf.hasRemaining()) {
-                    channel.read(buf);
-                }
-                byte[] bytes = buf.array();
+                ByteBuffer buf = ByteBuffer.wrap(data);
+                AsyncIoTask task = new AsyncIoTask(channel);
+                task.read(buf, 0).get(15, TimeUnit.SECONDS);
 
                 CRC32C crc32c = new CRC32C();
 
-                crc32c.update(bytes, CONTENT_START_POS, CONTENT_LENGTH);
+                crc32c.update(data, CONTENT_START_POS, CONTENT_LENGTH);
                 int expectCrc = (int) crc32c.getValue();
 
-                int actualCrc = Integer.parseUnsignedInt(new String(bytes, 0, 8, StandardCharsets.UTF_8), 16);
+                int actualCrc = Integer.parseUnsignedInt(new String(data, 0, 8, StandardCharsets.UTF_8), 16);
 
                 if (actualCrc != expectCrc) {
                     throw new ChecksumException("bad status file crc: " + actualCrc + ", expect: " + expectCrc);
                 }
 
-                properties.load(new StringReader(new String(bytes, CONTENT_START_POS, CONTENT_LENGTH, StandardCharsets.UTF_8)));
+                properties.load(new StringReader(new String(data, CONTENT_START_POS, CONTENT_LENGTH, StandardCharsets.UTF_8)));
 
             }
         } catch (DtException e) {
@@ -99,39 +109,36 @@ public class StatusFile implements AutoCloseable {
         }
     }
 
-    public void update(Properties props, boolean flush) {
+    public CompletableFuture<Void> update(Properties props, boolean flush) {
         try {
-            ByteArrayOutputStream bos = new ByteArrayOutputStream(128);
+            bos.reset();
             if (this.properties != props) {
                 this.properties.putAll(props);
             }
             this.properties.store(bos, null);
             byte[] propertiesBytes = bos.toByteArray();
-            byte[] fileContent = new byte[FILE_LENGTH];
-            Arrays.fill(fileContent, (byte) ' ');
-            System.arraycopy(propertiesBytes, 0, fileContent, CONTENT_START_POS, propertiesBytes.length);
-            fileContent[CONTENT_START_POS - 2] = '\r';
-            fileContent[CONTENT_START_POS - 1] = '\n';
+            Arrays.fill(data, (byte) ' ');
+            System.arraycopy(propertiesBytes, 0, data, CONTENT_START_POS, propertiesBytes.length);
+            data[CONTENT_START_POS - 2] = '\r';
+            data[CONTENT_START_POS - 1] = '\n';
 
             CRC32C crc32c = new CRC32C();
-            crc32c.update(fileContent, CONTENT_START_POS, CONTENT_LENGTH);
+            crc32c.update(data, CONTENT_START_POS, CONTENT_LENGTH);
             int crc = (int) crc32c.getValue();
             String crcHex = String.format("%08x", crc);
             byte[] crcBytes = crcHex.getBytes(StandardCharsets.UTF_8);
-            System.arraycopy(crcBytes, 0, fileContent, 0, CRC_HEX_LENGTH);
-            ByteBuffer buf = ByteBuffer.wrap(fileContent);
+            System.arraycopy(crcBytes, 0, data, 0, CRC_HEX_LENGTH);
+            ByteBuffer buf = ByteBuffer.wrap(data);
 
-            channel.position(0);
-            while (buf.hasRemaining()) {
-                //noinspection ResultOfMethodCallIgnored
-                channel.write(buf);
-            }
-            if (flush) {
-                channel.force(false);
-            }
-            log.debug("saving status file success: {}", file.getPath());
+            AsyncIoTask task = new AsyncIoTask(channel);
+            return task.write(flush, false, buf, 0).whenComplete((v, ex) -> {
+                if (ex != null) {
+                    log.error("update status file failed. file={}", file.getPath(), ex);
+                } else {
+                    log.debug("saving status file success: {}", file.getPath());
+                }
+            });
         } catch (Exception e) {
-            log.error("update status file failed. file={}", file.getPath(), e);
             throw new RaftException("update status file failed. file=" + file.getPath(), e);
         }
     }

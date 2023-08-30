@@ -211,7 +211,7 @@ public class ApplyManager {
 
     private void afterExec(long index, RaftTask rt, boolean configChange) {
         if (configChange) {
-            statusManager.persistSync(raftStatus);
+            statusManager.persistSync();
         }
         raftStatus.setLastApplied(index);
         rt.getItem().release();

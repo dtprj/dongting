@@ -213,7 +213,7 @@ public class RaftServer extends AbstractLifeCircle {
 
         StateMachine stateMachine = raftFactory.createStateMachine(rgcEx);
         rgcEx.setCodecFactory(stateMachine);
-        StatusManager statusManager = new StatusManager(rgcEx.getIoExecutor());
+        StatusManager statusManager = new StatusManager(rgcEx.getIoExecutor(), raftStatus);
         RaftLog raftLog = raftFactory.createRaftLog(rgcEx, statusManager);
 
         FutureEventSource fes = new FutureEventSource(raftExecutor);

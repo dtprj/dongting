@@ -39,6 +39,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.zip.CRC32C;
 
@@ -116,7 +117,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             }
         }
 
-        try (StatusFile sf = new StatusFile(lastIdxFile)) {
+        try (StatusFile sf = new StatusFile(lastIdxFile, groupConfig.getIoExecutor())) {
             sf.init();
             String lastIndex = sf.getProperties().getProperty(KEY_LAST_INDEX);
             String lastTerm = sf.getProperties().getProperty(KEY_LAST_TERM);
@@ -298,7 +299,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
                 if (shouldReturn(null)) {
                     return;
                 }
-                try (StatusFile sf = new StatusFile(newIdxFile)) {
+                try (StatusFile sf = new StatusFile(newIdxFile, groupConfig.getIoExecutor())) {
                     sf.init();
                     sf.getProperties().setProperty(KEY_LAST_INDEX, String.valueOf(currentSnapshot.getLastIncludedIndex()));
                     sf.getProperties().setProperty(KEY_LAST_TERM, String.valueOf(currentSnapshot.getLastIncludedTerm()));
@@ -309,7 +310,8 @@ public class DefaultSnapshotManager implements SnapshotManager {
                     sf.getProperties().setProperty("saveStartTime", sdf.format(new Date(startTime)));
                     sf.getProperties().setProperty("saveEndTime", sdf.format(new Date()));
 
-                    sf.update(sf.getProperties(), true);
+                    // TODO make async?
+                    sf.update(sf.getProperties(), true).get(10, TimeUnit.SECONDS);
                     log.info("snapshot status file write success: {}", newIdxFile.getPath());
                 }
 

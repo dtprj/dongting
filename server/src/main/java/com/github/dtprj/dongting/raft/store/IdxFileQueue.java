@@ -266,7 +266,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 }
                 long idxPersisIndex = nextPersistIndex - 1;
                 raftStatus.getExtraPersistProps().setProperty(IDX_FILE_PERSIST_INDEX_KEY, String.valueOf(idxPersisIndex));
-                statusManager.persistAsync(raftStatus, false);
+                statusManager.persistAsync();
             } catch (ExecutionException e) {
                 throw new IOException(e);
             } finally {

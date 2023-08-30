@@ -90,7 +90,7 @@ public class RaftGroupThread extends Thread {
         setName("raft-" + groupConfig.getGroupId());
 
         try {
-            gc.getStatusManager().initStatusFileChannel(groupConfig.getDataDir(), groupConfig.getStatusFile(), raftStatus);
+            gc.getStatusManager().initStatusFileChannel(groupConfig.getDataDir(), groupConfig.getStatusFile());
             Pair<Integer, Long> snapshotResult = recoverStateMachine();
             int snapshotTerm = snapshotResult == null ? 0 : snapshotResult.getLeft();
             long snapshotIndex = snapshotResult == null ? 0 : snapshotResult.getRight();

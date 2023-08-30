@@ -98,7 +98,7 @@ public class VoteProcessor extends RaftGroupProcessor<VoteReq> {
             needPersist = true;
         }
         if (needPersist) {
-            statusManager.persistSync(raftStatus);
+            statusManager.persistSync();
         }
     }
 

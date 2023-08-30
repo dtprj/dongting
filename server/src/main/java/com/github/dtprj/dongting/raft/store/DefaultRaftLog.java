@@ -81,7 +81,7 @@ public class DefaultRaftLog implements RaftLog {
                     long end = Long.parseLong(parts[1]);
                     logFiles.syncTruncateTail(start, end);
                     raftStatus.getExtraPersistProps().remove(KEY_TRUNCATE);
-                    statusManager.persistSync(raftStatus);
+                    statusManager.persistSync();
                 }
             }
             RaftUtil.checkStop(cancelInit);
@@ -131,10 +131,10 @@ public class DefaultRaftLog implements RaftLog {
         long dataPosition = idxFiles.truncateTail(firstIndex);
         Properties props = raftStatus.getExtraPersistProps();
         props.setProperty(KEY_TRUNCATE, dataPosition + "," + logFiles.getWritePos());
-        statusManager.persistSync(raftStatus);
+        statusManager.persistSync();
         logFiles.syncTruncateTail(dataPosition, logFiles.getWritePos());
         props.remove(KEY_TRUNCATE);
-        statusManager.persistSync(raftStatus);
+        statusManager.persistSync();
     }
 
     @Override

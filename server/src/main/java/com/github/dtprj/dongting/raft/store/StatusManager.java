@@ -26,10 +26,8 @@ import com.github.dtprj.dongting.raft.server.RaftStatus;
 import java.io.File;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 /**
  * @author huangli
@@ -37,22 +35,24 @@ import java.util.concurrent.TimeoutException;
 public class StatusManager {
     private static final DtLog log = DtLogs.getLogger(StatusManager.class);
 
-    private static final String CURRENT_TERM_KEY = "currentTerm";
-    private static final String VOTED_FOR_KEY = "votedFor";
-    private static final String COMMIT_INDEX_KEY = "commitIndex";
+    static final String CURRENT_TERM_KEY = "currentTerm";
+    static final String VOTED_FOR_KEY = "votedFor";
+    static final String COMMIT_INDEX_KEY = "commitIndex";
 
-    private final Executor ioExecutor;
+    private final ExecutorService ioExecutor;
+    private final RaftStatus raftStatus;
 
-    private CompletableFuture<Void> updateFuture;
+    private CompletableFuture<Void> asyncFuture;
 
-    public StatusManager(Executor ioExecutor) {
+    public StatusManager(ExecutorService ioExecutor, RaftStatus raftStatus) {
         this.ioExecutor = ioExecutor;
+        this.raftStatus = raftStatus;
     }
 
-    public void initStatusFileChannel(String dataDir, String filename, RaftStatus raftStatus) {
+    public void initStatusFileChannel(String dataDir, String filename) {
         File dir = FileUtil.ensureDir(dataDir);
         File file = new File(dir, filename);
-        StatusFile sf = new StatusFile(file);
+        StatusFile sf = new StatusFile(file, ioExecutor);
         sf.init();
         raftStatus.setStatusFile(sf);
         Properties loadedProps = sf.getProperties();
@@ -67,19 +67,23 @@ public class StatusManager {
         raftStatus.setCommitIndex(Integer.parseInt(loadedProps.getProperty(COMMIT_INDEX_KEY, "0")));
     }
 
-    public void persistAsync(RaftStatus raftStatus, boolean flush) {
+    public void persistAsync() {
         try {
-            waitFinish();
-            persist(raftStatus, flush);
+            if (asyncFuture != null) {
+                try {
+                    asyncFuture.get();
+                } finally {
+                    asyncFuture = null;
+                }
+            }
+            Properties props = copyWriteData();
+            asyncFuture = raftStatus.getStatusFile().update(props, false);
         } catch (Exception e) {
-            throwIfStop(e);
             throw new RaftException(e);
         }
     }
 
-    private void persist(RaftStatus raftStatus, boolean flush) {
-        StatusFile sf = raftStatus.getStatusFile();
-
+    private Properties copyWriteData() {
         Properties destProps = new Properties();
 
         destProps.putAll(raftStatus.getExtraPersistProps());
@@ -87,37 +91,33 @@ public class StatusManager {
         destProps.setProperty(CURRENT_TERM_KEY, String.valueOf(raftStatus.getCurrentTerm()));
         destProps.setProperty(VOTED_FOR_KEY, String.valueOf(raftStatus.getVotedFor()));
         destProps.setProperty(COMMIT_INDEX_KEY, String.valueOf(raftStatus.getCommitIndex()));
-
-        updateFuture = CompletableFuture.runAsync(() -> {
-            try {
-                sf.update(destProps, flush);
-            } catch (RuntimeException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new RaftException(e);
-            }
-        }, ioExecutor);
+        return destProps;
     }
 
-    private void waitFinish() throws InterruptedException, ExecutionException, TimeoutException {
-        if (updateFuture != null) {
-            try {
-                updateFuture.get(60, TimeUnit.SECONDS);
-            } finally {
-                updateFuture = null;
-            }
-        }
-    }
+    public void persistSync() {
+        Properties props = copyWriteData();
 
-    public void persistSync(RaftStatus raftStatus) {
         while (!raftStatus.isStop()) {
             try {
-                waitFinish();
-                persist(raftStatus, true);
-                waitFinish();
+                if (asyncFuture != null) {
+                    try {
+                        asyncFuture.get();
+                    } finally {
+                        asyncFuture = null;
+                    }
+                }
+                CompletableFuture<Void> f = raftStatus.getStatusFile().update(props, true);
+                f.get(60, TimeUnit.SECONDS);
                 return;
             } catch (Exception e) {
-                throwIfStop(e);
+                Throwable root = DtUtil.rootCause(e);
+                if ((root instanceof InterruptedException) || (root instanceof StoppedException)) {
+                    if (e instanceof RuntimeException) {
+                        throw (RuntimeException) e;
+                    } else {
+                        throw new RaftException(e);
+                    }
+                }
                 log.error("persist raft status file failed", e);
                 try {
                     //noinspection BusyWait
@@ -128,17 +128,6 @@ public class StatusManager {
             }
         }
         throw new StoppedException();
-    }
-
-    private static void throwIfStop(Exception e) {
-        Throwable root = DtUtil.rootCause(e);
-        if ((root instanceof InterruptedException) || (root instanceof StoppedException)) {
-            if (e instanceof RuntimeException) {
-                throw (RuntimeException) e;
-            } else {
-                throw new RaftException(e);
-            }
-        }
     }
 
 }

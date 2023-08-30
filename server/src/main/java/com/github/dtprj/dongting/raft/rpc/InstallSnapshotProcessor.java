@@ -82,7 +82,7 @@ public class InstallSnapshotProcessor extends RaftGroupProcessor<InstallSnapshot
                     }
                 } else if (remoteTerm > localTerm) {
                     RaftUtil.incrTerm(remoteTerm, raftStatus, req.leaderId);
-                    gc.getStatusManager().persistSync(raftStatus);
+                    gc.getStatusManager().persistSync();
                     installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
                 } else {
                     log.debug("receive raft install snapshot request with a smaller term, ignore, remoteTerm={}, localTerm={}", remoteTerm, localTerm);

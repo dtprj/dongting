@@ -355,7 +355,7 @@ public class ReplicateManager {
             log.info("find remote term greater than local term. remoteTerm={}, localTerm={}",
                     remoteTerm, raftStatus.getCurrentTerm());
             RaftUtil.incrTerm(remoteTerm, raftStatus, -1);
-            statusManager.persistSync(raftStatus);
+            statusManager.persistSync();
             return true;
         }
 
