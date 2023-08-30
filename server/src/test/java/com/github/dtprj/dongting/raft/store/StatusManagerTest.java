@@ -15,12 +15,20 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
+import com.github.dtprj.dongting.raft.impl.StoppedException;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.io.File;
+import java.util.Properties;
+import java.util.concurrent.CompletableFuture;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * @author huangli
@@ -29,18 +37,127 @@ public class StatusManagerTest {
 
     private StatusManager statusManager;
     private RaftStatusImpl raftStatus;
+    private File dir;
+    private CompletableFuture<Void> mockPersistResult;
 
     @BeforeEach
     public void setup() {
-        statusManager = new StatusManager(MockExecutors.ioExecutor(), raftStatus);
-        RaftStatusImpl raftStatus = new RaftStatusImpl();
-        File dir = TestDir.createTestDir(StatusManagerTest.class.getSimpleName());
-        raftStatus.setStatusFile(new StatusFile(dir, MockExecutors.ioExecutor()));
-        raftStatus.getStatusFile().init();
+        dir = TestDir.createTestDir(StatusManagerTest.class.getSimpleName());
+        raftStatus = new RaftStatusImpl();
+        statusManager = new StatusManager(MockExecutors.ioExecutor(), raftStatus) {
+            private boolean mockFail = false;
+            @Override
+            protected CompletableFuture<Void> persist(Properties props, boolean flush) {
+                if (mockPersistResult != null && !mockFail) {
+                    mockFail = true;
+                    return mockPersistResult;
+                }
+                return super.persist(props, flush);
+            }
+        };
+        statusManager.initStatusFileChannel(dir.getParent(), "status");
+        StatusManager.SYNC_FAIL_RETRY_INTERVAL = 1;
     }
 
     @AfterEach
     public void teardown() {
+        mockPersistResult = null;
         raftStatus.getStatusFile().close();
+        StatusManager.SYNC_FAIL_RETRY_INTERVAL = 1000;
     }
+
+    private void check() {
+        RaftStatusImpl s2 = new RaftStatusImpl();
+        StatusManager m2 = new StatusManager(MockExecutors.ioExecutor(), s2);
+        m2.initStatusFileChannel(dir.getParent(), "status");
+        assertEquals(raftStatus.getCommitIndex(), s2.getCommitIndex());
+        assertEquals(raftStatus.getVotedFor(), s2.getVotedFor());
+        assertEquals(raftStatus.getCurrentTerm(), s2.getCurrentTerm());
+        assertEquals(raftStatus.getExtraPersistProps().getProperty("k1"), s2.getExtraPersistProps().getProperty("k1"));
+        s2.getStatusFile().close();
+    }
+
+    @Test
+    public void testPersistSyncAndInit() {
+        initData();
+        statusManager.persistSync();
+        raftStatus.getStatusFile().close();
+        check();
+    }
+
+    private void initData() {
+        raftStatus.setCommitIndex(100);
+        raftStatus.setVotedFor(200);
+        raftStatus.setCurrentTerm(300);
+        raftStatus.getExtraPersistProps().setProperty("k1", "v1");
+    }
+
+    @Test
+    public void testPersistAsync() throws Exception {
+        CompletableFuture<Void> f = null;
+        for (int i = 0; i < 5; i++) {
+            raftStatus.setCommitIndex(100 + i);
+            raftStatus.setVotedFor(200 + i);
+            raftStatus.setCurrentTerm(300 + i);
+            raftStatus.getExtraPersistProps().setProperty("k1", "v1" + i);
+            f = statusManager.persistAsync();
+        }
+        f.get();
+        raftStatus.getStatusFile().close();
+
+        check();
+    }
+
+    @Test
+    public void testMixPersist() {
+        initData();
+        statusManager.persistAsync();
+
+        raftStatus.setCommitIndex(100000);
+        statusManager.persistSync();
+
+        raftStatus.getStatusFile().close();
+
+        check();
+    }
+
+    @Test
+    public void testSyncRetry() {
+        initData();
+        mockPersistResult = new CompletableFuture<>();
+        mockPersistResult.completeExceptionally(new Exception());
+
+        statusManager.persistSync();
+        raftStatus.getStatusFile().close();
+        check();
+    }
+
+    @Test
+    public void testFail1() {
+        initData();
+        mockPersistResult = new CompletableFuture<>();
+        mockPersistResult.completeExceptionally(new Exception(new StoppedException()));
+
+        assertThrows(RaftException.class, () -> statusManager.persistSync());
+    }
+
+    @Test
+    public void testFail2() {
+        initData();
+        mockPersistResult = new CompletableFuture<>();
+        mockPersistResult.completeExceptionally(new RuntimeException(new InterruptedException()));
+
+        assertThrows(RaftException.class, () -> statusManager.persistSync());
+    }
+
+    @Test
+    public void testFail3() {
+        initData();
+        mockPersistResult = new CompletableFuture<>();
+        mockPersistResult.completeExceptionally(new Exception());
+        Thread.currentThread().interrupt();
+
+        assertThrows(RaftException.class, () -> statusManager.persistSync());
+    }
+
 }

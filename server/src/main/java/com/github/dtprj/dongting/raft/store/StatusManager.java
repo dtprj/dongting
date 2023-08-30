@@ -35,14 +35,16 @@ import java.util.concurrent.TimeUnit;
 public class StatusManager {
     private static final DtLog log = DtLogs.getLogger(StatusManager.class);
 
-    static final String CURRENT_TERM_KEY = "currentTerm";
-    static final String VOTED_FOR_KEY = "votedFor";
-    static final String COMMIT_INDEX_KEY = "commitIndex";
+    private static final String CURRENT_TERM_KEY = "currentTerm";
+    private static final String VOTED_FOR_KEY = "votedFor";
+    private static final String COMMIT_INDEX_KEY = "commitIndex";
 
     private final ExecutorService ioExecutor;
     private final RaftStatus raftStatus;
 
     private CompletableFuture<Void> asyncFuture;
+
+    static int SYNC_FAIL_RETRY_INTERVAL = 1000;
 
     public StatusManager(ExecutorService ioExecutor, RaftStatus raftStatus) {
         this.ioExecutor = ioExecutor;
@@ -67,9 +69,9 @@ public class StatusManager {
         raftStatus.setCommitIndex(Integer.parseInt(loadedProps.getProperty(COMMIT_INDEX_KEY, "0")));
     }
 
-    public void persistAsync() {
+    public CompletableFuture<Void> persistAsync() {
         try {
-            if (asyncFuture != null) {
+            if (asyncFuture != null && !asyncFuture.isDone()) {
                 try {
                     asyncFuture.get();
                 } finally {
@@ -77,10 +79,15 @@ public class StatusManager {
                 }
             }
             Properties props = copyWriteData();
-            asyncFuture = raftStatus.getStatusFile().update(props, false);
+            asyncFuture = persist(props, false);
+            return asyncFuture;
         } catch (Exception e) {
             throw new RaftException(e);
         }
+    }
+
+    protected CompletableFuture<Void> persist(Properties props, boolean flush) {
+        return raftStatus.getStatusFile().update(props, flush);
     }
 
     private Properties copyWriteData() {
@@ -106,7 +113,7 @@ public class StatusManager {
                         asyncFuture = null;
                     }
                 }
-                CompletableFuture<Void> f = raftStatus.getStatusFile().update(props, true);
+                CompletableFuture<Void> f = persist(props, true);
                 f.get(60, TimeUnit.SECONDS);
                 return;
             } catch (Exception e) {
@@ -121,7 +128,7 @@ public class StatusManager {
                 log.error("persist raft status file failed", e);
                 try {
                     //noinspection BusyWait
-                    Thread.sleep(1000);
+                    Thread.sleep(SYNC_FAIL_RETRY_INTERVAL);
                 } catch (InterruptedException ex) {
                     throw new RaftException(ex);
                 }
