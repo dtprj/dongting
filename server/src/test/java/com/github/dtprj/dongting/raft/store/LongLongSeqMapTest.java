@@ -52,8 +52,8 @@ public class LongLongSeqMapTest {
         map.remove();
         map.remove();
 
-        assertEquals(0, map.get(0));
-        assertEquals(0, map.get(1));
+        assertThrows(IllegalArgumentException.class, () -> map.get(0));
+        assertThrows(IllegalArgumentException.class, () -> map.get(1));
         assertEquals(300, map.get(2));
     }
 

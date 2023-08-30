@@ -54,7 +54,7 @@ class LongLongSeqMap {
         if (key >= firstKey && key <= lastKey) {
             return data[idx(key, data.length)];
         }
-        return 0;
+        throw new IllegalArgumentException(String.valueOf(key));
     }
 
     public void remove() {
