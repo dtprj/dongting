@@ -222,7 +222,11 @@ abstract class FileQueue implements AutoCloseable {
             queue.removeFirst();
             queueStartPosition = queue.get(0).startPos;
             submitDeleteTask(shouldDelete);
+            afterDelete();
         }
+    }
+
+    protected void afterDelete() {
     }
 
 }

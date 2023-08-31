@@ -153,7 +153,7 @@ class Restorer {
                 result = restoreData(buf, dataLen, lf, STATE_BIZ_HEADER);
                 if (result == RT_CONTINUE_READ) {
                     if (commitIndexChecked) {
-                        idxOps.put(this.previousIndex, lf.startPos + itemStartPosOfFile);
+                        idxOps.put(this.previousIndex, lf.startPos + itemStartPosOfFile, true);
                     } else {
                         commitIndexChecked = true;
                     }

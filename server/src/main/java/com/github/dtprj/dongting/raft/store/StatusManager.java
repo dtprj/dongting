@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-public class StatusManager {
+public class StatusManager implements AutoCloseable {
     private static final DtLog log = DtLogs.getLogger(StatusManager.class);
 
     private static final String CURRENT_TERM_KEY = "currentTerm";
@@ -45,6 +45,8 @@ public class StatusManager {
     private CompletableFuture<Void> asyncFuture;
 
     static int SYNC_FAIL_RETRY_INTERVAL = 1000;
+
+    private boolean closed;
 
     public StatusManager(ExecutorService ioExecutor, RaftStatus raftStatus) {
         this.ioExecutor = ioExecutor;
@@ -68,6 +70,14 @@ public class StatusManager {
         raftStatus.setVotedFor(Integer.parseInt(loadedProps.getProperty(VOTED_FOR_KEY, "0")));
         raftStatus.setCommitIndex(Integer.parseInt(loadedProps.getProperty(COMMIT_INDEX_KEY, "0")));
     }
+
+    public void close() {
+        if (!closed) {
+            DtUtil.close(raftStatus.getStatusFile());
+            closed = true;
+        }
+    }
+
 
     public CompletableFuture<Void> persistAsync() {
         try {

@@ -58,7 +58,6 @@ public class StatusFile implements AutoCloseable {
     private final ByteArrayOutputStream bos = new ByteArrayOutputStream(128);
 
     private final Properties properties = new Properties();
-    private boolean closed;
 
     public StatusFile(File file, ExecutorService ioExecutor) {
         this.file = file;
@@ -146,10 +145,7 @@ public class StatusFile implements AutoCloseable {
 
     @Override
     public void close() {
-        if (!closed) {
-            DtUtil.close(lock, channel);
-            closed = true;
-        }
+        DtUtil.close(lock, channel);
     }
 
 }

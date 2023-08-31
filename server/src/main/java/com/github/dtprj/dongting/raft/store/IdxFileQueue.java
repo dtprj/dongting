@@ -64,6 +64,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private CompletableFuture<Void> writeFuture;
     private LogFile currentWriteFile;
     private long nextPersistIndexAfterWrite;
+    private CompletableFuture<Void> statusFuture;
 
     private long lastFlushNanos;
     private static final long FLUSH_INTERVAL_NANOS = 15L * 1000 * 1000 * 1000;
@@ -93,6 +94,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         long restoreIndex = Long.parseLong(raftStatus.getExtraPersistProps()
                 .getProperty(IDX_FILE_PERSIST_INDEX_KEY, "0"));
 
+        log.info(IDX_FILE_PERSIST_INDEX_KEY + " in raft status file: {}", restoreIndex);
         long restoreIndexPos;
         if (restoreIndex == 0) {
             restoreIndex = 1;
@@ -101,17 +103,19 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             nextPersistIndex = 1;
         } else {
             if (restoreIndex < firstIndex) {
-                // truncate head may cause persistIndex < firstIndex, since it save to raft.status asynchronously.
+                // truncate head may cause persistIndex < firstIndex, since we save to raft.status asynchronously.
                 // however, in this case the firstIndex must have data, so we can restore from firstIndex.
-                nextPersistIndex = firstIndex;
-                nextIndex = firstIndex;
+                log.warn("restore index < firstIndex: {}, {}", restoreIndex, firstIndex);
                 restoreIndex = firstIndex;
+                nextPersistIndex = firstIndex + 1;
+                nextIndex = firstIndex + 1;
             } else {
-                nextPersistIndex = restoreIndex;
-                nextIndex = restoreIndex;
+                nextPersistIndex = restoreIndex + 1;
+                nextIndex = restoreIndex + 1;
             }
             restoreIndexPos = syncLoadLogPos(restoreIndex);
         }
+        log.info("restore index: {}, pos: {}", restoreIndex, restoreIndexPos);
         return new Pair<>(restoreIndex, restoreIndexPos);
     }
 
@@ -135,18 +139,20 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         return pos >>> 3;
     }
 
-    private long findLogPosInMemCache(long itemIndex) {
-        checkReadIndex(itemIndex);
-        long result = tailCache.get(itemIndex);
-        if (result > 0) {
-            return result;
-        }
-        return -1;
-    }
-
     @Override
     public long syncLoadLogPos(long itemIndex) throws IOException {
-        checkReadIndex(itemIndex);
+        DtUtil.checkPositive(itemIndex, "index");
+        if (itemIndex >= nextIndex) {
+            BugLog.getLog().error("index is too large : lastIndex={}, index={}", nextIndex, itemIndex);
+            throw new RaftException("index is too large");
+        }
+        if (itemIndex < firstIndex) {
+            BugLog.getLog().error("index is too small : firstIndex={}, index={}", firstIndex, itemIndex);
+            throw new RaftException("index too small");
+        }
+        if (itemIndex >= tailCache.getFirstKey() && itemIndex <= tailCache.getLastKey()) {
+            return tailCache.get(itemIndex);
+        }
         long pos = indexToPos(itemIndex);
         long filePos = pos & fileLenMask;
         LogFile lf = getLogFile(pos);
@@ -158,41 +164,32 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     public long truncateTail(long index) {
         DtUtil.checkPositive(index, "index");
-        if (index < firstIndex || index <= raftStatus.getCommitIndex()) {
+        if (index <= raftStatus.getCommitIndex()) {
             throw new RaftException("truncateTail index is too small: " + index);
         }
-        long value = findLogPosInMemCache(index);
-        if (value < 0) {
-            throw new RaftException("can't find log pos:" + index);
+        if (index < tailCache.getFirstKey() || index > tailCache.getLastKey()) {
+            throw new RaftException("truncateTail out of cache range: " + index);
         }
+        long value = tailCache.get(index);
         tailCache.truncate(index);
         nextIndex = index;
         return value;
     }
 
-    private void checkReadIndex(long index) {
-        DtUtil.checkPositive(index, "index");
-        if (index >= nextIndex) {
-            BugLog.getLog().error("index is too large : lastIndex={}, index={}", nextIndex, index);
-            throw new RaftException("index is too large");
-        }
-        if (index < firstIndex) {
-            BugLog.getLog().error("index is too small : firstIndex={}, index={}", firstIndex, index);
-            throw new RaftException("index too small");
-        }
-    }
-
     @Override
-    public void put(long itemIndex, long dataPosition) throws InterruptedException, IOException {
-        LongLongSeqMap tailCache = this.tailCache;
+    public void put(long itemIndex, long dataPosition, boolean recover) throws InterruptedException, IOException {
         if (itemIndex > nextIndex) {
             throw new RaftException("index not match : " + nextIndex + ", " + itemIndex);
+        }
+        if (itemIndex <= raftStatus.getCommitIndex() && !recover) {
+            throw new RaftException("try update committed index: " + itemIndex);
         }
         if (itemIndex < nextIndex) {
             // last put failed
             log.info("put index!=nextIndex, truncate tailCache: {}, {}", itemIndex, nextIndex);
             tailCache.truncate(itemIndex);
         }
+        LongLongSeqMap tailCache = this.tailCache;
         removeHead(tailCache);
         tailCache.put(itemIndex, dataPosition);
         nextIndex = itemIndex + 1;
@@ -230,7 +227,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         writeBuffer.clear();
         long index = nextPersistIndex;
         long startPos = indexToPos(index);
-        long lastKey = raftStatus.getCommitIndex();
+        long lastKey = Math.min(raftStatus.getCommitIndex(), tailCache.getLastKey());
         LongLongSeqMap tailCache = this.tailCache;
         for (int i = 0; i < flushItems && index <= lastKey; i++, index++) {
             if ((indexToPos(index) & fileLenMask) == 0 && i != 0) {
@@ -266,7 +263,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 }
                 long idxPersisIndex = nextPersistIndex - 1;
                 raftStatus.getExtraPersistProps().setProperty(IDX_FILE_PERSIST_INDEX_KEY, String.valueOf(idxPersisIndex));
-                statusManager.persistAsync();
+                statusFuture = statusManager.persistAsync();
             } catch (ExecutionException e) {
                 throw new IOException(e);
             } finally {
@@ -282,6 +279,11 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         submitDeleteTask(logFile -> posToIndex(logFile.endPos) < bound);
     }
 
+    @Override
+    protected void afterDelete() {
+        firstIndex = posToIndex(queueStartPosition);
+    }
+
     public long getNextIndex() {
         return nextIndex;
     }
@@ -290,4 +292,18 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         return nextPersistIndex;
     }
 
+    @Override
+    public void close() {
+        try {
+            processWriteResult(true);
+            writeAndFlush();
+            processWriteResult(true);
+            if (statusFuture != null) {
+                statusFuture.get();
+            }
+        } catch (Exception e) {
+            throw new RaftException(e);
+        }
+        super.close();
+    }
 }

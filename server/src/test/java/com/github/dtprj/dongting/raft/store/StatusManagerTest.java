@@ -62,7 +62,7 @@ public class StatusManagerTest {
     @AfterEach
     public void teardown() {
         mockPersistResult = null;
-        raftStatus.getStatusFile().close();
+        statusManager.close();
         StatusManager.SYNC_FAIL_RETRY_INTERVAL = 1000;
     }
 
@@ -74,14 +74,14 @@ public class StatusManagerTest {
         assertEquals(raftStatus.getVotedFor(), s2.getVotedFor());
         assertEquals(raftStatus.getCurrentTerm(), s2.getCurrentTerm());
         assertEquals(raftStatus.getExtraPersistProps().getProperty("k1"), s2.getExtraPersistProps().getProperty("k1"));
-        s2.getStatusFile().close();
+        m2.close();
     }
 
     @Test
     public void testPersistSyncAndInit() {
         initData();
         statusManager.persistSync();
-        raftStatus.getStatusFile().close();
+        statusManager.close();
         check();
     }
 
@@ -103,7 +103,7 @@ public class StatusManagerTest {
             f = statusManager.persistAsync();
         }
         f.get();
-        raftStatus.getStatusFile().close();
+        statusManager.close();
 
         check();
     }
@@ -116,7 +116,7 @@ public class StatusManagerTest {
         raftStatus.setCommitIndex(100000);
         statusManager.persistSync();
 
-        raftStatus.getStatusFile().close();
+        statusManager.close();
 
         check();
     }
@@ -128,7 +128,7 @@ public class StatusManagerTest {
         mockPersistResult.completeExceptionally(new Exception());
 
         statusManager.persistSync();
-        raftStatus.getStatusFile().close();
+        statusManager.close();
         check();
     }
 
