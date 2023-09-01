@@ -55,7 +55,7 @@ class LogHeader {
     long timestamp;
 
     int headerCrc;
-    private int expectCrc;
+    int expectCrc;
 
     public LogHeader() {
     }
@@ -109,7 +109,7 @@ class LogHeader {
         buffer.putLong(log.getIndex());
         buffer.putLong(log.getTimestamp());
         crc.reset();
-        RaftUtil.updateCrc(crc, buffer, startPos, ITEM_HEADER_SIZE);
+        RaftUtil.updateCrc(crc, buffer, startPos, ITEM_HEADER_SIZE - 4);
         buffer.putInt((int) crc.getValue());
     }
 
@@ -126,7 +126,7 @@ class LogHeader {
         buffer.putLong(0L);
         buffer.putLong(0L);
         crc.reset();
-        RaftUtil.updateCrc(crc, buffer, startPos, ITEM_HEADER_SIZE);
+        RaftUtil.updateCrc(crc, buffer, startPos, ITEM_HEADER_SIZE - 4);
         buffer.putInt((int) crc.getValue());
     }
 
