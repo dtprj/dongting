@@ -76,6 +76,9 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     public IdxFileQueue(File dir, StatusManager statusManager, RaftGroupConfigEx groupConfig,
                         int itemsPerFile, int maxCacheItems) {
         super(dir, groupConfig);
+        if (BitUtil.nextHighestPowerOfTwo(itemsPerFile) != itemsPerFile) {
+            throw new IllegalArgumentException("itemsPerFile not power of 2: " + itemsPerFile);
+        }
         this.statusManager = statusManager;
         this.ts = groupConfig.getTs();
         this.lastFlushNanos = ts.getNanoTime();

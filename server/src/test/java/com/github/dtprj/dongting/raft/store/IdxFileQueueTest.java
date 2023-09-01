@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -42,6 +43,14 @@ public class IdxFileQueueTest {
     private RaftStatusImpl raftStatus;
     private StatusManager statusManager;
     private File dir;
+
+    @BeforeAll
+    @SuppressWarnings("resource")
+    public static void testConstructor() {
+        RaftGroupConfigEx c = new RaftGroupConfigEx(1, "1", "1");
+        assertThrows(IllegalArgumentException.class, () -> new IdxFileQueue(
+                null, null, c, 511, 16));
+    }
 
     @BeforeEach
     public void setup() {
