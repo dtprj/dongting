@@ -49,9 +49,9 @@ import java.util.zip.CRC32C;
 class LogFileQueue extends FileQueue implements FileOps {
     private static final DtLog log = DtLogs.getLogger(LogFileQueue.class);
 
-    private static final long LOG_FILE_SIZE = 1024 * 1024 * 1024;
-    private static final long FILE_LEN_MASK = LOG_FILE_SIZE - 1;
-    private static final int FILE_LEN_SHIFT_BITS = BitUtil.zeroCountOfBinary(LOG_FILE_SIZE);
+    private final long logFileSize;
+    private final long fileLenMask;
+    private final int fileLenShiftBits;
 
     protected final RefBufferFactory heapPool;
     protected final ByteBufferPool directPool;
@@ -68,6 +68,10 @@ class LogFileQueue extends FileQueue implements FileOps {
     private long writePos;
 
     public LogFileQueue(File dir, RaftGroupConfigEx groupConfig, IdxOps idxOps) {
+        this(dir, groupConfig, idxOps, 1024 * 1024 * 1024);
+    }
+
+    public LogFileQueue(File dir, RaftGroupConfigEx groupConfig, IdxOps idxOps, long logFileSize) {
         super(dir, groupConfig);
         this.idxOps = idxOps;
         this.ts = groupConfig.getTs();
@@ -75,16 +79,19 @@ class LogFileQueue extends FileQueue implements FileOps {
         this.codecFactory = groupConfig.getCodecFactory();
         this.heapPool = groupConfig.getHeapPool();
         this.directPool = groupConfig.getDirectPool();
+        this.logFileSize = logFileSize;
+        this.fileLenMask = logFileSize - 1;
+        this.fileLenShiftBits = BitUtil.zeroCountOfBinary(logFileSize);
     }
 
     @Override
     protected long getFileSize() {
-        return LOG_FILE_SIZE;
+        return logFileSize;
     }
 
     @Override
     public int getFileLenShiftBits() {
-        return FILE_LEN_SHIFT_BITS;
+        return fileLenShiftBits;
     }
 
     protected long getWritePos() {
@@ -123,7 +130,7 @@ class LogFileQueue extends FileQueue implements FileOps {
         LogFile file = getLogFile(pos);
         for (int i = 0; i < logs.size(); i++) {
             LogItem log = logs.get(i);
-            long posOfFile = (pos + writeBuffer.position()) & FILE_LEN_MASK;
+            long posOfFile = (pos + writeBuffer.position()) & fileLenMask;
             Encoder headerEncoder = initEncoderAndSize(log, true);
             Encoder bodyEncoder = initEncoderAndSize(log, false);
 
@@ -139,7 +146,7 @@ class LogFileQueue extends FileQueue implements FileOps {
                 file.firstIndex = log.getIndex();
                 file.firstTerm = log.getTerm();
             } else {
-                long fileRest = LOG_FILE_SIZE - posOfFile;
+                long fileRest = logFileSize - posOfFile;
                 if (fileRest < totalLen) {
                     // file rest space is not enough
                     if (fileRest >= LogHeader.ITEM_HEADER_SIZE) {
@@ -190,7 +197,7 @@ class LogFileQueue extends FileQueue implements FileOps {
 
     @Override
     public long nextFilePos(long absolutePos) {
-        return ((absolutePos >>> FILE_LEN_SHIFT_BITS) + 1) << FILE_LEN_SHIFT_BITS;
+        return ((absolutePos >>> fileLenShiftBits) + 1) << fileLenShiftBits;
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -251,7 +258,7 @@ class LogFileQueue extends FileQueue implements FileOps {
         if (buffer.position() == 0) {
             return pos;
         }
-        long posOfFile = pos & FILE_LEN_MASK;
+        long posOfFile = pos & fileLenMask;
         buffer.flip();
         int count = buffer.remaining();
         FileUtil.syncWriteFull(file.channel, buffer, posOfFile);
@@ -264,7 +271,7 @@ class LogFileQueue extends FileQueue implements FileOps {
         DtUtil.checkNotNegative(endPosition, "endPosition");
         log.info("truncate tail from {} to {}, currentWritePos={}", startPosition, endPosition, writePos);
         writePos = startPosition;
-        int startQueueIndex = (int) ((startPosition - queueStartPosition) >>> FILE_LEN_SHIFT_BITS);
+        int startQueueIndex = (int) ((startPosition - queueStartPosition) >>> fileLenShiftBits);
         ByteBuffer buffer = directPool.borrow(64 * 1024);
         while (buffer.hasRemaining()) {
             // fill with zero
@@ -294,8 +301,8 @@ class LogFileQueue extends FileQueue implements FileOps {
         if (start >= end) {
             return;
         }
-        start = start & FILE_LEN_MASK;
-        end = end & FILE_LEN_MASK;
+        start = start & fileLenMask;
+        end = end & fileLenMask;
         log.info("truncate tail, file zero from {} to {}, file={}", start, end, lf.file.getPath());
         for (long i = start; i < end; ) {
             buffer.clear();
@@ -425,7 +432,7 @@ class LogFileQueue extends FileQueue implements FileOps {
         }, raftExecutor);
         long pos = posFuture.get();
         ByteBuffer buf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE);
-        FileUtil.syncReadFull(logFile.channel, buf, pos & FILE_LEN_MASK);
+        FileUtil.syncReadFull(logFile.channel, buf, pos & fileLenMask);
         buf.flip();
         header.read(buf);
         if (!header.crcMatch()) {
@@ -470,14 +477,14 @@ class LogFileQueue extends FileQueue implements FileOps {
 
     @Override
     public long filePos(long absolutePos) {
-        return (int) (absolutePos & LogFileQueue.FILE_LEN_MASK);
+        return (int) (absolutePos & fileLenMask);
     }
 
     @Override
     public long restInCurrentFile(long absolutePos) {
         checkPos(absolutePos);
         long totalRest = writePos - absolutePos;
-        long fileRest = LOG_FILE_SIZE - filePos(absolutePos);
+        long fileRest = logFileSize - filePos(absolutePos);
         return Math.min(totalRest, fileRest);
     }
 
@@ -488,7 +495,7 @@ class LogFileQueue extends FileQueue implements FileOps {
 
     @Override
     public long fileLength() {
-        return LOG_FILE_SIZE;
+        return logFileSize;
     }
 
 }
