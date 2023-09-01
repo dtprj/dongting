@@ -38,7 +38,7 @@ class ByteBufferEncoder implements Encoder<ByteBuffer> {
         if (s != null) {
             markedPos = s;
         }
-        markedPos = ByteBufferWriteFrame.copy(buffer, data, markedPos);
+        markedPos = ByteBufferWriteFrame.copy(data, buffer, markedPos);
         boolean result = markedPos == data.limit();
         if (!result) {
             context.setStatus(markedPos);

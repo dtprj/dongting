@@ -58,7 +58,7 @@ class LogFileQueue extends FileQueue implements FileOps {
 
     private final IdxOps idxOps;
 
-    private final ByteBuffer writeBuffer = ByteBuffer.allocateDirect(128 * 1024);
+    private final ByteBuffer writeBuffer;
     private final CRC32C crc32c = new CRC32C();
 
     private final EncodeContext encodeContext;
@@ -68,10 +68,10 @@ class LogFileQueue extends FileQueue implements FileOps {
     private long writePos;
 
     public LogFileQueue(File dir, RaftGroupConfigEx groupConfig, IdxOps idxOps) {
-        this(dir, groupConfig, idxOps, 1024 * 1024 * 1024);
+        this(dir, groupConfig, idxOps, 1024 * 1024 * 1024, 128 * 1024);
     }
 
-    public LogFileQueue(File dir, RaftGroupConfigEx groupConfig, IdxOps idxOps, long logFileSize) {
+    public LogFileQueue(File dir, RaftGroupConfigEx groupConfig, IdxOps idxOps, long logFileSize, int writeBufferSize) {
         super(dir, groupConfig);
         this.idxOps = idxOps;
         this.ts = groupConfig.getTs();
@@ -82,6 +82,7 @@ class LogFileQueue extends FileQueue implements FileOps {
         this.logFileSize = logFileSize;
         this.fileLenMask = logFileSize - 1;
         this.fileLenShiftBits = BitUtil.zeroCountOfBinary(logFileSize);
+        this.writeBuffer = ByteBuffer.allocateDirect(writeBufferSize);
     }
 
     @Override
@@ -177,7 +178,6 @@ class LogFileQueue extends FileQueue implements FileOps {
 
             long itemStartPos = pos;
             LogHeader.writeHeader(crc32c, writeBuffer, log, 0, log.getActualHeaderSize(), log.getActualBodySize());
-            pos += LogHeader.ITEM_HEADER_SIZE;
 
             if (headerEncoder != null && log.getActualHeaderSize() > 0) {
                 Object data = log.getHeaderBuffer() != null ? log.getHeaderBuffer() : log.getHeader();
@@ -204,6 +204,7 @@ class LogFileQueue extends FileQueue implements FileOps {
     private Encoder initEncoderAndSize(LogItem item, boolean header) {
         if (header) {
             if (item.getHeaderBuffer() != null) {
+                item.setActualHeaderSize(item.getHeaderBuffer().remaining());
                 return ByteBufferEncoder.INSTANCE;
             } else if (item.getHeader() != null) {
                 Encoder encoder = codecFactory.createHeaderEncoder(item.getBizType());
@@ -214,6 +215,7 @@ class LogFileQueue extends FileQueue implements FileOps {
             }
         } else {
             if (item.getBodyBuffer() != null) {
+                item.setActualBodySize(item.getBodyBuffer().remaining());
                 return ByteBufferEncoder.INSTANCE;
             } else if (item.getBody() != null) {
                 Encoder encoder = codecFactory.createBodyEncoder(item.getBizType());
@@ -273,11 +275,11 @@ class LogFileQueue extends FileQueue implements FileOps {
         writePos = startPosition;
         int startQueueIndex = (int) ((startPosition - queueStartPosition) >>> fileLenShiftBits);
         ByteBuffer buffer = directPool.borrow(64 * 1024);
-        while (buffer.hasRemaining()) {
-            // fill with zero
-            buffer.putLong(0);
-        }
         try {
+            while (buffer.hasRemaining()) {
+                // fill with zero
+                buffer.putLong(0);
+            }
             for (int i = startQueueIndex; i < queue.size(); i++) {
                 LogFile lf = queue.get(i);
                 if (lf.startPos >= startPosition) {

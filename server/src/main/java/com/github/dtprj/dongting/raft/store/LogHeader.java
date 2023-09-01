@@ -90,9 +90,9 @@ class LogHeader {
 
     public static int computeTotalLen(int contextLen, int bizHeaderLen, int bodyLen) {
         return ITEM_HEADER_SIZE
-                + contextLen == 0 ? 0 : contextLen + 4
-                + bizHeaderLen == 0 ? 0 : bizHeaderLen + 4
-                + bodyLen == 0 ? 0 : bodyLen + 4;
+                + (contextLen == 0 ? 0 : contextLen + 4)
+                + (bizHeaderLen == 0 ? 0 : bizHeaderLen + 4)
+                + (bodyLen == 0 ? 0 : bodyLen + 4);
     }
 
     public static void writeHeader(CRC32C crc, ByteBuffer buffer, LogItem log,
