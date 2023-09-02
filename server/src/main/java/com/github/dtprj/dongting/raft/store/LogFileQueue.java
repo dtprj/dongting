@@ -153,13 +153,11 @@ class LogFileQueue extends FileQueue implements FileOps {
                     if (fileRest >= LogHeader.ITEM_HEADER_SIZE) {
                         // write an empty header to indicate the end of the file
                         if (writeBuffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
-                            // don't update pos
-                            writeAndClearBuffer(writeBuffer, file, pos);
+                            pos = writeAndClearBuffer(writeBuffer, file, pos);
                         }
                         LogHeader.writeEndHeader(crc32c, writeBuffer);
                     }
-                    // don't update pos
-                    writeAndClearBuffer(writeBuffer, file, pos);
+                    pos = writeAndClearBuffer(writeBuffer, file, pos);
 
                     // roll to next file
                     pos = nextFilePos(pos);
