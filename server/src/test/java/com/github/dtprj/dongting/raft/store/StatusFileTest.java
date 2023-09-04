@@ -75,7 +75,14 @@ public class StatusFileTest {
         FileInputStream in = new FileInputStream(file);
         byte[] bs = in.readAllBytes();
         in.close();
-        bs[0] = '1';
+
+        // shift crc value
+        byte b0 = bs[0];
+        for (int i = 0; i < 7; i++) {
+            bs[i] = bs[i + 1];
+        }
+        bs[7] = b0;
+
         FileOutputStream fos = new FileOutputStream(file);
         fos.write(bs);
         fos.close();
