@@ -229,7 +229,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
                 // reached end of file
                 discardBufferAndLoadNextFile(buf);
             } else {
-                LogFileQueue.prepareNextRead(buf);
+                StoreUtil.prepareNextRead(buf);
                 loadLogFromStore(bufferEndPos);
             }
             return false;
@@ -280,7 +280,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
             crc32c.reset();
             state = STATE_BIZ_BODY;
         } else {
-            LogFileQueue.prepareNextRead(buf);
+            StoreUtil.prepareNextRead(buf);
             loadLogFromStore(bufferEndPos);
         }
         return readFinish;
@@ -328,7 +328,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
                 return true;
             }
         } else {
-            LogFileQueue.prepareNextRead(buf);
+            StoreUtil.prepareNextRead(buf);
             loadLogFromStore(bufferEndPos);
             return false;
         }

@@ -116,7 +116,7 @@ class Restorer {
             int result = restore(buffer, lf, endPos);
             switch (result) {
                 case RT_CONTINUE_LOAD:
-                    LogFileQueue.prepareNextRead(buffer);
+                    StoreUtil.prepareNextRead(buffer);
                     readPos = endPos;
                     break;
                 case RT_CURRENT_FILE_FINISHED:

@@ -325,16 +325,6 @@ class LogFileQueue extends FileQueue implements FileOps {
         }
     }
 
-    static void prepareNextRead(ByteBuffer buf) {
-        if (buf.hasRemaining()) {
-            ByteBuffer temp = buf.slice();
-            buf.clear();
-            buf.put(temp);
-        } else {
-            buf.clear();
-        }
-    }
-
     public void markDelete(long bound, long timestampMillis, long delayMills) {
         markDelete(delayMills, nextFile -> timestampMillis > nextFile.firstTimestamp
                 && bound >= nextFile.firstIndex);
