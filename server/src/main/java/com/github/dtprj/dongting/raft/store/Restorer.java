@@ -178,6 +178,9 @@ class Restorer {
         if (!header.crcMatch()) {
             return crcFail(lf);
         }
+        if (header.isEndMagic()) {
+            return RT_CURRENT_FILE_FINISHED;
+        }
         if (!header.checkHeader(itemStartPosOfFile, fileOps.fileLength())) {
             throwEx("header check fail", lf, itemStartPosOfFile);
         }
