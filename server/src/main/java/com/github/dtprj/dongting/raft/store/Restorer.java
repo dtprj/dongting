@@ -50,7 +50,7 @@ class Restorer {
     private final long restoreIndex;
     private final long restoreIndexPos;
 
-    private boolean commitIndexChecked;
+    private boolean restoreIndexChecked;
 
     private long itemStartPosOfFile;
     private int state;
@@ -131,7 +131,7 @@ class Restorer {
     }
 
     private int crcFail(LogFile lf) {
-        if (commitIndexChecked) {
+        if (restoreIndexChecked) {
             log.info("reach end of file. file={}, pos={}", lf.file.getPath(), itemStartPosOfFile);
             return RT_RESTORE_FINISHED;
         } else {
@@ -152,10 +152,10 @@ class Restorer {
                 int dataLen = header.bodyLen;
                 result = restoreData(buf, dataLen, lf, STATE_BIZ_HEADER);
                 if (result == RT_CONTINUE_READ) {
-                    if (commitIndexChecked) {
+                    if (restoreIndexChecked) {
                         idxOps.put(this.previousIndex, lf.startPos + itemStartPosOfFile, true);
                     } else {
-                        commitIndexChecked = true;
+                        restoreIndexChecked = true;
                     }
                     itemStartPosOfFile += header.totalLen;
                 }
@@ -184,7 +184,7 @@ class Restorer {
         if (!header.checkHeader(itemStartPosOfFile, fileOps.fileLength())) {
             throwEx("header check fail", lf, itemStartPosOfFile);
         }
-        if (commitIndexChecked) {
+        if (restoreIndexChecked) {
             if (header.prevLogTerm != previousTerm) {
                 throwEx("prevLogTerm not match", lf, itemStartPosOfFile);
             }
