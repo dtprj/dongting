@@ -302,11 +302,14 @@ class LogFileQueue extends FileQueue implements FileOps {
             return;
         }
         start = start & fileLenMask;
-        end = end & fileLenMask;
+        // now end is included
+        end = (end - 1) & fileLenMask;
+
+        // not remove end magic, but it's ok
         log.info("truncate tail, file zero from {} to {}, file={}", start, end, lf.file.getPath());
-        for (long i = start; i < end; ) {
+        for (long i = start; i <= end; ) {
             buffer.clear();
-            int fileRest = (int) (end - i);
+            int fileRest = (int) (end - i + 1);
             if (buffer.capacity() > fileRest) {
                 buffer.limit(fileRest);
             }

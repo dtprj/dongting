@@ -184,4 +184,19 @@ public class LogFileQueueTest {
         // test write buffer has no space for header crc
         append(0L, 190, 190);
     }
+
+    @Test
+    public void testTruncateTail() throws Exception {
+        setup(1024, 4000);
+        append(0L, 200, 200, 1024);
+        logFileQueue.syncTruncateTail(200, 2048);
+        ByteBuffer buf = load(0L);
+        for (int i = 200; i < 400; i++) {
+            assertEquals(0, buf.get(i));
+        }
+        buf = load(1024L);
+        for (int i = 0; i < 1024; i++) {
+            assertEquals(0, buf.get(i));
+        }
+    }
 }
