@@ -95,7 +95,7 @@ class Restorer {
             throws IOException, InterruptedException {
         log.info("try restore file {}", lf.file.getPath());
         if (restoreIndexPos >= lf.startPos) {
-            // check from commitIndexPos
+            // check from restoreIndex
             itemStartPosOfFile = fileOps.filePos(restoreIndexPos);
         } else {
             // check full file
@@ -108,8 +108,11 @@ class Restorer {
         while (readPos < fileOps.fileLength()) {
             RaftUtil.checkStop(cancelIndicator);
             int read = FileUtil.syncRead(channel, buffer, readPos);
-            if (read <= 0) {
+            if (read == 0) {
+                log.info("read 0 bytes. file={}, pos={}", lf.file.getPath(), readPos);
                 continue;
+            } else if (read < 0) {
+                throw new RaftException("unexpect end of file. file=" + lf.file.getPath() + ", pos=" + readPos);
             }
             buffer.flip();
             long endPos = readPos + read;
@@ -127,15 +130,19 @@ class Restorer {
                     throw new RaftException("error result: " + result);
             }
         }
-        return new Pair<>(false, lf.startPos + itemStartPosOfFile);
+        return new Pair<>(false, lf.endPos);
     }
 
     private int crcFail(LogFile lf) {
         if (restoreIndexChecked) {
-            log.info("reach end of file. file={}, pos={}", lf.file.getPath(), itemStartPosOfFile);
+            if (header.totalLen == 0) {
+                log.info("reach end of file. file={}, pos={}", lf.file.getPath(), itemStartPosOfFile);
+            } else {
+                log.info("reach end of file. last write maybe not finished. file={}, pos={}", lf.file.getPath(), itemStartPosOfFile);
+            }
             return RT_RESTORE_FINISHED;
         } else {
-            throw new RaftException("commit index crc not match. " + restoreIndex + "," + restoreIndexPos);
+            throw new RaftException("restore index crc not match. " + restoreIndex + "," + restoreIndexPos);
         }
     }
 
@@ -150,7 +157,7 @@ class Restorer {
                 result = restoreData(buf, dataLen, lf, STATE_BIZ_BODY);
             } else if (state == STATE_BIZ_BODY) {
                 int dataLen = header.bodyLen;
-                result = restoreData(buf, dataLen, lf, STATE_BIZ_HEADER);
+                result = restoreData(buf, dataLen, lf, STATE_ITEM_HEADER);
                 if (result == RT_CONTINUE_READ) {
                     if (restoreIndexChecked) {
                         idxOps.put(this.previousIndex, lf.startPos + itemStartPosOfFile, true);
@@ -196,11 +203,11 @@ class Restorer {
             }
         } else {
             if (header.index != restoreIndex) {
-                throwEx("commitIndex not match", lf, itemStartPosOfFile);
+                throwEx("restoreIndex not match", lf, itemStartPosOfFile);
             }
-            if (header.term <= 0 || header.prevLogTerm < 0) {
-                throwEx("invalid term", lf, itemStartPosOfFile);
-            }
+        }
+        if (header.term <= 0 || header.prevLogTerm < 0) {
+            throwEx("invalid term", lf, itemStartPosOfFile);
         }
 
         this.previousTerm = header.term;
@@ -223,7 +230,7 @@ class Restorer {
         }
         needRead = dataLen - dataReadLength;
         if (needRead == 0 && buf.remaining() >= 4) {
-            if (buf.getInt() != crc32c.getValue()) {
+            if (buf.getInt() != (int) crc32c.getValue()) {
                 return crcFail(lf);
             }
             changeState(newState);

@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.io.FileInputStream;
 import java.nio.ByteBuffer;
+import java.util.Random;
 import java.util.zip.CRC32C;
 
 import static java.util.Arrays.asList;
@@ -44,7 +45,27 @@ public class LogFileQueueTest {
     private File dir;
     private RaftGroupConfigEx config;
 
+    private int index;
+    private int term;
+    private int prevTerm;
+
+    private final IdxOps idxOps = new IdxOps() {
+
+        @Override
+        public void put(long index, long position, boolean recover) {
+        }
+
+        @Override
+        public long syncLoadLogPos(long itemIndex) {
+            return (itemIndex - 1) * 100;
+        }
+    };
+
     private void setup(long fileSize, int writeBufferSize) throws Exception {
+        index = 1;
+        term = 1;
+        prevTerm = 0;
+
         dir = TestDir.createTestDir(LogFileQueueTest.class.getSimpleName());
         config = new RaftGroupConfigEx(1, "1", "1");
         config.setRaftExecutor(MockExecutors.raftExecutor());
@@ -57,17 +78,6 @@ public class LogFileQueueTest {
         statusManager.initStatusFileChannel(dir.getPath(), "test.status");
         config.setRaftStatus(raftStatus);
         config.setIoExecutor(MockExecutors.ioExecutor());
-        IdxOps idxOps = new IdxOps() {
-
-            @Override
-            public void put(long index, long position, boolean recover) {
-            }
-
-            @Override
-            public long syncLoadLogPos(long itemIndex) {
-                return (itemIndex - 1) * 100;
-            }
-        };
         logFileQueue = new LogFileQueue(dir, config, idxOps, fileSize, writeBufferSize);
         logFileQueue.init();
         logFileQueue.restore(1, 0, () -> false);
@@ -82,9 +92,13 @@ public class LogFileQueueTest {
         LogItem item = new LogItem(config.getDirectPool());
         item.setType(1);
         item.setBizType(2);
-        item.setTerm(1000);
-        item.setPrevLogTerm(2000);
-        item.setIndex(3000);
+        item.setTerm(term);
+        item.setPrevLogTerm(prevTerm);
+        prevTerm = term;
+        if (new Random().nextBoolean()) {
+            term++;
+        }
+        item.setIndex(index++);
         item.setTimestamp(Long.MAX_VALUE);
         ByteBuffer buf = ByteBuffer.allocate(64);
         for (int i = 0; i < 64; i++) {
@@ -109,12 +123,15 @@ public class LogFileQueueTest {
         }
     }
 
-    private void append(long startPos, int... bodySizes) throws Exception {
+    private void append(boolean check, long startPos, int... bodySizes) throws Exception {
         LogItem[] items = new LogItem[bodySizes.length];
         for (int i = 0; i < bodySizes.length; i++) {
             items[i] = createItem(bodySizes[i]);
         }
         logFileQueue.append(asList(items));
+        if (!check) {
+            return;
+        }
         ByteBuffer buf = load(startPos);
         CRC32C crc32C = new CRC32C();
         for (int i = 0; i < bodySizes.length; i++) {
@@ -157,38 +174,38 @@ public class LogFileQueueTest {
     @Test
     public void testAppend1() throws Exception {
         setup(1024, 4000);
-        append(0L, 1023);
-        append(1024L, 1024);
-        append(2048L, 511, 200, 1024);
-        append(4096L, 512, 512, 1024);
-        append(6144L, 512, 511, 1024);
+        append(true, 0L, 1023);
+        append(true, 1024L, 1024);
+        append(true, 2048L, 511, 200, 1024);
+        append(true, 4096L, 512, 512, 1024);
+        append(true, 6144L, 512, 511, 1024);
     }
 
     @Test
     public void testAppend2() throws Exception {
         setup(1024, 200);
         // test write buffer not enough
-        append(0L, 190, 190, 1024);
+        append(true, 0L, 190, 190, 1024);
     }
 
     @Test
     public void testAppend3() throws Exception {
         setup(1024, LogHeader.ITEM_HEADER_SIZE + 64 + 4);
         // test write buffer full after write header
-        append(0L, 190, 190);
+        append(true, 0L, 190, 190);
     }
 
     @Test
     public void testAppend4() throws Exception {
         setup(1024, LogHeader.ITEM_HEADER_SIZE + 64 + 3);
         // test write buffer has no space for header crc
-        append(0L, 190, 190);
+        append(true, 0L, 190, 190);
     }
 
     @Test
     public void testTruncateTail() throws Exception {
         setup(1024, 4000);
-        append(0L, 200, 200, 1024);
+        append(false, 0L, 200, 200, 1024);
         logFileQueue.syncTruncateTail(200, 2048);
         ByteBuffer buf = load(0L);
         for (int i = 200; i < 400; i++) {
@@ -198,5 +215,78 @@ public class LogFileQueueTest {
         for (int i = 0; i < 1024; i++) {
             assertEquals(0, buf.get(i));
         }
+        assertEquals(200, logFileQueue.getWritePos());
+    }
+
+    @Test
+    public void testRestore1() throws Exception {
+        setup(1024, 4000);
+        // last file not finished
+        append(false, 0L, 200, 200, 1023, 500);
+        logFileQueue.close();
+        logFileQueue = new LogFileQueue(dir, config, idxOps, 1024, 4000);
+        logFileQueue.init();
+        logFileQueue.restore(1, 0, () -> false);
+        assertEquals(2048 + 500, logFileQueue.getWritePos());
+    }
+
+    @Test
+    public void testRestore2() throws Exception {
+        setup(1024, 4000);
+        // last file finished
+        append(false, 0L, 200, 1024);
+        logFileQueue.close();
+        logFileQueue = new LogFileQueue(dir, config, idxOps, 1024, 4000);
+        logFileQueue.init();
+        logFileQueue.restore(1, 0, () -> false);
+        assertEquals(2048, logFileQueue.getWritePos());
+    }
+
+    @Test
+    public void testRestore3() throws Exception {
+        setup(1024, 4000);
+        append(false, 0L, 200, 200, 1024);
+        logFileQueue.close();
+        // small buffer
+        logFileQueue = new LogFileQueue(dir, config, idxOps, 1024, 190);
+        logFileQueue.init();
+        logFileQueue.restore(1, 0, () -> false);
+        assertEquals(2048, logFileQueue.getWritePos());
+    }
+
+    @Test
+    public void testRestore4() throws Exception {
+        setup(1024, 4000);
+        append(false, 0L, 200, 200, 1024);
+        logFileQueue.close();
+        // small buffer
+        logFileQueue = new LogFileQueue(dir, config, idxOps, 1024, 200);
+        logFileQueue.init();
+        logFileQueue.restore(1, 0, () -> false);
+        assertEquals(2048, logFileQueue.getWritePos());
+    }
+
+    @Test
+    public void testRestore5() throws Exception {
+        setup(1024, 4000);
+        append(false, 0L, 200, 200, 1024);
+        logFileQueue.close();
+        // small buffer
+        logFileQueue = new LogFileQueue(dir, config, idxOps, 1024, 201);
+        logFileQueue.init();
+        logFileQueue.restore(1, 0, () -> false);
+        assertEquals(2048, logFileQueue.getWritePos());
+    }
+
+    @Test
+    public void testRestore6() throws Exception {
+        setup(1024, 4000);
+        append(false, 0L, 200, 200, 1024);
+        logFileQueue.close();
+        // small buffer
+        logFileQueue = new LogFileQueue(dir, config, idxOps, 1024, 199);
+        logFileQueue.init();
+        logFileQueue.restore(1, 0, () -> false);
+        assertEquals(2048, logFileQueue.getWritePos());
     }
 }
