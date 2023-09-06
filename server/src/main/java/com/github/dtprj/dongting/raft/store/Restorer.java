@@ -116,7 +116,7 @@ class Restorer {
             }
             buffer.flip();
             long endPos = readPos + read;
-            int result = restore(buffer, lf, endPos);
+            int result = restore(buffer, lf);
             switch (result) {
                 case RT_CONTINUE_LOAD:
                     StoreUtil.prepareNextRead(buffer);
@@ -130,7 +130,11 @@ class Restorer {
                     throw new RaftException("error result: " + result);
             }
         }
-        return new Pair<>(false, lf.endPos);
+        if (state == STATE_ITEM_HEADER) {
+            return new Pair<>(false, lf.endPos);
+        } else {
+            throw new RaftException("end of file, state=" + state + ", file=" + lf.file.getPath());
+        }
     }
 
     private int crcFail(LogFile lf) {
@@ -138,7 +142,7 @@ class Restorer {
             if (header.totalLen == 0) {
                 log.info("reach end of file. file={}, pos={}", lf.file.getPath(), itemStartPosOfFile);
             } else {
-                log.info("reach end of file. last write maybe not finished. file={}, pos={}", lf.file.getPath(), itemStartPosOfFile);
+                log.warn("reach end of file. last write maybe not finished. file={}, pos={}", lf.file.getPath(), itemStartPosOfFile);
             }
             return RT_RESTORE_FINISHED;
         } else {
@@ -146,12 +150,11 @@ class Restorer {
         }
     }
 
-    private int restore(ByteBuffer buf, LogFile lf, long lastReadEndPos) throws IOException, InterruptedException {
-        long fileLen = fileOps.fileLength();
+    private int restore(ByteBuffer buf, LogFile lf) throws IOException, InterruptedException {
         while (true) {
             int result;
             if (state == STATE_ITEM_HEADER) {
-                result = restoreHeader(buf, lf, fileLen, lastReadEndPos);
+                result = restoreHeader(buf, lf);
             } else if (state == STATE_BIZ_HEADER) {
                 int dataLen = header.bizHeaderLen;
                 result = restoreData(buf, dataLen, lf, STATE_BIZ_BODY);
@@ -176,10 +179,9 @@ class Restorer {
         }
     }
 
-    private int restoreHeader(ByteBuffer buf, LogFile lf, long fileLen, long lastReadEndPos) {
+    private int restoreHeader(ByteBuffer buf, LogFile lf) {
         if (buf.remaining() < LogHeader.ITEM_HEADER_SIZE) {
-            long restLen = fileLen - lastReadEndPos + buf.remaining();
-            return restLen >= LogHeader.ITEM_HEADER_SIZE ? RT_CONTINUE_LOAD : RT_CURRENT_FILE_FINISHED;
+            return RT_CONTINUE_LOAD;
         }
         header.read(buf);
         if (!header.crcMatch()) {
@@ -199,7 +201,7 @@ class Restorer {
                 throwEx("index not match", lf, itemStartPosOfFile);
             }
             if (header.term < this.previousTerm) {
-                throwEx("term not match", lf, itemStartPosOfFile);
+                throwEx("term less than previous term", lf, itemStartPosOfFile);
             }
         } else {
             if (header.index != restoreIndex) {

@@ -106,6 +106,9 @@ class LogFileQueue extends FileQueue implements FileOps {
         if (queue.size() == 0) {
             return 0;
         }
+        if (restoreIndexPos < queue.get(0).startPos) {
+            throw new RaftException("restoreIndexPos is illegal. " + restoreIndexPos);
+        }
         if (restoreIndexPos >= queue.get(queue.size() - 1).endPos) {
             throw new RaftException("restoreIndexPos is illegal. " + restoreIndexPos);
         }
