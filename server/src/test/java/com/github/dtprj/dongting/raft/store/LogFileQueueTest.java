@@ -35,6 +35,8 @@ import java.util.Random;
 import java.util.function.Consumer;
 import java.util.zip.CRC32C;
 
+import static com.github.dtprj.dongting.raft.test.TestUtil.getResultInExecutor;
+import static com.github.dtprj.dongting.raft.test.TestUtil.waitUtilInExecutor;
 import static java.util.Arrays.asList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -107,7 +109,7 @@ public class LogFileQueueTest {
             term++;
         }
         item.setIndex(index++);
-        item.setTimestamp(Long.MAX_VALUE);
+        item.setTimestamp(config.getTs().getWallClockMillis());
         ByteBuffer buf = ByteBuffer.allocate(bizHeaderLen);
         for (int i = 0; i < bizHeaderLen; i++) {
             buf.put((byte) i);
@@ -242,6 +244,13 @@ public class LogFileQueueTest {
     }
 
     @Test
+    public void testAppend7() throws Exception {
+        // use buffer equal to header size
+        setup(1024, LogHeader.ITEM_HEADER_SIZE);
+        append(true, 0L, 200, 200);
+    }
+
+    @Test
     public void testTruncateTail() throws Exception {
         setup(1024, 4000);
         append(false, 0L, 200, 200, 1024);
@@ -255,6 +264,20 @@ public class LogFileQueueTest {
             assertEquals(0, buf.get(i));
         }
         assertEquals(200, logFileQueue.getWritePos());
+    }
+
+    @Test
+    public void testDelete() throws Exception {
+        setup(1024, 4000);
+        append(false, 0L, 200, 200, 1024);
+        logFileQueue.markDelete(3, Long.MAX_VALUE, 1000);
+        logFileQueue.submitDeleteTask(config.getTs().getWallClockMillis());
+        Thread.sleep(10);
+        assertEquals(0L, getResultInExecutor(config.getRaftExecutor(), () -> logFileQueue.queueStartPosition));
+        logFileQueue.markDelete(3, Long.MAX_VALUE, 1);
+        config.getTs().refresh(0);
+        logFileQueue.submitDeleteTask(config.getTs().getWallClockMillis());
+        waitUtilInExecutor(config.getRaftExecutor(), 1024L, () -> logFileQueue.queueStartPosition);
     }
 
     @Test

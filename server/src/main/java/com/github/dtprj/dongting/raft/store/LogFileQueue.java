@@ -332,9 +332,9 @@ class LogFileQueue extends FileQueue implements FileOps {
         }
     }
 
-    public void markDelete(long bound, long timestampMillis, long delayMills) {
+    public void markDelete(long boundIndex, long timestampMillis, long delayMills) {
         markDelete(delayMills, nextFile -> timestampMillis > nextFile.firstTimestamp
-                && bound >= nextFile.firstIndex);
+                && boundIndex >= nextFile.firstIndex);
     }
 
     private void markDelete(long delayMillis, Predicate<LogFile> predicate) {
@@ -359,10 +359,10 @@ class LogFileQueue extends FileQueue implements FileOps {
         }
     }
 
-    public void submitDeleteTask(long startTimestamp) {
+    public void submitDeleteTask(long taskStartTimestamp) {
         submitDeleteTask(logFile -> {
             long deleteTimestamp = logFile.deleteTimestamp;
-            return deleteTimestamp > 0 && deleteTimestamp < startTimestamp && logFile.use <= 0;
+            return deleteTimestamp > 0 && deleteTimestamp < taskStartTimestamp && logFile.use <= 0;
         });
     }
 

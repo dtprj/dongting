@@ -18,6 +18,9 @@ package com.github.dtprj.dongting.raft.test;
 import org.opentest4j.AssertionFailedError;
 
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
@@ -34,9 +37,17 @@ public class TestUtil {
     }
 
     public static void waitUtil(Object expectValue, Supplier<Object> actual, long timeoutMillis) {
+        waitUtilInExecutor(null, expectValue, actual, timeoutMillis);
+    }
+
+    public static void waitUtilInExecutor(Executor executor, Object expectValue, Supplier<Object> actual) {
+        waitUtilInExecutor(executor, expectValue, actual, 5000);
+    }
+
+    public static void waitUtilInExecutor(Executor executor, Object expectValue, Supplier<Object> actual, long timeoutMillis) {
         long start = System.nanoTime();
         long deadline = start + timeoutMillis * 1000 * 1000;
-        Object obj = actual.get();
+        Object obj = getResultInExecutor(executor, actual);
         if (Objects.equals(expectValue, obj)) {
             return;
         }
@@ -44,17 +55,30 @@ public class TestUtil {
         while (deadline - System.nanoTime() > 0) {
             try {
                 //noinspection BusyWait
-                Thread.sleep(2);
+                Thread.sleep(1);
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
             waitCount++;
-            obj = actual.get();
-            if(Objects.equals(expectValue, obj)){
+            obj = getResultInExecutor(executor, actual);
+            if (Objects.equals(expectValue, obj)) {
                 return;
             }
         }
         throw new AssertionFailedError("expect: " + expectValue + ", actual:" + obj + ", timeout="
                 + timeoutMillis + "ms, cost=" + (System.nanoTime() - start) / 1000 / 1000 + "ms, waitCount=" + waitCount);
+    }
+
+    public static Object getResultInExecutor(Executor executor, Supplier<Object> actual) {
+        if (executor == null) {
+            return actual.get();
+        }
+        CompletableFuture<Object> f = new CompletableFuture<>();
+        executor.execute(() -> f.complete(actual.get()));
+        try {
+            return f.get(5, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }
