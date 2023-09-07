@@ -148,7 +148,7 @@ public class FileQueueTest {
         };
         fileQueue.submitDeleteTask(p);
         fileQueue.submitDeleteTask(p);
-        TestUtil.waitUtil(1, () -> fileQueue.queue.size());
+        TestUtil.waitUtilInExecutor(MockExecutors.raftExecutor(), 1, () -> fileQueue.queue.size());
     }
 
 }

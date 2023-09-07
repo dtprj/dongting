@@ -162,7 +162,7 @@ public class IdxFileQueueTest {
             assertEquals(i * 100, idxFileQueue.syncLoadLogPos(i));
         }
         idxFileQueue.submitDeleteTask(10);
-        TestUtil.waitUtil(() -> idxFileQueue.queueStartPosition == 8 << 3);
+        TestUtil.waitUtilInExecutor(MockExecutors.raftExecutor(), 8L << 3, () -> idxFileQueue.queueStartPosition);
         assertThrows(RaftException.class, () -> idxFileQueue.syncLoadLogPos(1));
         assertThrows(RaftException.class, () -> idxFileQueue.syncLoadLogPos(31));
     }
@@ -198,7 +198,7 @@ public class IdxFileQueueTest {
             idxFileQueue.put(i, i * 100, false);
         }
         idxFileQueue.submitDeleteTask(10);
-        TestUtil.waitUtil(() -> idxFileQueue.queueStartPosition == 8 << 3);
+        TestUtil.waitUtilInExecutor(MockExecutors.raftExecutor(), 8L << 3, () -> idxFileQueue.queueStartPosition);
 
         idxFileQueue.close();
         raftStatus.getExtraPersistProps().setProperty(IDX_FILE_PERSIST_INDEX_KEY, "2");
