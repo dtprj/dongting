@@ -38,7 +38,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.zip.CRC32C;
@@ -132,18 +131,18 @@ class LogFileQueue extends FileQueue implements FileOps {
         ByteBuffer writeBuffer = this.writeBuffer;
         writeBuffer.clear();
         long pos = writePos;
+        long bufferPosOfFile = writePos & fileLenMask;
         LogFile file = getLogFile(pos);
         for (int i = 0; i < logs.size(); i++) {
             LogItem log = logs.get(i);
-            long posOfFile = (pos + writeBuffer.position()) & fileLenMask;
             Encoder headerEncoder = initEncoderAndSize(log, true);
             Encoder bodyEncoder = initEncoderAndSize(log, false);
 
             int totalLen = LogHeader.computeTotalLen(0, log.getActualHeaderSize(), log.getActualBodySize());
-            if (posOfFile == 0) {
+            if ((pos & fileLenMask) == 0) {
                 if (i != 0) {
                     // last item exactly fill the file
-                    pos = writeAndClearBuffer(writeBuffer, file, pos);
+                    bufferPosOfFile = writeAndClearBuffer(writeBuffer, file, bufferPosOfFile);
                     ensureWritePosReady(pos);
                     file = getLogFile(pos);
                 }
@@ -151,20 +150,21 @@ class LogFileQueue extends FileQueue implements FileOps {
                 file.firstIndex = log.getIndex();
                 file.firstTerm = log.getTerm();
             } else {
-                long fileRest = logFileSize - posOfFile;
+                long fileRest = file.endPos - pos;
                 if (fileRest < totalLen) {
                     // file rest space is not enough
                     if (fileRest >= LogHeader.ITEM_HEADER_SIZE) {
                         // write an empty header to indicate the end of the file
                         if (writeBuffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
-                            pos = writeAndClearBuffer(writeBuffer, file, pos);
+                            bufferPosOfFile = writeAndClearBuffer(writeBuffer, file, bufferPosOfFile);
                         }
                         LogHeader.writeEndHeader(crc32c, writeBuffer);
                     }
-                    pos = writeAndClearBuffer(writeBuffer, file, pos);
+                    writeAndClearBuffer(writeBuffer, file, bufferPosOfFile);
 
                     // roll to next file
                     pos = nextFilePos(pos);
+                    bufferPosOfFile = pos;
                     ensureWritePosReady(pos);
                     file = getLogFile(pos);
 
@@ -175,24 +175,27 @@ class LogFileQueue extends FileQueue implements FileOps {
             }
 
             if (writeBuffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
-                pos = writeAndClearBuffer(writeBuffer, file, pos);
+                bufferPosOfFile = writeAndClearBuffer(writeBuffer, file, bufferPosOfFile);
             }
 
             long itemStartPos = pos;
             LogHeader.writeHeader(crc32c, writeBuffer, log, 0, log.getActualHeaderSize(), log.getActualBodySize());
+            pos += LogHeader.ITEM_HEADER_SIZE;
 
             if (headerEncoder != null && log.getActualHeaderSize() > 0) {
                 Object data = log.getHeaderBuffer() != null ? log.getHeaderBuffer() : log.getHeader();
-                pos = writeData(writeBuffer, pos, file, data, headerEncoder);
+                bufferPosOfFile = writeData(writeBuffer, bufferPosOfFile, file, data, headerEncoder);
+                pos += log.getActualHeaderSize() + 4;
             }
             if (bodyEncoder != null && log.getActualBodySize() > 0) {
                 Object data = log.getBodyBuffer() != null ? log.getBodyBuffer() : log.getBody();
-                pos = writeData(writeBuffer, pos, file, data, bodyEncoder);
+                bufferPosOfFile = writeData(writeBuffer, bufferPosOfFile, file, data, bodyEncoder);
+                pos += log.getActualBodySize() + 4;
             }
 
             idxOps.put(log.getIndex(), itemStartPos, false);
         }
-        pos = writeAndClearBuffer(writeBuffer, file, pos);
+        writeAndClearBuffer(writeBuffer, file, bufferPosOfFile);
         file.channel.force(false);
         this.writePos = pos;
     }
@@ -230,10 +233,10 @@ class LogFileQueue extends FileQueue implements FileOps {
     }
 
     @SuppressWarnings("rawtypes")
-    private long writeData(ByteBuffer writeBuffer, long pos, LogFile file, Object data, Encoder encoder) throws IOException {
+    private long writeData(ByteBuffer writeBuffer, long bufferPosOfFile, LogFile file, Object data, Encoder encoder) throws IOException {
         crc32c.reset();
         if (writeBuffer.remaining() == 0) {
-            pos = writeAndClearBuffer(writeBuffer, file, pos);
+            bufferPosOfFile = writeAndClearBuffer(writeBuffer, file, bufferPosOfFile);
         }
         try {
             while (true) {
@@ -245,17 +248,17 @@ class LogFileQueue extends FileQueue implements FileOps {
                 if (encodeFinish) {
                     break;
                 }
-                pos = writeAndClearBuffer(writeBuffer, file, pos);
+                bufferPosOfFile = writeAndClearBuffer(writeBuffer, file, bufferPosOfFile);
             }
         } finally {
             encodeContext.setStatus(null);
         }
 
         if (writeBuffer.remaining() < 4) {
-            pos = writeAndClearBuffer(writeBuffer, file, pos);
+            bufferPosOfFile = writeAndClearBuffer(writeBuffer, file, bufferPosOfFile);
         }
         writeBuffer.putInt((int) crc32c.getValue());
-        return pos;
+        return bufferPosOfFile;
     }
 
     private long writeAndClearBuffer(ByteBuffer buffer, LogFile file, long pos) throws IOException {
@@ -374,13 +377,13 @@ class LogFileQueue extends FileQueue implements FileOps {
     }
 
     public CompletableFuture<Pair<Integer, Long>> tryFindMatchPos(
-            int suggestTerm, long suggestIndex, long lastIndex, Supplier<Boolean> cancelIndicator) {
-        LogFile logFile = findMatchLogFile(suggestTerm, suggestIndex, lastIndex);
+            int suggestTerm, long suggestIndex, Supplier<Boolean> cancelIndicator) {
+        LogFile logFile = findMatchLogFile(suggestTerm, suggestIndex);
         if (logFile == null) {
             return CompletableFuture.completedFuture(null);
         }
         CompletableFuture<Pair<Integer, Long>> future = new CompletableFuture<>();
-        ioExecutor.execute(() -> tryFindMatchPos(cancelIndicator, logFile, suggestTerm, suggestTerm, future));
+        ioExecutor.execute(() -> tryFindMatchPos(cancelIndicator, logFile, suggestTerm, suggestIndex, future));
         return future;
     }
 
@@ -392,13 +395,20 @@ class LogFileQueue extends FileQueue implements FileOps {
                 future.cancel(false);
                 return;
             }
+            // Here we access raft thread's variable in io thread.
+            // If truncateTail is called, the variable may be changed.
+            // But if epoch changed, the result of this method is not used.
             long leftIndex = logFile.firstIndex;
             int leftTerm = logFile.firstTerm;
             long rightIndex = suggestIndex;
-            LogHeader header = new LogHeader();
+
             while (leftIndex < rightIndex) {
                 long midIndex = (leftIndex + rightIndex + 1) >>> 1;
-                loadHeaderInIoThread(logFile, midIndex, header);
+                LogHeader header = loadHeaderInIoThread(logFile, midIndex);
+                if (header == null) {
+                    rightIndex = midIndex - 1;
+                    continue;
+                }
                 if (cancel.get()) {
                     future.cancel(false);
                     return;
@@ -419,18 +429,22 @@ class LogFileQueue extends FileQueue implements FileOps {
         }
     }
 
-    private void loadHeaderInIoThread(LogFile logFile, long index, LogHeader header) throws Exception {
+    private LogHeader loadHeaderInIoThread(LogFile logFile, long index) throws Exception {
         CompletableFuture<Long> posFuture = CompletableFuture.supplyAsync(() -> {
             try {
                 return idxOps.syncLoadLogPos(index);
             } catch (Throwable e) {
-                throw new CompletionException(e);
+                throw new RaftException(e);
             }
         }, raftExecutor);
         long pos = posFuture.get();
+        if (pos >= logFile.endPos || pos < logFile.startPos) {
+            return null;
+        }
         ByteBuffer buf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE);
         FileUtil.syncReadFull(logFile.channel, buf, pos & fileLenMask);
         buf.flip();
+        LogHeader header = new LogHeader();
         header.read(buf);
         if (!header.crcMatch()) {
             throw new ChecksumException();
@@ -438,9 +452,10 @@ class LogFileQueue extends FileQueue implements FileOps {
         if (header.index != index) {
             throw new RaftException("index not match");
         }
+        return header;
     }
 
-    private LogFile findMatchLogFile(int suggestTerm, long suggestIndex, long lastIndex) {
+    private LogFile findMatchLogFile(int suggestTerm, long suggestIndex) {
         if (queue.size() == 0) {
             return null;
         }
@@ -453,7 +468,7 @@ class LogFileQueue extends FileQueue implements FileOps {
                 left = mid + 1;
                 continue;
             }
-            if (logFile.firstIndex > lastIndex) {
+            if (logFile.firstIndex > suggestIndex) {
                 right = mid - 1;
                 continue;
             }

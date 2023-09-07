@@ -17,6 +17,8 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
+import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
@@ -31,7 +33,10 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.nio.ByteBuffer;
-import java.util.Random;
+import java.util.HashMap;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.zip.CRC32C;
 
@@ -39,6 +44,7 @@ import static com.github.dtprj.dongting.raft.test.TestUtil.getResultInExecutor;
 import static com.github.dtprj.dongting.raft.test.TestUtil.waitUtilInExecutor;
 import static java.util.Arrays.asList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -58,15 +64,19 @@ public class LogFileQueueTest {
     private int prevTerm;
     private int bizHeaderLen;
 
+    private final HashMap<Long, Long> idxMap = new HashMap<>();
+
+
     private final IdxOps idxOps = new IdxOps() {
 
         @Override
         public void put(long index, long position, boolean recover) {
+            idxMap.put(index, position);
         }
 
         @Override
         public long syncLoadLogPos(long itemIndex) {
-            return (itemIndex - 1) * 100;
+            return idxMap.get(itemIndex);
         }
     };
 
@@ -75,6 +85,8 @@ public class LogFileQueueTest {
         term = 1;
         prevTerm = 0;
         bizHeaderLen = 64;
+
+        idxMap.clear();
 
         dir = TestDir.createTestDir(LogFileQueueTest.class.getSimpleName());
         config = new RaftGroupConfigEx(1, "1", "1");
@@ -105,9 +117,6 @@ public class LogFileQueueTest {
         item.setTerm(term);
         item.setPrevLogTerm(prevTerm);
         prevTerm = term;
-        if (new Random().nextBoolean()) {
-            term++;
-        }
         item.setIndex(index++);
         item.setTimestamp(config.getTs().getWallClockMillis());
         ByteBuffer buf = ByteBuffer.allocate(bizHeaderLen);
@@ -168,6 +177,7 @@ public class LogFileQueueTest {
             LogItem item = items[i];
             LogHeader header = new LogHeader();
             header.read(buf);
+            assertTrue(header.crcMatch());
             assertEquals(item.getType(), header.type);
             assertEquals(item.getBizType(), header.bizType);
             assertEquals(item.getTerm(), header.term);
@@ -552,5 +562,55 @@ public class LogFileQueueTest {
         } catch (RaftException e) {
             assertTrue(e.getMessage().startsWith("restore index crc not match"));
         }
+    }
+
+    @Test
+    public void testTryFindMatch() throws Exception {
+        setup(1024, 1024);
+        append(false, 0L, 512, 512);
+        term++;
+        append(false, 0L, 512, 512);
+        term++;
+        append(false, 0L, 512, 512);
+        term++;
+        append(false, 0L, 300, 300, 300);
+        append(false, 0L, 256, 256, 256, 256);
+        checkMatch(1, 1);
+        checkMatch(1, 2);
+        checkMatch(2, 3);
+        checkMatch(2, 4);
+        checkMatch(3, 5);
+        checkMatch(3, 6);
+        checkMatch(4, 7);
+        checkMatch(4, 8);
+        checkMatch(4, 9);
+        checkMatch(4, 10);
+        checkMatch(4, 11);
+        checkMatch(4, 12);
+        checkMatch(4, 13);
+
+        assertNull(logFileQueue.tryFindMatchPos(1, 0, () -> false).get());
+        assertNull(logFileQueue.tryFindMatchPos(0, 1, () -> false).get());
+        assertEquals(new Pair<>(4, 12L), logFileQueue.tryFindMatchPos(5, 13, () -> false).get());
+        assertEquals(new Pair<>(3, 6L), logFileQueue.tryFindMatchPos(3, 13, () -> false).get());
+        assertThrows(CancellationException.class, () -> logFileQueue.tryFindMatchPos(1, 1, () -> true).get());
+        try {
+            // mock idxOps load 100 cause NPE
+            logFileQueue.tryFindMatchPos(1, 100, () -> false).get();
+            fail();
+        } catch (ExecutionException e) {
+            assertEquals(NullPointerException.class, DtUtil.rootCause(e).getClass());
+        }
+
+        logFileQueue.markDelete(3, Long.MAX_VALUE, 0);
+        assertNull(logFileQueue.tryFindMatchPos(1, 2, () -> false).get());
+        assertNull(logFileQueue.tryFindMatchPos(1, 1, () -> false).get());
+        checkMatch(2, 3);
+    }
+
+    private void checkMatch(int suggestTerm, long suggestIndex) throws Exception {
+        CompletableFuture<Pair<Integer, Long>> f = logFileQueue.tryFindMatchPos(suggestTerm, suggestIndex, () -> false);
+        assertEquals(suggestTerm, f.get().getLeft());
+        assertEquals(suggestIndex, f.get().getRight());
     }
 }
