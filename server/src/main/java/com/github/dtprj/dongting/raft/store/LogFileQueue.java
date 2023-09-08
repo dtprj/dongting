@@ -470,7 +470,7 @@ class LogFileQueue extends FileQueue implements FileOps {
                 }
                 if (leftIndex < rightIndex) {
                     midIndex = (leftIndex + rightIndex + 1) >>> 1;
-                    CompletableFuture<Long> posFuture = findLogPos(midIndex);
+                    CompletableFuture<Long> posFuture = idxOps.loadLogPos(midIndex);
                     posFuture.whenCompleteAsync((r, ex) -> posLoadComplete(ex, r), raftExecutor);
                 } else {
                     future.complete(new Pair<>(leftTerm, leftIndex));
@@ -478,11 +478,6 @@ class LogFileQueue extends FileQueue implements FileOps {
             } catch (Throwable e) {
                 future.completeExceptionally(e);
             }
-        }
-
-        private CompletableFuture<Long> findLogPos(long index) throws Exception {
-            // TODO change to real async
-            return CompletableFuture.completedFuture(idxOps.syncLoadLogPos(index));
         }
 
         private boolean failOrCancel(Throwable ex) {

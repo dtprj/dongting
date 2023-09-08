@@ -73,8 +73,8 @@ public class LogFileQueueTest {
         }
 
         @Override
-        public long syncLoadLogPos(long itemIndex) {
-            return idxMap.get(itemIndex);
+        public CompletableFuture<Long> loadLogPos(long itemIndex) {
+            return CompletableFuture.completedFuture(idxMap.get(itemIndex));
         }
     };
 

@@ -23,7 +23,6 @@ import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -92,7 +91,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         this.writeBuffer = ByteBuffer.allocateDirect(flushItems * ITEM_LEN);
     }
 
-    public Pair<Long, Long> initRestorePos() throws IOException {
+    public Pair<Long, Long> initRestorePos() throws Exception {
         firstIndex = posToIndex(queueStartPosition);
         long restoreIndex = Long.parseLong(raftStatus.getExtraPersistProps()
                 .getProperty(IDX_FILE_PERSIST_INDEX_KEY, "0"));
@@ -116,7 +115,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 nextPersistIndex = restoreIndex + 1;
                 nextIndex = restoreIndex + 1;
             }
-            restoreIndexPos = syncLoadLogPos(restoreIndex);
+            restoreIndexPos = loadLogPos(restoreIndex).get();
         }
         log.info("restore index: {}, pos: {}", restoreIndex, restoreIndexPos);
         return new Pair<>(restoreIndex, restoreIndexPos);
@@ -143,26 +142,28 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     @Override
-    public long syncLoadLogPos(long itemIndex) throws IOException {
+    public CompletableFuture<Long> loadLogPos(long itemIndex) {
         DtUtil.checkPositive(itemIndex, "index");
         if (itemIndex >= nextIndex) {
             BugLog.getLog().error("index is too large : lastIndex={}, index={}", nextIndex, itemIndex);
-            throw new RaftException("index is too large");
+            return CompletableFuture.failedFuture(new RaftException("index is too large"));
         }
         if (itemIndex < firstIndex) {
             BugLog.getLog().error("index is too small : firstIndex={}, index={}", firstIndex, itemIndex);
-            throw new RaftException("index too small");
+            return CompletableFuture.failedFuture(new RaftException("index too small"));
         }
         if (itemIndex >= tailCache.getFirstKey() && itemIndex <= tailCache.getLastKey()) {
-            return tailCache.get(itemIndex);
+            return CompletableFuture.completedFuture(tailCache.get(itemIndex));
         }
         long pos = indexToPos(itemIndex);
         long filePos = pos & fileLenMask;
         LogFile lf = getLogFile(pos);
         ByteBuffer buffer = ByteBuffer.allocate(8);
-        FileUtil.syncReadFull(lf.channel, buffer, filePos);
-        buffer.flip();
-        return buffer.getLong();
+        AsyncIoTask t = new AsyncIoTask(lf.channel, stopIndicator);
+        return t.read(buffer, filePos).thenApply(v -> {
+            buffer.flip();
+            return buffer.getLong();
+        });
     }
 
     public long truncateTail(long index) {

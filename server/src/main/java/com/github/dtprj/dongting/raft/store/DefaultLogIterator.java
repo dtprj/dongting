@@ -89,7 +89,9 @@ class DefaultLogIterator implements RaftLog.LogIterator {
                 return CompletableFuture.failedFuture(new RaftException("iterator state error"));
             }
             if (nextIndex == -1) {
-                nextPos = idxFiles.syncLoadLogPos(index);
+                // used occasionally when follower not catch up to leader
+                // TODO make async later
+                nextPos = idxFiles.loadLogPos(index).get();
                 nextIndex = index;
             } else {
                 if (nextIndex != index) {

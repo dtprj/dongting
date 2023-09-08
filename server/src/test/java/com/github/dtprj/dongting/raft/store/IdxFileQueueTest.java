@@ -33,6 +33,7 @@ import static com.github.dtprj.dongting.raft.store.IdxFileQueue.IDX_FILE_PERSIST
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * @author huangli
@@ -127,9 +128,9 @@ public class IdxFileQueueTest {
         idxFileQueue.put(5, 5000, false);
         idxFileQueue.put(6, 6000, false);
         assertEquals(6, idxFileQueue.tailCache.size());
-        assertEquals(400, idxFileQueue.syncLoadLogPos(4));
-        assertEquals(5000, idxFileQueue.syncLoadLogPos(5));
-        assertEquals(6000, idxFileQueue.syncLoadLogPos(6));
+        assertEquals(400, idxFileQueue.loadLogPos(4).get());
+        assertEquals(5000, idxFileQueue.loadLogPos(5).get());
+        assertEquals(6000, idxFileQueue.loadLogPos(6).get());
     }
 
     @Test
@@ -141,8 +142,13 @@ public class IdxFileQueueTest {
         }
         idxFileQueue.truncateTail(5);
         assertEquals(4, idxFileQueue.tailCache.size());
-        assertEquals(400, idxFileQueue.syncLoadLogPos(4));
-        assertThrows(RaftException.class, () -> idxFileQueue.syncLoadLogPos(5));
+        assertEquals(400, idxFileQueue.loadLogPos(4).get());
+        try {
+            idxFileQueue.loadLogPos(5).get();
+            fail();
+        } catch (Exception e) {
+            assertTrue(e.getMessage().contains("index is too large"));
+        }
 
         raftStatus.setCommitIndex(3);
         assertThrows(RaftException.class, () -> idxFileQueue.truncateTail(3));
@@ -159,12 +165,22 @@ public class IdxFileQueueTest {
             idxFileQueue.put(i, i * 100, false);
         }
         for (int i = 1; i <= 30; i++) {
-            assertEquals(i * 100, idxFileQueue.syncLoadLogPos(i));
+            assertEquals(i * 100, idxFileQueue.loadLogPos(i).get());
         }
         idxFileQueue.submitDeleteTask(10);
         TestUtil.waitUtilInExecutor(MockExecutors.raftExecutor(), 8L << 3, () -> idxFileQueue.queueStartPosition);
-        assertThrows(RaftException.class, () -> idxFileQueue.syncLoadLogPos(1));
-        assertThrows(RaftException.class, () -> idxFileQueue.syncLoadLogPos(31));
+        try {
+            idxFileQueue.loadLogPos(1).get();
+            fail();
+        } catch (Exception e) {
+            assertTrue(e.getMessage().contains("index too small"));
+        }
+        try {
+            idxFileQueue.loadLogPos(31).get();
+            fail();
+        } catch (Exception e) {
+            assertTrue(e.getMessage().contains("index is too large"));
+        }
     }
 
     @Test
