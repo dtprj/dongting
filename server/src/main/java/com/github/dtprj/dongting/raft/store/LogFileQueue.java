@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -378,84 +379,18 @@ class LogFileQueue extends FileQueue implements FileOps {
 
     public CompletableFuture<Pair<Integer, Long>> tryFindMatchPos(
             int suggestTerm, long suggestIndex, Supplier<Boolean> cancelIndicator) {
-        LogFile logFile = findMatchLogFile(suggestTerm, suggestIndex);
-        if (logFile == null) {
+        Pair<LogFile, Long> p = findMatchLogFile(suggestTerm, suggestIndex);
+        if (p == null) {
             return CompletableFuture.completedFuture(null);
         }
-        CompletableFuture<Pair<Integer, Long>> future = new CompletableFuture<>();
-        ioExecutor.execute(() -> tryFindMatchPos(cancelIndicator, logFile, suggestTerm, suggestIndex, future));
-        return future;
+        long rightBound = p.getRight();
+        MatchPosFinder finder = new MatchPosFinder(cancelIndicator, p.getLeft(),
+                suggestTerm, Math.min(suggestIndex, rightBound));
+        finder.exec();
+        return finder.future;
     }
 
-    // in io thread
-    private void tryFindMatchPos(Supplier<Boolean> cancel, LogFile logFile, int suggestTerm,
-                                 long suggestIndex, CompletableFuture<Pair<Integer, Long>> future) {
-        try {
-            if (cancel.get()) {
-                future.cancel(false);
-                return;
-            }
-            // Here we access raft thread's variable in io thread.
-            // If truncateTail is called, the variable may be changed.
-            // But if epoch changed, the result of this method is not used.
-            long leftIndex = logFile.firstIndex;
-            int leftTerm = logFile.firstTerm;
-            long rightIndex = suggestIndex;
-
-            while (leftIndex < rightIndex) {
-                long midIndex = (leftIndex + rightIndex + 1) >>> 1;
-                LogHeader header = loadHeaderInIoThread(logFile, midIndex);
-                if (header == null) {
-                    rightIndex = midIndex - 1;
-                    continue;
-                }
-                if (cancel.get()) {
-                    future.cancel(false);
-                    return;
-                }
-                if (midIndex == suggestIndex && header.term == suggestTerm) {
-                    future.complete(new Pair<>(header.term, midIndex));
-                    return;
-                } else if (midIndex < suggestIndex && header.term <= suggestTerm) {
-                    leftIndex = midIndex;
-                    leftTerm = header.term;
-                } else {
-                    rightIndex = midIndex - 1;
-                }
-            }
-            future.complete(new Pair<>(leftTerm, leftIndex));
-        } catch (Throwable e) {
-            future.completeExceptionally(e);
-        }
-    }
-
-    private LogHeader loadHeaderInIoThread(LogFile logFile, long index) throws Exception {
-        CompletableFuture<Long> posFuture = CompletableFuture.supplyAsync(() -> {
-            try {
-                return idxOps.syncLoadLogPos(index);
-            } catch (Throwable e) {
-                throw new RaftException(e);
-            }
-        }, raftExecutor);
-        long pos = posFuture.get();
-        if (pos >= logFile.endPos || pos < logFile.startPos) {
-            return null;
-        }
-        ByteBuffer buf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE);
-        FileUtil.syncReadFull(logFile.channel, buf, pos & fileLenMask);
-        buf.flip();
-        LogHeader header = new LogHeader();
-        header.read(buf);
-        if (!header.crcMatch()) {
-            throw new ChecksumException();
-        }
-        if (header.index != index) {
-            throw new RaftException("index not match");
-        }
-        return header;
-    }
-
-    private LogFile findMatchLogFile(int suggestTerm, long suggestIndex) {
+    private Pair<LogFile, Long> findMatchLogFile(int suggestTerm, long suggestIndex) {
         if (queue.size() == 0) {
             return null;
         }
@@ -468,15 +403,19 @@ class LogFileQueue extends FileQueue implements FileOps {
                 left = mid + 1;
                 continue;
             }
+            if (logFile.firstIndex == 0) {
+                right = mid - 1;
+                continue;
+            }
             if (logFile.firstIndex > suggestIndex) {
                 right = mid - 1;
                 continue;
             }
             if (logFile.firstIndex == suggestIndex && logFile.firstTerm == suggestTerm) {
-                return logFile;
+                return new Pair<>(logFile, logFile.firstIndex);
             } else if (logFile.firstIndex < suggestIndex && logFile.firstTerm <= suggestTerm) {
                 if (left == right) {
-                    return logFile;
+                    return new Pair<>(logFile, Math.min(tryFindEndIndex(mid), suggestIndex));
                 } else {
                     left = mid;
                 }
@@ -485,6 +424,131 @@ class LogFileQueue extends FileQueue implements FileOps {
             }
         }
         return null;
+    }
+
+    private long tryFindEndIndex(int fileIndex) {
+        if (fileIndex == queue.size() - 1) {
+            return Long.MAX_VALUE;
+        } else {
+            LogFile nextFile = queue.get(fileIndex + 1);
+            if (nextFile.firstIndex == 0) {
+                return Long.MAX_VALUE;
+            } else {
+                return nextFile.firstIndex - 1;
+            }
+        }
+    }
+
+    private class MatchPosFinder {
+        private final Supplier<Boolean> cancel;
+        private final LogFile logFile;
+        private final int suggestTerm;
+        private final long suggestRightBoundIndex;
+        private final CompletableFuture<Pair<Integer, Long>> future = new CompletableFuture<>();
+
+        private long leftIndex;
+        private int leftTerm;
+        private long rightIndex;
+        private long midIndex;
+
+        MatchPosFinder(Supplier<Boolean> cancel, LogFile logFile, int suggestTerm, long suggestRightBoundIndex) {
+            this.cancel = cancel;
+            this.logFile = logFile;
+            this.suggestTerm = suggestTerm;
+            this.suggestRightBoundIndex = suggestRightBoundIndex;
+
+            this.leftIndex = logFile.firstIndex;
+            this.leftTerm = logFile.firstTerm;
+            this.rightIndex = suggestRightBoundIndex;
+        }
+
+        void exec() {
+            try {
+                if (cancel.get()) {
+                    future.cancel(false);
+                    return;
+                }
+                if (leftIndex < rightIndex) {
+                    midIndex = (leftIndex + rightIndex + 1) >>> 1;
+                    CompletableFuture<Long> posFuture = findLogPos(midIndex);
+                    posFuture.whenCompleteAsync((r, ex) -> posLoadComplete(ex, r), raftExecutor);
+                } else {
+                    future.complete(new Pair<>(leftTerm, leftIndex));
+                }
+            } catch (Throwable e) {
+                future.completeExceptionally(e);
+            }
+        }
+
+        private CompletableFuture<Long> findLogPos(long index) throws Exception {
+            // TODO change to real async
+            return CompletableFuture.completedFuture(idxOps.syncLoadLogPos(index));
+        }
+
+        private boolean failOrCancel(Throwable ex) {
+            if (ex != null) {
+                future.completeExceptionally(ex);
+                return true;
+            }
+            if (cancel.get()) {
+                future.cancel(false);
+                return true;
+            }
+            return false;
+        }
+
+        private void posLoadComplete(Throwable ex, long pos) {
+            try {
+                if (failOrCancel(ex)) {
+                    return;
+                }
+                if (pos >= logFile.endPos) {
+                    BugLog.getLog().error("pos >= logFile.endPos, pos={}, logFile={}", pos, logFile);
+                    rightIndex = midIndex - 1;
+                    exec();
+                    return;
+                }
+
+                AsyncIoTask task = new AsyncIoTask(logFile.channel, cancel);
+                ByteBuffer buf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE);
+                CompletableFuture<Void> f = task.read(buf, pos & fileLenMask);
+                f.whenCompleteAsync((v, loadHeaderEx) -> headerLoadComplete(loadHeaderEx, buf), raftExecutor);
+            } catch (Throwable e) {
+                future.completeExceptionally(e);
+            }
+        }
+
+        private void headerLoadComplete(Throwable ex, ByteBuffer buf) {
+            try {
+                if (failOrCancel(ex)) {
+                    return;
+                }
+
+                buf.flip();
+                LogHeader header = new LogHeader();
+                header.read(buf);
+                if (!header.crcMatch()) {
+                    future.completeExceptionally(new ChecksumException());
+                    return;
+                }
+                if (header.index != midIndex) {
+                    future.completeExceptionally(new RaftException("index not match"));
+                    return;
+                }
+                if (midIndex == suggestRightBoundIndex && header.term == suggestTerm) {
+                    future.complete(new Pair<>(header.term, midIndex));
+                    return;
+                } else if (midIndex < suggestRightBoundIndex && header.term <= suggestTerm) {
+                    leftIndex = midIndex;
+                    leftTerm = header.term;
+                } else {
+                    rightIndex = midIndex - 1;
+                }
+                exec();
+            } catch (Throwable e) {
+                future.completeExceptionally(e);
+            }
+        }
     }
 
     @Override

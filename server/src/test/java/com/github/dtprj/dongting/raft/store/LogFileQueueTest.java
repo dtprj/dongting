@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
-import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -36,7 +35,6 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.zip.CRC32C;
 
@@ -588,19 +586,16 @@ public class LogFileQueueTest {
         checkMatch(4, 11);
         checkMatch(4, 12);
         checkMatch(4, 13);
+        // allocate next empty file
+        logFileQueue.ensureWritePosReady(logFileQueue.queueEndPosition);
 
         assertNull(logFileQueue.tryFindMatchPos(1, 0, () -> false).get());
         assertNull(logFileQueue.tryFindMatchPos(0, 1, () -> false).get());
         assertEquals(new Pair<>(4, 12L), logFileQueue.tryFindMatchPos(5, 13, () -> false).get());
         assertEquals(new Pair<>(3, 6L), logFileQueue.tryFindMatchPos(3, 13, () -> false).get());
+        assertEquals(new Pair<>(3, 6L), logFileQueue.tryFindMatchPos(3, 1000, () -> false).get());
         assertThrows(CancellationException.class, () -> logFileQueue.tryFindMatchPos(1, 1, () -> true).get());
-        try {
-            // mock idxOps load 100 cause NPE
-            logFileQueue.tryFindMatchPos(1, 100, () -> false).get();
-            fail();
-        } catch (ExecutionException e) {
-            assertEquals(NullPointerException.class, DtUtil.rootCause(e).getClass());
-        }
+
 
         logFileQueue.markDelete(3, Long.MAX_VALUE, 0);
         assertNull(logFileQueue.tryFindMatchPos(1, 2, () -> false).get());
