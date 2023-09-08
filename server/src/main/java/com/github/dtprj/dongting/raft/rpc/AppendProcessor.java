@@ -39,6 +39,7 @@ import com.github.dtprj.dongting.raft.server.RaftServer;
 
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -143,8 +144,10 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
             log.info("log not match. prevLogIndex={}, localLastLogIndex={}, prevLogTerm={}, localLastLogTerm={}, leaderId={}, groupId={}",
                     req.getPrevLogIndex(), raftStatus.getLastLogIndex(), req.getPrevLogTerm(),
                     raftStatus.getLastLogTerm(), req.getLeaderId(), raftStatus.getGroupId());
+            int currentTerm = raftStatus.getCurrentTerm();
+            Supplier<Boolean> stopIndicator = () -> raftStatus.isStop() || raftStatus.getCurrentTerm() != currentTerm;
             CompletableFuture<Pair<Integer, Long>> replicatePos = gc.getRaftLog().tryFindMatchPos(
-                    req.getPrevLogTerm(), req.getPrevLogIndex(), raftStatus::isStop);
+                    req.getPrevLogTerm(), req.getPrevLogIndex(), stopIndicator);
             try {
                 Pair<Integer, Long> pos = replicatePos.get();
                 if (pos == null) {
