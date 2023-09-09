@@ -43,10 +43,8 @@ public class MockExecutors {
         while (!stop) {
             try {
                 Object obj = queue.take();
-                if (obj instanceof Runnable) {
-                    ((Runnable) obj).run();
-                }
-            } catch (InterruptedException e) {
+                ((Runnable) obj).run();
+            } catch (Throwable e) {
                 e.printStackTrace();
             }
         }

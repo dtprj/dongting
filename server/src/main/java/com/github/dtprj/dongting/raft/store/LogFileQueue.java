@@ -492,7 +492,7 @@ class LogFileQueue extends FileQueue implements FileOps {
             return false;
         }
 
-        private void posLoadComplete(Throwable ex, long pos) {
+        private void posLoadComplete(Throwable ex, Long pos) {
             try {
                 if (failOrCancel(ex)) {
                     return;

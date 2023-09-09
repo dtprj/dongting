@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -35,6 +36,7 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.zip.CRC32C;
 
@@ -63,7 +65,7 @@ public class LogFileQueueTest {
     private int bizHeaderLen;
 
     private final HashMap<Long, Long> idxMap = new HashMap<>();
-
+    private Throwable mockLoadEx;
 
     private final IdxOps idxOps = new IdxOps() {
 
@@ -74,7 +76,11 @@ public class LogFileQueueTest {
 
         @Override
         public CompletableFuture<Long> loadLogPos(long itemIndex) {
-            return CompletableFuture.completedFuture(idxMap.get(itemIndex));
+            if (mockLoadEx == null) {
+                return CompletableFuture.completedFuture(idxMap.get(itemIndex));
+            } else {
+                return CompletableFuture.failedFuture(mockLoadEx);
+            }
         }
     };
 
@@ -83,6 +89,7 @@ public class LogFileQueueTest {
         term = 1;
         prevTerm = 0;
         bizHeaderLen = 64;
+        mockLoadEx = null;
 
         idxMap.clear();
 
@@ -594,8 +601,19 @@ public class LogFileQueueTest {
         assertEquals(new Pair<>(4, 12L), logFileQueue.tryFindMatchPos(5, 13, () -> false).get());
         assertEquals(new Pair<>(3, 6L), logFileQueue.tryFindMatchPos(3, 13, () -> false).get());
         assertEquals(new Pair<>(3, 6L), logFileQueue.tryFindMatchPos(3, 1000, () -> false).get());
-        assertThrows(CancellationException.class, () -> logFileQueue.tryFindMatchPos(1, 1, () -> true).get());
 
+        assertThrows(CancellationException.class, () -> logFileQueue.tryFindMatchPos(4, 12, () -> true).get());
+        AtomicInteger count = new AtomicInteger();
+        assertThrows(CancellationException.class, () -> logFileQueue.tryFindMatchPos(4, 12, () -> count.incrementAndGet() == 2).get());
+        count.set(0);
+        assertThrows(CancellationException.class, () -> logFileQueue.tryFindMatchPos(4, 12, () -> count.incrementAndGet() == 3).get());
+        mockLoadEx = new ArrayStoreException();
+        try {
+            logFileQueue.tryFindMatchPos(4, 12, () -> false).get();
+            fail();
+        } catch (Exception e) {
+            assertTrue(DtUtil.rootCause(e) instanceof ArrayStoreException);
+        }
 
         logFileQueue.markDelete(3, Long.MAX_VALUE, 0);
         assertNull(logFileQueue.tryFindMatchPos(1, 2, () -> false).get());
