@@ -77,7 +77,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
     }
 
     @Override
-    public FileSnapshot init(Supplier<Boolean> cancelIndicator) throws IOException {
+    public FileSnapshot init(Supplier<Boolean> stopIndicator) throws IOException {
         File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
         snapshotDir = FileUtil.ensureDir(dataDir, "snapshot");
         File[] files = snapshotDir.listFiles(f -> f.isFile() &&
@@ -123,7 +123,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             String lastTerm = sf.getProperties().getProperty(KEY_LAST_TERM);
             String maxBlock = sf.getProperties().getProperty(KEY_MAX_BLOCK);
             return new FileSnapshot(Long.parseLong(lastIndex), Integer.parseInt(lastTerm),
-                    lastDataFile, ioExecutor, Integer.parseInt(maxBlock));
+                    lastDataFile, ioExecutor, Integer.parseInt(maxBlock), stopIndicator);
         }
     }
 
@@ -140,13 +140,13 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
     @Override
     public CompletableFuture<Long> saveSnapshot(StateMachine stateMachine,
-                                                Supplier<Boolean> cancelIndicator) {
-        return new SnapshotSaveTask(stateMachine, cancelIndicator).exec();
+                                                Supplier<Boolean> stopIndicator) {
+        return new SnapshotSaveTask(stateMachine, stopIndicator).exec();
     }
 
     private class SnapshotSaveTask {
         private final StateMachine stateMachine;
-        private final Supplier<Boolean> cancelIndicator;
+        private final Supplier<Boolean> stopIndicator;
         private final long startTime = System.currentTimeMillis();
         private final CompletableFuture<Long> future = new CompletableFuture<>();
         private final CRC32C crc32c = new CRC32C();
@@ -160,9 +160,9 @@ public class DefaultSnapshotManager implements SnapshotManager {
         private AsyncIoTask writeTask;
 
 
-        public SnapshotSaveTask(StateMachine stateMachine, Supplier<Boolean> cancelIndicator) {
+        public SnapshotSaveTask(StateMachine stateMachine, Supplier<Boolean> stopIndicator) {
             this.stateMachine = stateMachine;
-            this.cancelIndicator = cancelIndicator;
+            this.stopIndicator = stopIndicator;
         }
 
         public CompletableFuture<Long> exec() {
@@ -191,7 +191,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
                 options.add(StandardOpenOption.WRITE);
                 channel = AsynchronousFileChannel.open(newDataFile.toPath(), options, ioExecutor);
 
-                writeTask = new AsyncIoTask(channel, cancelIndicator);
+                writeTask = new AsyncIoTask(channel, stopIndicator, null);
 
                 read(0, 0);
             } catch (Throwable e) {
@@ -219,7 +219,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         private boolean shouldReturn(Throwable ex) {
-            if (cancelIndicator.get()) {
+            if (stopIndicator.get()) {
                 future.cancel(false);
                 reset(false);
                 return true;

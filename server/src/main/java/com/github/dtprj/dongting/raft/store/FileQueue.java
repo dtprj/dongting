@@ -155,7 +155,7 @@ abstract class FileQueue implements AutoCloseable {
                 channel = AsynchronousFileChannel.open(f.toPath(), openOptions, ioExecutor);
                 ByteBuffer buf = ByteBuffer.allocate(1);
                 LogFile logFile = new LogFile(currentEndPosition, currentEndPosition + getFileSize(), channel, f);
-                AsyncIoTask t = new AsyncIoTask(logFile.channel, stopIndicator);
+                AsyncIoTask t = new AsyncIoTask(logFile.channel, stopIndicator, null);
                 t.write(true, true, buf, getFileSize() - 1).whenComplete((v, ex) -> {
                     if (ex != null) {
                         future.completeExceptionally(ex);

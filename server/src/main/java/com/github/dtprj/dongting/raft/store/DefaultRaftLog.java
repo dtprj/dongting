@@ -60,16 +60,16 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public Pair<Integer, Long> init(Supplier<Boolean> cancelInit) throws Exception {
+    public Pair<Integer, Long> init(Supplier<Boolean> stopIndicator) throws Exception {
         try {
             File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
 
             idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), statusManager, groupConfig);
             logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), groupConfig, idxFiles);
             logFiles.init();
-            RaftUtil.checkStop(cancelInit);
+            RaftUtil.checkStop(stopIndicator);
             idxFiles.init();
-            RaftUtil.checkStop(cancelInit);
+            RaftUtil.checkStop(stopIndicator);
 
             Pair<Long, Long> p = idxFiles.initRestorePos();
 
@@ -84,10 +84,10 @@ public class DefaultRaftLog implements RaftLog {
                     statusManager.persistSync();
                 }
             }
-            RaftUtil.checkStop(cancelInit);
+            RaftUtil.checkStop(stopIndicator);
 
-            int lastTerm = logFiles.restore(p.getLeft(), p.getRight(), cancelInit);
-            RaftUtil.checkStop(cancelInit);
+            int lastTerm = logFiles.restore(p.getLeft(), p.getRight(), stopIndicator);
+            RaftUtil.checkStop(stopIndicator);
 
             if (idxFiles.getNextIndex() == 1) {
                 return new Pair<>(0, 0L);

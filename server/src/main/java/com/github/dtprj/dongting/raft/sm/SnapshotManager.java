@@ -24,7 +24,7 @@ import java.util.function.Supplier;
  */
 public interface SnapshotManager {
 
-    Snapshot init(Supplier<Boolean> cancelIndicator) throws IOException;
+    Snapshot init(Supplier<Boolean> stopIndicator) throws IOException;
 
-    CompletableFuture<Long> saveSnapshot(StateMachine stateMachine, Supplier<Boolean> cancelIndicator);
+    CompletableFuture<Long> saveSnapshot(StateMachine stateMachine, Supplier<Boolean> stopIndicator);
 }

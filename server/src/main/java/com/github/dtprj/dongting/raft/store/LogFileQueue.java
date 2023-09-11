@@ -99,7 +99,7 @@ class LogFileQueue extends FileQueue implements FileOps {
         return writePos;
     }
 
-    public int restore(long restoreIndex, long restoreIndexPos, Supplier<Boolean> cancelIndicator)
+    public int restore(long restoreIndex, long restoreIndexPos, Supplier<Boolean> stopIndicator)
             throws IOException, InterruptedException {
         log.info("restore from {}, {}", restoreIndex, restoreIndexPos);
         Restorer restorer = new Restorer(idxOps, this, restoreIndex, restoreIndexPos);
@@ -113,9 +113,9 @@ class LogFileQueue extends FileQueue implements FileOps {
             throw new RaftException("restoreIndexPos is illegal. " + restoreIndexPos);
         }
         for (int i = 0; i < queue.size(); i++) {
-            RaftUtil.checkStop(cancelIndicator);
+            RaftUtil.checkStop(stopIndicator);
             LogFile lf = queue.get(i);
-            Pair<Boolean, Long> result = restorer.restoreFile(this.writeBuffer, lf, cancelIndicator);
+            Pair<Boolean, Long> result = restorer.restoreFile(this.writeBuffer, lf, stopIndicator);
             writePos = result.getRight();
             if (result.getLeft()) {
                 break;
@@ -504,7 +504,7 @@ class LogFileQueue extends FileQueue implements FileOps {
                     return;
                 }
 
-                AsyncIoTask task = new AsyncIoTask(logFile.channel, cancel);
+                AsyncIoTask task = new AsyncIoTask(logFile.channel, stopIndicator , cancel);
                 ByteBuffer buf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE);
                 CompletableFuture<Void> f = task.read(buf, pos & fileLenMask);
                 f.whenCompleteAsync((v, loadHeaderEx) -> headerLoadComplete(loadHeaderEx, buf), raftExecutor);

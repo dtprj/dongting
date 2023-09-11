@@ -39,7 +39,6 @@ import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -48,7 +47,6 @@ public class RaftGroupThread extends Thread {
     private static final DtLog log = DtLogs.getLogger(RaftGroupThread.class);
 
     private final Random random = new Random();
-    private final Supplier<Boolean> cancelInit;
 
     private RaftServerConfig config;
     private RaftStatusImpl raftStatus;
@@ -66,8 +64,7 @@ public class RaftGroupThread extends Thread {
     // TODO optimise blocking queue
     private LinkedBlockingQueue<Object> queue;
 
-    public RaftGroupThread(Supplier<Boolean> cancelInit) {
-        this.cancelInit = cancelInit;
+    public RaftGroupThread() {
     }
 
     public void init(RaftGroupImpl gc) {
@@ -99,9 +96,9 @@ public class RaftGroupThread extends Thread {
             if (snapshotIndex > raftStatus.getCommitIndex()) {
                 raftStatus.setCommitIndex(snapshotIndex);
             }
-            RaftUtil.checkStop(cancelInit);
+            RaftUtil.checkStop(raftStatus::isStop);
 
-            Pair<Integer, Long> initResult = raftLog.init(cancelInit);
+            Pair<Integer, Long> initResult = raftLog.init(raftStatus::isStop);
             int initResultTerm = initResult.getLeft();
             long initResultIndex = initResult.getRight();
             if (initResultIndex < snapshotIndex || initResultIndex < raftStatus.getCommitIndex()) {
@@ -112,7 +109,7 @@ public class RaftGroupThread extends Thread {
                 log.error("raft log last term invalid, {}, {}, {}", initResultTerm, snapshotTerm, raftStatus.getCurrentTerm());
                 throw new RaftException("raft log last term invalid");
             }
-            RaftUtil.checkStop(cancelInit);
+            RaftUtil.checkStop(raftStatus::isStop);
 
             log.info("init raft log, maxTerm={}, maxIndex={}, groupId={}",
                     initResult.getLeft(), initResult.getRight(), groupConfig.getGroupId());
@@ -132,13 +129,13 @@ public class RaftGroupThread extends Thread {
         if (snapshotManager == null) {
             return null;
         }
-        try (Snapshot snapshot = snapshotManager.init(cancelInit)) {
+        try (Snapshot snapshot = snapshotManager.init(raftStatus::isStop)) {
             if (snapshot == null) {
                 return null;
             }
             long offset = 0;
             while (true) {
-                RaftUtil.checkStop(cancelInit);
+                RaftUtil.checkStop(raftStatus::isStop);
                 CompletableFuture<RefBuffer> f = snapshot.readNext();
                 RefBuffer rb = f.get();
                 try {
@@ -188,7 +185,7 @@ public class RaftGroupThread extends Thread {
     @Override
     public void run() {
         try {
-            RaftUtil.checkStop(cancelInit);
+            RaftUtil.checkStop(raftStatus::isStop);
             if (raftStatus.getElectQuorum() == 1 && raftStatus.getNodeIdOfMembers().contains(config.getNodeId())) {
                 RaftUtil.changeToLeader(raftStatus);
                 raft.sendHeartBeat();

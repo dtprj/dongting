@@ -92,8 +92,7 @@ public class RaftServer extends AbstractLifeCircle {
 
     private final PendingStat serverStat = new PendingStat();
 
-    public RaftServer(Supplier<Boolean> cancelInitIndicator, RaftServerConfig serverConfig,
-                      List<RaftGroupConfig> groupConfig, RaftFactory raftFactory) {
+    public RaftServer(RaftServerConfig serverConfig, List<RaftGroupConfig> groupConfig, RaftFactory raftFactory) {
         Objects.requireNonNull(serverConfig);
         Objects.requireNonNull(groupConfig);
         Objects.requireNonNull(raftFactory);
@@ -124,7 +123,7 @@ public class RaftServer extends AbstractLifeCircle {
         setupNioConfig(repClientConfig);
         replicateNioClient = new NioClient(repClientConfig);
 
-        createRaftGroups(cancelInitIndicator, serverConfig, groupConfig, allNodeIds);
+        createRaftGroups(serverConfig, groupConfig, allNodeIds);
         nodeManager = new NodeManager(serverConfig, allRaftServers, replicateNioClient, raftGroups);
         raftGroups.forEach((id, gc) -> gc.getEventBus().register(nodeManager));
 
@@ -156,10 +155,10 @@ public class RaftServer extends AbstractLifeCircle {
         }
     }
 
-    private void createRaftGroups(Supplier<Boolean> cancelInitIndicator, RaftServerConfig serverConfig,
+    private void createRaftGroups(RaftServerConfig serverConfig,
                                   List<RaftGroupConfig> groupConfig, HashSet<Integer> allNodeIds) {
         for (RaftGroupConfig rgc : groupConfig) {
-            RaftGroupImpl gc = createRaftGroup(cancelInitIndicator, serverConfig, allNodeIds, rgc);
+            RaftGroupImpl gc = createRaftGroup(serverConfig, allNodeIds, rgc);
             if (raftGroups.get(rgc.getGroupId()) != null) {
                 throw new IllegalArgumentException("duplicate group id: " + rgc.getGroupId());
             }
@@ -168,7 +167,7 @@ public class RaftServer extends AbstractLifeCircle {
 
     }
 
-    private RaftGroupImpl createRaftGroup(Supplier<Boolean> cancelInitIndicator, RaftServerConfig serverConfig,
+    private RaftGroupImpl createRaftGroup(RaftServerConfig serverConfig,
                                           Set<Integer> allNodeIds, RaftGroupConfig rgc) {
         Objects.requireNonNull(rgc.getNodeIdOfMembers());
 
@@ -199,7 +198,7 @@ public class RaftServer extends AbstractLifeCircle {
             throw new IllegalArgumentException("self id not found in group members/observers list: " + serverConfig.getNodeId());
         }
 
-        RaftGroupThread raftGroupThread = new RaftGroupThread(cancelInitIndicator);
+        RaftGroupThread raftGroupThread = new RaftGroupThread();
         RaftExecutor raftExecutor = new RaftExecutor(raftGroupThread);
 
         RaftStatusImpl raftStatus = new RaftStatusImpl();
@@ -352,7 +351,6 @@ public class RaftServer extends AbstractLifeCircle {
             }
             raftGroups.forEach((groupId, gc) -> {
                 RaftGroupThread raftGroupThread = gc.getRaftGroupThread();
-                raftGroupThread.requestShutdown();
                 raftGroupThread.interrupt();
             });
             replicateNioServer.stop();
@@ -438,7 +436,7 @@ public class RaftServer extends AbstractLifeCircle {
                 CompletableFuture<RaftGroupImpl> f = new CompletableFuture<>();
                 RaftUtil.SCHEDULED_SERVICE.execute(() -> {
                     try {
-                        RaftGroupImpl gc = createRaftGroup(cancelInitIndicator, serverConfig,
+                        RaftGroupImpl gc = createRaftGroup(serverConfig,
                                 nodeManager.getAllNodeIds(), groupConfig);
                         gc.getMemberManager().init(nodeManager.getAllNodesEx());
                         f.complete(gc);

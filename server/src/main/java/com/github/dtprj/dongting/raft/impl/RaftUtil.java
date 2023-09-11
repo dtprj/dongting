@@ -312,8 +312,8 @@ public class RaftUtil {
         return dest;
     }
 
-    public static void checkStop(Supplier<Boolean> cancelIndicator) {
-        if (cancelIndicator.get()) {
+    public static void checkStop(Supplier<Boolean> stopIndicator) {
+        if (stopIndicator.get()) {
             throw new StoppedException();
         }
     }

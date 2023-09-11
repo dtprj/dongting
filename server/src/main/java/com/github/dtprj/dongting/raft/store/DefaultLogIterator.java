@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.impl.StoppedException;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -50,7 +51,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
     private final RaftGroupConfigEx groupConfig;
     private final ByteBuffer readBuffer;
 
-    private final Supplier<Boolean> fullIndicator;
+    private final Supplier<Boolean> cancelIndicator;
     private final CRC32C crc32c = new CRC32C();
     private final LogHeader header = new LogHeader();
 
@@ -70,7 +71,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
     private int state;
     private LogItem item;
 
-    DefaultLogIterator(IdxOps idxFiles, FileOps logFiles, RaftGroupConfigEx groupConfig, Supplier<Boolean> fullIndicator) {
+    DefaultLogIterator(IdxOps idxFiles, FileOps logFiles, RaftGroupConfigEx groupConfig, Supplier<Boolean> cancelIndicator) {
         this.idxFiles = idxFiles;
         this.logFiles = logFiles;
         this.raftExecutor = (RaftExecutor) groupConfig.getRaftExecutor();
@@ -78,7 +79,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         this.groupConfig = groupConfig;
         this.heapPool = groupConfig.getHeapPool().getPool();
         this.readBuffer.limit(0);
-        this.fullIndicator = fullIndicator;
+        this.cancelIndicator = cancelIndicator;
     }
 
     @Override
@@ -183,7 +184,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         }
         bufferStartPos = pos - readBuffer.position();
         bufferEndPos = pos + readBuffer.remaining();
-        AsyncIoTask t = new AsyncIoTask(logFile.channel, fullIndicator);
+        AsyncIoTask t = new AsyncIoTask(logFile.channel, groupConfig.getStopIndicator(), cancelIndicator);
         logFile.use++;
         t.read(readBuffer, fileStartPos).whenCompleteAsync((v, ex) -> resumeAfterLoad(logFile, ex), raftExecutor);
     }
@@ -191,8 +192,10 @@ class DefaultLogIterator implements RaftLog.LogIterator {
     private void resumeAfterLoad(LogFile logFile, Throwable ex) {
         try {
             logFile.use--;
-            if (fullIndicator.get()) {
+            if (cancelIndicator != null && cancelIndicator.get()) {
                 finishWithCancel();
+            } else if (groupConfig.getStopIndicator().get()) {
+                finish(new StoppedException());
             } else if (ex != null) {
                 finish(ex);
             } else {

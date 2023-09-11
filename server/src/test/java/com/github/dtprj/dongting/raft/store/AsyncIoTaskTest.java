@@ -64,7 +64,7 @@ public class AsyncIoTaskTest {
         AsynchronousFileChannel channel = AsynchronousFileChannel.open(file.toPath(),
                 StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ);
         ByteBuffer buf = ByteBuffer.allocate(1024);
-        AsyncIoTask t = new AsyncIoTask(channel, () -> false);
+        AsyncIoTask t = new AsyncIoTask(channel, null, null);
         t.write(true, false, buf, 0).get();
     }
 
@@ -74,7 +74,7 @@ public class AsyncIoTaskTest {
         AsynchronousFileChannel channel = AsynchronousFileChannel.open(file.toPath(),
                 StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ);
         ByteBuffer buf = ByteBuffer.allocate(768);
-        AsyncIoTask t = new AsyncIoTask(channel, () -> false);
+        AsyncIoTask t = new AsyncIoTask(channel, null, null);
         t.read(buf, 0).get();
 
         buf.clear();
@@ -96,10 +96,10 @@ public class AsyncIoTaskTest {
             writeBuffer.put((byte) i);
         }
         writeBuffer.clear();
-        AsyncIoTask writeTask = new AsyncIoTask(channel, () -> false);
+        AsyncIoTask writeTask = new AsyncIoTask(channel, () -> false, () -> false);
         writeTask.write(false, false, writeBuffer, 0).get();
 
-        AsyncIoTask readTask = new AsyncIoTask(channel, () -> false);
+        AsyncIoTask readTask = new AsyncIoTask(channel, () -> false, () -> false);
         ByteBuffer readBuffer = ByteBuffer.allocate(32);
         try {
             readTask.read(readBuffer, 0).get();

@@ -34,6 +34,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
 import java.util.zip.CRC32C;
 
 /**
@@ -55,7 +56,7 @@ public class FileSnapshot extends Snapshot {
     private long filePos;
 
     public FileSnapshot(long lastIncludedIndex, int lastIncludedTerm, File dataFile,
-                        ExecutorService ioExecutor, int maxBlock) throws IOException {
+                        ExecutorService ioExecutor, int maxBlock, Supplier<Boolean> stopIndicator) throws IOException {
         super(lastIncludedIndex, lastIncludedTerm);
         this.ioExecutor = ioExecutor;
 
@@ -63,7 +64,7 @@ public class FileSnapshot extends Snapshot {
         options.add(StandardOpenOption.READ);
         this.channel = AsynchronousFileChannel.open(dataFile.toPath(), options, ioExecutor);
         this.fileSize = channel.size();
-        this.task = new AsyncIoTask(channel, () -> false);
+        this.task = new AsyncIoTask(channel, stopIndicator, null);
 
         log.info("open snapshot file, maxBlock={}, size={}, file={}", maxBlock, fileSize, dataFile);
 
@@ -86,7 +87,7 @@ public class FileSnapshot extends Snapshot {
         return future;
     }
 
-    public void readHeader(CompletableFuture<RefBuffer> future) {
+    private void readHeader(CompletableFuture<RefBuffer> future) {
         if (filePos >= fileSize) {
             future.complete(null);
             return;

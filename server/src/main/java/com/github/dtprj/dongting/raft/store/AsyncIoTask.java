@@ -21,7 +21,6 @@ import com.github.dtprj.dongting.raft.impl.StoppedException;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.CompletionHandler;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
@@ -31,6 +30,7 @@ import java.util.function.Supplier;
 public class AsyncIoTask implements CompletionHandler<Integer, CompletableFuture<Void>> {
     private final AsynchronousFileChannel channel;
     private final Supplier<Boolean> stopIndicator;
+    private final Supplier<Boolean> cancelIndicator;
 
     private ByteBuffer ioBuffer;
     private long filePos;
@@ -39,13 +39,9 @@ public class AsyncIoTask implements CompletionHandler<Integer, CompletableFuture
     private boolean flush;
     private boolean flushMeta;
 
-    public AsyncIoTask(AsynchronousFileChannel channel) {
-        this(channel, () -> false);
-    }
-
-    public AsyncIoTask(AsynchronousFileChannel channel, Supplier<Boolean> stopIndicator) {
-        Objects.requireNonNull(channel);
-        Objects.requireNonNull(stopIndicator);
+    public AsyncIoTask(AsynchronousFileChannel channel, Supplier<Boolean> stopIndicator,
+                       Supplier<Boolean> cancelIndicator) {
+        this.cancelIndicator = cancelIndicator;
         this.channel = channel;
         this.stopIndicator = stopIndicator;
     }
@@ -101,8 +97,12 @@ public class AsyncIoTask implements CompletionHandler<Integer, CompletableFuture
             return;
         }
         if (ioBuffer.hasRemaining()) {
-            if (stopIndicator.get()) {
+            if (stopIndicator != null && stopIndicator.get()) {
                 f.completeExceptionally(new StoppedException());
+                return;
+            }
+            if (cancelIndicator != null && cancelIndicator.get()) {
+                f.cancel(false);
                 return;
             }
             int bytes = ioBuffer.position() - position;

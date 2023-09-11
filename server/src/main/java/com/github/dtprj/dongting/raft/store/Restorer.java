@@ -67,7 +67,7 @@ class Restorer {
         this.restoreIndexPos = restoreIndexPos;
     }
 
-    public Pair<Boolean, Long> restoreFile(ByteBuffer buffer, LogFile lf, Supplier<Boolean> cancelIndicator)
+    public Pair<Boolean, Long> restoreFile(ByteBuffer buffer, LogFile lf, Supplier<Boolean> stopIndicator)
             throws IOException, InterruptedException {
         buffer.clear();
         buffer.limit(LogHeader.ITEM_HEADER_SIZE);
@@ -81,7 +81,7 @@ class Restorer {
         }
 
         if (restoreIndexPos < lf.endPos) {
-            return restoreFile0(buffer, lf, cancelIndicator);
+            return restoreFile0(buffer, lf, stopIndicator);
         } else {
             if (header.crcMatch()) {
                 return new Pair<>(false, lf.endPos);
@@ -91,7 +91,7 @@ class Restorer {
         }
     }
 
-    private Pair<Boolean, Long> restoreFile0(ByteBuffer buffer, LogFile lf, Supplier<Boolean> cancelIndicator)
+    private Pair<Boolean, Long> restoreFile0(ByteBuffer buffer, LogFile lf, Supplier<Boolean> stopIndicator)
             throws IOException, InterruptedException {
         log.info("try restore file {}", lf.file.getPath());
         if (restoreIndexPos >= lf.startPos) {
@@ -106,7 +106,7 @@ class Restorer {
         buffer.clear();
         state = STATE_ITEM_HEADER;
         while (readPos < fileOps.fileLength()) {
-            RaftUtil.checkStop(cancelIndicator);
+            RaftUtil.checkStop(stopIndicator);
             int read = FileUtil.syncRead(channel, buffer, readPos);
             if (read == 0) {
                 log.info("read 0 bytes. file={}, pos={}", lf.file.getPath(), readPos);

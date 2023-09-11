@@ -192,7 +192,7 @@ public class ReplicateManager {
             RaftLog.LogIterator logIterator = member.getReplicateIterator();
             if (logIterator == null) {
                 int currentEpoch = member.getReplicateEpoch();
-                logIterator = raftLog.openIterator(() -> member.getReplicateEpoch() != currentEpoch || raftStatus.isStop());
+                logIterator = raftLog.openIterator(() -> member.getReplicateEpoch() != currentEpoch);
                 member.setReplicateIterator(logIterator);
             }
             CompletableFuture<List<LogItem>> future = logIterator.next(nextIndex, Math.min(limit, 1024),
@@ -436,7 +436,7 @@ public class ReplicateManager {
         }
         CompletableFuture<Pair<Integer, Long>> future = raftLog.tryFindMatchPos(
                 body.getSuggestTerm(), body.getSuggestIndex(),
-                () -> raftStatus.isStop() || epochNotMatch(member, reqEpoch));
+                () -> epochNotMatch(member, reqEpoch));
         member.setReplicateFuture(future);
         future.whenCompleteAsync((r, ex) -> resumeAfterFindReplicatePos(r, ex, member, reqEpoch,
                 body.getSuggestTerm(), body.getSuggestIndex()), raftExecutor);

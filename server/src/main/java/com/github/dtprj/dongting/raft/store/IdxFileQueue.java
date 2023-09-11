@@ -159,7 +159,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         long filePos = pos & fileLenMask;
         LogFile lf = getLogFile(pos);
         ByteBuffer buffer = ByteBuffer.allocate(8);
-        AsyncIoTask t = new AsyncIoTask(lf.channel, stopIndicator);
+        AsyncIoTask t = new AsyncIoTask(lf.channel, stopIndicator, null);
         return t.read(buffer, filePos).thenApply(v -> {
             buffer.flip();
             return buffer.getLong();
@@ -248,7 +248,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
         nextPersistIndexAfterWrite = index;
         LogFile logFile = getLogFile(startPos);
-        AsyncIoTask writeTask = new AsyncIoTask(logFile.channel, stopIndicator);
+        AsyncIoTask writeTask = new AsyncIoTask(logFile.channel, stopIndicator, null);
         currentWriteFile = logFile;
         logFile.use++;
         writeFuture = writeTask.write(false, false, writeBuffer, startPos & fileLenMask);

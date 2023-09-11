@@ -83,7 +83,7 @@ public class StatusFile implements AutoCloseable {
                     throw new RaftException("bad status file length: " + file.length());
                 }
                 ByteBuffer buf = ByteBuffer.wrap(data);
-                AsyncIoTask task = new AsyncIoTask(channel);
+                AsyncIoTask task = new AsyncIoTask(channel, null, null);
                 task.read(buf, 0).get(15, TimeUnit.SECONDS);
 
                 CRC32C crc32c = new CRC32C();
@@ -130,7 +130,7 @@ public class StatusFile implements AutoCloseable {
             System.arraycopy(crcBytes, 0, data, 0, CRC_HEX_LENGTH);
             ByteBuffer buf = ByteBuffer.wrap(data);
 
-            AsyncIoTask task = new AsyncIoTask(channel);
+            AsyncIoTask task = new AsyncIoTask(channel, null, null);
             return task.write(flush, false, buf, 0).whenComplete((v, ex) -> {
                 if (ex != null) {
                     log.error("update status file failed. file={}", file.getPath(), ex);

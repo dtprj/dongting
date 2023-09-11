@@ -59,7 +59,7 @@ public class MemRaftLog implements RaftLog {
     }
 
     @Override
-    public Pair<Integer, Long> init(Supplier<Boolean> cancelInit) throws Exception {
+    public Pair<Integer, Long> init(Supplier<Boolean> stopIndicator) throws Exception {
         return new Pair<>(0, 0L);
     }
 
