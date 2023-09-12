@@ -351,10 +351,14 @@ public class RaftServer extends AbstractLifeCircle {
             }
             raftGroups.forEach((groupId, gc) -> {
                 RaftGroupThread raftGroupThread = gc.getRaftGroupThread();
-                raftGroupThread.interrupt();
+                raftGroupThread.requestShutdown();
             });
-            replicateNioServer.stop();
-            replicateNioClient.stop();
+            if (replicateNioServer != null) {
+                replicateNioServer.stop();
+            }
+            if (replicateNioClient != null) {
+                replicateNioClient.stop();
+            }
         } catch (RuntimeException | Error e) {
             log.error("stop raft server failed", e);
             throw e;

@@ -282,6 +282,7 @@ public class RaftGroupThread extends Thread {
 
     public void requestShutdown() {
         raftStatus.setStop(true);
+        this.interrupt();
         log.info("request raft thread shutdown");
     }
 

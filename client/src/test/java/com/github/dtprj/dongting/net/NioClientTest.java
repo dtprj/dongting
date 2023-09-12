@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.DtFrame;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.RefBufferDecoder;
+import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.TestUtil;
@@ -576,12 +577,8 @@ public class NioClientTest {
             NioClientConfig c = new NioClientConfig();
             c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
             client = new NioClient(c);
-            try {
-                client.stop();
-                fail();
-            } catch (IllegalStateException e) {
-                // ignore
-            }
+            client.stop();
+            assertEquals(AbstractLifeCircle.LifeStatus.stopped, client.getStatus());
 
             try {
                 sendSync(5000, client, tick(1000));
@@ -590,6 +587,7 @@ public class NioClientTest {
                 assertEquals(NetException.class, e.getCause().getClass());
             }
 
+            client = new NioClient(c);
             client.start();
             client.waitStart();
             sendSync(5000, client, tick(1000));

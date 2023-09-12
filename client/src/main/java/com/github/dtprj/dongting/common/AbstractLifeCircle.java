@@ -73,8 +73,12 @@ public abstract class AbstractLifeCircle implements LifeCircle {
                     doStop(false);
                     status = LifeStatus.stopped;
                     return;
-                default:
-                    throw new IllegalStateException("error state: " + status);
+                case not_start:
+                    log.warn("status is not_start, skip stop");
+                    status = LifeStatus.stopped;
+                    return;
+                case stopping:
+                    log.warn("last stop failed, skip stop");
             }
         } finally {
             lock.unlock();
