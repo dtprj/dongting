@@ -344,7 +344,7 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     @Override
-    protected void doStop() {
+    protected void doStop(boolean force) {
         try {
             if (serviceNioServer != null) {
                 serviceNioServer.stop();

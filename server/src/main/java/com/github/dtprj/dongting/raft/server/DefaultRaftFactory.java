@@ -52,7 +52,7 @@ public class DefaultRaftFactory extends AbstractLifeCircle implements RaftFactor
     }
 
     @Override
-    protected void doStop() {
+    protected void doStop(boolean force) {
         if (ioExecutor != null) {
             ioExecutor.shutdown();
         }

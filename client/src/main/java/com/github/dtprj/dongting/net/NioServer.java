@@ -131,7 +131,11 @@ public class NioServer extends NioNet implements Runnable {
     }
 
     @Override
-    public void doStop() {
+    public void doStop(boolean force) {
+        if (force) {
+            forceStop();
+            return;
+        }
         DtTime timeout = new DtTime(config.getCloseTimeout(), TimeUnit.MILLISECONDS);
         stopAcceptThread();
         for (NioWorker worker : workers) {
@@ -190,14 +194,10 @@ public class NioServer extends NioNet implements Runnable {
         }
     }
 
-    @Override
-    protected void forceStop() {
+    private void forceStop() {
         log.warn("force stop begin");
         if (acceptThread.isAlive()) {
             stopAcceptThread();
-            for (NioWorker worker : workers) {
-                forceStopWorker(worker);
-            }
         } else {
             if (ssc != null && ssc.isOpen()) {
                 try {
@@ -209,6 +209,9 @@ public class NioServer extends NioNet implements Runnable {
                     log.error("", e);
                 }
             }
+        }
+        for (NioWorker worker : workers) {
+            stopWorker(worker);
         }
         shutdownBizExecutor(new DtTime());
         log.warn("force stop done");

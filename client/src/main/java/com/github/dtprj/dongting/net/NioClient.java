@@ -143,25 +143,27 @@ public class NioClient extends NioNet {
     }
 
     @Override
-    protected void doStop() {
+    protected void doStop(boolean force) {
         DtTime timeout = new DtTime(config.getCloseTimeout(), TimeUnit.MILLISECONDS);
-        worker.preStop();
-        try {
-            long rest = timeout.rest(TimeUnit.MILLISECONDS);
-            if (rest > 0) {
-                worker.getPreCloseFuture().get(rest, TimeUnit.MILLISECONDS);
-                log.info("client {} pre-stop done", config.getName());
-            } else {
+        if (!force) {
+            worker.preStop();
+            try {
+                long rest = timeout.rest(TimeUnit.MILLISECONDS);
+                if (rest > 0) {
+                    worker.getPreCloseFuture().get(rest, TimeUnit.MILLISECONDS);
+                    log.info("client {} pre-stop done", config.getName());
+                } else {
+                    log.warn("client {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
+                }
+            } catch (InterruptedException e) {
+                DtUtil.restoreInterruptStatus();
+            } catch (TimeoutException e) {
                 log.warn("client {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
+            } catch (ExecutionException e) {
+                BugLog.log(e);
             }
-        } catch (InterruptedException e) {
-            DtUtil.restoreInterruptStatus();
-        } catch (TimeoutException e) {
-            log.warn("client {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
-        } catch (ExecutionException e) {
-            BugLog.log(e);
         }
-        worker.stop();
+        stopWorker(worker);
         try {
             long rest = timeout.rest(TimeUnit.MILLISECONDS);
             if (rest > 0) {
@@ -173,14 +175,6 @@ public class NioClient extends NioNet {
         shutdownBizExecutor(timeout);
 
         log.info("client {} stopped", config.getName());
-    }
-
-    @Override
-    protected void forceStop() {
-        log.warn("force stop begin");
-        forceStopWorker(worker);
-        shutdownBizExecutor(new DtTime());
-        log.warn("force stop done");
     }
 
     public List<Peer> getPeers() {

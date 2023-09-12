@@ -15,49 +15,72 @@
  */
 package com.github.dtprj.dongting.common;
 
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
+
+import java.util.concurrent.locks.ReentrantLock;
+
 /**
  * @author huangli
  */
 public abstract class AbstractLifeCircle implements LifeCircle {
+    private static final DtLog log = DtLogs.getLogger(AbstractLifeCircle.class);
 
-    protected enum LifeStatus {
+    public enum LifeStatus {
         not_start, starting, running, stopping, stopped
     }
 
-
     protected volatile LifeStatus status = LifeStatus.not_start;
+    private final ReentrantLock lock = new ReentrantLock();
+
+    public LifeStatus getStatus() {
+        return status;
+    }
 
     @Override
-    public final synchronized void start() {
-        if (status == LifeStatus.not_start) {
-            status = LifeStatus.starting;
-            doStart();
-            status = LifeStatus.running;
-        } else {
-            throw new IllegalStateException("error state: " + status);
+    public final void start() {
+        lock.lock();
+        try {
+            if (status == LifeStatus.not_start) {
+                status = LifeStatus.starting;
+                doStart();
+                status = LifeStatus.running;
+            } else {
+                throw new IllegalStateException("error state: " + status);
+            }
+        } finally {
+            lock.unlock();
         }
     }
 
     protected abstract void doStart();
 
     @Override
-    public final synchronized void stop() {
-        if (status == LifeStatus.stopped) {
-            return;
-        }
-        if (status == LifeStatus.running) {
-            status = LifeStatus.stopping;
-            doStop();
-            status = LifeStatus.stopped;
-        } else if (status == LifeStatus.starting) {
-            forceStop();
-        } else {
-            throw new IllegalStateException("error state: " + status);
+    public final void stop() {
+        lock.lock();
+        try {
+            switch (status) {
+                case stopped:
+                    return;
+                case starting:
+                    log.warn("status is starting, try stop");
+                    status = LifeStatus.stopping;
+                    doStop(true);
+                    status = LifeStatus.stopped;
+                    return;
+                case running:
+                    status = LifeStatus.stopping;
+                    doStop(false);
+                    status = LifeStatus.stopped;
+                    return;
+                default:
+                    throw new IllegalStateException("error state: " + status);
+            }
+        } finally {
+            lock.unlock();
         }
     }
 
-    protected abstract void doStop();
+    protected abstract void doStop(boolean force);
 
-    protected void forceStop() {
-    }
 }

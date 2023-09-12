@@ -116,7 +116,7 @@ public class KvClient extends AbstractLifeCircle {
         raftClient.start();
     }
 
-    protected void doStop() {
+    protected void doStop(boolean force) {
         raftClient.stop();
     }
 }

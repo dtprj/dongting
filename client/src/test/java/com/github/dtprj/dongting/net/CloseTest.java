@@ -76,7 +76,7 @@ public class CloseTest {
     public void shutdown() {
         DtUtil.close(client);
         if (server != null) {
-            server.forceStop();
+            server.stop();
         }
     }
 
