@@ -35,7 +35,6 @@ public abstract class NioConfig {
 
     private long selectTimeout = 50;
     private long cleanInterval = 100;
-    private long closeTimeout = 1000;
 
     private int maxFrameSize = 5 * 1024 * 1024;
     private int maxBodySize = 4 * 1024 * 1024;
@@ -85,14 +84,6 @@ public abstract class NioConfig {
 
     public void setCleanInterval(long cleanInterval) {
         this.cleanInterval = cleanInterval;
-    }
-
-    public long getCloseTimeout() {
-        return closeTimeout;
-    }
-
-    public void setCloseTimeout(long closeTimeout) {
-        this.closeTimeout = closeTimeout;
     }
 
     public int getMaxInRequests() {

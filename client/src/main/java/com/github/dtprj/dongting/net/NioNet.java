@@ -144,10 +144,10 @@ public abstract class NioNet extends AbstractLifeCircle {
         });
     }
 
-    void stopWorker(NioWorker worker) {
+    void stopWorker(NioWorker worker, DtTime timeout) {
         try {
             if (worker != null && worker.getStatus() != LifeStatus.not_start) {
-                worker.stop();
+                worker.stop(timeout);
             }
         } catch (Exception e) {
             log.error("stop worker fail: worker={}, error={}", worker.getThread().getName(), e.toString());
@@ -160,14 +160,16 @@ public abstract class NioNet extends AbstractLifeCircle {
             if (Thread.currentThread().isInterrupted()) {
                 return;
             }
-            long rest = timeout.rest(TimeUnit.MILLISECONDS);
-            if (rest > 0) {
-                try {
-                    if (!bizExecutor.awaitTermination(rest, TimeUnit.MILLISECONDS)) {
-                        log.warn("bizExecutor not terminated in {} ms", rest);
+            if (timeout != null) {
+                long rest = timeout.rest(TimeUnit.MILLISECONDS);
+                if (rest > 0) {
+                    try {
+                        if (!bizExecutor.awaitTermination(rest, TimeUnit.MILLISECONDS)) {
+                            log.warn("bizExecutor not terminated in {} ms", rest);
+                        }
+                    } catch (InterruptedException e) {
+                        DtUtil.restoreInterruptStatus();
                     }
-                } catch (InterruptedException e) {
-                    DtUtil.restoreInterruptStatus();
                 }
             }
         }

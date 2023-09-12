@@ -143,34 +143,37 @@ public class NioClient extends NioNet {
     }
 
     @Override
-    protected void doStop(boolean force) {
-        DtTime timeout = new DtTime(config.getCloseTimeout(), TimeUnit.MILLISECONDS);
+    protected void doStop(DtTime timeout, boolean force) {
         if (!force) {
             worker.preStop();
+            if (timeout != null) {
+                try {
+                    long rest = timeout.rest(TimeUnit.MILLISECONDS);
+                    if (rest > 0) {
+                        worker.getPreCloseFuture().get(rest, TimeUnit.MILLISECONDS);
+                        log.info("client {} pre-stop done", config.getName());
+                    } else {
+                        log.warn("client {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
+                    }
+                } catch (InterruptedException e) {
+                    DtUtil.restoreInterruptStatus();
+                } catch (TimeoutException e) {
+                    log.warn("client {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
+                } catch (ExecutionException e) {
+                    BugLog.log(e);
+                }
+            }
+        }
+        stopWorker(worker, timeout);
+        if (timeout != null) {
             try {
                 long rest = timeout.rest(TimeUnit.MILLISECONDS);
                 if (rest > 0) {
-                    worker.getPreCloseFuture().get(rest, TimeUnit.MILLISECONDS);
-                    log.info("client {} pre-stop done", config.getName());
-                } else {
-                    log.warn("client {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
+                    worker.getThread().join(rest);
                 }
             } catch (InterruptedException e) {
                 DtUtil.restoreInterruptStatus();
-            } catch (TimeoutException e) {
-                log.warn("client {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
-            } catch (ExecutionException e) {
-                BugLog.log(e);
             }
-        }
-        stopWorker(worker);
-        try {
-            long rest = timeout.rest(TimeUnit.MILLISECONDS);
-            if (rest > 0) {
-                worker.getThread().join(rest);
-            }
-        } catch (InterruptedException e) {
-            DtUtil.restoreInterruptStatus();
         }
         shutdownBizExecutor(timeout);
 

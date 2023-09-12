@@ -301,7 +301,7 @@ public class RaftClient extends AbstractLifeCircle {
     }
 
     @Override
-    protected void doStop(boolean force) {
-        client.stop();
+    protected void doStop(DtTime timeout, boolean force) {
+        client.stop(timeout);
     }
 }

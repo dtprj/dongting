@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.raft.sm.DefaultSnapshotManager;
 import com.github.dtprj.dongting.raft.sm.SnapshotManager;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
@@ -52,7 +53,7 @@ public class DefaultRaftFactory extends AbstractLifeCircle implements RaftFactor
     }
 
     @Override
-    protected void doStop(boolean force) {
+    protected void doStop(DtTime timeout, boolean force) {
         if (ioExecutor != null) {
             ioExecutor.shutdown();
         }

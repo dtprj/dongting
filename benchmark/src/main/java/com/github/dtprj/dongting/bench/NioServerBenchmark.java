@@ -72,8 +72,8 @@ public class NioServerBenchmark extends BenchBase {
 
     @Override
     public void shutdown() {
-        client.stop();
-        server.stop();
+        client.stop(new DtTime(3, TimeUnit.SECONDS));
+        server.stop(new DtTime(3, TimeUnit.SECONDS));
     }
 
     @Override

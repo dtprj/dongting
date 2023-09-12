@@ -660,7 +660,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     @Override
-    public void doStop(boolean force) {
+    public void doStop(DtTime timeout, boolean force) {
         stopStatus = SS_STOP;
         wakeup();
     }

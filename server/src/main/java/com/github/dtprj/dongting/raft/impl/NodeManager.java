@@ -112,7 +112,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
     }
 
     @Override
-    protected void doStop(boolean force) {
+    protected void doStop(DtTime timeout, boolean force) {
         if (scheduledFuture != null) {
             scheduledFuture.cancel(false);
         }

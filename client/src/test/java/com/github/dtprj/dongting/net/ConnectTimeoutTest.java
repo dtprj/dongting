@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.TestUtil;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.ExecutionException;
@@ -59,7 +59,7 @@ public class ConnectTimeoutTest {
             deadline = new DtTime(1, TimeUnit.SECONDS);
             client.connect(peer, deadline).get(1, TimeUnit.SECONDS);
         } finally {
-            DtUtil.close(server, client);
+            TestUtil.stop(server, client);
         }
 
     }

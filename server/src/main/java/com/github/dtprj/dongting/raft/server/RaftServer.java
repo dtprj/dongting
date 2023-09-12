@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.server;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.DtLog;
@@ -344,20 +345,20 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     @Override
-    protected void doStop(boolean force) {
+    protected void doStop(DtTime timeout, boolean force) {
         try {
             if (serviceNioServer != null) {
-                serviceNioServer.stop();
+                serviceNioServer.stop(timeout);
             }
             raftGroups.forEach((groupId, gc) -> {
                 RaftGroupThread raftGroupThread = gc.getRaftGroupThread();
                 raftGroupThread.requestShutdown();
             });
             if (replicateNioServer != null) {
-                replicateNioServer.stop();
+                replicateNioServer.stop(timeout);
             }
             if (replicateNioClient != null) {
-                replicateNioClient.stop();
+                replicateNioClient.stop(timeout);
             }
         } catch (RuntimeException | Error e) {
             log.error("stop raft server failed", e);

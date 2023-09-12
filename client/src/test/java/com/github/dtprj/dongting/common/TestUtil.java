@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.common;
 import org.opentest4j.AssertionFailedError;
 
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
@@ -51,11 +52,23 @@ public class TestUtil {
             }
             waitCount++;
             obj = actual.get();
-            if(Objects.equals(expectValue, obj)){
+            if (Objects.equals(expectValue, obj)) {
                 return;
             }
         }
         throw new AssertionFailedError("expect: " + expectValue + ", actual:" + obj + ", timeout="
                 + timeoutMillis + "ms, cost=" + (System.nanoTime() - start) / 1000 / 1000 + "ms, waitCount=" + waitCount);
+    }
+
+    public static void stop(LifeCircle... lifeCircle) {
+        for (LifeCircle lc : lifeCircle) {
+            try {
+                if (lc != null) {
+                    lc.stop(new DtTime(5, TimeUnit.SECONDS));
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 }

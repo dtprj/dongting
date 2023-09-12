@@ -34,22 +34,16 @@ public class DtUtil {
     private static int CPU_COUNT = RUNTIME.availableProcessors();
     private static int cpuCountInvoke;
 
-    public static void close(Object... resources) {
-        for (Object res : resources) {
+    public static void close(AutoCloseable... resources) {
+        for (AutoCloseable res : resources) {
             close(res);
         }
     }
 
-    public static void close(Object res) {
+    public static void close(AutoCloseable res) {
         if (res != null) {
             try {
-                if (res instanceof AutoCloseable) {
-                    ((AutoCloseable) res).close();
-                } else if (res instanceof LifeCircle) {
-                    ((LifeCircle) res).stop();
-                } else {
-                    log.error("unknown resource type:{}", res.getClass());
-                }
+                res.close();
             } catch (Throwable e) {
                 log.error("close fail", e);
             }

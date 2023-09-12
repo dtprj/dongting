@@ -19,7 +19,7 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.codec.RefBufferDecoder;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.TestUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -51,7 +51,7 @@ public class NioServerClientTest {
             client.waitStart();
             invoke(client);
         } finally {
-            DtUtil.close(client, server);
+            TestUtil.stop(client, server);
         }
     }
 
@@ -128,7 +128,7 @@ public class NioServerClientTest {
             }
 
         } finally {
-            DtUtil.close(client, server);
+            TestUtil.stop(client, server);
         }
     }
 

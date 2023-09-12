@@ -56,7 +56,7 @@ public abstract class AbstractLifeCircle implements LifeCircle {
     protected abstract void doStart();
 
     @Override
-    public final void stop() {
+    public final void stop(DtTime timeout) {
         lock.lock();
         try {
             switch (status) {
@@ -65,12 +65,12 @@ public abstract class AbstractLifeCircle implements LifeCircle {
                 case starting:
                     log.warn("status is starting, try stop");
                     status = LifeStatus.stopping;
-                    doStop(true);
+                    doStop(timeout, true);
                     status = LifeStatus.stopped;
                     return;
                 case running:
                     status = LifeStatus.stopping;
-                    doStop(false);
+                    doStop(timeout, false);
                     status = LifeStatus.stopped;
                     return;
                 case not_start:
@@ -85,6 +85,6 @@ public abstract class AbstractLifeCircle implements LifeCircle {
         }
     }
 
-    protected abstract void doStop(boolean force);
+    protected abstract void doStop(DtTime timeout, boolean force);
 
 }

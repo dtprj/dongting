@@ -22,6 +22,6 @@ public interface LifeCircle {
 
     void start();
 
-    void stop();
+    void stop(DtTime timeout);
 
 }

@@ -187,7 +187,8 @@ public class NioClientTest {
             client.waitStart();
             sendSync(5000, client, tick(1000));
         } finally {
-            DtUtil.close(client, server);
+            TestUtil.stop(client);
+            DtUtil.close(server);
         }
     }
 
@@ -205,7 +206,8 @@ public class NioClientTest {
             client.waitStart();
             asyncTest(client, tick(1000), 1, 6000);
         } finally {
-            DtUtil.close(client, server);
+            TestUtil.stop(client);
+            DtUtil.close(server);
         }
     }
 
@@ -223,7 +225,8 @@ public class NioClientTest {
             client.waitStart();
             generalTest(client, tick(100));
         } finally {
-            DtUtil.close(client, server);
+            TestUtil.stop(client);
+            DtUtil.close(server);
         }
     }
 
@@ -270,7 +273,8 @@ public class NioClientTest {
             client.waitStart();
             generalTest(client, tick(100));
         } finally {
-            DtUtil.close(client, server1, server2);
+            TestUtil.stop(client);
+            DtUtil.close(server1, server2);
         }
     }
 
@@ -362,7 +366,7 @@ public class NioClientTest {
         NioClient client = new NioClient(c);
         client.start();
         Assertions.assertThrows(NetException.class, client::waitStart);
-        client.stop();
+        TestUtil.stop(client);
     }
 
     @Test
@@ -440,7 +444,8 @@ public class NioClientTest {
             }
 
         } finally {
-            DtUtil.close(client, server1, server2);
+            TestUtil.stop(client);
+            DtUtil.close(server1, server2);
         }
     }
 
@@ -473,7 +478,8 @@ public class NioClientTest {
             // auto connect
             sendSyncByPeer(5000, client, p1, 500);
         } finally {
-            DtUtil.close(client, server1);
+            TestUtil.stop(client);
+            DtUtil.close(server1);
         }
     }
 
@@ -534,7 +540,8 @@ public class NioClientTest {
 
             client.removePeer(p2.getEndPoint()).get();
         } finally {
-            DtUtil.close(client, server1, server2);
+            TestUtil.stop(client);
+            DtUtil.close(server1, server2);
         }
     }
 
@@ -564,7 +571,8 @@ public class NioClientTest {
             }
             f3.get(tick(1), TimeUnit.SECONDS);
         } finally {
-            DtUtil.close(client, server);
+            TestUtil.stop(client);
+            DtUtil.close(server);
         }
     }
 
@@ -577,7 +585,7 @@ public class NioClientTest {
             NioClientConfig c = new NioClientConfig();
             c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
             client = new NioClient(c);
-            client.stop();
+            client.stop(new DtTime(1, TimeUnit.SECONDS));
             assertEquals(AbstractLifeCircle.LifeStatus.stopped, client.getStatus());
 
             try {
@@ -592,7 +600,7 @@ public class NioClientTest {
             client.waitStart();
             sendSync(5000, client, tick(1000));
 
-            client.stop();
+            TestUtil.stop(client);
 
             try {
                 sendSync(5000, client, tick(1000));
@@ -608,7 +616,8 @@ public class NioClientTest {
                 // ignore
             }
         } finally {
-            DtUtil.close(client, server);
+            TestUtil.stop(client);
+            DtUtil.close(server);
         }
     }
 
@@ -632,7 +641,8 @@ public class NioClientTest {
                 assertEquals(100, ((NetCodeException) e.getCause()).getCode());
             }
         } finally {
-            DtUtil.close(client, server);
+            TestUtil.stop(client);
+            DtUtil.close(server);
         }
     }
 
@@ -646,16 +656,16 @@ public class NioClientTest {
             c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
             c.setCleanInterval(0);
             c.setSelectTimeout(1);
-            c.setCloseTimeout(3000);
             client = new NioClient(c);
             client.start();
             client.waitStart();
             server.sleep = tick(40);
             CompletableFuture<Void> f = sendAsync(3000, client, tick(1000));
-            client.stop();
+            client.stop(new DtTime(3, TimeUnit.SECONDS));
             f.get(tick(1), TimeUnit.SECONDS);
         } finally {
-            DtUtil.close(client, server);
+            TestUtil.stop(client);
+            DtUtil.close(server);
         }
     }
 
@@ -674,14 +684,13 @@ public class NioClientTest {
             c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
             c.setCleanInterval(0);
             c.setSelectTimeout(1);
-            // close timeout less than server process time
-            c.setCloseTimeout(tick(closeTimeout));
             client = new NioClient(c);
             client.start();
             client.waitStart();
             server.sleep = tick(40);
             CompletableFuture<Void> f = sendAsync(3000, client, tick(1000));
-            client.stop();
+            // close timeout less than server process time
+            client.stop(new DtTime(tick(closeTimeout), TimeUnit.MILLISECONDS));
             try {
                 f.get(tick(1), TimeUnit.SECONDS);
                 fail();
@@ -691,7 +700,8 @@ public class NioClientTest {
                 assertTrue(msg.contains("channel closed") || msg.equals("client closed"), msg);
             }
         } finally {
-            DtUtil.close(client, server);
+            TestUtil.stop(client);
+            DtUtil.close(server);
         }
     }
 
@@ -716,7 +726,7 @@ public class NioClientTest {
                 assertEquals("wait connect timeout", e.getCause().getMessage());
             }
         } finally {
-            DtUtil.close(client);
+            TestUtil.stop(client);
         }
     }
 
@@ -727,7 +737,6 @@ public class NioClientTest {
         c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
         c.setCleanInterval(0);
         c.setSelectTimeout(1);
-        c.setCloseTimeout(0);
         NioClient client = new NioClient(c);
         client.start();
         client.waitStart();
@@ -759,7 +768,8 @@ public class NioClientTest {
             });
         }
 
-        DtUtil.close(client, server);
+        client.stop(null);
+        DtUtil.close(server);
         CompletableFuture.allOf(allFutures).get();
         assertFalse(fail.get());
     }
@@ -804,7 +814,8 @@ public class NioClientTest {
                 sendSync(5000, client, tick(1000));
             }
         } finally {
-            DtUtil.close(client, server);
+            TestUtil.stop(client);
+            DtUtil.close(server);
         }
     }
 
@@ -882,7 +893,8 @@ public class NioClientTest {
             }
 
         } finally {
-            DtUtil.close(client, server);
+            TestUtil.stop(client);
+            DtUtil.close(server);
         }
     }
 
@@ -925,7 +937,8 @@ public class NioClientTest {
 
             sendSyncByPeer(100, client, peer, tick(1000));
         } finally {
-            DtUtil.close(client, server);
+            TestUtil.stop(client);
+            DtUtil.close(server);
         }
     }
 }

@@ -131,49 +131,52 @@ public class NioServer extends NioNet implements Runnable {
     }
 
     @Override
-    public void doStop(boolean force) {
+    public void doStop(DtTime timeout, boolean force) {
         if (force) {
-            forceStop();
+            forceStop(timeout);
             return;
         }
-        DtTime timeout = new DtTime(config.getCloseTimeout(), TimeUnit.MILLISECONDS);
         stopAcceptThread();
         for (NioWorker worker : workers) {
             worker.preStop();
         }
-        boolean preStopOk = true;
-        for (NioWorker worker : workers) {
-            long rest = timeout.rest(TimeUnit.MILLISECONDS);
-            if (rest > 0) {
-                try {
-                    worker.getPreCloseFuture().get(rest, TimeUnit.MILLISECONDS);
-                } catch (InterruptedException e) {
-                    DtUtil.restoreInterruptStatus();
-                } catch (TimeoutException e) {
+        if (timeout != null) {
+            boolean preStopOk = true;
+            for (NioWorker worker : workers) {
+                long rest = timeout.rest(TimeUnit.MILLISECONDS);
+                if (rest > 0) {
+                    try {
+                        worker.getPreCloseFuture().get(rest, TimeUnit.MILLISECONDS);
+                    } catch (InterruptedException e) {
+                        DtUtil.restoreInterruptStatus();
+                    } catch (TimeoutException e) {
+                        preStopOk = false;
+                        log.info("server {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
+                        break;
+                    } catch (ExecutionException e) {
+                        BugLog.log(e);
+                    }
+                } else {
                     preStopOk = false;
                     log.info("server {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
-                    break;
-                } catch (ExecutionException e) {
-                    BugLog.log(e);
                 }
-            } else {
-                preStopOk = false;
-                log.info("server {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
+            }
+            if (preStopOk) {
+                log.info("server {} pre-stop done", config.getName());
             }
         }
-        if (preStopOk) {
-            log.info("server {} pre-stop done", config.getName());
-        }
         for (NioWorker worker : workers) {
-            worker.stop();
+            stopWorker(worker, timeout);
         }
-        for (NioWorker worker : workers) {
-            long rest = timeout.rest(TimeUnit.MILLISECONDS);
-            if (rest > 0) {
-                try {
-                    worker.getThread().join(rest);
-                } catch (InterruptedException e) {
-                    DtUtil.restoreInterruptStatus();
+        if (timeout != null) {
+            for (NioWorker worker : workers) {
+                long rest = timeout.rest(TimeUnit.MILLISECONDS);
+                if (rest > 0) {
+                    try {
+                        worker.getThread().join(rest);
+                    } catch (InterruptedException e) {
+                        DtUtil.restoreInterruptStatus();
+                    }
                 }
             }
         }
@@ -194,7 +197,7 @@ public class NioServer extends NioNet implements Runnable {
         }
     }
 
-    private void forceStop() {
+    private void forceStop(DtTime timeout) {
         log.warn("force stop begin");
         if (acceptThread.isAlive()) {
             stopAcceptThread();
@@ -211,7 +214,7 @@ public class NioServer extends NioNet implements Runnable {
             }
         }
         for (NioWorker worker : workers) {
-            stopWorker(worker);
+            stopWorker(worker, timeout);
         }
         shutdownBizExecutor(new DtTime());
         log.warn("force stop done");

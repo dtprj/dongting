@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.RefBufferDecoder;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.TestUtil;
 import com.github.dtprj.dongting.common.Tick;
 import org.junit.jupiter.api.AfterEach;
@@ -74,10 +73,7 @@ public class CloseTest {
 
     @AfterEach
     public void shutdown() {
-        DtUtil.close(client);
-        if (server != null) {
-            server.stop();
-        }
+        TestUtil.stop(client, server);
     }
 
     @Test

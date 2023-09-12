@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.codec.RefBufferDecoder;
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.TestUtil;
 import com.github.dtprj.dongting.log.BugLog;
 import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.AfterEach;
@@ -109,7 +110,7 @@ public class NioServerTest {
 
     @AfterEach
     public void teardown() {
-        server.stop();
+        TestUtil.stop(server);
     }
 
     @Test
