@@ -148,7 +148,9 @@ public class NioServer extends NioNet implements Runnable {
                     try {
                         worker.getPreCloseFuture().get(rest, TimeUnit.MILLISECONDS);
                     } catch (InterruptedException e) {
+                        log.warn("nio server pre-stop interrupted");
                         DtUtil.restoreInterruptStatus();
+                        break;
                     } catch (TimeoutException e) {
                         preStopOk = false;
                         log.info("server {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
@@ -176,6 +178,7 @@ public class NioServer extends NioNet implements Runnable {
                         worker.getThread().join(rest);
                     } catch (InterruptedException e) {
                         DtUtil.restoreInterruptStatus();
+                        break;
                     }
                 }
             }

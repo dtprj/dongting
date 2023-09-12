@@ -66,11 +66,11 @@ public class RaftGroupImpl extends RaftGroup {
     }
 
     private void checkStatus() {
-        if (!raftStatus.isInitialized()) {
+        if (!raftGroupThread.isPrepared()) {
             throw new RaftException("not initialized");
         }
         if (raftStatus.isStop()) {
-            throw new RaftException("raft server is not running");
+            throw new RaftException("raft group is not running");
         }
     }
 

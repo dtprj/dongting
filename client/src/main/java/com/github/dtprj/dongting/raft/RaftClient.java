@@ -65,6 +65,7 @@ public class RaftClient extends AbstractLifeCircle {
         this.client = new NioClient(nioClientConfig);
     }
 
+    @SuppressWarnings("unused")
     public synchronized void addOrUpdateGroup(int groupId, List<HostPort> servers) throws NetException {
         Objects.requireNonNull(servers);
         if (servers.size() == 0) {
@@ -140,6 +141,7 @@ public class RaftClient extends AbstractLifeCircle {
         }
     }
 
+    @SuppressWarnings("unused")
     public synchronized void removeGroup(int groupId) throws NetException {
         Pair<GroupInfo, IntObjMap<GroupInfo>> pair = IntObjMap.copyOnWriteRemove(groups, groupId);
         GroupInfo oldGroupInfo = pair.getLeft();

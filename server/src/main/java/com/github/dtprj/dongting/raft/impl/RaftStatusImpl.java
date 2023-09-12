@@ -73,8 +73,6 @@ public class RaftStatusImpl extends RaftStatus {
 
     private boolean holdRequest;
 
-    private boolean initialized;
-
     public RaftStatusImpl() {
         lastElectTime = ts.getNanoTime();
         heartbeatTime = ts.getNanoTime();
@@ -348,14 +346,6 @@ public class RaftStatusImpl extends RaftStatus {
 
     public void setPreparedObservers(List<RaftMember> preparedObservers) {
         this.preparedObservers = preparedObservers;
-    }
-
-    public boolean isInitialized() {
-        return initialized;
-    }
-
-    public void setInitialized(boolean initialized) {
-        this.initialized = initialized;
     }
 
     public long getLastConfigChangeIndex() {

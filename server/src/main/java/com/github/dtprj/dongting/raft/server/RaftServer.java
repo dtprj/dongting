@@ -60,14 +60,13 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -92,6 +91,8 @@ public class RaftServer extends AbstractLifeCircle {
     private final AtomicBoolean change = new AtomicBoolean(false);
 
     private final PendingStat serverStat = new PendingStat();
+
+    private final CompletableFuture<Void> readyFuture = new CompletableFuture<>();
 
     public RaftServer(RaftServerConfig serverConfig, List<RaftGroupConfig> groupConfig, RaftFactory raftFactory) {
         Objects.requireNonNull(serverConfig);
@@ -311,37 +312,50 @@ public class RaftServer extends AbstractLifeCircle {
             replicateNioClient.waitStart();
 
             nodeManager.start();
-            waitFuture(nodeManager.readyFuture(RaftUtil.getElectQuorum(nodeManager.getAllNodesEx().size())));
+
+            ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
+
+            int electQuorum = RaftUtil.getElectQuorum(nodeManager.getAllNodesEx().size());
+            futures.add(nodeManager.readyFuture(electQuorum));
+
             log.info("nodeManager is ready");
 
             raftGroups.forEach((groupId, gc) -> {
                 gc.getMemberManager().init(nodeManager.getAllNodesEx());
                 gc.getRaftGroupThread().start();
-            });
-
-            raftGroups.forEach((groupId, gc) -> {
                 CompletableFuture<Void> f = gc.getRaftGroupThread().readyFuture();
-                waitFuture(f);
-                gc.getRaftStatus().setInitialized(true);
-                log.info("raft group {} is ready", groupId);
+                f.whenComplete((v, ex) -> {
+                    if (ex == null) {
+                        log.info("raft group {} is ready", groupId);
+                    } else {
+                        log.error("raft group {} start failed", groupId, ex);
+                    }
+                });
+                futures.add(f);
             });
 
-            serviceNioServer.start();
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).whenComplete((v, ex) -> {
+                if (ex == null) {
+                    try {
+                        serviceNioServer.start();
+                        readyFuture.complete(null);
+                    } catch (Exception serviceNioServerStartEx) {
+                        readyFuture.completeExceptionally(serviceNioServerStartEx);
+                    }
+                } else {
+                    readyFuture.completeExceptionally(ex);
+                }
+            });
+
         } catch (RuntimeException | Error e) {
             log.error("start raft server failed", e);
             throw e;
         }
     }
 
-    private void waitFuture(CompletableFuture<Void> f) {
-        try {
-            f.get();
-        } catch (InterruptedException e) {
-            DtUtil.restoreInterruptStatus();
-            throw new CancellationException();
-        } catch (ExecutionException e) {
-            throw new RaftException(e);
-        }
+    @SuppressWarnings("unused")
+    public CompletableFuture<Void> getReadyFuture() {
+        return readyFuture;
     }
 
     @Override
@@ -350,10 +364,31 @@ public class RaftServer extends AbstractLifeCircle {
             if (serviceNioServer != null) {
                 serviceNioServer.stop(timeout);
             }
+            ArrayList<Thread> threads = new ArrayList<>();
             raftGroups.forEach((groupId, gc) -> {
                 RaftGroupThread raftGroupThread = gc.getRaftGroupThread();
                 raftGroupThread.requestShutdown();
+                threads.add(raftGroupThread);
             });
+            nodeManager.stop(timeout);
+
+            if (timeout != null) {
+                try {
+                    for (Thread t : threads) {
+                        long rest = timeout.rest(TimeUnit.MILLISECONDS);
+                        if (rest <= 0) {
+                            break;
+                        }
+                        if (t.isAlive()) {
+                            t.join(rest);
+                        }
+                    }
+                } catch (InterruptedException e) {
+                    log.warn("stop raft server interrupted");
+                    DtUtil.restoreInterruptStatus();
+                }
+            }
+
             if (replicateNioServer != null) {
                 replicateNioServer.stop(timeout);
             }

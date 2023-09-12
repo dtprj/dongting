@@ -32,6 +32,7 @@ import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotManager;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
+import com.github.dtprj.dongting.raft.store.StatusManager;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -60,6 +61,13 @@ public class RaftGroupThread extends Thread {
 
     private long heartbeatIntervalNanos;
     private long electTimeoutNanos;
+    private StatusManager statusManager;
+
+    private RaftGroupConfig groupConfig;
+
+    private volatile boolean prepared;
+
+    private final CompletableFuture<Void> prepareFuture = new CompletableFuture<>();
 
     // TODO optimise blocking queue
     private LinkedBlockingQueue<Object> queue;
@@ -78,6 +86,8 @@ public class RaftGroupThread extends Thread {
         this.voteManager = gc.getVoteManager();
         this.snapshotManager = gc.getSnapshotManager();
         this.applyManager = gc.getApplyManager();
+        this.statusManager = gc.getStatusManager();
+        this.groupConfig = gc.getGroupConfig();
 
         electTimeoutNanos = Duration.ofMillis(config.getElectTimeout()).toNanos();
         raftStatus.setElectTimeoutNanos(electTimeoutNanos);
@@ -86,8 +96,11 @@ public class RaftGroupThread extends Thread {
         RaftGroupConfig groupConfig = gc.getGroupConfig();
         setName("raft-" + groupConfig.getGroupId());
 
+    }
+
+    private boolean prepareEventLoop() {
         try {
-            gc.getStatusManager().initStatusFileChannel(groupConfig.getDataDir(), groupConfig.getStatusFile());
+            statusManager.initStatusFileChannel(groupConfig.getDataDir(), groupConfig.getStatusFile());
             Pair<Integer, Long> snapshotResult = recoverStateMachine();
             int snapshotTerm = snapshotResult == null ? 0 : snapshotResult.getLeft();
             long snapshotIndex = snapshotResult == null ? 0 : snapshotResult.getRight();
@@ -115,13 +128,12 @@ public class RaftGroupThread extends Thread {
                     initResult.getLeft(), initResult.getRight(), groupConfig.getGroupId());
             raftStatus.setLastLogTerm(initResultTerm);
             raftStatus.setLastLogIndex(initResultIndex);
-
-        } catch (RuntimeException e) {
-            clean();
-            throw e;
-        } catch (Exception e) {
-            clean();
-            throw new RaftException(e);
+            prepareFuture.complete(null);
+            return true;
+        } catch (Throwable e) {
+            log.error("prepare raft event loop failed, groupId={}", groupConfig.getGroupId(), e);
+            prepareFuture.completeExceptionally(e);
+            return false;
         }
     }
 
@@ -159,7 +171,7 @@ public class RaftGroupThread extends Thread {
     }
 
     public CompletableFuture<Void> readyFuture() {
-        return CompletableFuture.allOf(memberReadyFuture(), applyReadyFuture());
+        return CompletableFuture.allOf(prepareFuture, memberReadyFuture(), applyReadyFuture());
     }
 
     private CompletableFuture<Void> memberReadyFuture() {
@@ -185,13 +197,18 @@ public class RaftGroupThread extends Thread {
     @Override
     public void run() {
         try {
+            if (!prepareEventLoop()) {
+                return;
+            }
+            prepared = true;
             RaftUtil.checkStop(raftStatus::isStop);
             if (raftStatus.getElectQuorum() == 1 && raftStatus.getNodeIdOfMembers().contains(config.getNodeId())) {
                 RaftUtil.changeToLeader(raftStatus);
                 raft.sendHeartBeat();
             }
             applyManager.apply(raftStatus);
-            run0();
+            raftLoop();
+            log.info("raft thread exit, groupId={}", raftStatus.getGroupId());
         } catch (Throwable e) {
             Throwable cause = DtUtil.rootCause(e);
             if (cause instanceof InterruptedException) {
@@ -206,7 +223,7 @@ public class RaftGroupThread extends Thread {
         }
     }
 
-    private void run0() {
+    private void raftLoop() {
         Timestamp ts = raftStatus.getTs();
         long lastCleanTime = ts.getNanoTime();
         ArrayList<RaftTask> rwTasks = new ArrayList<>(32);
@@ -324,5 +341,9 @@ public class RaftGroupThread extends Thread {
         RaftTask t = new RaftTask(raftStatus.getTs(), LogItem.TYPE_NORMAL, input, f);
         queue.offer(t);
         return f;
+    }
+
+    public boolean isPrepared() {
+        return prepared;
     }
 }
