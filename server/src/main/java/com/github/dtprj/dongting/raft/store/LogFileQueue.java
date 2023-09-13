@@ -548,7 +548,7 @@ class LogFileQueue extends FileQueue implements FileOps {
 
     @Override
     public long filePos(long absolutePos) {
-        return (int) (absolutePos & fileLenMask);
+        return absolutePos & fileLenMask;
     }
 
     @Override

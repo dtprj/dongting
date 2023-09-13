@@ -71,11 +71,17 @@ class DefaultLogIterator implements RaftLog.LogIterator {
     private int state;
     private LogItem item;
 
-    DefaultLogIterator(IdxOps idxFiles, FileOps logFiles, RaftGroupConfigEx groupConfig, Supplier<Boolean> cancelIndicator) {
+    DefaultLogIterator(IdxOps idxFiles, FileOps logFiles, RaftGroupConfigEx groupConfig,
+                       Supplier<Boolean> cancelIndicator) {
+        this(idxFiles, logFiles, groupConfig, cancelIndicator, 1024 * 1024);
+    }
+
+    DefaultLogIterator(IdxOps idxFiles, FileOps logFiles, RaftGroupConfigEx groupConfig,
+                       Supplier<Boolean> cancelIndicator, int readBufferSize) {
         this.idxFiles = idxFiles;
         this.logFiles = logFiles;
         this.raftExecutor = (RaftExecutor) groupConfig.getRaftExecutor();
-        this.readBuffer = groupConfig.getDirectPool().borrow(1024 * 1024);
+        this.readBuffer = groupConfig.getDirectPool().borrow(readBufferSize);
         this.groupConfig = groupConfig;
         this.heapPool = groupConfig.getHeapPool().getPool();
         this.readBuffer.limit(0);
@@ -87,6 +93,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         try {
             if (error || future != null || close) {
                 BugLog.getLog().error("iterator state error: {},{},{}", error, future, close);
+                future = null;
                 return CompletableFuture.failedFuture(new RaftException("iterator state error"));
             }
             if (nextIndex == -1) {
@@ -109,7 +116,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
             this.bytesLimit = bytesLimit;
 
             if (readBuffer.hasRemaining()) {
-                extractAndLoadNextIfNecessary();
+                parseContent();
             } else {
                 readBuffer.clear();
                 loadLogFromStore(nextPos);
@@ -141,7 +148,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         future = null;
     }
 
-    private void extractAndLoadNextIfNecessary() {
+    private void parseContent() {
         ByteBuffer buf = readBuffer;
         while (true) {
             switch (state) {
@@ -180,6 +187,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         long fileStartPos = logFiles.filePos(pos);
         ByteBuffer readBuffer = this.readBuffer;
         if (rest < readBuffer.remaining()) {
+            // not overflow
             readBuffer.limit((int) (readBuffer.position() + rest));
         }
         bufferStartPos = pos - readBuffer.position();
@@ -200,7 +208,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
                 finish(ex);
             } else {
                 readBuffer.flip();
-                extractAndLoadNextIfNecessary();
+                parseContent();
             }
         } catch (Throwable e) {
             finish(e);
@@ -224,6 +232,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
             crc32c.reset();
             state = STATE_BIZ_HEADER;
             if (result.size() > 0 && item.getActualBodySize() + bytes > bytesLimit) {
+                buf.position(buf.position() - LogHeader.ITEM_HEADER_SIZE);
                 finish(result, bufferStartPos + buf.position());
                 return false;
             } else {
@@ -243,6 +252,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
 
     private boolean extractHeader(ByteBuffer readBuffer) {
         LogHeader header = this.header;
+        long itemStartPos = bufferStartPos + readBuffer.position();
         header.read(readBuffer);
         if (!header.crcMatch()) {
             throw new ChecksumException();
@@ -252,8 +262,8 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         }
 
         int bodyLen = header.bodyLen;
-        if (!header.checkHeader(logFiles.filePos(nextPos), logFiles.fileLength())) {
-            throw new RaftException("invalid log item length: totalLen=" + header.totalLen + ", nextPos=" + nextPos);
+        if (!header.checkHeader(logFiles.filePos(itemStartPos), logFiles.fileLength())) {
+            throw new RaftException("header check fail: pos=" + itemStartPos);
         }
 
         LogItem li = new LogItem(heapPool);

@@ -52,9 +52,9 @@ import static org.junit.jupiter.api.Assertions.fail;
 /**
  * @author huangli
  */
+@SuppressWarnings("SameParameterValue")
 public class LogFileQueueTest {
     private LogFileQueue logFileQueue;
-    private RaftStatusImpl raftStatus;
     private StatusManager statusManager;
     private File dir;
     private RaftGroupConfigEx config;
@@ -100,7 +100,7 @@ public class LogFileQueueTest {
         config.setTs(new Timestamp());
         config.setDirectPool(TwoLevelPool.getDefaultFactory().apply(config.getTs(), true));
         config.setHeapPool(new RefBufferFactory(TwoLevelPool.getDefaultFactory().apply(config.getTs(), false), 0));
-        raftStatus = new RaftStatusImpl();
+        RaftStatusImpl raftStatus = new RaftStatusImpl();
         statusManager = new StatusManager(MockExecutors.ioExecutor(), raftStatus);
         statusManager.initStatusFileChannel(dir.getPath(), "test.status");
         config.setRaftStatus(raftStatus);
@@ -112,6 +112,7 @@ public class LogFileQueueTest {
 
     @AfterEach
     public void tearDown() {
+        statusManager.close();
         logFileQueue.close();
     }
 
