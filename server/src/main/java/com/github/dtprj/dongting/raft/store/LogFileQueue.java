@@ -327,15 +327,6 @@ class LogFileQueue extends FileQueue implements FileOps {
         }
     }
 
-    private void checkPos(long pos) {
-        if (pos < queueStartPosition) {
-            throw new RaftException("pos too small: " + pos);
-        }
-        if (pos >= writePos) {
-            throw new RaftException("pos too large: " + pos);
-        }
-    }
-
     public void markDelete(long boundIndex, long timestampMillis, long delayMills) {
         markDelete(delayMills, nextFile -> timestampMillis > nextFile.firstTimestamp
                 && boundIndex >= nextFile.firstIndex);
@@ -549,14 +540,6 @@ class LogFileQueue extends FileQueue implements FileOps {
     @Override
     public long filePos(long absolutePos) {
         return absolutePos & fileLenMask;
-    }
-
-    @Override
-    public long restInCurrentFile(long absolutePos) {
-        checkPos(absolutePos);
-        long totalRest = writePos - absolutePos;
-        long fileRest = logFileSize - filePos(absolutePos);
-        return Math.min(totalRest, fileRest);
     }
 
     @Override

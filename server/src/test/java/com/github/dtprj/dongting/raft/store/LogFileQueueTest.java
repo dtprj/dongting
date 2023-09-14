@@ -55,7 +55,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 @SuppressWarnings("SameParameterValue")
 public class LogFileQueueTest {
     private LogFileQueue logFileQueue;
-    private StatusManager statusManager;
     private File dir;
     private RaftGroupConfigEx config;
 
@@ -101,8 +100,6 @@ public class LogFileQueueTest {
         config.setDirectPool(TwoLevelPool.getDefaultFactory().apply(config.getTs(), true));
         config.setHeapPool(new RefBufferFactory(TwoLevelPool.getDefaultFactory().apply(config.getTs(), false), 0));
         RaftStatusImpl raftStatus = new RaftStatusImpl();
-        statusManager = new StatusManager(MockExecutors.ioExecutor(), raftStatus);
-        statusManager.initStatusFileChannel(dir.getPath(), "test.status");
         config.setRaftStatus(raftStatus);
         config.setIoExecutor(MockExecutors.ioExecutor());
         logFileQueue = new LogFileQueue(dir, config, idxOps, fileSize, writeBufferSize);
@@ -112,7 +109,6 @@ public class LogFileQueueTest {
 
     @AfterEach
     public void tearDown() {
-        statusManager.close();
         logFileQueue.close();
     }
 
@@ -159,10 +155,10 @@ public class LogFileQueueTest {
         }
     }
 
-    private void append(boolean check, long startPos, int... bodySizes) throws Exception {
-        LogItem[] items = new LogItem[bodySizes.length];
-        for (int i = 0; i < bodySizes.length; i++) {
-            items[i] = createItem(bodySizes[i]);
+    private void append(boolean check, long startPos, int... totalSizes) throws Exception {
+        LogItem[] items = new LogItem[totalSizes.length];
+        for (int i = 0; i < totalSizes.length; i++) {
+            items[i] = createItem(totalSizes[i]);
         }
         logFileQueue.append(asList(items));
         if (!check) {
@@ -170,8 +166,8 @@ public class LogFileQueueTest {
         }
         ByteBuffer buf = load(startPos);
         CRC32C crc32C = new CRC32C();
-        for (int i = 0; i < bodySizes.length; i++) {
-            int len = bodySizes[i];
+        for (int i = 0; i < totalSizes.length; i++) {
+            int len = totalSizes[i];
             if (len > buf.remaining()) {
                 if (buf.remaining() >= LogHeader.ITEM_HEADER_SIZE) {
                     assertEquals(0xF19A7BCB, buf.getInt());
@@ -248,7 +244,7 @@ public class LogFileQueueTest {
         setup(1024, 200);
         // zero biz header len
         bizHeaderLen = 0;
-        append(true, 0L, 190, 190);
+        append(true, 0L, 512, 512, 1024, 200);
     }
 
     @Test
@@ -256,7 +252,7 @@ public class LogFileQueueTest {
         setup(1024, 200);
         // zero biz body len
         int len = LogHeader.ITEM_HEADER_SIZE + bizHeaderLen + 4;
-        append(true, 0L, len, len);
+        append(true, 0L, len, len, 1024 - len - len, 500);
     }
 
     @Test
