@@ -182,6 +182,12 @@ class FileLogLoader implements RaftLog.LogIterator {
         long rest = logFile.endPos - pos;
         long fileStartPos = logFiles.filePos(pos);
         ByteBuffer readBuffer = this.readBuffer;
+        if (fileStartPos == 0 && readBuffer.position() > 0) {
+            RaftException e = new RaftException("readBuffer not empty when load from file start position");
+            BugLog.log(e);
+            finish(e);
+            return;
+        }
         if (rest < readBuffer.remaining()) {
             // not overflow
             readBuffer.limit((int) (readBuffer.position() + rest));
