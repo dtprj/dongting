@@ -574,7 +574,6 @@ public class ReplicateManager {
             si.snapshot = snapshot;
             log.info("begin install snapshot for member: nodeId={}, groupId={}", member.getNode().getNodeId(), groupId);
             si.offset = 0;
-            si.replicateEpoch = member.getReplicateEpoch();
             member.setSnapshotInfo(si);
         } catch (Exception e) {
             installSnapshotFailTime = raftStatus.getTs().getNanoTime();

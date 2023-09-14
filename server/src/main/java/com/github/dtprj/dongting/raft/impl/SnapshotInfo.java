@@ -23,6 +23,5 @@ import com.github.dtprj.dongting.raft.sm.Snapshot;
 class SnapshotInfo {
     Snapshot snapshot;
     long offset;
-    int replicateEpoch;
     boolean readFinished;
 }
