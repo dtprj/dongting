@@ -139,7 +139,7 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public LogIterator openIterator(Supplier<Boolean> cancelIndicator) {
-        return new DefaultLogIterator(idxFiles, logFiles, groupConfig, cancelIndicator);
+        return new FileLogLoader(idxFiles, logFiles, groupConfig, cancelIndicator);
     }
 
     @Override

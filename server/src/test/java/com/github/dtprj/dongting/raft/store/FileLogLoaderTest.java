@@ -17,9 +17,11 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
+import com.github.dtprj.dongting.raft.impl.StoppedException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
@@ -29,26 +31,29 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 import static java.util.Arrays.asList;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * @author huangli
  */
-public class DefaultLogIteratorTest {
-    private LogFileQueue logFileQueue;
-    private IdxFileQueue idxFileQueue;
+@SuppressWarnings("SameParameterValue")
+public class FileLogLoaderTest {
+    private LogFileQueue logQueue;
+    private IdxFileQueue idxQueue;
     private RaftGroupConfigEx config;
     private StatusManager statusManager;
-    private File dir;
 
     private LogItem[] items;
 
     private void setup(long fileSize) throws Exception {
-        items = null;
-
-        dir = TestDir.createTestDir(LogFileQueueTest.class.getSimpleName());
+        File dir = TestDir.createTestDir(LogFileQueueTest.class.getSimpleName());
         config = new RaftGroupConfigEx(1, "1", "1");
         config.setRaftExecutor(MockExecutors.raftExecutor());
         config.setStopIndicator(() -> false);
@@ -61,19 +66,20 @@ public class DefaultLogIteratorTest {
         config.setRaftStatus(raftStatus);
         config.setIoExecutor(MockExecutors.ioExecutor());
 
-        idxFileQueue = new IdxFileQueue(dir, statusManager, config, 8, 2);
-        logFileQueue = new LogFileQueue(dir, config, idxFileQueue, fileSize, 1024);
-        idxFileQueue.init();
-        Pair<Long, Long> p = idxFileQueue.initRestorePos();
-        logFileQueue.init();
-        logFileQueue.restore(p.getLeft(), p.getRight(), () -> false);
+        idxQueue = new IdxFileQueue(dir, statusManager, config, 8, 2);
+        logQueue = new LogFileQueue(dir, config, idxQueue, fileSize, 1024);
+        idxQueue.init();
+        Pair<Long, Long> p = idxQueue.initRestorePos();
+        logQueue.init();
+        logQueue.restore(p.getLeft(), p.getRight(), () -> false);
     }
 
     @AfterEach
     public void tearDown() {
+        items = null;
         statusManager.close();
-        idxFileQueue.close();
-        logFileQueue.close();
+        idxQueue.close();
+        logQueue.close();
     }
 
     private void append(int index, int[] totalSizes, int[] bizHeaderLens) throws Exception {
@@ -107,18 +113,52 @@ public class DefaultLogIteratorTest {
             item.setBodyBuffer(buf);
             items[i] = item;
         }
-        logFileQueue.append(asList(items));
+        logQueue.append(asList(items));
     }
 
     @Test
-    public void testNext1() throws Exception {
+    public void testNext() throws Exception {
         setup(1024);
         int[] totalSizes = new int[]{400, 400, 512, 512, 512, 500, 512, 508, 1024, 500};
-        int[] bizHeaderLen = new int[]{1, 0, 512 - LogHeader.ITEM_HEADER_SIZE - 4, 20, 20, 20, 20, 20, 20, 20};
+        int[] bizHeaderLen = new int[]{1, 0, 512 - LogHeader.ITEM_HEADER_SIZE - 4, 20, 20, 250, 250, 250, 250, 250};
         append(1, totalSizes, bizHeaderLen);
-        DefaultLogIterator it = new DefaultLogIterator(idxFileQueue, logFileQueue, config, () -> false, 200);
-        CompletableFuture<List<LogItem>> f = it.next(1, totalSizes.length, 100000000);
-        f.get();
-        it.close();
+        try (FileLogLoader it = new FileLogLoader(idxQueue, logQueue, config, () -> false, 200)) {
+            CompletableFuture<List<LogItem>> f = it.next(1, totalSizes.length, 100000000);
+            assertEquals(totalSizes.length, f.get().size());
+        }
+        // use large buffer, with limited items
+        try (FileLogLoader it = new FileLogLoader(idxQueue, logQueue, config, () -> false, 2000)) {
+            assertEquals(3, it.next(1, 3, 100000000).get().size());
+            assertEquals(3, it.next(4, 3, 100000000).get().size());
+            assertEquals(3, it.next(7, 3, 100000000).get().size());
+            assertEquals(1, it.next(10, 1, 100000000).get().size());
+        }
+        // test bytes limit
+        try (FileLogLoader it = new FileLogLoader(idxQueue, logQueue, config, () -> false, 300)) {
+            assertEquals(3, it.next(1, 10, 800).get().size());
+        }
+        // test bytes limit
+        try (FileLogLoader it = new FileLogLoader(idxQueue, logQueue, config, () -> false, 300)) {
+            assertEquals(1, it.next(1, 10, 200).get().size());
+        }
+        // test close
+        try (FileLogLoader it = new FileLogLoader(idxQueue, logQueue, config, () -> false, 300)) {
+            it.close();
+            assertThrows(ExecutionException.class, () -> it.next(1, 10, 2000000).get());
+        }
+        // test cancel
+        try (FileLogLoader it = new FileLogLoader(idxQueue, logQueue, config, () -> true, 300)) {
+            assertThrows(CancellationException.class, () -> it.next(1, 100, 2000000).get());
+        }
+        // test stop
+        config.setStopIndicator(() -> true);
+        try (FileLogLoader it = new FileLogLoader(idxQueue, logQueue, config, () -> false, 300)) {
+            try {
+                it.next(1, 10, 2000000).get();
+                fail();
+            } catch (Exception e) {
+                assertEquals(StoppedException.class, DtUtil.rootCause(e).getClass());
+            }
+        }
     }
 }

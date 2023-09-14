@@ -17,8 +17,6 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.log.BugLog;
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -37,8 +35,7 @@ import java.util.zip.CRC32C;
 /**
  * @author huangli
  */
-class DefaultLogIterator implements RaftLog.LogIterator {
-    private static final DtLog log = DtLogs.getLogger(DefaultLogIterator.class);
+class FileLogLoader implements RaftLog.LogIterator {
 
     private static final int STATE_ITEM_HEADER = 1;
     private static final int STATE_BIZ_HEADER = 2;
@@ -74,13 +71,13 @@ class DefaultLogIterator implements RaftLog.LogIterator {
     private int state;
     private LogItem item;
 
-    DefaultLogIterator(IdxOps idxFiles, FileOps logFiles, RaftGroupConfigEx groupConfig,
-                       Supplier<Boolean> cancelIndicator) {
+    FileLogLoader(IdxOps idxFiles, FileOps logFiles, RaftGroupConfigEx groupConfig,
+                  Supplier<Boolean> cancelIndicator) {
         this(idxFiles, logFiles, groupConfig, cancelIndicator, 1024 * 1024);
     }
 
-    DefaultLogIterator(IdxOps idxFiles, FileOps logFiles, RaftGroupConfigEx groupConfig,
-                       Supplier<Boolean> cancelIndicator, int readBufferSize) {
+    FileLogLoader(IdxOps idxFiles, FileOps logFiles, RaftGroupConfigEx groupConfig,
+                  Supplier<Boolean> cancelIndicator, int readBufferSize) {
         this.idxFiles = idxFiles;
         this.logFiles = logFiles;
         this.raftExecutor = (RaftExecutor) groupConfig.getRaftExecutor();
@@ -229,7 +226,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
             }
             crc32c.reset();
             state = STATE_BIZ_HEADER;
-            if (result.size() > 0 && item.getActualBodySize() + readBytes > bytesLimit) {
+            if (result.size() > 0 && header.bodyLen + readBytes >= bytesLimit) {
                 buf.position(buf.position() - LogHeader.ITEM_HEADER_SIZE);
                 finish(result, bufferStartPos + buf.position());
                 return false;
@@ -330,7 +327,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
             result.add(item);
             item = null;
             state = STATE_ITEM_HEADER;
-            return true;
+            return checkItemLimit(buf);
         }
         ByteBuffer destBuf = item.getBodyBuffer();
         boolean readFinish = readData(buf, bodyLen, destBuf);
@@ -339,12 +336,7 @@ class DefaultLogIterator implements RaftLog.LogIterator {
             readBytes += bodyLen;
             item = null;
             state = STATE_ITEM_HEADER;
-            if (result.size() >= limit) {
-                finish(result, bufferStartPos + buf.position());
-                return false;
-            } else {
-                return true;
-            }
+            return checkItemLimit(buf);
         } else {
             StoreUtil.prepareNextRead(buf);
             loadLogFromStore(bufferEndPos);
@@ -352,11 +344,18 @@ class DefaultLogIterator implements RaftLog.LogIterator {
         }
     }
 
+    private boolean checkItemLimit(ByteBuffer buf) {
+        if (result.size() >= limit) {
+            finish(result, bufferStartPos + buf.position());
+            return false;
+        } else {
+            return true;
+        }
+    }
+
     @Override
     public void close() {
-        if (close) {
-            BugLog.getLog().error("iterator has closed");
-        } else {
+        if (!close) {
             groupConfig.getDirectPool().release(readBuffer);
         }
         close = true;
