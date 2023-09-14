@@ -108,7 +108,8 @@ class FileLogLoader implements RaftLog.LogIterator {
             }
 
             this.result = new LinkedList<>();
-            this.future = new CompletableFuture<>();
+            CompletableFuture<List<LogItem>> f = new CompletableFuture<>();
+            this.future = f;
             this.item = null;
             this.readBytes = 0;
             this.limit = limit;
@@ -121,7 +122,7 @@ class FileLogLoader implements RaftLog.LogIterator {
                 readBuffer.clear();
                 loadLogFromStore(nextPos);
             }
-            return future;
+            return f;
         } catch (Throwable e) {
             error = true;
             future = null;
