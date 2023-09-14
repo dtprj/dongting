@@ -37,6 +37,7 @@ import java.util.concurrent.ExecutionException;
 
 import static java.util.Arrays.asList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -124,6 +125,7 @@ public class FileLogLoaderTest {
         append(1, totalSizes, bizHeaderLen);
         try (FileLogLoader it = new FileLogLoader(idxQueue, logQueue, config, () -> false, 200)) {
             CompletableFuture<List<LogItem>> f = it.next(1, totalSizes.length, 100000000);
+            assertNotNull(f);
             assertEquals(totalSizes.length, f.get().size());
         }
         // use large buffer, with limited items
