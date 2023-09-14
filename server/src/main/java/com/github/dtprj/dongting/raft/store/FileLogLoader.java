@@ -42,7 +42,7 @@ class FileLogLoader implements RaftLog.LogIterator {
     private static final int STATE_BIZ_BODY = 3;
 
     private final IdxOps idxFiles;
-    private final FileOps logFiles;
+    private final LogFileQueue logFiles;
     private final RaftExecutor raftExecutor;
     private final ByteBufferPool heapPool;
     private final RaftGroupConfigEx groupConfig;
@@ -71,12 +71,12 @@ class FileLogLoader implements RaftLog.LogIterator {
     private int state;
     private LogItem item;
 
-    FileLogLoader(IdxOps idxFiles, FileOps logFiles, RaftGroupConfigEx groupConfig,
+    FileLogLoader(IdxOps idxFiles, LogFileQueue logFiles, RaftGroupConfigEx groupConfig,
                   Supplier<Boolean> cancelIndicator) {
         this(idxFiles, logFiles, groupConfig, cancelIndicator, 1024 * 1024);
     }
 
-    FileLogLoader(IdxOps idxFiles, FileOps logFiles, RaftGroupConfigEx groupConfig,
+    FileLogLoader(IdxOps idxFiles, LogFileQueue logFiles, RaftGroupConfigEx groupConfig,
                   Supplier<Boolean> cancelIndicator, int readBufferSize) {
         this.idxFiles = idxFiles;
         this.logFiles = logFiles;

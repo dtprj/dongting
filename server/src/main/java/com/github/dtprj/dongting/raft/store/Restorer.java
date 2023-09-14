@@ -46,7 +46,7 @@ class Restorer {
 
     private final CRC32C crc32c = new CRC32C();
     private final IdxOps idxOps;
-    private final FileOps fileOps;
+    private final LogFileQueue logFileQueue;
     private final long restoreIndex;
     private final long restoreIndexPos;
 
@@ -60,9 +60,9 @@ class Restorer {
     long previousIndex;
     int previousTerm;
 
-    public Restorer(IdxOps idxOps, FileOps fileOps, long restoreIndex, long restoreIndexPos) {
+    public Restorer(IdxOps idxOps, LogFileQueue logFileQueue, long restoreIndex, long restoreIndexPos) {
         this.idxOps = idxOps;
-        this.fileOps = fileOps;
+        this.logFileQueue = logFileQueue;
         this.restoreIndex = restoreIndex;
         this.restoreIndexPos = restoreIndexPos;
     }
@@ -96,7 +96,7 @@ class Restorer {
         log.info("try restore file {}", lf.file.getPath());
         if (restoreIndexPos >= lf.startPos) {
             // check from restoreIndex
-            itemStartPosOfFile = fileOps.filePos(restoreIndexPos);
+            itemStartPosOfFile = logFileQueue.filePos(restoreIndexPos);
         } else {
             // check full file
             itemStartPosOfFile = 0;
@@ -105,7 +105,7 @@ class Restorer {
         long readPos = itemStartPosOfFile;
         buffer.clear();
         state = STATE_ITEM_HEADER;
-        while (readPos < fileOps.fileLength()) {
+        while (readPos < logFileQueue.fileLength()) {
             RaftUtil.checkStop(stopIndicator);
             int read = FileUtil.syncRead(channel, buffer, readPos);
             if (read == 0) {
@@ -190,7 +190,7 @@ class Restorer {
         if (header.isEndMagic()) {
             return RT_CURRENT_FILE_FINISHED;
         }
-        if (!header.checkHeader(itemStartPosOfFile, fileOps.fileLength())) {
+        if (!header.checkHeader(itemStartPosOfFile, logFileQueue.fileLength())) {
             throwEx("header check fail", lf, itemStartPosOfFile);
         }
         if (restoreIndexChecked) {

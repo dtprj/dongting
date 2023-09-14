@@ -46,7 +46,7 @@ import java.util.zip.CRC32C;
 /**
  * @author huangli
  */
-class LogFileQueue extends FileQueue implements FileOps {
+class LogFileQueue extends FileQueue {
     private static final DtLog log = DtLogs.getLogger(LogFileQueue.class);
 
     private final long logFileSize;
@@ -201,7 +201,6 @@ class LogFileQueue extends FileQueue implements FileOps {
         this.writePos = pos;
     }
 
-    @Override
     public long nextFilePos(long absolutePos) {
         return ((absolutePos >>> fileLenShiftBits) + 1) << fileLenShiftBits;
     }
@@ -537,17 +536,10 @@ class LogFileQueue extends FileQueue implements FileOps {
         }
     }
 
-    @Override
     public long filePos(long absolutePos) {
         return absolutePos & fileLenMask;
     }
 
-    @Override
-    public LogFile getLogFile(long filePos) {
-        return super.getLogFile(filePos);
-    }
-
-    @Override
     public long fileLength() {
         return logFileSize;
     }
