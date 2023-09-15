@@ -24,7 +24,7 @@ import java.util.Date;
  */
 public class TestDir {
     private static final String TEST_DIR = "target/test-data";
-    private static final SimpleDateFormat sdf = new SimpleDateFormat("HHmmss_SSS");
+    private static final SimpleDateFormat sdf = new SimpleDateFormat("_HHmmss_SSS_");
 
     public static File createTestDir(String prefix) {
         File dir = new File(TEST_DIR);
@@ -33,15 +33,32 @@ public class TestDir {
                 throw new RuntimeException("create dir fail");
             }
         }
+        String s = sdf.format(new Date());
+        int x = 0;
         while (true) {
-            String s = sdf.format(new Date());
-            File subDir = new File(dir, prefix + s);
+            String name = prefix + s + x;
+            File subDir = new File(dir, name);
             if (!subDir.exists()) {
                 if (!subDir.mkdirs()) {
                     throw new RuntimeException("create dir fail");
                 }
-                subDir.deleteOnExit();
                 return subDir;
+            } else {
+                x++;
+            }
+        }
+    }
+
+    public static String testDir(String prefix) {
+        String s = sdf.format(new Date());
+        int x = 0;
+        while (true) {
+            String result = TEST_DIR + "/" + prefix + s + x;
+            File subDir = new File(result);
+            if (!subDir.exists()) {
+                return result;
+            } else {
+                x++;
             }
         }
     }

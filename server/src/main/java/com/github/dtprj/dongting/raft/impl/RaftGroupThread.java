@@ -187,11 +187,9 @@ public class RaftGroupThread extends Thread {
     }
 
     private void clean() {
-        if (raftStatus != null) {
-            DtUtil.close(raftStatus.getStatusFile());
-        }
         DtUtil.close(stateMachine);
         DtUtil.close(raftLog);
+        DtUtil.close(statusManager);
     }
 
     @Override

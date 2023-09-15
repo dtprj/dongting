@@ -57,4 +57,9 @@ public class Timestamp {
             return false;
         }
     }
+
+    public void updateForUnitTest(long nanoTime, long wallClockMillis) {
+        this.nanoTime = nanoTime;
+        this.wallClockMillis = wallClockMillis;
+    }
 }

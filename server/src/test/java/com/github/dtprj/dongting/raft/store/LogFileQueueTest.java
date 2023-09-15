@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
-import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -93,13 +92,13 @@ public class LogFileQueueTest {
         idxMap.clear();
 
         dir = TestDir.createTestDir(LogFileQueueTest.class.getSimpleName());
+        RaftStatusImpl raftStatus = new RaftStatusImpl();
         config = new RaftGroupConfigEx(1, "1", "1");
         config.setRaftExecutor(MockExecutors.raftExecutor());
         config.setStopIndicator(() -> false);
-        config.setTs(new Timestamp());
+        config.setTs(raftStatus.getTs());
         config.setDirectPool(TwoLevelPool.getDefaultFactory().apply(config.getTs(), true));
         config.setHeapPool(new RefBufferFactory(TwoLevelPool.getDefaultFactory().apply(config.getTs(), false), 0));
-        RaftStatusImpl raftStatus = new RaftStatusImpl();
         config.setRaftStatus(raftStatus);
         config.setIoExecutor(MockExecutors.ioExecutor());
         logFileQueue = new LogFileQueue(dir, config, idxOps, fileSize, writeBufferSize);
@@ -113,7 +112,7 @@ public class LogFileQueueTest {
     }
 
     private LogItem createItem(int totalSize) {
-        LogItem item = new LogItem(config.getDirectPool());
+        LogItem item = new LogItem(config.getHeapPool().getPool());
         item.setType(1);
         item.setBizType(2);
         item.setTerm(term);

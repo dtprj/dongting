@@ -41,6 +41,9 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private static final int ITEM_LEN = 8;
     static final String IDX_FILE_PERSIST_INDEX_KEY = "idxFilePersistIndex";
 
+    public static final int DEFAULT_ITEMS_PER_FILE = 1024 * 1024;
+    public static final int DEFAULT_MAX_CACHE_ITEMS = 16 * 1024;
+
     private final StatusManager statusManager;
 
     private final int maxCacheItems;
@@ -67,10 +70,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     private long lastFlushNanos;
     private static final long FLUSH_INTERVAL_NANOS = 15L * 1000 * 1000 * 1000;
-
-    public IdxFileQueue(File dir, StatusManager statusManager, RaftGroupConfigEx groupConfig) {
-        this(dir, statusManager, groupConfig, 1024 * 1024, 16 * 1024);
-    }
 
     public IdxFileQueue(File dir, StatusManager statusManager, RaftGroupConfigEx groupConfig,
                         int itemsPerFile, int maxCacheItems) {
@@ -169,7 +168,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         });
     }
 
-    public long truncateTail(long index) {
+    public void truncateTail(long index) {
         DtUtil.checkPositive(index, "index");
         if (index <= raftStatus.getCommitIndex()) {
             throw new RaftException("truncateTail index is too small: " + index);
@@ -177,10 +176,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         if (index < tailCache.getFirstKey() || index > tailCache.getLastKey()) {
             throw new RaftException("truncateTail out of cache range: " + index);
         }
-        long value = tailCache.get(index);
         tailCache.truncate(index);
         nextIndex = index;
-        return value;
     }
 
     @Override
@@ -188,13 +185,17 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         if (itemIndex > nextIndex) {
             throw new RaftException("index not match : " + nextIndex + ", " + itemIndex);
         }
-        if (itemIndex <= raftStatus.getCommitIndex() && !recover) {
+        if (!recover && itemIndex <= raftStatus.getCommitIndex()) {
             throw new RaftException("try update committed index: " + itemIndex);
         }
         if (itemIndex < nextIndex) {
-            // last put failed
-            log.info("put index!=nextIndex, truncate tailCache: {}, {}", itemIndex, nextIndex);
-            tailCache.truncate(itemIndex);
+            if (recover && tailCache.size() == 0) {
+                // normal case
+            } else {
+                // last put failed
+                log.info("put index!=nextIndex, truncate tailCache: {}, {}", itemIndex, nextIndex);
+                tailCache.truncate(itemIndex);
+            }
         }
         LongLongSeqMap tailCache = this.tailCache;
         removeHead(tailCache);
@@ -297,6 +298,10 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     public long getNextPersistIndex() {
         return nextPersistIndex;
+    }
+
+    public long getFirstIndex() {
+        return firstIndex;
     }
 
     @Override

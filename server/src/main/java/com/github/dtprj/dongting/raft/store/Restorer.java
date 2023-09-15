@@ -162,11 +162,10 @@ class Restorer {
                 int dataLen = header.bodyLen;
                 result = restoreData(buf, dataLen, lf, STATE_ITEM_HEADER);
                 if (result == RT_CONTINUE_READ) {
-                    if (restoreIndexChecked) {
-                        idxOps.put(this.previousIndex, lf.startPos + itemStartPosOfFile, true);
-                    } else {
+                    if (!restoreIndexChecked) {
                         restoreIndexChecked = true;
                     }
+                    idxOps.put(this.previousIndex, lf.startPos + itemStartPosOfFile, true);
                     itemStartPosOfFile += header.totalLen;
                 }
             } else {

@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
-import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -42,13 +41,19 @@ public class DefaultRaftLog implements RaftLog {
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
     private final StatusManager statusManager;
-    private LogFileQueue logFiles;
-    private IdxFileQueue idxFiles;
+    LogFileQueue logFiles;
+    IdxFileQueue idxFiles;
 
     private long lastTaskNanos;
     private static final long TASK_INTERVAL_NANOS = 10 * 1000 * 1000 * 1000L;
 
     private static final String KEY_TRUNCATE = "truncate";
+
+    int idxItemsPerFile = IdxFileQueue.DEFAULT_ITEMS_PER_FILE;
+    int idxMaxCacheItems = IdxFileQueue.DEFAULT_MAX_CACHE_ITEMS;
+    long logFileSize = LogFileQueue.DEFAULT_LOG_FILE_SIZE;
+    int logWriteBufferSize = LogFileQueue.DEFAULT_WRITE_BUFFER_SIZE;
+
 
     public DefaultRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager) {
         this.groupConfig = groupConfig;
@@ -64,8 +69,10 @@ public class DefaultRaftLog implements RaftLog {
         try {
             File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
 
-            idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"), statusManager, groupConfig);
-            logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"), groupConfig, idxFiles);
+            idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"),
+                    statusManager, groupConfig, idxItemsPerFile, idxMaxCacheItems);
+            logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"),
+                    groupConfig, idxFiles, logFileSize, logWriteBufferSize);
             logFiles.init();
             RaftUtil.checkStop(stopIndicator);
             idxFiles.init();
@@ -117,22 +124,26 @@ public class DefaultRaftLog implements RaftLog {
         if (firstIndex == idxFiles.getNextIndex()) {
             logFiles.append(logs);
         } else if (firstIndex < idxFiles.getNextIndex()) {
-            if (firstIndex < idxFiles.queueStartPosition || firstIndex < logFiles.queueStartPosition) {
-                throw new RaftException("bad index: " + firstIndex);
+            if (firstIndex < idxFiles.getFirstIndex()) {
+                throw new UnrecoverableException("index too small: " + firstIndex);
             }
-            truncateTail(firstIndex);
+            Long firstIndexPos = idxFiles.loadLogPos(firstIndex).get();
+            if (firstIndexPos < logFiles.queueStartPosition) {
+                throw new UnrecoverableException("position too small: " + firstIndexPos);
+            }
+            truncateTail(firstIndex, firstIndexPos);
             logFiles.append(logs);
         } else {
-            throw new UnrecoverableException("bad index: " + firstIndex);
+            throw new UnrecoverableException("index too large: " + firstIndex);
         }
     }
 
-    private void truncateTail(long firstIndex) throws Exception {
-        long dataPosition = idxFiles.truncateTail(firstIndex);
+    private void truncateTail(long firstIndex, long firstPos) throws Exception {
+        idxFiles.truncateTail(firstIndex);
         Properties props = raftStatus.getExtraPersistProps();
-        props.setProperty(KEY_TRUNCATE, dataPosition + "," + logFiles.getWritePos());
+        props.setProperty(KEY_TRUNCATE, firstPos + "," + logFiles.getWritePos());
         statusManager.persistSync();
-        logFiles.syncTruncateTail(dataPosition, logFiles.getWritePos());
+        logFiles.syncTruncateTail(firstPos, logFiles.getWritePos());
         props.remove(KEY_TRUNCATE);
         statusManager.persistSync();
     }

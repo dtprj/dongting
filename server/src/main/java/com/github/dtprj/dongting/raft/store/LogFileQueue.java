@@ -49,6 +49,9 @@ import java.util.zip.CRC32C;
 class LogFileQueue extends FileQueue {
     private static final DtLog log = DtLogs.getLogger(LogFileQueue.class);
 
+    public static final long DEFAULT_LOG_FILE_SIZE = 1024 * 1024 * 1024;
+    public static final int DEFAULT_WRITE_BUFFER_SIZE = 128 * 1024;
+
     private final long logFileSize;
     private final long fileLenMask;
     private final int fileLenShiftBits;
@@ -66,10 +69,6 @@ class LogFileQueue extends FileQueue {
     private final Timestamp ts;
 
     private long writePos;
-
-    public LogFileQueue(File dir, RaftGroupConfigEx groupConfig, IdxOps idxOps) {
-        this(dir, groupConfig, idxOps, 1024 * 1024 * 1024, 128 * 1024);
-    }
 
     public LogFileQueue(File dir, RaftGroupConfigEx groupConfig, IdxOps idxOps, long logFileSize, int writeBufferSize) {
         super(dir, groupConfig);

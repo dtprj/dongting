@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
-import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.StoppedException;
 import com.github.dtprj.dongting.raft.server.LogItem;
@@ -55,13 +54,13 @@ public class FileLogLoaderTest {
 
     private void setup(long fileSize) throws Exception {
         File dir = TestDir.createTestDir(LogFileQueueTest.class.getSimpleName());
+        RaftStatusImpl raftStatus = new RaftStatusImpl();
         config = new RaftGroupConfigEx(1, "1", "1");
         config.setRaftExecutor(MockExecutors.raftExecutor());
         config.setStopIndicator(() -> false);
-        config.setTs(new Timestamp());
+        config.setTs(raftStatus.getTs());
         config.setDirectPool(TwoLevelPool.getDefaultFactory().apply(config.getTs(), true));
         config.setHeapPool(new RefBufferFactory(TwoLevelPool.getDefaultFactory().apply(config.getTs(), false), 0));
-        RaftStatusImpl raftStatus = new RaftStatusImpl();
         statusManager = new StatusManager(MockExecutors.ioExecutor(), raftStatus);
         statusManager.initStatusFileChannel(dir.getPath(), "test.status");
         config.setRaftStatus(raftStatus);
@@ -84,11 +83,16 @@ public class FileLogLoaderTest {
     }
 
     private void append(int index, int[] totalSizes, int[] bizHeaderLens) throws Exception {
-        items = new LogItem[totalSizes.length];
+        items = createItems(config, index, totalSizes, bizHeaderLens);
+        logQueue.append(asList(items));
+    }
+
+    public static LogItem[] createItems(RaftGroupConfigEx config, int index, int[] totalSizes, int[] bizHeaderLens) {
+        LogItem[] items = new LogItem[totalSizes.length];
         for (int i = 0; i < totalSizes.length; i++) {
             int totalSize = totalSizes[i];
             int bizHeaderLen = bizHeaderLens[i];
-            LogItem item = new LogItem(config.getDirectPool());
+            LogItem item = new LogItem(config.getHeapPool().getPool());
             item.setIndex(index + i);
             item.setType(1);
             item.setBizType(2);
@@ -114,7 +118,7 @@ public class FileLogLoaderTest {
             item.setBodyBuffer(buf);
             items[i] = item;
         }
-        logQueue.append(asList(items));
+        return items;
     }
 
     @Test

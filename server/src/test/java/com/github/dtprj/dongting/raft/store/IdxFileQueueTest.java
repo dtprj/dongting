@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.common.Pair;
-import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -63,8 +62,8 @@ public class IdxFileQueueTest {
         RaftGroupConfigEx c = new RaftGroupConfigEx(1, "1", "1");
         c.setRaftExecutor(MockExecutors.raftExecutor());
         c.setStopIndicator(() -> false);
-        c.setTs(new Timestamp());
         raftStatus = new RaftStatusImpl();
+        c.setTs(raftStatus.getTs());
         statusManager = new StatusManager(MockExecutors.ioExecutor(), raftStatus);
         statusManager.initStatusFileChannel(dir.getPath(), "test.status");
         c.setRaftStatus(raftStatus);
