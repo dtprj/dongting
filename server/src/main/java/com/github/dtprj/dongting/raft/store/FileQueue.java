@@ -118,17 +118,19 @@ abstract class FileQueue implements AutoCloseable {
     protected void ensureWritePosReady(long pos) throws InterruptedException, IOException {
         try {
             while (pos >= queueEndPosition) {
-                if (allocateFuture == null) {
-                    allocateFuture = allocate(queueEndPosition);
-                }
+                tryAllocate();
                 processAllocResult();
             }
             // pre allocate next file
-            if (allocateFuture == null) {
-                allocateFuture = allocate(queueEndPosition);
-            }
+            tryAllocate();
         } catch (ExecutionException e) {
             throw new IOException(e);
+        }
+    }
+
+    protected void tryAllocate() {
+        if (allocateFuture == null) {
+            allocateFuture = allocate(queueEndPosition);
         }
     }
 

@@ -117,6 +117,9 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             }
             restoreIndexPos = loadLogPos(restoreIndex).get();
         }
+        if (queueEndPosition == 0) {
+            tryAllocate();
+        }
         log.info("restore index: {}, pos: {}", restoreIndex, restoreIndexPos);
         return new Pair<>(restoreIndex, restoreIndexPos);
     }

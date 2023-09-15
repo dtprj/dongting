@@ -104,6 +104,7 @@ class LogFileQueue extends FileQueue {
         log.info("restore from {}, {}", restoreIndex, restoreIndexPos);
         Restorer restorer = new Restorer(idxOps, this, restoreIndex, restoreIndexPos);
         if (queue.size() == 0) {
+            tryAllocate();
             return 0;
         }
         if (restoreIndexPos < queue.get(0).startPos) {
