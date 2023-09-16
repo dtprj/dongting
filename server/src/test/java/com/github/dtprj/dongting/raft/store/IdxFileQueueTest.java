@@ -68,7 +68,7 @@ public class IdxFileQueueTest {
         statusManager.initStatusFileChannel(dir.getPath(), "test.status");
         c.setRaftStatus(raftStatus);
         c.setIoExecutor(MockExecutors.ioExecutor());
-        return new IdxFileQueue(dir, new StatusManager(MockExecutors.ioExecutor(), raftStatus), c, 8, 4);
+        return new IdxFileQueue(dir, statusManager, c, 8, 4);
     }
 
     @AfterEach
@@ -216,7 +216,7 @@ public class IdxFileQueueTest {
         TestUtil.waitUtilInExecutor(MockExecutors.raftExecutor(), 8L << 3, () -> idxFileQueue.queueStartPosition);
 
         idxFileQueue.close();
-        raftStatus.getExtraPersistProps().setProperty(IDX_FILE_PERSIST_INDEX_KEY, "2");
+        statusManager.getProperties().setProperty(IDX_FILE_PERSIST_INDEX_KEY, "2");
         statusManager.persistSync();
         statusManager.close();
 

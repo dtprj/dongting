@@ -80,14 +80,14 @@ public class DefaultRaftLog implements RaftLog {
 
             Pair<Long, Long> p = idxFiles.initRestorePos();
 
-            String truncateStatus = raftStatus.getExtraPersistProps().getProperty(KEY_TRUNCATE);
+            String truncateStatus = statusManager.getProperties().getProperty(KEY_TRUNCATE);
             if (truncateStatus != null) {
                 String[] parts = truncateStatus.split(",");
                 if (parts.length == 2) {
                     long start = Long.parseLong(parts[0]);
                     long end = Long.parseLong(parts[1]);
                     logFiles.syncTruncateTail(start, end);
-                    raftStatus.getExtraPersistProps().remove(KEY_TRUNCATE);
+                    statusManager.getProperties().remove(KEY_TRUNCATE);
                     statusManager.persistSync();
                 }
             }
@@ -140,7 +140,7 @@ public class DefaultRaftLog implements RaftLog {
 
     private void truncateTail(long firstIndex, long firstPos) throws Exception {
         idxFiles.truncateTail(firstIndex);
-        Properties props = raftStatus.getExtraPersistProps();
+        Properties props = statusManager.getProperties();
         props.setProperty(KEY_TRUNCATE, firstPos + "," + logFiles.getWritePos());
         statusManager.persistSync();
         logFiles.syncTruncateTail(firstPos, logFiles.getWritePos());

@@ -311,7 +311,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
                     sf.getProperties().setProperty("saveEndTime", sdf.format(new Date()));
 
                     // TODO make async?
-                    sf.update(sf.getProperties(), true).get(10, TimeUnit.SECONDS);
+                    sf.update(true).get(10, TimeUnit.SECONDS);
                     log.info("snapshot status file write success: {}", newIdxFile.getPath());
                 }
 

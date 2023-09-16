@@ -92,7 +92,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     public Pair<Long, Long> initRestorePos() throws Exception {
         firstIndex = posToIndex(queueStartPosition);
-        long restoreIndex = Long.parseLong(raftStatus.getExtraPersistProps()
+        long restoreIndex = Long.parseLong(statusManager.getProperties()
                 .getProperty(IDX_FILE_PERSIST_INDEX_KEY, "0"));
 
         log.info(IDX_FILE_PERSIST_INDEX_KEY + " in raft status file: {}", restoreIndex);
@@ -270,7 +270,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                     nextPersistIndex = nextPersistIndexAfterWrite;
                 }
                 long idxPersisIndex = nextPersistIndex - 1;
-                raftStatus.getExtraPersistProps().setProperty(IDX_FILE_PERSIST_INDEX_KEY, String.valueOf(idxPersisIndex));
+                statusManager.getProperties().setProperty(IDX_FILE_PERSIST_INDEX_KEY, String.valueOf(idxPersisIndex));
                 statusFuture = statusManager.persistAsync();
             } catch (ExecutionException e) {
                 throw new IOException(e);

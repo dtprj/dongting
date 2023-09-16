@@ -41,6 +41,7 @@ public class StatusManager implements AutoCloseable {
 
     private final ExecutorService ioExecutor;
     private final RaftStatus raftStatus;
+    private StatusFile statusFile;
 
     private CompletableFuture<Void> asyncFuture;
 
@@ -56,15 +57,10 @@ public class StatusManager implements AutoCloseable {
     public void initStatusFileChannel(String dataDir, String filename) {
         File dir = FileUtil.ensureDir(dataDir);
         File file = new File(dir, filename);
-        StatusFile sf = new StatusFile(file, ioExecutor);
-        sf.init();
-        raftStatus.setStatusFile(sf);
-        Properties loadedProps = sf.getProperties();
+        statusFile = new StatusFile(file, ioExecutor);
+        statusFile.init();
 
-        raftStatus.getExtraPersistProps().putAll(loadedProps);
-        raftStatus.getExtraPersistProps().remove(CURRENT_TERM_KEY);
-        raftStatus.getExtraPersistProps().remove(VOTED_FOR_KEY);
-        raftStatus.getExtraPersistProps().remove(COMMIT_INDEX_KEY);
+        Properties loadedProps = statusFile.getProperties();
 
         raftStatus.setCurrentTerm(Integer.parseInt(loadedProps.getProperty(CURRENT_TERM_KEY, "0")));
         raftStatus.setVotedFor(Integer.parseInt(loadedProps.getProperty(VOTED_FOR_KEY, "0")));
@@ -73,7 +69,7 @@ public class StatusManager implements AutoCloseable {
 
     public void close() {
         if (!closed) {
-            DtUtil.close(raftStatus.getStatusFile());
+            DtUtil.close(statusFile);
             closed = true;
         }
     }
@@ -88,31 +84,28 @@ public class StatusManager implements AutoCloseable {
                     asyncFuture = null;
                 }
             }
-            Properties props = copyWriteData();
-            asyncFuture = persist(props, false);
+            copyWriteData();
+            asyncFuture = persist(false);
             return asyncFuture;
         } catch (Exception e) {
             throw new RaftException(e);
         }
     }
 
-    protected CompletableFuture<Void> persist(Properties props, boolean flush) {
-        return raftStatus.getStatusFile().update(props, flush);
+    protected CompletableFuture<Void> persist(boolean flush) {
+        return statusFile.update(flush);
     }
 
-    private Properties copyWriteData() {
-        Properties destProps = new Properties();
-
-        destProps.putAll(raftStatus.getExtraPersistProps());
+    private void copyWriteData() {
+        Properties destProps = statusFile.getProperties();
 
         destProps.setProperty(CURRENT_TERM_KEY, String.valueOf(raftStatus.getCurrentTerm()));
         destProps.setProperty(VOTED_FOR_KEY, String.valueOf(raftStatus.getVotedFor()));
         destProps.setProperty(COMMIT_INDEX_KEY, String.valueOf(raftStatus.getCommitIndex()));
-        return destProps;
     }
 
     public void persistSync() {
-        Properties props = copyWriteData();
+        copyWriteData();
 
         while (!raftStatus.isStop()) {
             try {
@@ -123,7 +116,7 @@ public class StatusManager implements AutoCloseable {
                         asyncFuture = null;
                     }
                 }
-                CompletableFuture<Void> f = persist(props, true);
+                CompletableFuture<Void> f = persist(true);
                 f.get(60, TimeUnit.SECONDS);
                 return;
             } catch (Exception e) {
@@ -147,4 +140,7 @@ public class StatusManager implements AutoCloseable {
         throw new StoppedException();
     }
 
+    public Properties getProperties() {
+        return statusFile.getProperties();
+    }
 }

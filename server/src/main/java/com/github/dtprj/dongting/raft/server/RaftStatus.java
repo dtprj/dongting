@@ -15,10 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.raft.store.StatusFile;
-
-import java.util.Properties;
-
 /**
  * @author huangli
  */
@@ -34,10 +30,6 @@ public abstract class RaftStatus {
     protected int groupId;
 
     protected volatile boolean stop;
-
-    private final Properties extraPersistProps = new Properties();
-
-    private StatusFile statusFile;
 
     public int getGroupId() {
         return groupId;
@@ -75,15 +67,4 @@ public abstract class RaftStatus {
         return stop;
     }
 
-    public Properties getExtraPersistProps() {
-        return extraPersistProps;
-    }
-
-    public StatusFile getStatusFile() {
-        return statusFile;
-    }
-
-    public void setStatusFile(StatusFile statusFile) {
-        this.statusFile = statusFile;
-    }
 }

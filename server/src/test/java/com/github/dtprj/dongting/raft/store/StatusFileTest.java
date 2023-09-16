@@ -24,7 +24,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.RandomAccessFile;
-import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -41,16 +40,15 @@ public class StatusFileTest {
         statusFile.init();
         statusFile.getProperties().setProperty("1", "100");
         statusFile.getProperties().setProperty("2", "200");
-        statusFile.update(statusFile.getProperties(), true).get();
+        statusFile.update(true).get();
         statusFile.close();
 
         statusFile = new StatusFile(file, MockExecutors.ioExecutor());
         statusFile.init();
         assertEquals("100", statusFile.getProperties().getProperty("1"));
         assertEquals("200", statusFile.getProperties().getProperty("2"));
-        Properties p = new Properties();
-        p.setProperty("3", "300");
-        statusFile.update(p, true).get();
+        statusFile.getProperties().setProperty("3", "300");
+        statusFile.update(true).get();
         statusFile.close();
 
         statusFile = new StatusFile(file, MockExecutors.ioExecutor());
@@ -69,7 +67,7 @@ public class StatusFileTest {
         statusFile.init();
         statusFile.getProperties().setProperty("1", "100");
         statusFile.getProperties().setProperty("2", "200");
-        statusFile.update(statusFile.getProperties(), true).get();
+        statusFile.update(true).get();
         statusFile.close();
 
         FileInputStream in = new FileInputStream(file);

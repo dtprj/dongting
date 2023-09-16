@@ -24,7 +24,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
-import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -47,12 +46,12 @@ public class StatusManagerTest {
         statusManager = new StatusManager(MockExecutors.ioExecutor(), raftStatus) {
             private boolean mockFail = false;
             @Override
-            protected CompletableFuture<Void> persist(Properties props, boolean flush) {
+            protected CompletableFuture<Void> persist(boolean flush) {
                 if (mockPersistResult != null && !mockFail) {
                     mockFail = true;
                     return mockPersistResult;
                 }
-                return super.persist(props, flush);
+                return super.persist(flush);
             }
         };
         statusManager.initStatusFileChannel(dir.getParent(), "status");
@@ -73,7 +72,7 @@ public class StatusManagerTest {
         assertEquals(raftStatus.getCommitIndex(), s2.getCommitIndex());
         assertEquals(raftStatus.getVotedFor(), s2.getVotedFor());
         assertEquals(raftStatus.getCurrentTerm(), s2.getCurrentTerm());
-        assertEquals(raftStatus.getExtraPersistProps().getProperty("k1"), s2.getExtraPersistProps().getProperty("k1"));
+        assertEquals(statusManager.getProperties().getProperty("k1"), m2.getProperties().getProperty("k1"));
         m2.close();
     }
 
@@ -89,7 +88,7 @@ public class StatusManagerTest {
         raftStatus.setCommitIndex(100);
         raftStatus.setVotedFor(200);
         raftStatus.setCurrentTerm(300);
-        raftStatus.getExtraPersistProps().setProperty("k1", "v1");
+        statusManager.getProperties().setProperty("k1", "v1");
     }
 
     @Test
@@ -99,7 +98,7 @@ public class StatusManagerTest {
             raftStatus.setCommitIndex(100 + i);
             raftStatus.setVotedFor(200 + i);
             raftStatus.setCurrentTerm(300 + i);
-            raftStatus.getExtraPersistProps().setProperty("k1", "v1" + i);
+            statusManager.getProperties().setProperty("k1", "v1" + i);
             f = statusManager.persistAsync();
         }
         f.get();

@@ -109,12 +109,9 @@ public class StatusFile implements AutoCloseable {
         }
     }
 
-    public CompletableFuture<Void> update(Properties props, boolean flush) {
+    public CompletableFuture<Void> update(boolean flush) {
         try {
             bos.reset();
-            if (this.properties != props) {
-                this.properties.putAll(props);
-            }
             this.properties.store(bos, null);
             byte[] propertiesBytes = bos.toByteArray();
             Arrays.fill(data, (byte) ' ');
