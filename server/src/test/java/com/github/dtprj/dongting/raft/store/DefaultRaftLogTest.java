@@ -22,15 +22,18 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
+import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.time.Duration;
+import java.io.File;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * @author huangli
@@ -64,7 +67,7 @@ public class DefaultRaftLogTest {
 
         raftLog = new DefaultRaftLog(config, statusManager);
         raftLog.idxItemsPerFile = 8;
-        raftLog.idxMaxCacheItems = 2;
+        raftLog.idxMaxCacheItems = 4;
         raftLog.logFileSize = 1024;
         raftLog.logWriteBufferSize = 512;
         raftLog.init(() -> false);
@@ -118,18 +121,55 @@ public class DefaultRaftLogTest {
     @Test
     public void testDelete() throws Exception {
         init();
-        int[] totalSizes = new int[]{400, 400, 512, 200, 1024};
-        int[] bizHeaderLen = new int[]{1, 0, 400, 100, 0};
+        int[] totalSizes = new int[]{400, 400, 512, 200, 400};
+        int[] bizHeaderLen = new int[]{1, 0, 400, 100, 1};
         LogItem[] items = FileLogLoaderTest.createItems(config, 1, totalSizes, bizHeaderLen);
         raftLog.append(Arrays.asList(items));
-        raftStatus.setCommitIndex(3);
-        raftStatus.setLastApplied(3);
-        raftStatus.setLastLogIndex(3);
+        raftStatus.setCommitIndex(5);
+        raftStatus.setLastApplied(5);
+        raftStatus.setLastLogIndex(5);
+        items = FileLogLoaderTest.createItems(config, 6, totalSizes, bizHeaderLen);
+        raftLog.append(Arrays.asList(items));
 
         // test delete
-        raftLog.markTruncateByIndex(3, 0);
-        raftStatus.getTs().updateForUnitTest(System.nanoTime() + Duration.ofHours(1).toNanos(),
-                System.currentTimeMillis() + Duration.ofHours(1).toMillis());
-        raftLog.doDelete();
+        File dir = new File(new File(dataDir), "log");
+
+        {
+            Supplier<Boolean> deleted = fileDeleted(dir, 0);
+            raftLog.markTruncateByIndex(3, 0);
+            TestUtil.plus1Hour(raftStatus.getTs());
+            assertFalse(deleted.get());
+            raftLog.doDelete();
+            TestUtil.waitUtil(deleted);
+        }
+
+        {
+            TestUtil.plus1Hour(raftStatus.getTs());
+            raftLog.markTruncateByTimestamp(raftStatus.getTs().getWallClockMillis(), 0);
+            // can't delete after next persist index and apply index, so only delete to index 4
+            Supplier<Boolean> deleted = fileDeleted(dir, 1024);
+            assertFalse(deleted.get());
+            TestUtil.plus1Hour(raftStatus.getTs());
+            TestUtil.waitUtil(() -> {
+                // may in deleting status, need retry
+                raftLog.doDelete();
+                return deleted.get();
+            });
+        }
+    }
+
+    private static Supplier<Boolean> fileDeleted(File dir, long startIndex) {
+        return () -> {
+            String[] names = dir.list();
+            String firstFileName = String.format("%020d", startIndex);
+            if (names != null) {
+                for (String n : names) {
+                    if (n.equals(firstFileName)) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        };
     }
 }

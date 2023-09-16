@@ -66,7 +66,7 @@ public class FileLogLoaderTest {
         config.setRaftStatus(raftStatus);
         config.setIoExecutor(MockExecutors.ioExecutor());
 
-        idxQueue = new IdxFileQueue(dir, statusManager, config, 8, 2);
+        idxQueue = new IdxFileQueue(dir, statusManager, config, 8, 4);
         logQueue = new LogFileQueue(dir, config, idxQueue, fileSize, 1024);
         idxQueue.init();
         Pair<Long, Long> p = idxQueue.initRestorePos();

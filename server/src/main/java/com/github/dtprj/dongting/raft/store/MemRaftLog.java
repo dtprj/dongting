@@ -170,8 +170,8 @@ public class MemRaftLog implements RaftLog {
     }
 
     @Override
-    public void markTruncateByTimestamp(long timestampMillis, long delayMillis) {
-        markDelete(delayMillis, li -> li.getTimestamp() < timestampMillis
+    public void markTruncateByTimestamp(long timestampBound, long delayMillis) {
+        markDelete(delayMillis, li -> li.getTimestamp() < timestampBound
                 && li.getIndex() < raftStatus.getLastApplied());
     }
 

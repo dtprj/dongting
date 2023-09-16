@@ -15,8 +15,10 @@
  */
 package com.github.dtprj.dongting.raft.test;
 
+import com.github.dtprj.dongting.common.Timestamp;
 import org.opentest4j.AssertionFailedError;
 
+import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -80,5 +82,10 @@ public class TestUtil {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static void plus1Hour(Timestamp ts) {
+        ts.updateForUnitTest(ts.getNanoTime() + Duration.ofHours(1).toNanos(),
+                ts.getWallClockMillis() + Duration.ofHours(1).toMillis());
     }
 }

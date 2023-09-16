@@ -54,10 +54,10 @@ public interface RaftLog extends AutoCloseable {
 
     /**
      * try to delete logs before the timestamp(exclude).
-     * @param timestampMillis the timestamp of the log
+     * @param timestampBound the timestamp of the log
      * @param delayMillis delay millis to delete the logs, to wait read complete
      */
-    void markTruncateByTimestamp(long timestampMillis, long delayMillis);
+    void markTruncateByTimestamp(long timestampBound, long delayMillis);
 
     void doDelete();
 

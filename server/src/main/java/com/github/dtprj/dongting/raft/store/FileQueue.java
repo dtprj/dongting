@@ -184,6 +184,7 @@ abstract class FileQueue implements AutoCloseable {
 
     protected void submitDeleteTask(Predicate<LogFile> shouldDelete) {
         if (deleting) {
+            log.info("deleting, ignore delete request");
             return;
         }
         if (stopIndicator.get()) {

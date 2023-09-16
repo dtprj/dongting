@@ -39,7 +39,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.zip.CRC32C;
 
@@ -326,22 +325,20 @@ class LogFileQueue extends FileQueue {
         }
     }
 
-    public void markDelete(long boundIndex, long timestampMillis, long delayMills) {
-        markDelete(delayMills, nextFile -> timestampMillis > nextFile.firstTimestamp
-                && boundIndex >= nextFile.firstIndex);
-    }
-
-    private void markDelete(long delayMillis, Predicate<LogFile> predicate) {
-        long deleteTimestamp = ts.getWallClockMillis() + delayMillis;
+    public void markDelete(long boundIndex, long timestampBound, long delayMills) {
+        long deleteTimestamp = ts.getWallClockMillis() + delayMills;
         int queueSize = queue.size();
         for (int i = 0; i < queueSize - 1; i++) {
             LogFile logFile = queue.get(i);
             LogFile nextFile = queue.get(i + 1);
-
-            if (nextFile.firstTimestamp == 0) {
-                return;
+            boolean result = nextFile.firstTimestamp > 0
+                    && timestampBound > nextFile.firstTimestamp
+                    && boundIndex >= nextFile.firstIndex;
+            if (log.isDebugEnabled()) {
+                log.debug("mark {} delete: {}. timestampBound={}, nextFileFirstTimeStamp={}, boundIndex={}, nextFileFirstIndex={}",
+                        logFile.file.getName(), result, timestampBound, nextFile.firstTimestamp, boundIndex, nextFile.firstIndex);
             }
-            if (predicate.test(nextFile)) {
+            if (result) {
                 if (logFile.deleteTimestamp == 0) {
                     logFile.deleteTimestamp = deleteTimestamp;
                 } else {
@@ -356,7 +353,8 @@ class LogFileQueue extends FileQueue {
     public void submitDeleteTask(long taskStartTimestamp) {
         submitDeleteTask(logFile -> {
             long deleteTimestamp = logFile.deleteTimestamp;
-            return deleteTimestamp > 0 && deleteTimestamp < taskStartTimestamp && logFile.use <= 0;
+            boolean result = deleteTimestamp > 0 && deleteTimestamp < taskStartTimestamp && logFile.use <= 0;
+            return result;
         });
     }
 
@@ -494,7 +492,7 @@ class LogFileQueue extends FileQueue {
                     return;
                 }
 
-                AsyncIoTask task = new AsyncIoTask(logFile.channel, stopIndicator , cancel);
+                AsyncIoTask task = new AsyncIoTask(logFile.channel, stopIndicator, cancel);
                 ByteBuffer buf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE);
                 CompletableFuture<Void> f = task.read(buf, pos & fileLenMask);
                 f.whenCompleteAsync((v, loadHeaderEx) -> headerLoadComplete(loadHeaderEx, buf), raftExecutor);
