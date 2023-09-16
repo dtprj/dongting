@@ -64,8 +64,8 @@ public class IdxFileQueueTest {
         c.setStopIndicator(() -> false);
         raftStatus = new RaftStatusImpl();
         c.setTs(raftStatus.getTs());
-        statusManager = new StatusManager(MockExecutors.ioExecutor(), raftStatus);
-        statusManager.initStatusFileChannel(dir.getPath(), "test.status");
+        statusManager = new StatusManager(MockExecutors.ioExecutor(), raftStatus, dir.getPath(), "test.status");
+        statusManager.initStatusFile();
         c.setRaftStatus(raftStatus);
         c.setIoExecutor(MockExecutors.ioExecutor());
         return new IdxFileQueue(dir, statusManager, c, 8, 4);

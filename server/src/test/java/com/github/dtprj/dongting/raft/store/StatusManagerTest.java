@@ -43,7 +43,7 @@ public class StatusManagerTest {
     public void setup() {
         dir = TestDir.createTestDir(StatusManagerTest.class.getSimpleName());
         raftStatus = new RaftStatusImpl();
-        statusManager = new StatusManager(MockExecutors.ioExecutor(), raftStatus) {
+        statusManager = new StatusManager(MockExecutors.ioExecutor(), raftStatus, dir.getParent(), "status") {
             private boolean mockFail = false;
             @Override
             protected CompletableFuture<Void> persist(boolean flush) {
@@ -54,7 +54,7 @@ public class StatusManagerTest {
                 return super.persist(flush);
             }
         };
-        statusManager.initStatusFileChannel(dir.getParent(), "status");
+        statusManager.initStatusFile();
         StatusManager.SYNC_FAIL_RETRY_INTERVAL = 1;
     }
 
@@ -67,8 +67,8 @@ public class StatusManagerTest {
 
     private void check() {
         RaftStatusImpl s2 = new RaftStatusImpl();
-        StatusManager m2 = new StatusManager(MockExecutors.ioExecutor(), s2);
-        m2.initStatusFileChannel(dir.getParent(), "status");
+        StatusManager m2 = new StatusManager(MockExecutors.ioExecutor(), s2, dir.getParent(), "status");
+        m2.initStatusFile();
         assertEquals(raftStatus.getCommitIndex(), s2.getCommitIndex());
         assertEquals(raftStatus.getVotedFor(), s2.getVotedFor());
         assertEquals(raftStatus.getCurrentTerm(), s2.getCurrentTerm());

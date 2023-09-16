@@ -100,7 +100,7 @@ public class RaftGroupThread extends Thread {
 
     private boolean prepareEventLoop() {
         try {
-            statusManager.initStatusFileChannel(groupConfig.getDataDir(), groupConfig.getStatusFile());
+            statusManager.initStatusFile();
             Pair<Integer, Long> snapshotResult = recoverStateMachine();
             int snapshotTerm = snapshotResult == null ? 0 : snapshotResult.getLeft();
             long snapshotIndex = snapshotResult == null ? 0 : snapshotResult.getRight();

@@ -39,9 +39,8 @@ public class StatusManager implements AutoCloseable {
     private static final String VOTED_FOR_KEY = "votedFor";
     private static final String COMMIT_INDEX_KEY = "commitIndex";
 
-    private final ExecutorService ioExecutor;
     private final RaftStatus raftStatus;
-    private StatusFile statusFile;
+    private final StatusFile statusFile;
 
     private CompletableFuture<Void> asyncFuture;
 
@@ -49,15 +48,14 @@ public class StatusManager implements AutoCloseable {
 
     private boolean closed;
 
-    public StatusManager(ExecutorService ioExecutor, RaftStatus raftStatus) {
-        this.ioExecutor = ioExecutor;
+    public StatusManager(ExecutorService ioExecutor, RaftStatus raftStatus, String dataDir, String filename) {
         this.raftStatus = raftStatus;
-    }
-
-    public void initStatusFileChannel(String dataDir, String filename) {
         File dir = FileUtil.ensureDir(dataDir);
         File file = new File(dir, filename);
         statusFile = new StatusFile(file, ioExecutor);
+    }
+
+    public void initStatusFile() {
         statusFile.init();
 
         Properties loadedProps = statusFile.getProperties();

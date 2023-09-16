@@ -61,8 +61,8 @@ public class FileLogLoaderTest {
         config.setTs(raftStatus.getTs());
         config.setDirectPool(TwoLevelPool.getDefaultFactory().apply(config.getTs(), true));
         config.setHeapPool(new RefBufferFactory(TwoLevelPool.getDefaultFactory().apply(config.getTs(), false), 0));
-        statusManager = new StatusManager(MockExecutors.ioExecutor(), raftStatus);
-        statusManager.initStatusFileChannel(dir.getPath(), "test.status");
+        statusManager = new StatusManager(MockExecutors.ioExecutor(), raftStatus, dir.getPath(), "test.status");
+        statusManager.initStatusFile();
         config.setRaftStatus(raftStatus);
         config.setIoExecutor(MockExecutors.ioExecutor());
 
