@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
+import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.StoppedException;
 import com.github.dtprj.dongting.raft.server.LogItem;
@@ -66,8 +67,8 @@ public class FileLogLoaderTest {
         config.setRaftStatus(raftStatus);
         config.setIoExecutor(MockExecutors.ioExecutor());
 
-        idxQueue = new IdxFileQueue(dir, statusManager, config, 8, 4);
-        logQueue = new LogFileQueue(dir, config, idxQueue, fileSize, 1024);
+        idxQueue = new IdxFileQueue(FileUtil.ensureDir(dir,"idx"), statusManager, config, 8, 4);
+        logQueue = new LogFileQueue(FileUtil.ensureDir(dir,"log"), config, idxQueue, fileSize, 1024);
         idxQueue.init();
         Pair<Long, Long> p = idxQueue.initRestorePos();
         logQueue.init();
