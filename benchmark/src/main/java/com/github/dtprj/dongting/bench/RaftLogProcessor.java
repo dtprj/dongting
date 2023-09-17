@@ -52,6 +52,7 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
     private final LinkedBlockingQueue<ReqData> queue = new LinkedBlockingQueue<>();
 
     private final RaftLog raftLog;
+    private final RaftStatusImpl raftStatus;
     private final Timestamp ts;
     private final Supplier<Boolean> stopIndicator;
     private long nextIndex;
@@ -65,12 +66,12 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
     public RaftLogProcessor(Supplier<Boolean> stopIndicator) {
         this.stopIndicator = stopIndicator;
         try {
-            RaftStatusImpl raftStatus = new RaftStatusImpl();
+            raftStatus = new RaftStatusImpl();
             this.ts = raftStatus.getTs();
             RaftGroupConfigEx config = new RaftGroupConfigEx(1, "1", "1");
             config.setDataDir("target/raftlog");
             config.setRaftExecutor(MockExecutors.raftExecutor());
-            config.setStopIndicator(() -> false);
+            config.setStopIndicator(stopIndicator);
             config.setTs(raftStatus.getTs());
             config.setDirectPool(TwoLevelPool.getDefaultFactory().apply(config.getTs(), true));
             config.setHeapPool(new RefBufferFactory(TwoLevelPool.getDefaultFactory().apply(config.getTs(), false), 128));
@@ -126,7 +127,11 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
             long count = 0;
             long batch = 0;
             while (!stopIndicator.get()) {
-                ts.refresh(1);
+                if (ts.refresh(2)) {
+                    // make ts change visible in raft thread
+                    MockExecutors.raftExecutor().execute(() -> {
+                    });
+                }
                 queue.drainTo(list);
                 if (list.size() > 0) {
                     try {
@@ -141,6 +146,9 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
                         }
                         raftLog.append(items);
                         nextIndex += list.size();
+                        raftStatus.setCommitIndex(nextIndex - 1);
+                        raftStatus.setLastApplied(nextIndex - 1);
+                        raftStatus.setLastLogIndex(nextIndex - 1);
                         for (int i = 0; i < list.size(); i++) {
                             ReqData rd = list.get(i);
                             RefBufWriteFrame resp = new RefBufWriteFrame(rd.frame.getBody());

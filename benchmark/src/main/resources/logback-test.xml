@@ -1,0 +1,15 @@
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{mm:ss.SSS} [%thread] %-5level %logger{0} : %msg%n</pattern>
+        </encoder>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>TRACE</level>
+        </filter>
+    </appender>
+
+    <root level="DEBUG">
+        <appender-ref ref="STDOUT" />
+    </root>
+    <logger name="com.github.dtprj.dongting.log.Slf4jLogTest" level="DEBUG"/>
+</configuration>
