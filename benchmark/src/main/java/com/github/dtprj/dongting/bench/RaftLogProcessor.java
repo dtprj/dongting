@@ -48,6 +48,7 @@ import java.util.function.Supplier;
 public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
 
     public static final int COMMAND = 10001;
+    private static final String DATA_DIR = "target/raftlog";
 
     private final LinkedBlockingQueue<ReqData> queue = new LinkedBlockingQueue<>();
 
@@ -69,7 +70,7 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
             raftStatus = new RaftStatusImpl();
             this.ts = raftStatus.getTs();
             RaftGroupConfigEx config = new RaftGroupConfigEx(1, "1", "1");
-            config.setDataDir("target/raftlog");
+            config.setDataDir(DATA_DIR);
             config.setRaftExecutor(MockExecutors.raftExecutor());
             config.setStopIndicator(stopIndicator);
             config.setTs(raftStatus.getTs());
