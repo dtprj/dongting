@@ -39,6 +39,7 @@ import com.github.dtprj.dongting.raft.store.StatusManager;
 
 import java.util.ArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -52,6 +53,7 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
 
     private final RaftLog raftLog;
     private final Timestamp ts;
+    private final Supplier<Boolean> stopIndicator;
     private long nextIndex;
 
     static class ReqData {
@@ -60,7 +62,8 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
         ReqContext reqContext;
     }
 
-    public RaftLogProcessor() {
+    public RaftLogProcessor(Supplier<Boolean> stopIndicator) {
+        this.stopIndicator = stopIndicator;
         try {
             RaftStatusImpl raftStatus = new RaftStatusImpl();
             this.ts = raftStatus.getTs();
@@ -120,13 +123,17 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
     private void run() {
         try {
             ArrayList<ReqData> list = new ArrayList<>(5000);
-            while (true) {
+            long count = 0;
+            long batch = 0;
+            while (!stopIndicator.get()) {
                 ts.refresh(1);
                 queue.drainTo(list);
                 if (list.size() > 0) {
                     try {
+                        batch++;
                         ArrayList<LogItem> items = new ArrayList<>(list.size());
                         for (int i = 0; i < list.size(); i++) {
+                            count++;
                             ReqData rd = list.get(i);
                             RefBuffer bodyBuffer = rd.frame.getBody();
                             LogItem item = createItems(nextIndex + i, ts, bodyBuffer);
@@ -151,6 +158,7 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
                     list.clear();
                 }
             }
+            System.out.println("raft log append avg batch: " + (1.0 * count / batch));
         } catch (Exception e) {
             e.printStackTrace();
         }

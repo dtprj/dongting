@@ -59,7 +59,7 @@ public class NioServerBenchmark extends BenchBase {
         serverConfig.setBizThreads(0);
         serverConfig.setPort(9000);
         server = new NioServer(serverConfig);
-        server.register(RaftLogProcessor.COMMAND, new RaftLogProcessor());
+        server.register(RaftLogProcessor.COMMAND, new RaftLogProcessor(() -> stop));
         server.start();
 
         NioClientConfig clientConfig = new NioClientConfig();
