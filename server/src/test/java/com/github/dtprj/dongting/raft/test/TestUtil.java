@@ -28,8 +28,9 @@ import java.util.function.Supplier;
 /**
  * @author huangli
  */
+@SuppressWarnings("unused")
 public class TestUtil {
-    @SuppressWarnings({"unchecked", "unused", "rawtypes"})
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public static void waitUtil(Supplier<Boolean> condition) {
         waitUtil(Boolean.TRUE, (Supplier) condition, 5000);
     }
@@ -40,6 +41,11 @@ public class TestUtil {
 
     public static void waitUtil(Object expectValue, Supplier<Object> actual, long timeoutMillis) {
         waitUtilInExecutor(null, expectValue, actual, timeoutMillis);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static void waitUtilInExecutor(Executor executor, Supplier<Boolean> actual) {
+        waitUtilInExecutor(executor, Boolean.TRUE, (Supplier) actual, 5000);
     }
 
     public static void waitUtilInExecutor(Executor executor, Object expectValue, Supplier<Object> actual) {

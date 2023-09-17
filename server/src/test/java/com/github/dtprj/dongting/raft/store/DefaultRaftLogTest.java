@@ -136,21 +136,23 @@ public class DefaultRaftLogTest {
 
         {
             Supplier<Boolean> deleted = fileDeleted(dir, 0);
-            raftLog.markTruncateByIndex(3, 0);
+            CompletableFuture.runAsync(() ->  raftLog.markTruncateByIndex(3, 0),
+                    MockExecutors.raftExecutor()).join();
             TestUtil.plus1Hour(raftStatus.getTs());
             assertFalse(deleted.get());
-            raftLog.doDelete();
+            CompletableFuture.runAsync(() -> raftLog.doDelete(), MockExecutors.raftExecutor()).join();
             TestUtil.waitUtil(deleted);
         }
 
         {
             TestUtil.plus1Hour(raftStatus.getTs());
-            raftLog.markTruncateByTimestamp(raftStatus.getTs().getWallClockMillis(), 0);
+            CompletableFuture.runAsync(() -> raftLog.markTruncateByTimestamp(
+                    raftStatus.getTs().getWallClockMillis(), 0), MockExecutors.raftExecutor()).join();
             // can't delete after next persist index and apply index, so only delete to index 4
             Supplier<Boolean> deleted = fileDeleted(dir, 1024);
             assertFalse(deleted.get());
             TestUtil.plus1Hour(raftStatus.getTs());
-            TestUtil.waitUtil(() -> {
+            TestUtil.waitUtilInExecutor(MockExecutors.raftExecutor(), () -> {
                 // may in deleting status, need retry
                 raftLog.doDelete();
                 return deleted.get();
