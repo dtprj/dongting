@@ -99,7 +99,7 @@ class LogFileQueue extends FileQueue {
 
     public int restore(long restoreIndex, long restoreIndexPos, Supplier<Boolean> stopIndicator)
             throws IOException, InterruptedException {
-        log.info("restore from {}, {}", restoreIndex, restoreIndexPos);
+        log.info("start restore from {}, {}", restoreIndex, restoreIndexPos);
         Restorer restorer = new Restorer(idxOps, this, restoreIndex, restoreIndexPos);
         if (queue.size() == 0) {
             tryAllocate();
@@ -353,8 +353,7 @@ class LogFileQueue extends FileQueue {
     public void submitDeleteTask(long taskStartTimestamp) {
         submitDeleteTask(logFile -> {
             long deleteTimestamp = logFile.deleteTimestamp;
-            boolean result = deleteTimestamp > 0 && deleteTimestamp < taskStartTimestamp && logFile.use <= 0;
-            return result;
+            return deleteTimestamp > 0 && deleteTimestamp < taskStartTimestamp && logFile.use <= 0;
         });
     }
 

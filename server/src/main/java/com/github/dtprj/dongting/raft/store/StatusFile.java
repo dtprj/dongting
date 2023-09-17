@@ -43,7 +43,7 @@ import java.util.zip.CRC32C;
  * @author huangli
  */
 public class StatusFile implements AutoCloseable {
-    private static final DtLog log = DtLogs.getLogger(StatusManager.class);
+    private static final DtLog log = DtLogs.getLogger(StatusFile.class);
 
     private static final int FILE_LENGTH = 4096;
     private static final int CRC_HEX_LENGTH = 8;
@@ -132,7 +132,7 @@ public class StatusFile implements AutoCloseable {
                 if (ex != null) {
                     log.error("update status file failed. file={}", file.getPath(), ex);
                 } else {
-                    log.debug("saving status file success: {}", file.getPath());
+                    // log.debug("saving status file success: {}", file.getPath());
                 }
             });
         } catch (Exception e) {
