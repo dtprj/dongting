@@ -36,7 +36,11 @@ public class MockExecutors {
         MOCK_RAFT_THREAD.setDaemon(true);
         MOCK_RAFT_THREAD.start();
         RAFT_EXECUTOR = new RaftExecutor(MOCK_RAFT_THREAD);
-        MOCK_IO_EXECUTOR = Executors.newSingleThreadExecutor(r -> new Thread(r, "MockIOExecutor"));
+        MOCK_IO_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "MockIOExecutor");
+            t.setDaemon(true);
+            return t;
+        });
     }
 
     private static void runMockRaftThread() {
