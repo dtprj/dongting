@@ -86,7 +86,7 @@ abstract class FileQueue implements AutoCloseable {
                     throw new RaftException("file size error: " + f.getPath() + ", size=" + f.length());
                 }
                 long startPos = Long.parseLong(matcher.group(1));
-                log.info("load file: {}", f.getPath());
+                log.debug("load file: {}", f.getPath());
                 HashSet<OpenOption> openOptions = new HashSet<>();
                 openOptions.add(StandardOpenOption.READ);
                 openOptions.add(StandardOpenOption.WRITE);
@@ -160,8 +160,10 @@ abstract class FileQueue implements AutoCloseable {
                 AsyncIoTask t = new AsyncIoTask(logFile.channel, stopIndicator, null);
                 t.write(true, true, buf, getFileSize() - 1).whenComplete((v, ex) -> {
                     if (ex != null) {
+                        log.info("allocate log file failed: {}", logFile.file.getPath(), ex);
                         future.completeExceptionally(ex);
                     } else {
+                        log.info("allocate log file done: {}", logFile.file.getPath());
                         future.complete(logFile);
                     }
                 });
