@@ -34,6 +34,7 @@ import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * @author huangli
@@ -45,10 +46,12 @@ public class DefaultRaftLogTest {
     private RaftGroupConfigEx config;
     private StatusManager statusManager;
     private DefaultRaftLog raftLog;
+    private boolean mockPersistSyncFail;
 
     @BeforeEach
     public void setup() {
         dataDir = TestDir.testDir(DefaultRaftLogTest.class.getSimpleName());
+        mockPersistSyncFail = false;
     }
 
     private void init() throws Exception {
@@ -60,7 +63,16 @@ public class DefaultRaftLogTest {
         config.setTs(raftStatus.getTs());
         config.setDirectPool(TwoLevelPool.getDefaultFactory().apply(config.getTs(), true));
         config.setHeapPool(new RefBufferFactory(TwoLevelPool.getDefaultFactory().apply(config.getTs(), false), 0));
-        statusManager = new StatusManager(MockExecutors.ioExecutor(), raftStatus, config.getDataDir(), config.getStatusFile());
+        statusManager = new StatusManager(MockExecutors.ioExecutor(), raftStatus, config.getDataDir(), config.getStatusFile()) {
+            @Override
+            public void persistSync() {
+                super.persistSync();
+                if (mockPersistSyncFail) {
+                    mockPersistSyncFail = false;
+                    throw new SecurityException("mock fail");
+                }
+            }
+        };
         statusManager.initStatusFile();
         config.setRaftStatus(raftStatus);
         config.setIoExecutor(MockExecutors.ioExecutor());
@@ -104,12 +116,14 @@ public class DefaultRaftLogTest {
         raftStatus.setLastLogIndex(3);
         items = FileLogLoaderTest.createItems(config, 4, totalSizes, bizHeaderLen);
         raftLog.append(Arrays.asList(items));
+        assertEquals(5, raftLog.logFiles.getLogFile(2048).firstIndex);
         // replace
-        items = FileLogLoaderTest.createItems(config, 4, new int[]{200, 200}, new int[]{100, 100});
+        items = FileLogLoaderTest.createItems(config, 4, new int[]{200}, new int[]{100});
         raftLog.append(Arrays.asList(items));
+        assertEquals(0, raftLog.logFiles.getLogFile(2048).firstIndex);
 
         it = raftLog.openIterator(() -> false);
-        assertEquals(5, it.next(1, 5, 1000000).get().size());
+        assertEquals(4, it.next(1, 4, 1000000).get().size());
         it.close();
 
         tearDown();
@@ -136,7 +150,7 @@ public class DefaultRaftLogTest {
 
         {
             Supplier<Boolean> deleted = fileDeleted(dir, 0);
-            CompletableFuture.runAsync(() ->  raftLog.markTruncateByIndex(3, 0),
+            CompletableFuture.runAsync(() -> raftLog.markTruncateByIndex(3, 0),
                     MockExecutors.raftExecutor()).join();
             TestUtil.plus1Hour(raftStatus.getTs());
             assertFalse(deleted.get());
@@ -173,5 +187,24 @@ public class DefaultRaftLogTest {
             }
             return true;
         };
+    }
+
+    @Test
+    public void testTruncateFail() throws Exception {
+        init();
+        int[] totalSizes = new int[]{400, 400, 512, 200};
+        int[] bizHeaderLen = new int[]{1, 0, 400, 100, 1};
+        LogItem[] items = FileLogLoaderTest.createItems(config, 1, totalSizes, bizHeaderLen);
+        raftLog.append(Arrays.asList(items));
+
+        LogItem[] items2 = FileLogLoaderTest.createItems(config, 3 , new int[]{200, 200}, new int[]{100, 100});
+        mockPersistSyncFail = true;
+        assertThrows(SecurityException.class, () -> raftLog.append(Arrays.asList(items2)));
+
+        tearDown();
+
+        init();
+        assertEquals(1, raftLog.logFiles.getLogFile(0).firstIndex);
+        assertEquals(0, raftLog.logFiles.getLogFile(1024).firstIndex);
     }
 }
