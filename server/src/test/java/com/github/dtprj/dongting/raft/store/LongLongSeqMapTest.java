@@ -103,6 +103,23 @@ public class LongLongSeqMapTest {
     }
 
     @Test
+    public void testResize2() {
+        int base = 15;
+        for (long i = 0; i < 8; i++) {
+            map.put(base + i, (base + i) * 100);
+        }
+        assertEquals(8, map.size());
+        for (long i = 0; i < 8; i++) {
+            long key = map.getLastKey() + 1;
+            map.put(key, key * 100);
+        }
+        assertEquals(16, map.size());
+        for (long i = map.getFirstKey(); i <= map.getLastKey(); i++) {
+            assertEquals(i * 100, map.get(i));
+        }
+    }
+
+    @Test
     public void testCircularBuffer() {
         for (long i = 0; i < 8; i++) {
             map.put(i, i * 100);

@@ -95,7 +95,7 @@ class LongLongSeqMap {
 
         System.arraycopy(data, idx(firstKey, oldCapacity), newData, idx(firstKey, newCapacity), firstPartLength);
         if (secondPartLength > 0) {
-            System.arraycopy(data, 0, newData, idx(firstKey, newCapacity) + firstPartLength, secondPartLength);
+            System.arraycopy(data, 0, newData, idx((firstKey + firstPartLength), newCapacity), secondPartLength);
         }
 
         data = newData;
