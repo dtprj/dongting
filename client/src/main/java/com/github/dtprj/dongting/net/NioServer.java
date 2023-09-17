@@ -229,7 +229,7 @@ public class NioServer extends NioNet implements Runnable {
 
     public static class PingProcessor extends ReqProcessor<RefBuffer> {
 
-        private static final RefBufferDecoder DECODER = new RefBufferDecoder(true);
+        private static final RefBufferDecoder DECODER = RefBufferDecoder.PLAIN_INSTANCE;
 
         public PingProcessor() {
         }

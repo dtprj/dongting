@@ -47,6 +47,7 @@ public class NioServerBenchmark extends BenchBase {
     private static final long TIME = 30 * 1000;
     private static final long WARMUP_TIME = 5000;
     private static final long TIMEOUT = 5000;
+    private static final int CMD = Commands.CMD_PING;
 
     public NioServerBenchmark(int threadCount, long testTime, long warmupTime) {
         super(threadCount, testTime, warmupTime);
@@ -81,8 +82,8 @@ public class NioServerBenchmark extends BenchBase {
         try {
             final DtTime timeout = new DtTime(TIMEOUT, TimeUnit.MILLISECONDS);
             ByteBufferWriteFrame req = new ByteBufferWriteFrame(ByteBuffer.wrap(data));
-            req.setCommand(Commands.CMD_PING);
-            CompletableFuture<ReadFrame<RefBuffer>> f = client.sendRequest(req, new RefBufferDecoder(true), timeout);
+            req.setCommand(CMD);
+            CompletableFuture<ReadFrame<RefBuffer>> f = client.sendRequest(req, RefBufferDecoder.PLAIN_INSTANCE, timeout);
 
             if (SYNC) {
                 ReadFrame<RefBuffer> rf = f.get();

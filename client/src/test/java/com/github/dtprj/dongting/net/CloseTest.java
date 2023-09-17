@@ -82,7 +82,7 @@ public class CloseTest {
 
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(1));
         wf.setCommand(CMD);
-        CompletableFuture<?> f = client.sendRequest(wf, new RefBufferDecoder(), new DtTime(10, TimeUnit.SECONDS));
+        CompletableFuture<?> f = client.sendRequest(wf, RefBufferDecoder.INSTANCE, new DtTime(10, TimeUnit.SECONDS));
 
         TestUtil.waitUtil(() -> received);
 
@@ -104,7 +104,7 @@ public class CloseTest {
 
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(1));
         wf.setCommand(CMD);
-        CompletableFuture<?> f = client.sendRequest(wf, new RefBufferDecoder(), new DtTime(10, TimeUnit.SECONDS));
+        CompletableFuture<?> f = client.sendRequest(wf, RefBufferDecoder.INSTANCE, new DtTime(10, TimeUnit.SECONDS));
 
         TestUtil.waitUtil(() -> received);
 
