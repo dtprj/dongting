@@ -76,6 +76,7 @@ abstract class FileQueue implements AutoCloseable {
             return;
         }
         Arrays.sort(files);
+        int count = 0;
         for (File f : files) {
             if (!f.isFile()) {
                 continue;
@@ -86,12 +87,12 @@ abstract class FileQueue implements AutoCloseable {
                     throw new RaftException("file size error: " + f.getPath() + ", size=" + f.length());
                 }
                 long startPos = Long.parseLong(matcher.group(1));
-                log.debug("load file: {}", f.getPath());
                 HashSet<OpenOption> openOptions = new HashSet<>();
                 openOptions.add(StandardOpenOption.READ);
                 openOptions.add(StandardOpenOption.WRITE);
                 AsynchronousFileChannel channel = AsynchronousFileChannel.open(f.toPath(), openOptions, ioExecutor);
                 queue.addLast(new LogFile(startPos, startPos + getFileSize(), channel, f));
+                count++;
             }
         }
         for (int i = 0; i < queue.size(); i++) {
@@ -107,6 +108,8 @@ abstract class FileQueue implements AutoCloseable {
         if (queue.size() > 0) {
             queueStartPosition = queue.get(0).startPos;
             queueEndPosition = queue.get(queue.size() - 1).endPos;
+            log.info("load {} files in {}, first={}, last={}", count, dir.getPath(),
+                    queue.get(0).file.getName(), queue.get(queue.size() - 1).file.getName());
         }
     }
 
