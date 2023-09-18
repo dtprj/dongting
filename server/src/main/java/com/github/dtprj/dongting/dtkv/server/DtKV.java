@@ -24,7 +24,7 @@ import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.codec.StrFieldEncoder;
 import com.github.dtprj.dongting.codec.StrFiledDecoder;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftStatus;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
@@ -45,7 +45,7 @@ public class DtKV implements StateMachine {
     // public static final int BIZ_TYPE_LIST = 3;
     // public static final int BIZ_TYPE_CAS = 4;
 
-    private final RaftGroupConfigEx groupConfig;
+    private final RaftGroupConfig groupConfig;
     private final RaftStatus raftStatus;
     private final ByteBufferPool heapPool;
 
@@ -54,7 +54,7 @@ public class DtKV implements StateMachine {
 
     private volatile KvStatus kvStatus = new KvStatus(KvStatus.RUNNING, new KvImpl(), 0);
 
-    public DtKV(RaftGroupConfigEx groupConfig) {
+    public DtKV(RaftGroupConfig groupConfig) {
         this.groupConfig = groupConfig;
         this.raftStatus = groupConfig.getRaftStatus();
         this.heapPool = groupConfig.getHeapPool().getPool();

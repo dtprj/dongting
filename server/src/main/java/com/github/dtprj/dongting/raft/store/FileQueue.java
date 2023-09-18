@@ -20,7 +20,7 @@ import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 
 import java.io.File;
 import java.io.IOException;
@@ -59,7 +59,7 @@ abstract class FileQueue implements AutoCloseable {
 
     private boolean deleting;
 
-    public FileQueue(File dir, RaftGroupConfigEx groupConfig) {
+    public FileQueue(File dir, RaftGroupConfig groupConfig) {
         this.dir = dir;
         this.ioExecutor = groupConfig.getIoExecutor();
         this.raftExecutor = groupConfig.getRaftExecutor();

@@ -20,7 +20,7 @@ import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.AfterEach;
@@ -43,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 public class DefaultRaftLogTest {
     private String dataDir;
     private RaftStatusImpl raftStatus;
-    private RaftGroupConfigEx config;
+    private RaftGroupConfig config;
     private StatusManager statusManager;
     private DefaultRaftLog raftLog;
     private boolean mockPersistSyncFail;
@@ -56,7 +56,7 @@ public class DefaultRaftLogTest {
 
     private void init() throws Exception {
         raftStatus = new RaftStatusImpl();
-        config = new RaftGroupConfigEx(1, "1", "1");
+        config = new RaftGroupConfig(1, "1", "1");
         config.setDataDir(dataDir);
         config.setRaftExecutor(MockExecutors.raftExecutor());
         config.setIoExecutor(MockExecutors.ioExecutor());

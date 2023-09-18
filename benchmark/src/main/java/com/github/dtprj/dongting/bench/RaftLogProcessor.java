@@ -32,7 +32,7 @@ import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.store.DefaultRaftLog;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
@@ -73,7 +73,7 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
         try {
             raftStatus = new RaftStatusImpl();
             this.ts = raftStatus.getTs();
-            RaftGroupConfigEx config = new RaftGroupConfigEx(1, "1", "1");
+            RaftGroupConfig config = new RaftGroupConfig(1, "1", "1");
             config.setDataDir(DATA_DIR);
             config.setRaftExecutor(MockExecutors.raftExecutor());
             config.setIoExecutor(MockExecutors.ioExecutor());

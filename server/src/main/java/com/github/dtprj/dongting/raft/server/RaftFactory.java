@@ -10,9 +10,9 @@ import java.util.concurrent.ExecutorService;
 public interface RaftFactory {
     ExecutorService createIoExecutor();
 
-    StateMachine createStateMachine(RaftGroupConfigEx groupConfig);
+    StateMachine createStateMachine(RaftGroupConfig groupConfig);
 
-    RaftLog createRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager);
+    RaftLog createRaftLog(RaftGroupConfig groupConfig, StatusManager statusManager);
 
-    SnapshotManager createSnapshotManager(RaftGroupConfigEx groupConfig);
+    SnapshotManager createSnapshotManager(RaftGroupConfig groupConfig);
 }

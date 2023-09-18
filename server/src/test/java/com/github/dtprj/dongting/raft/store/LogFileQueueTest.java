@@ -23,7 +23,7 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -55,7 +55,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 public class LogFileQueueTest {
     private LogFileQueue logFileQueue;
     private File dir;
-    private RaftGroupConfigEx config;
+    private RaftGroupConfig config;
 
     private int index;
     private int term;
@@ -93,7 +93,7 @@ public class LogFileQueueTest {
 
         dir = TestDir.createTestDir(LogFileQueueTest.class.getSimpleName());
         RaftStatusImpl raftStatus = new RaftStatusImpl();
-        config = new RaftGroupConfigEx(1, "1", "1");
+        config = new RaftGroupConfig(1, "1", "1");
         config.setRaftExecutor(MockExecutors.raftExecutor());
         config.setIoExecutor(MockExecutors.ioExecutor());
         config.setStopIndicator(() -> false);

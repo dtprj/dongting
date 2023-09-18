@@ -23,7 +23,7 @@ import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.UnrecoverableException;
 
 import java.io.File;
@@ -37,7 +37,7 @@ import java.util.function.Supplier;
  */
 public class DefaultRaftLog implements RaftLog {
 
-    private final RaftGroupConfigEx groupConfig;
+    private final RaftGroupConfig groupConfig;
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
     private final StatusManager statusManager;
@@ -55,7 +55,7 @@ public class DefaultRaftLog implements RaftLog {
     int logWriteBufferSize = LogFileQueue.DEFAULT_WRITE_BUFFER_SIZE;
 
 
-    public DefaultRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager) {
+    public DefaultRaftLog(RaftGroupConfig groupConfig, StatusManager statusManager) {
         this.groupConfig = groupConfig;
         this.ts = groupConfig.getTs();
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();

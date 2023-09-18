@@ -209,7 +209,7 @@ public class RaftServer extends AbstractLifeCircle {
         raftStatus.setNodeIdOfObservers(nodeIdOfObservers);
         raftStatus.setGroupId(rgc.getGroupId());
 
-        RaftGroupConfigEx rgcEx = createGroupConfigEx(rgc, raftStatus, raftExecutor, raftGroupThread);
+        RaftGroupConfig rgcEx = createGroupConfigEx(rgc, raftStatus, raftExecutor, raftGroupThread);
 
 
         StateMachine stateMachine = raftFactory.createStateMachine(rgcEx);
@@ -252,9 +252,9 @@ public class RaftServer extends AbstractLifeCircle {
         return gc;
     }
 
-    private RaftGroupConfigEx createGroupConfigEx(RaftGroupConfig rgc, RaftStatusImpl raftStatus,
+    private RaftGroupConfig createGroupConfigEx(RaftGroupConfig rgc, RaftStatusImpl raftStatus,
                                                   RaftExecutor raftExecutor, RaftGroupThread raftGroupThread) {
-        RaftGroupConfigEx rgcEx = new RaftGroupConfigEx(rgc.getGroupId(), rgc.getNodeIdOfMembers(),
+        RaftGroupConfig rgcEx = new RaftGroupConfig(rgc.getGroupId(), rgc.getNodeIdOfMembers(),
                 rgc.getNodeIdOfObservers());
         rgcEx.setDataDir(rgc.getDataDir());
         rgcEx.setStatusFile(rgc.getStatusFile());

@@ -20,7 +20,7 @@ import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftStatus;
 
 import java.util.ArrayList;
@@ -39,7 +39,7 @@ public class MemRaftLog implements RaftLog {
     private final IndexedQueue<MemLog> logs;
     private final Timestamp ts;
     private final RaftStatus raftStatus;
-    private final RaftGroupConfigEx groupConfig;
+    private final RaftGroupConfig groupConfig;
     private final int maxItems;
     private boolean closed;
 
@@ -50,7 +50,7 @@ public class MemRaftLog implements RaftLog {
     }
 
 
-    public MemRaftLog(RaftGroupConfigEx groupConfig, int maxItems) {
+    public MemRaftLog(RaftGroupConfig groupConfig, int maxItems) {
         this.ts = groupConfig.getTs();
         this.raftStatus = groupConfig.getRaftStatus();
         this.groupConfig = groupConfig;

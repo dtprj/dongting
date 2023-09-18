@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,7 +40,7 @@ public class FileQueueTest {
     @BeforeEach
     public void setup() {
         File dir = TestDir.createTestDir(FileQueueTest.class.getSimpleName());
-        RaftGroupConfigEx c = new RaftGroupConfigEx(1, "1", "1");
+        RaftGroupConfig c = new RaftGroupConfig(1, "1", "1");
         c.setRaftExecutor(MockExecutors.raftExecutor());
         c.setStopIndicator(() -> false);
         c.setIoExecutor(MockExecutors.ioExecutor());
@@ -48,7 +48,7 @@ public class FileQueueTest {
     }
 
     private static class MockFileQueue extends FileQueue {
-        public MockFileQueue(File dir, RaftGroupConfigEx groupConfig) {
+        public MockFileQueue(File dir, RaftGroupConfig groupConfig) {
             super(dir, groupConfig);
         }
 

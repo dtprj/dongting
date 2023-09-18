@@ -18,7 +18,7 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.AfterEach;
@@ -47,7 +47,7 @@ public class IdxFileQueueTest {
     @BeforeAll
     @SuppressWarnings("resource")
     public static void testConstructor() {
-        RaftGroupConfigEx c = new RaftGroupConfigEx(1, "1", "1");
+        RaftGroupConfig c = new RaftGroupConfig(1, "1", "1");
         assertThrows(IllegalArgumentException.class, () -> new IdxFileQueue(
                 null, null, c, 511, 16));
     }
@@ -59,7 +59,7 @@ public class IdxFileQueueTest {
     }
 
     private IdxFileQueue createFileQueue() {
-        RaftGroupConfigEx c = new RaftGroupConfigEx(1, "1", "1");
+        RaftGroupConfig c = new RaftGroupConfig(1, "1", "1");
         c.setRaftExecutor(MockExecutors.raftExecutor());
         c.setIoExecutor(MockExecutors.ioExecutor());
         c.setStopIndicator(() -> false);

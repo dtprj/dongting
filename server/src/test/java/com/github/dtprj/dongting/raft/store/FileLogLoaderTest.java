@@ -23,7 +23,7 @@ import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.StoppedException;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -48,7 +48,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 public class FileLogLoaderTest {
     private LogFileQueue logQueue;
     private IdxFileQueue idxQueue;
-    private RaftGroupConfigEx config;
+    private RaftGroupConfig config;
     private StatusManager statusManager;
 
     private LogItem[] items;
@@ -56,7 +56,7 @@ public class FileLogLoaderTest {
     private void setup(long fileSize) throws Exception {
         File dir = TestDir.createTestDir(LogFileQueueTest.class.getSimpleName());
         RaftStatusImpl raftStatus = new RaftStatusImpl();
-        config = new RaftGroupConfigEx(1, "1", "1");
+        config = new RaftGroupConfig(1, "1", "1");
         config.setRaftExecutor(MockExecutors.raftExecutor());
         config.setIoExecutor(MockExecutors.ioExecutor());
         config.setStopIndicator(() -> false);
@@ -89,7 +89,7 @@ public class FileLogLoaderTest {
         logQueue.append(asList(items));
     }
 
-    public static LogItem[] createItems(RaftGroupConfigEx config, int index, int[] totalSizes, int[] bizHeaderLens) {
+    public static LogItem[] createItems(RaftGroupConfig config, int index, int[] totalSizes, int[] bizHeaderLens) {
         LogItem[] items = new LogItem[totalSizes.length];
         for (int i = 0; i < totalSizes.length; i++) {
             int totalSize = totalSizes[i];

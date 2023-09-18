@@ -21,7 +21,7 @@ import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.sm.MockRaftCodecFactory;
 import org.junit.jupiter.api.Test;
 
@@ -46,7 +46,7 @@ public class MemRaftLogTest {
 
     private RaftStatusImpl raftStatus;
     private LogItem[] items;
-    private RaftGroupConfigEx config;
+    private RaftGroupConfig config;
 
     private MemRaftLog setup(int maxItems, int itemsSize) {
         items = new LogItem[itemsSize];
@@ -56,7 +56,7 @@ public class MemRaftLogTest {
         }
 
         raftStatus = new RaftStatusImpl();
-        config = new RaftGroupConfigEx(0, "1", "1");
+        config = new RaftGroupConfig(0, "1", "1");
         config.setTs(raftStatus.getTs());
         config.setRaftStatus(raftStatus);
 

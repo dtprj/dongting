@@ -25,7 +25,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 
 import java.io.File;
 import java.io.IOException;
@@ -71,7 +71,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private long lastFlushNanos;
     private static final long FLUSH_INTERVAL_NANOS = 15L * 1000 * 1000 * 1000;
 
-    public IdxFileQueue(File dir, StatusManager statusManager, RaftGroupConfigEx groupConfig,
+    public IdxFileQueue(File dir, StatusManager statusManager, RaftGroupConfig groupConfig,
                         int itemsPerFile, int maxCacheItems) {
         super(dir, groupConfig);
         if (BitUtil.nextHighestPowerOfTwo(itemsPerFile) != itemsPerFile) {

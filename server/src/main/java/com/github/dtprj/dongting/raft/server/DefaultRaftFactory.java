@@ -60,17 +60,17 @@ public class DefaultRaftFactory extends AbstractLifeCircle implements RaftFactor
     }
 
     @Override
-    public StateMachine createStateMachine(RaftGroupConfigEx groupConfig) {
+    public StateMachine createStateMachine(RaftGroupConfig groupConfig) {
         return null;
     }
 
     @Override
-    public RaftLog createRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager) {
+    public RaftLog createRaftLog(RaftGroupConfig groupConfig, StatusManager statusManager) {
         return new DefaultRaftLog(groupConfig, statusManager);
     }
 
     @Override
-    public SnapshotManager createSnapshotManager(RaftGroupConfigEx groupConfig) {
+    public SnapshotManager createSnapshotManager(RaftGroupConfig groupConfig) {
         return new DefaultSnapshotManager(groupConfig, ioExecutor);
     }
 }

@@ -31,7 +31,7 @@ import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.io.File;
@@ -69,7 +69,7 @@ class LogFileQueue extends FileQueue {
 
     private long writePos;
 
-    public LogFileQueue(File dir, RaftGroupConfigEx groupConfig, IdxOps idxOps, long logFileSize, int writeBufferSize) {
+    public LogFileQueue(File dir, RaftGroupConfig groupConfig, IdxOps idxOps, long logFileSize, int writeBufferSize) {
         super(dir, groupConfig);
         this.idxOps = idxOps;
         this.ts = groupConfig.getTs();

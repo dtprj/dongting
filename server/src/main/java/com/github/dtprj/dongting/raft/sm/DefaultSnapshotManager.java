@@ -23,7 +23,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftStatus;
 import com.github.dtprj.dongting.raft.store.AsyncIoTask;
 import com.github.dtprj.dongting.raft.store.StatusFile;
@@ -58,7 +58,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
     private static final String KEY_MAX_BLOCK = "maxBlock";
 
 
-    private final RaftGroupConfigEx groupConfig;
+    private final RaftGroupConfig groupConfig;
     private final ExecutorService ioExecutor;
     private final RaftExecutor raftExecutor;
     private final RaftStatus raftStatus;
@@ -69,7 +69,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
     private File lastDataFile;
     private SnapshotSaveTask currentSaveTask;
 
-    public DefaultSnapshotManager(RaftGroupConfigEx groupConfig, ExecutorService ioExecutor) {
+    public DefaultSnapshotManager(RaftGroupConfig groupConfig, ExecutorService ioExecutor) {
         this.groupConfig = groupConfig;
         this.ioExecutor = ioExecutor;
         this.raftExecutor = (RaftExecutor) groupConfig.getRaftExecutor();

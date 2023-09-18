@@ -32,7 +32,7 @@ import com.github.dtprj.dongting.raft.rpc.AppendRespCallback;
 import com.github.dtprj.dongting.raft.rpc.InstallSnapshotReq;
 import com.github.dtprj.dongting.raft.rpc.InstallSnapshotResp;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
@@ -75,7 +75,7 @@ public class ReplicateManager {
     private static final PbNoCopyDecoder<AppendRespCallback> APPEND_RESP_DECODER = new PbNoCopyDecoder<>(c -> new AppendRespCallback());
     private static final PbNoCopyDecoder<InstallSnapshotResp> INSTALL_SNAPSHOT_RESP_DECODER = new PbNoCopyDecoder<>(c -> new InstallSnapshotResp.Callback());
 
-    public ReplicateManager(RaftServerConfig config, RaftGroupConfigEx groupConfig, RaftStatusImpl raftStatus, RaftLog raftLog,
+    public ReplicateManager(RaftServerConfig config, RaftGroupConfig groupConfig, RaftStatusImpl raftStatus, RaftLog raftLog,
                             StateMachine stateMachine, NioClient client, RaftExecutor executor,
                             CommitManager commitManager, StatusManager statusManager) {
         this.groupId = groupConfig.getGroupId();
