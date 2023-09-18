@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.common.DtUtil;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -26,6 +25,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
+import java.nio.file.Files;
 import java.nio.file.OpenOption;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
@@ -211,13 +211,10 @@ abstract class FileQueue implements AutoCloseable {
                 log.debug("close log file: {}", logFile.file.getPath());
                 DtUtil.close(logFile.channel);
                 log.info("delete log file: {}", logFile.file.getPath());
-                boolean b = logFile.file.delete();
-                if (!b) {
-                    log.warn("delete log file failed: {}", logFile.file.getPath());
-                }
-                raftExecutor.execute(() -> processDeleteResult(b, shouldDelete));
+                Files.delete(logFile.file.toPath());
+                raftExecutor.execute(() -> processDeleteResult(true, shouldDelete));
             } catch (Throwable e) {
-                BugLog.log(e);
+                log.error("delete file fail: ", logFile.file.getPath(), e);
                 raftExecutor.execute(() -> processDeleteResult(false, shouldDelete));
             }
         });
