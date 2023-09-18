@@ -58,6 +58,10 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
     private final Supplier<Boolean> stopIndicator;
     private long nextIndex;
 
+    private final ArrayList<ReqData> list = new ArrayList<>(5000);
+    private long processItemCount = 0;
+    private long processBatchCount = 0;
+
     static class ReqData {
         ReadFrame<RefBuffer> frame;
         ChannelContext channelContext;
@@ -86,9 +90,7 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
             Pair<Integer, Long> initResult = this.raftLog.init(() -> false);
             nextIndex = initResult.getRight() + 1;
 
-            Thread t = new Thread(this::run);
-            t.setDaemon(true);
-            t.start();
+            MockExecutors.raftExecutor().execute(this::run);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -124,51 +126,46 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
     }
 
     private void run() {
+        if (stopIndicator.get()) {
+            System.out.println("raft log append avg processBatchCount: " + (1.0 * processItemCount / processBatchCount));
+            return;
+        }
         try {
-            ArrayList<ReqData> list = new ArrayList<>(5000);
-            long count = 0;
-            long batch = 0;
-            while (!stopIndicator.get()) {
-                if (ts.refresh(2)) {
-                    // make ts change visible in raft thread
-                    MockExecutors.raftExecutor().execute(() -> {
-                    });
-                }
-                queue.drainTo(list);
-                if (list.size() > 0) {
-                    try {
-                        batch++;
-                        ArrayList<LogItem> items = new ArrayList<>(list.size());
-                        for (int i = 0; i < list.size(); i++) {
-                            count++;
-                            ReqData rd = list.get(i);
-                            RefBuffer bodyBuffer = rd.frame.getBody();
-                            LogItem item = createItems(nextIndex + i, ts, bodyBuffer);
-                            items.add(item);
-                        }
-                        raftLog.append(items);
-                        nextIndex += list.size();
-                        raftStatus.setCommitIndex(nextIndex - 1);
-                        raftStatus.setLastApplied(nextIndex - 1);
-                        raftStatus.setLastLogIndex(nextIndex - 1);
-                        for (int i = 0; i < list.size(); i++) {
-                            ReqData rd = list.get(i);
-                            RefBufWriteFrame resp = new RefBufWriteFrame(rd.frame.getBody());
-                            resp.setRespCode(CmdCodes.SUCCESS);
-                            rd.channelContext.getRespWriter().writeRespInBizThreads(rd.frame, resp, rd.reqContext.getTimeout());
-                        }
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                        for (int i = 0; i < list.size(); i++) {
-                            ReqData rd = list.get(i);
-                            EmptyBodyRespFrame resp = new EmptyBodyRespFrame(CmdCodes.SYS_ERROR);
-                            rd.channelContext.getRespWriter().writeRespInBizThreads(rd.frame, resp, rd.reqContext.getTimeout());
-                        }
+            ts.refresh(1);
+            queue.drainTo(list);
+            if (list.size() > 0) {
+                try {
+                    processBatchCount++;
+                    ArrayList<LogItem> items = new ArrayList<>(list.size());
+                    for (int i = 0; i < list.size(); i++) {
+                        processItemCount++;
+                        ReqData rd = list.get(i);
+                        RefBuffer bodyBuffer = rd.frame.getBody();
+                        LogItem item = createItems(nextIndex + i, ts, bodyBuffer);
+                        items.add(item);
                     }
-                    list.clear();
+                    raftLog.append(items);
+                    nextIndex += list.size();
+                    raftStatus.setCommitIndex(nextIndex - 1);
+                    raftStatus.setLastApplied(nextIndex - 1);
+                    raftStatus.setLastLogIndex(nextIndex - 1);
+                    for (int i = 0; i < list.size(); i++) {
+                        ReqData rd = list.get(i);
+                        RefBufWriteFrame resp = new RefBufWriteFrame(rd.frame.getBody());
+                        resp.setRespCode(CmdCodes.SUCCESS);
+                        rd.channelContext.getRespWriter().writeRespInBizThreads(rd.frame, resp, rd.reqContext.getTimeout());
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    for (int i = 0; i < list.size(); i++) {
+                        ReqData rd = list.get(i);
+                        EmptyBodyRespFrame resp = new EmptyBodyRespFrame(CmdCodes.SYS_ERROR);
+                        rd.channelContext.getRespWriter().writeRespInBizThreads(rd.frame, resp, rd.reqContext.getTimeout());
+                    }
                 }
+                list.clear();
             }
-            System.out.println("raft log append avg batch: " + (1.0 * count / batch));
+            MockExecutors.raftExecutor().execute(this::run);
         } catch (Exception e) {
             e.printStackTrace();
         }
