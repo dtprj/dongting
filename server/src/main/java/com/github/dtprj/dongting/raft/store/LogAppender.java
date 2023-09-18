@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.UnrecoverableException;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.io.IOException;
@@ -40,6 +41,9 @@ class LogAppender {
     private final EncodeContext encodeContext;
     private final long fileLenMask;
 
+    private LogFile currentFile;
+    private long bufferPosOfFile;
+
     LogAppender(IdxOps idxOps, LogFileQueue logFileQueue, RaftGroupConfig groupConfig, ByteBuffer writeBuffer) {
         this.idxOps = idxOps;
         this.logFileQueue = logFileQueue;
@@ -49,79 +53,85 @@ class LogAppender {
         this.fileLenMask = logFileQueue.fileLength() - 1;
     }
 
-    @SuppressWarnings("rawtypes")
+    @SuppressWarnings("ForLoopReplaceableByForEach")
     public long append(List<LogItem> logs, long pos) throws IOException, InterruptedException {
         logFileQueue.ensureWritePosReady(pos);
         ByteBuffer writeBuffer = this.writeBuffer;
         writeBuffer.clear();
-        long bufferPosOfFile = pos & fileLenMask;
-        LogFile file = logFileQueue.getLogFile(pos);
+        bufferPosOfFile = pos;
+        currentFile = logFileQueue.getLogFile(pos);
         for (int i = 0; i < logs.size(); i++) {
-            LogItem log = logs.get(i);
-            Encoder headerEncoder = initEncoderAndSize(log, true);
-            Encoder bodyEncoder = initEncoderAndSize(log, false);
-
-            int totalLen = LogHeader.computeTotalLen(0, log.getActualHeaderSize(), log.getActualBodySize());
-            if ((pos & fileLenMask) == 0) {
-                if (i != 0) {
-                    // last item exactly fill the file
-                    bufferPosOfFile = writeAndClearBuffer(writeBuffer, file, bufferPosOfFile);
-                    file.channel.force(false);
-                    logFileQueue.ensureWritePosReady(pos);
-                    file = logFileQueue.getLogFile(pos);
-                }
-                file.firstTimestamp = log.getTimestamp();
-                file.firstIndex = log.getIndex();
-                file.firstTerm = log.getTerm();
-            } else {
-                long fileRest = file.endPos - pos;
-                if (fileRest < totalLen) {
-                    // file rest space is not enough
-                    if (fileRest >= LogHeader.ITEM_HEADER_SIZE) {
-                        // write an empty header to indicate the end of the file
-                        if (writeBuffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
-                            bufferPosOfFile = writeAndClearBuffer(writeBuffer, file, bufferPosOfFile);
-                        }
-                        LogHeader.writeEndHeader(crc32c, writeBuffer);
-                    }
-                    writeAndClearBuffer(writeBuffer, file, bufferPosOfFile);
-
-                    // roll to next file
-                    file.channel.force(false);
-                    pos = logFileQueue.nextFilePos(pos);
-                    bufferPosOfFile = pos;
-                    logFileQueue.ensureWritePosReady(pos);
-                    file = logFileQueue.getLogFile(pos);
-
-                    file.firstTimestamp = log.getTimestamp();
-                    file.firstIndex = log.getIndex();
-                    file.firstTerm = log.getTerm();
-                }
-            }
-
-            if (writeBuffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
-                bufferPosOfFile = writeAndClearBuffer(writeBuffer, file, bufferPosOfFile);
-            }
-
-            long itemStartPos = pos;
-            LogHeader.writeHeader(crc32c, writeBuffer, log, 0, log.getActualHeaderSize(), log.getActualBodySize());
-            pos += LogHeader.ITEM_HEADER_SIZE;
-
-            if (headerEncoder != null && log.getActualHeaderSize() > 0) {
-                Object data = log.getHeaderBuffer() != null ? log.getHeaderBuffer() : log.getHeader();
-                bufferPosOfFile = writeData(writeBuffer, bufferPosOfFile, file, data, headerEncoder);
-                pos += log.getActualHeaderSize() + 4;
-            }
-            if (bodyEncoder != null && log.getActualBodySize() > 0) {
-                Object data = log.getBodyBuffer() != null ? log.getBodyBuffer() : log.getBody();
-                bufferPosOfFile = writeData(writeBuffer, bufferPosOfFile, file, data, bodyEncoder);
-                pos += log.getActualBodySize() + 4;
-            }
-
-            idxOps.put(log.getIndex(), itemStartPos, false);
+            pos = appendItem(pos, writeBuffer, logs.get(i));
         }
-        writeAndClearBuffer(writeBuffer, file, bufferPosOfFile);
-        file.channel.force(false);
+        writeAndClearBuffer(writeBuffer, currentFile, bufferPosOfFile);
+        currentFile.channel.force(false);
+        return pos;
+    }
+
+    @SuppressWarnings("rawtypes")
+    private long appendItem(long pos, ByteBuffer writeBuffer, LogItem log)
+            throws IOException, InterruptedException {
+        Encoder headerEncoder = initEncoderAndSize(log, true);
+        Encoder bodyEncoder = initEncoderAndSize(log, false);
+
+        int totalLen = LogHeader.computeTotalLen(0, log.getActualHeaderSize(), log.getActualBodySize());
+        if (totalLen > logFileQueue.fileLength()) {
+            throw new UnrecoverableException("log item too large:" + totalLen);
+        }
+
+        if (currentFile.endPos - pos < totalLen) {
+            // currentFile rest space is not enough
+            if (currentFile.endPos - pos >= LogHeader.ITEM_HEADER_SIZE) {
+                // write an empty header to indicate the end of the currentFile
+                if (writeBuffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
+                    bufferPosOfFile = writeAndClearBuffer(writeBuffer, currentFile, bufferPosOfFile);
+                }
+                LogHeader.writeEndHeader(crc32c, writeBuffer);
+            }
+            writeAndClearBuffer(writeBuffer, currentFile, bufferPosOfFile);
+            currentFile.channel.force(false);
+
+            // roll to next currentFile
+            pos = logFileQueue.nextFilePos(pos);
+            bufferPosOfFile = pos;
+            logFileQueue.ensureWritePosReady(pos);
+            currentFile = logFileQueue.getLogFile(pos);
+        }
+
+        if ((pos & fileLenMask) == 0) {
+            // first item of file
+            currentFile.firstTimestamp = log.getTimestamp();
+            currentFile.firstIndex = log.getIndex();
+            currentFile.firstTerm = log.getTerm();
+        }
+
+        if (writeBuffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
+            bufferPosOfFile = writeAndClearBuffer(writeBuffer, currentFile, bufferPosOfFile);
+        }
+
+        long itemStartPos = pos;
+        LogHeader.writeHeader(crc32c, writeBuffer, log, 0, log.getActualHeaderSize(), log.getActualBodySize());
+        pos += LogHeader.ITEM_HEADER_SIZE;
+
+        if (headerEncoder != null && log.getActualHeaderSize() > 0) {
+            Object data = log.getHeaderBuffer() != null ? log.getHeaderBuffer() : log.getHeader();
+            writeData(writeBuffer, currentFile, data, headerEncoder);
+            pos += log.getActualHeaderSize() + 4;
+        }
+        if (bodyEncoder != null && log.getActualBodySize() > 0) {
+            Object data = log.getBodyBuffer() != null ? log.getBodyBuffer() : log.getBody();
+            writeData(writeBuffer, currentFile, data, bodyEncoder);
+            pos += log.getActualBodySize() + 4;
+        }
+
+        idxOps.put(log.getIndex(), itemStartPos, false);
+        if ((pos & fileLenMask) == 0) {
+            // exactly fill the currentFile
+            bufferPosOfFile = writeAndClearBuffer(writeBuffer, currentFile, bufferPosOfFile);
+            currentFile.channel.force(false);
+            logFileQueue.ensureWritePosReady(pos);
+            currentFile = logFileQueue.getLogFile(pos);
+        }
         return pos;
     }
 
@@ -153,7 +163,7 @@ class LogAppender {
     }
 
     @SuppressWarnings("rawtypes")
-    private long writeData(ByteBuffer writeBuffer, long bufferPosOfFile, LogFile file, Object data, Encoder encoder) throws IOException {
+    private void writeData(ByteBuffer writeBuffer, LogFile file, Object data, Encoder encoder) throws IOException {
         crc32c.reset();
         if (writeBuffer.remaining() == 0) {
             bufferPosOfFile = writeAndClearBuffer(writeBuffer, file, bufferPosOfFile);
@@ -178,7 +188,6 @@ class LogAppender {
             bufferPosOfFile = writeAndClearBuffer(writeBuffer, file, bufferPosOfFile);
         }
         writeBuffer.putInt((int) crc32c.getValue());
-        return bufferPosOfFile;
     }
 
     private long writeAndClearBuffer(ByteBuffer buffer, LogFile file, long pos) throws IOException {
