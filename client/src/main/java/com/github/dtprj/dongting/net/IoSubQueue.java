@@ -38,7 +38,6 @@ class IoSubQueue {
     private static final int MAX_BUFFER_SIZE = 512 * 1024;
     private final NioConfig config;
     private final ByteBufferPool directPool;
-    private final ByteBufferPool heapPool;
     private final WorkerStatus workerStatus;
     private final DtChannel dtc;
     private Runnable registerForWrite;
@@ -56,7 +55,6 @@ class IoSubQueue {
     public IoSubQueue(NioConfig config, WorkerStatus workerStatus, DtChannel dtc, RefBufferFactory heapPool) {
         this.config = config;
         this.directPool = workerStatus.getDirectPool();
-        this.heapPool = workerStatus.getHeapPool();
         this.workerStatus = workerStatus;
         this.dtc = dtc;
         this.encodeContext = new EncodeContext(heapPool);
