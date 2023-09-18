@@ -58,6 +58,7 @@ public class FileLogLoaderTest {
         RaftStatusImpl raftStatus = new RaftStatusImpl();
         config = new RaftGroupConfigEx(1, "1", "1");
         config.setRaftExecutor(MockExecutors.raftExecutor());
+        config.setIoExecutor(MockExecutors.ioExecutor());
         config.setStopIndicator(() -> false);
         config.setTs(raftStatus.getTs());
         config.setDirectPool(TwoLevelPool.getDefaultFactory().apply(config.getTs(), true));

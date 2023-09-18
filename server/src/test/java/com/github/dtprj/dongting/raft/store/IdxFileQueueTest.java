@@ -61,6 +61,7 @@ public class IdxFileQueueTest {
     private IdxFileQueue createFileQueue() {
         RaftGroupConfigEx c = new RaftGroupConfigEx(1, "1", "1");
         c.setRaftExecutor(MockExecutors.raftExecutor());
+        c.setIoExecutor(MockExecutors.ioExecutor());
         c.setStopIndicator(() -> false);
         raftStatus = new RaftStatusImpl();
         c.setTs(raftStatus.getTs());

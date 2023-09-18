@@ -72,6 +72,7 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
             RaftGroupConfigEx config = new RaftGroupConfigEx(1, "1", "1");
             config.setDataDir(DATA_DIR);
             config.setRaftExecutor(MockExecutors.raftExecutor());
+            config.setIoExecutor(MockExecutors.ioExecutor());
             config.setStopIndicator(stopIndicator);
             config.setTs(raftStatus.getTs());
             config.setDirectPool(TwoLevelPool.getDefaultFactory().apply(config.getTs(), true));
