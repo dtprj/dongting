@@ -66,6 +66,7 @@ class LogAppender {
                 if (i != 0) {
                     // last item exactly fill the file
                     bufferPosOfFile = writeAndClearBuffer(writeBuffer, file, bufferPosOfFile);
+                    file.channel.force(false);
                     logFileQueue.ensureWritePosReady(pos);
                     file = logFileQueue.getLogFile(pos);
                 }
@@ -86,6 +87,7 @@ class LogAppender {
                     writeAndClearBuffer(writeBuffer, file, bufferPosOfFile);
 
                     // roll to next file
+                    file.channel.force(false);
                     pos = logFileQueue.nextFilePos(pos);
                     bufferPosOfFile = pos;
                     logFileQueue.ensureWritePosReady(pos);
