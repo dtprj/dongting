@@ -82,7 +82,7 @@ public class NioServerBenchmark extends BenchBase {
     }
 
     @Override
-    public void test(int threadIndex) {
+    public void test(int threadIndex, long startTime) {
         try {
             final DtTime timeout = new DtTime(TIMEOUT, TimeUnit.MILLISECONDS);
             ByteBufferWriteFrame req = new ByteBufferWriteFrame(ByteBuffer.wrap(data));
@@ -96,6 +96,7 @@ public class NioServerBenchmark extends BenchBase {
                 rc.release();
             } else {
                 f.handle((result, ex) -> {
+                    logRt(startTime);
                     if (ex != null) {
                         failCount.increment();
                     } else {
@@ -108,6 +109,10 @@ public class NioServerBenchmark extends BenchBase {
             }
         } catch (Exception e) {
             failCount.increment();
+        } finally {
+            if(SYNC) {
+                logRt(startTime);
+            }
         }
     }
 

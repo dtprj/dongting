@@ -26,13 +26,12 @@ public abstract class BenchBase {
     protected final int threadCount;
     private final long testTime;
     private final long warmupTime;
-    private Thread[] threads;
     protected volatile boolean stop = false;
     protected LongAdder successCount = new LongAdder();
     protected LongAdder failCount = new LongAdder();
 
     private static final boolean LOG_RT = false;
-    private long nanos;
+    private long totalNanos;
     private long maxNanos;
 
     public BenchBase(int threadCount, long testTime) {
@@ -53,10 +52,11 @@ public abstract class BenchBase {
 
     public void start() throws Exception {
         init();
-        threads = new Thread[threadCount];
+        Thread[] threads = new Thread[threadCount];
         for (int i = 0; i < threadCount; i++) {
             int threadIndex = i;
             threads[i] = new Thread(() -> run(threadIndex));
+            threads[i].setName("BenchThread" + i);
             threads[i].start();
         }
         Thread.sleep(warmupTime);
@@ -78,31 +78,33 @@ public abstract class BenchBase {
         System.out.println("fail sc:" + fc + ", ops=" + new DecimalFormat(",###").format(ops));
 
         if (LOG_RT) {
-            System.out.println("Max time: " + maxNanos + "ns");
-            System.out.println("Avg time: " + nanos / (sc + fc) + "ns");
+            System.out.printf("Max time: %,d ns%n", maxNanos);
+            System.out.printf("Avg time: %,d ns%n", totalNanos / (sc + fc));
         }
 
     }
 
     public void run(int threadIndex) {
         while (!stop) {
-            long start = 0;
+            long startTime = 0;
             if (LOG_RT) {
-                start = System.nanoTime();
+                startTime = System.nanoTime();
             }
             try {
-                test(threadIndex);
+                test(threadIndex, startTime);
             } catch (Throwable e) {
                 failCount.increment();
-            } finally {
-                if (LOG_RT) {
-                    long x = System.nanoTime() - start;
-                    maxNanos = Math.max(x, maxNanos);
-                    nanos += x;
-                }
             }
         }
     }
 
-    public abstract void test(int threadIndex);
+    public abstract void test(int threadIndex, long startTime);
+
+    protected void logRt(long startTime) {
+        if (LOG_RT) {
+            long x = System.nanoTime() - startTime;
+            maxNanos = Math.max(x, maxNanos);
+            totalNanos += x;
+        }
+    }
 }
