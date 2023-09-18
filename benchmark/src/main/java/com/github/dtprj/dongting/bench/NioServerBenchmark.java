@@ -48,6 +48,8 @@ public class NioServerBenchmark extends BenchBase {
     private static final long TIMEOUT = 5000;
     private static final int CMD = RaftLogProcessor.COMMAND;
 
+    private volatile boolean stopped = false;
+
     public NioServerBenchmark(int threadCount, long testTime, long warmupTime) {
         super(threadCount, testTime, warmupTime);
     }
@@ -59,7 +61,7 @@ public class NioServerBenchmark extends BenchBase {
         serverConfig.setBizThreads(0);
         serverConfig.setPort(9000);
         server = new NioServer(serverConfig);
-        server.register(RaftLogProcessor.COMMAND, new RaftLogProcessor(() -> stop));
+        server.register(RaftLogProcessor.COMMAND, new RaftLogProcessor(() -> stopped));
         server.start();
 
         NioClientConfig clientConfig = new NioClientConfig();
@@ -76,6 +78,7 @@ public class NioServerBenchmark extends BenchBase {
     public void shutdown() {
         client.stop(new DtTime(3, TimeUnit.SECONDS));
         server.stop(new DtTime(3, TimeUnit.SECONDS));
+        stopped = true;
     }
 
     @Override
