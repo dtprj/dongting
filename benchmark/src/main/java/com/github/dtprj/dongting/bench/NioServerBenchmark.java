@@ -82,7 +82,7 @@ public class NioServerBenchmark extends BenchBase {
     }
 
     @Override
-    public void test(int threadIndex, long startTime) {
+    public void test(int threadIndex, long startTime, int state) {
         try {
             final DtTime timeout = new DtTime(TIMEOUT, TimeUnit.MILLISECONDS);
             ByteBufferWriteFrame req = new ByteBufferWriteFrame(ByteBuffer.wrap(data));
@@ -91,27 +91,27 @@ public class NioServerBenchmark extends BenchBase {
 
             if (SYNC) {
                 ReadFrame<RefBuffer> rf = f.get();
-                successCount.increment();
+                success(state);
                 RefBuffer rc = rf.getBody();
                 rc.release();
             } else {
                 f.handle((result, ex) -> {
-                    logRt(startTime);
+                    logRt(startTime, state);
                     if (ex != null) {
-                        failCount.increment();
+                        fail(state);
                     } else {
                         RefBuffer rc = result.getBody();
                         rc.release();
-                        successCount.increment();
+                        success(state);
                     }
                     return null;
                 });
             }
         } catch (Exception e) {
-            failCount.increment();
+            fail(state);
         } finally {
             if(SYNC) {
-                logRt(startTime);
+                logRt(startTime, state);
             }
         }
     }
