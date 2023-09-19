@@ -35,10 +35,8 @@ public abstract class RaftGroup {
 
     public abstract int getGroupId();
 
-    @SuppressWarnings("unused")
     public abstract CompletableFuture<RaftOutput> submitLinearTask(RaftInput input);
 
-    @SuppressWarnings("unused")
     public abstract CompletableFuture<Long> getLogIndexForRead(DtTime deadline);
 
 
