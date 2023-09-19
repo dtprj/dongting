@@ -56,7 +56,7 @@ class LogFileQueue extends FileQueue {
 
     private final IdxOps idxOps;
 
-    private final ByteBuffer writeBuffer;
+    private final DedicateBufferPool dedicateBufferPool;
 
     private final Timestamp ts;
 
@@ -74,8 +74,8 @@ class LogFileQueue extends FileQueue {
         this.logFileSize = logFileSize;
         this.fileLenMask = logFileSize - 1;
         this.fileLenShiftBits = BitUtil.zeroCountOfBinary(logFileSize);
-        this.writeBuffer = ByteBuffer.allocateDirect(writeBufferSize);
-        this.logAppender = new LogAppender(idxOps, this, groupConfig, writeBuffer);
+        this.dedicateBufferPool = new DedicateBufferPool(groupConfig.getDirectPool(), writeBufferSize);
+        this.logAppender = new LogAppender(idxOps, this, groupConfig, dedicateBufferPool);
     }
 
     @Override
@@ -106,14 +106,19 @@ class LogFileQueue extends FileQueue {
         if (restoreIndexPos >= queue.get(queue.size() - 1).endPos) {
             throw new RaftException("restoreIndexPos is illegal. " + restoreIndexPos);
         }
-        for (int i = 0; i < queue.size(); i++) {
-            RaftUtil.checkStop(stopIndicator);
-            LogFile lf = queue.get(i);
-            Pair<Boolean, Long> result = restorer.restoreFile(this.writeBuffer, lf, stopIndicator);
-            writePos = result.getRight();
-            if (result.getLeft()) {
-                break;
+        ByteBuffer writeBuffer = dedicateBufferPool.borrow();
+        try {
+            for (int i = 0; i < queue.size(); i++) {
+                RaftUtil.checkStop(stopIndicator);
+                LogFile lf = queue.get(i);
+                Pair<Boolean, Long> result = restorer.restoreFile(writeBuffer, lf, stopIndicator);
+                writePos = result.getRight();
+                if (result.getLeft()) {
+                    break;
+                }
             }
+        } finally {
+            dedicateBufferPool.release(writeBuffer);
         }
         log.info("restore finished. lastTerm={}, lastIndex={}, lastPos={}, lastFile={}",
                 restorer.previousTerm, restorer.previousIndex, writePos, queue.get(queue.size() - 1).file.getPath());

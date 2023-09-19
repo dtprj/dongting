@@ -36,34 +36,34 @@ class LogAppender {
     private final IdxOps idxOps;
     private final LogFileQueue logFileQueue;
     private final RaftCodecFactory codecFactory;
-    private final ByteBuffer writeBuffer;
+    private final DedicateBufferPool dedicateBufferPool;
     private final CRC32C crc32c = new CRC32C();
     private final EncodeContext encodeContext;
     private final long fileLenMask;
 
     private LogFile currentFile;
-    private long bufferPosOfFile;
+    private long bufferStartPos;
 
-    LogAppender(IdxOps idxOps, LogFileQueue logFileQueue, RaftGroupConfig groupConfig, ByteBuffer writeBuffer) {
+    LogAppender(IdxOps idxOps, LogFileQueue logFileQueue, RaftGroupConfig groupConfig, DedicateBufferPool dedicateBufferPool) {
         this.idxOps = idxOps;
         this.logFileQueue = logFileQueue;
         this.codecFactory = groupConfig.getCodecFactory();
         this.encodeContext = new EncodeContext(groupConfig.getHeapPool());
-        this.writeBuffer = writeBuffer;
+        this.dedicateBufferPool = dedicateBufferPool;
         this.fileLenMask = logFileQueue.fileLength() - 1;
     }
 
     @SuppressWarnings("ForLoopReplaceableByForEach")
     public long append(List<LogItem> logs, long pos) throws IOException, InterruptedException {
         logFileQueue.ensureWritePosReady(pos);
-        ByteBuffer writeBuffer = this.writeBuffer;
+        ByteBuffer writeBuffer = dedicateBufferPool.borrow();
         writeBuffer.clear();
-        bufferPosOfFile = pos;
+        bufferStartPos = pos;
         currentFile = logFileQueue.getLogFile(pos);
         for (int i = 0; i < logs.size(); i++) {
             pos = appendItem(pos, writeBuffer, logs.get(i));
         }
-        writeAndClearBuffer(writeBuffer, currentFile, bufferPosOfFile);
+        writeAndClearBuffer(writeBuffer, currentFile);
         currentFile.channel.force(false);
         return pos;
     }
@@ -84,16 +84,16 @@ class LogAppender {
             if (currentFile.endPos - pos >= LogHeader.ITEM_HEADER_SIZE) {
                 // write an empty header to indicate the end of the currentFile
                 if (writeBuffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
-                    bufferPosOfFile = writeAndClearBuffer(writeBuffer, currentFile, bufferPosOfFile);
+                    writeAndClearBuffer(writeBuffer, currentFile);
                 }
                 LogHeader.writeEndHeader(crc32c, writeBuffer);
             }
-            writeAndClearBuffer(writeBuffer, currentFile, bufferPosOfFile);
+            writeAndClearBuffer(writeBuffer, currentFile);
             currentFile.channel.force(false);
 
             // roll to next currentFile
             pos = logFileQueue.nextFilePos(pos);
-            bufferPosOfFile = pos;
+            bufferStartPos = pos;
             logFileQueue.ensureWritePosReady(pos);
             currentFile = logFileQueue.getLogFile(pos);
         }
@@ -106,7 +106,7 @@ class LogAppender {
         }
 
         if (writeBuffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
-            bufferPosOfFile = writeAndClearBuffer(writeBuffer, currentFile, bufferPosOfFile);
+            writeAndClearBuffer(writeBuffer, currentFile);
         }
 
         long itemStartPos = pos;
@@ -127,7 +127,7 @@ class LogAppender {
         idxOps.put(log.getIndex(), itemStartPos, false);
         if ((pos & fileLenMask) == 0) {
             // exactly fill the currentFile
-            bufferPosOfFile = writeAndClearBuffer(writeBuffer, currentFile, bufferPosOfFile);
+            writeAndClearBuffer(writeBuffer, currentFile);
             currentFile.channel.force(false);
             logFileQueue.ensureWritePosReady(pos);
             currentFile = logFileQueue.getLogFile(pos);
@@ -166,7 +166,7 @@ class LogAppender {
     private void writeData(ByteBuffer writeBuffer, LogFile file, Object data, Encoder encoder) throws IOException {
         crc32c.reset();
         if (writeBuffer.remaining() == 0) {
-            bufferPosOfFile = writeAndClearBuffer(writeBuffer, file, bufferPosOfFile);
+            writeAndClearBuffer(writeBuffer, file);
         }
         try {
             while (true) {
@@ -178,27 +178,27 @@ class LogAppender {
                 if (encodeFinish) {
                     break;
                 }
-                bufferPosOfFile = writeAndClearBuffer(writeBuffer, file, bufferPosOfFile);
+                writeAndClearBuffer(writeBuffer, file);
             }
         } finally {
             encodeContext.setStatus(null);
         }
 
         if (writeBuffer.remaining() < 4) {
-            bufferPosOfFile = writeAndClearBuffer(writeBuffer, file, bufferPosOfFile);
+            writeAndClearBuffer(writeBuffer, file);
         }
         writeBuffer.putInt((int) crc32c.getValue());
     }
 
-    private long writeAndClearBuffer(ByteBuffer buffer, LogFile file, long pos) throws IOException {
+    private void writeAndClearBuffer(ByteBuffer buffer, LogFile file) throws IOException {
         if (buffer.position() == 0) {
-            return pos;
+            return;
         }
-        long posOfFile = pos & fileLenMask;
+        long posOfFile = bufferStartPos & fileLenMask;
         buffer.flip();
         int count = buffer.remaining();
         FileUtil.syncWriteFull(file.channel, buffer, posOfFile);
         buffer.clear();
-        return pos + count;
+        bufferStartPos += count;
     }
 }
