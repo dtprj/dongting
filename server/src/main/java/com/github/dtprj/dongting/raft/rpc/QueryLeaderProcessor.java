@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.net.PbStrWriteFrame;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WriteFrame;
+import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftMember;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
@@ -50,7 +51,7 @@ public class QueryLeaderProcessor extends RaftGroupProcessor<Integer> {
     @Override
     protected WriteFrame doProcess(ReadFrame<Integer> frame, ChannelContext channelContext,
                                    ReqContext reqContext, RaftGroup rg) {
-        RaftStatusImpl raftStatus = (RaftStatusImpl) rg.getRaftStatus();
+        RaftStatusImpl raftStatus = ((RaftGroupImpl) rg).getGroupComponents().getRaftStatus();
         RaftMember leader = raftStatus.getCurrentLeader();
         if (leader == null) {
             return new PbStrWriteFrame(null);

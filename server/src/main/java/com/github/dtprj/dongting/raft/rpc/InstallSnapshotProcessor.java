@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WriteFrame;
+import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
@@ -59,7 +60,7 @@ public class InstallSnapshotProcessor extends RaftGroupProcessor<InstallSnapshot
             InstallSnapshotResp resp = new InstallSnapshotResp();
             InstallSnapshotResp.InstallRespWriteFrame respFrame = new InstallSnapshotResp.InstallRespWriteFrame(resp);
             int remoteTerm = req.term;
-            RaftGroupImpl gc = (RaftGroupImpl) rg;
+            GroupComponents gc = ((RaftGroupImpl) rg).getGroupComponents();
             RaftStatusImpl raftStatus = gc.getRaftStatus();
 
             if (gc.getMemberManager().checkLeader(req.leaderId)) {

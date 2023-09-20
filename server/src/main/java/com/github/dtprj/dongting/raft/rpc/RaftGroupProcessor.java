@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
+import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
@@ -57,14 +58,14 @@ public abstract class RaftGroupProcessor<T> extends ReqProcessor<T> {
             return errorResp;
         }
         int groupId = getGroupId(frame);
-        RaftGroupImpl gc = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
-        if (gc == null) {
+        RaftGroupImpl g = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
+        if (g == null) {
             EmptyBodyRespFrame errorResp = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
             errorResp.setMsg("raft group not found: " + groupId);
             log.error(errorResp.getMsg());
             return errorResp;
         }
-
+        GroupComponents gc = g.getGroupComponents();
         RaftStatusImpl status = gc.getRaftStatus();
         if (status.isStop()) {
             EmptyBodyRespFrame wf = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
@@ -72,13 +73,13 @@ public abstract class RaftGroupProcessor<T> extends ReqProcessor<T> {
             return wf;
         } else if (status.isError()) {
             EmptyBodyRespFrame wf = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
-            wf.setMsg("raft group is in error state: " + gc.getGroupId());
+            wf.setMsg("raft group is in error state: " + g.getGroupId());
             return wf;
         } else {
             if (runInCurrentThread) {
-                return doProcess(frame, channelContext, reqContext, gc);
+                return doProcess(frame, channelContext, reqContext, g);
             } else {
-                gc.getRaftExecutor().execute(() -> processInRaftThread(frame, channelContext, reqContext, gc, status));
+                gc.getRaftExecutor().execute(() -> processInRaftThread(frame, channelContext, reqContext, g, status));
                 return null;
             }
         }

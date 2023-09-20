@@ -35,6 +35,7 @@ import com.github.dtprj.dongting.raft.impl.ApplyManager;
 import com.github.dtprj.dongting.raft.impl.CommitManager;
 import com.github.dtprj.dongting.raft.impl.EventBus;
 import com.github.dtprj.dongting.raft.impl.FutureEventSource;
+import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.NodeManager;
 import com.github.dtprj.dongting.raft.impl.PendingStat;
@@ -127,7 +128,7 @@ public class RaftServer extends AbstractLifeCircle {
 
         createRaftGroups(serverConfig, groupConfig, allNodeIds);
         nodeManager = new NodeManager(serverConfig, allRaftServers, replicateNioClient, raftGroups);
-        raftGroups.forEach((id, gc) -> gc.getEventBus().register(nodeManager));
+        raftGroups.forEach((id, g) -> g.getGroupComponents().getEventBus().register(nodeManager));
 
         NioServerConfig repServerConfig = new NioServerConfig();
         repServerConfig.setPort(serverConfig.getReplicatePort());
@@ -177,12 +178,12 @@ public class RaftServer extends AbstractLifeCircle {
 
         HashSet<Integer> nodeIdOfMembers = new HashSet<>();
         parseMemberIds(allNodeIds, nodeIdOfMembers, rgc.getNodeIdOfMembers(), rgc.getGroupId());
-        if (nodeIdOfMembers.size() == 0 && serverConfig.isStaticConfig()) {
+        if (nodeIdOfMembers.isEmpty() && serverConfig.isStaticConfig()) {
             throw new IllegalArgumentException("no member in group: " + rgc.getGroupId());
         }
 
         Set<Integer> nodeIdOfObservers;
-        if (rgc.getNodeIdOfObservers() != null && rgc.getNodeIdOfObservers().trim().length() > 0) {
+        if (rgc.getNodeIdOfObservers() != null && !rgc.getNodeIdOfObservers().trim().isEmpty()) {
             nodeIdOfObservers = new HashSet<>();
             parseMemberIds(allNodeIds, nodeIdOfObservers, rgc.getNodeIdOfObservers(), rgc.getGroupId());
             for (int id : nodeIdOfMembers) {
@@ -233,7 +234,7 @@ public class RaftServer extends AbstractLifeCircle {
         eventBus.register(raft);
         eventBus.register(voteManager);
 
-        RaftGroupImpl gc = new RaftGroupImpl();
+        GroupComponents gc = new GroupComponents();
         gc.setServerConfig(serverConfig);
         gc.setGroupConfig(rgc);
         gc.setRaftLog(raftLog);
@@ -249,7 +250,7 @@ public class RaftServer extends AbstractLifeCircle {
         gc.setServerStat(serverStat);
         gc.setSnapshotManager(raftFactory.createSnapshotManager(rgcEx));
         gc.setStatusManager(statusManager);
-        return gc;
+        return new RaftGroupImpl(gc);
     }
 
     private RaftGroupConfig createGroupConfigEx(RaftGroupConfig rgc, RaftStatusImpl raftStatus,
@@ -305,7 +306,7 @@ public class RaftServer extends AbstractLifeCircle {
     @Override
     protected void doStart() {
         try {
-            raftGroups.forEach((groupId, gc) -> gc.getRaftGroupThread().init(gc));
+            raftGroups.forEach((groupId, g) -> g.getGroupComponents().getRaftGroupThread().init(g));
 
             replicateNioServer.start();
             replicateNioClient.start();
@@ -320,7 +321,8 @@ public class RaftServer extends AbstractLifeCircle {
 
             log.info("nodeManager is ready");
 
-            raftGroups.forEach((groupId, gc) -> {
+            raftGroups.forEach((groupId, g) -> {
+                GroupComponents gc = g.getGroupComponents();
                 gc.getMemberManager().init(nodeManager.getAllNodesEx());
                 gc.getRaftGroupThread().start();
                 CompletableFuture<Void> f = gc.getRaftGroupThread().readyFuture();
@@ -365,8 +367,8 @@ public class RaftServer extends AbstractLifeCircle {
                 serviceNioServer.stop(timeout);
             }
             ArrayList<Thread> threads = new ArrayList<>();
-            raftGroups.forEach((groupId, gc) -> {
-                RaftGroupThread raftGroupThread = gc.getRaftGroupThread();
+            raftGroups.forEach((groupId, g) -> {
+                RaftGroupThread raftGroupThread = g.getGroupComponents().getRaftGroupThread();
                 raftGroupThread.requestShutdown();
                 threads.add(raftGroupThread);
             });
@@ -476,20 +478,20 @@ public class RaftServer extends AbstractLifeCircle {
                 CompletableFuture<RaftGroupImpl> f = new CompletableFuture<>();
                 RaftUtil.SCHEDULED_SERVICE.execute(() -> {
                     try {
-                        RaftGroupImpl gc = createRaftGroup(serverConfig,
+                        RaftGroupImpl g = createRaftGroup(serverConfig,
                                 nodeManager.getAllNodeIds(), groupConfig);
-                        gc.getMemberManager().init(nodeManager.getAllNodesEx());
-                        f.complete(gc);
+                        g.getGroupComponents().getMemberManager().init(nodeManager.getAllNodesEx());
+                        f.complete(g);
                     } catch (Exception e) {
                         f.completeExceptionally(e);
                     }
                 });
 
-                RaftGroupImpl gc = f.get(30, TimeUnit.SECONDS);
-                gc.getRaftGroupThread().init(gc);
+                RaftGroupImpl g = f.get(30, TimeUnit.SECONDS);
+                g.getGroupComponents().getRaftGroupThread().init(g);
 
-                gc.getRaftGroupThread().start();
-                raftGroups.put(groupConfig.getGroupId(), gc);
+                g.getGroupComponents().getRaftGroupThread().start();
+                raftGroups.put(groupConfig.getGroupId(), g);
             } catch (Exception e) {
                 throw new RaftException(e);
             }
@@ -502,14 +504,14 @@ public class RaftServer extends AbstractLifeCircle {
     @SuppressWarnings("unused")
     public void removeGroup(int groupId, long timeoutMillis) {
         doChange(() -> {
-            RaftGroupImpl gc = raftGroups.get(groupId);
-            if (gc == null) {
+            RaftGroupImpl g = raftGroups.get(groupId);
+            if (g == null) {
                 log.warn("removeGroup failed: group not exist, groupId={}", groupId);
                 throw new RaftException("group not exist: " + groupId);
             }
-            gc.getRaftGroupThread().requestShutdown();
+            g.getGroupComponents().getRaftGroupThread().requestShutdown();
             try {
-                gc.getRaftGroupThread().join(timeoutMillis);
+                g.getGroupComponents().getRaftGroupThread().join(timeoutMillis);
             } catch (InterruptedException e) {
                 log.warn("removeGroup join interrupted, groupId={}", groupId);
                 throw new RaftException("wait raft thread finish time out: " + timeoutMillis + "ms");

@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
-import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -27,13 +26,9 @@ import java.util.concurrent.CompletableFuture;
  */
 public abstract class RaftGroup {
 
-    protected RaftLog raftLog;
-    protected StateMachine stateMachine;
-
-    public RaftGroup() {
-    }
-
     public abstract int getGroupId();
+
+    public abstract StateMachine getStateMachine();
 
     public abstract CompletableFuture<RaftOutput> submitLinearTask(RaftInput input);
 
@@ -92,13 +87,4 @@ public abstract class RaftGroup {
     @SuppressWarnings("unused")
     public abstract CompletableFuture<Void> leaderCommitJointConsensus(long prepareIndex);
 
-    public RaftLog getRaftLog() {
-        return raftLog;
-    }
-
-    public StateMachine getStateMachine() {
-        return stateMachine;
-    }
-
-    public abstract RaftStatus getRaftStatus();
 }

@@ -24,14 +24,10 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
-import com.github.dtprj.dongting.raft.sm.SnapshotManager;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
-import com.github.dtprj.dongting.raft.store.RaftLog;
-import com.github.dtprj.dongting.raft.store.StatusManager;
 
 import java.util.Objects;
 import java.util.Set;
@@ -45,24 +41,20 @@ public class RaftGroupImpl extends RaftGroup {
     private static final DtLog log = DtLogs.getLogger(RaftGroupImpl.class);
     private final Timestamp readTimestamp = new Timestamp();
 
-    private RaftServerConfig serverConfig;
-    private RaftGroupConfig groupConfig;
-    private RaftGroupThread raftGroupThread;
-    private RaftStatusImpl raftStatus;
-    private MemberManager memberManager;
-    private VoteManager voteManager;
-    private Raft raft;
-    private RaftExecutor raftExecutor;
-    private ApplyManager applyManager;
-    private EventBus eventBus;
-    private SnapshotManager snapshotManager;
-    private StatusManager statusManager;
+    private final GroupComponents gc;
+    private final RaftStatusImpl raftStatus;
+    private final RaftGroupThread raftGroupThread;
+    private final RaftServerConfig serverConfig;
+    private final PendingStat serverStat;
+    private final StateMachine stateMachine;
 
-    private NodeManager nodeManager;
-    private PendingStat serverStat;
-
-    public RaftGroupImpl() {
-        super();
+    public RaftGroupImpl(GroupComponents gc) {
+        this.gc = gc;
+        this.raftStatus = gc.getRaftStatus();
+        this.raftGroupThread = gc.getRaftGroupThread();
+        this.serverConfig = gc.getServerConfig();
+        this.serverStat = gc.getServerStat();
+        this.stateMachine = gc.getStateMachine();
     }
 
     private void checkStatus() {
@@ -72,11 +64,6 @@ public class RaftGroupImpl extends RaftGroup {
         if (raftStatus.isStop()) {
             throw new RaftException("raft group is not running");
         }
-    }
-
-    @Override
-    public int getGroupId() {
-        return groupConfig.getGroupId();
     }
 
     @Override
@@ -158,12 +145,12 @@ public class RaftGroupImpl extends RaftGroup {
         if (finalIndex <= 0) {
             return;
         }
-        raftExecutor.execute(() -> raftLog.markTruncateByIndex(finalIndex, delayMillis));
+        gc.getRaftExecutor().execute(() -> gc.getRaftLog().markTruncateByIndex(finalIndex, delayMillis));
     }
 
     @Override
     public void markTruncateByTimestamp(long timestampMillis, long delayMillis) {
-        raftExecutor.execute(() -> raftLog.markTruncateByTimestamp(timestampMillis, delayMillis));
+        gc.getRaftExecutor().execute(() -> gc.getRaftLog().markTruncateByTimestamp(timestampMillis, delayMillis));
     }
 
     @Override
@@ -172,7 +159,7 @@ public class RaftGroupImpl extends RaftGroup {
         CompletableFuture<Void> f = new CompletableFuture<>();
         DtTime deadline = new DtTime(timeoutMillis, TimeUnit.MILLISECONDS);
         raftStatus.setHoldRequest(true);
-        memberManager.transferLeadership(nodeId, f, deadline);
+        gc.getMemberManager().transferLeadership(nodeId, f, deadline);
         return f;
     }
 
@@ -183,7 +170,7 @@ public class RaftGroupImpl extends RaftGroup {
         checkStatus();
         // node state change in scheduler thread, member state change in raft thread
         CompletableFuture<Long> f = new CompletableFuture<>();
-        RaftUtil.SCHEDULED_SERVICE.execute(() -> nodeManager.leaderPrepareJointConsensus(f, this, members, observers));
+        RaftUtil.SCHEDULED_SERVICE.execute(() -> gc.getNodeManager().leaderPrepareJointConsensus(f, this, members, observers));
         return f;
     }
 
@@ -191,7 +178,7 @@ public class RaftGroupImpl extends RaftGroup {
     public CompletableFuture<Void> leaderAbortJointConsensus() {
         checkStatus();
         CompletableFuture<Void> f = new CompletableFuture<>();
-        raftExecutor.execute(() -> memberManager.leaderAbortJointConsensus(f));
+        gc.getRaftExecutor().execute(() -> gc.getMemberManager().leaderAbortJointConsensus(f));
         return f;
     }
 
@@ -199,126 +186,27 @@ public class RaftGroupImpl extends RaftGroup {
     public CompletableFuture<Void> leaderCommitJointConsensus(long prepareIndex) {
         checkStatus();
         CompletableFuture<Void> f = new CompletableFuture<>();
-        raftExecutor.execute(() -> memberManager.leaderCommitJointConsensus(f, prepareIndex));
+        gc.getRaftExecutor().execute(() -> gc.getMemberManager().leaderCommitJointConsensus(f, prepareIndex));
         return f;
     }
 
     @Override
     public CompletableFuture<Long> saveSnapshot() {
         checkStatus();
-        return snapshotManager.saveSnapshot(stateMachine, () -> raftStatus.isStop());
+        return gc.getSnapshotManager().saveSnapshot(gc.getStateMachine(), raftStatus::isStop);
     }
 
-    public RaftGroupThread getRaftGroupThread() {
-        return raftGroupThread;
+    public GroupComponents getGroupComponents() {
+        return gc;
     }
 
     @Override
-    public RaftStatusImpl getRaftStatus() {
-        return raftStatus;
+    public int getGroupId() {
+        return gc.getGroupConfig().getGroupId();
     }
 
-    public MemberManager getMemberManager() {
-        return memberManager;
-    }
-
-    public VoteManager getVoteManager() {
-        return voteManager;
-    }
-
-    public RaftServerConfig getServerConfig() {
-        return serverConfig;
-    }
-
-    public RaftGroupConfig getGroupConfig() {
-        return groupConfig;
-    }
-
-    public void setServerConfig(RaftServerConfig serverConfig) {
-        this.serverConfig = serverConfig;
-    }
-
-    public void setGroupConfig(RaftGroupConfig groupConfig) {
-        this.groupConfig = groupConfig;
-    }
-
-    public void setRaftGroupThread(RaftGroupThread raftGroupThread) {
-        this.raftGroupThread = raftGroupThread;
-    }
-
-    public void setRaftStatus(RaftStatusImpl raftStatus) {
-        this.raftStatus = raftStatus;
-    }
-
-    public void setMemberManager(MemberManager memberManager) {
-        this.memberManager = memberManager;
-    }
-
-    public void setVoteManager(VoteManager voteManager) {
-        this.voteManager = voteManager;
-    }
-
-    public void setRaftLog(RaftLog raftLog) {
-        this.raftLog = raftLog;
-    }
-
-    public void setStateMachine(StateMachine stateMachine) {
-        this.stateMachine = stateMachine;
-    }
-
-    public RaftExecutor getRaftExecutor() {
-        return raftExecutor;
-    }
-
-    public void setRaftExecutor(RaftExecutor raftExecutor) {
-        this.raftExecutor = raftExecutor;
-    }
-
-    public Raft getRaft() {
-        return raft;
-    }
-
-    public void setRaft(Raft raft) {
-        this.raft = raft;
-    }
-
-    public ApplyManager getApplyManager() {
-        return applyManager;
-    }
-
-    public void setApplyManager(ApplyManager applyManager) {
-        this.applyManager = applyManager;
-    }
-
-    public EventBus getEventBus() {
-        return eventBus;
-    }
-
-    public void setEventBus(EventBus eventBus) {
-        this.eventBus = eventBus;
-    }
-
-    public void setNodeManager(NodeManager nodeManager) {
-        this.nodeManager = nodeManager;
-    }
-
-    public void setServerStat(PendingStat serverStat) {
-        this.serverStat = serverStat;
-    }
-
-    public SnapshotManager getSnapshotManager() {
-        return snapshotManager;
-    }
-
-    public void setSnapshotManager(SnapshotManager snapshotManager) {
-        this.snapshotManager = snapshotManager;
-    }
-
-    public StatusManager getStatusManager() {
-        return statusManager;
-    }
-
-    public void setStatusManager(StatusManager statusManager) {
-        this.statusManager = statusManager;
+    @Override
+    public StateMachine getStateMachine() {
+        return stateMachine;
     }
 }

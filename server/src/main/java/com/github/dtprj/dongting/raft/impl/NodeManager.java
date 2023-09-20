@@ -68,12 +68,13 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         this.config = config;
         this.raftGroups = raftGroups;
 
-        raftGroups.forEach((groupId, gc) -> {
-            for (int nodeId : gc.getRaftStatus().getNodeIdOfMembers()) {
+        raftGroups.forEach((groupId, g) -> {
+            RaftStatusImpl raftStatus = g.getGroupComponents().getRaftStatus();
+            for (int nodeId : raftStatus.getNodeIdOfMembers()) {
                 RaftNodeEx nodeEx = allNodesEx.get(nodeId);
                 nodeEx.setUseCount(nodeEx.getUseCount() + 1);
             }
-            for (int nodeId : gc.getRaftStatus().getNodeIdOfObservers()) {
+            for (int nodeId : raftStatus.getNodeIdOfObservers()) {
                 RaftNodeEx nodeEx = allNodesEx.get(nodeId);
                 nodeEx.setUseCount(nodeEx.getUseCount() + 1);
             }
@@ -289,13 +290,14 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
                     return;
                 }
             }
-            if (raftGroup.getRaftStatus().isStop()) {
+            GroupComponents gc = raftGroup.getGroupComponents();
+            if (gc.getRaftStatus().isStop()) {
                 f.completeExceptionally(new RaftException("group is stopped"));
                 return;
             }
             checkNodeIdSet(groupId, memberIds);
             checkNodeIdSet(groupId, observerIds);
-            raftGroup.getRaftExecutor().execute(() -> raftGroup.getMemberManager()
+            gc.getRaftExecutor().execute(() -> gc.getMemberManager()
                     .leaderPrepareJointConsensus(memberIds, observerIds, f));
         } catch (Throwable e) {
             f.completeExceptionally(e);
@@ -317,7 +319,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
 
     @SuppressWarnings("unchecked")
     private void doPrepare(Object[] args) {
-        RaftGroupImpl gc = null;
+        GroupComponents gc = null;
         Runnable callback = (Runnable) args[5];
         try {
             int groupId = (Integer) args[0];
@@ -326,17 +328,20 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
             Set<Integer> newMembers = (Set<Integer>) args[3];
             Set<Integer> newObservers = (Set<Integer>) args[4];
 
-            gc = raftGroups.get(groupId);
-            if (gc == null) {
+            RaftGroupImpl g = raftGroups.get(groupId);
+            if (g == null) {
                 log.error("group not exist: groupId={}", groupId);
                 return;
             }
+            gc = g.getGroupComponents();
+
             List<RaftNodeEx> newMemberNodes = checkNodeIdSet(groupId, newMembers);
             List<RaftNodeEx> newObserverNodes = checkNodeIdSet(groupId, newObservers);
             processUseCount(oldPrepareMembers, -1);
             processUseCount(oldPrepareObservers, -1);
             processUseCount(newMembers, 1);
             processUseCount(newObservers, 1);
+
             MemberManager memberManager = gc.getMemberManager();
             gc.getRaftExecutor().execute(() -> memberManager.doPrepare(newMemberNodes, newObserverNodes, null, callback));
         } catch (Throwable e) {

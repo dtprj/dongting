@@ -26,6 +26,7 @@ import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WriteFrame;
+import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
@@ -90,7 +91,7 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
                                    ReqContext reqContext, RaftGroup rg) {
         AppendRespWriteFrame resp = new AppendRespWriteFrame();
         AppendReqCallback req = rf.getBody();
-        RaftGroupImpl gc = (RaftGroupImpl) rg;
+        GroupComponents gc = ((RaftGroupImpl) rg).getGroupComponents();
         RaftStatusImpl raftStatus = gc.getRaftStatus();
         if (gc.getMemberManager().checkLeader(req.getLeaderId())) {
             int remoteTerm = req.getTerm();
@@ -133,7 +134,7 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
     }
 
     @SuppressWarnings("ForLoopReplaceableByForEach")
-    private void append(RaftGroupImpl gc, RaftStatusImpl raftStatus, AppendReqCallback req, AppendRespWriteFrame resp) {
+    private void append(GroupComponents gc, RaftStatusImpl raftStatus, AppendReqCallback req, AppendRespWriteFrame resp) {
         if (raftStatus.isInstallSnapshot()) {
             resp.setSuccess(false);
             resp.setAppendCode(CODE_INSTALL_SNAPSHOT);
@@ -184,7 +185,7 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
             return;
         }
         ArrayList<LogItem> logs = req.getLogs();
-        if (logs == null || logs.size() == 0) {
+        if (logs == null || logs.isEmpty()) {
             log.error("bad request: no logs");
             resp.setSuccess(false);
             resp.setAppendCode(CODE_REQ_ERROR);

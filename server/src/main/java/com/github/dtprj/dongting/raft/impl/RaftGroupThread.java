@@ -75,7 +75,8 @@ public class RaftGroupThread extends Thread {
     public RaftGroupThread() {
     }
 
-    public void init(RaftGroupImpl gc) {
+    public void init(RaftGroupImpl g) {
+        GroupComponents gc = g.getGroupComponents();
         this.config = gc.getServerConfig();
         this.raftStatus = gc.getRaftStatus();
         this.queue = gc.getRaftExecutor().getQueue();
@@ -239,7 +240,7 @@ public class RaftGroupThread extends Thread {
                 return;
             }
             process(rwTasks, runnables, queueData);
-            if (queueData.size() > 0) {
+            if (!queueData.isEmpty()) {
                 ts.refresh(1);
                 queueData.clear();
             }
@@ -263,7 +264,7 @@ public class RaftGroupThread extends Thread {
         }
 
         // the sequence of RaftTask and Runnable is reordered, but it will not affect the linearizability
-        if (rwTasks.size() > 0) {
+        if (!rwTasks.isEmpty()) {
             if (!raftStatus.isHoldRequest()) {
                 raft.raftExec(rwTasks);
                 rwTasks.clear();
@@ -292,7 +293,7 @@ public class RaftGroupThread extends Thread {
         }
 
         ts.refresh(1);
-        return ts.getNanoTime() - oldNanos > 2 * 1000 * 1000 || queueData.size() == 0;
+        return ts.getNanoTime() - oldNanos > 2 * 1000 * 1000 || queueData.isEmpty();
     }
 
     public void requestShutdown() {

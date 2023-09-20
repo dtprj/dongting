@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.net.ChannelContext;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WriteFrame;
+import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftServer;
@@ -47,7 +48,7 @@ public class QueryStatusProcessor extends RaftGroupProcessor<Integer> {
     @Override
     protected WriteFrame doProcess(ReadFrame<Integer> frame, ChannelContext channelContext,
                                    ReqContext reqContext, RaftGroup rg) {
-        RaftStatusImpl raftStatus = (RaftStatusImpl) rg.getRaftStatus();
+        RaftStatusImpl raftStatus = ((RaftGroupImpl) rg).getGroupComponents().getRaftStatus();
         QueryStatusResp resp = new QueryStatusResp();
         resp.groupId = rg.getGroupId();
         resp.leaderId = raftStatus.getCurrentLeader() == null ? 0 : raftStatus.getCurrentLeader().getNode().getNodeId();
