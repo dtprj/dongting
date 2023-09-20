@@ -34,7 +34,7 @@ public interface RaftLog extends AutoCloseable {
     /**
      * Batch append logs.
      */
-    void append(List<LogItem> logs) throws Exception;
+    CompletableFuture<Void> append(List<LogItem> logs) throws Exception;
 
     LogIterator openIterator(Supplier<Boolean> cancelIndicator);
 

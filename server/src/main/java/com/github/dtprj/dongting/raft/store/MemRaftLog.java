@@ -64,7 +64,7 @@ public class MemRaftLog implements RaftLog {
     }
 
     @Override
-    public void append(List<LogItem> list) throws Exception {
+    public CompletableFuture<Void> append(List<LogItem> list) throws Exception {
         IndexedQueue<MemLog> logs = this.logs;
         //noinspection ForLoopReplaceableByForEach
         for (int i = 0; i < list.size(); i++) {
@@ -77,6 +77,7 @@ public class MemRaftLog implements RaftLog {
         if (logs.size() > maxItems) {
             doDelete();
         }
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override

@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.LogItem;
@@ -34,7 +35,7 @@ import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * @author huangli
@@ -200,7 +201,12 @@ public class DefaultRaftLogTest {
 
         LogItem[] items2 = FileLogLoaderTest.createItems(config, 3 , new int[]{200, 200}, new int[]{100, 100});
         mockPersistSyncFail = true;
-        assertThrows(SecurityException.class, () -> raftLog.append(Arrays.asList(items2)));
+        try {
+            raftLog.append(Arrays.asList(items2)).get();
+            fail();
+        } catch (Exception e) {
+            assertEquals(SecurityException.class, DtUtil.rootCause(e).getClass());
+        }
 
         tearDown();
 

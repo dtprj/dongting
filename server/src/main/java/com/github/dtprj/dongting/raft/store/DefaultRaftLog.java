@@ -114,27 +114,32 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public void append(List<LogItem> logs) throws Exception {
+    public CompletableFuture<Void> append(List<LogItem> logs) throws Exception {
         if (logs == null || logs.size() == 0) {
             BugLog.getLog().error("append log with empty logs");
-            return;
+            return CompletableFuture.completedFuture(null);
         }
-        long firstIndex = logs.get(0).getIndex();
-        DtUtil.checkPositive(firstIndex, "firstIndex");
-        if (firstIndex == idxFiles.getNextIndex()) {
-            logFiles.append(logs);
-        } else if (firstIndex < idxFiles.getNextIndex()) {
-            if (firstIndex < idxFiles.getFirstIndex()) {
-                throw new UnrecoverableException("index too small: " + firstIndex);
+        try {
+            long firstIndex = logs.get(0).getIndex();
+            DtUtil.checkPositive(firstIndex, "firstIndex");
+            if (firstIndex == idxFiles.getNextIndex()) {
+                logFiles.append(logs);
+            } else if (firstIndex < idxFiles.getNextIndex()) {
+                if (firstIndex < idxFiles.getFirstIndex()) {
+                    throw new UnrecoverableException("index too small: " + firstIndex);
+                }
+                Long firstIndexPos = idxFiles.loadLogPos(firstIndex).get();
+                if (firstIndexPos < logFiles.queueStartPosition) {
+                    throw new UnrecoverableException("position too small: " + firstIndexPos);
+                }
+                truncateTail(firstIndex, firstIndexPos);
+                logFiles.append(logs);
+            } else {
+                throw new UnrecoverableException("index too large: " + firstIndex);
             }
-            Long firstIndexPos = idxFiles.loadLogPos(firstIndex).get();
-            if (firstIndexPos < logFiles.queueStartPosition) {
-                throw new UnrecoverableException("position too small: " + firstIndexPos);
-            }
-            truncateTail(firstIndex, firstIndexPos);
-            logFiles.append(logs);
-        } else {
-            throw new UnrecoverableException("index too large: " + firstIndex);
+            return CompletableFuture.completedFuture(null);
+        } catch (Exception e) {
+            return CompletableFuture.failedFuture(e);
         }
     }
 
