@@ -141,11 +141,13 @@ public class RaftGroupImpl extends RaftGroup {
 
     @Override
     public void markTruncateByIndex(long index, long delayMillis) {
-        long finalIndex = Math.min(index, raftStatus.getLastApplied());
-        if (finalIndex <= 0) {
-            return;
-        }
-        gc.getRaftExecutor().execute(() -> gc.getRaftLog().markTruncateByIndex(finalIndex, delayMillis));
+        gc.getRaftExecutor().execute(() -> {
+            long finalIndex = Math.min(index, raftStatus.getLastApplied());
+            if (finalIndex <= 0) {
+                return;
+            }
+            gc.getRaftLog().markTruncateByIndex(finalIndex, delayMillis);
+        });
     }
 
     @Override
@@ -158,7 +160,6 @@ public class RaftGroupImpl extends RaftGroup {
         checkStatus();
         CompletableFuture<Void> f = new CompletableFuture<>();
         DtTime deadline = new DtTime(timeoutMillis, TimeUnit.MILLISECONDS);
-        raftStatus.setHoldRequest(true);
         gc.getMemberManager().transferLeadership(nodeId, f, deadline);
         return f;
     }

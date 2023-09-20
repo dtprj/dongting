@@ -270,6 +270,7 @@ public class MemberManager {
                 f.completeExceptionally(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
                 return;
             }
+            raftStatus.setHoldRequest(true);
             RaftMember newLeader = null;
             for (RaftMember m : raftStatus.getMembers()) {
                 if (m.getNode().getNodeId() == nodeId) {
