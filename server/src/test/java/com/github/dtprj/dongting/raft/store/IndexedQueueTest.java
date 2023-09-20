@@ -29,7 +29,7 @@ public class IndexedQueueTest {
 
     @BeforeEach
     public void setUp() {
-        deque = new IndexedQueue<>();
+        deque = new IndexedQueue<>(16);
     }
 
     @Test
@@ -52,6 +52,40 @@ public class IndexedQueueTest {
         assertEquals(Integer.valueOf(3), deque.removeFirst());
 
         assertNull(deque.removeFirst());
+    }
+
+    @Test
+    public void testRemoveLast() {
+        deque.addLast(1);
+        deque.addLast(2);
+        assertEquals(Integer.valueOf(2), deque.removeLast());
+        assertEquals(Integer.valueOf(1), deque.get(0));
+        assertEquals(Integer.valueOf(1), deque.removeLast());
+        assertNull(deque.removeLast());
+        assertEquals(0, deque.size());
+    }
+
+    @Test
+    public void testRemoveLast2() {
+        deque.addFirst(1);
+        deque.addFirst(2);
+        assertEquals(Integer.valueOf(1), deque.removeLast());
+        assertEquals(Integer.valueOf(2), deque.get(0));
+        assertEquals(Integer.valueOf(2), deque.removeLast());
+        deque.removeLast();
+        assertNull(deque.removeLast());
+        assertEquals(0, deque.size());
+    }
+
+    @Test
+    public void addAddFirst() {
+        deque.addLast(1);
+        deque.addLast(2);
+        deque.addLast(3);
+        deque.removeFirst();
+        deque.addFirst(1);
+        assertEquals(3, deque.size());
+        assertEquals(Integer.valueOf(1), deque.get(0));
     }
 
     @Test

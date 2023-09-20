@@ -55,7 +55,7 @@ public class MemRaftLog implements RaftLog {
         this.raftStatus = groupConfig.getRaftStatus();
         this.groupConfig = groupConfig;
         this.maxItems = maxItems;
-        logs = new IndexedQueue<>();
+        logs = new IndexedQueue<>(1024);
     }
 
     @Override
@@ -109,7 +109,7 @@ public class MemRaftLog implements RaftLog {
                         it.flowControlSize = encoder.actualSize(li.getBody());
                     }
                     bytesLimit -= it.flowControlSize;
-                    if (list.size() > 0 && bytesLimit < 0) {
+                    if (!list.isEmpty() && bytesLimit < 0) {
                         break;
                     }
                     li.retain();

@@ -15,20 +15,33 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.common.BitUtil;
+
 /**
  * @author huangli
  */
-class IndexedQueue<T> {
+@SuppressWarnings("unchecked")
+public class IndexedQueue<T> {
     private Object[] elements;
     private int len;
     private int readIndex;
     private int writeIndex;
     private int size;
-    private static final int DEFAULT_INITIAL_CAPACITY = 16;
 
-    public IndexedQueue() {
-        len = DEFAULT_INITIAL_CAPACITY;
+    public IndexedQueue(int initialCapacity) {
+        len = BitUtil.nextHighestPowerOfTwo(initialCapacity);
         elements = new Object[len];
+    }
+
+    public void addFirst(T element) {
+        ensureCapacity();
+        int index = readIndex - 1;
+        if (index < 0) {
+            index = len - 1;
+        }
+        elements[index] = element;
+        readIndex = index;
+        size++;
     }
 
     public void addLast(T element) {
@@ -38,7 +51,6 @@ class IndexedQueue<T> {
         size++;
     }
 
-    @SuppressWarnings("unchecked")
     public T removeFirst() {
         if (size == 0) {
             return null;
@@ -51,7 +63,21 @@ class IndexedQueue<T> {
         return element;
     }
 
-    @SuppressWarnings("unchecked")
+    public T removeLast() {
+        if (size == 0) {
+            return null;
+        }
+        int index = writeIndex - 1;
+        if (index < 0) {
+            index = len - 1;
+        }
+        T element = (T) elements[index];
+        elements[index] = null;
+        writeIndex = index;
+        size--;
+        return element;
+    }
+
     public T get(int index) {
         if (index < 0 || index >= size) {
             throw new IndexOutOfBoundsException("Index out of range");

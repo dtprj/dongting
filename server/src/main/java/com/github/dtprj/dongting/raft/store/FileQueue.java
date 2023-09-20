@@ -45,7 +45,7 @@ import java.util.regex.Pattern;
 abstract class FileQueue implements AutoCloseable {
     private static final DtLog log = DtLogs.getLogger(FileQueue.class);
     private static final Pattern PATTERN = Pattern.compile("^(\\d{20})$");
-    protected final IndexedQueue<LogFile> queue = new IndexedQueue<>();
+    protected final IndexedQueue<LogFile> queue = new IndexedQueue<>(32);
     protected final File dir;
 
     protected final ExecutorService ioExecutor;
