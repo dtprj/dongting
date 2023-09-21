@@ -86,10 +86,10 @@ public class ApplyManager {
         }
         long appliedIndex = raftStatus.getLastApplied();
         long diff = raftStatus.getCommitIndex() - appliedIndex;
-        PendingMap pendingMap = raftStatus.getPendingRequests();
+        TailCache tailCache = raftStatus.getTailCache();
         while (diff > 0) {
             long index = appliedIndex + 1;
-            RaftTask rt = pendingMap.get(index);
+            RaftTask rt = tailCache.get(index);
             if (rt == null || rt.getInput().isReadOnly()) {
                 waiting = true;
                 int limit = (int) Math.min(diff, 1024L);
@@ -169,7 +169,7 @@ public class ApplyManager {
                     null, item.getActualBodySize());
             RaftTask result = new RaftTask(ts, item.getType(), input, null);
             result.setItem(item);
-            RaftTask reader = raftStatus.getPendingRequests().get(item.getIndex());
+            RaftTask reader = raftStatus.getTailCache().get(item.getIndex());
             if (reader != null) {
                 if (reader.getInput().isReadOnly()) {
                     result.setNextReader(reader);

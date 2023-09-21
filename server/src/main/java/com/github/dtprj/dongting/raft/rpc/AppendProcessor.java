@@ -199,7 +199,7 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
             RaftInput raftInput = new RaftInput(li.getBizType(), li.getHeader(), li.getBody(), null, li.getActualBodySize());
             RaftTask task = new RaftTask(raftStatus.getTs(), li.getType(), raftInput, null);
             task.setItem(li);
-            raftStatus.getPendingRequests().put(li.getIndex(), task);
+            raftStatus.getTailCache().put(li.getIndex(), task);
         }
 
         long newIndex = req.getPrevLogIndex() + logs.size();

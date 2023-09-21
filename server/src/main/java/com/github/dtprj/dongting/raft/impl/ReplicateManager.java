@@ -167,7 +167,7 @@ public class ReplicateManager {
 
         int limit = member.isMultiAppend() ? (int) Math.min(rest, diff) : 1;
 
-        RaftTask first = raftStatus.getPendingRequests().get(nextIndex);
+        RaftTask first = raftStatus.getTailCache().get(nextIndex);
         if (first != null && !first.getInput().isReadOnly()) {
             RaftUtil.closeIterator(member);
             long sizeLimit = config.getSingleReplicateLimit();
@@ -175,7 +175,7 @@ public class ReplicateManager {
                 ArrayList<LogItem> items = new ArrayList<>(limit);
                 long size = 0;
                 for (int i = 0; i < limit; i++) {
-                    LogItem li = raftStatus.getPendingRequests().get(nextIndex + i).getItem();
+                    LogItem li = raftStatus.getTailCache().get(nextIndex + i).getItem();
                     size += li.getActualBodySize();
                     if (size > sizeLimit && i != 0) {
                         break;

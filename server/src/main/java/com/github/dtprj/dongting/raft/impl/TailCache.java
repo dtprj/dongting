@@ -25,8 +25,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-public class PendingMap {
-    private static final DtLog log = DtLogs.getLogger(PendingMap.class);
+public class TailCache {
+    private static final DtLog log = DtLogs.getLogger(TailCache.class);
     private static final long TIMEOUT = TimeUnit.SECONDS.toNanos(10);
     private long firstIndex = -1;
     private int pending;

@@ -78,7 +78,7 @@ public class Raft implements BiConsumer<EventType, Object> {
         ArrayList<LogItem> logs = new ArrayList<>(inputs.size());
         int oldTerm = raftStatus.getLastLogTerm();
         int currentTerm = raftStatus.getCurrentTerm();
-        PendingMap pending = raftStatus.getPendingRequests();
+        TailCache pending = raftStatus.getTailCache();
         for (int i = 0; i < inputs.size(); i++) {
             RaftTask rt = inputs.get(i);
             RaftInput input = rt.getInput();

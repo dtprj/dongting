@@ -53,7 +53,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private final int fileLenShiftBits;
 
     private final int flushItems;
-    final LongLongSeqMap tailCache = new LongLongSeqMap(1024);
+    final LongLongSeqMap cache = new LongLongSeqMap(1024);
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
 
@@ -154,8 +154,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             BugLog.getLog().error("index is too small : firstIndex={}, index={}", firstIndex, itemIndex);
             return CompletableFuture.failedFuture(new RaftException("index too small"));
         }
-        if (itemIndex >= tailCache.getFirstKey() && itemIndex <= tailCache.getLastKey()) {
-            return CompletableFuture.completedFuture(tailCache.get(itemIndex));
+        if (itemIndex >= cache.getFirstKey() && itemIndex <= cache.getLastKey()) {
+            return CompletableFuture.completedFuture(cache.get(itemIndex));
         }
         long pos = indexToPos(itemIndex);
         long filePos = pos & fileLenMask;
@@ -173,10 +173,10 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         if (index <= raftStatus.getCommitIndex()) {
             throw new RaftException("truncateTail index is too small: " + index);
         }
-        if (index < tailCache.getFirstKey() || index > tailCache.getLastKey()) {
+        if (index < cache.getFirstKey() || index > cache.getLastKey()) {
             throw new RaftException("truncateTail out of cache range: " + index);
         }
-        tailCache.truncate(index);
+        cache.truncate(index);
         nextIndex = index;
     }
 
@@ -189,15 +189,15 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             throw new RaftException("try update committed index: " + itemIndex);
         }
         if (itemIndex < nextIndex) {
-            if (recover && tailCache.size() == 0) {
+            if (recover && cache.size() == 0) {
                 // normal case
             } else {
                 // last put failed
                 log.info("put index!=nextIndex, truncate tailCache: {}, {}", itemIndex, nextIndex);
-                tailCache.truncate(itemIndex);
+                cache.truncate(itemIndex);
             }
         }
-        LongLongSeqMap tailCache = this.tailCache;
+        LongLongSeqMap tailCache = this.cache;
         removeHead(tailCache);
         tailCache.put(itemIndex, dataPosition);
         nextIndex = itemIndex + 1;
@@ -235,8 +235,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         writeBuffer.clear();
         long index = nextPersistIndex;
         long startPos = indexToPos(index);
-        long lastKey = Math.min(raftStatus.getCommitIndex(), tailCache.getLastKey());
-        LongLongSeqMap tailCache = this.tailCache;
+        long lastKey = Math.min(raftStatus.getCommitIndex(), cache.getLastKey());
+        LongLongSeqMap tailCache = this.cache;
         for (int i = 0; i < flushItems && index <= lastKey; i++, index++) {
             if ((indexToPos(index) & fileLenMask) == 0 && i != 0) {
                 // don't pass end of file

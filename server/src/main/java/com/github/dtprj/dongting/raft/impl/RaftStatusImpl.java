@@ -53,7 +53,7 @@ public class RaftStatusImpl extends RaftStatus {
 
     private List<RaftMember> replicateList;
 
-    private PendingMap pendingRequests = new PendingMap();
+    private TailCache tailCache = new TailCache();
     private long firstIndexOfCurrentTerm;
     private CompletableFuture<Void> firstCommitOfApplied; // shared
 
@@ -248,12 +248,12 @@ public class RaftStatusImpl extends RaftStatus {
         this.replicateList = replicateList;
     }
 
-    public PendingMap getPendingRequests() {
-        return pendingRequests;
+    public TailCache getTailCache() {
+        return tailCache;
     }
 
-    public void setPendingRequests(PendingMap pendingRequests) {
-        this.pendingRequests = pendingRequests;
+    public void setTailCache(TailCache tailCache) {
+        this.tailCache = tailCache;
     }
 
     public long getFirstIndexOfCurrentTerm() {

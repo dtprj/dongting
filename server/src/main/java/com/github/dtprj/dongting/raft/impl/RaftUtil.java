@@ -140,7 +140,7 @@ public class RaftUtil {
         RaftUtil.resetElectTimer(raftStatus);
         raftStatus.setHeartbeatTime(raftStatus.getLastElectTime());
         raftStatus.setLeaseStartNanos(0);
-        raftStatus.setPendingRequests(new PendingMap());
+        raftStatus.setTailCache(new TailCache());
         raftStatus.setCurrentLeader(null);
         raftStatus.setHoldRequest(false);
         for (RaftMember member : raftStatus.getReplicateList()) {
@@ -174,7 +174,7 @@ public class RaftUtil {
         if (oldRole != RaftRole.observer) {
             log.info("update term from {} to {}, change to follower, oldRole={}",
                     raftStatus.getCurrentTerm(), remoteTerm, raftStatus.getRole());
-            PendingMap oldPending = raftStatus.getPendingRequests();
+            TailCache oldPending = raftStatus.getTailCache();
             resetStatus(raftStatus);
             raftStatus.setRole(RaftRole.follower);
             if (oldRole == RaftRole.leader) {

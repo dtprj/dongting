@@ -308,7 +308,7 @@ public class RaftGroupThread extends Thread {
             return;
         }
 
-        raftStatus.getPendingRequests().cleanPending(raftStatus, config.getMaxPendingWrites(),
+        raftStatus.getTailCache().cleanPending(raftStatus, config.getMaxPendingWrites(),
                 config.getMaxPendingWriteBytes());
 
         raftLog.doDelete();

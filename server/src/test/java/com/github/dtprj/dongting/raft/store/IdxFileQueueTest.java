@@ -85,7 +85,7 @@ public class IdxFileQueueTest {
         for (int i = 1; i <= 10; i++) {
             idxFileQueue.put(i, i * 100, false);
         }
-        assertEquals(10, idxFileQueue.tailCache.size());
+        assertEquals(10, idxFileQueue.cache.size());
     }
 
     @Test
@@ -96,7 +96,7 @@ public class IdxFileQueueTest {
             raftStatus.setCommitIndex(i - 1);
             idxFileQueue.put(i, i * 100, false);
         }
-        assertTrue(idxFileQueue.tailCache.size() <= 5);
+        assertTrue(idxFileQueue.cache.size() <= 5);
     }
 
     @Test
@@ -127,7 +127,7 @@ public class IdxFileQueueTest {
         }
         idxFileQueue.put(5, 5000, false);
         idxFileQueue.put(6, 6000, false);
-        assertEquals(6, idxFileQueue.tailCache.size());
+        assertEquals(6, idxFileQueue.cache.size());
         assertEquals(400, idxFileQueue.loadLogPos(4).get());
         assertEquals(5000, idxFileQueue.loadLogPos(5).get());
         assertEquals(6000, idxFileQueue.loadLogPos(6).get());
@@ -141,7 +141,7 @@ public class IdxFileQueueTest {
             idxFileQueue.put(i, i * 100, false);
         }
         idxFileQueue.truncateTail(5);
-        assertEquals(4, idxFileQueue.tailCache.size());
+        assertEquals(4, idxFileQueue.cache.size());
         assertEquals(400, idxFileQueue.loadLogPos(4).get());
         try {
             idxFileQueue.loadLogPos(5).get();
