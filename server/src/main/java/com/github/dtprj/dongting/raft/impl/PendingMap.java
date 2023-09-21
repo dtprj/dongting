@@ -16,7 +16,9 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.LongObjMap;
-import com.github.dtprj.dongting.log.BugLog;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.store.IndexedQueue;
 
 import java.util.concurrent.TimeUnit;
 
@@ -24,35 +26,56 @@ import java.util.concurrent.TimeUnit;
  * @author huangli
  */
 public class PendingMap {
+    private static final DtLog log = DtLogs.getLogger(PendingMap.class);
     private static final long TIMEOUT = TimeUnit.SECONDS.toNanos(10);
-    private long firstKey = -1;
+    private long firstIndex = -1;
     private int pending;
     private long pendingBytes;
-    private final LongObjMap<RaftTask> map = new LongObjMap<>();
+    private final IndexedQueue<RaftTask> cache = new IndexedQueue<>(1024);
 
-    public RaftTask get(long key) {
-        return map.get(key);
+    public RaftTask get(long index) {
+        if (firstIndex < 0 || index < firstIndex || index >= nextWriteIndex()) {
+            return null;
+        }
+        return cache.get((int) (index - firstIndex));
     }
 
-    public RaftTask put(long key, RaftTask value) {
-        RaftTask t = map.put(key, value);
-        if (map.size() == 1) {
-            firstKey = key;
+    private long nextWriteIndex() {
+        if (firstIndex <= 0) {
+            return -1;
+        }
+        return firstIndex + cache.size();
+    }
+
+    public void put(long index, RaftTask value) {
+        value.setIndex(index);
+        if (cache.size() == 0) {
+            firstIndex = index;
         } else {
-            if (key <= firstKey) {
-                BugLog.getLog().error("key {} is not great than firstKey {}", key, firstKey);
+            if (index < firstIndex) {
+                throw new IllegalArgumentException("index " + index + " is less than firstIndex " + firstIndex);
+            }
+            long nextWriteIndex = nextWriteIndex();
+            if (index > nextWriteIndex) {
+                throw new IllegalArgumentException("index " + index + " is greater than nextWriteIndex " + nextWriteIndex);
+            }
+            if (index < nextWriteIndex) {
+                log.info("index {} is less than nextWriteIndex {}, truncate", index, nextWriteIndex);
+                while (index < nextWriteIndex()) {
+                    cache.removeLast();
+                }
             }
         }
+        cache.addLast(value);
         pending++;
         pendingBytes += value.getInput().getFlowControlSize();
-        return t;
     }
 
-    public RaftTask remove(long key) {
-        if (key > firstKey && firstKey != -1) {
-            BugLog.getLog().error("key {} is greater than firstKey {}", key, firstKey);
+    public RaftTask remove(long index) {
+        if (index != firstIndex) {
+            throw new IllegalArgumentException("index " + index + " is not firstIndex " + firstIndex);
         }
-        RaftTask t = map.remove(key);
+        RaftTask t = cache.removeFirst();
         if (t != null) {
             pending--;
             pendingBytes -= t.getInput().getFlowControlSize();
@@ -61,48 +84,50 @@ public class PendingMap {
                 x.getItem().release();
                 x = x.getNextReader();
             }
+        } else {
+            throw new IllegalStateException("pending is empty: index=" + index);
         }
-        if (map.size() == 0) {
-            firstKey = -1;
+        if (cache.size() == 0) {
+            firstIndex = -1;
         }
         return t;
     }
 
     public void forEach(LongObjMap.ReadOnlyVisitor<RaftTask> visitor) {
-        map.forEach(visitor);
+        int len = cache.size();
+        long index = firstIndex;
+        for (int i = 0; i < len; i++,index++) {
+            visitor.visit(index, cache.get(i));
+        }
     }
 
     public void cleanPending(RaftStatusImpl raftStatus, int maxPending, long maxPendingBytes) {
-        if (firstKey <= 0) {
+        if (firstIndex <= 0) {
             return;
         }
-        if (raftStatus.getRole() == RaftRole.leader) {
-            long minMatchIndex = Long.MAX_VALUE;
-            for (RaftMember node : raftStatus.getMembers()) {
-                minMatchIndex = Math.min(node.getMatchIndex(), minMatchIndex);
+        long boundIndex = raftStatus.getLastApplied();
+        long timeBound = raftStatus.getTs().getNanoTime() - TIMEOUT;
+        int len = cache.size();
+        long index = firstIndex;
+        for (int i = 0; i < len; i++, index++) {
+            if (index >= boundIndex) {
+                break;
             }
-            for (RaftMember node : raftStatus.getPreparedMembers()) {
-                minMatchIndex = Math.min(node.getMatchIndex(), minMatchIndex);
+            RaftTask t = cache.get(0);
+            if (t.getCreateTimeNanos() - timeBound < 0) {
+                break;
             }
-            doClean(raftStatus, maxPending, maxPendingBytes, minMatchIndex);
+            if (pending <= maxPending && pendingBytes <= maxPendingBytes) {
+                break;
+            }
+            cache.removeFirst();
+        }
+        if (cache.size() > 0) {
+            firstIndex = cache.get(0).getIndex();
         } else {
-            doClean(raftStatus, maxPending, maxPendingBytes, raftStatus.getLastApplied());
+            firstIndex = -1;
         }
     }
 
-    private void doClean(RaftStatusImpl raftStatus, int maxPending, long maxPendingBytes, long boundIndex) {
-        long now = raftStatus.getTs().getNanoTime();
-        long k = firstKey;
-        RaftTask task = map.get(k);
-        while (task != null) {
-            if (k > boundIndex && now - task.getCreateTimeNanos() < TIMEOUT) {
-                if (pending <= maxPending && pendingBytes <= maxPendingBytes) {
-                    break;
-                }
-            }
-            remove(k);
-            task = map.get(++k);
-        }
-    }
 }
 
