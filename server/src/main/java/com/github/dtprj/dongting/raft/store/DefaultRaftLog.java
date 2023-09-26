@@ -22,11 +22,13 @@ import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.UnrecoverableException;
 
 import java.io.File;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
@@ -41,6 +43,7 @@ public class DefaultRaftLog implements RaftLog {
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
     private final StatusManager statusManager;
+    private LogAppender2 logAppender2;
     LogFileQueue logFiles;
     IdxFileQueue idxFiles;
 
@@ -68,6 +71,7 @@ public class DefaultRaftLog implements RaftLog {
     public Pair<Integer, Long> init(Supplier<Boolean> stopIndicator) throws Exception {
         try {
             File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
+            ByteBuffer buffer = ByteBuffer.allocateDirect(logWriteBufferSize);
 
             idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"),
                     statusManager, groupConfig, idxItemsPerFile, idxMaxCacheItems);
@@ -77,6 +81,8 @@ public class DefaultRaftLog implements RaftLog {
             RaftUtil.checkStop(stopIndicator);
             idxFiles.init();
             RaftUtil.checkStop(stopIndicator);
+
+            logAppender2 = new LogAppender2(idxFiles, logFiles, groupConfig, buffer);
 
             Pair<Long, Long> p = idxFiles.initRestorePos();
 
@@ -97,9 +103,11 @@ public class DefaultRaftLog implements RaftLog {
             RaftUtil.checkStop(stopIndicator);
 
             if (idxFiles.getNextIndex() == 1) {
+                logAppender2.setNextPersistIndex(1);
                 return new Pair<>(0, 0L);
             } else {
                 long lastIndex = idxFiles.getNextIndex() - 1;
+                logAppender2.setNextPersistIndex(idxFiles.getNextIndex());
                 return new Pair<>(lastTerm, lastIndex);
             }
         } catch (Throwable e) {
@@ -111,6 +119,10 @@ public class DefaultRaftLog implements RaftLog {
     @Override
     public void close() {
         DtUtil.close(idxFiles, logFiles);
+    }
+
+    public void tryPersist(TailCache tailCache) throws Exception {
+        logAppender2.append(tailCache);
     }
 
     @Override

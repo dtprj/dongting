@@ -29,6 +29,7 @@ public class TailCache {
     private static final DtLog log = DtLogs.getLogger(TailCache.class);
     private static final long TIMEOUT = TimeUnit.SECONDS.toNanos(10);
     private long firstIndex = -1;
+    private long persistedIndex = -1;
     private int pending;
     private long pendingBytes;
     private final IndexedQueue<RaftTask> cache = new IndexedQueue<>(1024);
@@ -52,23 +53,28 @@ public class TailCache {
         if (cache.size() == 0) {
             firstIndex = index;
         } else {
-            if (index < firstIndex) {
-                throw new IllegalArgumentException("index " + index + " is less than firstIndex " + firstIndex);
-            }
-            long nextWriteIndex = nextWriteIndex();
-            if (index > nextWriteIndex) {
-                throw new IllegalArgumentException("index " + index + " is greater than nextWriteIndex " + nextWriteIndex);
-            }
-            if (index < nextWriteIndex) {
-                log.info("index {} is less than nextWriteIndex {}, truncate", index, nextWriteIndex);
-                while (index < nextWriteIndex()) {
-                    cache.removeLast();
-                }
+            if (index != nextWriteIndex()) {
+                throw new IllegalArgumentException("index " + index + " is not nextWriteIndex " + nextWriteIndex());
             }
         }
         cache.addLast(value);
         pending++;
         pendingBytes += value.getInput().getFlowControlSize();
+    }
+
+    public void truncate(long index) {
+        if (index < firstIndex) {
+            throw new IllegalArgumentException("index " + index + " is less than firstIndex " + firstIndex);
+        }
+        long nextWriteIndex = nextWriteIndex();
+        if (index >= nextWriteIndex) {
+            throw new IllegalArgumentException("index " + index + " is greater than nextWriteIndex " + nextWriteIndex);
+        }
+
+        log.info("truncate tail cache to {}, old nextWriteIndex={}", index, nextWriteIndex);
+        while (index < nextWriteIndex()) {
+            cache.removeLast();
+        }
     }
 
     public RaftTask remove(long index) {
@@ -96,7 +102,7 @@ public class TailCache {
     public void forEach(LongObjMap.ReadOnlyVisitor<RaftTask> visitor) {
         int len = cache.size();
         long index = firstIndex;
-        for (int i = 0; i < len; i++,index++) {
+        for (int i = 0; i < len; i++, index++) {
             visitor.visit(index, cache.get(i));
         }
     }
@@ -129,5 +135,19 @@ public class TailCache {
         }
     }
 
+    public int size() {
+        return cache.size();
+    }
+
+    public long getFirstIndex() {
+        return firstIndex;
+    }
+
+    public long getLastIndex() {
+        if (firstIndex == -1) {
+            return -1;
+        }
+        return firstIndex + cache.size() - 1;
+    }
 }
 
