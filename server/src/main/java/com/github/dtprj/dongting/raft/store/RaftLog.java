@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.common.Pair;
+import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.LogItem;
 
 import java.util.List;
@@ -34,7 +35,7 @@ public interface RaftLog extends AutoCloseable {
     /**
      * Batch append logs.
      */
-    CompletableFuture<Void> append(List<LogItem> logs) throws Exception;
+    void append(List<LogItem> logs, TailCache tailCache);
 
     LogIterator openIterator(Supplier<Boolean> cancelIndicator);
 
@@ -72,5 +73,9 @@ public interface RaftLog extends AutoCloseable {
          * @return return log items, don't return null or empty array
          */
         CompletableFuture<List<LogItem>> next(long index, int limit, int bytesLimit);
+    }
+
+    interface AppendCallback {
+        void finish(int lastTerm, long lastIndex);
     }
 }

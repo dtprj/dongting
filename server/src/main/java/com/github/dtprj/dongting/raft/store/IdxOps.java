@@ -22,6 +22,6 @@ import java.util.concurrent.CompletableFuture;
  * @author huangli
  */
 interface IdxOps {
-    void put(long index, long position, boolean recover) throws InterruptedException, IOException;
+    void put(long index, long position, boolean recover) throws InterruptedException;
     CompletableFuture<Long> loadLogPos(long itemIndex) throws IOException;
 }

@@ -118,17 +118,22 @@ abstract class FileQueue implements AutoCloseable {
         return queue.get(index);
     }
 
-    protected void ensureWritePosReady(long pos) throws InterruptedException, IOException {
-        try {
-            while (pos >= queueEndPosition) {
+    protected void ensureWritePosReady(long pos, boolean retry) throws InterruptedException {
+        while(pos >= queueEndPosition){
+            try {
                 tryAllocate();
                 processAllocResult();
+            } catch (ExecutionException e) {
+                if (retry) {
+                    log.error("allocate file fail, will retry", e);
+                    Thread.sleep(1000);
+                } else {
+                    throw new RaftException("allocate file fail", e);
+                }
             }
-            // pre allocate next file
-            tryAllocate();
-        } catch (ExecutionException e) {
-            throw new IOException(e);
         }
+        // pre allocate next file
+        tryAllocate();
     }
 
     protected void tryAllocate() {

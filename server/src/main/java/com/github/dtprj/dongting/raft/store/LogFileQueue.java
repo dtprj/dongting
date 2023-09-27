@@ -27,14 +27,13 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
-import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
@@ -56,13 +55,10 @@ class LogFileQueue extends FileQueue {
 
     private final IdxOps idxOps;
 
-    private final DedicateBufferPool dedicateBufferPool;
-
     private final Timestamp ts;
+    private final ByteBuffer writeBuffer;
 
-    private final LogAppender logAppender;
-
-    private long writePos;
+    private final LogAppender2 logAppender;
 
     public LogFileQueue(File dir, RaftGroupConfig groupConfig, IdxOps idxOps, long logFileSize, int writeBufferSize) {
         super(dir, groupConfig);
@@ -74,8 +70,8 @@ class LogFileQueue extends FileQueue {
         this.logFileSize = logFileSize;
         this.fileLenMask = logFileSize - 1;
         this.fileLenShiftBits = BitUtil.zeroCountOfBinary(logFileSize);
-        this.dedicateBufferPool = new DedicateBufferPool(groupConfig.getDirectPool(), writeBufferSize);
-        this.logAppender = new LogAppender(idxOps, this, groupConfig, dedicateBufferPool);
+        this.writeBuffer = ByteBuffer.allocateDirect(writeBufferSize);
+        this.logAppender = new LogAppender2(idxOps, this, groupConfig, writeBuffer, null);
     }
 
     @Override
@@ -88,16 +84,14 @@ class LogFileQueue extends FileQueue {
         return fileLenShiftBits;
     }
 
-    protected long getWritePos() {
-        return writePos;
-    }
-
     public int restore(long restoreIndex, long restoreIndexPos, Supplier<Boolean> stopIndicator)
             throws IOException, InterruptedException {
         log.info("start restore from {}, {}", restoreIndex, restoreIndexPos);
         Restorer restorer = new Restorer(idxOps, this, restoreIndex, restoreIndexPos);
         if (queue.size() == 0) {
             tryAllocate();
+            logAppender.setNextPersistIndex(1);
+            logAppender.setNextPersistPos(0);
             return 0;
         }
         if (restoreIndexPos < queue.get(0).startPos) {
@@ -106,27 +100,26 @@ class LogFileQueue extends FileQueue {
         if (restoreIndexPos >= queue.get(queue.size() - 1).endPos) {
             throw new RaftException("restoreIndexPos is illegal. " + restoreIndexPos);
         }
-        ByteBuffer writeBuffer = dedicateBufferPool.borrow();
-        try {
-            for (int i = 0; i < queue.size(); i++) {
-                RaftUtil.checkStop(stopIndicator);
-                LogFile lf = queue.get(i);
-                Pair<Boolean, Long> result = restorer.restoreFile(writeBuffer, lf, stopIndicator);
-                writePos = result.getRight();
-                if (result.getLeft()) {
-                    break;
-                }
+        long writePos = 0;
+        for (int i = 0; i < queue.size(); i++) {
+            RaftUtil.checkStop(stopIndicator);
+            LogFile lf = queue.get(i);
+            Pair<Boolean, Long> result = restorer.restoreFile(writeBuffer, lf, stopIndicator);
+            writePos = result.getRight();
+            if (result.getLeft()) {
+                break;
             }
-        } finally {
-            dedicateBufferPool.release(writeBuffer);
         }
+
         log.info("restore finished. lastTerm={}, lastIndex={}, lastPos={}, lastFile={}",
                 restorer.previousTerm, restorer.previousIndex, writePos, queue.get(queue.size() - 1).file.getPath());
+        logAppender.setNextPersistIndex(restorer.previousIndex + 1);
+        logAppender.setNextPersistPos(writePos);
         return restorer.previousTerm;
     }
 
-    public void append(List<LogItem> logs) throws IOException, InterruptedException {
-        writePos = logAppender.append(logs, writePos);
+    public void append(TailCache tailCache) throws InterruptedException {
+        logAppender.append(tailCache);
     }
 
     public long nextFilePos(long absolutePos) {

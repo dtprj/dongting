@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -28,7 +29,6 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.UnrecoverableException;
 
 import java.io.File;
-import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
@@ -71,7 +71,6 @@ public class DefaultRaftLog implements RaftLog {
     public Pair<Integer, Long> init(Supplier<Boolean> stopIndicator) throws Exception {
         try {
             File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
-            ByteBuffer buffer = ByteBuffer.allocateDirect(logWriteBufferSize);
 
             idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"),
                     statusManager, groupConfig, idxItemsPerFile, idxMaxCacheItems);
@@ -81,10 +80,6 @@ public class DefaultRaftLog implements RaftLog {
             RaftUtil.checkStop(stopIndicator);
             idxFiles.init();
             RaftUtil.checkStop(stopIndicator);
-
-            logAppender2 = new LogAppender2(idxFiles, logFiles, groupConfig, buffer);
-
-            Pair<Long, Long> p = idxFiles.initRestorePos();
 
             String truncateStatus = statusManager.getProperties().getProperty(KEY_TRUNCATE);
             if (truncateStatus != null) {
@@ -99,15 +94,14 @@ public class DefaultRaftLog implements RaftLog {
             }
             RaftUtil.checkStop(stopIndicator);
 
+            Pair<Long, Long> p = idxFiles.initRestorePos();
             int lastTerm = logFiles.restore(p.getLeft(), p.getRight(), stopIndicator);
             RaftUtil.checkStop(stopIndicator);
 
             if (idxFiles.getNextIndex() == 1) {
-                logAppender2.setNextPersistIndex(1);
                 return new Pair<>(0, 0L);
             } else {
                 long lastIndex = idxFiles.getNextIndex() - 1;
-                logAppender2.setNextPersistIndex(idxFiles.getNextIndex());
                 return new Pair<>(lastTerm, lastIndex);
             }
         } catch (Throwable e) {
@@ -121,22 +115,18 @@ public class DefaultRaftLog implements RaftLog {
         DtUtil.close(idxFiles, logFiles);
     }
 
-    public void tryPersist(TailCache tailCache) throws Exception {
-        logAppender2.append(tailCache);
-    }
-
     @Override
-    public CompletableFuture<Void> append(List<LogItem> logs) throws Exception {
+    public void append(List<LogItem> logs, TailCache tailCache) {
         if (logs == null || logs.size() == 0) {
             BugLog.getLog().error("append log with empty logs");
-            return CompletableFuture.completedFuture(null);
         }
         try {
             long firstIndex = logs.get(0).getIndex();
             DtUtil.checkPositive(firstIndex, "firstIndex");
-            if (firstIndex == idxFiles.getNextIndex()) {
-                logFiles.append(logs);
-            } else if (firstIndex < idxFiles.getNextIndex()) {
+            long nextIndex = tailCache.getLastIndex() + 1;
+            if (firstIndex == nextIndex) {
+                logFiles.append(tailCache);
+            } else if (firstIndex < nextIndex) {
                 if (firstIndex < idxFiles.getFirstIndex()) {
                     throw new UnrecoverableException("index too small: " + firstIndex);
                 }
@@ -145,13 +135,12 @@ public class DefaultRaftLog implements RaftLog {
                     throw new UnrecoverableException("position too small: " + firstIndexPos);
                 }
                 truncateTail(firstIndex, firstIndexPos);
-                logFiles.append(logs);
+                logFiles.append(tailCache);
             } else {
                 throw new UnrecoverableException("index too large: " + firstIndex);
             }
-            return CompletableFuture.completedFuture(null);
-        } catch (Exception e) {
-            return CompletableFuture.failedFuture(e);
+        } catch (InterruptedException e) {
+            throw new RaftException(e);
         }
     }
 

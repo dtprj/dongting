@@ -26,11 +26,9 @@ import com.github.dtprj.dongting.net.NioNet;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftNode;
-import com.github.dtprj.dongting.raft.server.UnrecoverableException;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.nio.ByteBuffer;
@@ -254,39 +252,6 @@ public class RaftUtil {
             raftStatus.setCurrentLeader(null);
         }
     }
-
-    public static void append(RaftLog raftLog, RaftStatusImpl raftStatus, ArrayList<LogItem> logs) {
-        int failCount = 0;
-        while (true) {
-            try {
-                raftLog.append(logs);
-                if (failCount > 0) {
-                    raftStatus.setError(false);
-                }
-                return;
-            } catch (UnrecoverableException e) {
-                throw e;
-            } catch (InterruptedException ex) {
-                throw new RaftException(ex);
-            } catch (Exception e) {
-                failCount++;
-                log.error("raft append fail", e);
-                if (failCount == 2) {
-                    raftStatus.setError(true);
-                }
-                try {
-                    //noinspection BusyWait
-                    Thread.sleep(1000);
-                    if (raftStatus.isStop()) {
-                        throw new RaftException("raft group is stopped");
-                    }
-                } catch (InterruptedException ex) {
-                    throw new RaftException(ex);
-                }
-            }
-        }
-    }
-
 
     public static int getElectQuorum(int groupSize) {
         return groupSize / 2 + 1;

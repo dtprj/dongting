@@ -30,7 +30,6 @@ import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
@@ -60,13 +59,16 @@ class LogAppender2 {
     private final long fileLenMask;
     private final long bufferLenMask;
     private final RaftStatusImpl raftStatus;
+    private final RaftLog.AppendCallback appendCallback;
 
     private long nextPersistIndex = -1;
     private long nextPersistPos = -1;
 
     private int state;
     private int pendingBytes;
+    @SuppressWarnings("rawtypes")
     private Encoder currentHeaderEncoder;
+    @SuppressWarnings("rawtypes")
     private Encoder currentBodyEncoder;
 
     private long bufferWriteAccumulatePos;
@@ -74,7 +76,7 @@ class LogAppender2 {
     private final IndexedQueue<WriteTask> writeTaskQueue = new IndexedQueue<>(32);
 
     LogAppender2(IdxOps idxOps, LogFileQueue logFileQueue, RaftGroupConfig groupConfig,
-                 ByteBuffer writeBuffer) {
+                 ByteBuffer writeBuffer, RaftLog.AppendCallback appendCallback) {
         this.idxOps = idxOps;
         this.logFileQueue = logFileQueue;
         this.codecFactory = groupConfig.getCodecFactory();
@@ -83,19 +85,24 @@ class LogAppender2 {
         this.writeBuffer = writeBuffer;
         this.bufferLenMask = writeBuffer.capacity() - 1;
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
+        this.appendCallback = appendCallback;
     }
 
-    class WriteTask {
+    static class WriteTask {
         final LogFile logFile;
         final ByteBuffer buffer;
         final long writeStartPosInFile;
         final int writeStartPosInBuffer;
+        final long startIndex;
+        LogItem lastItem;
         int size;
         final CompletableFuture<Void> future = new CompletableFuture<>();
 
-        public WriteTask(LogFile logFile, ByteBuffer buffer, long writeStartPosInFile, int writeStartPosInBuffer) {
+        public WriteTask(LogFile logFile, ByteBuffer buffer, long startIndex,
+                         long writeStartPosInFile, int writeStartPosInBuffer) {
             this.logFile = logFile;
             this.buffer = buffer;
+            this.startIndex = startIndex;
             this.writeStartPosInFile = writeStartPosInFile;
             this.writeStartPosInBuffer = writeStartPosInBuffer;
         }
@@ -129,11 +136,10 @@ class LogAppender2 {
         ByteBuffer buffer = writeBuffer.duplicate();
         buffer.position(writeStartPosInBuffer);
         buffer.limit(writeStartPosInBuffer + rest);
-        return new WriteTask(logFile, buffer, writeStartPosInFile, writeStartPosInBuffer);
+        return new WriteTask(logFile, buffer, nextPersistIndex, writeStartPosInFile, writeStartPosInBuffer);
     }
 
-    public void append(TailCache tailCache)
-            throws IOException, InterruptedException {
+    public void append(TailCache tailCache) throws InterruptedException {
         if (tailCache.size() == 0) {
             BugLog.getLog().error("tailCache.size() == 0, nextPersistIndex={}", nextPersistIndex);
             return;
@@ -150,7 +156,7 @@ class LogAppender2 {
             }
             return;
         }
-        logFileQueue.ensureWritePosReady(nextPersistPos);
+        logFileQueue.ensureWritePosReady(nextPersistPos, true);
         LogFile file = logFileQueue.getLogFile(nextPersistPos);
 
         WriteTask wt = createWriteTask(file);
@@ -171,8 +177,6 @@ class LogAppender2 {
                     return;
                 }
             } else if (r == CHANGE_FILE) {
-                int bytes = write(wt);
-                bufferWriteAccumulatePos += bytes;
                 nextPersistPos = logFileQueue.nextFilePos(nextPersistPos);
                 file = logFileQueue.getLogFile(nextPersistPos);
                 wt = createWriteTask(file);
@@ -199,11 +203,12 @@ class LogAppender2 {
         buf.position(wt.writeStartPosInBuffer);
         int x = buf.remaining();
         wt.size = x;
-        Supplier<Boolean> cancelIndicator = () -> wt.future.isCancelled();
+        Supplier<Boolean> cancelIndicator = wt.future::isCancelled;
         AsyncIoTask ioTask = new AsyncIoTask(wt.logFile.channel, raftStatus::isStop, cancelIndicator);
         // TODO flush if necessary
         ioTask.write(true, false, buf, wt.writeStartPosInFile);
         registerWriteCallback(wt.future, cancelIndicator, ioTask, wt);
+        writeTaskQueue.addLast(wt);
         return x;
     }
 
@@ -213,7 +218,11 @@ class LogAppender2 {
     }
 
     private void processWriteResult(Throwable ex, Supplier<Boolean> cancelIndicator, AsyncIoTask ioTask, WriteTask wt) {
-        if (raftStatus.isStop() || cancelIndicator.get()) {
+        if (cancelIndicator.get()) {
+            log.info("write cancelled, startIndex={}", wt.startIndex);
+            return;
+        }
+        if (raftStatus.isStop()) {
             return;
         }
         if (ex != null) {
@@ -226,6 +235,10 @@ class LogAppender2 {
             }
             registerWriteCallback(ioTask.retry(), cancelIndicator, ioTask, wt);
         } else {
+            if (wt.lastItem != null) {
+                raftStatus.setLastLogTerm(wt.lastItem.getTerm());
+                raftStatus.setLastLogIndex(wt.lastItem.getIndex());
+            }
             wt.future.complete(null);
             while (writeTaskQueue.size() > 0) {
                 if (writeTaskQueue.get(0).future.isDone()) {
@@ -267,11 +280,13 @@ class LogAppender2 {
                 if (!encodeData(buf, li, false)) {
                     return CHANGE_BUFFER;
                 }
+                wt.lastItem = li;
                 state = STATE_WRITE_ITEM_HEADER;
         }
         return APPEND_OK;
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     private boolean encodeData(ByteBuffer buf, LogItem li, boolean header) {
         int len = header ? li.getActualHeaderSize() : li.getActualBodySize();
         if (len <= 0) {
@@ -287,9 +302,11 @@ class LogAppender2 {
             int start = buf.position();
             boolean finish;
             if (header) {
+                //noinspection unchecked
                 finish = currentHeaderEncoder.encode(encodeContext, buf,
                         li.getHeaderBuffer() != null ? li.getHeaderBuffer() : li.getHeader());
             } else {
+                //noinspection unchecked
                 finish = currentBodyEncoder.encode(encodeContext, buf,
                         li.getBodyBuffer() != null ? li.getBodyBuffer() : li.getBody());
             }

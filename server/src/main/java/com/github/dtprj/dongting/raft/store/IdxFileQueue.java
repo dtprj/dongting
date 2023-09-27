@@ -28,7 +28,6 @@ import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -181,7 +180,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     @Override
-    public void put(long itemIndex, long dataPosition, boolean recover) throws InterruptedException, IOException {
+    public void put(long itemIndex, long dataPosition, boolean recover) throws InterruptedException {
         if (itemIndex > nextIndex) {
             throw new RaftException("index not match : " + nextIndex + ", " + itemIndex);
         }
@@ -193,28 +192,28 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 // normal case
             } else {
                 // last put failed
-                log.info("put index!=nextIndex, truncate tailCache: {}, {}", itemIndex, nextIndex);
+                log.info("put index!=nextIndex, truncate cache: {}, {}", itemIndex, nextIndex);
                 cache.truncate(itemIndex);
             }
         }
-        LongLongSeqMap tailCache = this.cache;
-        removeHead(tailCache);
-        tailCache.put(itemIndex, dataPosition);
+        LongLongSeqMap cache = this.cache;
+        removeHead(cache);
+        cache.put(itemIndex, dataPosition);
         nextIndex = itemIndex + 1;
         if (writeFuture == null) {
             if (ts.getNanoTime() - lastFlushNanos > FLUSH_INTERVAL_NANOS) {
-                writeAndFlush();
+                writeAndFlush(!recover);
             } else {
                 if (raftStatus.getCommitIndex() - nextPersistIndex + 1 >= flushItems) {
-                    writeAndFlush();
+                    writeAndFlush(!recover);
                 }
             }
         } else {
-            if (tailCache.size() > maxCacheItems) {
-                log.warn("cache size exceed {}: {}", maxCacheItems, tailCache.size());
+            if (cache.size() > maxCacheItems) {
+                log.warn("cache size exceed {}: {}", maxCacheItems, cache.size());
                 processWriteResult(true);
-                removeHead(tailCache);
-                writeAndFlush();
+                removeHead(cache);
+                writeAndFlush(!recover);
             }
         }
         processWriteResult(false);
@@ -226,8 +225,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         }
     }
 
-    private void writeAndFlush() throws InterruptedException, IOException {
-        ensureWritePosReady(indexToPos(nextIndex));
+    private void writeAndFlush(boolean retry) throws InterruptedException {
+        ensureWritePosReady(indexToPos(nextIndex), retry);
 
         this.lastFlushNanos = ts.getNanoTime();
 
@@ -258,7 +257,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         writeFuture = writeTask.write(false, false, writeBuffer, startPos & fileLenMask);
     }
 
-    private void processWriteResult(boolean wait) throws InterruptedException, IOException {
+    private void processWriteResult(boolean wait) throws InterruptedException {
         if (writeFuture == null) {
             return;
         }
@@ -273,7 +272,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 statusManager.getProperties().setProperty(IDX_FILE_PERSIST_INDEX_KEY, String.valueOf(idxPersisIndex));
                 statusFuture = statusManager.persistAsync();
             } catch (ExecutionException e) {
-                throw new IOException(e);
+                log.error("write idx file failed", e);
+                Thread.sleep(100);
             } finally {
                 currentWriteFile.use--;
                 writeFuture = null;
@@ -308,7 +308,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     public void close() {
         try {
             processWriteResult(true);
-            writeAndFlush();
+            writeAndFlush(false);
             processWriteResult(true);
             if (statusFuture != null) {
                 statusFuture.get();
