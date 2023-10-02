@@ -159,8 +159,11 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
                     resp.setSuggestIndex(0);
                     return;
                 } else if (pos.getLeft() == req.getPrevLogTerm() && pos.getRight() == req.getPrevLogIndex()) {
+                    long truncateIndex = req.getPrevLogIndex() + 1;
+                    if(truncateIndex)
                     log.info("local log truncate to prevLogIndex={}, prevLogTerm={}, groupId={}",
                             req.getPrevLogIndex(), req.getPrevLogTerm(), raftStatus.getGroupId());
+                    gc.getRaftLog().truncateTail(req.getPrevLogIndex());
                     // not return here
                 } else {
                     log.info("follower suggest term={}, index={}, groupId={}", pos.getLeft(), pos.getRight(), raftStatus.getGroupId());

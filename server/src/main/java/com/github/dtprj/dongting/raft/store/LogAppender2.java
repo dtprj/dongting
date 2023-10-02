@@ -238,6 +238,7 @@ class LogAppender2 {
             if (wt.lastItem != null) {
                 raftStatus.setLastLogTerm(wt.lastItem.getTerm());
                 raftStatus.setLastLogIndex(wt.lastItem.getIndex());
+                appendCallback.finish(raftStatus.getLastLogTerm(), raftStatus.getLastLogIndex());
             }
             wt.future.complete(null);
             while (writeTaskQueue.size() > 0) {

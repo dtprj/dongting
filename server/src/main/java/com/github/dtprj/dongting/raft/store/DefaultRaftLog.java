@@ -40,7 +40,7 @@ public class DefaultRaftLog implements RaftLog {
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
     private final StatusManager statusManager;
-    private LogAppender2 logAppender2;
+    private final AppendCallback appendCallback;
     LogFileQueue logFiles;
     IdxFileQueue idxFiles;
 
@@ -55,11 +55,12 @@ public class DefaultRaftLog implements RaftLog {
     int logWriteBufferSize = LogFileQueue.DEFAULT_WRITE_BUFFER_SIZE;
 
 
-    public DefaultRaftLog(RaftGroupConfig groupConfig, StatusManager statusManager) {
+    public DefaultRaftLog(RaftGroupConfig groupConfig, StatusManager statusManager, AppendCallback appendCallback) {
         this.groupConfig = groupConfig;
         this.ts = groupConfig.getTs();
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
         this.statusManager = statusManager;
+        this.appendCallback = appendCallback;
 
         this.lastTaskNanos = ts.getNanoTime();
     }
@@ -72,7 +73,7 @@ public class DefaultRaftLog implements RaftLog {
             idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"),
                     statusManager, groupConfig, idxItemsPerFile, idxMaxCacheItems);
             logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"),
-                    groupConfig, idxFiles, logFileSize, logWriteBufferSize);
+                    groupConfig, idxFiles, appendCallback, logFileSize, logWriteBufferSize);
             logFiles.init();
             RaftUtil.checkStop(stopIndicator);
             idxFiles.init();

@@ -127,23 +127,8 @@ public class Raft implements BiConsumer<EventType, Object> {
             return;
         }
 
-        RaftUtil.append(raftLog, raftStatus, logs);
-
-        raftStatus.setLastLogTerm(currentTerm);
-        raftStatus.setLastLogIndex(newIndex);
-
-        RaftMember self = raftStatus.getSelf();
-        self.setNextIndex(newIndex + 1);
-        self.setMatchIndex(newIndex);
-        self.setLastConfirmReqNanos(ts.getNanoTime());
-
-        // for single node mode
-        if (raftStatus.getRwQuorum() == 1) {
-            RaftUtil.updateLease(raftStatus);
-            commitManager.tryCommit(newIndex);
-        }
-
         replicateManager.replicateAfterRaftExec(raftStatus);
+        raftLog.append(tailCache);
     }
 
     public void sendHeartBeat() {

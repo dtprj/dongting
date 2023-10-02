@@ -15,19 +15,24 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.raft.store.RaftLog;
+
 import java.util.List;
 
 /**
  * @author huangli
  */
-public class CommitManager {
+public class CommitManager implements RaftLog.AppendCallback {
 
     private final RaftStatusImpl raftStatus;
     private final ApplyManager applyManager;
+    private final Timestamp ts;
 
     public CommitManager(RaftStatusImpl raftStatus, ApplyManager applyManager) {
         this.raftStatus = raftStatus;
         this.applyManager = applyManager;
+        this.ts = raftStatus.getTs();
     }
 
     public void tryCommit(long recentMatchIndex) {
@@ -74,5 +79,21 @@ public class CommitManager {
             }
         }
         return count >= rwQuorum;
+    }
+
+    @Override
+    public void finish(int lastTerm, long lastIndex) {
+        RaftMember self = raftStatus.getSelf();
+        if (self != null) {
+            self.setNextIndex(lastIndex + 1);
+            self.setMatchIndex(lastIndex);
+            self.setLastConfirmReqNanos(ts.getNanoTime());
+        }
+
+        // for single node mode
+        if (raftStatus.getRwQuorum() == 1) {
+            RaftUtil.updateLease(raftStatus);
+        }
+        tryCommit(lastIndex);
     }
 }
