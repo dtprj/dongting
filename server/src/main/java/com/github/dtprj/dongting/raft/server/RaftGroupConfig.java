@@ -33,6 +33,7 @@ public class RaftGroupConfig {
     private final String nodeIdOfObservers;
     private String dataDir = "./data";
     private String statusFile = "raft.status";
+    private int[] ioRetryInterval = new int[]{100, 1000, 3000, 5000, 10000, 20000};
 
     private Timestamp ts;
     private RefBufferFactory heapPool;
@@ -142,4 +143,11 @@ public class RaftGroupConfig {
         this.ioExecutor = ioExecutor;
     }
 
+    public int[] getIoRetryInterval() {
+        return ioRetryInterval;
+    }
+
+    public void setIoRetryInterval(int[] ioRetryInterval) {
+        this.ioRetryInterval = ioRetryInterval;
+    }
 }

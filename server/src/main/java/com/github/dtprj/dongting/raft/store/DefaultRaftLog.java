@@ -130,8 +130,14 @@ public class DefaultRaftLog implements RaftLog {
         if (index > tailCache.getLastIndex()) {
             throw new UnrecoverableException("truncate index " + index + " > lastIndex " + tailCache.getLastIndex());
         }
-        CompletableFuture<Long> f = idxFiles.loadLogPos(index);
-        long firstPos = f.get();
+        Supplier<Long> callback = () -> {
+            try {
+                return idxFiles.loadLogPos(index).get();
+            } catch (Exception e) {
+                throw new RaftException(e);
+            }
+        };
+        long firstPos = FileUtil.doWithRetry(callback, raftStatus::isStop, groupConfig.getIoRetryInterval());
         long lastPos = logFiles.getLogAppender().getNextPersistPos();
         DtUtil.checkPositive(firstPos, "firstPos");
         DtUtil.checkPositive(lastPos, "lastPos");

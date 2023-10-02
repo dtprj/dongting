@@ -26,6 +26,7 @@ import java.nio.channels.AsynchronousFileChannel;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -79,25 +80,55 @@ public class FileUtil {
         }
     }
 
-    public static void syncWriteWithRetry(AsynchronousFileChannel c, ByteBuffer buf, long pos, int... retryIntervals) throws InterruptedException {
+    public static void syncWriteWithRetry(AsynchronousFileChannel c, ByteBuffer buf, long pos,
+                                          Supplier<Boolean> stopIndicator, int... retryIntervals) throws InterruptedException {
         Objects.requireNonNull(retryIntervals);
         int bufPos = buf.position();
         int retry = 0;
         while (true) {
             try {
+                if (stopIndicator.get()) {
+                    throw new StoppedException();
+                }
                 while (buf.hasRemaining()) {
                     Future<Integer> f = c.write(buf, pos);
                     f.get();
                 }
+                return;
             } catch (InterruptedException e) {
                 throw e;
             } catch (Exception e) {
                 if (retry < retryIntervals.length) {
-                    Thread.sleep(retryIntervals[retry]);
+                    int sleep = retryIntervals[retry];
+                    log.error("write fail, retry after {} ms", sleep, e);
+                    Thread.sleep(sleep);
                     retry++;
                     buf.position(bufPos);
                 } else {
                     throw new RaftException(e);
+                }
+            }
+        }
+    }
+
+    public static <T> T doWithRetry(Supplier<T> callback, Supplier<Boolean> stopIndicator,
+                                    int... retryIntervals) throws InterruptedException {
+        Objects.requireNonNull(retryIntervals);
+        int retry = 0;
+        while (true) {
+            try {
+                if (stopIndicator.get()) {
+                    throw new StoppedException();
+                }
+                return callback.get();
+            } catch (Exception e) {
+                if (retry < retryIntervals.length) {
+                    int sleep = retryIntervals[retry];
+                    log.error("error occurs in callback, retry after {} ms", sleep, e);
+                    Thread.sleep(sleep);
+                    retry++;
+                } else {
+                    throw e;
                 }
             }
         }

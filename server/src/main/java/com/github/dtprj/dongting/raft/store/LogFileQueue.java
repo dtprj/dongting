@@ -53,6 +53,7 @@ class LogFileQueue extends FileQueue {
     protected final RefBufferFactory heapPool;
     protected final ByteBufferPool directPool;
 
+    private final RaftGroupConfig groupConfig;
     private final IdxOps idxOps;
 
     private final Timestamp ts;
@@ -63,6 +64,7 @@ class LogFileQueue extends FileQueue {
     public LogFileQueue(File dir, RaftGroupConfig groupConfig, IdxOps idxOps, RaftLog.AppendCallback callback,
                         long logFileSize, int writeBufferSize) {
         super(dir, groupConfig);
+        this.groupConfig = groupConfig;
         this.idxOps = idxOps;
         this.ts = groupConfig.getTs();
 
@@ -174,7 +176,7 @@ class LogFileQueue extends FileQueue {
                 buffer.limit(fileRest);
             }
             int count = buffer.remaining();
-            FileUtil.syncWriteWithRetry(lf.channel, buffer, i, 100, 1000, 5000);
+            FileUtil.syncWriteWithRetry(lf.channel, buffer, i, stopIndicator, groupConfig.getIoRetryInterval());
             i += count;
         }
     }
