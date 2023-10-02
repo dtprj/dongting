@@ -355,8 +355,11 @@ class LogAppender2 {
         this.nextPersistIndex = nextPersistIndex;
     }
 
-    // TODO set it
     public void setNextPersistPos(long nextPersistPos) {
         this.nextPersistPos = nextPersistPos;
+    }
+
+    public long getNextPersistPos() {
+        return nextPersistPos;
     }
 }

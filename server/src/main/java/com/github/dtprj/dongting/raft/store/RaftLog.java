@@ -35,7 +35,12 @@ public interface RaftLog extends AutoCloseable {
     /**
      * Batch append logs.
      */
-    void append(List<LogItem> logs, TailCache tailCache);
+    void append(TailCache tailCache);
+
+    /**
+     * truncate tail to index (include)
+     */
+    void truncateTail(long index) throws Exception;
 
     LogIterator openIterator(Supplier<Boolean> cancelIndicator);
 

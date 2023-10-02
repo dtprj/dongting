@@ -18,18 +18,15 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.TailCache;
-import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.UnrecoverableException;
 
 import java.io.File;
-import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
@@ -116,42 +113,47 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public void append(List<LogItem> logs, TailCache tailCache) {
-        if (logs == null || logs.size() == 0) {
-            BugLog.getLog().error("append log with empty logs");
-        }
+    public void append(TailCache tailCache) {
         try {
-            long firstIndex = logs.get(0).getIndex();
-            DtUtil.checkPositive(firstIndex, "firstIndex");
-            long nextIndex = tailCache.getLastIndex() + 1;
-            if (firstIndex == nextIndex) {
-                logFiles.append(tailCache);
-            } else if (firstIndex < nextIndex) {
-                if (firstIndex < idxFiles.getFirstIndex()) {
-                    throw new UnrecoverableException("index too small: " + firstIndex);
-                }
-                Long firstIndexPos = idxFiles.loadLogPos(firstIndex).get();
-                if (firstIndexPos < logFiles.queueStartPosition) {
-                    throw new UnrecoverableException("position too small: " + firstIndexPos);
-                }
-                truncateTail(firstIndex, firstIndexPos);
-                logFiles.append(tailCache);
-            } else {
-                throw new UnrecoverableException("index too large: " + firstIndex);
-            }
+            logFiles.append(tailCache);
         } catch (InterruptedException e) {
             throw new RaftException(e);
         }
     }
 
-    private void truncateTail(long firstIndex, long firstPos) throws Exception {
-        idxFiles.truncateTail(firstIndex);
+    public void truncateTail(long index) throws Exception {
+        TailCache tailCache = raftStatus.getTailCache();
+        if (index < tailCache.getFirstIndex()) {
+            throw new UnrecoverableException("truncate index " + index + " < firstIndex " + tailCache.getFirstIndex());
+        }
+        if (index > tailCache.getLastIndex()) {
+            throw new UnrecoverableException("truncate index " + index + " > lastIndex " + tailCache.getLastIndex());
+        }
+        CompletableFuture<Long> f = idxFiles.loadLogPos(index);
+        long firstPos = f.get();
+        long lastPos = logFiles.getLogAppender().getNextPersistPos();
+        DtUtil.checkPositive(firstPos, "firstPos");
+        DtUtil.checkPositive(lastPos, "lastPos");
+        if (firstPos > lastPos) {
+            throw new UnrecoverableException("firstPos " + firstPos + " > lastPos " + lastPos);
+        }
+        if (firstPos >= raftStatus.getCommitIndex()) {
+            throw new UnrecoverableException("firstPos " + firstPos + " >= commitIndex " + raftStatus.getCommitIndex());
+        }
+
+        tailCache.truncate(index);
+
+        if (index < idxFiles.getNextIndex()) {
+            idxFiles.truncateTail(index);
+        }
+
         Properties props = statusManager.getProperties();
-        props.setProperty(KEY_TRUNCATE, firstPos + "," + logFiles.getWritePos());
+        props.setProperty(KEY_TRUNCATE, firstPos + "," + lastPos);
         statusManager.persistSync();
-        logFiles.syncTruncateTail(firstPos, logFiles.getWritePos());
+        logFiles.syncTruncateTail(firstPos, lastPos);
         props.remove(KEY_TRUNCATE);
         statusManager.persistSync();
+
     }
 
     @Override

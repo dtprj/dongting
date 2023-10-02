@@ -26,6 +26,7 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.UnrecoverableException;
 
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -191,9 +192,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             if (recover && cache.size() == 0) {
                 // normal case
             } else {
-                // last put failed
-                log.info("put index!=nextIndex, truncate cache: {}, {}", itemIndex, nextIndex);
-                cache.truncate(itemIndex);
+                log.error("put index!=nextIndex, truncate cache: {}, {}", itemIndex, nextIndex);
+                throw new UnrecoverableException("put index!=nextIndex " + itemIndex + ", " + nextIndex);
             }
         }
         LongLongSeqMap cache = this.cache;

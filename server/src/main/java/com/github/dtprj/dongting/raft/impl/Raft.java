@@ -23,7 +23,6 @@ import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -73,12 +72,12 @@ public class Raft implements BiConsumer<EventType, Object> {
             }
             return;
         }
-        long newIndex = raftStatus.getLastLogIndex();
+        TailCache tailCache = raftStatus.getTailCache();
+        long newIndex = Math.max(tailCache.getLastIndex(), raftStatus.getLastLogIndex());
 
-        ArrayList<LogItem> logs = new ArrayList<>(inputs.size());
         int oldTerm = raftStatus.getLastLogTerm();
         int currentTerm = raftStatus.getCurrentTerm();
-        TailCache pending = raftStatus.getTailCache();
+        int writeCount = 0;
         for (int i = 0; i < inputs.size(); i++) {
             RaftTask rt = inputs.get(i);
             RaftInput input = rt.getInput();
@@ -105,19 +104,18 @@ public class Raft implements BiConsumer<EventType, Object> {
                 Object body = input.getBody();
                 item.setBody(body);
 
-                logs.add(item);
-
                 rt.setItem(item);
 
-                pending.put(newIndex, rt);
+                writeCount++;
+                tailCache.put(newIndex, rt);
             } else {
                 // read
                 if (newIndex <= raftStatus.getLastApplied()) {
                     applyManager.execRead(newIndex, rt);
                 } else {
-                    RaftTask newTask = pending.get(newIndex);
+                    RaftTask newTask = tailCache.get(newIndex);
                     if (newTask == null) {
-                        pending.put(newIndex, rt);
+                        tailCache.put(newIndex, rt);
                     } else {
                         newTask.setNextReader(rt);
                     }
@@ -125,7 +123,7 @@ public class Raft implements BiConsumer<EventType, Object> {
             }
         }
 
-        if (logs.size() == 0) {
+        if (writeCount == 0) {
             return;
         }
 

@@ -129,8 +129,7 @@ class LogFileQueue extends FileQueue {
     public void syncTruncateTail(long startPosition, long endPosition) throws IOException {
         DtUtil.checkNotNegative(startPosition, "startPosition");
         DtUtil.checkNotNegative(endPosition, "endPosition");
-        log.info("truncate tail from {} to {}, currentWritePos={}", startPosition, endPosition, writePos);
-        writePos = startPosition;
+        log.info("truncate tail from {} to {}, currentWritePos={}", startPosition, endPosition, logAppender.getNextPersistPos());
         int startQueueIndex = (int) ((startPosition - queueStartPosition) >>> fileLenShiftBits);
         ByteBuffer buffer = directPool.borrow(64 * 1024);
         try {
@@ -395,4 +394,7 @@ class LogFileQueue extends FileQueue {
         return logFileSize;
     }
 
+    public LogAppender2 getLogAppender() {
+        return logAppender;
+    }
 }
