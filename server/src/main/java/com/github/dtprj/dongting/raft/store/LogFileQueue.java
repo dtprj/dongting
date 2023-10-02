@@ -127,7 +127,7 @@ class LogFileQueue extends FileQueue {
         return ((absolutePos >>> fileLenShiftBits) + 1) << fileLenShiftBits;
     }
 
-    public void syncTruncateTail(long startPosition, long endPosition) throws IOException {
+    public void syncTruncateTail(long startPosition, long endPosition) throws InterruptedException {
         DtUtil.checkNotNegative(startPosition, "startPosition");
         DtUtil.checkNotNegative(endPosition, "endPosition");
         log.info("truncate tail from {} to {}, currentWritePos={}", startPosition, endPosition, logAppender.getNextPersistPos());
@@ -152,7 +152,7 @@ class LogFileQueue extends FileQueue {
         }
     }
 
-    private void fillWithZero(ByteBuffer buffer, LogFile lf, long startPosition, long endPosition) throws IOException {
+    private void fillWithZero(ByteBuffer buffer, LogFile lf, long startPosition, long endPosition) throws InterruptedException {
         if (lf.startPos >= endPosition) {
             return;
         }
@@ -174,7 +174,7 @@ class LogFileQueue extends FileQueue {
                 buffer.limit(fileRest);
             }
             int count = buffer.remaining();
-            FileUtil.syncWriteFull(lf.channel, buffer, i);
+            FileUtil.syncWriteWithRetry(lf.channel, buffer, i, 100, 1000, 5000);
             i += count;
         }
     }

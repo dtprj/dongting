@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
@@ -78,10 +79,27 @@ public class FileUtil {
         }
     }
 
-    public static void syncWriteFull(AsynchronousFileChannel c, ByteBuffer buf, long pos) throws IOException {
-        while (buf.hasRemaining()) {
-            Future<Integer> f = c.write(buf, pos);
-            getResult(f);
+    public static void syncWriteWithRetry(AsynchronousFileChannel c, ByteBuffer buf, long pos, int... retryIntervals) throws InterruptedException {
+        Objects.requireNonNull(retryIntervals);
+        int bufPos = buf.position();
+        int retry = 0;
+        while (true) {
+            try {
+                while (buf.hasRemaining()) {
+                    Future<Integer> f = c.write(buf, pos);
+                    f.get();
+                }
+            } catch (InterruptedException e) {
+                throw e;
+            } catch (Exception e) {
+                if (retry < retryIntervals.length) {
+                    Thread.sleep(retryIntervals[retry]);
+                    retry++;
+                    buf.position(bufPos);
+                } else {
+                    throw new RaftException(e);
+                }
+            }
         }
     }
 

@@ -122,7 +122,7 @@ public class DefaultRaftLog implements RaftLog {
         }
     }
 
-    public void truncateTail(long index) throws Exception {
+    public void truncateTail(long index) throws InterruptedException {
         TailCache tailCache = raftStatus.getTailCache();
         if (index < tailCache.getFirstIndex()) {
             throw new UnrecoverableException("truncate index " + index + " < firstIndex " + tailCache.getFirstIndex());
@@ -154,7 +154,6 @@ public class DefaultRaftLog implements RaftLog {
         logFiles.syncTruncateTail(firstPos, lastPos);
         props.remove(KEY_TRUNCATE);
         statusManager.persistSync();
-
     }
 
     @Override
