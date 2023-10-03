@@ -352,10 +352,6 @@ class LogAppender {
         return null;
     }
 
-    public void waitWriteFinish(long truncateIndex) {
-
-    }
-
     public void setNextPersistIndex(long nextPersistIndex) {
         this.nextPersistIndex = nextPersistIndex;
     }

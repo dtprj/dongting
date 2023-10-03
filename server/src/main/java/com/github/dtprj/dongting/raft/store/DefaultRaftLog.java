@@ -27,7 +27,6 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.UnrecoverableException;
 
 import java.io.File;
-import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
@@ -154,13 +153,6 @@ public class DefaultRaftLog implements RaftLog {
             idxFiles.truncateTail(index);
         }
 
-        Properties props = statusManager.getProperties();
-        props.setProperty(KEY_TRUNCATE, firstPos + "," + lastPos);
-        statusManager.persistSync();
-        logFiles.getLogAppender().waitWriteFinish(index);
-        logFiles.syncTruncateTail(firstPos, lastPos);
-        props.remove(KEY_TRUNCATE);
-        statusManager.persistSync();
     }
 
     @Override

@@ -18,14 +18,12 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.common.BitUtil;
-import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
@@ -53,7 +51,6 @@ class LogFileQueue extends FileQueue {
     protected final RefBufferFactory heapPool;
     protected final ByteBufferPool directPool;
 
-    private final RaftGroupConfig groupConfig;
     private final IdxOps idxOps;
 
     private final Timestamp ts;
@@ -64,7 +61,6 @@ class LogFileQueue extends FileQueue {
     public LogFileQueue(File dir, RaftGroupConfig groupConfig, IdxOps idxOps, RaftLog.AppendCallback callback,
                         long logFileSize, int writeBufferSize) {
         super(dir, groupConfig);
-        this.groupConfig = groupConfig;
         this.idxOps = idxOps;
         this.ts = groupConfig.getTs();
 
@@ -127,58 +123,6 @@ class LogFileQueue extends FileQueue {
 
     public long nextFilePos(long absolutePos) {
         return ((absolutePos >>> fileLenShiftBits) + 1) << fileLenShiftBits;
-    }
-
-    public void syncTruncateTail(long startPosition, long endPosition) throws InterruptedException {
-        DtUtil.checkNotNegative(startPosition, "startPosition");
-        DtUtil.checkNotNegative(endPosition, "endPosition");
-        log.info("truncate tail from {} to {}, currentWritePos={}", startPosition, endPosition, logAppender.getNextPersistPos());
-        int startQueueIndex = (int) ((startPosition - queueStartPosition) >>> fileLenShiftBits);
-        ByteBuffer buffer = directPool.borrow(64 * 1024);
-        try {
-            while (buffer.hasRemaining()) {
-                // fill with zero
-                buffer.putLong(0);
-            }
-            for (int i = startQueueIndex; i < queue.size(); i++) {
-                LogFile lf = queue.get(i);
-                if (lf.startPos >= startPosition) {
-                    lf.firstTerm = 0;
-                    lf.firstIndex = 0;
-                    lf.firstTimestamp = 0;
-                }
-                fillWithZero(buffer, lf, startPosition, endPosition);
-            }
-        } finally {
-            directPool.release(buffer);
-        }
-    }
-
-    private void fillWithZero(ByteBuffer buffer, LogFile lf, long startPosition, long endPosition) throws InterruptedException {
-        if (lf.startPos >= endPosition) {
-            return;
-        }
-        long start = Math.max(lf.startPos, startPosition);
-        long end = Math.min(lf.endPos, endPosition);
-        if (start >= end) {
-            return;
-        }
-        start = start & fileLenMask;
-        // now end is included
-        end = (end - 1) & fileLenMask;
-
-        // not remove end magic, but it's ok
-        log.info("truncate tail, file zero from {} to {}, file={}", start, end, lf.file.getPath());
-        for (long i = start; i <= end; ) {
-            buffer.clear();
-            int fileRest = (int) (end - i + 1);
-            if (buffer.capacity() > fileRest) {
-                buffer.limit(fileRest);
-            }
-            int count = buffer.remaining();
-            FileUtil.syncWriteWithRetry(lf.channel, buffer, i, stopIndicator, groupConfig.getIoRetryInterval());
-            i += count;
-        }
     }
 
     public void markDelete(long boundIndex, long timestampBound, long delayMills) {
