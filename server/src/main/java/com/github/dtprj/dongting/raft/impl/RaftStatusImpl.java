@@ -68,10 +68,13 @@ public class RaftStatusImpl extends RaftStatus {
 
     private long lastLogIndex;
     private int lastLogTerm;
+    private long lastPersistLogIndex;
+    private int lastPersistLogTerm;
 
     private RaftExecutor raftExecutor;
 
     private boolean holdRequest;
+    private final RaftCondition writeCompleteCondition = new RaftCondition();
 
     public RaftStatusImpl() {
         lastElectTime = ts.getNanoTime();
@@ -354,5 +357,25 @@ public class RaftStatusImpl extends RaftStatus {
 
     public void setLastConfigChangeIndex(long lastConfigChangeIndex) {
         this.lastConfigChangeIndex = lastConfigChangeIndex;
+    }
+
+    public RaftCondition getWriteCompleteCondition() {
+        return writeCompleteCondition;
+    }
+
+    public long getLastPersistLogIndex() {
+        return lastPersistLogIndex;
+    }
+
+    public void setLastPersistLogIndex(long lastPersistLogIndex) {
+        this.lastPersistLogIndex = lastPersistLogIndex;
+    }
+
+    public int getLastPersistLogTerm() {
+        return lastPersistLogTerm;
+    }
+
+    public void setLastPersistLogTerm(int lastPersistLogTerm) {
+        this.lastPersistLogTerm = lastPersistLogTerm;
     }
 }

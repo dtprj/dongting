@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.FlowControlException;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.ChannelContext;
@@ -29,6 +30,7 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftNode;
+import com.github.dtprj.dongting.raft.server.UnrecoverableException;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.nio.ByteBuffer;
@@ -56,6 +58,11 @@ public class RaftUtil {
         t.setDaemon(true);
         return t;
     });
+
+    public static void fail(String msg) {
+        BugLog.getLog().error(msg);
+        throw new UnrecoverableException(msg);
+    }
 
     public static List<RaftNode> parseServers(int selfId, String serversStr) {
         String[] servers = serversStr.split(";");

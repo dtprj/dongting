@@ -95,8 +95,8 @@ class LogAppender {
         final int writeStartPosInBuffer;
         final long startIndex;
         LogItem lastItem;
+        boolean finished;
         int size;
-        final CompletableFuture<Void> future = new CompletableFuture<>();
 
         public WriteTask(LogFile logFile, ByteBuffer buffer, long startIndex,
                          long writeStartPosInFile, int writeStartPosInBuffer) {
@@ -235,18 +235,20 @@ class LogAppender {
             }
             registerWriteCallback(ioTask.retry(), cancelIndicator, ioTask, wt);
         } else {
-            if (wt.lastItem != null) {
-                raftStatus.setLastLogTerm(wt.lastItem.getTerm());
-                raftStatus.setLastLogIndex(wt.lastItem.getIndex());
-                appendCallback.finish(raftStatus.getLastLogTerm(), raftStatus.getLastLogIndex());
-            }
-            wt.future.complete(null);
+            wt.finished = true;
+            LogItem lastFinishedItem = null;
             while (writeTaskQueue.size() > 0) {
-                if (writeTaskQueue.get(0).future.isDone()) {
-                    writeTaskQueue.removeFirst();
+                if (writeTaskQueue.get(0).finished) {
+                    WriteTask head = writeTaskQueue.removeFirst();
+                    if (head.lastItem != null) {
+                        lastFinishedItem = head.lastItem;
+                    }
                 } else {
                     break;
                 }
+            }
+            if (lastFinishedItem != null) {
+                appendCallback.finish(lastFinishedItem.getTerm(), lastFinishedItem.getIndex());
             }
         }
     }

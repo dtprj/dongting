@@ -162,8 +162,15 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
                     log.info("local log truncate to prevLogIndex={}, prevLogTerm={}, groupId={}",
                             req.getPrevLogIndex(), req.getPrevLogTerm(), raftStatus.getGroupId());
                     long truncateIndex = req.getPrevLogIndex() + 1;
-                    gc.getRaftLog().truncateTail(truncateIndex);
-                    // not return here
+                    if (raftStatus.getLastPersistLogIndex() < raftStatus.getLastLogIndex()) {
+                        raftStatus.getWriteCompleteCondition().register();
+                    } else if (raftStatus.getLastPersistLogIndex() == raftStatus.getLastLogIndex()) {
+                        gc.getRaftLog().truncateTail(truncateIndex);
+                        // not return here
+                    } else {
+                        RaftUtil.fail("lastPersistLogIndex > lastLogIndex. lastPersistLogIndex="
+                                + raftStatus.getLastPersistLogIndex() + ", lastLogIndex=" + raftStatus.getLastLogIndex());
+                    }
                 } else {
                     log.info("follower suggest term={}, index={}, groupId={}", pos.getLeft(), pos.getRight(), raftStatus.getGroupId());
                     resp.setSuccess(false);

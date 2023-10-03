@@ -82,11 +82,22 @@ public class CommitManager implements RaftLog.AppendCallback {
     }
 
     @Override
-    public void finish(int lastTerm, long lastIndex) {
+    public void finish(int lastPersistTerm, long lastPersistIndex) {
+        if (lastPersistIndex > raftStatus.getLastLogIndex()) {
+            RaftUtil.fail("lastPersistIndex > lastLogIndex. lastPersistIndex="
+                    + lastPersistIndex + ", lastLogIndex=" + raftStatus.getLastLogIndex());
+        }
+        if (lastPersistTerm > raftStatus.getLastLogTerm()) {
+            RaftUtil.fail("lastPersistTerm > lastLogTerm. lastPersistTerm="
+                    + lastPersistTerm + ", lastLogTerm=" + raftStatus.getLastLogTerm());
+        }
+        raftStatus.setLastPersistLogIndex(lastPersistIndex);
+        raftStatus.setLastPersistLogTerm(lastPersistTerm);
+
         RaftMember self = raftStatus.getSelf();
         if (self != null) {
-            self.setNextIndex(lastIndex + 1);
-            self.setMatchIndex(lastIndex);
+            self.setNextIndex(lastPersistIndex + 1);
+            self.setMatchIndex(lastPersistIndex);
             self.setLastConfirmReqNanos(ts.getNanoTime());
         }
 
@@ -94,6 +105,10 @@ public class CommitManager implements RaftLog.AppendCallback {
         if (raftStatus.getRwQuorum() == 1) {
             RaftUtil.updateLease(raftStatus);
         }
-        tryCommit(lastIndex);
+        tryCommit(lastPersistIndex);
+
+        if (lastPersistIndex == raftStatus.getLastLogIndex()) {
+            raftStatus.getWriteCompleteCondition().signal();
+        }
     }
 }

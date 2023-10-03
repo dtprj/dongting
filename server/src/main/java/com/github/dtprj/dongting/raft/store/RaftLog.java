@@ -81,6 +81,6 @@ public interface RaftLog extends AutoCloseable {
     }
 
     interface AppendCallback {
-        void finish(int lastTerm, long lastIndex);
+        void finish(int lastPersistTerm, long lastPersistIndex);
     }
 }
