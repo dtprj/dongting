@@ -157,6 +157,7 @@ public class DefaultRaftLog implements RaftLog {
         Properties props = statusManager.getProperties();
         props.setProperty(KEY_TRUNCATE, firstPos + "," + lastPos);
         statusManager.persistSync();
+        logFiles.getLogAppender().waitWriteFinish(index);
         logFiles.syncTruncateTail(firstPos, lastPos);
         props.remove(KEY_TRUNCATE);
         statusManager.persistSync();

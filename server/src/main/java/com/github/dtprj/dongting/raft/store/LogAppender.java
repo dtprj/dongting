@@ -38,8 +38,8 @@ import java.util.zip.CRC32C;
 /**
  * @author huangli
  */
-class LogAppender2 {
-    private static final DtLog log = DtLogs.getLogger(LogAppender2.class);
+class LogAppender {
+    private static final DtLog log = DtLogs.getLogger(LogAppender.class);
     private static final int STATE_WRITE_ITEM_HEADER = 0;
     private static final int STATE_WRITE_BIZ_HEADER = 1;
     private static final int STATE_WRITE_BIZ_BODY = 2;
@@ -75,8 +75,8 @@ class LogAppender2 {
 
     private final IndexedQueue<WriteTask> writeTaskQueue = new IndexedQueue<>(32);
 
-    LogAppender2(IdxOps idxOps, LogFileQueue logFileQueue, RaftGroupConfig groupConfig,
-                 ByteBuffer writeBuffer, RaftLog.AppendCallback appendCallback) {
+    LogAppender(IdxOps idxOps, LogFileQueue logFileQueue, RaftGroupConfig groupConfig,
+                ByteBuffer writeBuffer, RaftLog.AppendCallback appendCallback) {
         this.idxOps = idxOps;
         this.logFileQueue = logFileQueue;
         this.codecFactory = groupConfig.getCodecFactory();
@@ -350,6 +350,10 @@ class LogAppender2 {
             }
         }
         return null;
+    }
+
+    public void waitWriteFinish(long truncateIndex) {
+
     }
 
     public void setNextPersistIndex(long nextPersistIndex) {

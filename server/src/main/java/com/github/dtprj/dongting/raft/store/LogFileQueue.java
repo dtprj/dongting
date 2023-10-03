@@ -59,7 +59,7 @@ class LogFileQueue extends FileQueue {
     private final Timestamp ts;
     private final ByteBuffer writeBuffer;
 
-    private final LogAppender2 logAppender;
+    private final LogAppender logAppender;
 
     public LogFileQueue(File dir, RaftGroupConfig groupConfig, IdxOps idxOps, RaftLog.AppendCallback callback,
                         long logFileSize, int writeBufferSize) {
@@ -74,7 +74,7 @@ class LogFileQueue extends FileQueue {
         this.fileLenMask = logFileSize - 1;
         this.fileLenShiftBits = BitUtil.zeroCountOfBinary(logFileSize);
         this.writeBuffer = ByteBuffer.allocateDirect(writeBufferSize);
-        this.logAppender = new LogAppender2(idxOps, this, groupConfig, writeBuffer, callback);
+        this.logAppender = new LogAppender(idxOps, this, groupConfig, writeBuffer, callback);
     }
 
     @Override
@@ -397,7 +397,7 @@ class LogFileQueue extends FileQueue {
         return logFileSize;
     }
 
-    public LogAppender2 getLogAppender() {
+    public LogAppender getLogAppender() {
         return logAppender;
     }
 }
