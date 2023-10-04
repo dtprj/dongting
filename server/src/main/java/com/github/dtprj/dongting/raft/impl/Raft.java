@@ -17,6 +17,8 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
@@ -32,6 +34,8 @@ import java.util.function.BiConsumer;
  * @author huangli
  */
 public class Raft implements BiConsumer<EventType, Object> {
+
+    private static final DtLog log = DtLogs.getLogger(Raft.class);
 
     private final ReplicateManager replicateManager;
     private final ApplyManager applyManager;
@@ -61,6 +65,16 @@ public class Raft implements BiConsumer<EventType, Object> {
         }
     }
 
+    public static long lastIndex(RaftStatusImpl raftStatus) {
+        TailCache tailCache = raftStatus.getTailCache();
+        if (tailCache.size() == 0) {
+            log.info("tail cache is empty, use last log index {}", raftStatus.getLastLogIndex());
+            return raftStatus.getLastLogIndex();
+        } else {
+            return tailCache.getLastIndex();
+        }
+    }
+
     @SuppressWarnings("ForLoopReplaceableByForEach")
     public void raftExec(List<RaftTask> inputs) {
         RaftStatusImpl raftStatus = this.raftStatus;
@@ -72,8 +86,8 @@ public class Raft implements BiConsumer<EventType, Object> {
             }
             return;
         }
+        long newIndex = lastIndex(raftStatus);
         TailCache tailCache = raftStatus.getTailCache();
-        long newIndex = Math.max(tailCache.getLastIndex(), raftStatus.getLastLogIndex());
 
         int oldTerm = raftStatus.getLastLogTerm();
         int currentTerm = raftStatus.getCurrentTerm();

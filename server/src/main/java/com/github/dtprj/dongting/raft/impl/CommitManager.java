@@ -16,14 +16,13 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.util.List;
 
 /**
  * @author huangli
  */
-public class CommitManager implements RaftLog.AppendCallback {
+public class CommitManager {
 
     private final RaftStatusImpl raftStatus;
     private final ApplyManager applyManager;
@@ -81,34 +80,4 @@ public class CommitManager implements RaftLog.AppendCallback {
         return count >= rwQuorum;
     }
 
-    @Override
-    public void finish(int lastPersistTerm, long lastPersistIndex) {
-        if (lastPersistIndex > raftStatus.getLastLogIndex()) {
-            RaftUtil.fail("lastPersistIndex > lastLogIndex. lastPersistIndex="
-                    + lastPersistIndex + ", lastLogIndex=" + raftStatus.getLastLogIndex());
-        }
-        if (lastPersistTerm > raftStatus.getLastLogTerm()) {
-            RaftUtil.fail("lastPersistTerm > lastLogTerm. lastPersistTerm="
-                    + lastPersistTerm + ", lastLogTerm=" + raftStatus.getLastLogTerm());
-        }
-        raftStatus.setLastPersistLogIndex(lastPersistIndex);
-        raftStatus.setLastPersistLogTerm(lastPersistTerm);
-
-        RaftMember self = raftStatus.getSelf();
-        if (self != null) {
-            self.setNextIndex(lastPersistIndex + 1);
-            self.setMatchIndex(lastPersistIndex);
-            self.setLastConfirmReqNanos(ts.getNanoTime());
-        }
-
-        // for single node mode
-        if (raftStatus.getRwQuorum() == 1) {
-            RaftUtil.updateLease(raftStatus);
-        }
-        tryCommit(lastPersistIndex);
-
-        if (lastPersistIndex == raftStatus.getLastLogIndex()) {
-            raftStatus.getWriteCompleteCondition().signal();
-        }
-    }
 }

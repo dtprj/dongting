@@ -71,6 +71,8 @@ public class RaftStatusImpl extends RaftStatus {
     private long lastPersistLogIndex;
     private int lastPersistLogTerm;
 
+    private long leaderCommit;
+
     private RaftExecutor raftExecutor;
 
     private boolean holdRequest;
@@ -377,5 +379,13 @@ public class RaftStatusImpl extends RaftStatus {
 
     public void setLastPersistLogTerm(int lastPersistLogTerm) {
         this.lastPersistLogTerm = lastPersistLogTerm;
+    }
+
+    public long getLeaderCommit() {
+        return leaderCommit;
+    }
+
+    public void setLeaderCommit(long leaderCommit) {
+        this.leaderCommit = leaderCommit;
     }
 }

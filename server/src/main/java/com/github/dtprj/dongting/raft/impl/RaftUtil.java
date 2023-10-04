@@ -148,6 +148,7 @@ public class RaftUtil {
         raftStatus.setTailCache(new TailCache());
         raftStatus.setCurrentLeader(null);
         raftStatus.setHoldRequest(false);
+        raftStatus.setLeaderCommit(0);
         for (RaftMember member : raftStatus.getReplicateList()) {
             member.setMatchIndex(0);
             member.setNextIndex(0);
