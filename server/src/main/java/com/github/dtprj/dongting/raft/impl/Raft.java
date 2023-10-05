@@ -122,6 +122,8 @@ public class Raft implements BiConsumer<EventType, Object> {
 
                 writeCount++;
                 tailCache.put(newIndex, rt);
+                raftStatus.setLastLogIndex(newIndex);
+                raftStatus.setLastLogTerm(currentTerm);
             } else {
                 // read
                 if (newIndex <= raftStatus.getLastApplied()) {

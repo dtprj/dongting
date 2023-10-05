@@ -244,6 +244,7 @@ public class RaftServer extends AbstractLifeCircle {
         gc.setMemberManager(memberManager);
         gc.setVoteManager(voteManager);
         gc.setRaftExecutor(raftExecutor);
+        gc.setCommitManager(commitManager);
         gc.setApplyManager(applyManager);
         gc.setEventBus(eventBus);
         gc.setNodeManager(nodeManager);

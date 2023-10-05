@@ -84,7 +84,7 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
 
     public AppendProcessor(RaftServer raftServer, RaftGroups raftGroups) {
         super(false, raftServer);
-        decoder = new PbNoCopyDecoder<>(decodeContext -> new AppendReqCallback(decodeContext, raftGroups));
+        this.decoder = new PbNoCopyDecoder<>(decodeContext -> new AppendReqCallback(decodeContext, raftGroups));
     }
 
     @Override
@@ -229,6 +229,21 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
             if (i == logs.size() - 1) {
                 raftStatus.setLastLogIndex(li.getIndex());
                 raftStatus.setLastLogTerm(li.getTerm());
+                int term = raftStatus.getCurrentTerm();
+                long itemIndex = li.getIndex();
+                gc.getCommitManager().registerRespWriter(idx -> {
+                    if (raftStatus.getCurrentTerm() == term) {
+                        if (idx >= itemIndex) {
+                            AppendRespWriteFrame resp = createResp(raftStatus, CODE_SUCCESS);
+                            channelContext.getRespWriter().writeRespInBizThreads(rf, resp, reqContext.getTimeout());
+                            return true;
+                        } else {
+                            return false;
+                        }
+                    } else {
+                        return true;
+                    }
+                });
             }
         }
         gc.getRaftLog().append(tailCache);

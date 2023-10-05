@@ -15,23 +15,23 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.raft.store.IndexedQueue;
+import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.util.List;
 
 /**
  * @author huangli
  */
-public class CommitManager {
+public class CommitManager implements RaftLog.AppendCallback {
 
     private final RaftStatusImpl raftStatus;
     private final ApplyManager applyManager;
-    private final Timestamp ts;
+    private IndexedQueue<AppendRespWriter> respQueue = new IndexedQueue<>(128);
 
     public CommitManager(RaftStatusImpl raftStatus, ApplyManager applyManager) {
         this.raftStatus = raftStatus;
         this.applyManager = applyManager;
-        this.ts = raftStatus.getTs();
     }
 
     public void tryCommit(long recentMatchIndex) {
@@ -78,6 +78,64 @@ public class CommitManager {
             }
         }
         return count >= rwQuorum;
+    }
+
+
+    @Override
+    public void finish(int lastPersistTerm, long lastPersistIndex) {
+        RaftStatusImpl raftStatus = this.raftStatus;
+        if (lastPersistIndex > raftStatus.getLastLogIndex()) {
+            RaftUtil.fail("lastPersistIndex > lastLogIndex. lastPersistIndex="
+                    + lastPersistIndex + ", lastLogIndex=" + raftStatus.getLastLogIndex());
+        }
+        if (lastPersistTerm > raftStatus.getLastLogTerm()) {
+            RaftUtil.fail("lastPersistTerm > lastLogTerm. lastPersistTerm="
+                    + lastPersistTerm + ", lastLogTerm=" + raftStatus.getLastLogTerm());
+        }
+        raftStatus.setLastPersistLogIndex(lastPersistIndex);
+        raftStatus.setLastPersistLogTerm(lastPersistTerm);
+        if (raftStatus.getRole() == RaftRole.leader) {
+            RaftMember self = raftStatus.getSelf();
+            if (self != null) {
+                self.setNextIndex(lastPersistIndex + 1);
+                self.setMatchIndex(lastPersistIndex);
+                self.setLastConfirmReqNanos(raftStatus.getTs().getNanoTime());
+            }
+
+            // for single node mode
+            if (raftStatus.getRwQuorum() == 1) {
+                RaftUtil.updateLease(raftStatus);
+            }
+            tryCommit(lastPersistIndex);
+        } else {
+            while (respQueue.size() > 0) {
+                AppendRespWriter writer = respQueue.get(0);
+                if (writer.writeResp(lastPersistIndex)) {
+                    respQueue.removeFirst();
+                } else {
+                    break;
+                }
+            }
+            if (raftStatus.getLeaderCommit() > raftStatus.getCommitIndex()) {
+                long newCommitIndex = Math.min(lastPersistIndex, raftStatus.getLeaderCommit());
+                if (newCommitIndex > raftStatus.getCommitIndex()) {
+                    raftStatus.setCommitIndex(newCommitIndex);
+                    applyManager.apply(raftStatus);
+                }
+            }
+        }
+
+        if (lastPersistIndex == raftStatus.getLastLogIndex()) {
+            raftStatus.getWriteCompleteCondition().signal();
+        }
+    }
+
+    public void registerRespWriter(AppendRespWriter writer) {
+        respQueue.addLast(writer);
+    }
+
+    public interface AppendRespWriter {
+        boolean writeResp(long index);
     }
 
 }

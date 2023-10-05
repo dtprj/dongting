@@ -34,6 +34,7 @@ public class GroupComponents {
     private VoteManager voteManager;
     private Raft raft;
     private RaftExecutor raftExecutor;
+    private CommitManager commitManager;
     private ApplyManager applyManager;
     private EventBus eventBus;
     private SnapshotManager snapshotManager;
@@ -107,6 +108,14 @@ public class GroupComponents {
 
     public void setRaftExecutor(RaftExecutor raftExecutor) {
         this.raftExecutor = raftExecutor;
+    }
+
+    public CommitManager getCommitManager() {
+        return commitManager;
+    }
+
+    public void setCommitManager(CommitManager commitManager) {
+        this.commitManager = commitManager;
     }
 
     public ApplyManager getApplyManager() {
