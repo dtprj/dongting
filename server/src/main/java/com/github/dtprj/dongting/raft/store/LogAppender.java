@@ -32,7 +32,6 @@ import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Supplier;
 import java.util.zip.CRC32C;
 
 /**
@@ -203,25 +202,15 @@ class LogAppender {
         buf.position(wt.writeStartPosInBuffer);
         int x = buf.remaining();
         wt.size = x;
-        Supplier<Boolean> cancelIndicator = wt.future::isCancelled;
-        AsyncIoTask ioTask = new AsyncIoTask(wt.logFile.channel, raftStatus::isStop, cancelIndicator);
-        // TODO flush if necessary
-        ioTask.write(true, false, buf, wt.writeStartPosInFile);
-        registerWriteCallback(wt.future, cancelIndicator, ioTask, wt);
+        AsyncIoTask ioTask = new AsyncIoTask(wt.logFile.channel, raftStatus::isStop, null);
+        boolean needFlush = wt.lastItem != null;
+        CompletableFuture<Void> f = ioTask.write(needFlush, false, buf, wt.writeStartPosInFile);
+        f.whenCompleteAsync((v, ex) -> processWriteResult(ex, ioTask, wt), raftStatus.getRaftExecutor());
         writeTaskQueue.addLast(wt);
         return x;
     }
 
-    private void registerWriteCallback(CompletableFuture<Void> f, Supplier<Boolean> cancelIndicator,
-                                       AsyncIoTask ioTask, WriteTask wt) {
-        f.whenCompleteAsync((v, ex) -> processWriteResult(ex, cancelIndicator, ioTask, wt), raftStatus.getRaftExecutor());
-    }
-
-    private void processWriteResult(Throwable ex, Supplier<Boolean> cancelIndicator, AsyncIoTask ioTask, WriteTask wt) {
-        if (cancelIndicator.get()) {
-            log.info("write cancelled, startIndex={}", wt.startIndex);
-            return;
-        }
+    private void processWriteResult(Throwable ex, AsyncIoTask ioTask, WriteTask wt) {
         if (raftStatus.isStop()) {
             return;
         }
@@ -233,7 +222,8 @@ class LogAppender {
                 DtUtil.restoreInterruptStatus();
                 throw new RaftException(e);
             }
-            registerWriteCallback(ioTask.retry(), cancelIndicator, ioTask, wt);
+            CompletableFuture<Void> f = ioTask.retry();
+            f.whenCompleteAsync((v, ex1) -> processWriteResult(ex1, ioTask, wt), raftStatus.getRaftExecutor());
         } else {
             wt.finished = true;
             LogItem lastFinishedItem = null;
