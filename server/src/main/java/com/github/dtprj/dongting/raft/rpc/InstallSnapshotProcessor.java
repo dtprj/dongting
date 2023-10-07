@@ -55,13 +55,17 @@ public class InstallSnapshotProcessor extends RaftGroupProcessor<InstallSnapshot
     @Override
     protected WriteFrame doProcess(ReadFrame<InstallSnapshotReq> frame, ChannelContext channelContext,
                                    ReqContext reqContext, RaftGroup rg) {
+        GroupComponents gc = ((RaftGroupImpl) rg).getGroupComponents();
+        RaftStatusImpl raftStatus = gc.getRaftStatus();
+        if (raftStatus.getWriteCompleteCondition().isInWait()) {
+            raftStatus.getWriteCompleteCondition().register(() -> doProcess(frame, channelContext, reqContext, rg));
+            return null;
+        }
         InstallSnapshotReq req = frame.getBody();
         try {
             InstallSnapshotResp resp = new InstallSnapshotResp();
             InstallSnapshotResp.InstallRespWriteFrame respFrame = new InstallSnapshotResp.InstallRespWriteFrame(resp);
             int remoteTerm = req.term;
-            GroupComponents gc = ((RaftGroupImpl) rg).getGroupComponents();
-            RaftStatusImpl raftStatus = gc.getRaftStatus();
 
             if (gc.getMemberManager().checkLeader(req.leaderId)) {
                 int localTerm = raftStatus.getCurrentTerm();
@@ -111,11 +115,14 @@ public class InstallSnapshotProcessor extends RaftGroupProcessor<InstallSnapshot
         boolean finish = req.done;
         if (start) {
             raftStatus.setInstallSnapshot(true);
-            raftStatus.setLastLogTerm(req.lastIncludedTerm);
-            raftStatus.setLastLogIndex(req.lastIncludedIndex);
+
         }
         try {
             stateMachine.installSnapshot(req.lastIncludedIndex, req.lastIncludedTerm, req.offset, finish, req.data);
+            raftStatus.setLastLogTerm(req.lastIncludedTerm);
+            raftStatus.setLastLogIndex(req.lastIncludedIndex);
+            raftStatus.setLastPersistLogIndex(req.lastIncludedIndex);
+            raftStatus.setLastPersistLogTerm(req.lastIncludedTerm);
             resp.success = true;
             if (finish) {
                 raftStatus.setInstallSnapshot(false);

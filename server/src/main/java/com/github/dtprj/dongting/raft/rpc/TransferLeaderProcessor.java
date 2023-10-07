@@ -22,10 +22,10 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.ChannelContext;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespFrame;
-import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WriteFrame;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
@@ -60,21 +60,21 @@ public class TransferLeaderProcessor extends RaftGroupProcessor<TransferLeaderRe
         RaftStatusImpl raftStatus = gc.getRaftStatus();
         if (raftStatus.getRole() != RaftRole.follower) {
             log.error("transfer leader fail, not follower, groupId={}, role={}", req.groupId, raftStatus.getRole());
-            throw new NetCodeException(CmdCodes.BIZ_ERROR, "transfer leader fail, not follower");
+            throw new RaftException("transfer leader fail, not follower");
         }
         if (!gc.getMemberManager().checkLeader(req.oldLeaderId)) {
             log.error("transfer leader fail, leader check fail, groupId={}", req.groupId);
-            throw new NetCodeException(CmdCodes.BIZ_ERROR, "transfer leader fail, leader check fail");
+            throw new RaftException("transfer leader fail, leader check fail");
         }
         if (raftStatus.getCurrentTerm() != req.term) {
             log.error("transfer leader fail, term check fail, groupId={}, reqTerm={}, localTerm={}",
                     req.groupId, req.term, raftStatus.getCurrentTerm());
-            throw new NetCodeException(CmdCodes.BIZ_ERROR, "transfer leader fail, term check fail");
+            throw new RaftException("transfer leader fail, term check fail");
         }
-        if (raftStatus.getLastLogIndex() != req.logIndex) {
-            log.error("transfer leader fail, logIndex check fail, groupId={}, reqIndex={}, localIndex={}",
-                    req.groupId, req.logIndex, raftStatus.getLastLogIndex());
-            throw new NetCodeException(CmdCodes.BIZ_ERROR, "transfer leader fail, logIndex check fail");
+        if (raftStatus.getLastLogIndex() != req.logIndex || raftStatus.getLastPersistLogIndex() != req.logIndex) {
+            log.error("transfer leader fail, logIndex check fail, groupId={}, reqIndex={}, lastIndex={}, lastPersistIndex={}",
+                    req.groupId, req.logIndex, raftStatus.getLastLogIndex(), raftStatus.getLastPersistLogIndex());
+            throw new RaftException("transfer leader fail, logIndex check fail");
         }
         raftStatus.setCommitIndex(req.logIndex);
         gc.getApplyManager().apply(raftStatus);

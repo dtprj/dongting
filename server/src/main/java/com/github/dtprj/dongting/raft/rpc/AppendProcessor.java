@@ -171,6 +171,7 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
             CompletableFuture<Pair<Integer, Long>> replicatePos = gc.getRaftLog().tryFindMatchPos(
                     req.getPrevLogTerm(), req.getPrevLogIndex(), cancelIndicator);
             try {
+                // TODO make async
                 Pair<Integer, Long> pos = replicatePos.get();
                 if (pos == null) {
                     log.info("follower has no suggest index, will install snapshot. groupId={}", raftStatus.getGroupId());

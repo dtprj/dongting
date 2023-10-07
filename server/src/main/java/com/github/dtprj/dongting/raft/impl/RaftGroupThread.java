@@ -130,6 +130,8 @@ public class RaftGroupThread extends Thread {
                     initResult.getLeft(), initResult.getRight(), groupConfig.getGroupId());
             raftStatus.setLastLogTerm(initResultTerm);
             raftStatus.setLastLogIndex(initResultIndex);
+            raftStatus.setLastPersistLogTerm(initResultTerm);
+            raftStatus.setLastPersistLogIndex(initResultIndex);
             prepareFuture.complete(null);
             return true;
         } catch (Throwable e) {

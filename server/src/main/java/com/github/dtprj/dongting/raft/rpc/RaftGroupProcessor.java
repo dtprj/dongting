@@ -95,7 +95,13 @@ public abstract class RaftGroupProcessor<T> extends ReqProcessor<T> {
             wf = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
             wf.setMsg("raft group is in error state: " + rg.getGroupId());
         } else {
-            wf = doProcess(frame, channelContext, reqContext, rg);
+            try {
+                wf = doProcess(frame, channelContext, reqContext, rg);
+            } catch (Exception e) {
+                wf = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
+                wf.setMsg("server error: " + e);
+                log.error("server error", e);
+            }
         }
         if (wf != null) {
             channelContext.getRespWriter().writeRespInBizThreads(frame, wf, reqContext.getTimeout());
