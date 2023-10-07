@@ -30,7 +30,7 @@ import java.util.function.Supplier;
  */
 public interface RaftLog extends AutoCloseable {
 
-    Pair<Integer, Long> init(Supplier<Boolean> stopIndicator) throws Exception;
+    Pair<Integer, Long> init(AppendCallback appendCallback) throws Exception;
 
     /**
      * Batch append logs.
@@ -40,7 +40,7 @@ public interface RaftLog extends AutoCloseable {
     /**
      * truncate tail to index (include)
      */
-    void truncateTail(long index) throws Exception;
+    void truncateTail(long index);
 
     LogIterator openIterator(Supplier<Boolean> cancelIndicator);
 

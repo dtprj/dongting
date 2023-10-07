@@ -58,6 +58,7 @@ public class RaftGroupThread extends Thread {
     private RaftLog raftLog;
     private SnapshotManager snapshotManager;
     private ApplyManager applyManager;
+    private CommitManager commitManager;
 
     private long heartbeatIntervalNanos;
     private long electTimeoutNanos;
@@ -112,7 +113,7 @@ public class RaftGroupThread extends Thread {
             }
             RaftUtil.checkStop(raftStatus::isStop);
 
-            Pair<Integer, Long> initResult = raftLog.init(raftStatus::isStop);
+            Pair<Integer, Long> initResult = raftLog.init(commitManager);
             int initResultTerm = initResult.getLeft();
             long initResultIndex = initResult.getRight();
             if (initResultIndex < snapshotIndex || initResultIndex < raftStatus.getCommitIndex()) {

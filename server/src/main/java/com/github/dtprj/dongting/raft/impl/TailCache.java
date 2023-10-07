@@ -66,6 +66,9 @@ public class TailCache {
         if (index < firstIndex) {
             throw new IllegalArgumentException("index " + index + " is less than firstIndex " + firstIndex);
         }
+        if (index > getLastIndex()) {
+            throw new IllegalArgumentException("index " + index + " is greater than lastIndex " + getLastIndex());
+        }
         long nextWriteIndex = nextWriteIndex();
         if (index >= nextWriteIndex) {
             throw new IllegalArgumentException("index " + index + " is greater than nextWriteIndex " + nextWriteIndex);

@@ -216,6 +216,7 @@ class LogAppender {
         }
         if (ex != null) {
             log.error("write error, will retry", ex);
+            // TODO use retry interval
             try {
                 Thread.sleep(1000);
             } catch (InterruptedException e) {

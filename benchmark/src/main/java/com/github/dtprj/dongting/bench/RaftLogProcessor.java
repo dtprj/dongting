@@ -87,7 +87,7 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
             config.setIoExecutor(MockExecutors.ioExecutor());
 
             this.raftLog = new DefaultRaftLog(config, statusManager);
-            Pair<Integer, Long> initResult = this.raftLog.init(() -> false);
+            Pair<Integer, Long> initResult = this.raftLog.init();
             nextIndex = initResult.getRight() + 1;
 
             MockExecutors.raftExecutor().execute(this::run);

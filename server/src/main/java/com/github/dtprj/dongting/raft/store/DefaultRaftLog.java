@@ -24,7 +24,6 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
-import com.github.dtprj.dongting.raft.server.UnrecoverableException;
 
 import java.io.File;
 import java.util.concurrent.CompletableFuture;
@@ -39,14 +38,12 @@ public class DefaultRaftLog implements RaftLog {
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
     private final StatusManager statusManager;
-    private final AppendCallback appendCallback;
+    private AppendCallback appendCallback;
     LogFileQueue logFiles;
     IdxFileQueue idxFiles;
 
     private long lastTaskNanos;
     private static final long TASK_INTERVAL_NANOS = 10 * 1000 * 1000 * 1000L;
-
-    private static final String KEY_TRUNCATE = "truncate";
 
     int idxItemsPerFile = IdxFileQueue.DEFAULT_ITEMS_PER_FILE;
     int idxMaxCacheItems = IdxFileQueue.DEFAULT_MAX_CACHE_ITEMS;
@@ -54,19 +51,21 @@ public class DefaultRaftLog implements RaftLog {
     int logWriteBufferSize = LogFileQueue.DEFAULT_WRITE_BUFFER_SIZE;
 
 
-    public DefaultRaftLog(RaftGroupConfig groupConfig, StatusManager statusManager, AppendCallback appendCallback) {
+    public DefaultRaftLog(RaftGroupConfig groupConfig, StatusManager statusManager) {
         this.groupConfig = groupConfig;
         this.ts = groupConfig.getTs();
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
         this.statusManager = statusManager;
-        this.appendCallback = appendCallback;
+
 
         this.lastTaskNanos = ts.getNanoTime();
     }
 
     @Override
-    public Pair<Integer, Long> init(Supplier<Boolean> stopIndicator) throws Exception {
+    public Pair<Integer, Long> init(AppendCallback appendCallback) throws Exception {
         try {
+            this.appendCallback = appendCallback;
+            Supplier<Boolean> stopIndicator = raftStatus::isStop;
             File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
 
             idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"),
@@ -76,19 +75,6 @@ public class DefaultRaftLog implements RaftLog {
             logFiles.init();
             RaftUtil.checkStop(stopIndicator);
             idxFiles.init();
-            RaftUtil.checkStop(stopIndicator);
-
-            String truncateStatus = statusManager.getProperties().getProperty(KEY_TRUNCATE);
-            if (truncateStatus != null) {
-                String[] parts = truncateStatus.split(",");
-                if (parts.length == 2) {
-                    long start = Long.parseLong(parts[0]);
-                    long end = Long.parseLong(parts[1]);
-                    logFiles.syncTruncateTail(start, end);
-                    statusManager.getProperties().remove(KEY_TRUNCATE);
-                    statusManager.persistSync();
-                }
-            }
             RaftUtil.checkStop(stopIndicator);
 
             Pair<Long, Long> p = idxFiles.initRestorePos();
@@ -121,38 +107,13 @@ public class DefaultRaftLog implements RaftLog {
         }
     }
 
-    public void truncateTail(long index) throws InterruptedException {
+    public void truncateTail(long index) {
         TailCache tailCache = raftStatus.getTailCache();
-        if (index < tailCache.getFirstIndex()) {
-            throw new UnrecoverableException("truncate index " + index + " < firstIndex " + tailCache.getFirstIndex());
-        }
-        if (index > tailCache.getLastIndex()) {
-            throw new UnrecoverableException("truncate index " + index + " > lastIndex " + tailCache.getLastIndex());
-        }
-        Supplier<Long> callback = () -> {
-            try {
-                return idxFiles.loadLogPos(index).get();
-            } catch (Exception e) {
-                throw new RaftException(e);
-            }
-        };
-        long firstPos = FileUtil.doWithRetry(callback, raftStatus::isStop, groupConfig.getIoRetryInterval());
-        long lastPos = logFiles.getLogAppender().getNextPersistPos();
-        DtUtil.checkPositive(firstPos, "firstPos");
-        DtUtil.checkPositive(lastPos, "lastPos");
-        if (firstPos > lastPos) {
-            throw new UnrecoverableException("firstPos " + firstPos + " > lastPos " + lastPos);
-        }
-        if (firstPos >= raftStatus.getCommitIndex()) {
-            throw new UnrecoverableException("firstPos " + firstPos + " >= commitIndex " + raftStatus.getCommitIndex());
-        }
-
         tailCache.truncate(index);
 
         if (index < idxFiles.getNextIndex()) {
             idxFiles.truncateTail(index);
         }
-
     }
 
     @Override

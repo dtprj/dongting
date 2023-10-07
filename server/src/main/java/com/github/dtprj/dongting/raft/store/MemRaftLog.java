@@ -18,10 +18,13 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
+import com.github.dtprj.dongting.raft.impl.RaftTask;
+import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
-import com.github.dtprj.dongting.raft.server.RaftStatus;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -38,10 +41,11 @@ public class MemRaftLog implements RaftLog {
 
     private final IndexedQueue<MemLog> logs;
     private final Timestamp ts;
-    private final RaftStatus raftStatus;
+    private final RaftStatusImpl raftStatus;
     private final RaftGroupConfig groupConfig;
     private final int maxItems;
     private boolean closed;
+    private AppendCallback appendCallback;
 
     static final class MemLog {
         LogItem item;
@@ -52,32 +56,52 @@ public class MemRaftLog implements RaftLog {
 
     public MemRaftLog(RaftGroupConfig groupConfig, int maxItems) {
         this.ts = groupConfig.getTs();
-        this.raftStatus = groupConfig.getRaftStatus();
+        this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
         this.groupConfig = groupConfig;
         this.maxItems = maxItems;
         logs = new IndexedQueue<>(1024);
     }
 
     @Override
-    public Pair<Integer, Long> init(Supplier<Boolean> stopIndicator) throws Exception {
+    public Pair<Integer, Long> init(AppendCallback appendCallback) throws Exception {
+        this.appendCallback = appendCallback;
         return new Pair<>(0, 0L);
     }
 
     @Override
-    public CompletableFuture<Void> append(List<LogItem> list) throws Exception {
+    public void append(TailCache tailCache) {
+        if (tailCache.size() == 0) {
+            BugLog.getLog().error("tailCache.size() == 0");
+            return;
+        }
         IndexedQueue<MemLog> logs = this.logs;
+        long lastPersistIndex = -1;
+        int lastPersistTerm = -1;
         //noinspection ForLoopReplaceableByForEach
-        for (int i = 0; i < list.size(); i++) {
-            LogItem logItem = list.get(i);
+        for (long i = raftStatus.getLastLogIndex() + 1; i <= tailCache.getLastIndex(); i++) {
+            RaftTask rt = tailCache.get(i);
+            LogItem logItem = rt.getItem();
             MemLog it = new MemLog();
             it.item = logItem;
             it.item.retain();
             logs.addLast(it);
+            lastPersistIndex = logItem.getIndex();
+            lastPersistTerm = logItem.getTerm();
         }
         if (logs.size() > maxItems) {
             doDelete();
         }
-        return CompletableFuture.completedFuture(null);
+        if (lastPersistIndex != -1) {
+            raftStatus.setLastLogIndex(lastPersistIndex);
+            raftStatus.setLastLogTerm(lastPersistTerm);
+            appendCallback.finish(lastPersistTerm, lastPersistIndex);
+        }
+    }
+
+    @Override
+    public void truncateTail(long index) {
+        TailCache tailCache = raftStatus.getTailCache();
+        tailCache.truncate(index);
     }
 
     @Override
