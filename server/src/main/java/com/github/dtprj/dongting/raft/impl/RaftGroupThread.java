@@ -35,11 +35,9 @@ import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 
 /**
  * @author huangli
@@ -73,6 +71,8 @@ public class RaftGroupThread extends Thread {
     // TODO optimise blocking queue
     private LinkedBlockingQueue<Object> queue;
 
+    private Dispatcher dispatcher;
+
     public RaftGroupThread() {
     }
 
@@ -90,7 +90,9 @@ public class RaftGroupThread extends Thread {
         this.applyManager = gc.getApplyManager();
         this.statusManager = gc.getStatusManager();
         this.groupConfig = gc.getGroupConfig();
+        this.commitManager = gc.getCommitManager();
 
+        this.dispatcher = new Dispatcher(queue, raftStatus, raft);
         electTimeoutNanos = Duration.ofMillis(config.getElectTimeout()).toNanos();
         raftStatus.setElectTimeoutNanos(electTimeoutNanos);
         heartbeatIntervalNanos = Duration.ofMillis(config.getHeartbeatInterval()).toNanos();
@@ -228,75 +230,20 @@ public class RaftGroupThread extends Thread {
     private void raftLoop() {
         Timestamp ts = raftStatus.getTs();
         long lastCleanTime = ts.getNanoTime();
-        ArrayList<RaftTask> rwTasks = new ArrayList<>(32);
-        ArrayList<Runnable> runnables = new ArrayList<>(32);
-        ArrayList<Object> queueData = new ArrayList<>(32);
-        boolean poll = true;
         while (!raftStatus.isStop()) {
             if (raftStatus.getRole() != RaftRole.observer) {
                 memberManager.ensureRaftMemberStatus();
             }
-
             try {
-                poll = pollAndRefreshTs(ts, queueData, poll);
+                dispatcher.runOnce();
             } catch (InterruptedException e) {
                 return;
-            }
-            process(rwTasks, runnables, queueData);
-            if (!queueData.isEmpty()) {
-                ts.refresh(1);
-                queueData.clear();
             }
             if (ts.getNanoTime() - lastCleanTime > 5 * 1000 * 1000) {
                 idle(ts);
                 lastCleanTime = ts.getNanoTime();
             }
         }
-    }
-
-    private void process(ArrayList<RaftTask> rwTasks, ArrayList<Runnable> runnables, ArrayList<Object> queueData) {
-        RaftStatusImpl raftStatus = this.raftStatus;
-        int len = queueData.size();
-        for (int i = 0; i < len; i++) {
-            Object o = queueData.get(i);
-            if (o instanceof RaftTask) {
-                rwTasks.add((RaftTask) o);
-            } else {
-                runnables.add((Runnable) o);
-            }
-        }
-
-        // the sequence of RaftTask and Runnable is reordered, but it will not affect the linearizability
-        if (!rwTasks.isEmpty()) {
-            if (!raftStatus.isHoldRequest()) {
-                raft.raftExec(rwTasks);
-                rwTasks.clear();
-                raftStatus.copyShareStatus();
-            }
-        }
-        len = runnables.size();
-        if (len > 0) {
-            for (int i = 0; i < len; i++) {
-                runnables.get(i).run();
-            }
-            runnables.clear();
-            raftStatus.copyShareStatus();
-        }
-    }
-
-    private boolean pollAndRefreshTs(Timestamp ts, ArrayList<Object> queueData, boolean poll) throws InterruptedException {
-        long oldNanos = ts.getNanoTime();
-        if (poll) {
-            Object o = queue.poll(50, TimeUnit.MILLISECONDS);
-            if (o != null) {
-                queueData.add(o);
-            }
-        } else {
-            queue.drainTo(queueData);
-        }
-
-        ts.refresh(1);
-        return ts.getNanoTime() - oldNanos > 2 * 1000 * 1000 || queueData.isEmpty();
     }
 
     public void requestShutdown() {
