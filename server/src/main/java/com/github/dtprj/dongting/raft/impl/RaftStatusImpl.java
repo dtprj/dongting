@@ -76,7 +76,8 @@ public class RaftStatusImpl extends RaftStatus {
     private RaftExecutor raftExecutor;
 
     private boolean holdRequest;
-    private final RaftCondition writeCompleteCondition = new RaftCondition();
+    private final RaftCondition noWriting = new RaftCondition(true);
+    private final RaftCondition noPendingAppend = new RaftCondition(true);
 
     public RaftStatusImpl() {
         lastElectTime = ts.getNanoTime();
@@ -361,8 +362,12 @@ public class RaftStatusImpl extends RaftStatus {
         this.lastConfigChangeIndex = lastConfigChangeIndex;
     }
 
-    public RaftCondition getWriteCompleteCondition() {
-        return writeCompleteCondition;
+    public RaftCondition getNoWriting() {
+        return noWriting;
+    }
+
+    public RaftCondition getNoPendingAppend() {
+        return noPendingAppend;
     }
 
     public long getLastPersistLogIndex() {

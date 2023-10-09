@@ -126,7 +126,7 @@ public class CommitManager implements RaftLog.AppendCallback {
         }
 
         if (lastPersistIndex == raftStatus.getLastLogIndex()) {
-            raftStatus.getWriteCompleteCondition().signal();
+            raftStatus.getNoWriting().signal();
         }
     }
 

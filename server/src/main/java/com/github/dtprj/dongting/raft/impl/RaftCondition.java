@@ -21,26 +21,38 @@ import com.github.dtprj.dongting.raft.store.IndexedQueue;
  * @author huangli
  */
 public class RaftCondition {
-    private IndexedQueue<Runnable> queue = new IndexedQueue<>(16);
-    private boolean inWait;
+    private final IndexedQueue<Runnable> queue = new IndexedQueue<>(16);
+    private boolean condition;
 
-    public void signal() {
-        inWait = false;
-        Runnable t = queue.removeFirst();
-        t.run();
+    public RaftCondition(boolean condition) {
+        this.condition = condition;
     }
 
-    public void register(Runnable task) {
+    public void signal() {
+        condition = true;
+        while (condition) {
+            Runnable t = queue.removeFirst();
+            t.run();
+        }
+    }
+
+    public void waitAtLast(Runnable task) {
         queue.addLast(task);
-        inWait = true;
+    }
+
+    public void waitAtFirst(Runnable task) {
+        queue.addFirst(task);
     }
 
     public void clear() {
-        inWait = false;
         while (queue.removeFirst() != null) ;
     }
 
-    public boolean isInWait() {
-        return inWait;
+    public boolean isFalse() {
+        return !condition;
+    }
+
+    public void setFalse() {
+        this.condition = false;
     }
 }

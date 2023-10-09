@@ -57,8 +57,10 @@ public class InstallSnapshotProcessor extends RaftGroupProcessor<InstallSnapshot
                                    ReqContext reqContext, RaftGroup rg) {
         GroupComponents gc = ((RaftGroupImpl) rg).getGroupComponents();
         RaftStatusImpl raftStatus = gc.getRaftStatus();
-        if (raftStatus.getWriteCompleteCondition().isInWait()) {
-            raftStatus.getWriteCompleteCondition().register(() -> doProcess(frame, channelContext, reqContext, rg));
+        raftStatus.getNoPendingAppend().setFalse();
+        Runnable reprocess = () -> doProcess(frame, channelContext, reqContext, rg);
+        if (raftStatus.getNoPendingAppend().isFalse()) {
+            raftStatus.getNoPendingAppend().waitAtLast(reprocess);
             return null;
         }
         InstallSnapshotReq req = frame.getBody();
@@ -73,12 +75,21 @@ public class InstallSnapshotProcessor extends RaftGroupProcessor<InstallSnapshot
                     if (raftStatus.getRole() == RaftRole.follower) {
                         RaftUtil.resetElectTimer(raftStatus);
                         RaftUtil.updateLeader(raftStatus, req.leaderId);
+                        if (hangIfHasWriting(raftStatus, reprocess)) {
+                            return null;
+                        }
                         installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
                     } else if (raftStatus.getRole() == RaftRole.observer) {
                         RaftUtil.updateLeader(raftStatus, req.leaderId);
+                        if (hangIfHasWriting(raftStatus, reprocess)) {
+                            return null;
+                        }
                         installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
                     } else if (raftStatus.getRole() == RaftRole.candidate) {
                         RaftUtil.changeToFollower(raftStatus, req.leaderId);
+                        if (hangIfHasWriting(raftStatus, reprocess)) {
+                            return null;
+                        }
                         installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
                     } else {
                         BugLog.getLog().error("leader receive raft install snapshot request. term={}, remote={}",
@@ -88,6 +99,9 @@ public class InstallSnapshotProcessor extends RaftGroupProcessor<InstallSnapshot
                 } else if (remoteTerm > localTerm) {
                     RaftUtil.incrTerm(remoteTerm, raftStatus, req.leaderId);
                     gc.getStatusManager().persistSync();
+                    if (hangIfHasWriting(raftStatus, reprocess)) {
+                        return null;
+                    }
                     installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
                 } else {
                     log.info("receive raft install snapshot request with a smaller term, ignore, remoteTerm={}, localTerm={}", remoteTerm, localTerm);
@@ -109,13 +123,21 @@ public class InstallSnapshotProcessor extends RaftGroupProcessor<InstallSnapshot
         }
     }
 
+    private boolean hangIfHasWriting(RaftStatusImpl raftStatus, Runnable reprocess) {
+        if (raftStatus.getNoWriting().isFalse()) {
+            raftStatus.getNoWriting().waitAtLast(reprocess);
+            raftStatus.getNoPendingAppend().setFalse();
+            return true;
+        }
+        return false;
+    }
+
     private void installSnapshot(RaftStatusImpl raftStatus, StateMachine stateMachine,
                                  InstallSnapshotReq req, InstallSnapshotResp resp) {
         boolean start = req.offset == 0;
         boolean finish = req.done;
         if (start) {
             raftStatus.setInstallSnapshot(true);
-
         }
         try {
             stateMachine.installSnapshot(req.lastIncludedIndex, req.lastIncludedTerm, req.offset, finish, req.data);

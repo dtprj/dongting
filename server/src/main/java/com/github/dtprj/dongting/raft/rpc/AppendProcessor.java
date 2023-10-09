@@ -98,8 +98,9 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
         GroupComponents gc = ((RaftGroupImpl) rg).getGroupComponents();
         AppendReqCallback req = rf.getBody();
         RaftStatusImpl raftStatus = gc.getRaftStatus();
-        if (raftStatus.getWriteCompleteCondition().isInWait()) {
-            raftStatus.getWriteCompleteCondition().register(() -> doProcess(rf, channelContext, reqContext, rg));
+        raftStatus.getNoPendingAppend().setFalse();
+        if (raftStatus.getNoPendingAppend().isFalse()) {
+            raftStatus.getNoPendingAppend().waitAtLast(() -> doProcess(rf, channelContext, reqContext, rg));
             return null;
         }
         if (gc.getMemberManager().checkLeader(req.getLeaderId())) {
@@ -180,15 +181,13 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
                     log.info("local log truncate to prevLogIndex={}, prevLogTerm={}, groupId={}",
                             req.getPrevLogIndex(), req.getPrevLogTerm(), raftStatus.getGroupId());
                     long truncateIndex = req.getPrevLogIndex() + 1;
-                    if (raftStatus.getLastPersistLogIndex() < raftStatus.getLastLogIndex()) {
-                        raftStatus.getWriteCompleteCondition().register(() -> doProcess(rf, channelContext, reqContext, rg));
+                    if (raftStatus.getNoWriting().isFalse()) {
+                        raftStatus.getNoWriting().waitAtLast(() -> doProcess(rf, channelContext, reqContext, rg));
+                        raftStatus.getNoPendingAppend().setFalse();
                         return null;
-                    } else if (raftStatus.getLastPersistLogIndex() == raftStatus.getLastLogIndex()) {
+                    } else {
                         gc.getRaftLog().truncateTail(truncateIndex);
                         // not return here
-                    } else {
-                        RaftUtil.fail("lastPersistLogIndex > lastLogIndex. lastPersistLogIndex="
-                                + raftStatus.getLastPersistLogIndex() + ", lastLogIndex=" + raftStatus.getLastLogIndex());
                     }
                 } else {
                     log.info("follower suggest term={}, index={}, groupId={}", pos.getLeft(), pos.getRight(), raftStatus.getGroupId());
