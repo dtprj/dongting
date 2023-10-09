@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.server.RaftNode;
 import com.github.dtprj.dongting.raft.server.RaftStatus;
+import com.github.dtprj.dongting.raft.store.IndexedQueue;
 
 import java.util.List;
 import java.util.Set;
@@ -76,8 +77,10 @@ public class RaftStatusImpl extends RaftStatus {
     private RaftExecutor raftExecutor;
 
     private boolean holdRequest;
-    private final RaftCondition noWriting = new RaftCondition(true);
-    private final RaftCondition noPendingAppend = new RaftCondition(true);
+
+    private boolean waitAppend;
+    private final IndexedQueue<Runnable> waitWriteFinishedQueue = new IndexedQueue<>(16);
+    private final IndexedQueue<Runnable> waitAppendQueue = new IndexedQueue<>(16);
 
     public RaftStatusImpl() {
         lastElectTime = ts.getNanoTime();
@@ -362,12 +365,20 @@ public class RaftStatusImpl extends RaftStatus {
         this.lastConfigChangeIndex = lastConfigChangeIndex;
     }
 
-    public RaftCondition getNoWriting() {
-        return noWriting;
+    public boolean isWaitAppend() {
+        return waitAppend;
     }
 
-    public RaftCondition getNoPendingAppend() {
-        return noPendingAppend;
+    public void setWaitAppend(boolean waitAppend) {
+        this.waitAppend = waitAppend;
+    }
+
+    public IndexedQueue<Runnable> getWaitAppendQueue() {
+        return waitAppendQueue;
+    }
+
+    public IndexedQueue<Runnable> getWaitWriteFinishedQueue() {
+        return waitWriteFinishedQueue;
     }
 
     public long getLastPersistLogIndex() {

@@ -116,7 +116,7 @@ public class VoteManager implements BiConsumer<EventType, Object> {
     }
 
     private boolean readyNodeNotEnough(List<RaftMember> list, boolean preVote, boolean jointConsensus) {
-        if (list.size() == 0) {
+        if (list.isEmpty()) {
             // for joint consensus, if no member, return true
             return false;
         }
@@ -204,7 +204,8 @@ public class VoteManager implements BiConsumer<EventType, Object> {
         }
     }
 
-    private void processPreVoteResp(ReadFrame<VoteResp> rf, Throwable ex, RaftMember remoteMember, VoteReq req, int voteIdOfRequest) {
+    private void processPreVoteResp(ReadFrame<VoteResp> rf, Throwable ex, RaftMember remoteMember,
+                                    VoteReq req, int voteIdOfRequest) {
         if (voteIdOfRequest != currentVoteId) {
             return;
         }
@@ -251,7 +252,7 @@ public class VoteManager implements BiConsumer<EventType, Object> {
         }
         int quorum = raftStatus.getElectQuorum();
         int voteCount = getVoteCount(raftStatus.getNodeIdOfMembers(), votes);
-        if (raftStatus.getPreparedMembers().size() == 0) {
+        if (raftStatus.getPreparedMembers().isEmpty()) {
             log.info("[{}] {} get {} grant of {}", preVote ? "pre-vote" : "vote", groupId, voteCount, quorum);
             return voteCount >= quorum;
         } else {

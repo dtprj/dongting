@@ -277,7 +277,7 @@ public class RaftGroupThread extends Thread {
             }
         }
         if (role == RaftRole.follower || role == RaftRole.candidate) {
-            if (roundTimeNanos - raftStatus.getLastElectTime() > electTimeoutNanos + random.nextInt(200)) {
+            if (roundTimeNanos - raftStatus.getLastElectTime() > electTimeoutNanos + random.nextInt(200_000_000)) {
                 voteManager.tryStartPreVote();
                 raftStatus.copyShareStatus();
             }

@@ -25,19 +25,19 @@ import java.util.concurrent.TimeUnit;
  * @author huangli
  */
 public class Dispatcher {
-    private final LinkedBlockingQueue<Object> queue;
+    private final LinkedBlockingQueue<Object> shareQueue;
     private final RaftStatusImpl raftStatus;
     private final Timestamp ts;
     private final Raft raft;
 
     private final ArrayList<RaftTask> leaderTasks = new ArrayList<>(32);
     private final ArrayList<Runnable> runnables = new ArrayList<>(32);
-    private final ArrayList<Object> queueData = new ArrayList<>(32);
+    private final ArrayList<Object> localQueue = new ArrayList<>(32);
 
     private boolean poll = true;
 
-    public Dispatcher(LinkedBlockingQueue<Object> queue, RaftStatusImpl raftStatus, Raft raft) {
-        this.queue = queue;
+    public Dispatcher(LinkedBlockingQueue<Object> shareQueue, RaftStatusImpl raftStatus, Raft raft) {
+        this.shareQueue = shareQueue;
         this.raftStatus = raftStatus;
         this.ts = raftStatus.getTs();
         this.raft = raft;
@@ -45,19 +45,20 @@ public class Dispatcher {
 
     public void runOnce() throws InterruptedException {
         Timestamp ts = this.ts;
-        pollAndRefreshTs(ts, queueData);
-        process(leaderTasks, runnables, queueData);
-        if (!queueData.isEmpty()) {
+        ArrayList<Object> localQueue = this.localQueue;
+        pollAndRefreshTs(ts, localQueue);
+        process(leaderTasks, runnables, localQueue);
+        if (!localQueue.isEmpty()) {
             ts.refresh(1);
-            queueData.clear();
+            localQueue.clear();
         }
     }
 
-    private void process(ArrayList<RaftTask> rwTasks, ArrayList<Runnable> runnables, ArrayList<Object> queueData) {
+    private void process(ArrayList<RaftTask> rwTasks, ArrayList<Runnable> runnables, ArrayList<Object> localQueue) {
         RaftStatusImpl raftStatus = this.raftStatus;
-        int len = queueData.size();
+        int len = localQueue.size();
         for (int i = 0; i < len; i++) {
-            Object o = queueData.get(i);
+            Object o = localQueue.get(i);
             if (o instanceof RaftTask) {
                 rwTasks.add((RaftTask) o);
             } else {
@@ -66,19 +67,37 @@ public class Dispatcher {
         }
 
         // the sequence of RaftTask and Runnable is reordered, but it will not affect the linearizability
-        if (!rwTasks.isEmpty()) {
-            if (!raftStatus.isHoldRequest()) {
-                raft.raftExec(rwTasks);
-                rwTasks.clear();
-                raftStatus.copyShareStatus();
-            }
-        }
         len = runnables.size();
+        boolean exec = false;
         if (len > 0) {
             for (int i = 0; i < len; i++) {
                 runnables.get(i).run();
+                exec = true;
             }
             runnables.clear();
+        }
+
+        if (!rwTasks.isEmpty()) {
+            // only exec in leader
+            if (!raftStatus.isHoldRequest()) {
+                raft.raftExec(rwTasks);
+                rwTasks.clear();
+                exec = true;
+            }
+        }
+
+        while (raftStatus.getLastPersistLogIndex() == raftStatus.getLastLogIndex()
+                && raftStatus.getWaitWriteFinishedQueue().size() > 0) {
+            raftStatus.getWaitWriteFinishedQueue().removeFirst().run();
+            exec = true;
+        }
+
+        while(!raftStatus.isWaitAppend() && raftStatus.getWaitAppendQueue().size() > 0){
+            raftStatus.getWaitAppendQueue().removeFirst().run();
+            exec = true;
+        }
+
+        if (exec) {
             raftStatus.copyShareStatus();
         }
     }
@@ -86,12 +105,12 @@ public class Dispatcher {
     private void pollAndRefreshTs(Timestamp ts, ArrayList<Object> queueData) throws InterruptedException {
         long oldNanos = ts.getNanoTime();
         if (poll) {
-            Object o = queue.poll(50, TimeUnit.MILLISECONDS);
+            Object o = shareQueue.poll(50, TimeUnit.MILLISECONDS);
             if (o != null) {
                 queueData.add(o);
             }
         } else {
-            queue.drainTo(queueData);
+            shareQueue.drainTo(queueData);
         }
 
         ts.refresh(1);

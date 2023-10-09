@@ -92,15 +92,26 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
         return frame.getBody().getGroupId();
     }
 
+    static boolean hangIfWriting(RaftStatusImpl raftStatus, Runnable reprocess) {
+        if (raftStatus.getLastPersistLogIndex() != raftStatus.getLastLogIndex()) {
+            raftStatus.getWaitWriteFinishedQueue().addLast(() -> {
+                raftStatus.setWaitAppend(false);
+                reprocess.run();
+            });
+            raftStatus.setWaitAppend(true);
+            return true;
+        }
+        return false;
+    }
+
     @Override
     protected WriteFrame doProcess(ReadFrame<AppendReqCallback> rf, ChannelContext channelContext,
                                    ReqContext reqContext, RaftGroup rg) {
         GroupComponents gc = ((RaftGroupImpl) rg).getGroupComponents();
         AppendReqCallback req = rf.getBody();
         RaftStatusImpl raftStatus = gc.getRaftStatus();
-        raftStatus.getNoPendingAppend().setFalse();
-        if (raftStatus.getNoPendingAppend().isFalse()) {
-            raftStatus.getNoPendingAppend().waitAtLast(() -> doProcess(rf, channelContext, reqContext, rg));
+        if (raftStatus.isWaitAppend()) {
+            raftStatus.getWaitAppendQueue().addLast(() -> doProcess(rf, channelContext, reqContext, rg));
             return null;
         }
         if (gc.getMemberManager().checkLeader(req.getLeaderId())) {
@@ -151,7 +162,6 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
         return resp;
     }
 
-    @SuppressWarnings("ForLoopReplaceableByForEach")
     private WriteFrame append(GroupComponents gc, ReadFrame<AppendReqCallback> rf, ChannelContext channelContext,
                               ReqContext reqContext, RaftGroup rg) {
         AppendReqCallback req = rf.getBody();
@@ -181,9 +191,7 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
                     log.info("local log truncate to prevLogIndex={}, prevLogTerm={}, groupId={}",
                             req.getPrevLogIndex(), req.getPrevLogTerm(), raftStatus.getGroupId());
                     long truncateIndex = req.getPrevLogIndex() + 1;
-                    if (raftStatus.getNoWriting().isFalse()) {
-                        raftStatus.getNoWriting().waitAtLast(() -> doProcess(rf, channelContext, reqContext, rg));
-                        raftStatus.getNoPendingAppend().setFalse();
+                    if (hangIfWriting(raftStatus, () -> doProcess(rf, channelContext, reqContext, rg))) {
                         return null;
                     } else {
                         gc.getRaftLog().truncateTail(truncateIndex);

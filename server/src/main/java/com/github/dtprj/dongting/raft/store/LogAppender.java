@@ -198,7 +198,6 @@ class LogAppender {
         if (buf.position() == wt.writeStartPosInBuffer) {
             return 0;
         }
-        raftStatus.getNoWriting().setFalse();
         buf.limit(buf.position());
         buf.position(wt.writeStartPosInBuffer);
         int x = buf.remaining();

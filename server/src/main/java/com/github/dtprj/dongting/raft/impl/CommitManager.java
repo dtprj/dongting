@@ -27,7 +27,7 @@ public class CommitManager implements RaftLog.AppendCallback {
 
     private final RaftStatusImpl raftStatus;
     private final ApplyManager applyManager;
-    private IndexedQueue<AppendRespWriter> respQueue = new IndexedQueue<>(128);
+    private final IndexedQueue<AppendRespWriter> respQueue = new IndexedQueue<>(128);
 
     public CommitManager(RaftStatusImpl raftStatus, ApplyManager applyManager) {
         this.raftStatus = raftStatus;
@@ -51,7 +51,7 @@ public class CommitManager implements RaftLog.AppendCallback {
     private static boolean needCommit(long recentMatchIndex, RaftStatusImpl raftStatus) {
         boolean needCommit = needCommit(raftStatus.getCommitIndex(), recentMatchIndex,
                 raftStatus.getMembers(), raftStatus.getRwQuorum());
-        if (needCommit && raftStatus.getPreparedMembers().size() > 0) {
+        if (needCommit && !raftStatus.getPreparedMembers().isEmpty()) {
             needCommit = needCommit(raftStatus.getCommitIndex(), recentMatchIndex,
                     raftStatus.getPreparedMembers(), raftStatus.getRwQuorum());
         }
@@ -123,10 +123,6 @@ public class CommitManager implements RaftLog.AppendCallback {
                     applyManager.apply(raftStatus);
                 }
             }
-        }
-
-        if (lastPersistIndex == raftStatus.getLastLogIndex()) {
-            raftStatus.getNoWriting().signal();
         }
     }
 
