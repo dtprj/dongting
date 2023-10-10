@@ -78,7 +78,6 @@ public class Dispatcher {
         }
 
         if (!rwTasks.isEmpty()) {
-            // only exec in leader
             if (!raftStatus.isHoldRequest()) {
                 raft.raftExec(rwTasks);
                 rwTasks.clear();

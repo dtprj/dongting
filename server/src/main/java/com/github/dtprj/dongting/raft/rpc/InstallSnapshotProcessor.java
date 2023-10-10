@@ -134,7 +134,6 @@ public class InstallSnapshotProcessor extends RaftGroupProcessor<InstallSnapshot
             raftStatus.setLastLogTerm(req.lastIncludedTerm);
             raftStatus.setLastLogIndex(req.lastIncludedIndex);
             raftStatus.setLastPersistLogIndex(req.lastIncludedIndex);
-            raftStatus.setLastPersistLogTerm(req.lastIncludedTerm);
             resp.success = true;
             if (finish) {
                 raftStatus.setInstallSnapshot(false);

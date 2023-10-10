@@ -207,6 +207,8 @@ public class VoteManager implements BiConsumer<EventType, Object> {
     private void processPreVoteResp(ReadFrame<VoteResp> rf, Throwable ex, RaftMember remoteMember,
                                     VoteReq req, int voteIdOfRequest) {
         if (voteIdOfRequest != currentVoteId) {
+            log.info("received outdated pre-vote resp, ignore. groupId={}, remoteNode={}, grant={}",
+                    groupId, remoteMember.getNode().getNodeId(), rf.getBody().isVoteGranted());
             return;
         }
         if (!checkCandidate()) {
@@ -273,17 +275,25 @@ public class VoteManager implements BiConsumer<EventType, Object> {
             cancelVote();
             return;
         }
+
+        Set<RaftMember> voter = RaftUtil.union(raftStatus.getMembers(), raftStatus.getPreparedMembers());
+        // add vote id, so rest pre-vote response is ignored
+        initStatusForVoting(voter.size());
+
+        if (RaftUtil.writeNotFinished(raftStatus)) {
+            // initStatusForVoting will be called again, but it's ok
+            raftStatus.getWaitWriteFinishedQueue().addLast(this::startVote);
+            return;
+        }
+
         RaftUtil.resetStatus(raftStatus);
         if (raftStatus.getRole() != RaftRole.candidate) {
             log.info("change to candidate. groupId={}, oldTerm={}", groupId, raftStatus.getCurrentTerm());
             raftStatus.setRole(RaftRole.candidate);
         }
 
-        Set<RaftMember> voter = RaftUtil.union(raftStatus.getMembers(), raftStatus.getPreparedMembers());
-
         raftStatus.setCurrentTerm(raftStatus.getCurrentTerm() + 1);
         raftStatus.setVotedFor(config.getNodeId());
-        initStatusForVoting(voter.size());
 
         statusManager.persistSync();
 
@@ -304,7 +314,7 @@ public class VoteManager implements BiConsumer<EventType, Object> {
     }
 
     private void processVoteResp(ReadFrame<VoteResp> rf, Throwable ex, RaftMember remoteMember,
-                                   VoteReq voteReq, int voteIdOfRequest, long leaseStartTime) {
+                                 VoteReq voteReq, int voteIdOfRequest, long leaseStartTime) {
         if (voteIdOfRequest != currentVoteId) {
             return;
         }

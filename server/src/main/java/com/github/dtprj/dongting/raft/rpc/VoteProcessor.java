@@ -63,6 +63,10 @@ public class VoteProcessor extends RaftGroupProcessor<VoteReq> {
                 processPreVote(raftStatus, voteReq, resp, localTerm);
             } else {
                 RaftUtil.resetElectTimer(raftStatus);
+                if (RaftUtil.writeNotFinished(raftStatus)) {
+                    raftStatus.getWaitWriteFinishedQueue().addLast(() -> doProcess(rf, channelContext, reqContext, rg));
+                    return null;
+                }
                 processVote(raftStatus, voteReq, resp, localTerm, gc.getStatusManager());
             }
             log.info("receive {} request. granted={}. reqTerm={}, localTerm={}",

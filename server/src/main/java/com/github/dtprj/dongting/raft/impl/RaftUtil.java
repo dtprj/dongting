@@ -89,7 +89,7 @@ public class RaftUtil {
     public static void updateLease(RaftStatusImpl raftStatus) {
         long leaseStartTime = computeLease(raftStatus, raftStatus.getElectQuorum(), raftStatus.getMembers());
         List<RaftMember> jointMembers = raftStatus.getPreparedMembers();
-        if (jointMembers.size() > 0) {
+        if (!jointMembers.isEmpty()) {
             long lease2 = computeLease(raftStatus, RaftUtil.getElectQuorum(jointMembers.size()), jointMembers);
             if (lease2 - leaseStartTime < 0) {
                 leaseStartTime = lease2;
@@ -327,5 +327,14 @@ public class RaftUtil {
         }
         errorResp.setMsg(ex.toString());
         channelContext.getRespWriter().writeRespInBizThreads(frame, errorResp, reqContext.getTimeout());
+    }
+
+    public static boolean writeNotFinished(RaftStatusImpl raftStatus) {
+        if (raftStatus.getLastPersistLogIndex() != raftStatus.getLastLogIndex()) {
+            log.info("write not finished, lastPersistLogIndex={}, lastLogIndex={}",
+                    raftStatus.getLastPersistLogIndex(), raftStatus.getLastLogIndex());
+            return true;
+        }
+        return false;
     }
 }

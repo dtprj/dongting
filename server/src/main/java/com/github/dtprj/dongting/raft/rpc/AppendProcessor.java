@@ -93,7 +93,7 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
     }
 
     static boolean hangIfWriting(RaftStatusImpl raftStatus, Runnable reprocess) {
-        if (raftStatus.getLastPersistLogIndex() != raftStatus.getLastLogIndex()) {
+        if (RaftUtil.writeNotFinished(raftStatus)) {
             raftStatus.getWaitWriteFinishedQueue().addLast(() -> {
                 raftStatus.setWaitAppend(false);
                 reprocess.run();

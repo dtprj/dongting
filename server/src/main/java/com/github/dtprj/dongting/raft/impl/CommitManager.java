@@ -93,7 +93,6 @@ public class CommitManager implements RaftLog.AppendCallback {
                     + lastPersistTerm + ", lastLogTerm=" + raftStatus.getLastLogTerm());
         }
         raftStatus.setLastPersistLogIndex(lastPersistIndex);
-        raftStatus.setLastPersistLogTerm(lastPersistTerm);
         if (raftStatus.getRole() == RaftRole.leader) {
             RaftMember self = raftStatus.getSelf();
             if (self != null) {
