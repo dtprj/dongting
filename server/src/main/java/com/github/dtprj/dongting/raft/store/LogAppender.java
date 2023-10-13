@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.Encoder;
-import com.github.dtprj.dongting.common.RunnableEx;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -27,6 +26,7 @@ import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.UnrecoverableException;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.nio.ByteBuffer;
@@ -51,6 +51,7 @@ class LogAppender {
     private final IdxOps idxOps;
     private final LogFileQueue logFileQueue;
     private final RaftCodecFactory codecFactory;
+    private final RaftGroupConfig groupConfig;
     private final ByteBuffer writeBuffer;
     private final CRC32C crc32c = new CRC32C();
     private final EncodeContext encodeContext;
@@ -80,6 +81,7 @@ class LogAppender {
         this.codecFactory = groupConfig.getCodecFactory();
         this.encodeContext = new EncodeContext(groupConfig.getHeapPool());
         this.fileLenMask = logFileQueue.fileLength() - 1;
+        this.groupConfig = groupConfig;
         this.writeBuffer = writeBuffer;
         this.bufferLenMask = writeBuffer.capacity() - 1;
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
@@ -95,6 +97,7 @@ class LogAppender {
         LogItem lastItem;
         boolean finished;
         int size;
+        int retryCount;
 
         public WriteTask(LogFile logFile, ByteBuffer buffer, long startIndex,
                          long writeStartPosInFile, int writeStartPosInBuffer) {
@@ -209,18 +212,26 @@ class LogAppender {
         return x;
     }
 
-    private RunnableEx<Exception> writeResultCallback = () -> {
-
-    };
-
     private void processWriteResult(Throwable ex, AsyncIoTask ioTask, WriteTask wt) {
         if (raftStatus.isStop()) {
             return;
         }
         if (ex != null) {
-            log.error("write error, will retry", ex);
-            CompletableFuture<Void> f = ioTask.retry();
-            f.whenCompleteAsync((v, ex1) -> processWriteResult(ex1, ioTask, wt), raftStatus.getRaftExecutor());
+            int[] retryIntervals = groupConfig.getIoRetryInterval();
+            if (retryIntervals != null && wt.retryCount < retryIntervals.length) {
+                int ms = retryIntervals[wt.retryCount];
+                log.error("write raft log error, will retry {} ms later", ms, ex);
+                raftStatus.getRaftExecutor().schedule(() -> {
+                    if (raftStatus.isStop()) {
+                        return;
+                    }
+                    wt.retryCount++;
+                    CompletableFuture<Void> f = ioTask.retry();
+                    f.whenCompleteAsync((v, ex1) -> processWriteResult(ex1, ioTask, wt), raftStatus.getRaftExecutor());
+                }, ms);
+            } else {
+                throw new UnrecoverableException("write raft log error", ex);
+            }
         } else {
             wt.finished = true;
             LogItem lastFinishedItem = null;

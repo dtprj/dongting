@@ -193,6 +193,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             throw new RaftException("try update committed index: " + itemIndex);
         }
         if (itemIndex < nextIndex) {
+            //noinspection StatementWithEmptyBody
             if (recover && cache.size() == 0) {
                 // normal case
             } else {
@@ -239,13 +240,13 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         long index = nextPersistIndex;
         long startPos = indexToPos(index);
         long lastKey = Math.min(raftStatus.getCommitIndex(), cache.getLastKey());
-        LongLongSeqMap tailCache = this.cache;
+        LongLongSeqMap cache = this.cache;
         for (int i = 0; i < flushItems && index <= lastKey; i++, index++) {
             if ((indexToPos(index) & fileLenMask) == 0 && i != 0) {
                 // don't pass end of file
                 break;
             }
-            long value = tailCache.get(index);
+            long value = cache.get(index);
             writeBuffer.putLong(value);
         }
         writeBuffer.flip();

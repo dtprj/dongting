@@ -26,7 +26,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
-import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.function.Supplier;
@@ -83,37 +82,6 @@ public class FileUtil {
         }
     }
 
-    public static void syncWriteWithRetry(AsynchronousFileChannel c, ByteBuffer buf, long pos,
-                                          Supplier<Boolean> stopIndicator, int... retryIntervals) throws InterruptedException {
-        Objects.requireNonNull(retryIntervals);
-        int bufPos = buf.position();
-        int retry = 0;
-        while (true) {
-            try {
-                if (stopIndicator.get()) {
-                    throw new StoppedException();
-                }
-                while (buf.hasRemaining()) {
-                    Future<Integer> f = c.write(buf, pos);
-                    f.get();
-                }
-                return;
-            } catch (InterruptedException e) {
-                throw e;
-            } catch (Exception e) {
-                if (retry < retryIntervals.length) {
-                    int sleep = retryIntervals[retry];
-                    log.error("write fail, retry after {} ms", sleep, e);
-                    Thread.sleep(sleep);
-                    retry++;
-                    buf.position(bufPos);
-                } else {
-                    throw new RaftException(e);
-                }
-            }
-        }
-    }
-
     public static void doWithRetry(RunnableEx<Exception> callback, Supplier<Boolean> stopIndicator, boolean closing,
                                    int... retryIntervals) throws InterruptedException {
         int retry = 0;
@@ -123,6 +91,7 @@ public class FileUtil {
             }
             try {
                 callback.run();
+                return;
             } catch (Exception e) {
                 Throwable root = DtUtil.rootCause(e);
                 if (root instanceof StoppedException) {
@@ -137,6 +106,7 @@ public class FileUtil {
                 if (retryIntervals != null && retry < retryIntervals.length) {
                     int sleep = retryIntervals[retry];
                     log.error("io error occurs, retry after {} ms", sleep, e);
+                    //noinspection BusyWait
                     Thread.sleep(sleep);
                     retry++;
                 } else {

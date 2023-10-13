@@ -121,7 +121,7 @@ abstract class FileQueue implements AutoCloseable {
         return queue.get(index);
     }
 
-    private RunnableEx<Exception> ensureWritePosReadyCallback = () -> {
+    private final RunnableEx<Exception> ensureWritePosReadyCallback = () -> {
         try {
             tryAllocate();
             LogFile newFile = allocateFuture.get();

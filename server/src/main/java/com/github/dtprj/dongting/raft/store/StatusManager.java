@@ -16,43 +16,38 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.common.DtUtil;
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
-import com.github.dtprj.dongting.raft.impl.StoppedException;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftStatus;
 
 import java.io.File;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 
 /**
  * @author huangli
  */
 public class StatusManager implements AutoCloseable {
-    private static final DtLog log = DtLogs.getLogger(StatusManager.class);
 
     private static final String CURRENT_TERM_KEY = "currentTerm";
     private static final String VOTED_FOR_KEY = "votedFor";
     private static final String COMMIT_INDEX_KEY = "commitIndex";
 
+    private final RaftGroupConfig groupConfig;
     private final RaftStatus raftStatus;
     private final StatusFile statusFile;
 
     private CompletableFuture<Void> asyncFuture;
 
-    static int SYNC_FAIL_RETRY_INTERVAL = 1000;
-
     private boolean closed;
 
-    public StatusManager(ExecutorService ioExecutor, RaftStatus raftStatus, String dataDir, String filename) {
+    public StatusManager(RaftGroupConfig groupConfig, RaftStatus raftStatus) {
+        this.groupConfig = groupConfig;
         this.raftStatus = raftStatus;
-        File dir = FileUtil.ensureDir(dataDir);
-        File file = new File(dir, filename);
-        statusFile = new StatusFile(file, ioExecutor);
+        File dir = FileUtil.ensureDir(groupConfig.getDataDir());
+        File file = new File(dir, groupConfig.getStatusFile());
+        this.statusFile = new StatusFile(file, groupConfig.getIoExecutor());
     }
 
     public void initStatusFile() {
@@ -104,38 +99,21 @@ public class StatusManager implements AutoCloseable {
 
     public void persistSync() {
         copyWriteData();
-
-        while (!raftStatus.isStop()) {
-            try {
+        try {
+            FileUtil.doWithRetry(() -> {
                 if (asyncFuture != null) {
                     try {
                         asyncFuture.get();
                     } finally {
                         asyncFuture = null;
                     }
+                    CompletableFuture<Void> f = persist(true);
+                    f.get();
                 }
-                CompletableFuture<Void> f = persist(true);
-                f.get(60, TimeUnit.SECONDS);
-                return;
-            } catch (Exception e) {
-                Throwable root = DtUtil.rootCause(e);
-                if ((root instanceof InterruptedException) || (root instanceof StoppedException)) {
-                    if (e instanceof RuntimeException) {
-                        throw (RuntimeException) e;
-                    } else {
-                        throw new RaftException(e);
-                    }
-                }
-                log.error("persist raft status file failed", e);
-                try {
-                    //noinspection BusyWait
-                    Thread.sleep(SYNC_FAIL_RETRY_INTERVAL);
-                } catch (InterruptedException ex) {
-                    throw new RaftException(ex);
-                }
-            }
+            }, raftStatus::isStop, false, groupConfig.getIoRetryInterval());
+        } catch (InterruptedException e) {
+            throw new RaftException(e);
         }
-        throw new StoppedException();
     }
 
     public Properties getProperties() {
