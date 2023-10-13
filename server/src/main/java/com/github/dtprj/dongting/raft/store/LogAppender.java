@@ -17,11 +17,10 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.Encoder;
-import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.RunnableEx;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -155,7 +154,7 @@ class LogAppender {
             }
             return;
         }
-        logFileQueue.ensureWritePosReady(nextPersistPos, true);
+        logFileQueue.ensureWritePosReady(nextPersistPos, true, false);
         LogFile file = logFileQueue.getLogFile(nextPersistPos);
 
         WriteTask wt = createWriteTask(file);
@@ -210,19 +209,16 @@ class LogAppender {
         return x;
     }
 
+    private RunnableEx<Exception> writeResultCallback = () -> {
+
+    };
+
     private void processWriteResult(Throwable ex, AsyncIoTask ioTask, WriteTask wt) {
         if (raftStatus.isStop()) {
             return;
         }
         if (ex != null) {
             log.error("write error, will retry", ex);
-            // TODO use retry interval
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                DtUtil.restoreInterruptStatus();
-                throw new RaftException(e);
-            }
             CompletableFuture<Void> f = ioTask.retry();
             f.whenCompleteAsync((v, ex1) -> processWriteResult(ex1, ioTask, wt), raftStatus.getRaftExecutor());
         } else {

@@ -16,9 +16,11 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.RunnableEx;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 
 import java.io.File;
@@ -31,7 +33,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Predicate;
@@ -51,6 +52,7 @@ abstract class FileQueue implements AutoCloseable {
     protected final ExecutorService ioExecutor;
     protected final Executor raftExecutor;
     protected final Supplier<Boolean> stopIndicator;
+    protected final RaftGroupConfig groupConfig;
 
     protected long queueStartPosition;
     protected long queueEndPosition;
@@ -64,6 +66,7 @@ abstract class FileQueue implements AutoCloseable {
         this.ioExecutor = groupConfig.getIoExecutor();
         this.raftExecutor = groupConfig.getRaftExecutor();
         this.stopIndicator = groupConfig.getStopIndicator();
+        this.groupConfig = groupConfig;
     }
 
     protected abstract long getFileSize();
@@ -118,19 +121,21 @@ abstract class FileQueue implements AutoCloseable {
         return queue.get(index);
     }
 
-    protected void ensureWritePosReady(long pos, boolean retry) throws InterruptedException {
-        while(pos >= queueEndPosition){
-            try {
-                tryAllocate();
-                processAllocResult();
-            } catch (ExecutionException e) {
-                if (retry) {
-                    log.error("allocate file fail, will retry", e);
-                    Thread.sleep(1000);
-                } else {
-                    throw new RaftException("allocate file fail", e);
-                }
-            }
+    private RunnableEx<Exception> ensureWritePosReadyCallback = () -> {
+        try {
+            tryAllocate();
+            LogFile newFile = allocateFuture.get();
+            queue.addLast(newFile);
+            queueEndPosition = newFile.endPos;
+        } finally {
+            allocateFuture = null;
+        }
+    };
+
+    protected void ensureWritePosReady(long pos, boolean retry, boolean closing) throws InterruptedException {
+        while (pos >= queueEndPosition) {
+            int[] retryIntervals = retry ? groupConfig.getIoRetryInterval() : null;
+            FileUtil.doWithRetry(ensureWritePosReadyCallback, groupConfig.getStopIndicator(), closing, retryIntervals);
         }
         // pre allocate next file
         tryAllocate();
@@ -139,16 +144,6 @@ abstract class FileQueue implements AutoCloseable {
     protected void tryAllocate() {
         if (allocateFuture == null) {
             allocateFuture = allocate(queueEndPosition);
-        }
-    }
-
-    private void processAllocResult() throws InterruptedException, ExecutionException {
-        try {
-            LogFile newFile = allocateFuture.get();
-            queue.addLast(newFile);
-            queueEndPosition = newFile.endPos;
-        } finally {
-            allocateFuture = null;
         }
     }
 

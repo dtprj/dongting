@@ -18,20 +18,20 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
+import com.github.dtprj.dongting.common.RunnableEx;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
-import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.UnrecoverableException;
 
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 
 /**
  * @author huangli
@@ -64,12 +64,16 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private long firstIndex;
 
     private CompletableFuture<Void> writeFuture;
+    private AsyncIoTask currentWriteTask;
+
     private LogFile currentWriteFile;
     private long nextPersistIndexAfterWrite;
     private CompletableFuture<Void> statusFuture;
 
     private long lastFlushNanos;
     private static final long FLUSH_INTERVAL_NANOS = 15L * 1000 * 1000 * 1000;
+
+    private boolean closing;
 
     public IdxFileQueue(File dir, StatusManager statusManager, RaftGroupConfig groupConfig,
                         int itemsPerFile, int maxCacheItems) {
@@ -211,12 +215,12 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         } else {
             if (cache.size() > maxCacheItems) {
                 log.warn("cache size exceed {}: {}", maxCacheItems, cache.size());
-                processWriteResult(true);
+                processWriteResult(true, false);
                 removeHead(cache);
                 writeAndFlush(!recover);
             }
         }
-        processWriteResult(false);
+        processWriteResult(false, false);
     }
 
     private void removeHead(LongLongSeqMap tailCache) {
@@ -226,7 +230,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     private void writeAndFlush(boolean retry) throws InterruptedException {
-        ensureWritePosReady(indexToPos(nextIndex), retry);
+        ensureWritePosReady(indexToPos(nextIndex), retry, closing);
 
         this.lastFlushNanos = ts.getNanoTime();
 
@@ -251,35 +255,39 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
         nextPersistIndexAfterWrite = index;
         LogFile logFile = getLogFile(startPos);
-        AsyncIoTask writeTask = new AsyncIoTask(logFile.channel, stopIndicator, null);
+        currentWriteTask = new AsyncIoTask(logFile.channel, stopIndicator, null);
         currentWriteFile = logFile;
         logFile.use++;
-        writeFuture = writeTask.write(false, false, writeBuffer, startPos & fileLenMask);
+        writeFuture = currentWriteTask.write(false, false, writeBuffer, startPos & fileLenMask);
     }
 
-    private void processWriteResult(boolean wait) throws InterruptedException {
+    RunnableEx<Exception> processResultCallback = () -> {
+        try {
+            writeFuture.get();
+            if (nextPersistIndexAfterWrite > nextPersistIndex && nextPersistIndexAfterWrite <= nextIndex) {
+                nextPersistIndex = nextPersistIndexAfterWrite;
+            }
+            currentWriteFile.use--;
+            writeFuture = null;
+            currentWriteTask = null;
+            currentWriteFile = null;
+            nextPersistIndexAfterWrite = 0;
+        } catch (Exception e) {
+            writeFuture = currentWriteTask.retry();
+            throw e;
+        }
+    };
+
+    private void processWriteResult(boolean wait, boolean closing) throws InterruptedException {
         if (writeFuture == null) {
             return;
         }
         if (writeFuture.isDone() || wait) {
-            try {
-                RaftUtil.checkStop(stopIndicator);
-                writeFuture.get();
-                if (nextPersistIndexAfterWrite > nextPersistIndex && nextPersistIndexAfterWrite <= nextIndex) {
-                    nextPersistIndex = nextPersistIndexAfterWrite;
-                }
-                long idxPersisIndex = nextPersistIndex - 1;
-                statusManager.getProperties().setProperty(IDX_FILE_PERSIST_INDEX_KEY, String.valueOf(idxPersisIndex));
-                statusFuture = statusManager.persistAsync();
-            } catch (ExecutionException e) {
-                log.error("write idx file failed", e);
-                Thread.sleep(100);
-            } finally {
-                currentWriteFile.use--;
-                writeFuture = null;
-                currentWriteFile = null;
-                nextPersistIndexAfterWrite = 0;
-            }
+            int[] retryIntervals = closing ? null : groupConfig.getIoRetryInterval();
+            FileUtil.doWithRetry(processResultCallback, groupConfig.getStopIndicator(), closing, retryIntervals);
+            long idxPersisIndex = nextPersistIndex - 1;
+            statusManager.getProperties().setProperty(IDX_FILE_PERSIST_INDEX_KEY, String.valueOf(idxPersisIndex));
+            statusFuture = statusManager.persistAsync();
         }
     }
 
@@ -300,16 +308,13 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         return nextPersistIndex;
     }
 
-    public long getFirstIndex() {
-        return firstIndex;
-    }
-
     @Override
     public void close() {
+        closing = true;
         try {
-            processWriteResult(true);
+            processWriteResult(true, true);
             writeAndFlush(false);
-            processWriteResult(true);
+            processWriteResult(true, true);
             if (statusFuture != null) {
                 statusFuture.get();
             }

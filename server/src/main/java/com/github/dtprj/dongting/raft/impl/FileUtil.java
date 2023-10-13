@@ -15,9 +15,12 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.RunnableEx;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.server.UnrecoverableException;
 
 import java.io.File;
 import java.io.IOException;
@@ -111,24 +114,34 @@ public class FileUtil {
         }
     }
 
-    public static <T> T doWithRetry(Supplier<T> callback, Supplier<Boolean> stopIndicator,
-                                    int... retryIntervals) throws InterruptedException {
-        Objects.requireNonNull(retryIntervals);
+    public static void doWithRetry(RunnableEx<Exception> callback, Supplier<Boolean> stopIndicator, boolean closing,
+                                   int... retryIntervals) throws InterruptedException {
         int retry = 0;
         while (true) {
+            if (!closing && stopIndicator.get()) {
+                throw new StoppedException();
+            }
             try {
-                if (stopIndicator.get()) {
-                    throw new StoppedException();
-                }
-                return callback.get();
+                callback.run();
             } catch (Exception e) {
-                if (retry < retryIntervals.length) {
+                Throwable root = DtUtil.rootCause(e);
+                if (root instanceof StoppedException) {
+                    throw (StoppedException) root;
+                }
+                if (root instanceof UnrecoverableException) {
+                    throw (UnrecoverableException) root;
+                }
+                if (root instanceof InterruptedException) {
+                    throw (InterruptedException) root;
+                }
+                if (retryIntervals != null && retry < retryIntervals.length) {
                     int sleep = retryIntervals[retry];
-                    log.error("error occurs in callback, retry after {} ms", sleep, e);
+                    log.error("io error occurs, retry after {} ms", sleep, e);
                     Thread.sleep(sleep);
                     retry++;
                 } else {
-                    throw e;
+                    log.error("io error occurs", e);
+                    throw new UnrecoverableException("io error occurs", e);
                 }
             }
         }

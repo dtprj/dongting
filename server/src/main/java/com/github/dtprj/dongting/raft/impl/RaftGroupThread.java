@@ -192,6 +192,8 @@ public class RaftGroupThread extends Thread {
     }
 
     private void clean() {
+        // clear interrupt flag
+        Thread.interrupted();
         DtUtil.close(stateMachine);
         DtUtil.close(raftLog);
         DtUtil.close(statusManager);
