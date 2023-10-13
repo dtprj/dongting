@@ -39,7 +39,6 @@ import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftServer;
-import com.github.dtprj.dongting.raft.server.RaftStatus;
 
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
@@ -51,6 +50,7 @@ import java.util.function.Supplier;
 public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
     private static final DtLog log = DtLogs.getLogger(AppendProcessor.class);
 
+    public static final int NO_RESULT_NOW = -1;
     public static final int CODE_SUCCESS = 0;
     public static final int CODE_LOG_NOT_MATCH = 1;
     public static final int CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT = 2;
@@ -104,15 +104,62 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
         return false;
     }
 
+    static class AppendContext {
+        final ReadFrame<AppendReqCallback> reqFrame;
+        final ChannelContext channelContext;
+        final ReqContext reqContext;
+        final RaftGroup raftGroup;
+        final GroupComponents gc;
+        int suggestTerm;
+        long suggestIndex;
+
+        AppendContext(ReadFrame<AppendReqCallback> reqFrame, ChannelContext channelContext,
+                      ReqContext reqContext, RaftGroup raftGroup) {
+            this.reqFrame = reqFrame;
+            this.channelContext = channelContext;
+            this.reqContext = reqContext;
+            this.raftGroup = raftGroup;
+            this.gc = ((RaftGroupImpl) raftGroup).getGroupComponents();
+        }
+    }
+
     @Override
     protected WriteFrame doProcess(ReadFrame<AppendReqCallback> rf, ChannelContext channelContext,
                                    ReqContext reqContext, RaftGroup rg) {
-        GroupComponents gc = ((RaftGroupImpl) rg).getGroupComponents();
-        AppendReqCallback req = rf.getBody();
+        AppendContext ctx = new AppendContext(rf, channelContext, reqContext, rg);
+        doProcess(ctx);
+        return null;
+    }
+
+    private void doProcess(AppendContext ctx) {
+        int r = doProcessImpl(ctx);
+        if (r != NO_RESULT_NOW) {
+            writeResp(ctx, r);
+        }
+    }
+
+    private void writeResp(AppendContext ctx, int code) {
+        AppendRespWriteFrame resp = new AppendRespWriteFrame();
+        resp.setTerm(ctx.gc.getRaftStatus().getCurrentTerm());
+        if (code == CODE_SUCCESS) {
+            resp.setSuccess(true);
+        } else {
+            resp.setSuccess(false);
+            resp.setAppendCode(code);
+        }
+        resp.setRespCode(CmdCodes.SUCCESS);
+        resp.setSuggestTerm(ctx.suggestTerm);
+        resp.setSuggestIndex(ctx.suggestIndex);
+        ctx.channelContext.getRespWriter().writeRespInBizThreads(ctx.reqFrame, resp, ctx.reqContext.getTimeout());
+    }
+
+    private int doProcessImpl(AppendContext ctx) {
+        AppendReqCallback req = ctx.reqFrame.getBody();
+        GroupComponents gc = ctx.gc;
         RaftStatusImpl raftStatus = gc.getRaftStatus();
         if (raftStatus.isWaitAppend()) {
-            raftStatus.getWaitAppendQueue().addLast(() -> doProcess(rf, channelContext, reqContext, rg));
-            return null;
+            raftStatus.getWaitAppendQueue().addLast(() -> doProcess(ctx));
+            return NO_RESULT_NOW;
         }
         if (gc.getMemberManager().checkLeader(req.getLeaderId())) {
             int remoteTerm = req.getTerm();
@@ -121,58 +168,46 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
                 if (raftStatus.getRole() == RaftRole.follower) {
                     RaftUtil.resetElectTimer(raftStatus);
                     RaftUtil.updateLeader(raftStatus, req.getLeaderId());
-                    return append(gc, rf, channelContext, reqContext, rg);
+                    return append(ctx);
                 } else if (raftStatus.getRole() == RaftRole.observer) {
                     RaftUtil.updateLeader(raftStatus, req.getLeaderId());
-                    return append(gc, rf, channelContext, reqContext, rg);
+                    return append(ctx);
                 } else if (raftStatus.getRole() == RaftRole.candidate) {
                     RaftUtil.changeToFollower(raftStatus, req.getLeaderId());
-                    return append(gc, rf, channelContext, reqContext, rg);
+                    return append(ctx);
                 } else {
                     log.error("leader receive raft append request. term={}, remote={}, groupId={}",
-                            remoteTerm, channelContext.getRemoteAddr(), raftStatus.getGroupId());
-                    return createResp(raftStatus, CODE_REQ_ERROR);
+                            remoteTerm, ctx.channelContext.getRemoteAddr(), raftStatus.getGroupId());
+                    return CODE_REQ_ERROR;
                 }
             } else if (remoteTerm > localTerm) {
                 RaftUtil.incrTerm(remoteTerm, raftStatus, req.getLeaderId());
                 gc.getStatusManager().persistSync();
-                return append(gc, rf, channelContext, reqContext, rg);
+                return append(ctx);
             } else {
                 log.debug("receive append request with a smaller term, ignore, remoteTerm={}, localTerm={}, groupId={}",
                         remoteTerm, localTerm, raftStatus.getGroupId());
-                return createResp(raftStatus, CODE_REQ_ERROR);
+                return CODE_REQ_ERROR;
             }
         } else {
             log.warn("receive append request from a non-member, ignore, remoteId={}, groupId={}, remote={}",
-                    req.getLeaderId(), req.getGroupId(), channelContext.getRemoteAddr());
-            return createResp(raftStatus, CODE_NOT_MEMBER_IN_GROUP);
+                    req.getLeaderId(), req.getGroupId(), ctx.channelContext.getRemoteAddr());
+            return CODE_NOT_MEMBER_IN_GROUP;
         }
     }
 
-    private AppendRespWriteFrame createResp(RaftStatus raftStatus, int code) {
-        AppendRespWriteFrame resp = new AppendRespWriteFrame();
-        resp.setTerm(raftStatus.getCurrentTerm());
-        if (code == CODE_SUCCESS) {
-            resp.setSuccess(true);
-        } else {
-            resp.setSuccess(false);
-            resp.setAppendCode(code);
-        }
-        resp.setRespCode(CmdCodes.SUCCESS);
-        return resp;
-    }
-
-    private WriteFrame append(GroupComponents gc, ReadFrame<AppendReqCallback> rf, ChannelContext channelContext,
-                              ReqContext reqContext, RaftGroup rg) {
-        AppendReqCallback req = rf.getBody();
+    private int append(AppendContext ctx) {
+        AppendReqCallback req = ctx.reqFrame.getBody();
+        GroupComponents gc = ctx.gc;
         RaftStatusImpl raftStatus = gc.getRaftStatus();
-        if (reqContext.getTimeout().isTimeout(raftStatus.getTs())) {
-            return null;
-        }
-        if (raftStatus.isInstallSnapshot()) {
-            return createResp(raftStatus, CODE_INSTALL_SNAPSHOT);
+        if (ctx.reqContext.getTimeout().isTimeout(raftStatus.getTs())) {
+            // not generate response
+            return NO_RESULT_NOW;
         }
         gc.getVoteManager().cancelVote();
+        if (raftStatus.isInstallSnapshot()) {
+            return CODE_INSTALL_SNAPSHOT;
+        }
         if (req.getPrevLogIndex() != raftStatus.getLastLogIndex() || req.getPrevLogTerm() != raftStatus.getLastLogTerm()) {
             log.info("log not match. prevLogIndex={}, localLastLogIndex={}, prevLogTerm={}, localLastLogTerm={}, leaderId={}, groupId={}",
                     req.getPrevLogIndex(), raftStatus.getLastLogIndex(), req.getPrevLogTerm(),
@@ -186,38 +221,37 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
                 Pair<Integer, Long> pos = replicatePos.get();
                 if (pos == null) {
                     log.info("follower has no suggest index, will install snapshot. groupId={}", raftStatus.getGroupId());
-                    return createResp(raftStatus, CODE_LOG_NOT_MATCH);
+                    return CODE_LOG_NOT_MATCH;
                 } else if (pos.getLeft() == req.getPrevLogTerm() && pos.getRight() == req.getPrevLogIndex()) {
                     log.info("local log truncate to prevLogIndex={}, prevLogTerm={}, groupId={}",
                             req.getPrevLogIndex(), req.getPrevLogTerm(), raftStatus.getGroupId());
                     long truncateIndex = req.getPrevLogIndex() + 1;
-                    if (hangIfWriting(raftStatus, () -> doProcess(rf, channelContext, reqContext, rg))) {
-                        return null;
+                    if (hangIfWriting(raftStatus, () -> doProcess(ctx))) {
+                        return NO_RESULT_NOW;
                     } else {
                         gc.getRaftLog().truncateTail(truncateIndex);
                         // not return here
                     }
                 } else {
                     log.info("follower suggest term={}, index={}, groupId={}", pos.getLeft(), pos.getRight(), raftStatus.getGroupId());
-                    AppendRespWriteFrame resp = createResp(raftStatus, CODE_LOG_NOT_MATCH);
-                    resp.setSuggestTerm(pos.getLeft());
-                    resp.setSuggestIndex(pos.getRight());
-                    return resp;
+                    ctx.suggestTerm = pos.getLeft();
+                    ctx.suggestIndex = pos.getRight();
+                    return CODE_LOG_NOT_MATCH;
                 }
             } catch (Exception ex) {
                 log.error("find replicate pos error", ex);
-                return createResp(raftStatus, CODE_SERVER_ERROR);
+                return CODE_SERVER_ERROR;
             }
         }
         if (req.getPrevLogIndex() < raftStatus.getCommitIndex()) {
             BugLog.getLog().error("leader append request prevLogIndex less than local commit index. leaderId={}, prevLogIndex={}, commitIndex={}, groupId={}",
                     req.getLeaderId(), req.getPrevLogIndex(), raftStatus.getCommitIndex(), raftStatus.getGroupId());
-            return createResp(raftStatus, CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT);
+            return CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT;
         }
         ArrayList<LogItem> logs = req.getLogs();
         if (logs == null || logs.isEmpty()) {
             log.error("bad request: no logs");
-            return createResp(raftStatus, CODE_REQ_ERROR);
+            return CODE_REQ_ERROR;
         }
 
         long index = Raft.lastIndex(raftStatus);
@@ -228,7 +262,7 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
             if (++index != li.getIndex()) {
                 log.error("bad request: log index not match. index={}, expectIndex={}, leaderId={}, groupId={}",
                         li.getIndex(), index, req.getLeaderId(), raftStatus.getGroupId());
-                return createResp(raftStatus, CODE_REQ_ERROR);
+                return CODE_REQ_ERROR;
             }
             RaftInput raftInput = new RaftInput(li.getBizType(), li.getHeader(), li.getBody(), null, li.getActualBodySize());
             RaftTask task = new RaftTask(raftStatus.getTs(), li.getType(), raftInput, null);
@@ -242,8 +276,7 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
                 gc.getCommitManager().registerRespWriter(idx -> {
                     if (raftStatus.getCurrentTerm() == term) {
                         if (idx >= itemIndex) {
-                            AppendRespWriteFrame resp = createResp(raftStatus, CODE_SUCCESS);
-                            channelContext.getRespWriter().writeRespInBizThreads(rf, resp, reqContext.getTimeout());
+                            writeResp(ctx, CODE_SUCCESS);
                             return true;
                         } else {
                             return false;
@@ -263,7 +296,9 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
         if (req.getLeaderCommit() > raftStatus.getLeaderCommit()) {
             raftStatus.setLeaderCommit(req.getLeaderCommit());
         }
-        return null;
+
+        // success response write in callback
+        return NO_RESULT_NOW;
     }
 
     @Override
