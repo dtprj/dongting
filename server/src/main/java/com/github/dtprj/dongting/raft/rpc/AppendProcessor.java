@@ -133,12 +133,13 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
 
     private void doProcess(AppendContext ctx) {
         int r = doProcessImpl(ctx);
-        if (r != NO_RESULT_NOW) {
-            writeResp(ctx, r);
-        }
+        writeResp(ctx, r);
     }
 
     private void writeResp(AppendContext ctx, int code) {
+        if (code == NO_RESULT_NOW) {
+            return;
+        }
         AppendRespWriteFrame resp = new AppendRespWriteFrame();
         resp.setTerm(ctx.gc.getRaftStatus().getCurrentTerm());
         if (code == CODE_SUCCESS) {
@@ -216,33 +217,18 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
             Supplier<Boolean> cancelIndicator = () -> raftStatus.getCurrentTerm() != currentTerm;
             CompletableFuture<Pair<Integer, Long>> replicatePos = gc.getRaftLog().tryFindMatchPos(
                     req.getPrevLogTerm(), req.getPrevLogIndex(), cancelIndicator);
-            try {
-                // TODO make async
-                Pair<Integer, Long> pos = replicatePos.get();
-                if (pos == null) {
-                    log.info("follower has no suggest index, will install snapshot. groupId={}", raftStatus.getGroupId());
-                    return CODE_LOG_NOT_MATCH;
-                } else if (pos.getLeft() == req.getPrevLogTerm() && pos.getRight() == req.getPrevLogIndex()) {
-                    log.info("local log truncate to prevLogIndex={}, prevLogTerm={}, groupId={}",
-                            req.getPrevLogIndex(), req.getPrevLogTerm(), raftStatus.getGroupId());
-                    long truncateIndex = req.getPrevLogIndex() + 1;
-                    if (hangIfWriting(raftStatus, () -> doProcess(ctx))) {
-                        return NO_RESULT_NOW;
-                    } else {
-                        gc.getRaftLog().truncateTail(truncateIndex);
-                        // not return here
-                    }
-                } else {
-                    log.info("follower suggest term={}, index={}, groupId={}", pos.getLeft(), pos.getRight(), raftStatus.getGroupId());
-                    ctx.suggestTerm = pos.getLeft();
-                    ctx.suggestIndex = pos.getRight();
-                    return CODE_LOG_NOT_MATCH;
-                }
-            } catch (Exception ex) {
-                log.error("find replicate pos error", ex);
-                return CODE_SERVER_ERROR;
-            }
+            raftStatus.setWaitAppend(true);
+            replicatePos.whenCompleteAsync((pos, ex) -> resumeWhenFindReplicatePosFinish(
+                    ctx, ex, pos, raftStatus.getCurrentTerm()));
+            return NO_RESULT_NOW;
         }
+        return doAppend(ctx);
+    }
+
+    private int doAppend(AppendContext ctx) {
+        AppendReqCallback req = ctx.reqFrame.getBody();
+        GroupComponents gc = ctx.gc;
+        RaftStatusImpl raftStatus = gc.getRaftStatus();
         if (req.getPrevLogIndex() < raftStatus.getCommitIndex()) {
             BugLog.getLog().error("leader append request prevLogIndex less than local commit index. leaderId={}, prevLogIndex={}, commitIndex={}, groupId={}",
                     req.getLeaderId(), req.getPrevLogIndex(), raftStatus.getCommitIndex(), raftStatus.getGroupId());
@@ -299,6 +285,48 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
 
         // success response write in callback
         return NO_RESULT_NOW;
+    }
+
+    private void resumeWhenFindReplicatePosFinish(AppendContext ctx, Throwable ex,
+                                                  Pair<Integer, Long> pos, int oldTerm) {
+        RaftStatusImpl raftStatus = ctx.gc.getRaftStatus();
+        raftStatus.setWaitAppend(false);
+        if (ex != null) {
+            log.error("find replicate pos error", ex);
+            writeResp(ctx, CODE_SERVER_ERROR);
+        } else {
+            if (oldTerm != raftStatus.getCurrentTerm()) {
+                log.info("term changed when find replicate pos, ignore result. oldTerm={}, newTerm={}, groupId={}",
+                        oldTerm, raftStatus.getCurrentTerm(), raftStatus.getGroupId());
+                return;
+            }
+            if (ctx.reqContext.getTimeout().isTimeout(raftStatus.getTs())) {
+                // not generate response
+                return;
+            }
+            AppendReqCallback req = ctx.reqFrame.getBody();
+            if (pos == null) {
+                log.info("follower has no suggest index, will install snapshot. groupId={}", raftStatus.getGroupId());
+                writeResp(ctx, CODE_LOG_NOT_MATCH);
+            } else if (pos.getLeft() == req.getPrevLogTerm() && pos.getRight() == req.getPrevLogIndex()) {
+                log.info("local log truncate to prevLogIndex={}, prevLogTerm={}, groupId={}",
+                        req.getPrevLogIndex(), req.getPrevLogTerm(), raftStatus.getGroupId());
+                long truncateIndex = req.getPrevLogIndex() + 1;
+                if (hangIfWriting(raftStatus, () -> resumeWhenFindReplicatePosFinish(ctx, null, pos, oldTerm))) {
+                    // not generate response
+                    // noinspection UnnecessaryReturnStatement
+                    return;
+                } else {
+                    ctx.gc.getRaftLog().truncateTail(truncateIndex);
+                    writeResp(ctx, doAppend(ctx));
+                }
+            } else {
+                log.info("follower suggest term={}, index={}, groupId={}", pos.getLeft(), pos.getRight(), raftStatus.getGroupId());
+                ctx.suggestTerm = pos.getLeft();
+                ctx.suggestIndex = pos.getRight();
+                writeResp(ctx, CODE_LOG_NOT_MATCH);
+            }
+        }
     }
 
     @Override
