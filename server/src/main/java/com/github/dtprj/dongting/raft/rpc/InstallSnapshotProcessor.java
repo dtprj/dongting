@@ -71,37 +71,39 @@ public class InstallSnapshotProcessor extends RaftGroupProcessor<InstallSnapshot
             if (gc.getMemberManager().checkLeader(req.leaderId)) {
                 int localTerm = raftStatus.getCurrentTerm();
                 if (remoteTerm == localTerm) {
+                    gc.getVoteManager().cancelVote();
                     if (raftStatus.getRole() == RaftRole.follower) {
                         RaftUtil.resetElectTimer(raftStatus);
                         RaftUtil.updateLeader(raftStatus, req.leaderId);
                         if (AppendProcessor.hangIfWriting(raftStatus, reprocess)) {
                             return null;
                         }
-                        installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
+                        installSnapshot(raftStatus, gc, req, resp);
                     } else if (raftStatus.getRole() == RaftRole.observer) {
                         RaftUtil.updateLeader(raftStatus, req.leaderId);
                         if (AppendProcessor.hangIfWriting(raftStatus, reprocess)) {
                             return null;
                         }
-                        installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
+                        installSnapshot(raftStatus, gc, req, resp);
                     } else if (raftStatus.getRole() == RaftRole.candidate) {
                         RaftUtil.changeToFollower(raftStatus, req.leaderId);
                         if (AppendProcessor.hangIfWriting(raftStatus, reprocess)) {
                             return null;
                         }
-                        installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
+                        installSnapshot(raftStatus, gc, req, resp);
                     } else {
                         BugLog.getLog().error("leader receive raft install snapshot request. term={}, remote={}",
                                 remoteTerm, channelContext.getRemoteAddr());
                         resp.success = false;
                     }
                 } else if (remoteTerm > localTerm) {
+                    gc.getVoteManager().cancelVote();
                     RaftUtil.incrTerm(remoteTerm, raftStatus, req.leaderId);
                     gc.getStatusManager().persistSync();
                     if (AppendProcessor.hangIfWriting(raftStatus, reprocess)) {
                         return null;
                     }
-                    installSnapshot(raftStatus, gc.getStateMachine(), req, resp);
+                    installSnapshot(raftStatus, gc, req, resp);
                 } else {
                     log.info("receive raft install snapshot request with a smaller term, ignore, remoteTerm={}, localTerm={}", remoteTerm, localTerm);
                     resp.success = false;
@@ -122,12 +124,14 @@ public class InstallSnapshotProcessor extends RaftGroupProcessor<InstallSnapshot
         }
     }
 
-    private void installSnapshot(RaftStatusImpl raftStatus, StateMachine stateMachine,
+    private void installSnapshot(RaftStatusImpl raftStatus, GroupComponents gc,
                                  InstallSnapshotReq req, InstallSnapshotResp resp) {
+        StateMachine stateMachine = gc.getStateMachine();
         boolean start = req.offset == 0;
         boolean finish = req.done;
         if (start) {
             raftStatus.setInstallSnapshot(true);
+            raftStatus.setStateMachineEpoch(raftStatus.getStateMachineEpoch() + 1);
         }
         try {
             stateMachine.installSnapshot(req.lastIncludedIndex, req.lastIncludedTerm, req.offset, finish, req.data);
@@ -136,6 +140,7 @@ public class InstallSnapshotProcessor extends RaftGroupProcessor<InstallSnapshot
             raftStatus.setLastPersistLogIndex(req.lastIncludedIndex);
             resp.success = true;
             if (finish) {
+                gc.getRaftLog().syncClear();
                 raftStatus.setInstallSnapshot(false);
                 raftStatus.setLastApplied(req.lastIncludedIndex);
                 raftStatus.setCommitIndex(req.lastIncludedIndex);

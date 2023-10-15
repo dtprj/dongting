@@ -221,8 +221,8 @@ public class MemRaftLog implements RaftLog {
     @Override
     public void doDelete() {
         IndexedQueue<MemLog> logs = this.logs;
-        MemLog memLog;
-        while ((memLog = logs.get(0)) != null) {
+        while (logs.size() > 0) {
+            MemLog memLog = logs.get(0);
             if (memLog.deleteTimestamp > 0 && memLog.deleteTimestamp < ts.getWallClockMillis()) {
                 memLog.item.release();
                 logs.removeFirst();
@@ -232,6 +232,16 @@ public class MemRaftLog implements RaftLog {
             } else {
                 break;
             }
+        }
+    }
+
+    @Override
+    public void syncClear() {
+        IndexedQueue<MemLog> logs = this.logs;
+        while (logs.size() > 0) {
+            MemLog memLog = logs.get(0);
+            memLog.item.release();
+            logs.removeFirst();
         }
     }
 

@@ -33,6 +33,7 @@ public class RaftStatusImpl extends RaftStatus {
     private volatile boolean error;
 
     private boolean installSnapshot;
+    private int stateMachineEpoch;
 
     private RaftRole role; // shared
     private RaftMember currentLeader; // shared
@@ -394,5 +395,13 @@ public class RaftStatusImpl extends RaftStatus {
 
     public void setLeaderCommit(long leaderCommit) {
         this.leaderCommit = leaderCommit;
+    }
+
+    public int getStateMachineEpoch() {
+        return stateMachineEpoch;
+    }
+
+    public void setStateMachineEpoch(int stateMachineEpoch) {
+        this.stateMachineEpoch = stateMachineEpoch;
     }
 }

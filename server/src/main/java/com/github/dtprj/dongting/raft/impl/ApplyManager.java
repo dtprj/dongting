@@ -96,8 +96,9 @@ public class ApplyManager {
                 if (logIterator == null) {
                     logIterator = raftLog.openIterator(null);
                 }
+                int stateMachineEpoch = raftStatus.getStateMachineEpoch();
                 logIterator.next(index, limit, 16 * 1024 * 1024)
-                        .whenCompleteAsync((items, ex) -> resumeAfterLoad(items, ex, index),
+                        .whenCompleteAsync((items, ex) -> resumeAfterLoad(items, ex, index, stateMachineEpoch),
                                 raftStatus.getRaftExecutor());
                 return;
             } else {
@@ -112,7 +113,7 @@ public class ApplyManager {
         }
     }
 
-    private void resumeAfterLoad(List<LogItem> items, Throwable ex, long loadStartIndex) {
+    private void resumeAfterLoad(List<LogItem> items, Throwable ex, long loadStartIndex, int stateMachineEpoch) {
         waiting = false;
         if (ex != null) {
             if (ex instanceof CancellationException) {
@@ -120,6 +121,10 @@ public class ApplyManager {
             } else {
                 log.error("load log failed", ex);
             }
+            return;
+        }
+        if (stateMachineEpoch != raftStatus.getStateMachineEpoch()) {
+            log.warn("stateMachineEpoch changed, ignore load result");
             return;
         }
         if (items == null || items.size() == 0) {

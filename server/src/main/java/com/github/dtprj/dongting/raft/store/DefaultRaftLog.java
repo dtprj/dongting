@@ -150,4 +150,8 @@ public class DefaultRaftLog implements RaftLog {
         }
     }
 
+    @Override
+    public void syncClear() {
+
+    }
 }
