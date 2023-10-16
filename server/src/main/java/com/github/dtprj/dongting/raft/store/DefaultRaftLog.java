@@ -38,7 +38,6 @@ public class DefaultRaftLog implements RaftLog {
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
     private final StatusManager statusManager;
-    private AppendCallback appendCallback;
     LogFileQueue logFiles;
     IdxFileQueue idxFiles;
 
@@ -64,7 +63,6 @@ public class DefaultRaftLog implements RaftLog {
     @Override
     public Pair<Integer, Long> init(AppendCallback appendCallback) throws Exception {
         try {
-            this.appendCallback = appendCallback;
             Supplier<Boolean> stopIndicator = raftStatus::isStop;
             File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
 
@@ -151,7 +149,8 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public void syncClear() {
-
+    public void syncClear(long nextLogIndex) throws Exception {
+        idxFiles.clear(nextLogIndex);
+        logFiles.clear(nextLogIndex);
     }
 }

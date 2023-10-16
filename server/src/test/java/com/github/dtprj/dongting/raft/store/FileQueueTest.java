@@ -49,17 +49,7 @@ public class FileQueueTest {
 
     private static class MockFileQueue extends FileQueue {
         public MockFileQueue(File dir, RaftGroupConfig groupConfig) {
-            super(dir, groupConfig);
-        }
-
-        @Override
-        protected long getFileSize() {
-            return 1024;
-        }
-
-        @Override
-        protected int getFileLenShiftBits() {
-            return 0;
+            super(dir, groupConfig, 1024);
         }
     }
 

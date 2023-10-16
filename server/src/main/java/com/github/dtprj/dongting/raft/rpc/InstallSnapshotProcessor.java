@@ -129,18 +129,18 @@ public class InstallSnapshotProcessor extends RaftGroupProcessor<InstallSnapshot
         StateMachine stateMachine = gc.getStateMachine();
         boolean start = req.offset == 0;
         boolean finish = req.done;
-        if (start) {
-            raftStatus.setInstallSnapshot(true);
-            raftStatus.setStateMachineEpoch(raftStatus.getStateMachineEpoch() + 1);
-        }
         try {
+            if (start) {
+                raftStatus.setInstallSnapshot(true);
+                raftStatus.setStateMachineEpoch(raftStatus.getStateMachineEpoch() + 1);
+                gc.getRaftLog().syncClear(req.lastIncludedIndex + 1);
+            }
             stateMachine.installSnapshot(req.lastIncludedIndex, req.lastIncludedTerm, req.offset, finish, req.data);
             raftStatus.setLastLogTerm(req.lastIncludedTerm);
             raftStatus.setLastLogIndex(req.lastIncludedIndex);
             raftStatus.setLastPersistLogIndex(req.lastIncludedIndex);
             resp.success = true;
             if (finish) {
-                gc.getRaftLog().syncClear();
                 raftStatus.setInstallSnapshot(false);
                 raftStatus.setLastApplied(req.lastIncludedIndex);
                 raftStatus.setCommitIndex(req.lastIncludedIndex);

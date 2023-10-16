@@ -15,12 +15,14 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.RunnableEx;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 
 import java.io.File;
@@ -53,6 +55,11 @@ abstract class FileQueue implements AutoCloseable {
     protected final Executor raftExecutor;
     protected final Supplier<Boolean> stopIndicator;
     protected final RaftGroupConfig groupConfig;
+    private final RaftStatusImpl raftStatus;
+
+    protected final long fileSize;
+    protected final long fileLenMask;
+    protected final int fileLenShiftBits;
 
     protected long queueStartPosition;
     protected long queueEndPosition;
@@ -61,17 +68,27 @@ abstract class FileQueue implements AutoCloseable {
 
     private boolean deleting;
 
-    public FileQueue(File dir, RaftGroupConfig groupConfig) {
+    public FileQueue(File dir, RaftGroupConfig groupConfig, long fileSize) {
         this.dir = dir;
         this.ioExecutor = groupConfig.getIoExecutor();
         this.raftExecutor = groupConfig.getRaftExecutor();
         this.stopIndicator = groupConfig.getStopIndicator();
         this.groupConfig = groupConfig;
+        this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
+
+        this.fileSize = fileSize;
+        this.fileLenMask = fileSize - 1;
+        this.fileLenShiftBits = BitUtil.zeroCountOfBinary(fileSize);
     }
 
-    protected abstract long getFileSize();
+    protected final long getFileSize() {
+        return fileSize;
+    }
 
-    protected abstract int getFileLenShiftBits();
+    protected final long startPosOfFile(long pos) {
+        return pos & (~fileLenMask);
+    }
+
 
     public void init() throws IOException {
         File[] files = dir.listFiles();
@@ -100,7 +117,7 @@ abstract class FileQueue implements AutoCloseable {
         }
         for (int i = 0; i < queue.size(); i++) {
             LogFile lf = queue.get(i);
-            if ((lf.startPos & (getFileSize() - 1)) != 0) {
+            if ((lf.startPos & fileLenMask) != 0) {
                 throw new RaftException("file start index error: " + lf.startPos);
             }
             if (i != 0 && lf.startPos != queue.get(i - 1).endPos) {
@@ -117,7 +134,7 @@ abstract class FileQueue implements AutoCloseable {
     }
 
     protected LogFile getLogFile(long filePos) {
-        int index = (int) ((filePos - queueStartPosition) >>> getFileLenShiftBits());
+        int index = (int) ((filePos - queueStartPosition) >>> fileLenShiftBits);
         return queue.get(index);
     }
 
@@ -203,26 +220,35 @@ abstract class FileQueue implements AutoCloseable {
             return;
         }
         deleting = true;
+        long stateMachineEpoch = raftStatus.getStateMachineEpoch();
         ioExecutor.execute(() -> {
             try {
                 if (stopIndicator.get()) {
                     return;
                 }
-                log.debug("close log file: {}", logFile.file.getPath());
-                DtUtil.close(logFile.channel);
-                log.info("delete log file: {}", logFile.file.getPath());
-                Files.delete(logFile.file.toPath());
-                raftExecutor.execute(() -> processDeleteResult(true, shouldDelete));
+                delete(logFile);
+                raftExecutor.execute(() -> processDeleteResult(true, shouldDelete, stateMachineEpoch));
             } catch (Throwable e) {
                 log.error("delete file fail: ", logFile.file.getPath(), e);
-                raftExecutor.execute(() -> processDeleteResult(false, shouldDelete));
+                raftExecutor.execute(() -> processDeleteResult(false, shouldDelete, stateMachineEpoch));
             }
         });
     }
 
-    private void processDeleteResult(boolean success, Predicate<LogFile> shouldDelete) {
+    private void delete(LogFile logFile) throws IOException {
+        log.debug("close log file: {}", logFile.file.getPath());
+        DtUtil.close(logFile.channel);
+        log.info("delete log file: {}", logFile.file.getPath());
+        Files.delete(logFile.file.toPath());
+    }
+
+    private void processDeleteResult(boolean success, Predicate<LogFile> shouldDelete, long stateMachineEpoch) {
         // access variable deleting in raft thread
         deleting = false;
+        if (stateMachineEpoch != raftStatus.getStateMachineEpoch()) {
+            log.info("state machine epoch changed, ignore process delete result");
+            return;
+        }
         if (success) {
             queue.removeFirst();
             queueStartPosition = queue.get(0).startPos;
@@ -232,6 +258,17 @@ abstract class FileQueue implements AutoCloseable {
     }
 
     protected void afterDelete() {
+    }
+
+    protected void forceDeleteAll() throws Exception {
+        for (int i = 0; i < queue.size(); i++) {
+            LogFile lf = queue.get(0);
+            if (lf.use > 0) {
+                log.warn("file is in use: {}", lf.file.getName());
+            }
+            FileUtil.doWithRetry(() -> delete(lf), groupConfig.getStopIndicator(),
+                    false, groupConfig.getIoRetryInterval());
+        }
     }
 
 }

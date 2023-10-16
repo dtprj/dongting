@@ -236,7 +236,7 @@ public class MemRaftLog implements RaftLog {
     }
 
     @Override
-    public void syncClear() {
+    public void syncClear(long nextLogIndex) {
         IndexedQueue<MemLog> logs = this.logs;
         while (logs.size() > 0) {
             MemLog memLog = logs.get(0);

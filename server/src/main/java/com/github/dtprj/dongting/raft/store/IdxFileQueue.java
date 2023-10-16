@@ -48,10 +48,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     private final int maxCacheItems;
 
-    private final int idxFileSize;
-    private final int fileLenMask;
-    private final int fileLenShiftBits;
-
     private final int flushItems;
     final LongLongSeqMap cache = new LongLongSeqMap(1024);
     private final Timestamp ts;
@@ -77,7 +73,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     public IdxFileQueue(File dir, StatusManager statusManager, RaftGroupConfig groupConfig,
                         int itemsPerFile, int maxCacheItems) {
-        super(dir, groupConfig);
+        super(dir, groupConfig, ITEM_LEN * itemsPerFile);
         if (BitUtil.nextHighestPowerOfTwo(itemsPerFile) != itemsPerFile) {
             throw new IllegalArgumentException("itemsPerFile not power of 2: " + itemsPerFile);
         }
@@ -87,9 +83,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
 
         this.maxCacheItems = maxCacheItems;
-        this.idxFileSize = ITEM_LEN * itemsPerFile;
-        this.fileLenMask = idxFileSize - 1;
-        this.fileLenShiftBits = BitUtil.zeroCountOfBinary(idxFileSize);
         this.flushItems = this.maxCacheItems / 2;
         this.writeBuffer = ByteBuffer.allocateDirect(flushItems * ITEM_LEN);
     }
@@ -127,14 +120,27 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         return new Pair<>(restoreIndex, restoreIndexPos);
     }
 
-    @Override
-    protected long getFileSize() {
-        return idxFileSize;
-    }
+    public void clear(long nextLogIndex) throws Exception {
+        processWriteResult(true, false);
+        if (statusFuture != null) {
+            statusFuture.get();
+        }
 
-    @Override
-    public int getFileLenShiftBits() {
-        return fileLenShiftBits;
+        forceDeleteAll();
+
+        while (cache.size() > 0) {
+            cache.remove();
+        }
+
+        long newFileStartPos = startPosOfFile(indexToPos(nextLogIndex));
+        queueStartPosition = newFileStartPos;
+        queueEndPosition = newFileStartPos;
+        ensureWritePosReady(queueStartPosition, true, false);
+
+        // TODO support load first index after restart
+        firstIndex = nextLogIndex;
+        nextIndex = nextLogIndex;
+        nextPersistIndex = nextLogIndex;
     }
 
     private long indexToPos(long index) {
@@ -166,7 +172,12 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         LogFile lf = getLogFile(pos);
         ByteBuffer buffer = ByteBuffer.allocate(8);
         AsyncIoTask t = new AsyncIoTask(lf.channel, stopIndicator, null);
-        return t.read(buffer, filePos).thenApply(v -> {
+        lf.use++;
+        return t.read(buffer, filePos).handle((v, ex) -> {
+            lf.use--;
+            if (ex != null) {
+                throw new RaftException(ex);
+            }
             buffer.flip();
             return buffer.getLong();
         });
@@ -293,7 +304,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     public void submitDeleteTask(long bound) {
-        submitDeleteTask(logFile -> posToIndex(logFile.endPos) < bound);
+        submitDeleteTask(logFile -> posToIndex(logFile.endPos) < bound && logFile.use <= 0);
     }
 
     @Override

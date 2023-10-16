@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
-import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
@@ -44,10 +43,6 @@ class LogFileQueue extends FileQueue {
     public static final long DEFAULT_LOG_FILE_SIZE = 1024 * 1024 * 1024;
     public static final int DEFAULT_WRITE_BUFFER_SIZE = 128 * 1024;
 
-    private final long logFileSize;
-    private final long fileLenMask;
-    private final int fileLenShiftBits;
-
     protected final RefBufferFactory heapPool;
     protected final ByteBufferPool directPool;
 
@@ -59,28 +54,16 @@ class LogFileQueue extends FileQueue {
     private final LogAppender logAppender;
 
     public LogFileQueue(File dir, RaftGroupConfig groupConfig, IdxOps idxOps, RaftLog.AppendCallback callback,
-                        long logFileSize, int writeBufferSize) {
-        super(dir, groupConfig);
+                        long fileSize, int writeBufferSize) {
+        super(dir, groupConfig, fileSize);
         this.idxOps = idxOps;
         this.ts = groupConfig.getTs();
 
         this.heapPool = groupConfig.getHeapPool();
         this.directPool = groupConfig.getDirectPool();
-        this.logFileSize = logFileSize;
-        this.fileLenMask = logFileSize - 1;
-        this.fileLenShiftBits = BitUtil.zeroCountOfBinary(logFileSize);
+
         this.writeBuffer = ByteBuffer.allocateDirect(writeBufferSize);
         this.logAppender = new LogAppender(idxOps, this, groupConfig, writeBuffer, callback);
-    }
-
-    @Override
-    protected long getFileSize() {
-        return logFileSize;
-    }
-
-    @Override
-    public int getFileLenShiftBits() {
-        return fileLenShiftBits;
     }
 
     public int restore(long restoreIndex, long restoreIndexPos, Supplier<Boolean> stopIndicator)
@@ -338,10 +321,12 @@ class LogFileQueue extends FileQueue {
     }
 
     public long fileLength() {
-        return logFileSize;
+        return fileSize;
     }
 
-    public LogAppender getLogAppender() {
-        return logAppender;
+    public void clear(long nextLogIndex) throws Exception {
+        forceDeleteAll();
+        logAppender.clear(nextLogIndex);
     }
+
 }
