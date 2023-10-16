@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.common.Pair;
-import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.LogItem;
 
 import java.util.List;
@@ -35,7 +34,7 @@ public interface RaftLog extends AutoCloseable {
     /**
      * Batch append logs.
      */
-    void append(TailCache tailCache);
+    void append();
 
     /**
      * truncate tail to index (include)

@@ -29,7 +29,6 @@ public class TailCache {
     private static final DtLog log = DtLogs.getLogger(TailCache.class);
     private static final long TIMEOUT = TimeUnit.SECONDS.toNanos(10);
     private long firstIndex = -1;
-    private long persistedIndex = -1;
     private int pending;
     private long pendingBytes;
     private final IndexedQueue<RaftTask> cache = new IndexedQueue<>(1024);

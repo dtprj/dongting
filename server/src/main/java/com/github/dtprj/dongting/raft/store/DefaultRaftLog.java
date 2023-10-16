@@ -97,8 +97,9 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public void append(TailCache tailCache) {
+    public void append() {
         try {
+            TailCache tailCache = raftStatus.getTailCache();
             logFiles.append(tailCache);
         } catch (InterruptedException e) {
             throw new RaftException(e);

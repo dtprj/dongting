@@ -69,7 +69,8 @@ public class MemRaftLog implements RaftLog {
     }
 
     @Override
-    public void append(TailCache tailCache) {
+    public void append() {
+        TailCache tailCache = raftStatus.getTailCache();
         if (tailCache.size() == 0) {
             BugLog.getLog().error("tailCache.size() == 0");
             return;
@@ -77,7 +78,6 @@ public class MemRaftLog implements RaftLog {
         IndexedQueue<MemLog> logs = this.logs;
         long lastPersistIndex = -1;
         int lastPersistTerm = -1;
-        //noinspection ForLoopReplaceableByForEach
         for (long i = raftStatus.getLastLogIndex() + 1; i <= tailCache.getLastIndex(); i++) {
             RaftTask rt = tailCache.get(i);
             LogItem logItem = rt.getItem();
@@ -246,7 +246,7 @@ public class MemRaftLog implements RaftLog {
     }
 
     @Override
-    public long syncLoadNextItemPos(long index) throws Exception {
+    public long syncLoadNextItemPos(long index) {
         return 0;
     }
 

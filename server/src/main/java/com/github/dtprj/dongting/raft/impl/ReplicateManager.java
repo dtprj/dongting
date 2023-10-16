@@ -237,7 +237,7 @@ public class ReplicateManager {
             RaftUtil.closeIterator(member);
             return;
         }
-        if (items == null || items.size() == 0) {
+        if (items == null || items.isEmpty()) {
             log.warn("load raft log return empty, ignore load result");
             release(items);
             RaftUtil.closeIterator(member);
