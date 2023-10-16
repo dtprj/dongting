@@ -34,7 +34,8 @@ import java.nio.ByteBuffer;
 //  uint32 last_included_term = 5;
 //  fixed64 offset = 6;
 //  bool done = 7;
-//  bytes data = 8;
+//  fixed64 next_write_pos = 8;
+//  bytes data = 15;
 public class InstallSnapshotReq {
     public int groupId;
     public int term;
@@ -44,6 +45,7 @@ public class InstallSnapshotReq {
     public long offset;
     public RefBuffer data;
     public boolean done;
+    public long nextWritePos;
 
     public static class Callback extends PbCallback<InstallSnapshotReq> {
         private final InstallSnapshotReq result = new InstallSnapshotReq();
@@ -84,6 +86,9 @@ public class InstallSnapshotReq {
                 case 6:
                     result.offset = value;
                     break;
+                case 8:
+                    result.nextWritePos = value;
+                    break;
             }
             return true;
         }
@@ -91,7 +96,7 @@ public class InstallSnapshotReq {
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
             boolean end = buf.remaining() >= len - currentPos;
-            if (index == 8) {
+            if (index == 15) {
                 if (currentPos == 0) {
                     result.data = heapPool.create(len);
                 }
@@ -124,15 +129,15 @@ public class InstallSnapshotReq {
                     + PbUtil.accurateFix64Size(4, req.lastIncludedIndex)
                     + PbUtil.accurateUnsignedIntSize(5, req.lastIncludedTerm)
                     + PbUtil.accurateFix64Size(6, req.offset)
-                    + PbUtil.accurateUnsignedIntSize(7, req.done ? 1 : 0);
+                    + PbUtil.accurateUnsignedIntSize(7, req.done ? 1 : 0)
+                    + PbUtil.accurateFix64Size(8, req.nextWritePos);
             if (req.data != null && req.data.getBuffer().hasRemaining()) {
                 this.bufferSize = req.data.getBuffer().remaining();
-                x += PbUtil.accurateLengthDelimitedSize(8, bufferSize);
-                this.headerSize = x - bufferSize;
+                x += PbUtil.accurateLengthDelimitedSize(15, bufferSize);
             } else {
                 this.bufferSize = 0;
-                this.headerSize = x;
             }
+            this.headerSize = x - bufferSize;
         }
 
         @Override
@@ -151,8 +156,9 @@ public class InstallSnapshotReq {
                     PbUtil.writeUnsignedInt32(buf, 5, req.lastIncludedTerm);
                     PbUtil.writeFix64(buf, 6, req.offset);
                     PbUtil.writeUnsignedInt32(buf, 7, req.done ? 1 : 0);
+                    PbUtil.writeFix64(buf, 8, req.nextWritePos);
                     if (bufferSize > 0) {
-                        PbUtil.writeLengthDelimitedPrefix(buf, 8, bufferSize);
+                        PbUtil.writeLengthDelimitedPrefix(buf, 15, bufferSize);
                     }
                     headerWritten = true;
                 } else {

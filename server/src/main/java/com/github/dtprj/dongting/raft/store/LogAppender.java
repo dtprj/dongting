@@ -352,7 +352,7 @@ class LogAppender {
         return null;
     }
 
-    public void clear(long nextLogIndex) {
+    public void clear(long nextLogIndex, long nextLogPos) {
         this.bufferWriteAccumulatePos = 0;
         this.writeBuffer.clear();
         this.currentHeaderEncoder = null;
@@ -360,7 +360,7 @@ class LogAppender {
         this.state = STATE_WRITE_ITEM_HEADER;
         this.pendingBytes = 0;
         this.nextPersistIndex = nextLogIndex;
-        this.nextPersistPos = 0;
+        this.nextPersistPos = nextLogPos;
     }
 
     public void setNextPersistIndex(long nextPersistIndex) {

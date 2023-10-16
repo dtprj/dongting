@@ -236,13 +236,18 @@ public class MemRaftLog implements RaftLog {
     }
 
     @Override
-    public void syncClear(long nextLogIndex) {
+    public void syncClear(long nextLogIndex, long nextLogPos) {
         IndexedQueue<MemLog> logs = this.logs;
         while (logs.size() > 0) {
             MemLog memLog = logs.get(0);
             memLog.item.release();
             logs.removeFirst();
         }
+    }
+
+    @Override
+    public long syncLoadNextItemPos(long index) throws Exception {
+        return 0;
     }
 
     @Override

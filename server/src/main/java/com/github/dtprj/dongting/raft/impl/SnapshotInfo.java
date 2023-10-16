@@ -21,7 +21,14 @@ import com.github.dtprj.dongting.raft.sm.Snapshot;
  * @author huangli
  */
 class SnapshotInfo {
-    Snapshot snapshot;
+    final Snapshot snapshot;
+    final long nextWritePos;
+
     long offset;
     boolean readFinished;
+
+    public SnapshotInfo(Snapshot snapshot, long nextWritePos) {
+        this.snapshot = snapshot;
+        this.nextWritePos = nextWritePos;
+    }
 }

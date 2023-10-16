@@ -324,9 +324,27 @@ class LogFileQueue extends FileQueue {
         return fileSize;
     }
 
-    public void clear(long nextLogIndex) throws Exception {
+    public void clear(long nextLogIndex, long nextLogPos) throws Exception {
         forceDeleteAll();
-        logAppender.clear(nextLogIndex);
+        logAppender.clear(nextLogIndex, nextLogPos);
+    }
+
+    public long syncGetNextIndexPos(long pos) throws Exception {
+        LogFile f = getLogFile(pos);
+        ByteBuffer buf = directPool.borrow(LogHeader.ITEM_HEADER_SIZE);
+        try {
+            f.use++;
+            long filePos = filePos(pos);
+            AsyncIoTask task = new AsyncIoTask(f.channel, stopIndicator, null);
+            task.read(buf, filePos).get();
+            buf.flip();
+            LogHeader header = new LogHeader();
+            header.read(buf);
+            return pos + header.totalLen;
+        } finally {
+            f.use--;
+            directPool.release(buf);
+        }
     }
 
 }

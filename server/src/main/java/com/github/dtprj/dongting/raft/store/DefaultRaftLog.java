@@ -149,8 +149,14 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public void syncClear(long nextLogIndex) throws Exception {
+    public void syncClear(long nextLogIndex, long nextLogPos) throws Exception {
         idxFiles.clear(nextLogIndex);
-        logFiles.clear(nextLogIndex);
+        logFiles.clear(nextLogIndex, nextLogPos);
+    }
+
+    @Override
+    public long syncLoadNextItemPos(long index) throws Exception {
+        long pos = idxFiles.loadLogPos(index).get();
+        return logFiles.syncGetNextIndexPos(pos);
     }
 }

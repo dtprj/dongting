@@ -570,8 +570,8 @@ public class ReplicateManager {
                 log.error("open recent snapshot fail, return null");
                 return;
             }
-            si = new SnapshotInfo();
-            si.snapshot = snapshot;
+            long nextPos = raftLog.syncLoadNextItemPos(snapshot.getLastIncludedIndex());
+            si = new SnapshotInfo(snapshot, nextPos);
             log.info("begin install snapshot for member: nodeId={}, groupId={}", member.getNode().getNodeId(), groupId);
             si.offset = 0;
             member.setSnapshotInfo(si);
@@ -589,6 +589,7 @@ public class ReplicateManager {
         req.lastIncludedIndex = si.snapshot.getLastIncludedIndex();
         req.lastIncludedTerm = si.snapshot.getLastIncludedTerm();
         req.offset = si.offset;
+        req.nextWritePos = si.nextWritePos;
         req.data = data;
         req.done = data == null || data.getBuffer() == null || !data.getBuffer().hasRemaining();
 

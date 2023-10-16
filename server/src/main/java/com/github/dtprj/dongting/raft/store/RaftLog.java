@@ -67,7 +67,9 @@ public interface RaftLog extends AutoCloseable {
 
     void doDelete();
 
-    void syncClear(long nextLogIndex) throws Exception;
+    void syncClear(long nextLogIndex, long nextLogPos) throws Exception;
+
+    long syncLoadNextItemPos(long index) throws Exception;
 
     interface LogIterator extends AutoCloseable {
 
