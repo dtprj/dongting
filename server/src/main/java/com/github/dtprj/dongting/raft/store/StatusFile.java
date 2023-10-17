@@ -45,6 +45,7 @@ import java.util.zip.CRC32C;
 public class StatusFile implements AutoCloseable {
     private static final DtLog log = DtLogs.getLogger(StatusFile.class);
 
+    // we think the minimum storage write unit is 4k
     private static final int FILE_LENGTH = 4096;
     private static final int CRC_HEX_LENGTH = 8;
     private static final int CONTENT_START_POS = CRC_HEX_LENGTH + 2;

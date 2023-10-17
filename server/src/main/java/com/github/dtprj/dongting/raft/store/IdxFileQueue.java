@@ -39,7 +39,8 @@ import java.util.concurrent.CompletableFuture;
 class IdxFileQueue extends FileQueue implements IdxOps {
     private static final DtLog log = DtLogs.getLogger(IdxFileQueue.class);
     private static final int ITEM_LEN = 8;
-    static final String IDX_FILE_PERSIST_INDEX_KEY = "idxFilePersistIndex";
+    static final String KEY_PERSIST_IDX_INDEX = "persistIdxIndex";
+    private static final String KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT = "nextIdxAfterInstallSnapshot";
 
     public static final int DEFAULT_ITEMS_PER_FILE = 1024 * 1024;
     public static final int DEFAULT_MAX_CACHE_ITEMS = 16 * 1024;
@@ -58,6 +59,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private long nextPersistIndex;
     private long nextIndex;
     private long firstIndex;
+    private long firstValidIndex;
 
     private CompletableFuture<Void> writeFuture;
     private AsyncIoTask currentWriteTask;
@@ -88,11 +90,17 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     public Pair<Long, Long> initRestorePos() throws Exception {
-        firstIndex = posToIndex(queueStartPosition);
+        this.firstIndex = posToIndex(queueStartPosition);
+        this.firstValidIndex = Long.parseLong(statusManager.getProperties()
+                .getProperty(KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, "0"));
         long restoreIndex = Long.parseLong(statusManager.getProperties()
-                .getProperty(IDX_FILE_PERSIST_INDEX_KEY, "0"));
+                .getProperty(KEY_PERSIST_IDX_INDEX, "0"));
 
-        log.info(IDX_FILE_PERSIST_INDEX_KEY + " in raft status file: {}", restoreIndex);
+        log.info("load raft status file. firstIndex={}, {}={}, {}={}, ",firstIndex, KEY_PERSIST_IDX_INDEX, restoreIndex,
+                KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, firstValidIndex);
+        restoreIndex = Math.max(restoreIndex, firstValidIndex);
+        restoreIndex = Math.max(restoreIndex, firstIndex);
+
         long restoreIndexPos;
         if (restoreIndex == 0) {
             restoreIndex = 1;
@@ -100,19 +108,19 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             nextIndex = 1;
             nextPersistIndex = 1;
         } else {
-            if (restoreIndex < firstIndex) {
-                // truncate head may cause persistIndex < firstIndex, since we save to raft.status asynchronously.
-                // however, in this case the firstIndex must have data, so we can restore from firstIndex.
-                log.warn("restore index < firstIndex: {}, {}", restoreIndex, firstIndex);
-                restoreIndex = firstIndex;
-                nextPersistIndex = firstIndex + 1;
-                nextIndex = firstIndex + 1;
-            } else {
-                nextPersistIndex = restoreIndex + 1;
-                nextIndex = restoreIndex + 1;
+            nextIndex = restoreIndex + 1;
+            nextPersistIndex = restoreIndex + 1;
+            try {
+                restoreIndexPos = loadLogPos(restoreIndex).get();
+            } catch (Exception e) {
+                if (restoreIndex == firstValidIndex) {
+                    log.warn("load log pos failed", e);
+                    return null;
+                }
+                throw e;
             }
-            restoreIndexPos = loadLogPos(restoreIndex).get();
         }
+
         if (queueEndPosition == 0) {
             tryAllocate();
         }
@@ -137,7 +145,9 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         queueEndPosition = newFileStartPos;
         ensureWritePosReady(queueStartPosition, true, false);
 
-        // TODO support load first index after restart
+        statusManager.getProperties().setProperty(KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, String.valueOf(nextLogIndex));
+        statusManager.persistSync();
+
         firstIndex = nextLogIndex;
         nextIndex = nextLogIndex;
         nextPersistIndex = nextLogIndex;
@@ -298,7 +308,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             int[] retryIntervals = closing ? null : groupConfig.getIoRetryInterval();
             FileUtil.doWithRetry(processResultCallback, groupConfig.getStopIndicator(), closing, retryIntervals);
             long idxPersisIndex = nextPersistIndex - 1;
-            statusManager.getProperties().setProperty(IDX_FILE_PERSIST_INDEX_KEY, String.valueOf(idxPersisIndex));
+            statusManager.getProperties().setProperty(KEY_PERSIST_IDX_INDEX, String.valueOf(idxPersisIndex));
             statusFuture = statusManager.persistAsync();
         }
     }

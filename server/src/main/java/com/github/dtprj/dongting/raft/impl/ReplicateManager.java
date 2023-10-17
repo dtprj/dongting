@@ -408,6 +408,11 @@ public class ReplicateManager {
                 member.setLastFailNanos(ts.getNanoTime());
                 log.error("append fail because of remote error. groupId={}, prevLogIndex={}, msg={}",
                         groupId, prevLogIndex, rf.getMsg());
+            } else if (appendCode == AppendProcessor.CODE_INSTALL_SNAPSHOT) {
+                log.warn("append fail because of member is install snapshot. groupId={}, remoteId={}",
+                        groupId, member.getNode().getNodeId());
+                updateLease(member, reqNanos, raftStatus);
+                beginInstallSnapshot(member);
             } else {
                 member.setLastFailNanos(ts.getNanoTime());
                 BugLog.getLog().error("append fail. appendCode={}, old matchIndex={}, append prevLogIndex={}, " +
@@ -645,6 +650,7 @@ public class ReplicateManager {
                         member.getNode().getNodeId(), groupId);
                 closeSnapshotAndResetStatus(member, si);
                 member.setInstallSnapshot(false);
+                member.setMatchIndex(reqLastIncludedIndex);
                 member.setNextIndex(reqLastIncludedIndex + 1);
             }
             replicate(member);

@@ -76,6 +76,10 @@ public class DefaultRaftLog implements RaftLog {
             RaftUtil.checkStop(stopIndicator);
 
             Pair<Long, Long> p = idxFiles.initRestorePos();
+            if (p == null) {
+                raftStatus.setInstallSnapshot(true);
+                return new Pair<>(0, 0L);
+            }
             int lastTerm = logFiles.restore(p.getLeft(), p.getRight(), stopIndicator);
             RaftUtil.checkStop(stopIndicator);
 

@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.File;
 
-import static com.github.dtprj.dongting.raft.store.IdxFileQueue.IDX_FILE_PERSIST_INDEX_KEY;
+import static com.github.dtprj.dongting.raft.store.IdxFileQueue.KEY_PERSIST_IDX_INDEX;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -217,7 +217,7 @@ public class IdxFileQueueTest {
         TestUtil.waitUtilInExecutor(MockExecutors.raftExecutor(), 8L << 3, () -> idxFileQueue.queueStartPosition);
 
         idxFileQueue.close();
-        statusManager.getProperties().setProperty(IDX_FILE_PERSIST_INDEX_KEY, "2");
+        statusManager.getProperties().setProperty(KEY_PERSIST_IDX_INDEX, "2");
         statusManager.persistSync();
         statusManager.close();
 
