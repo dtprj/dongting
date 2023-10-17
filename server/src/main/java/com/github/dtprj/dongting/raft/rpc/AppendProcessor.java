@@ -273,7 +273,7 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
                 });
             }
         }
-        gc.getRaftLog().append(tailCache);
+        gc.getRaftLog().append();
 
         if (req.getLeaderCommit() < raftStatus.getCommitIndex()) {
             log.info("leader commitIndex less than local, maybe leader restart recently. leaderId={}, leaderTerm={}, leaderCommitIndex={}, localCommitIndex={}, groupId={}",

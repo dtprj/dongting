@@ -40,7 +40,9 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private static final DtLog log = DtLogs.getLogger(IdxFileQueue.class);
     private static final int ITEM_LEN = 8;
     static final String KEY_PERSIST_IDX_INDEX = "persistIdxIndex";
-    private static final String KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT = "nextIdxAfterInstallSnapshot";
+    static final String KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT = "nextIdxAfterInstallSnapshot";
+    static final String KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT = "nextPosAfterInstallSnapshot";
+    static final String KEY_INSTALL_SNAPSHOT = "installSnapshot";
 
     public static final int DEFAULT_ITEMS_PER_FILE = 1024 * 1024;
     public static final int DEFAULT_MAX_CACHE_ITEMS = 16 * 1024;
@@ -59,7 +61,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private long nextPersistIndex;
     private long nextIndex;
     private long firstIndex;
-    private long firstValidIndex;
 
     private CompletableFuture<Void> writeFuture;
     private AsyncIoTask currentWriteTask;
@@ -91,12 +92,18 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     public Pair<Long, Long> initRestorePos() throws Exception {
         this.firstIndex = posToIndex(queueStartPosition);
-        this.firstValidIndex = Long.parseLong(statusManager.getProperties()
+        long firstValidIndex = Long.parseLong(statusManager.getProperties()
                 .getProperty(KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, "0"));
         long restoreIndex = Long.parseLong(statusManager.getProperties()
                 .getProperty(KEY_PERSIST_IDX_INDEX, "0"));
+        boolean installSnapshot = Boolean.parseBoolean(statusManager.getProperties()
+                .getProperty(KEY_INSTALL_SNAPSHOT, "false"));
+        if (installSnapshot) {
+            log.warn("install snapshot not finished");
+            return null;
+        }
 
-        log.info("load raft status file. firstIndex={}, {}={}, {}={}, ",firstIndex, KEY_PERSIST_IDX_INDEX, restoreIndex,
+        log.info("load raft status file. firstIndex={}, {}={}, {}={}, ", firstIndex, KEY_PERSIST_IDX_INDEX, restoreIndex,
                 KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, firstValidIndex);
         restoreIndex = Math.max(restoreIndex, firstValidIndex);
         restoreIndex = Math.max(restoreIndex, firstIndex);
@@ -114,6 +121,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 restoreIndexPos = loadLogPos(restoreIndex).get();
             } catch (Exception e) {
                 if (restoreIndex == firstValidIndex) {
+                    // next index not write after install snapshot
                     log.warn("load log pos failed", e);
                     return null;
                 }
@@ -128,7 +136,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         return new Pair<>(restoreIndex, restoreIndexPos);
     }
 
-    public void clear(long nextLogIndex) throws Exception {
+    public void beginInstall() throws Exception {
         processWriteResult(true, false);
         if (statusFuture != null) {
             statusFuture.get();
@@ -139,14 +147,13 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         while (cache.size() > 0) {
             cache.remove();
         }
+    }
 
+    public void finishInstall(long nextLogIndex) throws Exception {
         long newFileStartPos = startPosOfFile(indexToPos(nextLogIndex));
         queueStartPosition = newFileStartPos;
         queueEndPosition = newFileStartPos;
         ensureWritePosReady(queueStartPosition, true, false);
-
-        statusManager.getProperties().setProperty(KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, String.valueOf(nextLogIndex));
-        statusManager.persistSync();
 
         firstIndex = nextLogIndex;
         nextIndex = nextLogIndex;

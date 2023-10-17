@@ -235,7 +235,7 @@ abstract class FileQueue implements AutoCloseable {
         });
     }
 
-    private void delete(LogFile logFile) throws IOException {
+    protected void delete(LogFile logFile) throws IOException {
         log.debug("close log file: {}", logFile.file.getPath());
         DtUtil.close(logFile.channel);
         log.info("delete log file: {}", logFile.file.getPath());

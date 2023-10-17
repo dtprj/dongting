@@ -29,6 +29,10 @@ import java.io.File;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
+import static com.github.dtprj.dongting.raft.store.IdxFileQueue.KEY_INSTALL_SNAPSHOT;
+import static com.github.dtprj.dongting.raft.store.IdxFileQueue.KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT;
+import static com.github.dtprj.dongting.raft.store.IdxFileQueue.KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT;
+
 /**
  * @author huangli
  */
@@ -80,7 +84,11 @@ public class DefaultRaftLog implements RaftLog {
                 raftStatus.setInstallSnapshot(true);
                 return new Pair<>(0, 0L);
             }
-            int lastTerm = logFiles.restore(p.getLeft(), p.getRight(), stopIndicator);
+            long restoreIndex = p.getLeft();
+            long restoreIndexPos = p.getRight();
+            long firstValidPos = Long.parseLong(statusManager.getProperties()
+                    .getProperty(KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT, "0"));
+            int lastTerm = logFiles.restore(restoreIndex, restoreIndexPos, firstValidPos, stopIndicator);
             RaftUtil.checkStop(stopIndicator);
 
             if (idxFiles.getNextIndex() == 1) {
@@ -154,9 +162,21 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public void syncClear(long nextLogIndex, long nextLogPos) throws Exception {
-        idxFiles.clear(nextLogIndex);
-        logFiles.clear(nextLogIndex, nextLogPos);
+    public void beginInstall() throws Exception {
+        statusManager.getProperties().setProperty(KEY_INSTALL_SNAPSHOT, "true");
+        statusManager.persistSync();
+        logFiles.forceDeleteAll();
+        idxFiles.beginInstall();
+    }
+
+    @Override
+    public void finishInstall(long nextLogIndex, long nextLogPos) throws Exception {
+        logFiles.finishInstall(nextLogIndex, nextLogPos);
+        idxFiles.finishInstall(nextLogIndex);
+        statusManager.getProperties().remove(KEY_INSTALL_SNAPSHOT);
+        statusManager.getProperties().setProperty(KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, String.valueOf(nextLogIndex));
+        statusManager.getProperties().setProperty(KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT, String.valueOf(nextLogPos));
+        statusManager.persistSync();
     }
 
     @Override

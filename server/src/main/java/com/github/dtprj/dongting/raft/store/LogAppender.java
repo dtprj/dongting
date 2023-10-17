@@ -186,6 +186,11 @@ class LogAppender {
                 }
             } else {
                 long pos = nextPersistPos + wt.buffer.position() - wt.writeStartPosInBuffer;
+                if (wt.logFile.firstIndex == 0) {
+                    wt.logFile.firstIndex = li.getIndex();
+                    wt.logFile.firstTerm = li.getTerm();
+                    wt.logFile.firstTimestamp = li.getTimestamp();
+                }
                 idxOps.put(li.getIndex(), pos, false);
                 nextPersistIndex++;
             }

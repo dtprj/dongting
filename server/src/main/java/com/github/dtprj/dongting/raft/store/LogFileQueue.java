@@ -66,10 +66,10 @@ class LogFileQueue extends FileQueue {
         this.logAppender = new LogAppender(idxOps, this, groupConfig, writeBuffer, callback);
     }
 
-    public int restore(long restoreIndex, long restoreIndexPos, Supplier<Boolean> stopIndicator)
+    public int restore(long restoreIndex, long restoreIndexPos, long firstValidPos, Supplier<Boolean> stopIndicator)
             throws IOException, InterruptedException {
         log.info("start restore from {}, {}", restoreIndex, restoreIndexPos);
-        Restorer restorer = new Restorer(idxOps, this, restoreIndex, restoreIndexPos);
+        Restorer restorer = new Restorer(idxOps, this, restoreIndex, restoreIndexPos, firstValidPos);
         if (queue.size() == 0) {
             tryAllocate();
             logAppender.setNextPersistIndex(1);
@@ -90,6 +90,14 @@ class LogFileQueue extends FileQueue {
             writePos = result.getRight();
             if (result.getLeft()) {
                 break;
+            }
+        }
+
+        if (queue.size() > 1) {
+            LogFile first = queue.get(0);
+            if (firstValidPos > first.startPos && firstValidPos < first.endPos && first.firstIndex == 0) {
+                queue.removeFirst();
+                delete(first);
             }
         }
 
@@ -324,8 +332,7 @@ class LogFileQueue extends FileQueue {
         return fileSize;
     }
 
-    public void clear(long nextLogIndex, long nextLogPos) throws Exception {
-        forceDeleteAll();
+    public void finishInstall(long nextLogIndex, long nextLogPos) {
         logAppender.clear(nextLogIndex, nextLogPos);
     }
 

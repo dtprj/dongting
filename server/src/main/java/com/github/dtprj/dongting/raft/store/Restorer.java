@@ -49,6 +49,7 @@ class Restorer {
     private final LogFileQueue logFileQueue;
     private final long restoreIndex;
     private final long restoreIndexPos;
+    private final long firstValidPos;
 
     private boolean restoreIndexChecked;
 
@@ -60,18 +61,29 @@ class Restorer {
     long previousIndex;
     int previousTerm;
 
-    public Restorer(IdxOps idxOps, LogFileQueue logFileQueue, long restoreIndex, long restoreIndexPos) {
+    public Restorer(IdxOps idxOps, LogFileQueue logFileQueue, long restoreIndex,
+                    long restoreIndexPos, long firstValidPos) {
         this.idxOps = idxOps;
         this.logFileQueue = logFileQueue;
         this.restoreIndex = restoreIndex;
         this.restoreIndexPos = restoreIndexPos;
+        this.firstValidPos = firstValidPos;
     }
 
     public Pair<Boolean, Long> restoreFile(ByteBuffer buffer, LogFile lf, Supplier<Boolean> stopIndicator)
             throws IOException, InterruptedException {
         buffer.clear();
         buffer.limit(LogHeader.ITEM_HEADER_SIZE);
-        FileUtil.syncReadFull(lf.channel, buffer, 0);
+        long readPos;
+        if (firstValidPos > 0 && firstValidPos > lf.startPos && firstValidPos < lf.endPos) {
+            if (lf.endPos - firstValidPos < LogHeader.ITEM_HEADER_SIZE) {
+                return new Pair<>(false, lf.endPos);
+            }
+            readPos = firstValidPos;
+        } else {
+            readPos = 0;
+        }
+        FileUtil.syncReadFull(lf.channel, buffer, readPos);
         buffer.flip();
         header.read(buffer);
         if (header.crcMatch()) {
@@ -80,7 +92,7 @@ class Restorer {
             lf.firstTimestamp = header.timestamp;
         }
 
-        if (restoreIndexPos < lf.endPos) {
+        if (lf.endPos > restoreIndexPos) {
             return restoreFile0(buffer, lf, stopIndicator);
         } else {
             if (header.crcMatch()) {
@@ -150,7 +162,7 @@ class Restorer {
         }
     }
 
-    private int restore(ByteBuffer buf, LogFile lf) throws IOException, InterruptedException {
+    private int restore(ByteBuffer buf, LogFile lf) throws InterruptedException {
         while (true) {
             int result;
             if (state == STATE_ITEM_HEADER) {
