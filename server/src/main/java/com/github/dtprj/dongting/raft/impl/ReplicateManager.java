@@ -198,7 +198,7 @@ public class ReplicateManager {
             CompletableFuture<List<LogItem>> future = logIterator.next(nextIndex, Math.min(limit, 1024),
                     config.getSingleReplicateLimit());
             member.setReplicateFuture(future);
-            future.whenCompleteAsync((r, ex) -> resumeAfterLogLoad(member.getReplicateEpoch(), member, r, ex),
+            future.whenCompleteAsync((items, ex) -> resumeAfterLogLoad(member.getReplicateEpoch(), member, items, ex),
                     raftStatus.getRaftExecutor());
         }
     }
@@ -221,7 +221,6 @@ public class ReplicateManager {
                 member.setLastFailNanos(ts.getNanoTime());
                 log.error("load raft log failed", ex);
             }
-            release(items);
             RaftUtil.closeIterator(member);
             return;
         }

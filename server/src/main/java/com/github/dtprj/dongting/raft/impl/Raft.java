@@ -39,21 +39,19 @@ public class Raft implements BiConsumer<EventType, Object> {
 
     private final ReplicateManager replicateManager;
     private final ApplyManager applyManager;
-    private final CommitManager commitManager;
 
     private final RaftLog raftLog;
     private final RaftStatusImpl raftStatus;
 
     private final Timestamp ts;
 
-    public Raft(RaftStatusImpl raftStatus, RaftLog raftLog, ApplyManager applyManager, CommitManager commitManager,
+    public Raft(RaftStatusImpl raftStatus, RaftLog raftLog, ApplyManager applyManager,
                 ReplicateManager replicateManager) {
         this.raftStatus = raftStatus;
         this.raftLog = raftLog;
         this.ts = raftStatus.getTs();
 
         this.applyManager = applyManager;
-        this.commitManager = commitManager;
         this.replicateManager = replicateManager;
     }
 
@@ -144,7 +142,7 @@ public class Raft implements BiConsumer<EventType, Object> {
         }
 
         replicateManager.replicateAfterRaftExec(raftStatus);
-        raftLog.append(tailCache);
+        raftLog.append();
     }
 
     public void sendHeartBeat() {
