@@ -19,13 +19,11 @@ import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.TailCache;
-import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 
 import java.io.File;
@@ -162,10 +160,10 @@ class LogFileQueue extends FileQueue {
             return CompletableFuture.completedFuture(null);
         }
         long rightBound = p.getRight();
-        MatchPosFinder finder = new MatchPosFinder(cancelIndicator, p.getLeft(),
-                suggestTerm, Math.min(suggestIndex, rightBound));
+        MatchPosFinder finder = new MatchPosFinder(idxOps, raftExecutor, stopIndicator, cancelIndicator,
+                fileLenMask, p.getLeft(), suggestTerm, Math.min(suggestIndex, rightBound));
         finder.exec();
-        return finder.future;
+        return finder.getFuture();
     }
 
     private Pair<LogFile, Long> findMatchLogFile(int suggestTerm, long suggestIndex) {
@@ -213,113 +211,6 @@ class LogFileQueue extends FileQueue {
                 return Long.MAX_VALUE;
             } else {
                 return nextFile.firstIndex - 1;
-            }
-        }
-    }
-
-    private class MatchPosFinder {
-        private final Supplier<Boolean> cancel;
-        private final LogFile logFile;
-        private final int suggestTerm;
-        private final long suggestRightBoundIndex;
-        private final CompletableFuture<Pair<Integer, Long>> future = new CompletableFuture<>();
-
-        private long leftIndex;
-        private int leftTerm;
-        private long rightIndex;
-        private long midIndex;
-
-        MatchPosFinder(Supplier<Boolean> cancel, LogFile logFile, int suggestTerm, long suggestRightBoundIndex) {
-            this.cancel = cancel;
-            this.logFile = logFile;
-            this.suggestTerm = suggestTerm;
-            this.suggestRightBoundIndex = suggestRightBoundIndex;
-
-            this.leftIndex = logFile.firstIndex;
-            this.leftTerm = logFile.firstTerm;
-            this.rightIndex = suggestRightBoundIndex;
-        }
-
-        void exec() {
-            try {
-                if (cancel.get()) {
-                    future.cancel(false);
-                    return;
-                }
-                if (leftIndex < rightIndex) {
-                    midIndex = (leftIndex + rightIndex + 1) >>> 1;
-                    CompletableFuture<Long> posFuture = idxOps.loadLogPos(midIndex);
-                    posFuture.whenCompleteAsync((r, ex) -> posLoadComplete(ex, r), raftExecutor);
-                } else {
-                    future.complete(new Pair<>(leftTerm, leftIndex));
-                }
-            } catch (Throwable e) {
-                future.completeExceptionally(e);
-            }
-        }
-
-        private boolean failOrCancel(Throwable ex) {
-            if (ex != null) {
-                future.completeExceptionally(ex);
-                return true;
-            }
-            if (cancel.get()) {
-                future.cancel(false);
-                return true;
-            }
-            return false;
-        }
-
-        private void posLoadComplete(Throwable ex, Long pos) {
-            try {
-                if (failOrCancel(ex)) {
-                    return;
-                }
-                if (pos >= logFile.endPos) {
-                    BugLog.getLog().error("pos >= logFile.endPos, pos={}, logFile={}", pos, logFile);
-                    rightIndex = midIndex - 1;
-                    exec();
-                    return;
-                }
-
-                AsyncIoTask task = new AsyncIoTask(logFile.channel, stopIndicator, cancel);
-                ByteBuffer buf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE);
-                CompletableFuture<Void> f = task.read(buf, pos & fileLenMask);
-                f.whenCompleteAsync((v, loadHeaderEx) -> headerLoadComplete(loadHeaderEx, buf), raftExecutor);
-            } catch (Throwable e) {
-                future.completeExceptionally(e);
-            }
-        }
-
-        private void headerLoadComplete(Throwable ex, ByteBuffer buf) {
-            try {
-                if (failOrCancel(ex)) {
-                    return;
-                }
-
-                buf.flip();
-                LogHeader header = new LogHeader();
-                header.read(buf);
-                if (!header.crcMatch()) {
-                    future.completeExceptionally(new ChecksumException());
-                    return;
-                }
-                if (header.index != midIndex) {
-                    future.completeExceptionally(new RaftException("index not match"));
-                    return;
-                }
-                if (midIndex == suggestRightBoundIndex && header.term == suggestTerm) {
-                    future.complete(new Pair<>(header.term, midIndex));
-                    return;
-                } else if (midIndex < suggestRightBoundIndex && header.term <= suggestTerm) {
-                    leftIndex = midIndex;
-                    leftTerm = header.term;
-                } else {
-                    rightIndex = midIndex - 1;
-                }
-                exec();
-            } catch (Throwable e) {
-                future.completeExceptionally(e);
             }
         }
     }
