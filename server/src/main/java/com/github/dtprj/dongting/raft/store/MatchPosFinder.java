@@ -69,24 +69,35 @@ class MatchPosFinder {
                 future.cancel(false);
                 return;
             }
+            logFile.use++;
             if (leftIndex < rightIndex) {
                 midIndex = (leftIndex + rightIndex + 1) >>> 1;
                 CompletableFuture<Long> posFuture = idxOps.loadLogPos(midIndex);
                 posFuture.whenCompleteAsync((r, ex) -> posLoadComplete(ex, r), raftExecutor);
             } else {
-                future.complete(new Pair<>(leftTerm, leftIndex));
+                complete(new Pair<>(leftTerm, leftIndex), null);
             }
         } catch (Throwable e) {
-            future.completeExceptionally(e);
+            complete(null, e);
+        }
+    }
+
+    private void complete(Pair<Integer, Long> result, Throwable ex) {
+        logFile.use--;
+        if (ex != null) {
+            future.completeExceptionally(ex);
+        } else {
+            future.complete(result);
         }
     }
 
     private boolean failOrCancel(Throwable ex) {
         if (ex != null) {
-            future.completeExceptionally(ex);
+            complete(null, ex);
             return true;
         }
         if (cancel.get()) {
+            logFile.use--;
             future.cancel(false);
             return true;
         }
@@ -100,8 +111,7 @@ class MatchPosFinder {
             }
             if (pos >= logFile.endPos) {
                 BugLog.getLog().error("pos >= logFile.endPos, pos={}, logFile={}", pos, logFile);
-                rightIndex = midIndex - 1;
-                exec();
+                complete(null, new RaftException("pos >= logFile.endPos"));
                 return;
             }
 
@@ -110,7 +120,7 @@ class MatchPosFinder {
             CompletableFuture<Void> f = task.read(buf, pos & fileLenMask);
             f.whenCompleteAsync((v, loadHeaderEx) -> headerLoadComplete(loadHeaderEx, buf), raftExecutor);
         } catch (Throwable e) {
-            future.completeExceptionally(e);
+            complete(null, e);
         }
     }
 
@@ -124,15 +134,15 @@ class MatchPosFinder {
             LogHeader header = new LogHeader();
             header.read(buf);
             if (!header.crcMatch()) {
-                future.completeExceptionally(new ChecksumException());
+                complete(null, new ChecksumException());
                 return;
             }
             if (header.index != midIndex) {
-                future.completeExceptionally(new RaftException("index not match"));
+                complete(null, new RaftException("index not match"));
                 return;
             }
             if (midIndex == suggestRightBoundIndex && header.term == suggestTerm) {
-                future.complete(new Pair<>(header.term, midIndex));
+                complete(new Pair<>(header.term, midIndex), null);
                 return;
             } else if (midIndex < suggestRightBoundIndex && header.term <= suggestTerm) {
                 leftIndex = midIndex;
@@ -142,7 +152,7 @@ class MatchPosFinder {
             }
             exec();
         } catch (Throwable e) {
-            future.completeExceptionally(e);
+            complete(null, e);
         }
     }
 
