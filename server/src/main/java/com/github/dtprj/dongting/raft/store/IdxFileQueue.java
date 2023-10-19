@@ -165,7 +165,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         return index << 3;
     }
 
-    long posToIndex(long pos) {
+    private long posToIndex(long pos) {
         // each item 8 bytes
         return pos >>> 3;
     }

@@ -19,8 +19,11 @@ import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftExecutor;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
+import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.StoppedException;
+import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
@@ -47,22 +50,24 @@ class FileLogLoader implements RaftLog.LogIterator {
     private final ByteBufferPool heapPool;
     private final RaftGroupConfig groupConfig;
     private final ByteBuffer readBuffer;
+    private final TailCache tailCache;
 
     private final Supplier<Boolean> cancelIndicator;
     private final CRC32C crc32c = new CRC32C();
     private final LogHeader header = new LogHeader();
 
-    private long nextIndex = -1;
-    private long nextPos = -1;
-    private long bufferStartPos = -1;
-    private long bufferEndPos = -1;
-    private long itemStartPos = -1;
-
-    private LogFile logFile;
-
     private boolean error;
     private boolean close;
 
+    // status cross next calls
+    private long nextIndex;
+    private long nextPos;
+    private long bufferStartPos;
+    private long bufferEndPos;
+    private long itemStartPos;
+    private LogFile logFile;
+
+    // status of single next call
     private int readBytes;
     private int limit;
     private int bytesLimit;
@@ -81,11 +86,25 @@ class FileLogLoader implements RaftLog.LogIterator {
         this.idxFiles = idxFiles;
         this.logFiles = logFiles;
         this.raftExecutor = (RaftExecutor) groupConfig.getRaftExecutor();
-        this.readBuffer = groupConfig.getDirectPool().borrow(readBufferSize);
         this.groupConfig = groupConfig;
         this.heapPool = groupConfig.getHeapPool().getPool();
-        this.readBuffer.limit(0);
         this.cancelIndicator = cancelIndicator;
+        this.tailCache = ((RaftStatusImpl) groupConfig.getRaftStatus()).getTailCache();
+
+        this.readBuffer = groupConfig.getDirectPool().borrow(readBufferSize);
+        reset();
+    }
+
+    private void reset() {
+        nextIndex = -1;
+        nextPos = -1;
+        bufferStartPos = -1;
+        bufferEndPos = -1;
+        itemStartPos = -1;
+        logFile = null;
+
+        readBuffer.clear();
+        readBuffer.limit(0);
     }
 
     @Override
@@ -142,7 +161,7 @@ class FileLogLoader implements RaftLog.LogIterator {
         future = null;
     }
 
-    private void finish(List<LogItem> result, long newPos) {
+    private void finish(long newPos) {
         future.complete(result);
         nextIndex += result.size();
         nextPos = newPos;
@@ -233,9 +252,9 @@ class FileLogLoader implements RaftLog.LogIterator {
             }
             crc32c.reset();
             state = STATE_BIZ_HEADER;
-            if (result.size() > 0 && header.bodyLen + readBytes >= bytesLimit) {
+            if (!result.isEmpty() && header.bodyLen + readBytes >= bytesLimit) {
                 buf.position(buf.position() - LogHeader.ITEM_HEADER_SIZE);
-                finish(result, bufferStartPos + buf.position());
+                finish(bufferStartPos + buf.position());
                 return false;
             } else {
                 return true;
@@ -353,10 +372,30 @@ class FileLogLoader implements RaftLog.LogIterator {
 
     private boolean checkItemLimit(ByteBuffer buf) {
         if (result.size() >= limit) {
-            finish(result, bufferStartPos + buf.position());
+            finish(bufferStartPos + buf.position());
             return false;
         } else {
-            return true;
+            long index = nextIndex + result.size();
+            RaftTask rt = tailCache.get(index);
+            if (rt == null || rt.getInput().isReadOnly()) {
+                return true;
+            } else {
+                // rest items in tail cache, read from tail cache
+                for (int i = result.size(); i < limit; i++) {
+                    rt = tailCache.get(index);
+                    LogItem li = rt.getItem();
+                    if (readBytes + li.getActualBodySize() > bytesLimit) {
+                        break;
+                    }
+                    readBytes += li.getActualBodySize();
+                    // TODO retain
+                    result.add(item);
+                    index++;
+                }
+                finish(-1);
+                reset();
+                return false;
+            }
         }
     }
 
