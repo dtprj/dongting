@@ -79,7 +79,7 @@ public class TailCache {
         }
     }
 
-    public RaftTask remove(long index) {
+    private void remove(long index) {
         if (index != firstIndex) {
             throw new IllegalArgumentException("index " + index + " is not firstIndex " + firstIndex);
         }
@@ -98,7 +98,6 @@ public class TailCache {
         if (cache.size() == 0) {
             firstIndex = -1;
         }
-        return t;
     }
 
     public void forEach(LongObjMap.ReadOnlyVisitor<RaftTask> visitor) {
@@ -122,18 +121,13 @@ public class TailCache {
                 break;
             }
             RaftTask t = cache.get(0);
-            if (t.getCreateTimeNanos() - timeBound < 0) {
+            if (t.getCreateTimeNanos() - timeBound >= 0) {
                 break;
             }
             if (pending <= maxPending && pendingBytes <= maxPendingBytes) {
                 break;
             }
-            cache.removeFirst();
-        }
-        if (cache.size() > 0) {
-            firstIndex = cache.get(0).getIndex();
-        } else {
-            firstIndex = -1;
+            remove(index);
         }
     }
 
