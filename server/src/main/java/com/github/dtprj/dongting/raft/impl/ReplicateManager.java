@@ -95,13 +95,13 @@ public class ReplicateManager {
         this.installSnapshotFailTime = ts.getNanoTime() - TimeUnit.SECONDS.toNanos(10);
     }
 
-    private static void release(List<LogItem> items) {
+    private static void retain(List<LogItem> items) {
         if (items == null) {
             return;
         }
         //noinspection ForLoopReplaceableByForEach
         for (int i = 0; i < items.size(); i++) {
-            items.get(i).release();
+            items.get(i).retain();
         }
     }
 
@@ -197,8 +197,13 @@ public class ReplicateManager {
             CompletableFuture<List<LogItem>> future = logIterator.next(nextIndex, Math.min(limit, 1024),
                     config.getSingleReplicateLimit());
             member.setReplicateFuture(future);
-            future.whenCompleteAsync((items, ex) -> resumeAfterLogLoad(member.getReplicateEpoch(), member, items, ex),
-                    raftStatus.getRaftExecutor());
+            future.whenCompleteAsync((items, ex) -> {
+                try {
+                    resumeAfterLogLoad(member.getReplicateEpoch(), member, items, ex);
+                } finally {
+                    RaftUtil.release(items);
+                }
+            }, raftStatus.getRaftExecutor());
         }
     }
 
@@ -206,7 +211,6 @@ public class ReplicateManager {
         member.setReplicateFuture(null);
         if (epochNotMatch(member, repEpoch)) {
             log.info("replicate epoch changed, ignore load result");
-            release(items);
             RaftUtil.closeIterator(member);
             return;
         }
@@ -225,25 +229,21 @@ public class ReplicateManager {
         }
         if (!member.isReady()) {
             log.warn("member is not ready, ignore load result");
-            release(items);
             RaftUtil.closeIterator(member);
             return;
         }
         if (member.isInstallSnapshot()) {
             log.warn("member is installing snapshot, ignore load result");
-            release(items);
             RaftUtil.closeIterator(member);
             return;
         }
         if (items == null || items.isEmpty()) {
             log.warn("load raft log return empty, ignore load result");
-            release(items);
             RaftUtil.closeIterator(member);
             return;
         }
         if (member.getNextIndex() != items.get(0).getIndex()) {
             log.warn("the first load item index not match nextIndex, ignore load result");
-            release(items);
             RaftUtil.closeIterator(member);
             return;
         }
@@ -258,7 +258,6 @@ public class ReplicateManager {
                 sendAppendRequest(member, items);
             } else {
                 BugLog.getLog().error("pending request not empty, ignore load result");
-                release(items);
                 RaftUtil.closeIterator(member);
             }
         }
@@ -290,32 +289,22 @@ public class ReplicateManager {
         member.setNextIndex(prevLogIndex + 1 + logs.size());
 
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
+        retain(logs);// release in AppendReqWriteFrame
         CompletableFuture<ReadFrame<AppendRespCallback>> f = client.sendRequest(member.getNode().getPeer(),
                 req, APPEND_RESP_DECODER, timeout);
-        registerAppendResultCallback(member, prevLogIndex, prevLogTerm, f, logs, bytes);
+        registerAppendResultCallback(member, prevLogIndex, prevLogTerm, f, logs.size(), bytes);
     }
 
     private void registerAppendResultCallback(RaftMember member, long prevLogIndex, int prevLogTerm,
                                               CompletableFuture<ReadFrame<AppendRespCallback>> f,
-                                              List<LogItem> logs, long bytes) {
+                                              int itemCount, long bytes) {
         int reqTerm = raftStatus.getCurrentTerm();
         // the time refresh happens before this line
         long reqNanos = ts.getNanoTime();
         // if PendingStat is reset, we should not invoke decrAndGetPendingRequests() on new instance
-        final int logSize = logs.size();
-        member.getPendingStat().incrPlain(logSize, bytes);
+        member.getPendingStat().incrPlain(itemCount, bytes);
         int repEpoch = member.getReplicateEpoch();
-        for (int i = 0; i < logSize; i++) {
-            LogItem item = logs.get(i);
-            item.retain();
-        }
         f.whenCompleteAsync((rf, ex) -> {
-            for (int i = 0; i < logSize; i++) {
-                LogItem item = logs.get(i);
-                item.release();
-            }
-            // can't access logs after release
-
             if (reqTerm != raftStatus.getCurrentTerm()) {
                 log.info("receive outdated append result, term not match. reqTerm={}, currentTerm={}",
                         reqTerm, raftStatus.getCurrentTerm());
@@ -327,9 +316,9 @@ public class ReplicateManager {
                 RaftUtil.closeIterator(member);
                 return;
             }
-            member.getPendingStat().decrPlain(logSize, bytes);
+            member.getPendingStat().decrPlain(itemCount, bytes);
             if (ex == null) {
-                processAppendResult(member, rf, prevLogIndex, prevLogTerm, reqTerm, reqNanos, logSize, repEpoch);
+                processAppendResult(member, rf, prevLogIndex, prevLogTerm, reqTerm, reqNanos, itemCount, repEpoch);
             } else {
                 RaftUtil.closeIterator(member);
                 member.incrReplicateEpoch(repEpoch);

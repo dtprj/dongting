@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.net.ByteBufferWriteFrame;
 import com.github.dtprj.dongting.net.WriteFrame;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
@@ -258,5 +259,10 @@ public class AppendReqWriteFrame extends WriteFrame {
 
     public void setLogs(List<LogItem> logs) {
         this.logs = logs;
+    }
+
+    @Override
+    protected void doClean() {
+        RaftUtil.release(logs);
     }
 }

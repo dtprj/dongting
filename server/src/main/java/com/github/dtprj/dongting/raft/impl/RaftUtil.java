@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.net.NioNet;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftNode;
@@ -336,5 +337,15 @@ public class RaftUtil {
             return true;
         }
         return false;
+    }
+
+    public static void release(List<LogItem> items) {
+        if (items == null) {
+            return;
+        }
+        //noinspection ForLoopReplaceableByForEach
+        for (int i = 0; i < items.size(); i++) {
+            items.get(i).release();
+        }
     }
 }

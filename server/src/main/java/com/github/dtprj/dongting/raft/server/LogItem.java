@@ -57,10 +57,10 @@ public class LogItem extends RefCount {
 
     @Override
     protected void doClean() {
-        if (headerBuffer != null) {
+        if (headerBuffer != null && heapPool != null) {
             heapPool.release(headerBuffer);
         }
-        if (bodyBuffer != null) {
+        if (bodyBuffer != null && heapPool != null) {
             heapPool.release(bodyBuffer);
         }
         if (header instanceof RefCount) {

@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.RefCount;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -97,9 +98,13 @@ public class ApplyManager {
                     logIterator = raftLog.openIterator(null);
                 }
                 int stateMachineEpoch = raftStatus.getStateMachineEpoch();
-                logIterator.next(index, limit, 16 * 1024 * 1024)
-                        .whenCompleteAsync((items, ex) -> resumeAfterLoad(items, ex, index, stateMachineEpoch),
-                                raftStatus.getRaftExecutor());
+                logIterator.next(index, limit, 16 * 1024 * 1024).whenCompleteAsync((items, ex) -> {
+                    try {
+                        resumeAfterLoad(items, ex, index, stateMachineEpoch);
+                    } finally {
+                        RaftUtil.release(items);
+                    }
+                }, raftStatus.getRaftExecutor());
                 return;
             } else {
                 if (logIterator != null) {
@@ -127,7 +132,7 @@ public class ApplyManager {
             log.warn("stateMachineEpoch changed, ignore load result");
             return;
         }
-        if (items == null || items.size() == 0) {
+        if (items == null || items.isEmpty()) {
             log.error("load log failed, items is null");
             return;
         }
@@ -219,7 +224,6 @@ public class ApplyManager {
             statusManager.persistSync();
         }
         raftStatus.setLastApplied(index);
-        rt.getItem().release();
         execReaders(index, rt);
 
         // release reader memory
@@ -259,7 +263,6 @@ public class ApplyManager {
             log.warn("exec write failed. {}", ex);
             future.completeExceptionally(ex);
         } finally {
-            rt.getItem().release();
             RaftStatusImpl raftStatus = this.raftStatus;
             if (raftStatus.getFirstCommitOfApplied() != null && index >= raftStatus.getFirstIndexOfCurrentTerm()) {
                 raftStatus.getFirstCommitOfApplied().complete(null);
@@ -271,16 +274,24 @@ public class ApplyManager {
     public void execRead(long index, RaftTask rt) {
         RaftInput input = rt.getInput();
         CompletableFuture<RaftOutput> future = rt.getFuture();
-        if (input.getDeadline() != null && input.getDeadline().isTimeout(ts)) {
-            future.completeExceptionally(new RaftExecTimeoutException("timeout "
-                    + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms"));
-        }
         try {
+            if (input.getDeadline() != null && input.getDeadline().isTimeout(ts)) {
+                future.completeExceptionally(new RaftExecTimeoutException("timeout "
+                        + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms"));
+            }
             Object r = stateMachine.exec(index, input);
             future.complete(new RaftOutput(index, r));
         } catch (Throwable e) {
             log.error("exec read failed. {}", e);
             future.completeExceptionally(e);
+        } finally {
+            // for read task, no LogItem generated
+            if (input.getHeader() instanceof RefCount) {
+                ((RefCount) input.getHeader()).release();
+            }
+            if (input.getBody() instanceof RefCount) {
+                ((RefCount) input.getBody()).release();
+            }
         }
     }
 
@@ -314,7 +325,7 @@ public class ApplyManager {
 
 
     public Set<Integer> parseSet(String s) {
-        if (s.length() == 0) {
+        if (s.isEmpty()) {
             return emptySet();
         }
         String[] fields = s.split(",");
@@ -330,7 +341,7 @@ public class ApplyManager {
         for (RaftMember m : raftStatus.getPreparedObservers()) {
             ids.add(m.getNode().getNodeId());
         }
-        if (ids.size() == 0) {
+        if (ids.isEmpty()) {
             configChanging = false;
             return;
         }
