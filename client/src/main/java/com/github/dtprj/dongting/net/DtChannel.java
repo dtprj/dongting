@@ -34,7 +34,6 @@ import com.github.dtprj.dongting.log.DtLogs;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.util.ArrayList;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -59,7 +58,6 @@ class DtChannel extends PbCallback<Object> {
     int seq = 1;
 
     // read status
-    private final ArrayList<ReadFrameInfo> frames = new ArrayList<>();
     private final PbParser parser;
     private ReadFrame frame;
     private boolean readBody;
@@ -73,12 +71,6 @@ class DtChannel extends PbCallback<Object> {
     private final IoSubQueue subQueue;
 
     private boolean closed;
-
-    private static class ReadFrameInfo {
-        ReadFrame frame;
-        WriteData writeDataForResp;
-        ReqProcessor processorForRequest;
-    }
 
     public DtChannel(NioStatus nioStatus, WorkerStatus workerStatus, NioConfig nioConfig,
                      SocketChannel socketChannel, int channelIndexInWorker) throws IOException {
@@ -118,20 +110,11 @@ class DtChannel extends PbCallback<Object> {
         return heapPool.toReleaseInOtherThreadInstance(Thread.currentThread(), callback);
     }
 
-    public void afterRead(boolean running, ByteBuffer buf, Timestamp roundTime) {
+    public void afterRead(boolean running, ByteBuffer buf) {
         if (!running) {
             this.running = false;
         }
         parser.parse(buf);
-        for (ReadFrameInfo rfi : frames) {
-            ReadFrame f = rfi.frame;
-            if (f.getFrameType() == FrameType.TYPE_RESP) {
-                processIncomingResponse(f, rfi.writeDataForResp);
-            } else {
-                processIncomingRequest(f, rfi.processorForRequest, roundTime);
-            }
-        }
-        frames.clear();
     }
 
     @Override
@@ -163,11 +146,12 @@ class DtChannel extends PbCallback<Object> {
                 return;
             }
         }
-        ReadFrameInfo readFrameInfo = new ReadFrameInfo();
-        readFrameInfo.frame = frame;
-        readFrameInfo.writeDataForResp = writeDataForResp;
-        readFrameInfo.processorForRequest = processorForRequest;
-        frames.add(readFrameInfo);
+
+        if (frame.getFrameType() == FrameType.TYPE_RESP) {
+            processIncomingResponse(frame, writeDataForResp);
+        } else {
+            processIncomingRequest(frame, processorForRequest, workerStatus.getTs());
+        }
     }
 
     @Override

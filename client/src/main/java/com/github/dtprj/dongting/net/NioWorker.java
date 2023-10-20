@@ -121,6 +121,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         workerStatus.setWakeupRunnable(this::wakeup);
         workerStatus.setDirectPool(directPool);
         workerStatus.setHeapPool(heapPool);
+        workerStatus.setTs(timestamp);
     }
 
     @Override
@@ -278,7 +279,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 }
                 statReadBytes += readCount;
                 readBuffer.flip();
-                dtc.afterRead(stopStatus == SS_RUNNING, readBuffer, roundTime);
+                dtc.afterRead(stopStatus == SS_RUNNING, readBuffer);
             }
             stage = "process socket write";
             if (key.isWritable()) {

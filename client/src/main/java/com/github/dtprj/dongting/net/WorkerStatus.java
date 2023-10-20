@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.common.LongObjMap;
+import com.github.dtprj.dongting.common.Timestamp;
 
 /**
  * @author huangli
@@ -28,6 +29,7 @@ class WorkerStatus {
     private ByteBufferPool directPool;
     private ByteBufferPool heapPool;
     private int framesToWrite;
+    private Timestamp ts;
 
     public WorkerStatus() {
     }
@@ -78,5 +80,13 @@ class WorkerStatus {
 
     public void setFramesToWrite(int framesToWrite) {
         this.framesToWrite = framesToWrite;
+    }
+
+    public Timestamp getTs() {
+        return ts;
+    }
+
+    public void setTs(Timestamp ts) {
+        this.ts = ts;
     }
 }
