@@ -109,6 +109,10 @@ class IoSubQueue {
         while ((wd = subQueue.pollFirst()) != null) {
             fail(wd, () -> new NetException("channel closed, future cancelled by subQueue clean"));
         }
+        if (this.writeBuffer != null) {
+            directPool.release(this.writeBuffer);
+            this.writeBuffer = null;
+        }
     }
 
     public ByteBuffer getWriteBuffer(Timestamp roundTime) {
@@ -126,7 +130,7 @@ class IoSubQueue {
         }
         int subQueueBytes = this.subQueueBytes;
         ArrayDeque<WriteData> subQueue = this.subQueue;
-        if (subQueue.size() == 0 && lastWriteData == null) {
+        if (subQueue.isEmpty() && lastWriteData == null) {
             // no packet to write
             return null;
         }
@@ -134,7 +138,7 @@ class IoSubQueue {
 
         WriteData wd = this.lastWriteData;
         try {
-            while (subQueue.size() > 0 || wd != null) {
+            while (!subQueue.isEmpty() || wd != null) {
                 boolean encodeFinish;
                 if (wd == null) {
                     wd = subQueue.pollFirst();
