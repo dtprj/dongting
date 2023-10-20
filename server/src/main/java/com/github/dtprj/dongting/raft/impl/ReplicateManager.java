@@ -45,7 +45,6 @@ import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
 
 /**
  * @author huangli
@@ -498,38 +497,41 @@ public class ReplicateManager {
         try {
             CompletableFuture<RefBuffer> future = si.snapshot.readNext();
             member.setReplicateFuture(future);
-            future.whenCompleteAsync(resumeAfterSnapshotLoad(member, si, reqEpoch), raftExecutor);
+            future.whenCompleteAsync((rb, ex) -> resumeAfterSnapshotLoad(rb, ex, member, si, reqEpoch), raftExecutor);
         } catch (Exception e) {
             processInstallSnapshotError(member, si, e, reqEpoch);
         }
     }
 
-    private BiConsumer<RefBuffer, Throwable> resumeAfterSnapshotLoad(RaftMember member, SnapshotInfo si, int reqEpoch) {
-        return (data, ex) -> {
-            try {
-                member.setReplicateFuture(null);
-                if (epochNotMatch(member, reqEpoch)) {
-                    log.info("epoch not match, abort install snapshot.");
-                    closeSnapshotAndResetStatus(member, si);
-                    return;
-                }
-                if (ex != null) {
-                    processInstallSnapshotError(member, si, ex, reqEpoch);
-                    return;
-                }
-                if (!member.isReady()) {
-                    log.info("member is not ready, abort install snapshot.");
-                    closeSnapshotAndResetStatus(member, si);
-                    return;
-                }
-                sendInstallSnapshotReq(member, si, data);
-            } finally {
-                if (data != null) {
-                    data.release();
-                }
+    private void resumeAfterSnapshotLoad(RefBuffer rb, Throwable ex,
+                                         RaftMember member, SnapshotInfo si, int reqEpoch) {
+        member.setReplicateFuture(null);
+        if (epochNotMatch(member, reqEpoch)) {
+            log.info("epoch not match, abort install snapshot.");
+            closeSnapshotAndResetStatus(member, si);
+            if (rb != null) {
+                rb.release();
             }
-            installSnapshot(member);
-        };
+            return;
+        }
+        if (ex != null) {
+            processInstallSnapshotError(member, si, ex, reqEpoch);
+            if (rb != null) {
+                rb.release();
+            }
+            return;
+        }
+        if (!member.isReady()) {
+            log.info("member is not ready, abort install snapshot.");
+            closeSnapshotAndResetStatus(member, si);
+            if (rb != null) {
+                rb.release();
+            }
+            return;
+        }
+        // rb release in InstallReqWriteFrame.doClean()
+        sendInstallSnapshotReq(member, si, rb);
+        replicate(member);
     }
 
     private boolean epochNotMatch(RaftMember member, int reqEpoch) {

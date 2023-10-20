@@ -240,6 +240,9 @@ public class DefaultSnapshotManager implements SnapshotManager {
                     log.error("read snapshot fail", ex);
                 }
                 if (shouldReturn(ex)) {
+                    if (rb != null) {
+                        rb.release();
+                    }
                     return;
                 }
                 if (rb != null && rb.getBuffer() != null && rb.getBuffer().hasRemaining()) {
