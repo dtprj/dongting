@@ -35,6 +35,7 @@ public class RespWriter {
     // invoke by other threads
     void writeRespInBizThreads(WriteFrame resp, DtTime timeout) {
         if (dtc.isClosed()) {
+            resp.clean();
             // not restrict, but we will check again in io thread
             return;
         }
