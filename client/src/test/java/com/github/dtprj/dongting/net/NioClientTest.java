@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.codec.RefBufferDecoder;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.MockRuntimeException;
 import com.github.dtprj.dongting.common.TestUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -795,7 +796,7 @@ public class NioClientTest {
 
                     @Override
                     public Object decode(ByteBuffer buffer) {
-                        throw new ArrayIndexOutOfBoundsException();
+                        throw new MockRuntimeException();
                     }
                 };
                 CompletableFuture<?> f = client.sendRequest(wf,
@@ -805,7 +806,7 @@ public class NioClientTest {
                     f.get(tick(5), TimeUnit.SECONDS);
                     fail();
                 } catch (ExecutionException e) {
-                    assertEquals(ArrayIndexOutOfBoundsException.class, e.getCause().getClass());
+                    assertEquals(MockRuntimeException.class, e.getCause().getClass());
                 }
             }
 
@@ -833,11 +834,11 @@ public class NioClientTest {
             sendSync(5000, client, tick(1000));
 
             {
-                // decoder fail in io thread
+                // encode fail in io thread
                 WriteFrame wf = new WriteFrame() {
                     @Override
                     protected int calcActualBodySize() {
-                        throw new ArrayIndexOutOfBoundsException();
+                        throw new MockRuntimeException();
                     }
 
                     @Override
@@ -853,7 +854,7 @@ public class NioClientTest {
                     f.get(tick(5), TimeUnit.SECONDS);
                     fail();
                 } catch (ExecutionException e) {
-                    assertEquals(ArrayIndexOutOfBoundsException.class, DtUtil.rootCause(e).getClass());
+                    assertEquals(MockRuntimeException.class, DtUtil.rootCause(e).getClass());
                 }
             }
 
@@ -863,7 +864,7 @@ public class NioClientTest {
             }
 
             {
-                // decoder fail in io thread
+                // encode fail in io thread
                 WriteFrame wf = new WriteFrame() {
                     @Override
                     protected int calcActualBodySize() {
@@ -872,7 +873,7 @@ public class NioClientTest {
 
                     @Override
                     protected boolean encodeBody(EncodeContext context, ByteBuffer buf) {
-                        throw new ArrayIndexOutOfBoundsException();
+                        throw new MockRuntimeException();
                     }
                 };
                 wf.setCommand(Commands.CMD_PING);
@@ -883,7 +884,7 @@ public class NioClientTest {
                     f.get(tick(5), TimeUnit.SECONDS);
                     fail();
                 } catch (ExecutionException e) {
-                    assertEquals(ArrayIndexOutOfBoundsException.class, DtUtil.rootCause(e).getClass());
+                    assertEquals(MockRuntimeException.class, DtUtil.rootCause(e).getClass());
                 }
             }
 

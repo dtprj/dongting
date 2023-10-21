@@ -108,10 +108,17 @@ class IoSubQueue {
         WriteData wd;
         while ((wd = subQueue.pollFirst()) != null) {
             fail(wd, () -> new NetException("channel closed, future cancelled by subQueue clean"));
+            workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() - 1);
         }
         if (this.writeBuffer != null) {
             directPool.release(this.writeBuffer);
             this.writeBuffer = null;
+        }
+        if (framesInBuffer > 0) {
+            workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() - framesInBuffer);
+        }
+        if (lastWriteData != null) {
+            workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() - 1);
         }
     }
 
@@ -147,6 +154,7 @@ class IoSubQueue {
                     encodeFinish = doEncode(buf, wd);
                 }
                 if (encodeFinish) {
+                    framesInBuffer++;
                     wd.getData().clean();
                     subQueueBytes -= wd.getEstimateSize();
                     if (subQueueBytes < 0) {
@@ -210,7 +218,6 @@ class IoSubQueue {
             workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() - 1);
             return true;
         }
-        framesInBuffer++;
 
         if (request) {
             int seq = dtc.getAndIncSeq();
