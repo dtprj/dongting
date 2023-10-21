@@ -24,6 +24,8 @@ public interface Decoder<T> {
 
     T decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos);
 
+    void cancel(DecodeContext context);
+
     static ByteBuffer decodeToByteBuffer(ByteBuffer buffer, int bodyLen, int currentPos, ByteBuffer result) {
         if (currentPos == 0) {
             result = ByteBuffer.allocate(bodyLen);
@@ -37,6 +39,15 @@ public interface Decoder<T> {
         return result;
     }
 
-    Decoder<Void> VOID_DECODER = (context, buffer, bodyLen, currentPos) -> null;
+    Decoder<Void> VOID_DECODER = new Decoder<>() {
+        @Override
+        public Void decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
+            return null;
+        }
+
+        @Override
+        public void cancel(DecodeContext context) {
+        }
+    };
 
 }

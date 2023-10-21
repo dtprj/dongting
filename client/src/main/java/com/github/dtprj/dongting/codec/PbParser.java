@@ -85,12 +85,19 @@ public class PbParser {
     }
 
     @SuppressWarnings("unused")
-    public void resetMulti(PbCallback<?>  callback, int maxFrame) {
+    public void resetMulti(PbCallback<?> callback, int maxFrame) {
         reset(callback, true, maxFrame);
     }
 
     public void resetSingle(PbCallback<?> callback, int pbLen) {
         reset(callback, false, pbLen);
+    }
+
+    public void reset() {
+        resetSingle(null, 0);
+        if (nestedParser != null) {
+            nestedParser.reset();
+        }
     }
 
     private void reset(PbCallback<?> callback, boolean multi, int maxFrameOrPbLen) {

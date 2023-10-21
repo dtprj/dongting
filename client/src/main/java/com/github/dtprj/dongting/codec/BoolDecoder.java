@@ -49,4 +49,8 @@ public class BoolDecoder implements Decoder<Boolean> {
             return null;
         }
     }
+
+    @Override
+    public void cancel(DecodeContext context) {
+    }
 }

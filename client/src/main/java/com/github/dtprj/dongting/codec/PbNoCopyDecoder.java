@@ -49,6 +49,15 @@ public final class PbNoCopyDecoder<T> implements Decoder<T> {
         }
     }
 
+    @Override
+    public void cancel(DecodeContext context) {
+        PbParser p = context.getPbParser();
+        if (p != null) {
+            p.reset();
+        }
+        // TODO not finished
+    }
+
     public static final PbNoCopyDecoder<Integer> SIMPLE_INT_DECODER = new PbNoCopyDecoder<Integer>(c-> new PbCallback<Integer>() {
         private int value;
         @Override

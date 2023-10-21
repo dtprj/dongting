@@ -232,11 +232,11 @@ class DtChannel extends PbCallback<Object> {
                 frame.setBody(o);
                 // so if the body is not last field, exception throws
                 readBody = true;
-                decodeContext.setStatus(null);
+                decodeContext.reset();
             }
             return true;
         } catch (Throwable e) {
-            decodeContext.setStatus(null);
+            decodeContext.reset();
             processIoDecodeFail(e);
             return false;
         }

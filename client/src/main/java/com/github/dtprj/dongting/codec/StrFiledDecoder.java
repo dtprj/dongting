@@ -63,4 +63,12 @@ public class StrFiledDecoder implements Decoder<String> {
             return null;
         }
     }
+
+    @Override
+    public void cancel(DecodeContext context) {
+        Object s = context.getStatus();
+        if (s instanceof ByteBuffer) {
+            context.getHeapPool().getPool().release((ByteBuffer) s);
+        }
+    }
 }

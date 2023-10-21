@@ -45,4 +45,8 @@ public class ByteArrayDecoder implements Decoder<byte[]> {
         buffer.get(data, currentPos, Math.min(remaining, bodyLen - currentPos));
         return end ? data : null;
     }
+
+    @Override
+    public void cancel(DecodeContext context) {
+    }
 }

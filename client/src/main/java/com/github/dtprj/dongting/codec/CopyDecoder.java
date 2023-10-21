@@ -50,5 +50,13 @@ public abstract class CopyDecoder<T> implements Decoder<T> {
         return null;
     }
 
+    @Override
+    public void cancel(DecodeContext context) {
+        Object s = context.getStatus();
+        if(s instanceof RefBuffer) {
+            ((RefBuffer) s).release();
+        }
+    }
+
     protected abstract T decode(ByteBuffer buffer);
 }

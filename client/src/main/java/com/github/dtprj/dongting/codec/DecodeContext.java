@@ -60,6 +60,15 @@ public class DecodeContext {
         }
     }
 
+    public void reset() {
+        if (pbParser != null) {
+            pbParser.reset();
+        }
+        if (nestedContext != null) {
+            nestedContext.reset();
+        }
+    }
+
     public PbParser getPbParser() {
         return pbParser;
     }

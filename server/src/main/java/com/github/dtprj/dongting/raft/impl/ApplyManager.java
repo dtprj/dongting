@@ -189,7 +189,7 @@ public class ApplyManager {
             }
             return result;
         } finally {
-            decodeContext.setStatus(null);
+            decodeContext.reset();
         }
     }
 
