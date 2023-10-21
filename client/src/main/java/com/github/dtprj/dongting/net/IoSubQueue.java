@@ -215,7 +215,6 @@ class IoSubQueue {
                 log.info("response timeout before send: {}ms, seq={}, channel={}",
                         t.getTimeout(TimeUnit.MILLISECONDS), f.getSeq(), wd.getDtc().getChannel());
             }
-            workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() - 1);
             return true;
         }
 
