@@ -153,14 +153,14 @@ public class NioServer extends NioNet implements Runnable {
                         break;
                     } catch (TimeoutException e) {
                         preStopOk = false;
-                        log.info("server {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
+                        log.warn("server {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
                         break;
                     } catch (ExecutionException e) {
                         BugLog.log(e);
                     }
                 } else {
                     preStopOk = false;
-                    log.info("server {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
+                    log.warn("server {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
                 }
             }
             if (preStopOk) {
