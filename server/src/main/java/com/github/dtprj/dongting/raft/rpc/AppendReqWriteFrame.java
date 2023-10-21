@@ -220,12 +220,10 @@ public class AppendReqWriteFrame extends WriteFrame {
                 return result;
             } catch (RuntimeException | Error e) {
                 currentEncoder = null;
-                context.setStatus(null);
                 throw e;
             } finally {
                 if (result) {
                     currentEncoder = null;
-                    context.setStatus(null);
                 }
             }
         } else {

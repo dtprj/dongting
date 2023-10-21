@@ -95,7 +95,6 @@ public abstract class WriteFrame extends Frame {
     }
 
     public final boolean encode(EncodeContext context, ByteBuffer buf) {
-        context.setStatus(null);
         if (status == STATUS_INIT) {
             int totalSize = actualSize();
             int headerSize = totalSize - actualBodySize();
@@ -124,12 +123,8 @@ public abstract class WriteFrame extends Frame {
                 } else {
                     finish = true;
                 }
-            } catch (RuntimeException | Error e) {
-                context.setStatus(null);
-                throw e;
             } finally {
                 if (finish) {
-                    context.setStatus(null);
                     status = STATUS_ENCODE_FINISHED;
                 }
             }

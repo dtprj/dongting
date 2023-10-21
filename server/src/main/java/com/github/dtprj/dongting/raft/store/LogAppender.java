@@ -274,12 +274,14 @@ class LogAppender {
                     return CHANGE_FILE;
                 }
                 LogHeader.writeHeader(crc32c, buf, li, 0, li.getActualHeaderSize(), li.getActualBodySize());
+                encodeContext.setStatus(null);
                 state = STATE_WRITE_BIZ_HEADER;
                 // not break
             case STATE_WRITE_BIZ_HEADER:
                 if (!encodeData(buf, li, true)) {
                     return CHANGE_BUFFER;
                 }
+                encodeContext.setStatus(null);
                 state = STATE_WRITE_BIZ_BODY;
                 // not break
             case STATE_WRITE_BIZ_BODY:
@@ -287,6 +289,7 @@ class LogAppender {
                     return CHANGE_BUFFER;
                 }
                 wt.lastItem = li;
+                encodeContext.setStatus(null);
                 state = STATE_WRITE_ITEM_HEADER;
         }
         return APPEND_OK;
@@ -323,7 +326,6 @@ class LogAppender {
                 return false;
             } else {
                 pendingBytes = 0;
-                encodeContext.setStatus(null);
             }
         }
         if (buf.remaining() < 4) {
