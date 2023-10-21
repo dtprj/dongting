@@ -18,7 +18,7 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.StoppedException;
-import com.github.dtprj.dongting.raft.test.MockExecutors;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,7 +43,8 @@ public class StatusManagerTest {
     public void setup() {
         dir = TestDir.createTestDir(StatusManagerTest.class.getSimpleName());
         raftStatus = new RaftStatusImpl();
-        statusManager = new StatusManager(MockExecutors.ioExecutor(), raftStatus, dir.getParent(), "status") {
+        // TODO just fix compile
+        statusManager = new StatusManager(new RaftGroupConfig(0, null, null), raftStatus) {
             private boolean mockFail = false;
             @Override
             protected CompletableFuture<Void> persist(boolean flush) {
@@ -55,19 +56,22 @@ public class StatusManagerTest {
             }
         };
         statusManager.initStatusFile();
-        StatusManager.SYNC_FAIL_RETRY_INTERVAL = 1;
+        // TODO just fix compile
+        // StatusManager.SYNC_FAIL_RETRY_INTERVAL = 1;
     }
 
     @AfterEach
     public void teardown() {
         mockPersistResult = null;
         statusManager.close();
-        StatusManager.SYNC_FAIL_RETRY_INTERVAL = 1000;
+        // TODO just fix compile
+        // StatusManager.SYNC_FAIL_RETRY_INTERVAL = 1000;
     }
 
     private void check() {
         RaftStatusImpl s2 = new RaftStatusImpl();
-        StatusManager m2 = new StatusManager(MockExecutors.ioExecutor(), s2, dir.getParent(), "status");
+        // TODO just fix compile
+        StatusManager m2 = new StatusManager(null, s2);
         m2.initStatusFile();
         assertEquals(raftStatus.getCommitIndex(), s2.getCommitIndex());
         assertEquals(raftStatus.getVotedFor(), s2.getVotedFor());

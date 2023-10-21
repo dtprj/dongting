@@ -177,6 +177,7 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
                     RaftUtil.changeToFollower(raftStatus, req.getLeaderId());
                     return append(ctx);
                 } else {
+                    req.clean();
                     log.error("leader receive raft append request. term={}, remote={}, groupId={}",
                             remoteTerm, ctx.channelContext.getRemoteAddr(), raftStatus.getGroupId());
                     return CODE_REQ_ERROR;

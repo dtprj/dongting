@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftGroups;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
@@ -114,6 +115,10 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
             }
         }
         return true;
+    }
+
+    public void clean() {
+        RaftUtil.release(logs);
     }
 
     @Override

@@ -81,13 +81,15 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
             config.setTs(raftStatus.getTs());
             config.setDirectPool(TwoLevelPool.getDefaultFactory().apply(config.getTs(), true));
             config.setHeapPool(new RefBufferFactory(TwoLevelPool.getDefaultFactory().apply(config.getTs(), false), 128));
-            StatusManager statusManager = new StatusManager(MockExecutors.ioExecutor(), raftStatus, config.getDataDir(), config.getStatusFile());
+            // TODO just fix compile
+            StatusManager statusManager = new StatusManager(config, raftStatus);
             statusManager.initStatusFile();
             config.setRaftStatus(raftStatus);
             config.setIoExecutor(MockExecutors.ioExecutor());
 
             this.raftLog = new DefaultRaftLog(config, statusManager);
-            Pair<Integer, Long> initResult = this.raftLog.init();
+            // TODO just fix compile
+            Pair<Integer, Long> initResult = this.raftLog.init(null);
             nextIndex = initResult.getRight() + 1;
 
             MockExecutors.raftExecutor().execute(this::run);
@@ -144,7 +146,8 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
                         LogItem item = createItems(nextIndex + i, ts, bodyBuffer);
                         items.add(item);
                     }
-                    raftLog.append(items);
+                    // TODO just fix compile
+                    raftLog.append();
                     nextIndex += list.size();
                     raftStatus.setCommitIndex(nextIndex - 1);
                     raftStatus.setLastApplied(nextIndex - 1);

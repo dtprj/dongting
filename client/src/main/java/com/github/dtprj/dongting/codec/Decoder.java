@@ -39,7 +39,7 @@ public interface Decoder<T> {
         return result;
     }
 
-    Decoder<Void> VOID_DECODER = new Decoder<>() {
+    Decoder<Void> VOID_DECODER = new Decoder<Void>() {
         @Override
         public Void decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
             return null;
