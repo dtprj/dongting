@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.RefBufferDecoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -33,8 +32,9 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
+import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -137,49 +137,38 @@ public class NioServer extends NioNet implements Runnable {
             return;
         }
         stopAcceptThread();
+        ArrayList<CompletableFuture<Void>> prepareFutures = new ArrayList<>();
         for (NioWorker worker : workers) {
-            worker.preStop();
+            prepareFutures.add(worker.prepareStop());
         }
-        if (timeout != null) {
-            boolean preStopOk = true;
-            for (NioWorker worker : workers) {
-                long rest = timeout.rest(TimeUnit.MILLISECONDS);
-                if (rest > 0) {
-                    try {
-                        worker.getPreCloseFuture().get(rest, TimeUnit.MILLISECONDS);
-                    } catch (InterruptedException e) {
-                        log.warn("nio server pre-stop interrupted");
-                        DtUtil.restoreInterruptStatus();
-                        break;
-                    } catch (TimeoutException e) {
-                        preStopOk = false;
-                        log.warn("server {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
-                        break;
-                    } catch (ExecutionException e) {
-                        BugLog.log(e);
-                    }
-                } else {
-                    preStopOk = false;
-                    log.warn("server {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
-                }
-            }
-            if (preStopOk) {
-                log.info("server {} pre-stop done", config.getName());
+        CompletableFuture<Void> f = CompletableFuture.allOf(prepareFutures.toArray(new CompletableFuture[0]));
+        try {
+            long rest = timeout.rest(TimeUnit.MILLISECONDS);
+            f.get(rest, TimeUnit.MILLISECONDS);
+            log.info("server {} pre-stop done", config.getName());
+        } catch (Exception e) {
+            Throwable root = DtUtil.rootCause(e);
+            if (root instanceof InterruptedException) {
+                log.warn("nio server pre-stop interrupted");
+                DtUtil.restoreInterruptStatus();
+            } else if (root instanceof TimeoutException) {
+                log.warn("server {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
+            } else {
+                log.error("server {} pre-stop error", config.getName(), e);
             }
         }
+
         for (NioWorker worker : workers) {
             stopWorker(worker, timeout);
         }
-        if (timeout != null) {
-            for (NioWorker worker : workers) {
-                long rest = timeout.rest(TimeUnit.MILLISECONDS);
-                if (rest > 0) {
-                    try {
-                        worker.getThread().join(rest);
-                    } catch (InterruptedException e) {
-                        DtUtil.restoreInterruptStatus();
-                        break;
-                    }
+        for (NioWorker worker : workers) {
+            long rest = timeout.rest(TimeUnit.MILLISECONDS);
+            if (rest > 0) {
+                try {
+                    worker.getThread().join(rest);
+                } catch (InterruptedException e) {
+                    DtUtil.restoreInterruptStatus();
+                    break;
                 }
             }
         }

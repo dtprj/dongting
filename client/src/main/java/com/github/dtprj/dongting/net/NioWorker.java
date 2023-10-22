@@ -53,9 +53,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 class NioWorker extends AbstractLifeCircle implements Runnable {
     private static final DtLog log = DtLogs.getLogger(NioWorker.class);
-    private static final int SS_RUNNING = 0;
-    private static final int SS_PRE_STOP = 1;
-    private static final int SS_STOP = 2;
 
     private int statMarkReadCount;
     private int statMarkWriteCount;
@@ -69,7 +66,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private final NioStatus nioStatus;
     private final NioConfig config;
     private final NioClient client;
-    private volatile int stopStatus = SS_RUNNING;
     private Selector selector;
     private final AtomicInteger notified = new AtomicInteger(0);
 
@@ -82,7 +78,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private final LinkedList<ConnectInfo> outgoingConnects = new LinkedList<>();
     final LongObjMap<WriteData> pendingOutgoingRequests = new LongObjMap<>();
-    private final CompletableFuture<Void> preCloseFuture = new CompletableFuture<>();
 
     private final ByteBufferPool directPool;
     private final ByteBufferPool heapPool;
@@ -130,7 +125,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         long lastCleanNano = System.nanoTime();
         Selector selector = this.selector;
         Timestamp ts = this.timestamp;
-        while (this.stopStatus <= SS_PRE_STOP) {
+        while (this.status <= STATUS_PREPARE_STOP) {
             try {
                 run0(selector, ts);
                 if (cleanIntervalNanos <= 0 || ts.getNanoTime() - lastCleanNano > cleanIntervalNanos) {
@@ -217,15 +212,14 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
         while (iterator.hasNext()) {
             SelectionKey key = iterator.next();
-            processOneSelectionKey(key, stopStatus, roundTime);
+            processOneSelectionKey(key, status, roundTime);
             iterator.remove();
         }
         cleanReadBuffer(roundTime);
-        if (stopStatus == SS_PRE_STOP) {
+        if (status == STATUS_PREPARE_STOP) {
             ioQueue.dispatchActions();
             if (workerStatus.getFramesToWrite() == 0 && pendingOutgoingRequests.size() == 0) {
-                stopStatus = SS_STOP;
-                preCloseFuture.complete(null);
+                prepareStopFuture.complete(null);
             }
         }
     }
@@ -251,7 +245,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    private void processOneSelectionKey(SelectionKey key, int stopStatus, Timestamp roundTime) {
+    private void processOneSelectionKey(SelectionKey key, int status, Timestamp roundTime) {
         SocketChannel sc = (SocketChannel) key.channel();
         String stage = "check selection key valid";
         try {
@@ -279,7 +273,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 }
                 statReadBytes += readCount;
                 readBuffer.flip();
-                dtc.afterRead(stopStatus == SS_RUNNING, readBuffer);
+                dtc.afterRead(status == STATUS_RUNNING, readBuffer);
             }
             stage = "process socket write";
             if (key.isWritable()) {
@@ -397,7 +391,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     // invoke by other threads
     public CompletableFuture<Void> connect(Peer peer, DtTime deadline) {
         CompletableFuture<Void> f = new CompletableFuture<>();
-        if (stopStatus >= SS_PRE_STOP) {
+        if (status >= STATUS_PREPARE_STOP) {
             f.completeExceptionally(new NetException("worker closed"));
         } else {
             doInIoThread(() -> doConnect(f, peer, deadline), f);
@@ -655,23 +649,20 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    public void preStop() {
-        stopStatus = SS_PRE_STOP;
+    @Override
+    protected CompletableFuture<Void> prepareStop() {
+        CompletableFuture<Void> f = super.prepareStop();
         wakeup();
+        return f;
     }
 
     @Override
     public void doStop(DtTime timeout, boolean force) {
-        stopStatus = SS_STOP;
         wakeup();
     }
 
     public Thread getThread() {
         return thread;
-    }
-
-    public CompletableFuture<Void> getPreCloseFuture() {
-        return preCloseFuture;
     }
 
     public boolean isServer() {

@@ -58,7 +58,7 @@ public abstract class NioNet extends AbstractLifeCircle {
      * register processor use default executor.
      */
     public void register(int cmd, ReqProcessor processor) {
-        if (status != LifeStatus.not_start) {
+        if (status != STATUS_NOT_START) {
             throw new DtException("processor should register before start");
         }
         processor.setUseDefaultExecutor(true);
@@ -69,7 +69,7 @@ public abstract class NioNet extends AbstractLifeCircle {
      * register processor use specific executor, if executorService is null, run in io thread.
      */
     public void register(int cmd, ReqProcessor processor, Executor executor) {
-        if (status != LifeStatus.not_start) {
+        if (status != STATUS_NOT_START) {
             throw new DtException("processor should register before start");
         }
         processor.setExecutor(executor);
@@ -83,7 +83,7 @@ public abstract class NioNet extends AbstractLifeCircle {
         boolean acquire = false;
         boolean write = false;
         try {
-            if (status != LifeStatus.running) {
+            if (status != STATUS_RUNNING) {
                 return DtUtil.failedFuture(new NetException("error state: " + status));
             }
 
@@ -146,7 +146,7 @@ public abstract class NioNet extends AbstractLifeCircle {
 
     void stopWorker(NioWorker worker, DtTime timeout) {
         try {
-            if (worker != null && worker.getStatus() != LifeStatus.not_start) {
+            if (worker != null && worker.getStatus() != STATUS_NOT_START) {
                 worker.stop(timeout);
             }
         } catch (Exception e) {

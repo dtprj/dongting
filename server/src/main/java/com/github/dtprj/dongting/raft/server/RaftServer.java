@@ -375,21 +375,19 @@ public class RaftServer extends AbstractLifeCircle {
             });
             nodeManager.stop(timeout);
 
-            if (timeout != null) {
-                try {
-                    for (Thread t : threads) {
-                        long rest = timeout.rest(TimeUnit.MILLISECONDS);
-                        if (rest <= 0) {
-                            break;
-                        }
-                        if (t.isAlive()) {
-                            t.join(rest);
-                        }
+            try {
+                for (Thread t : threads) {
+                    long rest = timeout.rest(TimeUnit.MILLISECONDS);
+                    if (rest <= 0) {
+                        break;
                     }
-                } catch (InterruptedException e) {
-                    log.warn("stop raft server interrupted");
-                    DtUtil.restoreInterruptStatus();
+                    if (t.isAlive()) {
+                        t.join(rest);
+                    }
                 }
+            } catch (InterruptedException e) {
+                log.warn("stop raft server interrupted");
+                DtUtil.restoreInterruptStatus();
             }
 
             if (replicateNioServer != null) {
@@ -405,7 +403,7 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     private void checkStatus() {
-        if (status != LifeStatus.running) {
+        if (status != STATUS_RUNNING) {
             throw new RaftException("raft server is not running");
         }
     }

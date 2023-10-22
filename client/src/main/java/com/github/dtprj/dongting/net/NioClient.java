@@ -145,35 +145,31 @@ public class NioClient extends NioNet {
     @Override
     protected void doStop(DtTime timeout, boolean force) {
         if (!force) {
-            worker.preStop();
-            if (timeout != null) {
-                try {
-                    long rest = timeout.rest(TimeUnit.MILLISECONDS);
-                    if (rest > 0) {
-                        worker.getPreCloseFuture().get(rest, TimeUnit.MILLISECONDS);
-                        log.info("client {} pre-stop done", config.getName());
-                    } else {
-                        log.warn("client {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
-                    }
-                } catch (InterruptedException e) {
-                    DtUtil.restoreInterruptStatus();
-                } catch (TimeoutException e) {
-                    log.warn("client {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
-                } catch (ExecutionException e) {
-                    BugLog.log(e);
-                }
-            }
-        }
-        stopWorker(worker, timeout);
-        if (timeout != null) {
+            CompletableFuture<Void> pf = worker.prepareStop();
             try {
                 long rest = timeout.rest(TimeUnit.MILLISECONDS);
                 if (rest > 0) {
-                    worker.getThread().join(rest);
+                    pf.get(rest, TimeUnit.MILLISECONDS);
+                    log.info("client {} pre-stop done", config.getName());
+                } else {
+                    log.warn("client {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
                 }
             } catch (InterruptedException e) {
                 DtUtil.restoreInterruptStatus();
+            } catch (TimeoutException e) {
+                log.warn("client {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
+            } catch (ExecutionException e) {
+                BugLog.log(e);
             }
+        }
+        stopWorker(worker, timeout);
+        try {
+            long rest = timeout.rest(TimeUnit.MILLISECONDS);
+            if (rest > 0) {
+                worker.getThread().join(rest);
+            }
+        } catch (InterruptedException e) {
+            DtUtil.restoreInterruptStatus();
         }
         shutdownBizExecutor(timeout);
 

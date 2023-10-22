@@ -587,7 +587,7 @@ public class NioClientTest {
             c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
             client = new NioClient(c);
             client.stop(new DtTime(1, TimeUnit.SECONDS));
-            assertEquals(AbstractLifeCircle.LifeStatus.stopped, client.getStatus());
+            assertEquals(AbstractLifeCircle.STATUS_STOPPED, client.getStatus());
 
             try {
                 sendSync(5000, client, tick(1000));
@@ -769,7 +769,7 @@ public class NioClientTest {
             });
         }
 
-        client.stop(null);
+        client.stop(new DtTime(1, TimeUnit.NANOSECONDS));
         DtUtil.close(server);
         CompletableFuture.allOf(allFutures).get();
         assertFalse(fail.get());
