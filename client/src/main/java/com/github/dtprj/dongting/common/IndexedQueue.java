@@ -13,9 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.store;
-
-import com.github.dtprj.dongting.common.BitUtil;
+package com.github.dtprj.dongting.common;
 
 /**
  * @author huangli

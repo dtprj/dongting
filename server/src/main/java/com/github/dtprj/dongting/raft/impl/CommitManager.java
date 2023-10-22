@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.raft.store.IndexedQueue;
+import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.util.List;

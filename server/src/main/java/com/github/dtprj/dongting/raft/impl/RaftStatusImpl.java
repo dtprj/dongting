@@ -15,10 +15,10 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.raft.server.RaftNode;
 import com.github.dtprj.dongting.raft.server.RaftStatus;
-import com.github.dtprj.dongting.raft.store.IndexedQueue;
 
 import java.util.List;
 import java.util.Set;
