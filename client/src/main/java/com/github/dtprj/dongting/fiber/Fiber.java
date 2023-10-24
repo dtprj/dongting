@@ -24,11 +24,18 @@ public abstract class Fiber {
     private FiberGroup group;
     private boolean ready;
 
+    protected FiberEntryPoint nextEntryPoint;
+
     public Fiber(boolean daemon) {
         this.daemon = daemon;
+        this.nextEntryPoint = this::firstEntryPoint;
     }
 
-    public abstract FiberEntryPoint nextEntryPoint();
+    public abstract void firstEntryPoint();
+
+    public FiberEntryPoint getNextEntryPoint() {
+        return nextEntryPoint;
+    }
 
     public boolean isDaemon() {
         return daemon;
@@ -41,9 +48,10 @@ public abstract class Fiber {
     protected void clean() {
     }
 
-    protected void awaitOn(Condition c) {
+    protected void awaitOn(Condition c, FiberEntryPoint resumeEntryPoint) {
+        this.ready = false;
+        this.nextEntryPoint = resumeEntryPoint;
         c.getWaitQueue().addLast(this);
-        ready = false;
     }
 
     protected Condition newCondition() {

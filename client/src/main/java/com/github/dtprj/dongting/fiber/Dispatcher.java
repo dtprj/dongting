@@ -35,13 +35,12 @@ public class Dispatcher {
     private final ArrayList<FiberGroup> groups = new ArrayList<>();
     private final IndexedQueue<Integer> finishedGroups = new IndexedQueue<>(8);
 
-    private final Timestamp ts;
+    private final Timestamp ts = new Timestamp();
 
     private boolean poll = true;
     private int pollTimeout = 50;
 
-    public Dispatcher(Timestamp ts) {
-        this.ts = ts;
+    public Dispatcher() {
     }
 
     public void runLoop() {
@@ -58,7 +57,7 @@ public class Dispatcher {
                 IndexedQueue<Fiber> readyQueue = g.getReadyQueue();
                 while (readyQueue.size() > 0) {
                     Fiber f = readyQueue.removeFirst();
-                    FiberEntryPoint fep = f.nextEntryPoint();
+                    FiberEntryPoint fep = f.getNextEntryPoint();
                     fep.execute();
                 }
                 if (g.finished()) {
