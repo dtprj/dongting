@@ -27,7 +27,6 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-@SuppressWarnings({"ForLoopReplaceableByForEach"})
 public class Dispatcher {
     private static final DtLog log = DtLogs.getLogger(Dispatcher.class);
 
@@ -43,16 +42,24 @@ public class Dispatcher {
     public Dispatcher() {
     }
 
+    public FiberGroup createFiberGroup() {
+        FiberGroup g = new FiberGroup(shareQueue);
+        shareQueue.offer(() -> groups.add(g));
+        return g;
+    }
+
     public void runLoop() {
         ArrayList<Event> localData = new ArrayList<>(64);
         ArrayList<FiberGroup> groups = this.groups;
-        while (!groups.isEmpty()) {
+        do {
             pollAndRefreshTs(ts, localData);
-            for (int i = 0; i < localData.size(); i++) {
+            int len = localData.size();
+            for (int i = 0; i < len; i++) {
                 Event e = localData.get(i);
                 e.execute();
             }
-            for (int i = 0; i < groups.size(); i++) {
+            len = groups.size();
+            for (int i = 0; i < len; i++) {
                 FiberGroup g = groups.get(i);
                 IndexedQueue<Fiber> readyQueue = g.getReadyQueue();
                 while (readyQueue.size() > 0) {
@@ -70,7 +77,7 @@ public class Dispatcher {
                 int idx = finishedGroups.removeLast();
                 groups.remove(idx);
             }
-        }
+        } while (!groups.isEmpty());
         log.info("fiber dispatcher exit");
     }
 
