@@ -21,7 +21,7 @@ package com.github.dtprj.dongting.fiber;
 public abstract class Fiber {
 
     private final boolean daemon;
-    private Dispatcher dispatcher;
+    private FiberGroup group;
     private boolean ready;
 
     public Fiber(boolean daemon) {
@@ -35,7 +35,10 @@ public abstract class Fiber {
     }
 
     protected void finish() {
-        dispatcher.finish(this);
+        group.finish(this);
+    }
+
+    protected void clean() {
     }
 
     protected void awaitOn(Condition c) {
@@ -44,11 +47,11 @@ public abstract class Fiber {
     }
 
     protected Condition newCondition() {
-        return new Condition(dispatcher);
+        return new Condition(group);
     }
 
-    void setDispatcher(Dispatcher dispatcher) {
-        this.dispatcher = dispatcher;
+    void setGroup(FiberGroup group) {
+        this.group = group;
     }
 
     boolean isReady() {

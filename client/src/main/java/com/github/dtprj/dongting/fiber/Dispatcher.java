@@ -17,49 +17,62 @@ package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 /**
  * @author huangli
  */
-@SuppressWarnings({"Convert2Diamond", "ForLoopReplaceableByForEach"})
+@SuppressWarnings({"ForLoopReplaceableByForEach"})
 public class Dispatcher {
     private static final DtLog log = DtLogs.getLogger(Dispatcher.class);
-    private volatile boolean shouldStop = false;
 
+    private final LinkedBlockingQueue<Event> shareQueue = new LinkedBlockingQueue<>();
+    private final ArrayList<FiberGroup> groups = new ArrayList<>();
+    private final IndexedQueue<Integer> finishedGroups = new IndexedQueue<>(8);
 
-    private final LinkedBlockingQueue<Event> shareQueue = new LinkedBlockingQueue<Event>();
-    private final IndexedQueue<Fiber> readyQueue = new IndexedQueue<Fiber>(64);
-    private final HashSet<Fiber> normalFibers = new HashSet<Fiber>();
-    private final HashSet<Fiber> daemonFibers = new HashSet<Fiber>();
-
-    private final Timestamp ts = new Timestamp();
+    private final Timestamp ts;
 
     private boolean poll = true;
     private int pollTimeout = 50;
 
+    public Dispatcher(Timestamp ts) {
+        this.ts = ts;
+    }
+
     public void runLoop() {
-        ArrayList<Event> localData = new ArrayList<Event>(64);
-        IndexedQueue<Fiber> readyQueue = this.readyQueue;
-        do {
+        ArrayList<Event> localData = new ArrayList<>(64);
+        ArrayList<FiberGroup> groups = this.groups;
+        while (!groups.isEmpty()) {
             pollAndRefreshTs(ts, localData);
             for (int i = 0; i < localData.size(); i++) {
                 Event e = localData.get(i);
                 e.execute();
             }
-            while (readyQueue.size() > 0) {
-                Fiber f = readyQueue.removeFirst();
-                FiberEntryPoint fep = f.nextEntryPoint();
-                fep.execute();
+            for (int i = 0; i < groups.size(); i++) {
+                FiberGroup g = groups.get(i);
+                IndexedQueue<Fiber> readyQueue = g.getReadyQueue();
+                while (readyQueue.size() > 0) {
+                    Fiber f = readyQueue.removeFirst();
+                    FiberEntryPoint fep = f.nextEntryPoint();
+                    fep.execute();
+                }
+                if (g.finished()) {
+                    log.info("fiber group finished");
+                    g.cleanDaemonFibers();
+                    finishedGroups.addLast(i);
+                }
             }
-        } while (!normalFibers.isEmpty());
+            while (finishedGroups.size() > 0) {
+                int idx = finishedGroups.removeLast();
+                groups.remove(idx);
+            }
+        }
+        log.info("fiber dispatcher exit");
     }
 
     private void pollAndRefreshTs(Timestamp ts, ArrayList<Event> localData) {
@@ -80,56 +93,5 @@ public class Dispatcher {
             log.info("fiber dispatcher receive interrupt signal");
             pollTimeout = 1;
         }
-    }
-
-    public void createNewFiber(Fiber f) {
-        f.setDispatcher(this);
-        shareQueue.offer(() -> {
-            start(f);
-            makeReady(f);
-        });
-    }
-
-    public void fireEvent(Event e) {
-        shareQueue.offer(e);
-    }
-
-    private void start(Fiber f) {
-        boolean b;
-        if (f.isDaemon()) {
-            b = daemonFibers.add(f);
-        } else {
-            b = normalFibers.add(f);
-        }
-        if (!b) {
-            BugLog.getLog().error("fiber is in set: {}", f);
-        }
-    }
-
-    void finish(Fiber f) {
-        boolean b;
-        if (f.isDaemon()) {
-            b = daemonFibers.remove(f);
-        } else {
-            b = normalFibers.remove(f);
-        }
-        if (!b) {
-            BugLog.getLog().error("fiber is not in set: {}", f);
-        }
-    }
-
-    void makeReady(Fiber f) {
-        if (!f.isReady()) {
-            f.setReady();
-            readyQueue.addLast(f);
-        }
-    }
-
-    public void requestStop() {
-        this.shouldStop = true;
-    }
-
-    public boolean isShouldStop() {
-        return shouldStop;
     }
 }

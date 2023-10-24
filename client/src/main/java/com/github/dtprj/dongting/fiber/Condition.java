@@ -23,10 +23,10 @@ import com.github.dtprj.dongting.common.IndexedQueue;
 @SuppressWarnings({"Convert2Diamond"})
 public class Condition {
     private final IndexedQueue<Fiber> waitQueue = new IndexedQueue<Fiber>(16);
-    private final Dispatcher dispatcher;
+    private final FiberGroup group;
 
-    public Condition(Dispatcher dispatcher) {
-        this.dispatcher = dispatcher;
+    public Condition(FiberGroup group) {
+        this.group = group;
     }
 
     IndexedQueue<Fiber> getWaitQueue() {
@@ -35,13 +35,13 @@ public class Condition {
 
     public void signal() {
         Fiber f = waitQueue.removeFirst();
-        dispatcher.makeReady(f);
+        group.makeReady(f);
     }
 
     public void signalAll() {
         while (waitQueue.size() > 0) {
             Fiber f = waitQueue.removeFirst();
-            dispatcher.makeReady(f);
+            group.makeReady(f);
         }
     }
 }
