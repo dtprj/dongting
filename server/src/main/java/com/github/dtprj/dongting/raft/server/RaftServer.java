@@ -107,19 +107,7 @@ public class RaftServer extends AbstractLifeCircle {
         DtUtil.checkPositive(serverConfig.getReplicatePort(), "replicatePort");
 
         List<RaftNode> allRaftServers = RaftUtil.parseServers(serverConfig.getNodeId(), serverConfig.getServers());
-        HashSet<Integer> allNodeIds = new HashSet<>();
-        HashSet<HostPort> allNodeHosts = new HashSet<>();
-        for (RaftNode rn : allRaftServers) {
-            if (!allNodeIds.add(rn.getNodeId())) {
-                throw new IllegalArgumentException("duplicate server id: " + rn.getNodeId());
-            }
-            if (!allNodeHosts.add(rn.getHostPort())) {
-                throw new IllegalArgumentException("duplicate server host: " + rn.getHostPort());
-            }
-        }
-        if (!allNodeIds.contains(serverConfig.getNodeId())) {
-            throw new IllegalArgumentException("self id not found in servers list: " + serverConfig.getNodeId());
-        }
+        HashSet<Integer> allNodeIds = createAllNodeIds(serverConfig, allRaftServers);
 
         NioClientConfig repClientConfig = new NioClientConfig();
         repClientConfig.setName("RaftClient");
@@ -156,6 +144,23 @@ public class RaftServer extends AbstractLifeCircle {
         } else {
             serviceNioServer = null;
         }
+    }
+
+    private static HashSet<Integer> createAllNodeIds(RaftServerConfig serverConfig, List<RaftNode> allRaftServers) {
+        HashSet<Integer> allNodeIds = new HashSet<>();
+        HashSet<HostPort> allNodeHosts = new HashSet<>();
+        for (RaftNode rn : allRaftServers) {
+            if (!allNodeIds.add(rn.getNodeId())) {
+                throw new IllegalArgumentException("duplicate server id: " + rn.getNodeId());
+            }
+            if (!allNodeHosts.add(rn.getHostPort())) {
+                throw new IllegalArgumentException("duplicate server host: " + rn.getHostPort());
+            }
+        }
+        if (!allNodeIds.contains(serverConfig.getNodeId())) {
+            throw new IllegalArgumentException("self id not found in servers list: " + serverConfig.getNodeId());
+        }
+        return allNodeIds;
     }
 
     private void createRaftGroups(RaftServerConfig serverConfig,
