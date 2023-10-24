@@ -26,14 +26,16 @@ import java.util.concurrent.LinkedBlockingQueue;
  * @author huangli
  */
 public class FiberGroup {
+    private final String name;
     private final LinkedBlockingQueue<Event> shareQueue;
     private final IndexedQueue<Fiber> readyQueue = new IndexedQueue<>(64);
     private final HashSet<Fiber> normalFibers = new HashSet<>();
     private final HashSet<Fiber> daemonFibers = new HashSet<>();
 
-    private volatile boolean shouldStop = false;
+    private boolean shouldStop = false;
 
-    FiberGroup(LinkedBlockingQueue<Event> shareQueue) {
+    FiberGroup(String name, LinkedBlockingQueue<Event> shareQueue) {
+        this.name = name;
         this.shareQueue = shareQueue;
     }
 
@@ -97,11 +99,15 @@ public class FiberGroup {
         return readyQueue;
     }
 
-    public void requestStop() {
-        this.shouldStop = true;
+    public void requestShutdown() {
+        fireEvent(() -> shouldStop = true);
     }
 
     public boolean isShouldStop() {
         return shouldStop;
+    }
+
+    public String getName() {
+        return name;
     }
 }

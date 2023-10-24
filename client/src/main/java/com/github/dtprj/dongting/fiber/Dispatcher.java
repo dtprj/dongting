@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-public class Dispatcher {
+public class Dispatcher extends Thread {
     private static final DtLog log = DtLogs.getLogger(Dispatcher.class);
 
     private final LinkedBlockingQueue<Event> shareQueue = new LinkedBlockingQueue<>();
@@ -39,19 +39,23 @@ public class Dispatcher {
     private boolean poll = true;
     private int pollTimeout = 50;
 
-    public Dispatcher() {
+    private boolean shouldStop = false;
+
+    public Dispatcher(String name) {
+        super(name);
     }
 
-    public FiberGroup createFiberGroup() {
-        FiberGroup g = new FiberGroup(shareQueue);
+    public FiberGroup createFiberGroup(String name) {
+        FiberGroup g = new FiberGroup(name, shareQueue);
         shareQueue.offer(() -> groups.add(g));
         return g;
     }
 
-    public void runLoop() {
+    @Override
+    public void run() {
         ArrayList<Event> localData = new ArrayList<>(64);
         ArrayList<FiberGroup> groups = this.groups;
-        do {
+        while(!shouldStop || !groups.isEmpty()) {
             pollAndRefreshTs(ts, localData);
             int len = localData.size();
             for (int i = 0; i < len; i++) {
@@ -67,8 +71,8 @@ public class Dispatcher {
                     FiberEntryPoint fep = f.getNextEntryPoint();
                     fep.execute();
                 }
-                if (g.finished()) {
-                    log.info("fiber group finished");
+                if (g.isShouldStop() && g.finished()) {
+                    log.info("fiber group finished: {}", g.getName());
                     g.cleanDaemonFibers();
                     finishedGroups.addLast(i);
                 }
@@ -77,8 +81,8 @@ public class Dispatcher {
                 int idx = finishedGroups.removeLast();
                 groups.remove(idx);
             }
-        } while (!groups.isEmpty());
-        log.info("fiber dispatcher exit");
+        }
+        log.info("fiber dispatcher exit: {}", getName());
     }
 
     private void pollAndRefreshTs(Timestamp ts, ArrayList<Event> localData) {
@@ -99,5 +103,9 @@ public class Dispatcher {
             log.info("fiber dispatcher receive interrupt signal");
             pollTimeout = 1;
         }
+    }
+
+    public void requestShutdown() {
+        shareQueue.offer(() -> shouldStop = true);
     }
 }
