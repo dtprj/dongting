@@ -39,8 +39,7 @@ public class FiberGroup {
         this.shareQueue = shareQueue;
     }
 
-    public void createNewFiber(Fiber f) {
-        f.setGroup(this);
+    void bound(Fiber f) {
         shareQueue.offer(() -> {
             start(f);
             makeReady(f);

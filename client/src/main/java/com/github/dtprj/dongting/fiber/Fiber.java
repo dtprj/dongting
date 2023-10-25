@@ -21,14 +21,18 @@ package com.github.dtprj.dongting.fiber;
 public abstract class Fiber {
 
     private final boolean daemon;
-    private FiberGroup group;
+    private final FiberGroup group;
+    private final String name;
     private boolean ready;
 
     protected FiberEntryPoint nextEntryPoint;
 
-    public Fiber(boolean daemon) {
+    public Fiber(FiberGroup group, String name, boolean daemon) {
+        this.group = group;
+        this.name = name;
         this.daemon = daemon;
         this.nextEntryPoint = this::firstEntryPoint;
+        group.bound(this);
     }
 
     public abstract void firstEntryPoint();
@@ -58,8 +62,8 @@ public abstract class Fiber {
         return new Condition(group);
     }
 
-    void setGroup(FiberGroup group) {
-        this.group = group;
+    public String getName() {
+        return name;
     }
 
     boolean isReady() {

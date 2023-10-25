@@ -106,6 +106,9 @@ public class Dispatcher extends Thread {
     }
 
     public void requestShutdown() {
-        shareQueue.offer(() -> shouldStop = true);
+        shareQueue.offer(() -> {
+            shouldStop = true;
+            groups.forEach(FiberGroup::requestShutdown);
+        });
     }
 }
