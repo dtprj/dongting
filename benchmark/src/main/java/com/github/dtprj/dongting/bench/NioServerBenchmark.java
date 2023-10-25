@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.RefBufferDecoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.net.ByteBufferWriteFrame;
+import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.NioClientConfig;
@@ -46,9 +47,7 @@ public class NioServerBenchmark extends BenchBase {
     private static final long TIME = 10 * 1000;
     private static final long WARMUP_TIME = 5000;
     private static final long TIMEOUT = 5000;
-    private static final int CMD = RaftLogProcessor.COMMAND;
-
-    private volatile boolean stopped = false;
+    private static final int CMD = Commands.CMD_PING;
 
     public NioServerBenchmark(int threadCount, long testTime, long warmupTime) {
         super(threadCount, testTime, warmupTime);
@@ -61,7 +60,6 @@ public class NioServerBenchmark extends BenchBase {
         serverConfig.setBizThreads(0);
         serverConfig.setPort(9000);
         server = new NioServer(serverConfig);
-        server.register(RaftLogProcessor.COMMAND, new RaftLogProcessor(() -> stopped));
         server.start();
 
         NioClientConfig clientConfig = new NioClientConfig();
@@ -78,7 +76,6 @@ public class NioServerBenchmark extends BenchBase {
     public void shutdown() {
         client.stop(new DtTime(3, TimeUnit.SECONDS));
         server.stop(new DtTime(3, TimeUnit.SECONDS));
-        stopped = true;
     }
 
     @Override
