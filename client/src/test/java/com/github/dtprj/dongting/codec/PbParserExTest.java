@@ -38,6 +38,7 @@ public class PbParserExTest {
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endSuccessCount);
         assertEquals(0, callback.endFailCount);
+        assertEquals(1, callback.cleanCount);
 
         callback.msg.f3 = "12";
         try {
@@ -49,6 +50,7 @@ public class PbParserExTest {
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endSuccessCount);
         assertEquals(0, callback.endFailCount);
+        assertEquals(1, callback.cleanCount);
 
         // now the size is ok, but parser is in error status
         callback.msg.f3 = "";
@@ -61,6 +63,7 @@ public class PbParserExTest {
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endSuccessCount);
         assertEquals(0, callback.endFailCount);
+        assertEquals(1, callback.cleanCount);
     }
 
     @Test
@@ -79,6 +82,7 @@ public class PbParserExTest {
         assertEquals(0, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
         assertEquals(0, callback.endFailCount);
+        assertEquals(0, callback.cleanCount);
 
         assertTrue(parser.isInErrorState());
     }
@@ -92,6 +96,26 @@ public class PbParserExTest {
     }
 
     private static class EmptyCallback extends PbCallback<Object> {
+        int beginCount;
+        int endCount;
+        int cleanCount;
+
+        @Override
+        public void clean() {
+            cleanCount++;
+        }
+
+        @Override
+        public void begin(int len, PbParser parser) {
+            super.begin(len, parser);
+            beginCount++;
+        }
+
+        @Override
+        public void end(boolean success) {
+            super.end(success);
+            endCount++;
+        }
     }
 
     @Test
@@ -107,7 +131,8 @@ public class PbParserExTest {
         buf.flip();
         buf.mark();
 
-        PbParser parser = PbParser.singleParser(new EmptyCallback(), buf.remaining());
+        EmptyCallback callback = new EmptyCallback();
+        PbParser parser = PbParser.singleParser(callback, buf.remaining());
         try {
             parser.parse(buf);
             fail();
@@ -115,9 +140,13 @@ public class PbParserExTest {
             assertTrue(e.getMessage().startsWith("var int too long"));
             assertTrue(parser.isInErrorState());
         }
+        assertEquals(1, callback.beginCount);
+        assertEquals(0, callback.endCount);
+        assertEquals(1, callback.cleanCount);
 
         buf.reset();
-        parser = PbParser.singleParser(new EmptyCallback(), buf.remaining());
+        callback = new EmptyCallback();
+        parser = PbParser.singleParser(callback, buf.remaining());
         try {
             parseByByte(buf, parser);
             fail();
@@ -125,6 +154,9 @@ public class PbParserExTest {
             assertTrue(e.getMessage().startsWith("var int too long"));
             assertTrue(parser.isInErrorState());
         }
+        assertEquals(1, callback.beginCount);
+        assertEquals(0, callback.endCount);
+        assertEquals(1, callback.cleanCount);
     }
 
     @Test
@@ -135,7 +167,8 @@ public class PbParserExTest {
         buf.flip();
         buf.mark();
 
-        PbParser parser = PbParser.singleParser(new EmptyCallback(), buf.remaining() - 1);
+        EmptyCallback callback = new EmptyCallback();
+        PbParser parser = PbParser.singleParser(callback, buf.remaining() - 1);
         try {
             parser.parse(buf);
             fail();
@@ -143,9 +176,13 @@ public class PbParserExTest {
             assertTrue(e.getMessage().startsWith("frame exceed"));
             assertTrue(parser.isInErrorState());
         }
+        assertEquals(1, callback.beginCount);
+        assertEquals(0, callback.endCount);
+        assertEquals(1, callback.cleanCount);
 
         buf.reset();
-        parser = PbParser.singleParser(new EmptyCallback(), buf.remaining() - 1);
+        callback = new EmptyCallback();
+        parser = PbParser.singleParser(callback, buf.remaining() - 1);
         try {
             parseByByte(buf, parser);
             fail();
@@ -153,6 +190,9 @@ public class PbParserExTest {
             assertTrue(e.getMessage().startsWith("frame exceed"));
             assertTrue(parser.isInErrorState());
         }
+        assertEquals(1, callback.beginCount);
+        assertEquals(0, callback.endCount);
+        assertEquals(1, callback.cleanCount);
     }
 
     @Test
@@ -164,7 +204,8 @@ public class PbParserExTest {
         buf.flip();
         buf.mark();
 
-        PbParser parser = PbParser.singleParser(new EmptyCallback(), buf.remaining());
+        EmptyCallback callback = new EmptyCallback();
+        PbParser parser = PbParser.singleParser(callback, buf.remaining());
         try {
             parser.parse(buf);
             fail();
@@ -172,6 +213,9 @@ public class PbParserExTest {
             assertTrue(e.getMessage().startsWith("field length overflow "));
             assertTrue(parser.isInErrorState());
         }
+        assertEquals(1, callback.beginCount);
+        assertEquals(0, callback.endCount);
+        assertEquals(1, callback.cleanCount);
     }
 
     @Test
@@ -183,7 +227,8 @@ public class PbParserExTest {
         buf.flip();
         buf.mark();
 
-        PbParser parser = PbParser.singleParser(new EmptyCallback(), buf.remaining());
+        EmptyCallback callback = new EmptyCallback();
+        PbParser parser = PbParser.singleParser(callback, buf.remaining());
         try {
             parser.parse(buf);
             fail();
@@ -191,6 +236,9 @@ public class PbParserExTest {
             assertTrue(e.getMessage().startsWith("bad field len"));
             assertTrue(parser.isInErrorState());
         }
+        assertEquals(1, callback.beginCount);
+        assertEquals(0, callback.endCount);
+        assertEquals(1, callback.cleanCount);
     }
 
     @Test
@@ -200,7 +248,8 @@ public class PbParserExTest {
         buf.flip();
         buf.mark();
 
-        PbParser parser = PbParser.singleParser(new EmptyCallback(), buf.remaining());
+        EmptyCallback callback = new EmptyCallback();
+        PbParser parser = PbParser.singleParser(callback, buf.remaining());
         try {
             parser.parse(buf);
             fail();
@@ -208,6 +257,9 @@ public class PbParserExTest {
             assertTrue(e.getMessage().startsWith("bad index:"));
             assertTrue(parser.isInErrorState());
         }
+        assertEquals(1, callback.beginCount);
+        assertEquals(0, callback.endCount);
+        assertEquals(1, callback.cleanCount);
     }
 
     @Test
@@ -221,7 +273,8 @@ public class PbParserExTest {
         buf.flip();
         buf.mark();
 
-        PbParser parser = PbParser.singleParser(new EmptyCallback(), buf.remaining());
+        EmptyCallback callback = new EmptyCallback();
+        PbParser parser = PbParser.singleParser(callback, buf.remaining());
         try {
             parser.parse(buf);
             fail();
@@ -229,9 +282,13 @@ public class PbParserExTest {
             assertTrue(e.getMessage().startsWith("var long too long"));
             assertTrue(parser.isInErrorState());
         }
+        assertEquals(1, callback.beginCount);
+        assertEquals(0, callback.endCount);
+        assertEquals(1, callback.cleanCount);
 
         buf.reset();
-        parser = PbParser.singleParser(new EmptyCallback(), buf.remaining());
+        callback = new EmptyCallback();
+        parser = PbParser.singleParser(callback, buf.remaining());
         try {
             parseByByte(buf, parser);
             fail();
@@ -239,6 +296,9 @@ public class PbParserExTest {
             assertTrue(e.getMessage().startsWith("var long too long"));
             assertTrue(parser.isInErrorState());
         }
+        assertEquals(1, callback.beginCount);
+        assertEquals(0, callback.endCount);
+        assertEquals(1, callback.cleanCount);
     }
 
     @Test
@@ -249,7 +309,8 @@ public class PbParserExTest {
         buf.flip();
         buf.mark();
 
-        PbParser parser = PbParser.singleParser(new EmptyCallback(), buf.remaining() - 1);
+        EmptyCallback callback = new EmptyCallback();
+        PbParser parser = PbParser.singleParser(callback, buf.remaining() - 1);
         try {
             parser.parse(buf);
             fail();
@@ -257,9 +318,13 @@ public class PbParserExTest {
             assertTrue(e.getMessage().startsWith("frame exceed"));
             assertTrue(parser.isInErrorState());
         }
+        assertEquals(1, callback.beginCount);
+        assertEquals(0, callback.endCount);
+        assertEquals(1, callback.cleanCount);
 
         buf.reset();
-        parser = PbParser.singleParser(new EmptyCallback(), buf.remaining() - 1);
+        callback = new EmptyCallback();
+        parser = PbParser.singleParser(callback, buf.remaining() - 1);
         try {
             parseByByte(buf, parser);
             fail();
@@ -267,6 +332,9 @@ public class PbParserExTest {
             assertTrue(e.getMessage().startsWith("frame exceed"));
             assertTrue(parser.isInErrorState());
         }
+        assertEquals(1, callback.beginCount);
+        assertEquals(0, callback.endCount);
+        assertEquals(1, callback.cleanCount);
     }
 
 }

@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.codec;
 
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -30,6 +31,7 @@ public class PbParser {
 
     private static final DtLog log = DtLogs.getLogger(PbParser.class);
 
+    private static final int STATUS_ERROR = -1;
     private static final int STATUS_PARSE_PB_LEN = 1;
     private static final int STATUS_PARSE_TAG = 2;
     private static final int STATUS_PARSE_FILED_LEN = 3;
@@ -37,7 +39,6 @@ public class PbParser {
     private static final int STATUS_SKIP_REST = 5;
     private static final int STATUS_SINGLE_INIT = 6;
     private static final int STATUS_SINGLE_END = 7;
-    private static final int STATUS_ERROR = 8;
 
     private PbCallback<?> callback;
 
@@ -121,12 +122,27 @@ public class PbParser {
     }
 
     public void parse(ByteBuffer buf) {
+        if (status == STATUS_ERROR) {
+            throw new PbException("parser is in error status");
+        }
+        try {
+            parse0(buf);
+        } catch (RuntimeException | Error e) {
+            if (status == STATUS_ERROR || status == STATUS_SINGLE_INIT || status == STATUS_SINGLE_END) {
+                BugLog.getLog().error("unexpect status: {}", status);
+            } else if (status != STATUS_PARSE_PB_LEN) {
+                callClean();
+            }
+            status = STATUS_ERROR;
+            throw e;
+        }
+    }
+
+    private void parse0(ByteBuffer buf) {
         int remain = buf.remaining();
         PbCallback<?> callback = this.callback;
         while (true) {
             switch (this.status) {
-                case STATUS_ERROR:
-                    throw new PbException("parser is in error status");
                 case STATUS_PARSE_PB_LEN:
                     remain = onStatusParsePbLen(buf, callback, remain);
                     break;
@@ -154,10 +170,9 @@ public class PbParser {
                     remain -= skipCount;
                     break;
                 case STATUS_SINGLE_END:
-                    if (isSingle()) {
-                        throw new DtException("single parser can't reuse");
-                    }
-                    break;
+                    throw new DtException("single parser can't reuse");
+                default:
+                    throw new DtException("invalid status: " + status);
             }
             if (remain == 0) {
                 return;
@@ -169,8 +184,9 @@ public class PbParser {
         try {
             callback.end(success);
         } catch (Throwable e) {
-            log.error("proto buffer parse callback end() fail: {}", e.toString());
+            log.error("proto buffer parse callback end() fail", e);
         }
+        callClean();
         if (isSingle()) {
             this.callback = null;
         }
@@ -185,11 +201,19 @@ public class PbParser {
             callback.begin(len, this);
             this.status = STATUS_PARSE_TAG;
         } catch (Throwable e) {
-            log.error("proto buffer parse callback begin() fail: {}", e.toString());
+            log.error("proto buffer parse callback begin() fail", e);
             this.status = STATUS_SKIP_REST;
         }
         if (len == 0) {
             callEnd(callback, this.status == STATUS_PARSE_TAG);
+        }
+    }
+
+    private void callClean() {
+        try {
+            callback.clean();
+        } catch (Throwable cleanEx) {
+            log.error("proto buffer parse callback clean() fail", cleanEx);
         }
     }
 
@@ -200,7 +224,6 @@ public class PbParser {
             int len = buf.getInt();
             len = Integer.reverseBytes(len);
             if (len < 0 || len > maxFrame) {
-                status = STATUS_ERROR;
                 throw new PbException("maxFrameSize exceed: max=" + maxFrame + ", actual=" + len);
             }
             frameLen = len;
@@ -213,7 +236,6 @@ public class PbParser {
                 frameLen = (frameLen << 8) | (0xFF & buf.get());
             }
             if (frameLen < 0 || frameLen > maxFrame) {
-                status = STATUS_ERROR;
                 throw new PbException("maxFrameSize exceed: max=" + maxFrame + ", actual=" + frameLen);
             }
             pendingBytes = 0;
@@ -248,12 +270,10 @@ public class PbParser {
             if (x >= 0) {
                 // first bit is 0, read complete
                 if (pendingBytes + i > MAX_BYTES) {
-                    status = STATUS_ERROR;
                     throw new PbException("var int too long: " + (pendingBytes + i + 1));
                 }
                 parsedBytes += i;
                 if (parsedBytes > frameLen) {
-                    status = STATUS_ERROR;
                     throw new PbException("frame exceed " + frameLen);
                 }
 
@@ -264,18 +284,15 @@ public class PbParser {
                         break;
                     case STATUS_PARSE_FILED_LEN:
                         if (value < 0) {
-                            status = STATUS_ERROR;
                             throw new PbException("bad field len: " + fieldLen);
                         }
                         if (parsedBytes + value > frameLen) {
-                            status = STATUS_ERROR;
                             throw new PbException("field length overflow frame length. len=" + value + ",index=" + fieldIndex);
                         }
                         this.fieldLen = value;
                         this.status = STATUS_PARSE_FILED_BODY;
                         break;
                     default:
-                        status = STATUS_ERROR;
                         throw new PbException("invalid status: " + status);
                 }
                 this.parsedBytes = parsedBytes;
@@ -289,11 +306,9 @@ public class PbParser {
         pendingBytes += remain;
         parsedBytes += remain;
         if (pendingBytes >= MAX_BYTES) {
-            status = STATUS_ERROR;
             throw new PbException("var int too long, at least " + pendingBytes);
         }
         if (parsedBytes >= frameLen) {
-            status = STATUS_ERROR;
             throw new PbException("frame exceed, at least " + frameLen);
         }
         this.tempValue = value;
@@ -307,7 +322,6 @@ public class PbParser {
         this.fieldType = type;
         value = value >>> 3;
         if (value == 0) {
-            status = STATUS_ERROR;
             throw new PbException("bad index:" + fieldIndex);
         }
         this.fieldIndex = value;
@@ -322,7 +336,6 @@ public class PbParser {
                 this.status = STATUS_PARSE_FILED_LEN;
                 break;
             default:
-                status = STATUS_ERROR;
                 throw new PbException("type not support:" + type);
         }
     }
@@ -347,12 +360,10 @@ public class PbParser {
             if (x >= 0) {
                 // first bit is 0, read complete
                 if (pendingBytes + i > MAX_BYTES) {
-                    status = STATUS_ERROR;
                     throw new PbException("var long too long: " + (pendingBytes + i + 1));
                 }
                 parsedBytes += i;
                 if (parsedBytes > frameLen) {
-                    status = STATUS_ERROR;
                     throw new PbException("frame exceed " + frameLen);
                 }
 
@@ -377,11 +388,9 @@ public class PbParser {
         pendingBytes += remain;
         parsedBytes += remain;
         if (pendingBytes >= MAX_BYTES) {
-            status = STATUS_ERROR;
             throw new PbException("var long too long, at least " + pendingBytes);
         }
         if (parsedBytes >= frameLen) {
-            status = STATUS_ERROR;
             throw new PbException("frame exceed, at least " + frameLen);
         }
         this.tempValue = value;
@@ -405,7 +414,6 @@ public class PbParser {
                 remain = parseBodyLenDelimited(buf, callback, remain);
                 break;
             default:
-                status = STATUS_ERROR;
                 throw new PbException("type not support:" + this.fieldType);
         }
         int status = this.status;
