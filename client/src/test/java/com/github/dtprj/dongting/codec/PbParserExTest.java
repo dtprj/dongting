@@ -38,7 +38,6 @@ public class PbParserExTest {
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endSuccessCount);
         assertEquals(0, callback.endFailCount);
-        assertEquals(1, callback.cleanCount);
 
         callback.msg.f3 = "12";
         try {
@@ -50,7 +49,6 @@ public class PbParserExTest {
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endSuccessCount);
         assertEquals(0, callback.endFailCount);
-        assertEquals(1, callback.cleanCount);
 
         // now the size is ok, but parser is in error status
         callback.msg.f3 = "";
@@ -63,7 +61,6 @@ public class PbParserExTest {
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endSuccessCount);
         assertEquals(0, callback.endFailCount);
-        assertEquals(1, callback.cleanCount);
     }
 
     @Test
@@ -82,7 +79,6 @@ public class PbParserExTest {
         assertEquals(0, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
         assertEquals(0, callback.endFailCount);
-        assertEquals(0, callback.cleanCount);
 
         assertTrue(parser.isInErrorState());
     }
@@ -97,13 +93,8 @@ public class PbParserExTest {
 
     private static class EmptyCallback extends PbCallback<Object> {
         int beginCount;
-        int endCount;
-        int cleanCount;
-
-        @Override
-        public void clean() {
-            cleanCount++;
-        }
+        int endSuccessCount;
+        int endFailCount;
 
         @Override
         public void begin(int len, PbParser parser) {
@@ -114,7 +105,11 @@ public class PbParserExTest {
         @Override
         public void end(boolean success) {
             super.end(success);
-            endCount++;
+            if (success) {
+                endSuccessCount++;
+            } else {
+                endFailCount++;
+            }
         }
     }
 
@@ -141,8 +136,8 @@ public class PbParserExTest {
             assertTrue(parser.isInErrorState());
         }
         assertEquals(1, callback.beginCount);
-        assertEquals(0, callback.endCount);
-        assertEquals(1, callback.cleanCount);
+        assertEquals(0, callback.endSuccessCount);
+        assertEquals(1, callback.endFailCount);
 
         buf.reset();
         callback = new EmptyCallback();
@@ -155,8 +150,8 @@ public class PbParserExTest {
             assertTrue(parser.isInErrorState());
         }
         assertEquals(1, callback.beginCount);
-        assertEquals(0, callback.endCount);
-        assertEquals(1, callback.cleanCount);
+        assertEquals(0, callback.endSuccessCount);
+        assertEquals(1, callback.endFailCount);
     }
 
     @Test
@@ -177,8 +172,8 @@ public class PbParserExTest {
             assertTrue(parser.isInErrorState());
         }
         assertEquals(1, callback.beginCount);
-        assertEquals(0, callback.endCount);
-        assertEquals(1, callback.cleanCount);
+        assertEquals(0, callback.endSuccessCount);
+        assertEquals(1, callback.endFailCount);
 
         buf.reset();
         callback = new EmptyCallback();
@@ -191,8 +186,8 @@ public class PbParserExTest {
             assertTrue(parser.isInErrorState());
         }
         assertEquals(1, callback.beginCount);
-        assertEquals(0, callback.endCount);
-        assertEquals(1, callback.cleanCount);
+        assertEquals(0, callback.endSuccessCount);
+        assertEquals(1, callback.endFailCount);
     }
 
     @Test
@@ -214,8 +209,8 @@ public class PbParserExTest {
             assertTrue(parser.isInErrorState());
         }
         assertEquals(1, callback.beginCount);
-        assertEquals(0, callback.endCount);
-        assertEquals(1, callback.cleanCount);
+        assertEquals(0, callback.endSuccessCount);
+        assertEquals(1, callback.endFailCount);
     }
 
     @Test
@@ -237,8 +232,8 @@ public class PbParserExTest {
             assertTrue(parser.isInErrorState());
         }
         assertEquals(1, callback.beginCount);
-        assertEquals(0, callback.endCount);
-        assertEquals(1, callback.cleanCount);
+        assertEquals(0, callback.endSuccessCount);
+        assertEquals(1, callback.endFailCount);
     }
 
     @Test
@@ -258,8 +253,8 @@ public class PbParserExTest {
             assertTrue(parser.isInErrorState());
         }
         assertEquals(1, callback.beginCount);
-        assertEquals(0, callback.endCount);
-        assertEquals(1, callback.cleanCount);
+        assertEquals(0, callback.endSuccessCount);
+        assertEquals(1, callback.endFailCount);
     }
 
     @Test
@@ -283,8 +278,8 @@ public class PbParserExTest {
             assertTrue(parser.isInErrorState());
         }
         assertEquals(1, callback.beginCount);
-        assertEquals(0, callback.endCount);
-        assertEquals(1, callback.cleanCount);
+        assertEquals(0, callback.endSuccessCount);
+        assertEquals(1, callback.endFailCount);
 
         buf.reset();
         callback = new EmptyCallback();
@@ -297,8 +292,8 @@ public class PbParserExTest {
             assertTrue(parser.isInErrorState());
         }
         assertEquals(1, callback.beginCount);
-        assertEquals(0, callback.endCount);
-        assertEquals(1, callback.cleanCount);
+        assertEquals(0, callback.endSuccessCount);
+        assertEquals(1, callback.endFailCount);
     }
 
     @Test
@@ -319,8 +314,8 @@ public class PbParserExTest {
             assertTrue(parser.isInErrorState());
         }
         assertEquals(1, callback.beginCount);
-        assertEquals(0, callback.endCount);
-        assertEquals(1, callback.cleanCount);
+        assertEquals(0, callback.endSuccessCount);
+        assertEquals(1, callback.endFailCount);
 
         buf.reset();
         callback = new EmptyCallback();
@@ -333,8 +328,8 @@ public class PbParserExTest {
             assertTrue(parser.isInErrorState());
         }
         assertEquals(1, callback.beginCount);
-        assertEquals(0, callback.endCount);
-        assertEquals(1, callback.cleanCount);
+        assertEquals(0, callback.endSuccessCount);
+        assertEquals(1, callback.endFailCount);
     }
 
 }

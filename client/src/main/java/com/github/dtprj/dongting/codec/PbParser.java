@@ -131,7 +131,7 @@ public class PbParser {
             if (status == STATUS_ERROR || status == STATUS_SINGLE_INIT || status == STATUS_SINGLE_END) {
                 BugLog.getLog().error("unexpect status: {}", status);
             } else if (status != STATUS_PARSE_PB_LEN) {
-                callClean();
+                callEnd(callback, false, STATUS_ERROR);
             }
             status = STATUS_ERROR;
             throw e;
@@ -181,19 +181,22 @@ public class PbParser {
     }
 
     private void callEnd(PbCallback<?> callback, boolean success) {
+        callEnd(callback, success, isSingle() ? STATUS_SINGLE_END : STATUS_PARSE_PB_LEN);
+    }
+
+    private void callEnd(PbCallback<?> callback, boolean success, int nextStatus) {
+        this.status = nextStatus;
+        this.pendingBytes = 0;
+        this.frameLen = 0;
+        this.parsedBytes = 0;
         try {
             callback.end(success);
         } catch (Throwable e) {
             log.error("proto buffer parse callback end() fail", e);
         }
-        callClean();
         if (isSingle()) {
             this.callback = null;
         }
-        this.status = isSingle() ? STATUS_SINGLE_END : STATUS_PARSE_PB_LEN;
-        this.pendingBytes = 0;
-        this.frameLen = 0;
-        this.parsedBytes = 0;
     }
 
     private void callBegin(PbCallback<?> callback, int len) {
@@ -206,14 +209,6 @@ public class PbParser {
         }
         if (len == 0) {
             callEnd(callback, this.status == STATUS_PARSE_TAG);
-        }
-    }
-
-    private void callClean() {
-        try {
-            callback.clean();
-        } catch (Throwable cleanEx) {
-            log.error("proto buffer parse callback clean() fail", cleanEx);
         }
     }
 

@@ -53,6 +53,4 @@ public abstract class PbCallback<T> {
         throw new UnsupportedOperationException();
     }
 
-    public void clean() {
-    }
 }
