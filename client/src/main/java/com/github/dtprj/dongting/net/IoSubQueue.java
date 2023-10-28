@@ -105,19 +105,21 @@ class IoSubQueue {
     }
 
     public void cleanSubQueue() {
-        WriteData wd;
-        while ((wd = subQueue.pollFirst()) != null) {
-            fail(wd, () -> new NetException("channel closed, future cancelled by subQueue clean"));
-            workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() - 1);
+        if (framesInBuffer > 0) {
+            workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() - framesInBuffer);
         }
         if (this.writeBuffer != null) {
             directPool.release(this.writeBuffer);
             this.writeBuffer = null;
         }
-        if (framesInBuffer > 0) {
-            workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() - framesInBuffer);
-        }
+
         if (lastWriteData != null) {
+            workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() - 1);
+            fail(lastWriteData, () -> new NetException("channel closed"));
+        }
+        WriteData wd;
+        while ((wd = subQueue.pollFirst()) != null) {
+            fail(wd, () -> new NetException("channel closed"));
             workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() - 1);
         }
     }
@@ -180,6 +182,18 @@ class IoSubQueue {
             }
             subQueueBytes = 0;
             return flipAndReturnBuffer(buf);
+        } catch (RuntimeException | Error e) {
+            if (wd != null) {
+                if (wd.getFuture() != null) {
+                    wd.getFuture().completeExceptionally(e);
+                }
+                wd.getData().clean();
+                wd = null;
+                workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() - 1);
+            }
+            encodeContext.setStatus(null);
+            // channel will be closed
+            throw e;
         } finally {
             this.lastWriteData = wd;
             this.subQueueBytes = subQueueBytes;
@@ -228,18 +242,8 @@ class IoSubQueue {
     }
 
     private boolean doEncode(ByteBuffer buf, WriteData wd) {
-        try {
-            WriteFrame wf = wd.getData();
-            return wf.encode(encodeContext, buf);
-        } catch (RuntimeException | Error e) {
-            if (wd.getFuture() != null) {
-                wd.getFuture().completeExceptionally(e);
-            }
-            wd.getData().clean();
-            encodeContext.setStatus(null);
-            // channel will be closed
-            throw e;
-        }
+        WriteFrame wf = wd.getData();
+        return wf.encode(encodeContext, buf);
     }
 
     public void setWriting(boolean writing) {
