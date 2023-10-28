@@ -66,10 +66,12 @@ public class StrFiledDecoderTest {
         buf.limit(100);
         String s = decoder.decode(decodeContext, buf, 100, 0);
         assertEquals(new String(bytes, 0, 100), s);
+        decoder.finish(decodeContext);
 
         buf.clear();
         s = decoder.decode(decodeContext, buf, buf.capacity(), 0);
         assertEquals(new String(bytes, 0, buf.capacity()), s);
+        decoder.finish(decodeContext);
     }
 
     private void testHalf1() {
@@ -90,6 +92,7 @@ public class StrFiledDecoderTest {
         buf.limit(buf.capacity());
         s = decoder.decode(decodeContext, buf, buf.capacity(), 10);
         assertEquals(new String(bytes, 0, buf.capacity()), s);
+        decoder.finish(decodeContext);
     }
 
     private void testHalf2() {
@@ -105,6 +108,7 @@ public class StrFiledDecoderTest {
         buf.limit(100);
         String s = decoder.decode(decodeContext, buf, 100, 20);
         assertEquals(new String(bytes, 0, 100), s);
+        decoder.finish(decodeContext);
 
         buf.clear();
         buf.limit(10);
@@ -118,5 +122,6 @@ public class StrFiledDecoderTest {
         buf.limit(buf.capacity());
         s = decoder.decode(decodeContext, buf, buf.capacity(), 20);
         assertEquals(new String(bytes, 0, buf.capacity()), s);
+        decoder.finish(decodeContext);
     }
 }

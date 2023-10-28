@@ -203,11 +203,21 @@ class DtChannel extends PbCallback<Object> {
         }
         switch (index) {
             case Frame.IDX_MSG: {
+                if (currentPos == 0 && currentDecoder != null) {
+                    throw new IllegalStateException("currentDecoder is not null");
+                }
+                currentDecoder = StrFiledDecoder.INSTANCE;
+                boolean end = buf.remaining() >= fieldLen - currentPos;
                 String msg = StrFiledDecoder.INSTANCE.decode(decodeContext, buf, fieldLen, currentPos);
                 this.frame.setMsg(msg);
+                if (end) {
+                    currentDecoder.finish(decodeContext);
+                    currentDecoder = null;
+                }
                 return true;
             }
             case Frame.IDX_EXTRA: {
+                // ByteArrayDecoder no need call finish
                 byte[] extra = ByteArrayDecoder.INSTANCE.decode(decodeContext, buf, fieldLen, currentPos);
                 this.frame.setExtra(extra);
                 return true;
@@ -223,6 +233,9 @@ class DtChannel extends PbCallback<Object> {
         ReadFrame frame = this.frame;
         if (frame.getCommand() <= 0) {
             throw new NetException("command invalid :" + frame.getCommand());
+        }
+        if (currentPos == 0 && currentDecoder != null) {
+            throw new IllegalStateException("currentDecoder is not null");
         }
         // the body field should encode as last field
         if (!initRelatedDataForFrame(true)) {
@@ -240,6 +253,8 @@ class DtChannel extends PbCallback<Object> {
                 // so if the body is not last field, exception throws
                 readBody = true;
                 decodeContext.reset();
+                currentDecoder.finish(decodeContext);
+                currentDecoder = null;
             }
             return true;
         } catch (Throwable e) {

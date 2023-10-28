@@ -32,10 +32,6 @@ public class StrFiledDecoder implements Decoder<String> {
 
     @Override
     public String decode(DecodeContext decodeContext, ByteBuffer buf, int fieldLen, int currentPos) {
-        return parseUTF8(decodeContext, buf, fieldLen, currentPos);
-    }
-
-    public static String parseUTF8(DecodeContext decodeContext, ByteBuffer buf, int fieldLen, int currentPos) {
         boolean start = currentPos == 0;
         boolean end = buf.remaining() >= fieldLen - currentPos;
         if (start && end) {

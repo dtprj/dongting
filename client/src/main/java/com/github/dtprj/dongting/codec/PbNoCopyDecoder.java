@@ -92,7 +92,7 @@ public final class PbNoCopyDecoder<T> implements Decoder<T> {
 
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
-            value = StrFiledDecoder.parseUTF8(c, buf, fieldLen, currentPos);
+            value = StrFiledDecoder.INSTANCE.decode(c, buf, fieldLen, currentPos);
             return true;
         }
 
