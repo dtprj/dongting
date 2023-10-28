@@ -24,7 +24,7 @@ public interface Decoder<T> {
 
     T decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos);
 
-    void cancel(DecodeContext context);
+    void finish(DecodeContext context);
 
     static ByteBuffer decodeToByteBuffer(ByteBuffer buffer, int bodyLen, int currentPos, ByteBuffer result) {
         if (currentPos == 0) {
@@ -46,7 +46,7 @@ public interface Decoder<T> {
         }
 
         @Override
-        public void cancel(DecodeContext context) {
+        public void finish(DecodeContext context) {
         }
     };
 

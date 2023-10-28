@@ -31,7 +31,7 @@ public class PbParser {
 
     private static final DtLog log = DtLogs.getLogger(PbParser.class);
 
-    private static final int STATUS_ERROR = -1;
+    private static final int STATUS_FINISH = -1;
     private static final int STATUS_PARSE_PB_LEN = 1;
     private static final int STATUS_PARSE_TAG = 2;
     private static final int STATUS_PARSE_FILED_LEN = 3;
@@ -122,18 +122,18 @@ public class PbParser {
     }
 
     public void parse(ByteBuffer buf) {
-        if (status == STATUS_ERROR) {
+        if (status == STATUS_FINISH) {
             throw new PbException("parser is in error status");
         }
         try {
             parse0(buf);
         } catch (RuntimeException | Error e) {
-            if (status == STATUS_ERROR || status == STATUS_SINGLE_INIT || status == STATUS_SINGLE_END) {
+            if (status == STATUS_FINISH || status == STATUS_SINGLE_INIT || status == STATUS_SINGLE_END) {
                 BugLog.getLog().error("unexpect status: {}", status);
             } else if (status != STATUS_PARSE_PB_LEN) {
-                callEnd(callback, false, STATUS_ERROR);
+                callEnd(callback, false, STATUS_FINISH);
             }
-            status = STATUS_ERROR;
+            status = STATUS_FINISH;
             throw e;
         }
     }
@@ -180,6 +180,19 @@ public class PbParser {
         }
     }
 
+    public void finishParse() {
+        switch (status) {
+            case STATUS_FINISH:
+            case STATUS_PARSE_PB_LEN:
+            case STATUS_SINGLE_INIT:
+            case STATUS_SINGLE_END:
+                return;
+            default:
+                callEnd(callback, false, STATUS_FINISH);
+                callback = null;
+        }
+    }
+
     private void callEnd(PbCallback<?> callback, boolean success) {
         callEnd(callback, success, isSingle() ? STATUS_SINGLE_END : STATUS_PARSE_PB_LEN);
     }
@@ -193,9 +206,6 @@ public class PbParser {
             callback.end(success);
         } catch (Throwable e) {
             log.error("proto buffer parse callback end() fail", e);
-        }
-        if (isSingle()) {
-            this.callback = null;
         }
     }
 
@@ -523,8 +533,8 @@ public class PbParser {
         return nestedParser;
     }
 
-    public boolean isInErrorState() {
-        return status == STATUS_ERROR;
+    public boolean isFinished() {
+        return status == STATUS_FINISH;
     }
 
     public PbParser createOrResetNestedParserSingle(PbCallback<?> callback, int pbLen) {

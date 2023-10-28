@@ -30,22 +30,7 @@ public class DecodeContext {
 
     private final byte[] threadLocalBuffer = THREAD_LOCAL_BUFFER.get();
 
-    private DecodeContext nestedContext;
-
     public DecodeContext() {
-    }
-
-    public DecodeContext createOrGetNestedContext(boolean start) {
-        DecodeContext c = this.nestedContext;
-        if (c == null) {
-            c = new DecodeContext();
-            c.heapPool = heapPool;
-            this.nestedContext = c;
-        }
-        if (start) {
-            c.status = null;
-        }
-        return c;
     }
 
     public PbParser createOrResetPbParser(PbCallback<?> callback, int len) {
@@ -64,9 +49,7 @@ public class DecodeContext {
         if (pbParser != null) {
             pbParser.reset();
         }
-        if (nestedContext != null) {
-            nestedContext.reset();
-        }
+        status = null;
     }
 
     public PbParser getPbParser() {

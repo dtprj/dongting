@@ -51,13 +51,15 @@ public class RefBufferDecoder implements Decoder<RefBuffer> {
         bb.put(buffer);
         if (end) {
             bb.flip();
+            context.setStatus(null);
+            // release by user code
             return result;
         }
         return null;
     }
 
     @Override
-    public void cancel(DecodeContext context) {
+    public void finish(DecodeContext context) {
         Object s = context.getStatus();
         if (s instanceof RefBuffer) {
             ((RefBuffer) s).release();

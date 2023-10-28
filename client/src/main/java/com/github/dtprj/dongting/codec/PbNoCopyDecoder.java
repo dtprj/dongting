@@ -50,16 +50,16 @@ public final class PbNoCopyDecoder<T> implements Decoder<T> {
     }
 
     @Override
-    public void cancel(DecodeContext context) {
-        PbParser p = context.getPbParser();
-        if (p != null) {
-            p.reset();
+    public void finish(DecodeContext context) {
+        PbParser parser = context.getPbParser();
+        if (parser != null) {
+            parser.finishParse();
         }
-        // TODO not finished
     }
 
-    public static final PbNoCopyDecoder<Integer> SIMPLE_INT_DECODER = new PbNoCopyDecoder<Integer>(c-> new PbCallback<Integer>() {
+    public static final PbNoCopyDecoder<Integer> SIMPLE_INT_DECODER = new PbNoCopyDecoder<Integer>(c -> new PbCallback<Integer>() {
         private int value;
+
         @Override
         public boolean readFix32(int index, int value) {
             this.value = value;
@@ -72,8 +72,9 @@ public final class PbNoCopyDecoder<T> implements Decoder<T> {
         }
     });
 
-    public static final PbNoCopyDecoder<Long> SIMPLE_LONG_DECODER = new PbNoCopyDecoder<Long>(c-> new PbCallback<Long>() {
+    public static final PbNoCopyDecoder<Long> SIMPLE_LONG_DECODER = new PbNoCopyDecoder<Long>(c -> new PbCallback<Long>() {
         private long value;
+
         @Override
         public boolean readFix64(int index, long value) {
             this.value = value;
@@ -98,6 +99,12 @@ public final class PbNoCopyDecoder<T> implements Decoder<T> {
         @Override
         public String getResult() {
             return value;
+        }
+
+        @Override
+        public void end(boolean success) {
+            super.end(success);
+            StrFiledDecoder.INSTANCE.finish(c);
         }
     });
 

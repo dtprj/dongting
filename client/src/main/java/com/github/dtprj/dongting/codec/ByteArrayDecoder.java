@@ -47,6 +47,6 @@ public class ByteArrayDecoder implements Decoder<byte[]> {
     }
 
     @Override
-    public void cancel(DecodeContext context) {
+    public void finish(DecodeContext context) {
     }
 }

@@ -45,13 +45,14 @@ public abstract class CopyDecoder<T> implements Decoder<T> {
                 return decode(bb);
             } finally {
                 temp.release();
+                context.setStatus(null);
             }
         }
         return null;
     }
 
     @Override
-    public void cancel(DecodeContext context) {
+    public void finish(DecodeContext context) {
         Object s = context.getStatus();
         if(s instanceof RefBuffer) {
             ((RefBuffer) s).release();

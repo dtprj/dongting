@@ -28,6 +28,7 @@ import com.github.dtprj.dongting.codec.StrFiledDecoder;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -42,6 +43,7 @@ import java.util.function.Consumer;
 /**
  * @author huangli
  */
+@SuppressWarnings({"rawtypes", "unchecked"})
 class DtChannel extends PbCallback<Object> {
     private static final DtLog log = DtLogs.getLogger(DtChannel.class);
 
@@ -61,7 +63,7 @@ class DtChannel extends PbCallback<Object> {
     private final PbParser parser;
     private ReadFrame frame;
     private boolean readBody;
-    private WriteData writeDataForResp;
+    private WriteData requestForResp;
     private ReqProcessor processorForRequest;
     private int currentReadFrameSize;
     private Decoder<?> currentDecoder;
@@ -123,32 +125,37 @@ class DtChannel extends PbCallback<Object> {
         this.currentReadFrameSize = len;
         frame = new ReadFrame();
         readBody = false;
-        writeDataForResp = null;
+        requestForResp = null;
         processorForRequest = null;
-        currentDecoder = null;
+        if (currentDecoder != null) {
+            BugLog.getLog().error("currentDecoder is not null");
+            currentDecoder = null;
+        }
     }
 
     @Override
     public void end(boolean success) {
+        super.end(success);
+        if (currentDecoder != null) {
+            currentDecoder.finish(decodeContext);
+            currentDecoder = null;
+        }
+        decodeContext.reset();
         if (!success) {
             return;
         }
-        WriteData writeDataForResp = this.writeDataForResp;
-        ReqProcessor processorForRequest = this.processorForRequest;
-        if (writeDataForResp == null && processorForRequest == null) {
+        if (requestForResp == null && processorForRequest == null) {
             // empty body
             if (!initRelatedDataForFrame(false)) {
                 return;
             }
-            writeDataForResp = this.writeDataForResp;
-            processorForRequest = this.processorForRequest;
-            if (writeDataForResp == null && processorForRequest == null) {
+            if (requestForResp == null && processorForRequest == null) {
                 return;
             }
         }
 
         if (frame.getFrameType() == FrameType.TYPE_RESP) {
-            processIncomingResponse(frame, writeDataForResp);
+            processIncomingResponse(frame, requestForResp);
         } else {
             processIncomingRequest(frame, processorForRequest, workerStatus.getTs());
         }
@@ -242,21 +249,22 @@ class DtChannel extends PbCallback<Object> {
         }
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     private boolean initRelatedDataForFrame(boolean initDecoder) {
         ReadFrame frame = this.frame;
         if (frame.getFrameType() == FrameType.TYPE_RESP) {
-            WriteData writeDataForResp = this.writeDataForResp;
-            if (writeDataForResp == null) {
-                writeDataForResp = this.workerStatus.getPendingRequests().remove(BitUtil.toLong(channelIndexInWorker, frame.getSeq()));
-                if (writeDataForResp == null) {
+            WriteData requestForResp = this.requestForResp;
+            if (requestForResp == null) {
+                requestForResp = this.workerStatus.getPendingRequests().remove(BitUtil.toLong(channelIndexInWorker, frame.getSeq()));
+                if (requestForResp == null) {
                     log.info("pending request not found. channel={}, resp={}", channel, frame);
                     return false;
                 } else {
-                    this.writeDataForResp = writeDataForResp;
+                    this.requestForResp = requestForResp;
                 }
             }
             if (initDecoder && currentDecoder == null) {
-                currentDecoder = writeDataForResp.getRespDecoder();
+                currentDecoder = requestForResp.getRespDecoder();
             }
         } else {
             if (!running) {
@@ -300,8 +308,8 @@ class DtChannel extends PbCallback<Object> {
             log.debug("decode fail. {} {}", channel, e.toString());
         }
         if (frame.getFrameType() == FrameType.TYPE_RESP) {
-            if (writeDataForResp != null) {
-                writeDataForResp.getFuture().completeExceptionally(e);
+            if (requestForResp != null) {
+                requestForResp.getFuture().completeExceptionally(e);
             }
         } else {
             log.warn("decode fail in io thread", e);
@@ -415,7 +423,11 @@ class DtChannel extends PbCallback<Object> {
     }
 
     public void close() {
-        this.closed = true;
+        if (closed) {
+            return;
+        }
+        parser.finishParse();
+        closed = true;
     }
 
     public void setPeer(Peer peer) {
@@ -441,6 +453,7 @@ class DtChannel extends PbCallback<Object> {
     }
 }
 
+@SuppressWarnings({"rawtypes", "unchecked"})
 class ProcessInBizThreadTask implements Runnable {
     private static final DtLog log = DtLogs.getLogger(ProcessInBizThreadTask.class);
     private final ReadFrame req;

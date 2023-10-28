@@ -80,7 +80,7 @@ public class PbParserExTest {
         assertEquals(0, callback.endSuccessCount);
         assertEquals(0, callback.endFailCount);
 
-        assertTrue(parser.isInErrorState());
+        assertTrue(parser.isFinished());
     }
 
     private static void parseByByte(ByteBuffer buf, PbParser parser) {
@@ -133,7 +133,7 @@ public class PbParserExTest {
             fail();
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("var int too long"));
-            assertTrue(parser.isInErrorState());
+            assertTrue(parser.isFinished());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -147,7 +147,7 @@ public class PbParserExTest {
             fail();
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("var int too long"));
-            assertTrue(parser.isInErrorState());
+            assertTrue(parser.isFinished());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -169,7 +169,7 @@ public class PbParserExTest {
             fail();
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("frame exceed"));
-            assertTrue(parser.isInErrorState());
+            assertTrue(parser.isFinished());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -183,7 +183,7 @@ public class PbParserExTest {
             fail();
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("frame exceed"));
-            assertTrue(parser.isInErrorState());
+            assertTrue(parser.isFinished());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -206,7 +206,7 @@ public class PbParserExTest {
             fail();
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("field length overflow "));
-            assertTrue(parser.isInErrorState());
+            assertTrue(parser.isFinished());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -229,7 +229,7 @@ public class PbParserExTest {
             fail();
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("bad field len"));
-            assertTrue(parser.isInErrorState());
+            assertTrue(parser.isFinished());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -250,7 +250,7 @@ public class PbParserExTest {
             fail();
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("bad index:"));
-            assertTrue(parser.isInErrorState());
+            assertTrue(parser.isFinished());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -275,7 +275,7 @@ public class PbParserExTest {
             fail();
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("var long too long"));
-            assertTrue(parser.isInErrorState());
+            assertTrue(parser.isFinished());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -289,7 +289,7 @@ public class PbParserExTest {
             fail();
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("var long too long"));
-            assertTrue(parser.isInErrorState());
+            assertTrue(parser.isFinished());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -311,7 +311,7 @@ public class PbParserExTest {
             fail();
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("frame exceed"));
-            assertTrue(parser.isInErrorState());
+            assertTrue(parser.isFinished());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -325,7 +325,7 @@ public class PbParserExTest {
             fail();
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("frame exceed"));
-            assertTrue(parser.isInErrorState());
+            assertTrue(parser.isFinished());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);

@@ -51,6 +51,6 @@ public class BoolDecoder implements Decoder<Boolean> {
     }
 
     @Override
-    public void cancel(DecodeContext context) {
+    public void finish(DecodeContext context) {
     }
 }
