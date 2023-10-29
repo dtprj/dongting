@@ -118,10 +118,12 @@ public class FiberGroup {
         if (!b) {
             BugLog.getLog().error("fiber is not in set: {}", f);
         }
-        f.clean();
     }
 
     void makeReady(Fiber f) {
+        if (f.isFinished()) {
+            throw new IllegalStateException("fiber already finished: " + name);
+        }
         if (!f.isReady()) {
             f.setReady();
             readyQueue.addLast(f);
@@ -138,7 +140,7 @@ public class FiberGroup {
             it.remove();
             dispatcher.setCurrentFiber(f);
             try {
-                f.clean();
+                f.finish();
             } finally {
                 dispatcher.setCurrentFiber(null);
             }

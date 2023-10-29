@@ -15,15 +15,20 @@
  */
 package com.github.dtprj.dongting.fiber;
 
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
+
 /**
  * @author huangli
  */
 public abstract class Fiber {
+    private static final DtLog log = DtLogs.getLogger(Fiber.class);
 
     private final boolean daemon;
     private final FiberGroup group;
     private final String name;
     private boolean ready;
+    private boolean finished;
 
     protected FiberEntryPoint nextEntryPoint;
 
@@ -45,11 +50,16 @@ public abstract class Fiber {
     }
 
     protected final void finish() {
-        group.finish(this);
+        try {
+            finished = true;
+            group.finish(this);
+            clean();
+        } catch (Throwable e) {
+            log.error("fiber finish error", e);
+        }
     }
 
-    protected void clean() {
-    }
+    protected abstract void clean();
 
     protected void awaitOn(Condition c, FiberEntryPoint resumeEntryPoint) {
         this.ready = false;
@@ -71,5 +81,9 @@ public abstract class Fiber {
 
     void setReady() {
         this.ready = true;
+    }
+
+    boolean isFinished() {
+        return finished;
     }
 }

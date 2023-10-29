@@ -94,7 +94,17 @@ public class Dispatcher extends Thread {
                     currentFiber = readyQueue.removeFirst();
                     try {
                         FiberEntryPoint fep = currentFiber.getNextEntryPoint();
-                        fep.execute();
+                        if (fep == null) {
+                            log.error("fiber entry point is null: {}", currentFiber.getName());
+                            currentFiber.finish();
+                        } else {
+                            try {
+                                fep.execute();
+                            } catch (Throwable e) {
+                                log.error("fiber execute error", e);
+                                currentFiber.finish();
+                            }
+                        }
                     } finally {
                         currentFiber = null;
                     }
