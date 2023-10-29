@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.ArrayList;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -36,6 +37,8 @@ public class Dispatcher extends Thread {
 
     private final Timestamp ts = new Timestamp();
 
+    private Fiber currentFiber;
+
     private boolean poll = true;
     private int pollTimeout = 50;
 
@@ -45,31 +48,56 @@ public class Dispatcher extends Thread {
         super(name);
     }
 
-    public FiberGroup createFiberGroup(String name) {
-        FiberGroup g = new FiberGroup(name, shareQueue);
-        shareQueue.offer(() -> groups.add(g));
-        return g;
+    public CompletableFuture<FiberGroup> createFiberGroup(String name) {
+        CompletableFuture<FiberGroup> future = new CompletableFuture<>();
+        FiberGroup g = new FiberGroup(name, this);
+        shareQueue.offer(new Event(() -> {
+            if (g.isShouldStop()) {
+                future.completeExceptionally(new IllegalStateException("fiber group already stopped"));
+            } else {
+                groups.add(g);
+                future.complete(g);
+            }
+        }));
+        return future;
+    }
+
+    public void requestShutdown() {
+        shareQueue.offer(new Event(() -> {
+            shouldStop = true;
+            groups.forEach(g -> g.setShouldStop(true));
+        }));
     }
 
     @Override
     public void run() {
         ArrayList<Event> localData = new ArrayList<>(64);
         ArrayList<FiberGroup> groups = this.groups;
-        while(!shouldStop || !groups.isEmpty()) {
+        while (!shouldStop || !groups.isEmpty()) {
             pollAndRefreshTs(ts, localData);
             int len = localData.size();
             for (int i = 0; i < len; i++) {
                 Event e = localData.get(i);
-                e.execute();
+                if (e.runnable != null) {
+                    e.runnable.run();
+                } else if (e.signalAll) {
+                    e.c.signalAll();
+                } else {
+                    e.c.signal();
+                }
             }
             len = groups.size();
             for (int i = 0; i < len; i++) {
                 FiberGroup g = groups.get(i);
                 IndexedQueue<Fiber> readyQueue = g.getReadyQueue();
                 while (readyQueue.size() > 0) {
-                    Fiber f = readyQueue.removeFirst();
-                    FiberEntryPoint fep = f.getNextEntryPoint();
-                    fep.execute();
+                    currentFiber = readyQueue.removeFirst();
+                    try {
+                        FiberEntryPoint fep = currentFiber.getNextEntryPoint();
+                        fep.execute();
+                    } finally {
+                        currentFiber = null;
+                    }
                 }
                 if (g.isShouldStop() && g.finished()) {
                     log.info("fiber group finished: {}", g.getName());
@@ -105,10 +133,15 @@ public class Dispatcher extends Thread {
         }
     }
 
-    public void requestShutdown() {
-        shareQueue.offer(() -> {
-            shouldStop = true;
-            groups.forEach(FiberGroup::requestShutdown);
-        });
+    LinkedBlockingQueue<Event> getShareQueue() {
+        return shareQueue;
+    }
+
+    Fiber getCurrentFiber() {
+        return currentFiber;
+    }
+
+    void setCurrentFiber(Fiber currentFiber) {
+        this.currentFiber = currentFiber;
     }
 }

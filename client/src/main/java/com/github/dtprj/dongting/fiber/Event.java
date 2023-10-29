@@ -18,7 +18,31 @@ package com.github.dtprj.dongting.fiber;
 /**
  * @author huangli
  */
-@FunctionalInterface
-public interface Event {
-    void execute();
+public class Event {
+    final Condition c;
+    final boolean signalAll;
+    final Object attachment;
+    final Runnable runnable;
+
+    public Event(Condition c) {
+        this(c, false);
+    }
+
+    public Event(Condition c, boolean signalAll) {
+        this(c, signalAll, null);
+    }
+
+    public Event(Condition c, boolean signalAll, Object attachment) {
+        this.c = c;
+        this.signalAll = signalAll;
+        this.attachment = attachment;
+        this.runnable = null;
+    }
+
+    Event(Runnable runnable) {
+        this.c = null;
+        this.signalAll = false;
+        this.attachment = null;
+        this.runnable = runnable;
+    }
 }

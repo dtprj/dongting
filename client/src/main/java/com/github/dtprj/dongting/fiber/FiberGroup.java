@@ -20,34 +20,80 @@ import com.github.dtprj.dongting.log.BugLog;
 
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * @author huangli
  */
 public class FiberGroup {
     private final String name;
-    private final LinkedBlockingQueue<Event> shareQueue;
+    private final Dispatcher dispatcher;
     private final IndexedQueue<Fiber> readyQueue = new IndexedQueue<>(64);
     private final HashSet<Fiber> normalFibers = new HashSet<>();
     private final HashSet<Fiber> daemonFibers = new HashSet<>();
 
     private boolean shouldStop = false;
 
-    FiberGroup(String name, LinkedBlockingQueue<Event> shareQueue) {
+    FiberGroup(String name, Dispatcher dispatcher) {
         this.name = name;
-        this.shareQueue = shareQueue;
+        this.dispatcher = dispatcher;
     }
 
-    void bound(Fiber f) {
-        shareQueue.offer(() -> {
-            start(f);
-            makeReady(f);
-        });
-    }
-
+    /**
+     * can call in any thread
+     */
     public void fireEvent(Event e) {
-        shareQueue.offer(e);
+        dispatcher.getShareQueue().offer(e);
+    }
+
+    /**
+     * can call in any thread
+     */
+    public CompletableFuture<Void> fireBound(Fiber f) {
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        dispatcher.getShareQueue().offer(new Event(() -> {
+            if (shouldStop) {
+                future.completeExceptionally(new IllegalStateException("fiber group already stopped"));
+            } else {
+                start(f);
+                makeReady(f);
+                future.complete(null);
+            }
+        }));
+        return future;
+    }
+
+    /**
+     * can call in any thread
+     */
+    public void fireShutdown() {
+        fireEvent(new Event(() -> shouldStop = true));
+    }
+
+    /**
+     * should call in dispatch thread
+     */
+    public void bound(Fiber f) {
+        start(f);
+        makeReady(f);
+    }
+
+    /**
+     * should call in dispatch thread
+     */
+    public Fiber getCurrentFiber() {
+        return dispatcher.getCurrentFiber();
+    }
+
+    /**
+     * should call in dispatch thread
+     */
+    public boolean isShouldStop() {
+        return shouldStop;
+    }
+
+    public String getName() {
+        return name;
     }
 
     private void start(Fiber f) {
@@ -82,15 +128,20 @@ public class FiberGroup {
         }
     }
 
-    public boolean finished() {
+    boolean finished() {
         return normalFibers.isEmpty();
     }
 
-    public void cleanDaemonFibers() {
+    void cleanDaemonFibers() {
         for (Iterator<Fiber> it = daemonFibers.iterator(); it.hasNext(); ) {
             Fiber f = it.next();
             it.remove();
-            f.clean();
+            dispatcher.setCurrentFiber(f);
+            try {
+                f.clean();
+            } finally {
+                dispatcher.setCurrentFiber(null);
+            }
         }
     }
 
@@ -98,15 +149,8 @@ public class FiberGroup {
         return readyQueue;
     }
 
-    public void requestShutdown() {
-        fireEvent(() -> shouldStop = true);
+    void setShouldStop(boolean shouldStop) {
+        this.shouldStop = shouldStop;
     }
 
-    public boolean isShouldStop() {
-        return shouldStop;
-    }
-
-    public String getName() {
-        return name;
-    }
 }

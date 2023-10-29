@@ -32,12 +32,11 @@ public abstract class Fiber {
         this.name = name;
         this.daemon = daemon;
         this.nextEntryPoint = this::firstEntryPoint;
-        group.bound(this);
     }
 
     public abstract void firstEntryPoint();
 
-    public FiberEntryPoint getNextEntryPoint() {
+    FiberEntryPoint getNextEntryPoint() {
         return nextEntryPoint;
     }
 
@@ -45,7 +44,7 @@ public abstract class Fiber {
         return daemon;
     }
 
-    protected void finish() {
+    protected final void finish() {
         group.finish(this);
     }
 

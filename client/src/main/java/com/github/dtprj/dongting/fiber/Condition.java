@@ -34,8 +34,10 @@ public class Condition {
     }
 
     public void signal() {
-        Fiber f = waitQueue.removeFirst();
-        group.makeReady(f);
+        if (waitQueue.size() > 0) {
+            Fiber f = waitQueue.removeFirst();
+            group.makeReady(f);
+        }
     }
 
     public void signalAll() {
