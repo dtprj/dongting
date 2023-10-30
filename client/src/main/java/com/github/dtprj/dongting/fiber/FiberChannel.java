@@ -20,30 +20,29 @@ import com.github.dtprj.dongting.common.IndexedQueue;
 /**
  * @author huangli
  */
-@SuppressWarnings({"Convert2Diamond"})
-public class Condition {
-    private final IndexedQueue<Fiber> waitQueue = new IndexedQueue<Fiber>(16);
-    private final FiberGroup group;
+public class FiberChannel<T> {
+    private final IndexedQueue<T> queue;
+    private final FiberCondition notEmptyCondition;
 
-    public Condition(FiberGroup group) {
-        this.group = group;
+    FiberChannel(FiberGroup group) {
+        this(group, 8);
     }
 
-    IndexedQueue<Fiber> getWaitQueue() {
-        return waitQueue;
+    FiberChannel(FiberGroup group, int initSize) {
+        this.queue = new IndexedQueue<>(initSize);
+        this.notEmptyCondition = group.newCondition();
     }
 
-    public void signal() {
-        if (waitQueue.size() > 0) {
-            Fiber f = waitQueue.removeFirst();
-            group.makeReady(f);
-        }
+    void offer(T data) {
+        queue.addLast(data);
+        notEmptyCondition.signal();
     }
 
-    public void signalAll() {
-        while (waitQueue.size() > 0) {
-            Fiber f = waitQueue.removeFirst();
-            group.makeReady(f);
-        }
+    public IndexedQueue<T> getQueue() {
+        return queue;
+    }
+
+    public FiberCondition getNotEmptyCondition() {
+        return notEmptyCondition;
     }
 }

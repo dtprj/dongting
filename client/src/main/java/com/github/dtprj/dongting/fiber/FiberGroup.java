@@ -16,7 +16,10 @@
 package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.common.IndexedQueue;
+import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.log.BugLog;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.HashSet;
 import java.util.Iterator;
@@ -26,11 +29,13 @@ import java.util.concurrent.CompletableFuture;
  * @author huangli
  */
 public class FiberGroup {
+    private static final DtLog log = DtLogs.getLogger(FiberGroup.class);
     private final String name;
     private final Dispatcher dispatcher;
     private final IndexedQueue<Fiber> readyQueue = new IndexedQueue<>(64);
     private final HashSet<Fiber> normalFibers = new HashSet<>();
     private final HashSet<Fiber> daemonFibers = new HashSet<>();
+    private final IntObjMap<FiberChannel<Object>> channels = new IntObjMap<>();
 
     private boolean shouldStop = false;
 
@@ -42,8 +47,15 @@ public class FiberGroup {
     /**
      * can call in any thread
      */
-    public void fireEvent(Event e) {
-        dispatcher.getShareQueue().offer(e);
+    public void fireMessage(int type, Object data) {
+        dispatcher.getShareQueue().offer(() -> {
+            FiberChannel<Object> c = channels.get(type);
+            if (c == null) {
+                log.warn("channel not found: {}", type);
+                return;
+            }
+            c.offer(data);
+        });
     }
 
     /**
@@ -51,7 +63,7 @@ public class FiberGroup {
      */
     public CompletableFuture<Void> fireBound(Fiber f) {
         CompletableFuture<Void> future = new CompletableFuture<>();
-        dispatcher.getShareQueue().offer(new Event(() -> {
+        dispatcher.getShareQueue().offer(() -> {
             if (shouldStop) {
                 future.completeExceptionally(new IllegalStateException("fiber group already stopped"));
             } else {
@@ -59,7 +71,7 @@ public class FiberGroup {
                 makeReady(f);
                 future.complete(null);
             }
-        }));
+        });
         return future;
     }
 
@@ -67,7 +79,7 @@ public class FiberGroup {
      * can call in any thread
      */
     public void fireShutdown() {
-        fireEvent(new Event(() -> shouldStop = true));
+        dispatcher.getShareQueue().offer(() -> shouldStop = true);
     }
 
     /**
@@ -76,6 +88,16 @@ public class FiberGroup {
     public void bound(Fiber f) {
         start(f);
         makeReady(f);
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> FiberChannel<T> createOrGetChannel(int type) {
+        FiberChannel<Object> channel = channels.get(type);
+        if (channel == null) {
+            channel = new FiberChannel<>(this);
+        }
+        channels.put(type, channel);
+        return (FiberChannel<T>) channel;
     }
 
     /**
@@ -104,11 +126,11 @@ public class FiberGroup {
             b = normalFibers.add(f);
         }
         if (!b) {
-            BugLog.getLog().error("fiber is in set: {}", f);
+            BugLog.getLog().error("fiber is in set: {}", f.getName());
         }
     }
 
-    void finish(Fiber f) {
+    void removeFiber(Fiber f) {
         boolean b;
         if (f.isDaemon()) {
             b = daemonFibers.remove(f);
@@ -116,13 +138,18 @@ public class FiberGroup {
             b = normalFibers.remove(f);
         }
         if (!b) {
-            BugLog.getLog().error("fiber is not in set: {}", f);
+            BugLog.getLog().error("fiber is not in set: {}", f.getName());
         }
     }
 
     void makeReady(Fiber f) {
+        if (finished()) {
+            log.warn("group finished, ignore makeReady: {}", f.getName());
+            return;
+        }
         if (f.isFinished()) {
-            throw new IllegalStateException("fiber already finished: " + name);
+            log.warn("fiber already finished, ignore makeReady: {}", f.getName());
+            return;
         }
         if (!f.isReady()) {
             f.setReady();
@@ -131,7 +158,7 @@ public class FiberGroup {
     }
 
     boolean finished() {
-        return normalFibers.isEmpty();
+        return shouldStop && normalFibers.isEmpty();
     }
 
     void cleanDaemonFibers() {
@@ -147,12 +174,19 @@ public class FiberGroup {
         }
     }
 
+    FiberCondition newCondition() {
+        return new FiberCondition(this);
+    }
+
     IndexedQueue<Fiber> getReadyQueue() {
         return readyQueue;
     }
 
-    void setShouldStop(boolean shouldStop) {
-        this.shouldStop = shouldStop;
+    void setShouldStop() {
+        this.shouldStop = true;
     }
 
+    Dispatcher getDispatcher() {
+        return dispatcher;
+    }
 }

@@ -51,24 +51,41 @@ public abstract class Fiber {
 
     protected final void finish() {
         try {
-            finished = true;
-            group.finish(this);
+            if (finished) {
+                log.warn("fiber already finished: {}", name);
+                return;
+            }
+            group.removeFiber(this);
             clean();
         } catch (Throwable e) {
             log.error("fiber finish error", e);
+        } finally {
+            finished = true;
         }
     }
 
     protected abstract void clean();
 
-    protected void awaitOn(Condition c, FiberEntryPoint resumeEntryPoint) {
+    protected void awaitOn(FiberCondition c, FiberEntryPoint resumeEntryPoint) {
         this.ready = false;
         this.nextEntryPoint = resumeEntryPoint;
         c.getWaitQueue().addLast(this);
     }
 
-    protected Condition newCondition() {
-        return new Condition(group);
+    protected void awaitOn(FiberFuture f, FiberEntryPoint resumeEntryPoint) {
+        if (f.getFiber() != this) {
+            throw new IllegalStateException("future fiber mismatch");
+        }
+        this.ready = false;
+        this.nextEntryPoint = resumeEntryPoint;
+    }
+
+    protected FiberCondition newCondition() {
+        return group.newCondition();
+    }
+
+    protected <T> FiberFuture<T> newFuture() {
+        return new FiberFuture<>(this);
     }
 
     public String getName() {
@@ -85,5 +102,9 @@ public abstract class Fiber {
 
     boolean isFinished() {
         return finished;
+    }
+
+    protected FiberGroup getGroup() {
+        return group;
     }
 }

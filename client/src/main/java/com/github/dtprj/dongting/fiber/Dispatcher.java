@@ -31,13 +31,14 @@ import java.util.concurrent.TimeUnit;
 public class Dispatcher extends Thread {
     private static final DtLog log = DtLogs.getLogger(Dispatcher.class);
 
-    private final LinkedBlockingQueue<Event> shareQueue = new LinkedBlockingQueue<>();
+    private final LinkedBlockingQueue<Runnable> shareQueue = new LinkedBlockingQueue<>();
     private final ArrayList<FiberGroup> groups = new ArrayList<>();
     private final IndexedQueue<Integer> finishedGroups = new IndexedQueue<>(8);
 
     private final Timestamp ts = new Timestamp();
 
     private Fiber currentFiber;
+    private Thread thread;
 
     private boolean poll = true;
     private int pollTimeout = 50;
@@ -51,40 +52,35 @@ public class Dispatcher extends Thread {
     public CompletableFuture<FiberGroup> createFiberGroup(String name) {
         CompletableFuture<FiberGroup> future = new CompletableFuture<>();
         FiberGroup g = new FiberGroup(name, this);
-        shareQueue.offer(new Event(() -> {
+        shareQueue.offer(() -> {
             if (g.isShouldStop()) {
                 future.completeExceptionally(new IllegalStateException("fiber group already stopped"));
             } else {
                 groups.add(g);
                 future.complete(g);
             }
-        }));
+        });
         return future;
     }
 
     public void requestShutdown() {
-        shareQueue.offer(new Event(() -> {
+        shareQueue.offer(() -> {
             shouldStop = true;
-            groups.forEach(g -> g.setShouldStop(true));
-        }));
+            groups.forEach(g -> g.setShouldStop());
+        });
     }
 
     @Override
     public void run() {
-        ArrayList<Event> localData = new ArrayList<>(64);
+        this.thread = Thread.currentThread();
+        ArrayList<Runnable> localData = new ArrayList<>(64);
         ArrayList<FiberGroup> groups = this.groups;
-        while (!shouldStop || !groups.isEmpty()) {
+        while (!finished()) {
             pollAndRefreshTs(ts, localData);
             int len = localData.size();
             for (int i = 0; i < len; i++) {
-                Event e = localData.get(i);
-                if (e.runnable != null) {
-                    e.runnable.run();
-                } else if (e.signalAll) {
-                    e.c.signalAll();
-                } else {
-                    e.c.signal();
-                }
+                Runnable r = localData.get(i);
+                r.run();
             }
             len = groups.size();
             for (int i = 0; i < len; i++) {
@@ -109,7 +105,7 @@ public class Dispatcher extends Thread {
                         currentFiber = null;
                     }
                 }
-                if (g.isShouldStop() && g.finished()) {
+                if (g.finished()) {
                     log.info("fiber group finished: {}", g.getName());
                     g.cleanDaemonFibers();
                     finishedGroups.addLast(i);
@@ -123,11 +119,11 @@ public class Dispatcher extends Thread {
         log.info("fiber dispatcher exit: {}", getName());
     }
 
-    private void pollAndRefreshTs(Timestamp ts, ArrayList<Event> localData) {
+    private void pollAndRefreshTs(Timestamp ts, ArrayList<Runnable> localData) {
         try {
             long oldNanos = ts.getNanoTime();
             if (poll) {
-                Event o = shareQueue.poll(pollTimeout, TimeUnit.MILLISECONDS);
+                Runnable o = shareQueue.poll(pollTimeout, TimeUnit.MILLISECONDS);
                 if (o != null) {
                     localData.add(o);
                 }
@@ -143,7 +139,11 @@ public class Dispatcher extends Thread {
         }
     }
 
-    LinkedBlockingQueue<Event> getShareQueue() {
+    private boolean finished() {
+        return shouldStop && groups.isEmpty();
+    }
+
+    LinkedBlockingQueue<Runnable> getShareQueue() {
         return shareQueue;
     }
 
@@ -153,5 +153,9 @@ public class Dispatcher extends Thread {
 
     void setCurrentFiber(Fiber currentFiber) {
         this.currentFiber = currentFiber;
+    }
+
+    Thread getThread() {
+        return thread;
     }
 }
