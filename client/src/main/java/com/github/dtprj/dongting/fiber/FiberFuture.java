@@ -37,6 +37,10 @@ public class FiberFuture<T> {
         return ex;
     }
 
+    public void cancel() {
+        completeExceptionally(new FiberCancelException());
+    }
+
     public void complete(T r) {
         if (done) {
             return;
