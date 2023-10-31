@@ -68,7 +68,7 @@ public class FiberGroup {
                 future.completeExceptionally(new IllegalStateException("fiber group already stopped"));
             } else {
                 start(f);
-                makeReady(f);
+                makeReady(f, false);
                 future.complete(null);
             }
         });
@@ -89,9 +89,9 @@ public class FiberGroup {
     /**
      * should call in dispatch thread
      */
-    public void bound(Fiber f) {
+    public void bound(Fiber f, boolean addToFirst) {
         start(f);
-        makeReady(f);
+        makeReady(f, addToFirst);
     }
 
     @SuppressWarnings("unchecked")
@@ -146,7 +146,7 @@ public class FiberGroup {
         }
     }
 
-    void makeReady(Fiber f) {
+    void makeReady(Fiber f, boolean addToFirst) {
         if (finished()) {
             log.warn("group finished, ignore makeReady: {}", f.getName());
             return;
@@ -157,7 +157,11 @@ public class FiberGroup {
         }
         if (!f.isReady()) {
             f.setReady();
-            readyQueue.addLast(f);
+            if (addToFirst) {
+                readyQueue.addFirst(f);
+            } else {
+                readyQueue.addLast(f);
+            }
         }
     }
 

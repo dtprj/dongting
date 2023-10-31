@@ -84,7 +84,7 @@ public abstract class Fiber {
         return group.newCondition();
     }
 
-    protected <T> FiberFuture<T> newFuture() {
+    public <T> FiberFuture<T> newFuture() {
         return new FiberFuture<>(this);
     }
 
@@ -104,7 +104,7 @@ public abstract class Fiber {
         return finished;
     }
 
-    protected FiberGroup getGroup() {
+    public FiberGroup getGroup() {
         return group;
     }
 }

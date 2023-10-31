@@ -50,7 +50,7 @@ public class FiberCondition {
         }
         if (waitQueue.size() > 0) {
             Fiber f = waitQueue.removeFirst();
-            group.makeReady(f);
+            group.makeReady(f, false);
         }
     }
 
@@ -69,7 +69,7 @@ public class FiberCondition {
         }
         while (waitQueue.size() > 0) {
             Fiber f = waitQueue.removeFirst();
-            group.makeReady(f);
+            group.makeReady(f, false);
         }
     }
 }
