@@ -36,7 +36,7 @@ public class FiberCondition {
     }
 
     public void signal() {
-        if (Thread.currentThread() == group.getDispatcher().getThread()) {
+        if (group.isInGroupThread()) {
             signal0();
         } else {
             group.getDispatcher().getShareQueue().offer(() -> signal0());
@@ -55,7 +55,7 @@ public class FiberCondition {
     }
 
     public void signalAll() {
-        if (Thread.currentThread() == group.getDispatcher().getThread()) {
+        if (group.isInGroupThread()) {
             signalAll0();
         } else {
             group.getDispatcher().getShareQueue().offer(() -> signalAll0());

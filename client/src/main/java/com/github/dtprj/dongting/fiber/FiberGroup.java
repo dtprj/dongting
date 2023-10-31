@@ -82,6 +82,10 @@ public class FiberGroup {
         dispatcher.getShareQueue().offer(() -> shouldStop = true);
     }
 
+    boolean isInGroupThread() {
+        return Thread.currentThread() == dispatcher.getThread();
+    }
+
     /**
      * should call in dispatch thread
      */

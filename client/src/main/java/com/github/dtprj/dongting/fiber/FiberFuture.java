@@ -37,14 +37,15 @@ public class FiberFuture<T> {
         return ex;
     }
 
-    public void complete(T result) {
+    public void complete(T r) {
         if (done) {
             return;
         }
-        this.result = result;
-        this.done = true;
-        if (fiber != null) {
-            fiber.getGroup().makeReady(fiber);
+        FiberGroup g = fiber.getGroup();
+        if (g.isInGroupThread()) {
+            complete0(r, null);
+        } else {
+            g.getDispatcher().getShareQueue().offer(() -> complete0(r, null));
         }
     }
 
@@ -52,7 +53,20 @@ public class FiberFuture<T> {
         if (done) {
             return;
         }
+        FiberGroup g = fiber.getGroup();
+        if (g.isInGroupThread()) {
+            complete0(null, ex);
+        } else {
+            g.getDispatcher().getShareQueue().offer(() -> complete0(null, ex));
+        }
+    }
+
+    private void complete0(T result, Throwable ex) {
+        if (done) {
+            return;
+        }
         this.ex = ex;
+        this.result = result;
         this.done = true;
         if (fiber != null) {
             fiber.getGroup().makeReady(fiber);
