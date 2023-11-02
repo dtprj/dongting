@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.fiber;
 /**
  * @author huangli
  */
-@FunctionalInterface
-public interface FiberEntryPoint {
-    void execute();
+public abstract class FiberFrameEx extends FiberFrame {
+    public abstract void handle(Throwable ex);
 }

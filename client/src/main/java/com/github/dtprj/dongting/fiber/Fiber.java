@@ -15,81 +15,70 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.common.IndexedQueue;
 
 /**
  * @author huangli
  */
 public abstract class Fiber {
-    private static final DtLog log = DtLogs.getLogger(Fiber.class);
-
-    private final boolean daemon;
-    private final FiberGroup group;
-    private final String name;
+    protected final FiberGroup fiberGroup;
+    protected final String fiberName;
     private boolean ready;
-    private boolean finished;
+    boolean finished;
 
-    protected FiberEntryPoint nextEntryPoint;
+    FiberCondition source;
 
-    public Fiber(FiberGroup group, String name, boolean daemon) {
-        this.group = group;
-        this.name = name;
-        this.daemon = daemon;
-        this.nextEntryPoint = this::firstEntryPoint;
+    private FiberFrame stackBottom;
+    private IndexedQueue<FiberFrame> stack;
+
+    public Fiber(FiberGroup fiberGroup, String fiberName, FiberFrame entryFrame) {
+        this.fiberGroup = fiberGroup;
+        this.fiberName = fiberName;
+        this.stackBottom = entryFrame;
     }
 
-    public abstract void firstEntryPoint();
-
-    FiberEntryPoint getNextEntryPoint() {
-        return nextEntryPoint;
-    }
-
-    public boolean isDaemon() {
-        return daemon;
-    }
-
-    protected final void finish() {
-        try {
-            if (finished) {
-                log.warn("fiber already finished: {}", name);
-                return;
-            }
-            group.removeFiber(this);
-            clean();
-        } catch (Throwable e) {
-            log.error("fiber finish error", e);
-        } finally {
-            finished = true;
+    FiberFrame popFrame() {
+        IndexedQueue<FiberFrame> stack = this.stack;
+        if (stack == null || stack.size() == 0) {
+            FiberFrame f = stackBottom;
+            this.stackBottom = null;
+            return f;
+        } else {
+            return stack.removeLast();
         }
     }
 
-    protected abstract void clean();
-
-    protected void awaitOn(FiberCondition c, FiberEntryPoint resumeEntryPoint) {
-        this.ready = false;
-        this.nextEntryPoint = resumeEntryPoint;
-        c.getWaitQueue().addLast(this);
+    public void pushFrame(FiberFrame frame) {
+        if (stackBottom == null) {
+            stackBottom = frame;
+            return;
+        }
+        if (stack == null) {
+            stack = new IndexedQueue<>(8);
+        }
+        stack.addLast(frame);
     }
 
-    protected void awaitOn(FiberFuture f, FiberEntryPoint resumeEntryPoint) {
-        if (f.getFiber() != this) {
-            throw new IllegalStateException("future fiber mismatch");
+    public void awaitOn(FiberCondition c, FiberFrame resumeFrame) {
+        if (!ready) {
+            throw new IllegalStateException("fiber not ready state");
         }
         this.ready = false;
-        this.nextEntryPoint = resumeEntryPoint;
+        this.source = c;
+        pushFrame(resumeFrame);
+        c.addWaiter(this);
     }
 
-    protected FiberCondition newCondition() {
-        return group.newCondition();
+    public FiberCondition newCondition() {
+        return fiberGroup.newCondition();
     }
 
     public <T> FiberFuture<T> newFuture() {
-        return new FiberFuture<>(this);
+        return new FiberFuture<>(this.fiberGroup);
     }
 
-    public String getName() {
-        return name;
+    public String getFiberName() {
+        return fiberName;
     }
 
     boolean isReady() {
@@ -104,7 +93,7 @@ public abstract class Fiber {
         return finished;
     }
 
-    public FiberGroup getGroup() {
-        return group;
+    public FiberGroup getFiberGroup() {
+        return fiberGroup;
     }
 }

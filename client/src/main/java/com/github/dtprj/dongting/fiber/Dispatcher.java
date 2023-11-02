@@ -45,6 +45,14 @@ public class Dispatcher extends Thread {
 
     private boolean shouldStop = false;
 
+    Object inputObj;
+    int inputInt;
+    long inputLong;
+    Object outputObj;
+    int outputInt;
+    long outputLong;
+    Throwable execEx;
+
     public Dispatcher(String name) {
         super(name);
     }
@@ -87,36 +95,80 @@ public class Dispatcher extends Thread {
                 FiberGroup g = groups.get(i);
                 IndexedQueue<Fiber> readyQueue = g.getReadyQueue();
                 while (readyQueue.size() > 0) {
-                    currentFiber = readyQueue.removeFirst();
-                    try {
-                        FiberEntryPoint fep = currentFiber.getNextEntryPoint();
-                        if (fep == null) {
-                            log.error("fiber entry point is null: {}", currentFiber.getName());
-                            currentFiber.finish();
-                        } else {
-                            try {
-                                fep.execute();
-                            } catch (Throwable e) {
-                                log.error("fiber execute error", e);
-                                currentFiber.finish();
-                            }
-                        }
-                    } finally {
-                        currentFiber = null;
-                    }
+                    Fiber fiber = readyQueue.removeFirst();
+                    execFiber(g, fiber);
                 }
                 if (g.finished()) {
                     log.info("fiber group finished: {}", g.getName());
-                    g.cleanDaemonFibers();
                     finishedGroups.addLast(i);
                 }
             }
             while (finishedGroups.size() > 0) {
-                int idx = finishedGroups.removeLast();
+                int idx = finishedGroups.removeFirst();
                 groups.remove(idx);
             }
         }
         log.info("fiber dispatcher exit: {}", getName());
+    }
+
+    private void execFiber(FiberGroup g, Fiber fiber) {
+        currentFiber = fiber;
+        try {
+            FiberFrame ff = fiber.popFrame();
+            Throwable lastEx = fiber.source.execEx;
+            inputObj = fiber.source.execResult;
+            fiber.source = null;
+            while (ff != null) {
+                try {
+                    if (lastEx != null) {
+                        if (ff instanceof FiberFrameEx) {
+                            ((FiberFrameEx) ff).handle(lastEx);
+                            lastEx = null;
+                        }
+                    } else {
+                        try {
+                            ff.execute();
+                        } catch (Throwable e) {
+                            if (ff instanceof FiberFrameEx) {
+                                ((FiberFrameEx) ff).handle(e);
+                            } else {
+                                lastEx = e;
+                            }
+                        }
+                    }
+                } catch (Throwable e) {
+                    // throw by ex handler
+                    lastEx = e;
+                } finally {
+                    try {
+                        ff.doFinally();
+                    } catch (Throwable e) {
+                        lastEx = e;
+                    }
+                }
+                ff = fiber.popFrame();
+                if (ff != null && lastEx == null) {
+                    inputObj = outputObj;
+                    inputInt = outputInt;
+                    inputLong = outputLong;
+                } else {
+                    inputObj = null;
+                    inputInt = 0;
+                    inputLong = 0;
+                }
+                outputObj = null;
+                outputLong = 0;
+                outputInt = 0;
+            }
+
+            if (lastEx != null) {
+                log.error("fiber execute error, group={}, fiber={}", g.getName(), fiber.getFiberName(), lastEx);
+            }
+            fiber.finished = true;
+            g.removeFiber(fiber);
+        } finally {
+            currentFiber = null;
+        }
     }
 
     private void pollAndRefreshTs(Timestamp ts, ArrayList<Runnable> localData) {

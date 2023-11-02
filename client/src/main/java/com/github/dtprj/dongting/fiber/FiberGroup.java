@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -31,10 +30,9 @@ import java.util.concurrent.CompletableFuture;
 public class FiberGroup {
     private static final DtLog log = DtLogs.getLogger(FiberGroup.class);
     private final String name;
-    private final Dispatcher dispatcher;
+    final Dispatcher dispatcher;
     private final IndexedQueue<Fiber> readyQueue = new IndexedQueue<>(64);
     private final HashSet<Fiber> normalFibers = new HashSet<>();
-    private final HashSet<Fiber> daemonFibers = new HashSet<>();
     private final IntObjMap<FiberChannel<Object>> channels = new IntObjMap<>();
 
     private boolean shouldStop = false;
@@ -61,14 +59,13 @@ public class FiberGroup {
     /**
      * can call in any thread
      */
-    public CompletableFuture<Void> fireBound(Fiber f) {
+    public CompletableFuture<Void> fireStart(Fiber f) {
         CompletableFuture<Void> future = new CompletableFuture<>();
         dispatcher.getShareQueue().offer(() -> {
             if (shouldStop) {
                 future.completeExceptionally(new IllegalStateException("fiber group already stopped"));
             } else {
                 start(f);
-                makeReady(f, false);
                 future.complete(null);
             }
         });
@@ -89,9 +86,11 @@ public class FiberGroup {
     /**
      * should call in dispatch thread
      */
-    public void bound(Fiber f, boolean addToFirst) {
-        start(f);
-        makeReady(f, addToFirst);
+    public void start(Fiber f) {
+        if (!normalFibers.add(f)) {
+            BugLog.getLog().error("fiber is in set: {}", f.getFiberName());
+        }
+        makeReady(f);
     }
 
     @SuppressWarnings("unchecked")
@@ -122,64 +121,29 @@ public class FiberGroup {
         return name;
     }
 
-    private void start(Fiber f) {
-        boolean b;
-        if (f.isDaemon()) {
-            b = daemonFibers.add(f);
-        } else {
-            b = normalFibers.add(f);
-        }
-        if (!b) {
-            BugLog.getLog().error("fiber is in set: {}", f.getName());
-        }
-    }
-
     void removeFiber(Fiber f) {
-        boolean b;
-        if (f.isDaemon()) {
-            b = daemonFibers.remove(f);
-        } else {
-            b = normalFibers.remove(f);
-        }
-        if (!b) {
-            BugLog.getLog().error("fiber is not in set: {}", f.getName());
+        if (!normalFibers.remove(f)) {
+            BugLog.getLog().error("fiber is not in set: {}", f.getFiberName());
         }
     }
 
-    void makeReady(Fiber f, boolean addToFirst) {
+    void makeReady(Fiber f) {
         if (finished()) {
-            log.warn("group finished, ignore makeReady: {}", f.getName());
+            log.warn("group finished, ignore makeReady: {}", f.getFiberName());
             return;
         }
         if (f.isFinished()) {
-            log.warn("fiber already finished, ignore makeReady: {}", f.getName());
+            log.warn("fiber already finished, ignore makeReady: {}", f.getFiberName());
             return;
         }
         if (!f.isReady()) {
             f.setReady();
-            if (addToFirst) {
-                readyQueue.addFirst(f);
-            } else {
-                readyQueue.addLast(f);
-            }
+            readyQueue.addLast(f);
         }
     }
 
     boolean finished() {
         return shouldStop && normalFibers.isEmpty();
-    }
-
-    void cleanDaemonFibers() {
-        for (Iterator<Fiber> it = daemonFibers.iterator(); it.hasNext(); ) {
-            Fiber f = it.next();
-            it.remove();
-            dispatcher.setCurrentFiber(f);
-            try {
-                f.finish();
-            } finally {
-                dispatcher.setCurrentFiber(null);
-            }
-        }
     }
 
     FiberCondition newCondition() {

@@ -18,23 +18,20 @@ package com.github.dtprj.dongting.fiber;
 /**
  * @author huangli
  */
-public class FiberFuture<T> {
-    private T result;
-    private Throwable ex;
+public class FiberFuture<T> extends FiberCondition {
 
     private boolean done;
-    private final Fiber fiber;
 
-    FiberFuture(Fiber fiber) {
-        this.fiber = fiber;
+    FiberFuture(FiberGroup group) {
+        super(group);
     }
 
     public T getResult() {
-        return result;
+        return (T) execResult;
     }
 
     public Throwable getEx() {
-        return ex;
+        return execEx;
     }
 
     public boolean isDone() {
@@ -42,58 +39,43 @@ public class FiberFuture<T> {
     }
 
     public boolean isCancelled() {
-        return ex instanceof FiberCancelException;
+        return execEx instanceof FiberCancelException;
     }
 
     public void cancel() {
-        completeExceptionally(new FiberCancelException(), false);
+        completeExceptionally(new FiberCancelException());
     }
 
     public void complete(T r) {
-        complete(r, false);
-    }
-
-    public void complete(T r, boolean resumeToFirst) {
         if (done) {
             return;
         }
-        FiberGroup g = fiber.getGroup();
-        if (g.isInGroupThread()) {
-            complete0(r, null, resumeToFirst);
+        if (group.isInGroupThread()) {
+            complete0(r, null);
         } else {
-            g.getDispatcher().getShareQueue().offer(() -> complete0(r, null, resumeToFirst));
+            group.getDispatcher().getShareQueue().offer(() -> complete0(r, null));
         }
     }
 
     public void completeExceptionally(Throwable ex) {
-        completeExceptionally(ex, false);
-    }
-
-    public void completeExceptionally(Throwable ex, boolean resumeToFirst) {
         if (done) {
             return;
         }
-        FiberGroup g = fiber.getGroup();
-        if (g.isInGroupThread()) {
-            complete0(null, ex, resumeToFirst);
+        if (group.isInGroupThread()) {
+            complete0(null, ex);
         } else {
-            g.getDispatcher().getShareQueue().offer(() -> complete0(null, ex, resumeToFirst));
+            group.getDispatcher().getShareQueue().offer(() -> complete0(null, ex));
         }
     }
 
-    private void complete0(T result, Throwable ex, boolean addToFirst) {
+    private void complete0(T result, Throwable ex) {
         if (done) {
             return;
         }
-        this.ex = ex;
-        this.result = result;
+        this.execEx = ex;
+        this.execResult = result;
         this.done = true;
-        if (fiber != null) {
-            fiber.getGroup().makeReady(fiber, addToFirst);
-        }
+        signalAll0();
     }
 
-    public Fiber getFiber() {
-        return fiber;
-    }
 }

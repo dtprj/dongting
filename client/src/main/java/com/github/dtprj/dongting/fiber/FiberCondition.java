@@ -24,15 +24,48 @@ import com.github.dtprj.dongting.log.DtLogs;
  */
 public class FiberCondition {
     private static final DtLog log = DtLogs.getLogger(FiberCondition.class);
-    private final IndexedQueue<Fiber> waitQueue = new IndexedQueue<>(8);
-    private final FiberGroup group;
+    private Fiber waiter;
+    private IndexedQueue<Fiber> waitQueue;
+    protected final FiberGroup group;
+
+    // use by FiberFuture
+    Object execResult;
+    Throwable execEx;
 
     public FiberCondition(FiberGroup group) {
         this.group = group;
     }
 
-    IndexedQueue<Fiber> getWaitQueue() {
-        return waitQueue;
+    public void await(FiberFrame resumeFrame) {
+        Fiber f = group.getCurrentFiber();
+        if (f == null) {
+            throw new IllegalStateException("current fiber is null");
+        }
+        f.awaitOn(this, resumeFrame);
+    }
+
+    void addWaiter(Fiber f) {
+        if (waiter == null) {
+            waiter = f;
+        } else {
+            if (waitQueue == null) {
+                waitQueue = new IndexedQueue<>(8);
+                waitQueue.addLast(waiter);
+                waiter = f;
+            }
+        }
+    }
+
+    private Fiber nextWaiter() {
+        Fiber f = waiter;
+        if (f != null) {
+            waiter = null;
+            return f;
+        }
+        if (waitQueue != null) {
+            return waitQueue.removeFirst();
+        }
+        return null;
     }
 
     public void signal() {
@@ -48,9 +81,9 @@ public class FiberCondition {
             log.warn("group finished, ignore signal: {}", group.getName());
             return;
         }
-        if (waitQueue.size() > 0) {
-            Fiber f = waitQueue.removeFirst();
-            group.makeReady(f, false);
+        Fiber f = nextWaiter();
+        if (f != null) {
+            group.makeReady(f);
         }
     }
 
@@ -62,14 +95,14 @@ public class FiberCondition {
         }
     }
 
-    private void signalAll0() {
+    void signalAll0() {
         if (group.finished()) {
             log.warn("group finished, ignore signalAll: {}", group.getName());
             return;
         }
-        while (waitQueue.size() > 0) {
-            Fiber f = waitQueue.removeFirst();
-            group.makeReady(f, false);
+        Fiber f;
+        while ((f = nextWaiter()) != null) {
+            group.makeReady(f);
         }
     }
 }
