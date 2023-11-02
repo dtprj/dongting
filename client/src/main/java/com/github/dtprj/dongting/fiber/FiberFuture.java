@@ -18,7 +18,7 @@ package com.github.dtprj.dongting.fiber;
 /**
  * @author huangli
  */
-public class FiberFuture<T> extends FiberCondition {
+public class FiberFuture<T> extends WaitSource {
 
     private boolean done;
 

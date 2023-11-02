@@ -23,10 +23,10 @@ import com.github.dtprj.dongting.common.IndexedQueue;
 public abstract class Fiber {
     protected final FiberGroup fiberGroup;
     protected final String fiberName;
-    private boolean ready;
+    boolean ready;
     boolean finished;
 
-    FiberCondition source;
+    WaitSource source;
 
     private FiberFrame stackBottom;
     private IndexedQueue<FiberFrame> stack;
@@ -59,7 +59,7 @@ public abstract class Fiber {
         stack.addLast(frame);
     }
 
-    public void awaitOn(FiberCondition c, FiberFrame resumeFrame) {
+    public void awaitOn(WaitSource c, FiberFrame resumeFrame) {
         if (!ready) {
             throw new IllegalStateException("fiber not ready state");
         }

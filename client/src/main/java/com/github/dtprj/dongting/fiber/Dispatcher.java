@@ -51,7 +51,6 @@ public class Dispatcher extends Thread {
     Object outputObj;
     int outputInt;
     long outputLong;
-    Throwable execEx;
 
     public Dispatcher(String name) {
         super(name);
@@ -145,6 +144,15 @@ public class Dispatcher extends Thread {
                     } catch (Throwable e) {
                         lastEx = e;
                     }
+                }
+                if (!fiber.ready) {
+                    inputObj = null;
+                    inputInt = 0;
+                    inputLong = 0;
+                    outputObj = null;
+                    outputLong = 0;
+                    outputInt = 0;
+                    return;
                 }
                 ff = fiber.popFrame();
                 if (ff != null && lastEx == null) {
