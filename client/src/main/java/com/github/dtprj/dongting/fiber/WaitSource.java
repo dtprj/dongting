@@ -28,10 +28,6 @@ abstract class WaitSource {
     private IndexedQueue<Fiber> waitQueue;
     protected final FiberGroup group;
 
-    // use by FiberFuture
-    Object execResult;
-    Throwable execEx;
-
     public WaitSource(FiberGroup group) {
         this.group = group;
     }
@@ -68,14 +64,6 @@ abstract class WaitSource {
         return null;
     }
 
-    public void signal() {
-        if (group.isInGroupThread()) {
-            signal0();
-        } else {
-            group.getDispatcher().getShareQueue().offer(() -> signal0());
-        }
-    }
-
     void signal0() {
         if (group.finished()) {
             log.warn("group finished, ignore signal: {}", group.getName());
@@ -84,14 +72,6 @@ abstract class WaitSource {
         Fiber f = nextWaiter();
         if (f != null) {
             group.makeReady(f);
-        }
-    }
-
-    public void signalAll() {
-        if (group.isInGroupThread()) {
-            signalAll0();
-        } else {
-            group.getDispatcher().getShareQueue().offer(() -> signalAll0());
         }
     }
 

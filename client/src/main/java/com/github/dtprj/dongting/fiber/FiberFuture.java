@@ -18,16 +18,51 @@ package com.github.dtprj.dongting.fiber;
 /**
  * @author huangli
  */
-public class FiberFuture<T> extends WaitSource {
+public class FiberFuture extends WaitSource {
 
     private boolean done;
+
+    // use by FiberFuture
+    Object resultObj;
+    int resultInt;
+    long resultLong;
+    Throwable execEx;
 
     FiberFuture(FiberGroup group) {
         super(group);
     }
 
-    public T getResult() {
-        return (T) execResult;
+    public Object getResultObj() {
+        return resultObj;
+    }
+
+    public int getResultInt() {
+        return resultInt;
+    }
+
+    public long getResultLong() {
+        return resultLong;
+    }
+
+    private void checkDone() {
+        if (done) {
+            throw new IllegalStateException("already done");
+        }
+    }
+
+    public void setResultObj(Object obj) {
+        checkDone();
+        this.resultObj = obj;
+    }
+
+    public void setResultInt(int resultInt) {
+        checkDone();
+        this.resultInt = resultInt;
+    }
+
+    public void setResultLong(long resultLong) {
+        checkDone();
+        this.resultLong = resultLong;
     }
 
     public Throwable getEx() {
@@ -46,14 +81,14 @@ public class FiberFuture<T> extends WaitSource {
         completeExceptionally(new FiberCancelException());
     }
 
-    public void complete(T r) {
+    public void complete() {
         if (done) {
             return;
         }
         if (group.isInGroupThread()) {
-            complete0(r, null);
+            complete0(null);
         } else {
-            group.getDispatcher().getShareQueue().offer(() -> complete0(r, null));
+            group.getDispatcher().getShareQueue().offer(() -> complete0(null));
         }
     }
 
@@ -62,18 +97,23 @@ public class FiberFuture<T> extends WaitSource {
             return;
         }
         if (group.isInGroupThread()) {
-            complete0(null, ex);
+            complete0(ex);
         } else {
-            group.getDispatcher().getShareQueue().offer(() -> complete0(null, ex));
+            group.getDispatcher().getShareQueue().offer(() -> complete0(ex));
         }
     }
 
-    private void complete0(T result, Throwable ex) {
+    private void complete0(Throwable ex) {
         if (done) {
             return;
         }
-        this.execEx = ex;
-        this.execResult = result;
+        if (ex == null) {
+            this.resultObj = null;
+            this.resultInt = 0;
+            this.resultLong = 0;
+        } else {
+            this.execEx = ex;
+        }
         this.done = true;
         signalAll0();
     }

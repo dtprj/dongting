@@ -72,8 +72,8 @@ public abstract class Fiber {
         return fiberGroup.newCondition();
     }
 
-    public <T> FiberFuture<T> newFuture() {
-        return new FiberFuture<>(this.fiberGroup);
+    public FiberFuture newFuture() {
+        return new FiberFuture(this.fiberGroup);
     }
 
     public String getFiberName() {

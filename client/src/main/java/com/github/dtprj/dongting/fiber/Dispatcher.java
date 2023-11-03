@@ -114,9 +114,15 @@ public class Dispatcher extends Thread {
         currentFiber = fiber;
         try {
             FiberFrame ff = fiber.popFrame();
-            Throwable lastEx = fiber.source.execEx;
-            inputObj = fiber.source.execResult;
-            fiber.source = null;
+            Throwable lastEx = null;
+            if (fiber.source instanceof FiberFuture) {
+                FiberFuture fu = (FiberFuture) fiber.source;
+                lastEx = fu.execEx;
+                inputObj = fu.resultObj;
+                inputInt = fu.resultInt;
+                inputLong = fu.resultLong;
+                fiber.source = null;
+            }
             while (ff != null) {
                 try {
                     if (lastEx != null) {
