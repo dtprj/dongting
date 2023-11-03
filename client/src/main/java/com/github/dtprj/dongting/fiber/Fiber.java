@@ -49,6 +49,8 @@ public abstract class Fiber {
     }
 
     public void insertCallback(FiberFrame frame) {
+        frame.group = fiberGroup;
+        frame.fiber = this;
         if (stackBottom == null) {
             stackBottom = frame;
             stackTop = frame;
