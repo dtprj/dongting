@@ -21,6 +21,7 @@ package com.github.dtprj.dongting.fiber;
 public abstract class FiberFrame {
     Fiber fiber;
     FiberGroup group;
+    FiberFrame prev;
 
     protected abstract Object execute();
 

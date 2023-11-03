@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.common.IndexedQueue;
-
 /**
  * @author huangli
  */
@@ -29,7 +27,7 @@ public abstract class Fiber {
     WaitSource source;
 
     private FiberFrame stackBottom;
-    private IndexedQueue<FiberFrame> stack;
+    private FiberFrame stackTop;
 
     public Fiber(FiberGroup fiberGroup, String fiberName, FiberFrame entryFrame) {
         this.fiberGroup = fiberGroup;
@@ -38,25 +36,26 @@ public abstract class Fiber {
     }
 
     FiberFrame popFrame() {
-        IndexedQueue<FiberFrame> stack = this.stack;
-        if (stack == null || stack.size() == 0) {
-            FiberFrame f = stackBottom;
-            this.stackBottom = null;
-            return f;
+        if (stackTop == null) {
+            return null;
         } else {
-            return stack.removeLast();
+            FiberFrame f = stackTop;
+            stackTop = f.prev;
+            if (stackTop == null) {
+                stackBottom = null;
+            }
+            return f;
         }
     }
 
-    public void pushFrame(FiberFrame frame) {
+    public void insertCallback(FiberFrame frame) {
         if (stackBottom == null) {
             stackBottom = frame;
-            return;
+            stackTop = frame;
+        } else {
+            stackBottom.prev = frame;
+            stackBottom = frame;
         }
-        if (stack == null) {
-            stack = new IndexedQueue<>(8);
-        }
-        stack.addLast(frame);
     }
 
     public void awaitOn(WaitSource c, FiberFrame resumeFrame) {
@@ -65,7 +64,7 @@ public abstract class Fiber {
         }
         this.ready = false;
         this.source = c;
-        pushFrame(resumeFrame);
+        insertCallback(resumeFrame);
         c.addWaiter(this);
     }
 
