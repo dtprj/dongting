@@ -23,9 +23,13 @@ public abstract class FiberFrame {
     FiberGroup group;
     FiberFrame prev;
 
-    protected abstract Object execute();
+    protected abstract void execute() throws Exception;
 
     protected void doFinally() {
+    }
+
+    protected void suspendCall(FiberFrame fiberFrame) {
+        group.dispatcher.suspendCall(this, fiberFrame);
     }
 
     protected Fiber getFiber() {
@@ -48,15 +52,15 @@ public abstract class FiberFrame {
         group.dispatcher.outputLong = v;
     }
 
-    protected final Object getInputObj() {
-        return group.dispatcher.inputObj;
+    protected final Object getLastResultObj() {
+        return group.dispatcher.lastResultObj;
     }
 
-    protected final int getInputInt() {
-        return group.dispatcher.inputInt;
+    protected final int getLastResultInt() {
+        return group.dispatcher.lastResultInt;
     }
 
-    protected final long getInputLong() {
-        return group.dispatcher.inputLong;
+    protected final long getLastResultLong() {
+        return group.dispatcher.lastResultLong;
     }
 }

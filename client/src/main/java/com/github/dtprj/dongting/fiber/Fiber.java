@@ -26,13 +26,12 @@ public abstract class Fiber {
 
     WaitSource source;
 
-    private FiberFrame stackBottom;
     private FiberFrame stackTop;
 
     public Fiber(FiberGroup fiberGroup, String fiberName, FiberFrame entryFrame) {
         this.fiberGroup = fiberGroup;
         this.fiberName = fiberName;
-        this.stackBottom = entryFrame;
+        this.stackTop = entryFrame;
     }
 
     FiberFrame popFrame() {
@@ -41,22 +40,19 @@ public abstract class Fiber {
         } else {
             FiberFrame f = stackTop;
             stackTop = f.prev;
-            if (stackTop == null) {
-                stackBottom = null;
-            }
+            f.prev = null;
             return f;
         }
     }
 
-    public void insertCallback(FiberFrame frame) {
+    public void pushFrame(FiberFrame frame) {
         frame.group = fiberGroup;
         frame.fiber = this;
-        if (stackBottom == null) {
-            stackBottom = frame;
+        if (stackTop == null) {
             stackTop = frame;
         } else {
-            stackBottom.prev = frame;
-            stackBottom = frame;
+            frame.prev = stackTop;
+            stackTop = frame;
         }
     }
 
@@ -66,7 +62,7 @@ public abstract class Fiber {
         }
         this.ready = false;
         this.source = c;
-        insertCallback(resumeFrame);
+        pushFrame(resumeFrame);
         c.addWaiter(this);
     }
 
