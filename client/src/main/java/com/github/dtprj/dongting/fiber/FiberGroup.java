@@ -63,7 +63,7 @@ public class FiberGroup {
         CompletableFuture<Void> future = new CompletableFuture<>();
         dispatcher.getShareQueue().offer(() -> {
             if (shouldStop) {
-                future.completeExceptionally(new IllegalStateException("fiber group already stopped"));
+                future.completeExceptionally(new FiberException("fiber group already stopped"));
             } else {
                 start(f);
                 future.complete(null);

@@ -15,9 +15,23 @@
  */
 package com.github.dtprj.dongting.fiber;
 
+import com.github.dtprj.dongting.common.DtException;
+
 /**
  * @author huangli
  */
-public class FiberCancelException extends FiberException {
-    private static final long serialVersionUID = -7778839960847960704L;
+public class FiberException extends DtException {
+    private static final long serialVersionUID = 7000896886981197542L;
+
+    public FiberException() {
+        super();
+    }
+
+    public FiberException(String message) {
+        super(message);
+    }
+
+    public FiberException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

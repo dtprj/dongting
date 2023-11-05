@@ -46,7 +46,7 @@ public class FiberFuture extends WaitSource {
 
     private void checkDone() {
         if (done) {
-            throw new IllegalStateException("already done");
+            throw new FiberException("already done");
         }
     }
 

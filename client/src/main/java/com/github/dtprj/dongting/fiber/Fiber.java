@@ -32,6 +32,8 @@ public abstract class Fiber {
         this.fiberGroup = fiberGroup;
         this.fiberName = fiberName;
         this.stackTop = entryFrame;
+        entryFrame.fiber = this;
+        entryFrame.group = fiberGroup;
     }
 
     FiberFrame popFrame() {
@@ -46,19 +48,15 @@ public abstract class Fiber {
     }
 
     public void pushFrame(FiberFrame frame) {
-        frame.group = fiberGroup;
-        frame.fiber = this;
-        if (stackTop == null) {
-            stackTop = frame;
-        } else {
+        if (stackTop != null) {
             frame.prev = stackTop;
-            stackTop = frame;
         }
+        stackTop = frame;
     }
 
     public void awaitOn(WaitSource c, FiberFrame resumeFrame) {
         if (!ready) {
-            throw new IllegalStateException("fiber not ready state");
+            throw new FiberException("fiber not ready state");
         }
         this.ready = false;
         this.source = c;

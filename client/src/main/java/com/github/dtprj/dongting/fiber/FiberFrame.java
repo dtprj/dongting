@@ -22,13 +22,28 @@ public abstract class FiberFrame {
     Fiber fiber;
     FiberGroup group;
     FiberFrame prev;
+    boolean bodyFinished;
+    boolean finallyCalled;
+    boolean handleCalled;
 
-    protected abstract void execute() throws Exception;
+    Runnable resumePoint;
+
+    int outputInt;
+    long outputLong;
+    Object outputObj;
+
+    protected abstract void execute();
 
     protected void doFinally() {
     }
 
-    protected void suspendCall(FiberFrame fiberFrame) {
+    protected void suspendCall(FiberFrame fiberFrame, Runnable resumePoint) {
+        if (this.resumePoint != null) {
+            throw new FiberException("already suspended");
+        }
+        this.resumePoint = resumePoint;
+        fiberFrame.group = this.group;
+        fiberFrame.fiber = this.fiber;
         group.dispatcher.suspendCall(this, fiberFrame);
     }
 
@@ -41,15 +56,15 @@ public abstract class FiberFrame {
     }
 
     protected final void setOutputObj(Object obj) {
-        group.dispatcher.outputObj = obj;
+        outputObj = obj;
     }
 
     protected final void setOutputInt(int v) {
-        group.dispatcher.outputInt = v;
+        outputInt = v;
     }
 
     protected final void setOutputLong(long v) {
-        group.dispatcher.outputLong = v;
+        outputLong = v;
     }
 
     protected final Object getLastResultObj() {

@@ -35,7 +35,7 @@ abstract class WaitSource {
     public void await(FiberFrame resumeFrame) {
         Fiber f = group.getCurrentFiber();
         if (f == null) {
-            throw new IllegalStateException("current fiber is null");
+            throw new FiberException("current fiber is null");
         }
         f.awaitOn(this, resumeFrame);
     }
