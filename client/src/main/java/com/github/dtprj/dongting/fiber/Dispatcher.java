@@ -38,7 +38,6 @@ public class Dispatcher extends Thread {
     private final Timestamp ts = new Timestamp();
 
     private Fiber currentFiber;
-    private FiberFrame newFrame;
     private Thread thread;
 
     private boolean poll = true;
@@ -113,7 +112,7 @@ public class Dispatcher extends Thread {
     private void execFiber(FiberGroup g, Fiber fiber) {
         try {
             currentFiber = fiber;
-            FiberFrame currentFrame = fiber.popFrame();
+            FiberFrame currentFrame = fiber.stackTop;
             if (fiber.source instanceof FiberFuture) {
                 FiberFuture fu = (FiberFuture) fiber.source;
                 lastEx = fu.execEx;
@@ -131,7 +130,7 @@ public class Dispatcher extends Thread {
                 if (!fiber.ready) {
                     return;
                 }
-                if (newFrame == null) {
+                if (currentFrame == fiber.stackTop) {
                     FiberFrame oldFrame = currentFrame;
                     currentFrame = fiber.popFrame();
                     if (currentFrame != null && lastEx == null) {
@@ -144,15 +143,15 @@ public class Dispatcher extends Thread {
                         lastResultLong = 0;
                     }
                 } else {
+                    // call new frame
                     if(lastEx != null) {
-                        lastEx = new FiberException("usage error: after call suspendCall(), should return immediately", lastEx);
+                        lastEx = new FiberException("usage fatal error: suspendCall() should be last statement", lastEx);
                         break;
                     }
                     lastResultObj = null;
                     lastResultInt = 0;
                     lastResultLong = 0;
-                    currentFrame = newFrame;
-                    newFrame = null;
+                    currentFrame = fiber.stackTop;
                 }
             }
             if (lastEx != null) {
@@ -179,7 +178,6 @@ public class Dispatcher extends Thread {
             } else {
                 try {
                     Runnable r = currentFrame.resumePoint;
-                    newFrame = null;
                     if (r == null) {
                         currentFrame.execute();
                     } else {
@@ -200,7 +198,6 @@ public class Dispatcher extends Thread {
             try {
                 if (currentFrame.bodyFinished && !currentFrame.finallyCalled) {
                     currentFrame.finallyCalled = true;
-                    newFrame = null;
                     currentFrame.doFinally();
                 }
             } catch (Throwable e) {
@@ -214,7 +211,6 @@ public class Dispatcher extends Thread {
             currentFrame.handleCalled = true;
             Throwable x = lastEx;
             lastEx = null;
-            newFrame = null;
             try {
                 ((FiberFrameEx) currentFrame).handle(x);
             } catch (Throwable e) {
@@ -225,22 +221,31 @@ public class Dispatcher extends Thread {
         return false;
     }
 
-    void suspendCall(FiberFrame current, FiberFrame newFrame) {
-        if (current.fiber != currentFiber) {
-            FiberException fe = new FiberException("usage error: fiber not match");
-            fatalError = fe;
-            throw fe;
+    void suspendCall(FiberFrame current, FiberFrame newFrame, Runnable resumePoint) {
+        if (current.resumePoint != null) {
+            throwFatalError("usage fatal error: already suspended");
         }
-        if (this.newFrame != null) {
-            FiberException fe = new FiberException("usage error: can't call suspendCall twice");
-            fatalError = fe;
-            throw fe;
+        Fiber fiber = current.fiber;
+        if (fiber != currentFiber) {
+            throwFatalError("usage fatal error: fiber not match");
         }
-        lastResultObj = null;
-        lastResultInt = 0;
-        lastResultLong = 0;
-        currentFiber.pushFrame(current);
-        this.newFrame = newFrame;
+        if (!fiber.ready) {
+            throwFatalError("usage fatal error: fiber not ready state");
+        }
+        if (fiber.stackTop != current) {
+            throwFatalError("usage fatal error: can't call suspendCall twice");
+        }
+        current.resumePoint = resumePoint;
+
+        newFrame.group = current.group;
+        newFrame.fiber = fiber;
+        currentFiber.pushFrame(newFrame);
+    }
+
+    void throwFatalError(String msg) {
+        FiberException fe = new FiberException(msg);
+        fatalError = fe;
+        throw fe;
     }
 
     private void pollAndRefreshTs(Timestamp ts, ArrayList<Runnable> localData) {

@@ -38,13 +38,7 @@ public abstract class FiberFrame {
     }
 
     protected void suspendCall(FiberFrame fiberFrame, Runnable resumePoint) {
-        if (this.resumePoint != null) {
-            throw new FiberException("already suspended");
-        }
-        this.resumePoint = resumePoint;
-        fiberFrame.group = this.group;
-        fiberFrame.fiber = this.fiber;
-        group.dispatcher.suspendCall(this, fiberFrame);
+        group.dispatcher.suspendCall(this, fiberFrame, resumePoint);
     }
 
     protected Fiber getFiber() {

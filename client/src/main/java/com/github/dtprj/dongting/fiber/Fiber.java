@@ -26,7 +26,7 @@ public abstract class Fiber {
 
     WaitSource source;
 
-    private FiberFrame stackTop;
+    FiberFrame stackTop;
 
     public Fiber(FiberGroup fiberGroup, String fiberName, FiberFrame entryFrame) {
         this.fiberGroup = fiberGroup;
@@ -47,16 +47,18 @@ public abstract class Fiber {
         }
     }
 
-    public void pushFrame(FiberFrame frame) {
+    void pushFrame(FiberFrame frame) {
         if (stackTop != null) {
             frame.prev = stackTop;
         }
         stackTop = frame;
     }
 
+
+
     public void awaitOn(WaitSource c, FiberFrame resumeFrame) {
         if (!ready) {
-            throw new FiberException("fiber not ready state");
+            throw new FiberException("usage fatal error: fiber not ready state");
         }
         this.ready = false;
         this.source = c;
