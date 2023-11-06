@@ -54,18 +54,6 @@ public abstract class Fiber {
         stackTop = frame;
     }
 
-
-
-    public void awaitOn(WaitSource c, FiberFrame resumeFrame) {
-        if (!ready) {
-            throw new FiberException("usage fatal error: fiber not ready state");
-        }
-        this.ready = false;
-        this.source = c;
-        pushFrame(resumeFrame);
-        c.addWaiter(this);
-    }
-
     public FiberCondition newCondition() {
         return fiberGroup.newCondition();
     }

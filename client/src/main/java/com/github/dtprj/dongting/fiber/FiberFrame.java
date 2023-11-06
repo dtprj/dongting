@@ -41,6 +41,10 @@ public abstract class FiberFrame {
         group.dispatcher.suspendCall(this, fiberFrame, resumePoint);
     }
 
+    protected void awaitOn(WaitSource waitSource, Runnable resumePoint) {
+        group.dispatcher.awaitOn(this, waitSource, resumePoint);
+    }
+
     protected Fiber getFiber() {
         return fiber;
     }

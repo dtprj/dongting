@@ -144,7 +144,7 @@ public class Dispatcher extends Thread {
                     }
                 } else {
                     // call new frame
-                    if(lastEx != null) {
+                    if (lastEx != null) {
                         lastEx = new FiberException("usage fatal error: suspendCall() should be last statement", lastEx);
                         break;
                     }
@@ -221,7 +221,24 @@ public class Dispatcher extends Thread {
         return false;
     }
 
-    void suspendCall(FiberFrame current, FiberFrame newFrame, Runnable resumePoint) {
+    void suspendCall(FiberFrame currentFrame, FiberFrame newFrame, Runnable resumePoint) {
+        checkCurrentFrame(currentFrame);
+        currentFrame.resumePoint = resumePoint;
+        newFrame.group = currentFrame.group;
+        newFrame.fiber = currentFrame.fiber;
+        currentFiber.pushFrame(newFrame);
+    }
+
+    void awaitOn(FiberFrame currentFrame, WaitSource c, Runnable resumePoint) {
+        checkCurrentFrame(currentFrame);
+        currentFrame.resumePoint = resumePoint;
+        Fiber fiber = currentFrame.fiber;
+        fiber.ready = false;
+        fiber.source = c;
+        c.addWaiter(fiber);
+    }
+
+    private void checkCurrentFrame(FiberFrame current) {
         if (current.resumePoint != null) {
             throwFatalError("usage fatal error: already suspended");
         }
@@ -235,11 +252,6 @@ public class Dispatcher extends Thread {
         if (fiber.stackTop != current) {
             throwFatalError("usage fatal error: can't call suspendCall twice");
         }
-        current.resumePoint = resumePoint;
-
-        newFrame.group = current.group;
-        newFrame.fiber = fiber;
-        currentFiber.pushFrame(newFrame);
     }
 
     void throwFatalError(String msg) {
