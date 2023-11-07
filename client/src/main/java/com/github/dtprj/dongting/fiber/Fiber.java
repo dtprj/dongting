@@ -64,11 +64,9 @@ public abstract class Fiber {
     }
 
     public void interrupt() {
-        if (fiberGroup.isInGroupThread()) {
-            fiberGroup.dispatcher.interrupt(this);
-        } else {
-            fiberGroup.dispatcher.shareQueue.offer(() -> fiberGroup.dispatcher.interrupt(this));
-        }
+        Dispatcher dispatcher = fiberGroup.dispatcher;
+        Fiber f = this;
+        dispatcher.doInDispatcherThread(() -> dispatcher.interrupt(f));
     }
 
     public FiberCondition newCondition() {

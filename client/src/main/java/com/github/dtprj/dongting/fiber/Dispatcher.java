@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.fiber;
 
+import com.github.dtprj.dongting.common.AbstractLifeCircle;
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.DtLog;
@@ -28,7 +30,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-public class Dispatcher extends Thread {
+public class Dispatcher extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(Dispatcher.class);
 
     final LinkedBlockingQueue<Runnable> shareQueue = new LinkedBlockingQueue<>();
@@ -38,7 +40,7 @@ public class Dispatcher extends Thread {
     private final Timestamp ts = new Timestamp();
 
     private Fiber currentFiber;
-    Thread thread;
+    final Thread thread;
 
     private boolean poll = true;
     private int pollTimeout = 50;
@@ -51,7 +53,7 @@ public class Dispatcher extends Thread {
     Throwable fatalError;
 
     public Dispatcher(String name) {
-        super(name);
+        thread = new Thread(this::run, name);
     }
 
     public CompletableFuture<FiberGroup> createFiberGroup(String name) {
@@ -68,16 +70,20 @@ public class Dispatcher extends Thread {
         return future;
     }
 
-    public void requestShutdown() {
+    @Override
+    protected void doStart() {
+        thread.start();
+    }
+
+    @Override
+    protected void doStop(DtTime timeout, boolean force) {
         shareQueue.offer(() -> {
             shouldStop = true;
             groups.forEach(g -> g.shouldStop = true);
         });
     }
 
-    @Override
-    public void run() {
-        this.thread = Thread.currentThread();
+    private void run() {
         ArrayList<Runnable> localData = new ArrayList<>(64);
         ArrayList<FiberGroup> groups = this.groups;
         while (!finished()) {
@@ -105,7 +111,7 @@ public class Dispatcher extends Thread {
                 groups.remove(idx);
             }
         }
-        log.info("fiber dispatcher exit: {}", getName());
+        log.info("fiber dispatcher exit: {}", thread.getName());
     }
 
     private void execFiber(FiberGroup g, Fiber fiber) {
@@ -299,6 +305,14 @@ public class Dispatcher extends Thread {
 
     private boolean finished() {
         return shouldStop && groups.isEmpty();
+    }
+
+    void doInDispatcherThread(Runnable r) {
+        if (Thread.currentThread() == thread) {
+            r.run();
+        } else {
+            shareQueue.offer(r);
+        }
     }
 
 }

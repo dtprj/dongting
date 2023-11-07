@@ -25,18 +25,10 @@ public class FiberCondition extends WaitSource {
     }
 
     public void signal() {
-        if (group.isInGroupThread()) {
-            signal0();
-        } else {
-            group.dispatcher.shareQueue.offer(() -> signal0());
-        }
+        group.dispatcher.doInDispatcherThread(this::signal0);
     }
 
     public void signalAll() {
-        if (group.isInGroupThread()) {
-            signalAll0();
-        } else {
-            group.dispatcher.shareQueue.offer(() -> signalAll0());
-        }
+        group.dispatcher.doInDispatcherThread(this::signalAll0);
     }
 }

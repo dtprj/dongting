@@ -85,22 +85,14 @@ public class FiberFuture extends WaitSource {
         if (done) {
             return;
         }
-        if (group.isInGroupThread()) {
-            complete0(null);
-        } else {
-            group.dispatcher.shareQueue.offer(() -> complete0(null));
-        }
+        group.dispatcher.doInDispatcherThread(() -> complete0(null));
     }
 
     public void completeExceptionally(Throwable ex) {
         if (done) {
             return;
         }
-        if (group.isInGroupThread()) {
-            complete0(ex);
-        } else {
-            group.dispatcher.shareQueue.offer(() -> complete0(ex));
-        }
+        group.dispatcher.doInDispatcherThread(() -> complete0(ex));
     }
 
     private void complete0(Throwable ex) {
