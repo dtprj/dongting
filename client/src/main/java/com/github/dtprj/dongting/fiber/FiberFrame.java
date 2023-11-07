@@ -20,7 +20,7 @@ package com.github.dtprj.dongting.fiber;
  */
 public abstract class FiberFrame {
     Fiber fiber;
-    FiberGroup group;
+    FiberGroup fiberGroup;
     FiberFrame prev;
     boolean bodyFinished;
     boolean finallyCalled;
@@ -38,19 +38,23 @@ public abstract class FiberFrame {
     }
 
     protected void suspendCall(FiberFrame fiberFrame, Runnable resumePoint) {
-        group.dispatcher.suspendCall(this, fiberFrame, resumePoint);
+        fiberGroup.dispatcher.suspendCall(this, fiberFrame, resumePoint);
     }
 
     protected void awaitOn(WaitSource waitSource, Runnable resumePoint) {
-        group.dispatcher.awaitOn(this, waitSource, resumePoint);
+        fiberGroup.dispatcher.awaitOn(this, waitSource, resumePoint);
+    }
+
+    protected <T> FiberChannel<T> createOrGetChannel(int type) {
+        return fiberGroup.createOrGetChannel(type);
     }
 
     protected Fiber getFiber() {
         return fiber;
     }
 
-    protected FiberGroup getGroup() {
-        return group;
+    protected FiberGroup getFiberGroup() {
+        return fiberGroup;
     }
 
     protected final void setOutputObj(Object obj) {
@@ -66,14 +70,14 @@ public abstract class FiberFrame {
     }
 
     protected final Object getLastResultObj() {
-        return group.dispatcher.lastResultObj;
+        return fiberGroup.dispatcher.lastResultObj;
     }
 
     protected final int getLastResultInt() {
-        return group.dispatcher.lastResultInt;
+        return fiberGroup.dispatcher.lastResultInt;
     }
 
     protected final long getLastResultLong() {
-        return group.dispatcher.lastResultLong;
+        return fiberGroup.dispatcher.lastResultLong;
     }
 }

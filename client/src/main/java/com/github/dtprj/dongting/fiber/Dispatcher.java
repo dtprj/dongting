@@ -229,7 +229,7 @@ public class Dispatcher extends AbstractLifeCircle {
     void suspendCall(FiberFrame currentFrame, FiberFrame newFrame, Runnable resumePoint) {
         checkCurrentFrame(currentFrame);
         currentFrame.resumePoint = resumePoint;
-        newFrame.group = currentFrame.group;
+        newFrame.fiberGroup = currentFrame.fiberGroup;
         newFrame.fiber = currentFrame.fiber;
         currentFiber.pushFrame(newFrame);
     }

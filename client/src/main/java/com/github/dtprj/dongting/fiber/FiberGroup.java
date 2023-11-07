@@ -84,14 +84,33 @@ public class FiberGroup {
         dispatcher.shareQueue.offer(() -> shouldStop = true);
     }
 
+    @SuppressWarnings("unchecked")
+    <T> FiberChannel<T> createOrGetChannel(int type) {
+        FiberChannel<Object> channel = channels.get(type);
+        if (channel == null) {
+            channel = new FiberChannel<>(this);
+        }
+        channels.put(type, channel);
+        return (FiberChannel<T>) channel;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public FiberCondition newCondition() {
+        return new FiberCondition(this);
+    }
+
+    public FiberFuture newFuture() {
+        return new FiberFuture(this);
+    }
+
     boolean isInGroupThread() {
         return Thread.currentThread() == dispatcher.thread;
     }
 
-    /**
-     * should call in dispatch thread
-     */
-    public void start(Fiber f) {
+    void start(Fiber f) {
         if (f.started) {
             throw new FiberException("fiber already started: " + f.getFiberName());
         }
@@ -101,27 +120,6 @@ public class FiberGroup {
             normalFibers.add(f);
         }
         makeReady(f);
-    }
-
-    @SuppressWarnings("unchecked")
-    public <T> FiberChannel<T> createOrGetChannel(int type) {
-        FiberChannel<Object> channel = channels.get(type);
-        if (channel == null) {
-            channel = new FiberChannel<>(this);
-        }
-        channels.put(type, channel);
-        return (FiberChannel<T>) channel;
-    }
-
-    /**
-     * should call in dispatch thread
-     */
-    public boolean isShouldStop() {
-        return shouldStop;
-    }
-
-    public String getName() {
-        return name;
     }
 
     void removeFiber(Fiber f) {
@@ -153,10 +151,6 @@ public class FiberGroup {
 
     boolean finished() {
         return shouldStop && normalFibers.isEmpty();
-    }
-
-    FiberCondition newCondition() {
-        return new FiberCondition(this);
     }
 
 }

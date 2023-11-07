@@ -18,7 +18,7 @@ package com.github.dtprj.dongting.fiber;
 /**
  * @author huangli
  */
-public abstract class Fiber {
+public class Fiber {
     protected final FiberGroup fiberGroup;
     protected final String fiberName;
     protected final boolean daemon;
@@ -42,7 +42,7 @@ public abstract class Fiber {
         this.stackTop = entryFrame;
         this.daemon = daemon;
         entryFrame.fiber = this;
-        entryFrame.group = fiberGroup;
+        entryFrame.fiberGroup = fiberGroup;
     }
 
     FiberFrame popFrame() {
@@ -69,12 +69,8 @@ public abstract class Fiber {
         dispatcher.doInDispatcherThread(() -> dispatcher.interrupt(f));
     }
 
-    public FiberCondition newCondition() {
-        return fiberGroup.newCondition();
-    }
-
-    public FiberFuture newFuture() {
-        return new FiberFuture(this.fiberGroup);
+    public void start() {
+        fiberGroup.start(this);
     }
 
     public String getFiberName() {
@@ -83,5 +79,9 @@ public abstract class Fiber {
 
     public FiberGroup getFiberGroup() {
         return fiberGroup;
+    }
+
+    public boolean isGroupShouldStop() {
+        return fiberGroup.shouldStop;
     }
 }
