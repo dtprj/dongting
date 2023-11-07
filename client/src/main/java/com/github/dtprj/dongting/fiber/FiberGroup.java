@@ -85,7 +85,7 @@ public class FiberGroup {
     }
 
     boolean isInGroupThread() {
-        return Thread.currentThread() == dispatcher.getThread();
+        return Thread.currentThread() == dispatcher.thread;
     }
 
     /**
@@ -111,13 +111,6 @@ public class FiberGroup {
         }
         channels.put(type, channel);
         return (FiberChannel<T>) channel;
-    }
-
-    /**
-     * should call in dispatch thread
-     */
-    public Fiber getCurrentFiber() {
-        return dispatcher.getCurrentFiber();
     }
 
     /**

@@ -38,7 +38,7 @@ public class Dispatcher extends Thread {
     private final Timestamp ts = new Timestamp();
 
     private Fiber currentFiber;
-    private Thread thread;
+    Thread thread;
 
     private boolean poll = true;
     private int pollTimeout = 50;
@@ -58,7 +58,7 @@ public class Dispatcher extends Thread {
         CompletableFuture<FiberGroup> future = new CompletableFuture<>();
         FiberGroup g = new FiberGroup(name, this);
         shareQueue.offer(() -> {
-            if (g.isShouldStop()) {
+            if (shouldStop) {
                 future.completeExceptionally(new FiberException("fiber group already stopped"));
             } else {
                 groups.add(g);
@@ -301,19 +301,4 @@ public class Dispatcher extends Thread {
         return shouldStop && groups.isEmpty();
     }
 
-    LinkedBlockingQueue<Runnable> getShareQueue() {
-        return shareQueue;
-    }
-
-    Fiber getCurrentFiber() {
-        return currentFiber;
-    }
-
-    void setCurrentFiber(Fiber currentFiber) {
-        this.currentFiber = currentFiber;
-    }
-
-    Thread getThread() {
-        return thread;
-    }
 }
