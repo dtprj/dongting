@@ -64,7 +64,7 @@ public abstract class Fiber {
         if (fiberGroup.isInGroupThread()) {
             fiberGroup.dispatcher.interrupt(this);
         } else {
-            fiberGroup.dispatcher.getShareQueue().offer(() -> fiberGroup.dispatcher.interrupt(this));
+            fiberGroup.dispatcher.shareQueue.offer(() -> fiberGroup.dispatcher.interrupt(this));
         }
     }
 
@@ -78,18 +78,6 @@ public abstract class Fiber {
 
     public String getFiberName() {
         return fiberName;
-    }
-
-    boolean isReady() {
-        return ready;
-    }
-
-    void setReady() {
-        this.ready = true;
-    }
-
-    boolean isFinished() {
-        return finished;
     }
 
     public FiberGroup getFiberGroup() {

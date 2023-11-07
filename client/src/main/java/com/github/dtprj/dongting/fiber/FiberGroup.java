@@ -31,11 +31,11 @@ public class FiberGroup {
     private static final DtLog log = DtLogs.getLogger(FiberGroup.class);
     private final String name;
     final Dispatcher dispatcher;
-    private final IndexedQueue<Fiber> readyQueue = new IndexedQueue<>(64);
+    final IndexedQueue<Fiber> readyQueue = new IndexedQueue<>(64);
     private final HashSet<Fiber> normalFibers = new HashSet<>();
     private final IntObjMap<FiberChannel<Object>> channels = new IntObjMap<>();
 
-    private boolean shouldStop = false;
+    boolean shouldStop = false;
 
     FiberGroup(String name, Dispatcher dispatcher) {
         this.name = name;
@@ -46,7 +46,7 @@ public class FiberGroup {
      * can call in any thread
      */
     public void fireMessage(int type, Object data) {
-        dispatcher.getShareQueue().offer(() -> {
+        dispatcher.shareQueue.offer(() -> {
             FiberChannel<Object> c = channels.get(type);
             if (c == null) {
                 log.warn("channel not found: {}", type);
@@ -61,7 +61,7 @@ public class FiberGroup {
      */
     public CompletableFuture<Void> fireStart(Fiber f) {
         CompletableFuture<Void> future = new CompletableFuture<>();
-        dispatcher.getShareQueue().offer(() -> {
+        dispatcher.shareQueue.offer(() -> {
             if (shouldStop) {
                 future.completeExceptionally(new FiberException("fiber group already stopped"));
             } else {
@@ -76,7 +76,7 @@ public class FiberGroup {
      * can call in any thread
      */
     public void fireShutdown() {
-        dispatcher.getShareQueue().offer(() -> shouldStop = true);
+        dispatcher.shareQueue.offer(() -> shouldStop = true);
     }
 
     boolean isInGroupThread() {
@@ -132,12 +132,12 @@ public class FiberGroup {
             log.warn("group finished, ignore makeReady: {}", f.getFiberName());
             return;
         }
-        if (f.isFinished()) {
+        if (f.finished) {
             log.warn("fiber already finished, ignore makeReady: {}", f.getFiberName());
             return;
         }
-        if (!f.isReady()) {
-            f.setReady();
+        if (!f.ready) {
+            f.ready = true;
             readyQueue.addLast(f);
         }
     }
@@ -150,15 +150,4 @@ public class FiberGroup {
         return new FiberCondition(this);
     }
 
-    IndexedQueue<Fiber> getReadyQueue() {
-        return readyQueue;
-    }
-
-    void setShouldStop() {
-        this.shouldStop = true;
-    }
-
-    Dispatcher getDispatcher() {
-        return dispatcher;
-    }
 }

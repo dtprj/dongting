@@ -88,7 +88,7 @@ public class FiberFuture extends WaitSource {
         if (group.isInGroupThread()) {
             complete0(null);
         } else {
-            group.getDispatcher().getShareQueue().offer(() -> complete0(null));
+            group.dispatcher.shareQueue.offer(() -> complete0(null));
         }
     }
 
@@ -99,7 +99,7 @@ public class FiberFuture extends WaitSource {
         if (group.isInGroupThread()) {
             complete0(ex);
         } else {
-            group.getDispatcher().getShareQueue().offer(() -> complete0(ex));
+            group.dispatcher.shareQueue.offer(() -> complete0(ex));
         }
     }
 

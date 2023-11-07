@@ -28,7 +28,7 @@ public class FiberCondition extends WaitSource {
         if (group.isInGroupThread()) {
             signal0();
         } else {
-            group.getDispatcher().getShareQueue().offer(() -> signal0());
+            group.dispatcher.shareQueue.offer(() -> signal0());
         }
     }
 
@@ -36,7 +36,7 @@ public class FiberCondition extends WaitSource {
         if (group.isInGroupThread()) {
             signalAll0();
         } else {
-            group.getDispatcher().getShareQueue().offer(() -> signalAll0());
+            group.dispatcher.shareQueue.offer(() -> signalAll0());
         }
     }
 }

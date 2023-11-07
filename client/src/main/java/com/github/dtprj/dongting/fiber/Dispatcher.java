@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit;
 public class Dispatcher extends Thread {
     private static final DtLog log = DtLogs.getLogger(Dispatcher.class);
 
-    private final LinkedBlockingQueue<Runnable> shareQueue = new LinkedBlockingQueue<>();
+    final LinkedBlockingQueue<Runnable> shareQueue = new LinkedBlockingQueue<>();
     private final ArrayList<FiberGroup> groups = new ArrayList<>();
     private final IndexedQueue<Integer> finishedGroups = new IndexedQueue<>(8);
 
@@ -71,7 +71,7 @@ public class Dispatcher extends Thread {
     public void requestShutdown() {
         shareQueue.offer(() -> {
             shouldStop = true;
-            groups.forEach(FiberGroup::setShouldStop);
+            groups.forEach(g -> g.shouldStop = true);
         });
     }
 
@@ -90,7 +90,7 @@ public class Dispatcher extends Thread {
             len = groups.size();
             for (int i = 0; i < len; i++) {
                 FiberGroup g = groups.get(i);
-                IndexedQueue<Fiber> readyQueue = g.getReadyQueue();
+                IndexedQueue<Fiber> readyQueue = g.readyQueue;
                 while (readyQueue.size() > 0) {
                     Fiber fiber = readyQueue.removeFirst();
                     execFiber(g, fiber);
