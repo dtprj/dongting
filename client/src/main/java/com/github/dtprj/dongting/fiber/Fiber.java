@@ -69,8 +69,8 @@ public class Fiber {
         dispatcher.doInDispatcherThread(() -> dispatcher.interrupt(f));
     }
 
-    public void start() {
-        fiberGroup.start(this);
+    public void start(Fiber f) {
+        fiberGroup.dispatcher.doInDispatcherThread(() -> fiberGroup.start(f));
     }
 
     public String getFiberName() {

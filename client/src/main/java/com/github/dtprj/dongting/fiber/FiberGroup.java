@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.HashSet;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * @author huangli
@@ -60,27 +59,7 @@ public class FiberGroup {
     /**
      * can call in any thread
      */
-    public CompletableFuture<Void> fireStart(Fiber f) {
-        CompletableFuture<Void> future = new CompletableFuture<>();
-        dispatcher.shareQueue.offer(() -> {
-            if (shouldStop) {
-                future.completeExceptionally(new FiberException("fiber group already stopped"));
-            } else {
-                try {
-                    start(f);
-                    future.complete(null);
-                } catch (Throwable e) {
-                    future.completeExceptionally(e);
-                }
-            }
-        });
-        return future;
-    }
-
-    /**
-     * can call in any thread
-     */
-    public void fireShutdown() {
+    public void requestShutdown() {
         dispatcher.shareQueue.offer(() -> shouldStop = true);
     }
 
