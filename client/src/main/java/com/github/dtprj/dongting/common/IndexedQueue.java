@@ -20,14 +20,16 @@ package com.github.dtprj.dongting.common;
  */
 @SuppressWarnings("unchecked")
 public class IndexedQueue<T> {
-    private Object[] elements;
-    private int len;
-    private int readIndex;
-    private int writeIndex;
-    private int size;
+    protected Object[] elements;
+    protected int len;
+    protected int mask;
+    protected int readIndex;
+    protected int writeIndex;
+    protected int size;
 
     public IndexedQueue(int initialCapacity) {
         len = BitUtil.nextHighestPowerOfTwo(initialCapacity);
+        mask = len - 1;
         elements = new Object[len];
     }
 
@@ -45,7 +47,7 @@ public class IndexedQueue<T> {
     public void addLast(T element) {
         ensureCapacity();
         elements[writeIndex] = element;
-        writeIndex = (writeIndex + 1) & (len - 1);
+        writeIndex = (writeIndex + 1) & mask;
         size++;
     }
 
@@ -56,7 +58,7 @@ public class IndexedQueue<T> {
 
         T element = (T) elements[readIndex];
         elements[readIndex] = null;
-        readIndex = (readIndex + 1) & (len - 1);
+        readIndex = (readIndex + 1) & mask;
         size--;
         return element;
     }
@@ -81,7 +83,7 @@ public class IndexedQueue<T> {
             throw new IndexOutOfBoundsException("Index out of range");
         }
 
-        int position = (readIndex + index) & (len - 1);
+        int position = (readIndex + index) & mask;
         return (T) elements[position];
     }
 
@@ -91,7 +93,7 @@ public class IndexedQueue<T> {
 
     private void ensureCapacity() {
         if (size == len) {
-            int newSize = len * 2;
+            int newSize = len << 1;
             Object[] newElements = new Object[newSize];
 
             int firstPartSize = len - readIndex;
@@ -102,6 +104,7 @@ public class IndexedQueue<T> {
 
             elements = newElements;
             len = newSize;
+            mask = len - 1;
             readIndex = 0;
             writeIndex = size;
         }

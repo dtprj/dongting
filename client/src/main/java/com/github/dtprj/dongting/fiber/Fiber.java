@@ -21,8 +21,14 @@ package com.github.dtprj.dongting.fiber;
 public abstract class Fiber {
     protected final FiberGroup fiberGroup;
     protected final String fiberName;
+
+    Fiber nextWaiter;
+
     boolean ready;
     boolean finished;
+
+    boolean interrupted;
+    Throwable lastEx;
 
     WaitSource source;
 
@@ -52,6 +58,14 @@ public abstract class Fiber {
             frame.prev = stackTop;
         }
         stackTop = frame;
+    }
+
+    public void interrupt() {
+        if (fiberGroup.isInGroupThread()) {
+            fiberGroup.dispatcher.interrupt(this);
+        } else {
+            fiberGroup.dispatcher.getShareQueue().offer(() -> fiberGroup.dispatcher.interrupt(this));
+        }
     }
 
     public FiberCondition newCondition() {

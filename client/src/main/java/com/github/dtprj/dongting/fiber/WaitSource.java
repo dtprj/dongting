@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -24,44 +23,58 @@ import com.github.dtprj.dongting.log.DtLogs;
  */
 abstract class WaitSource {
     private static final DtLog log = DtLogs.getLogger(FiberCondition.class);
-    private Fiber waiter;
-    private IndexedQueue<Fiber> waitQueue;
+    private Fiber firstWaiter;
+    private Fiber lastWaiter;
     protected final FiberGroup group;
 
     public WaitSource(FiberGroup group) {
         this.group = group;
     }
 
-    public void await(FiberFrame resumeFrame) {
-        Fiber f = group.getCurrentFiber();
-        if (f == null) {
-            throw new FiberException("current fiber is null");
+    void addWaiter(Fiber f) {
+        if (firstWaiter == null) {
+            firstWaiter = f;
+        } else {
+            lastWaiter.nextWaiter = f;
         }
-        f.awaitOn(this, resumeFrame);
+        lastWaiter = f;
     }
 
-    void addWaiter(Fiber f) {
-        if (waiter == null) {
-            waiter = f;
+    void removeWaiter(Fiber f) {
+        if (firstWaiter == f) {
+            firstWaiter = f.nextWaiter;
+            if (firstWaiter == null) {
+                lastWaiter = null;
+            }
         } else {
-            if (waitQueue == null) {
-                waitQueue = new IndexedQueue<>(8);
-                waitQueue.addLast(waiter);
-                waiter = f;
+            Fiber prev = firstWaiter;
+            Fiber cur = firstWaiter.nextWaiter;
+            while (cur != null) {
+                if (cur == f) {
+                    prev.nextWaiter = cur.nextWaiter;
+                    if (cur == lastWaiter) {
+                        lastWaiter = prev;
+                    }
+                    break;
+                }
+                prev = cur;
+                cur = cur.nextWaiter;
             }
         }
     }
 
-    private Fiber nextWaiter() {
-        Fiber f = waiter;
-        if (f != null) {
-            waiter = null;
+    private Fiber popNextWaiter() {
+        Fiber f = firstWaiter;
+        if (f == null) {
+            return null;
+        } else {
+            firstWaiter = f.nextWaiter;
+            if (firstWaiter == null) {
+                lastWaiter = null;
+            }
+            f.nextWaiter = null;
             return f;
         }
-        if (waitQueue != null) {
-            return waitQueue.removeFirst();
-        }
-        return null;
     }
 
     void signal0() {
@@ -69,7 +82,7 @@ abstract class WaitSource {
             log.warn("group finished, ignore signal: {}", group.getName());
             return;
         }
-        Fiber f = nextWaiter();
+        Fiber f = popNextWaiter();
         if (f != null) {
             group.makeReady(f);
         }
@@ -81,7 +94,7 @@ abstract class WaitSource {
             return;
         }
         Fiber f;
-        while ((f = nextWaiter()) != null) {
+        while ((f = popNextWaiter()) != null) {
             group.makeReady(f);
         }
     }

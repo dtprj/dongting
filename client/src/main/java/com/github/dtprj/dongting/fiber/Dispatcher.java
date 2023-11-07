@@ -49,7 +49,6 @@ public class Dispatcher extends Thread {
     int lastResultInt;
     long lastResultLong;
     Throwable fatalError;
-    Throwable lastEx;
 
     public Dispatcher(String name) {
         super(name);
@@ -72,7 +71,7 @@ public class Dispatcher extends Thread {
     public void requestShutdown() {
         shareQueue.offer(() -> {
             shouldStop = true;
-            groups.forEach(g -> g.setShouldStop());
+            groups.forEach(FiberGroup::setShouldStop);
         });
     }
 
@@ -115,7 +114,7 @@ public class Dispatcher extends Thread {
             FiberFrame currentFrame = fiber.stackTop;
             if (fiber.source instanceof FiberFuture) {
                 FiberFuture fu = (FiberFuture) fiber.source;
-                lastEx = fu.execEx;
+                fiber.lastEx = fu.execEx;
                 lastResultObj = fu.resultObj;
                 lastResultInt = fu.resultInt;
                 lastResultLong = fu.resultLong;
@@ -124,7 +123,7 @@ public class Dispatcher extends Thread {
             while (currentFrame != null) {
                 process(fiber, currentFrame);
                 if (fatalError != null) {
-                    lastEx = fatalError;
+                    fiber.lastEx = fatalError;
                     break;
                 }
                 if (!fiber.ready) {
@@ -133,7 +132,7 @@ public class Dispatcher extends Thread {
                 if (currentFrame == fiber.stackTop) {
                     FiberFrame oldFrame = currentFrame;
                     currentFrame = fiber.popFrame();
-                    if (currentFrame != null && lastEx == null) {
+                    if (currentFrame != null && fiber.lastEx == null) {
                         lastResultObj = oldFrame.outputObj;
                         lastResultInt = oldFrame.outputInt;
                         lastResultLong = oldFrame.outputLong;
@@ -144,8 +143,9 @@ public class Dispatcher extends Thread {
                     }
                 } else {
                     // call new frame
-                    if (lastEx != null) {
-                        lastEx = new FiberException("usage fatal error: suspendCall() should be last statement", lastEx);
+                    if (fiber.lastEx != null) {
+                        fiber.lastEx = new FiberException(
+                                "usage fatal error: suspendCall() should be last statement", fiber.lastEx);
                         break;
                     }
                     lastResultObj = null;
@@ -154,8 +154,8 @@ public class Dispatcher extends Thread {
                     currentFrame = fiber.stackTop;
                 }
             }
-            if (lastEx != null) {
-                log.error("fiber execute error, group={}, fiber={}", g.getName(), fiber.getFiberName(), lastEx);
+            if (fiber.lastEx != null) {
+                log.error("fiber execute error, group={}, fiber={}", g.getName(), fiber.getFiberName(), fiber.lastEx);
             }
             fiber.finished = true;
             g.removeFiber(fiber);
@@ -164,17 +164,17 @@ public class Dispatcher extends Thread {
             lastResultInt = 0;
             lastResultLong = 0;
             currentFiber = null;
-            lastEx = null;
+            fiber.lastEx = null;
             fatalError = null;
         }
     }
 
     private void process(Fiber fiber, FiberFrame currentFrame) {
         try {
-            if (lastEx != null) {
+            if (fiber.lastEx != null) {
                 currentFrame.bodyFinished = true;
                 currentFrame.resumePoint = null;
-                tryHandleEx(currentFrame);
+                tryHandleEx(currentFrame, fiber.lastEx);
             } else {
                 try {
                     Runnable r = currentFrame.resumePoint;
@@ -189,8 +189,8 @@ public class Dispatcher extends Thread {
                     }
                 } catch (Throwable e) {
                     currentFrame.bodyFinished = true;
-                    if (!tryHandleEx(currentFrame)) {
-                        lastEx = e;
+                    if (!tryHandleEx(currentFrame, e)) {
+                        fiber.lastEx = e;
                     }
                 }
             }
@@ -201,20 +201,19 @@ public class Dispatcher extends Thread {
                     currentFrame.doFinally();
                 }
             } catch (Throwable e) {
-                lastEx = e;
+                fiber.lastEx = e;
             }
         }
     }
 
-    private boolean tryHandleEx(FiberFrame currentFrame) {
+    private boolean tryHandleEx(FiberFrame currentFrame, Throwable x) {
         if (!currentFrame.handleCalled && currentFrame instanceof FiberFrameEx) {
             currentFrame.handleCalled = true;
-            Throwable x = lastEx;
-            lastEx = null;
+            currentFrame.fiber.lastEx = null;
             try {
                 ((FiberFrameEx) currentFrame).handle(x);
             } catch (Throwable e) {
-                lastEx = e;
+                currentFrame.fiber.lastEx = e;
             }
             return true;
         }
@@ -246,11 +245,29 @@ public class Dispatcher extends Thread {
         if (fiber != currentFiber) {
             throwFatalError("usage fatal error: fiber not match");
         }
+        if (fiber.interrupted) {
+            fiber.interrupted = false;
+            throw new FiberInterruptException("fiber is interrupted");
+        }
         if (!fiber.ready) {
             throwFatalError("usage fatal error: fiber not ready state");
         }
         if (fiber.stackTop != current) {
             throwFatalError("usage fatal error: can't call suspendCall twice");
+        }
+    }
+
+    void interrupt(Fiber fiber) {
+        if (fiber.finished) {
+            return;
+        }
+        if (fiber.ready) {
+            // interrupt self
+            fiber.interrupted = true;
+        } else {
+            fiber.source.removeWaiter(fiber);
+            fiber.lastEx = new FiberInterruptException("fiber is interrupted during wait");
+            fiber.fiberGroup.makeReady(fiber);
         }
     }
 
