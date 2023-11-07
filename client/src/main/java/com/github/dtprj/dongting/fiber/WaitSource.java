@@ -83,7 +83,7 @@ abstract class WaitSource {
         }
         Fiber f = popNextWaiter();
         if (f != null) {
-            group.makeReady(f);
+            group.makeFiberReady(f);
         }
     }
 
@@ -93,7 +93,7 @@ abstract class WaitSource {
         }
         Fiber f;
         while ((f = popNextWaiter()) != null) {
-            group.makeReady(f);
+            group.makeFiberReady(f);
         }
     }
 }

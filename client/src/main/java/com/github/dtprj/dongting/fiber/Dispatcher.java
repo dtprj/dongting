@@ -36,6 +36,7 @@ public class Dispatcher extends AbstractLifeCircle {
     final LinkedBlockingQueue<Runnable> shareQueue = new LinkedBlockingQueue<>();
     private final ArrayList<FiberGroup> groups = new ArrayList<>();
     private final ArrayList<FiberGroup> finishedGroups = new ArrayList<>();
+    final IndexedQueue<FiberGroup> readyGroups = new IndexedQueue<>(8);
 
     private final Timestamp ts = new Timestamp();
 
@@ -85,7 +86,6 @@ public class Dispatcher extends AbstractLifeCircle {
 
     private void run() {
         ArrayList<Runnable> localData = new ArrayList<>(64);
-        ArrayList<FiberGroup> groups = this.groups;
         while (!finished()) {
             pollAndRefreshTs(ts, localData);
             int len = localData.size();
@@ -93,12 +93,15 @@ public class Dispatcher extends AbstractLifeCircle {
                 Runnable r = localData.get(i);
                 r.run();
             }
-            len = groups.size();
+            len = readyGroups.size();
             for (int i = 0; i < len; i++) {
-                FiberGroup g = groups.get(i);
+                FiberGroup g = readyGroups.removeFirst();
                 execGroup(g);
+                if (g.ready) {
+                    readyGroups.addLast(g);
+                }
             }
-            if (finishedGroups.size() > 0) {
+            if (!finishedGroups.isEmpty()) {
                 groups.removeAll(finishedGroups);
             }
         }
@@ -106,7 +109,7 @@ public class Dispatcher extends AbstractLifeCircle {
     }
 
     private void execGroup(FiberGroup g) {
-        IndexedQueue<Fiber> readyQueue = g.readyQueue;
+        IndexedQueue<Fiber> readyQueue = g.readyFibers;
         int size = readyQueue.size();
         for (int i = 0; i < size; i++) {
             Fiber fiber = readyQueue.removeFirst();
@@ -118,6 +121,9 @@ public class Dispatcher extends AbstractLifeCircle {
         if (g.finished) {
             log.info("fiber group finished: {}", g.getName());
             finishedGroups.add(g);
+            g.ready = false;
+        } else {
+            g.ready = readyQueue.size() > 0;
         }
     }
 
@@ -171,6 +177,7 @@ public class Dispatcher extends AbstractLifeCircle {
                 log.error("fiber execute error, group={}, fiber={}", g.getName(), fiber.getFiberName(), fiber.lastEx);
             }
             fiber.finished = true;
+            fiber.ready = false;
             g.removeFiber(fiber);
         } finally {
             lastResultObj = null;
@@ -179,7 +186,6 @@ public class Dispatcher extends AbstractLifeCircle {
             currentFiber = null;
             fiber.lastEx = null;
             fatalError = null;
-            fiber.ready = false;
         }
     }
 
@@ -272,7 +278,7 @@ public class Dispatcher extends AbstractLifeCircle {
     }
 
     void interrupt(Fiber fiber) {
-        if (fiber.finished) {
+        if (fiber.finished || fiber.fiberGroup.finished) {
             return;
         }
         if (fiber.ready) {
@@ -280,8 +286,9 @@ public class Dispatcher extends AbstractLifeCircle {
             fiber.interrupted = true;
         } else {
             fiber.source.removeWaiter(fiber);
+            fiber.interrupted = false;
             fiber.lastEx = new FiberInterruptException("fiber is interrupted during wait");
-            fiber.fiberGroup.makeReady(fiber);
+            fiber.fiberGroup.makeFiberReady(fiber);
         }
     }
 

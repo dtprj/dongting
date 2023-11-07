@@ -30,13 +30,14 @@ public class FiberGroup {
     private static final DtLog log = DtLogs.getLogger(FiberGroup.class);
     private final String name;
     final Dispatcher dispatcher;
-    final IndexedQueue<Fiber> readyQueue = new IndexedQueue<>(64);
+    final IndexedQueue<Fiber> readyFibers = new IndexedQueue<>(64);
     private final HashSet<Fiber> normalFibers = new HashSet<>();
     private final HashSet<Fiber> daemonFibers = new HashSet<>();
     private final IntObjMap<FiberChannel<Object>> channels = new IntObjMap<>();
 
     boolean shouldStop = false;
     boolean finished;
+    boolean ready;
 
     FiberGroup(String name, Dispatcher dispatcher) {
         this.name = name;
@@ -102,7 +103,7 @@ public class FiberGroup {
         } else {
             normalFibers.add(f);
         }
-        makeReady(f);
+        makeFiberReady(f);
     }
 
     void removeFiber(Fiber f) {
@@ -118,7 +119,7 @@ public class FiberGroup {
         }
     }
 
-    void makeReady(Fiber f) {
+    void makeFiberReady(Fiber f) {
         if (finished) {
             log.warn("group finished, ignore makeReady: {}", f.getFiberName());
             return;
@@ -129,8 +130,17 @@ public class FiberGroup {
         }
         if (!f.ready) {
             f.ready = true;
-            readyQueue.addLast(f);
+            readyFibers.addLast(f);
+            makeGroupReady();
         }
+    }
+
+    private void makeGroupReady() {
+        if (ready) {
+            return;
+        }
+        ready = true;
+        dispatcher.readyGroups.addLast(this);
     }
 
     private void updateFinishStatus() {
