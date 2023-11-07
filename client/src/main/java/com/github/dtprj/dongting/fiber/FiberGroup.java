@@ -33,6 +33,7 @@ public class FiberGroup {
     final Dispatcher dispatcher;
     final IndexedQueue<Fiber> readyQueue = new IndexedQueue<>(64);
     private final HashSet<Fiber> normalFibers = new HashSet<>();
+    private final HashSet<Fiber> daemonFibers = new HashSet<>();
     private final IntObjMap<FiberChannel<Object>> channels = new IntObjMap<>();
 
     boolean shouldStop = false;
@@ -65,8 +66,12 @@ public class FiberGroup {
             if (shouldStop) {
                 future.completeExceptionally(new FiberException("fiber group already stopped"));
             } else {
-                start(f);
-                future.complete(null);
+                try {
+                    start(f);
+                    future.complete(null);
+                } catch (Throwable e) {
+                    future.completeExceptionally(e);
+                }
             }
         });
         return future;
@@ -87,8 +92,13 @@ public class FiberGroup {
      * should call in dispatch thread
      */
     public void start(Fiber f) {
-        if (!normalFibers.add(f)) {
-            BugLog.getLog().error("fiber is in set: {}", f.getFiberName());
+        if (f.started) {
+            throw new FiberException("fiber already started: " + f.getFiberName());
+        }
+        if (f.daemon) {
+            daemonFibers.add(f);
+        } else {
+            normalFibers.add(f);
         }
         makeReady(f);
     }
@@ -122,7 +132,13 @@ public class FiberGroup {
     }
 
     void removeFiber(Fiber f) {
-        if (!normalFibers.remove(f)) {
+        boolean removed;
+        if (f.daemon) {
+            removed = daemonFibers.remove(f);
+        } else {
+            removed = normalFibers.remove(f);
+        }
+        if (!removed) {
             BugLog.getLog().error("fiber is not in set: {}", f.getFiberName());
         }
     }

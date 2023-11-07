@@ -21,9 +21,11 @@ package com.github.dtprj.dongting.fiber;
 public abstract class Fiber {
     protected final FiberGroup fiberGroup;
     protected final String fiberName;
+    protected final boolean daemon;
 
     Fiber nextWaiter;
 
+    boolean started;
     boolean ready;
     boolean finished;
 
@@ -34,10 +36,11 @@ public abstract class Fiber {
 
     FiberFrame stackTop;
 
-    public Fiber(FiberGroup fiberGroup, String fiberName, FiberFrame entryFrame) {
+    public Fiber(String fiberName, FiberGroup fiberGroup, FiberFrame entryFrame, boolean daemon) {
         this.fiberGroup = fiberGroup;
         this.fiberName = fiberName;
         this.stackTop = entryFrame;
+        this.daemon = daemon;
         entryFrame.fiber = this;
         entryFrame.group = fiberGroup;
     }
