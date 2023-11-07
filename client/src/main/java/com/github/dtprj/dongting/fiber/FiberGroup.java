@@ -36,6 +36,7 @@ public class FiberGroup {
     private final IntObjMap<FiberChannel<Object>> channels = new IntObjMap<>();
 
     boolean shouldStop = false;
+    boolean finished;
 
     FiberGroup(String name, Dispatcher dispatcher) {
         this.name = name;
@@ -60,7 +61,10 @@ public class FiberGroup {
      * can call in any thread
      */
     public void requestShutdown() {
-        dispatcher.shareQueue.offer(() -> shouldStop = true);
+        dispatcher.shareQueue.offer(() -> {
+            shouldStop = true;
+            updateFinishStatus();
+        });
     }
 
     @SuppressWarnings("unchecked")
@@ -107,6 +111,7 @@ public class FiberGroup {
             removed = daemonFibers.remove(f);
         } else {
             removed = normalFibers.remove(f);
+            updateFinishStatus();
         }
         if (!removed) {
             BugLog.getLog().error("fiber is not in set: {}", f.getFiberName());
@@ -114,7 +119,7 @@ public class FiberGroup {
     }
 
     void makeReady(Fiber f) {
-        if (finished()) {
+        if (finished) {
             log.warn("group finished, ignore makeReady: {}", f.getFiberName());
             return;
         }
@@ -128,8 +133,10 @@ public class FiberGroup {
         }
     }
 
-    boolean finished() {
-        return shouldStop && normalFibers.isEmpty();
+    private void updateFinishStatus() {
+        if (!finished) {
+            finished = shouldStop && normalFibers.isEmpty();
+        }
     }
 
 }

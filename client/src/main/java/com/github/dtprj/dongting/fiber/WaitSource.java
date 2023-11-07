@@ -78,8 +78,7 @@ abstract class WaitSource {
     }
 
     void signal0() {
-        if (group.finished()) {
-            log.warn("group finished, ignore signal: {}", group.getName());
+        if (group.finished) {
             return;
         }
         Fiber f = popNextWaiter();
@@ -89,8 +88,7 @@ abstract class WaitSource {
     }
 
     void signalAll0() {
-        if (group.finished()) {
-            log.warn("group finished, ignore signalAll: {}", group.getName());
+        if (group.finished) {
             return;
         }
         Fiber f;
