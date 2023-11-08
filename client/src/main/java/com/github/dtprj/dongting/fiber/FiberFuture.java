@@ -81,6 +81,10 @@ public class FiberFuture extends WaitSource {
         completeExceptionally(new FiberCancelException());
     }
 
+    public boolean isCanceled() {
+        return execEx instanceof FiberCancelException;
+    }
+
     public void complete() {
         if (done) {
             return;
