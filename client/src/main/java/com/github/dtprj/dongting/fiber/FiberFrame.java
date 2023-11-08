@@ -50,6 +50,11 @@ public abstract class FiberFrame implements FrameCall {
         return FrameCallResult.RETURN;
     }
 
+    protected FrameCallResult sleep(long millis, FrameCall resumePoint) {
+        fiberGroup.dispatcher.sleep(this, millis, resumePoint);
+        return FrameCallResult.SUSPEND;
+    }
+
     protected <T> FiberChannel<T> createOrGetChannel(int type) {
         return fiberGroup.createOrGetChannel(type);
     }

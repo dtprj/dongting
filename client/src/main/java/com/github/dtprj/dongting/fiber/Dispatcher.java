@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.ArrayList;
+import java.util.PriorityQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -37,6 +38,7 @@ public class Dispatcher extends AbstractLifeCircle {
     private final ArrayList<FiberGroup> groups = new ArrayList<>();
     private final ArrayList<FiberGroup> finishedGroups = new ArrayList<>();
     final IndexedQueue<FiberGroup> readyGroups = new IndexedQueue<>(8);
+    private final PriorityQueue<Fiber> scheduleQueue = new PriorityQueue<>(this::compareFiberByScheduleTime);
 
     private final Timestamp ts = new Timestamp();
 
@@ -44,7 +46,7 @@ public class Dispatcher extends AbstractLifeCircle {
     final Thread thread;
 
     private boolean poll = true;
-    private int pollTimeout = 50;
+    private long pollTimeout = TimeUnit.MILLISECONDS.toNanos(50);
 
     private boolean shouldStop = false;
 
@@ -88,11 +90,13 @@ public class Dispatcher extends AbstractLifeCircle {
         ArrayList<Runnable> localData = new ArrayList<>(64);
         while (!finished()) {
             pollAndRefreshTs(ts, localData);
+            processScheduleFibers();
             int len = localData.size();
             for (int i = 0; i < len; i++) {
                 Runnable r = localData.get(i);
                 r.run();
             }
+
             len = readyGroups.size();
             for (int i = 0; i < len; i++) {
                 FiberGroup g = readyGroups.removeFirst();
@@ -106,6 +110,20 @@ public class Dispatcher extends AbstractLifeCircle {
             }
         }
         log.info("fiber dispatcher exit: {}", thread.getName());
+    }
+
+    private void processScheduleFibers() {
+        long now = ts.getNanoTime();
+        PriorityQueue<Fiber> scheduleQueue = this.scheduleQueue;
+        while (true) {
+            Fiber f = scheduleQueue.peek();
+            if (f == null || f.scheduleNanoTime - now > 0) {
+                break;
+            }
+            f.scheduleNanoTime = 0;
+            scheduleQueue.poll();
+            f.fiberGroup.tryMakeFiberReady(f, true);
+        }
     }
 
     private void execGroup(FiberGroup g) {
@@ -261,6 +279,15 @@ public class Dispatcher extends AbstractLifeCircle {
         c.addWaiter(fiber);
     }
 
+    void sleep(FiberFrame currentFrame, long millis, FrameCall resumePoint) {
+        checkCurrentFrame(currentFrame);
+        currentFrame.resumePoint = resumePoint;
+        Fiber fiber = currentFrame.fiber;
+        fiber.ready = false;
+        fiber.scheduleNanoTime = ts.getNanoTime() + TimeUnit.MILLISECONDS.toNanos(millis);
+        scheduleQueue.add(fiber);
+    }
+
     private void checkCurrentFrame(FiberFrame current) {
         if (current.resumePoint != null) {
             throwFatalError("usage fatal error: already suspended");
@@ -289,7 +316,7 @@ public class Dispatcher extends AbstractLifeCircle {
 
     void checkResult(FrameCallResult r, Fiber f) {
         if (r == FrameCallResult.CALL_NEXT_FRAME) {
-            if (f.ready == false) {
+            if (!f.ready) {
                 throwFatalError("usage fatal error: fiber not ready");
             }
         }
@@ -306,15 +333,20 @@ public class Dispatcher extends AbstractLifeCircle {
             fiber.source.removeWaiter(fiber);
             fiber.interrupted = false;
             fiber.lastEx = new FiberInterruptException("fiber is interrupted during wait");
-            fiber.fiberGroup.makeFiberReady(fiber);
+            fiber.fiberGroup.tryMakeFiberReady(fiber, false);
         }
     }
 
     private void pollAndRefreshTs(Timestamp ts, ArrayList<Runnable> localData) {
         try {
             long oldNanos = ts.getNanoTime();
-            if (poll) {
-                Runnable o = shareQueue.poll(pollTimeout, TimeUnit.MILLISECONDS);
+            Fiber f = scheduleQueue.peek();
+            long t = 0;
+            if (f != null) {
+                t = f.scheduleNanoTime - oldNanos;
+            }
+            if (poll && t > 0) {
+                Runnable o = shareQueue.poll(Math.min(t, pollTimeout), TimeUnit.NANOSECONDS);
                 if (o != null) {
                     localData.add(o);
                 }
@@ -326,7 +358,7 @@ public class Dispatcher extends AbstractLifeCircle {
             poll = ts.getNanoTime() - oldNanos > 2_000_000 || localData.isEmpty();
         } catch (InterruptedException e) {
             log.info("fiber dispatcher receive interrupt signal");
-            pollTimeout = 1;
+            pollTimeout = TimeUnit.MICROSECONDS.toNanos(1);
         }
     }
 
@@ -342,4 +374,8 @@ public class Dispatcher extends AbstractLifeCircle {
         }
     }
 
+    private int compareFiberByScheduleTime(Fiber f1, Fiber f2) {
+        long diff = f1.scheduleNanoTime = f2.scheduleNanoTime;
+        return diff < 0 ? -1 : diff > 0 ? 1 : 0;
+    }
 }

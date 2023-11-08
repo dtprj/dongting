@@ -23,6 +23,8 @@ public class Fiber {
     protected final String fiberName;
     protected final boolean daemon;
 
+    long scheduleNanoTime;
+
     Fiber nextWaiter;
 
     boolean started;

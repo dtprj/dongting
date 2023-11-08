@@ -103,7 +103,7 @@ public class FiberGroup {
         } else {
             normalFibers.add(f);
         }
-        makeFiberReady(f);
+        tryMakeFiberReady(f, false);
     }
 
     void removeFiber(Fiber f) {
@@ -119,7 +119,7 @@ public class FiberGroup {
         }
     }
 
-    void makeFiberReady(Fiber f) {
+    void tryMakeFiberReady(Fiber f, boolean addFirst) {
         if (finished) {
             log.warn("group finished, ignore makeReady: {}", f.getFiberName());
             return;
@@ -130,7 +130,11 @@ public class FiberGroup {
         }
         if (!f.ready) {
             f.ready = true;
-            readyFibers.addLast(f);
+            if (addFirst) {
+                readyFibers.addFirst(f);
+            } else {
+                readyFibers.addLast(f);
+            }
             makeGroupReady();
         }
     }
