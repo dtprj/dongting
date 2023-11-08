@@ -18,7 +18,7 @@ package com.github.dtprj.dongting.fiber;
 /**
  * @author huangli
  */
-public abstract class FiberFrame {
+public abstract class FiberFrame implements FrameCall {
     Fiber fiber;
     FiberGroup fiberGroup;
     FiberFrame prev;
@@ -26,23 +26,28 @@ public abstract class FiberFrame {
     boolean finallyCalled;
     boolean handleCalled;
 
-    Runnable resumePoint;
+    FrameCall resumePoint;
 
     int outputInt;
     long outputLong;
     Object outputObj;
 
-    protected abstract void execute();
-
-    protected void doFinally() {
+    protected FrameCallResult doFinally() {
+        return FrameCallResult.RETURN;
     }
 
-    protected void suspendCall(FiberFrame fiberFrame, Runnable resumePoint) {
+    protected FrameCallResult suspendCall(FiberFrame fiberFrame, FrameCall resumePoint) {
         fiberGroup.dispatcher.suspendCall(this, fiberFrame, resumePoint);
+        return FrameCallResult.CALL_NEXT_FRAME;
     }
 
-    protected void awaitOn(WaitSource waitSource, Runnable resumePoint) {
+    protected FrameCallResult awaitOn(WaitSource waitSource, FrameCall resumePoint) {
         fiberGroup.dispatcher.awaitOn(this, waitSource, resumePoint);
+        return FrameCallResult.SUSPEND;
+    }
+
+    protected FrameCallResult frameReturn() {
+        return FrameCallResult.RETURN;
     }
 
     protected <T> FiberChannel<T> createOrGetChannel(int type) {

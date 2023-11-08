@@ -197,16 +197,18 @@ public class Dispatcher extends AbstractLifeCircle {
                 tryHandleEx(currentFrame, fiber.lastEx);
             } else {
                 try {
-                    Runnable r = currentFrame.resumePoint;
+                    FrameCall r = currentFrame.resumePoint;
+                    FrameCallResult result;
                     if (r == null) {
-                        currentFrame.execute();
+                        result = currentFrame.execute();
                     } else {
                         currentFrame.resumePoint = null;
-                        r.run();
+                        result = r.execute();
                     }
-                    if (fiber.ready) {
+                    if (result == FrameCallResult.RETURN) {
                         currentFrame.bodyFinished = true;
                     }
+                    checkResult(result, fiber);
                 } catch (Throwable e) {
                     currentFrame.bodyFinished = true;
                     if (!tryHandleEx(currentFrame, e)) {
@@ -218,7 +220,8 @@ public class Dispatcher extends AbstractLifeCircle {
             try {
                 if (currentFrame.bodyFinished && !currentFrame.finallyCalled) {
                     currentFrame.finallyCalled = true;
-                    currentFrame.doFinally();
+                    FrameCallResult result = currentFrame.doFinally();
+                    checkResult(result, fiber);
                 }
             } catch (Throwable e) {
                 fiber.lastEx = e;
@@ -231,7 +234,8 @@ public class Dispatcher extends AbstractLifeCircle {
             currentFrame.handleCalled = true;
             currentFrame.fiber.lastEx = null;
             try {
-                ((FiberFrameEx) currentFrame).handle(x);
+                FrameCallResult result = ((FiberFrameEx) currentFrame).handle(x);
+                checkResult(result, currentFrame.fiber);
             } catch (Throwable e) {
                 currentFrame.fiber.lastEx = e;
             }
@@ -240,7 +244,7 @@ public class Dispatcher extends AbstractLifeCircle {
         return false;
     }
 
-    void suspendCall(FiberFrame currentFrame, FiberFrame newFrame, Runnable resumePoint) {
+    void suspendCall(FiberFrame currentFrame, FiberFrame newFrame, FrameCall resumePoint) {
         checkCurrentFrame(currentFrame);
         currentFrame.resumePoint = resumePoint;
         newFrame.fiberGroup = currentFrame.fiberGroup;
@@ -248,7 +252,7 @@ public class Dispatcher extends AbstractLifeCircle {
         currentFiber.pushFrame(newFrame);
     }
 
-    void awaitOn(FiberFrame currentFrame, WaitSource c, Runnable resumePoint) {
+    void awaitOn(FiberFrame currentFrame, WaitSource c, FrameCall resumePoint) {
         checkCurrentFrame(currentFrame);
         currentFrame.resumePoint = resumePoint;
         Fiber fiber = currentFrame.fiber;
@@ -277,6 +281,20 @@ public class Dispatcher extends AbstractLifeCircle {
         }
     }
 
+    void throwFatalError(String msg) {
+        FiberException fe = new FiberException(msg);
+        fatalError = fe;
+        throw fe;
+    }
+
+    void checkResult(FrameCallResult r, Fiber f) {
+        if (r == FrameCallResult.CALL_NEXT_FRAME) {
+            if (f.ready == false) {
+                throwFatalError("usage fatal error: fiber not ready");
+            }
+        }
+    }
+
     void interrupt(Fiber fiber) {
         if (fiber.finished || fiber.fiberGroup.finished) {
             return;
@@ -290,12 +308,6 @@ public class Dispatcher extends AbstractLifeCircle {
             fiber.lastEx = new FiberInterruptException("fiber is interrupted during wait");
             fiber.fiberGroup.makeFiberReady(fiber);
         }
-    }
-
-    void throwFatalError(String msg) {
-        FiberException fe = new FiberException(msg);
-        fatalError = fe;
-        throw fe;
     }
 
     private void pollAndRefreshTs(Timestamp ts, ArrayList<Runnable> localData) {

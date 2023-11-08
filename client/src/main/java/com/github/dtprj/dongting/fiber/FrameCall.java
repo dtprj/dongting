@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.fiber;
 /**
  * @author huangli
  */
-public abstract class FiberFrameEx extends FiberFrame {
-    public abstract FrameCallResult handle(Throwable ex);
+@FunctionalInterface
+public interface FrameCall {
+    FrameCallResult execute();
 }
