@@ -27,6 +27,7 @@ public class Fiber {
 
     Fiber nextWaiter;
 
+    boolean inSchedule;
     boolean started;
     boolean ready;
     boolean finished;

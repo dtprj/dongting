@@ -120,8 +120,8 @@ public class Dispatcher extends AbstractLifeCircle {
             if (f == null || f.scheduleNanoTime - now > 0) {
                 break;
             }
-            f.scheduleNanoTime = 0;
             scheduleQueue.poll();
+            tryRemoveFromScheduleQueue(f);
             f.fiberGroup.tryMakeFiberReady(f, true);
         }
     }
@@ -270,12 +270,15 @@ public class Dispatcher extends AbstractLifeCircle {
         currentFiber.pushFrame(newFrame);
     }
 
-    void awaitOn(FiberFrame currentFrame, WaitSource c, FrameCall resumePoint) {
+    void awaitOn(FiberFrame currentFrame, WaitSource c, long millis, FrameCall resumePoint) {
         checkCurrentFrame(currentFrame);
         currentFrame.resumePoint = resumePoint;
         Fiber fiber = currentFrame.fiber;
         fiber.ready = false;
         fiber.source = c;
+        if (millis > 0) {
+            addToScheduleQueue(millis, fiber);
+        }
         c.addWaiter(fiber);
     }
 
@@ -284,6 +287,11 @@ public class Dispatcher extends AbstractLifeCircle {
         currentFrame.resumePoint = resumePoint;
         Fiber fiber = currentFrame.fiber;
         fiber.ready = false;
+        addToScheduleQueue(millis, fiber);
+    }
+
+    private void addToScheduleQueue(long millis, Fiber fiber) {
+        fiber.inSchedule = true;
         fiber.scheduleNanoTime = ts.getNanoTime() + TimeUnit.MILLISECONDS.toNanos(millis);
         scheduleQueue.add(fiber);
     }
@@ -322,17 +330,28 @@ public class Dispatcher extends AbstractLifeCircle {
         }
     }
 
+    void tryRemoveFromScheduleQueue(Fiber f) {
+        if (f.inSchedule) {
+            f.inSchedule = false;
+            f.scheduleNanoTime = 0;
+            scheduleQueue.remove(f);
+        }
+    }
+
     void interrupt(Fiber fiber) {
         if (fiber.finished || fiber.fiberGroup.finished) {
             return;
         }
         if (fiber.ready) {
-            // interrupt self
             fiber.interrupted = true;
         } else {
-            fiber.source.removeWaiter(fiber);
+            if (fiber.source != null) {
+                fiber.source.removeWaiter(fiber);
+                fiber.source = null;
+            }
             fiber.interrupted = false;
             fiber.lastEx = new FiberInterruptException("fiber is interrupted during wait");
+            tryRemoveFromScheduleQueue(fiber);
             fiber.fiberGroup.tryMakeFiberReady(fiber, false);
         }
     }

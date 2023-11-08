@@ -15,14 +15,10 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
-
 /**
  * @author huangli
  */
-abstract class WaitSource {
-    private static final DtLog log = DtLogs.getLogger(FiberCondition.class);
+public abstract class WaitSource {
     private Fiber firstWaiter;
     private Fiber lastWaiter;
     protected final FiberGroup group;
@@ -83,6 +79,7 @@ abstract class WaitSource {
         }
         Fiber f = popNextWaiter();
         if (f != null) {
+            group.dispatcher.tryRemoveFromScheduleQueue(f);
             group.tryMakeFiberReady(f, false);
         }
     }
@@ -93,6 +90,7 @@ abstract class WaitSource {
         }
         Fiber f;
         while ((f = popNextWaiter()) != null) {
+            group.dispatcher.tryRemoveFromScheduleQueue(f);
             group.tryMakeFiberReady(f, false);
         }
     }

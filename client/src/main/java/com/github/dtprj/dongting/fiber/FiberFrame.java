@@ -42,17 +42,22 @@ public abstract class FiberFrame implements FrameCall {
     }
 
     protected FrameCallResult awaitOn(WaitSource waitSource, FrameCall resumePoint) {
-        fiberGroup.dispatcher.awaitOn(this, waitSource, resumePoint);
+        fiberGroup.dispatcher.awaitOn(this, waitSource, 0, resumePoint);
         return FrameCallResult.SUSPEND;
     }
 
-    protected FrameCallResult frameReturn() {
-        return FrameCallResult.RETURN;
+    protected FrameCallResult awaitOn(WaitSource waitSource, long millis, FrameCall resumePoint) {
+        fiberGroup.dispatcher.awaitOn(this, waitSource, millis, resumePoint);
+        return FrameCallResult.SUSPEND;
     }
 
     protected FrameCallResult sleep(long millis, FrameCall resumePoint) {
         fiberGroup.dispatcher.sleep(this, millis, resumePoint);
         return FrameCallResult.SUSPEND;
+    }
+
+    protected FrameCallResult frameReturn() {
+        return FrameCallResult.RETURN;
     }
 
     protected <T> FiberChannel<T> createOrGetChannel(int type) {
