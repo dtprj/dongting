@@ -23,11 +23,11 @@ public class Fiber {
     protected final String fiberName;
     protected final boolean daemon;
 
+    long scheduleTimeoutMillis;
     long scheduleNanoTime;
 
     Fiber nextWaiter;
 
-    boolean inSchedule;
     boolean started;
     boolean ready;
     boolean finished;

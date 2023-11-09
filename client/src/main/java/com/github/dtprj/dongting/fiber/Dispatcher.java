@@ -122,7 +122,13 @@ public class Dispatcher extends AbstractLifeCircle {
                 break;
             }
             scheduleQueue.poll();
-            tryRemoveFromScheduleQueue(f);
+            if (f.source != null) {
+                f.lastEx = new FiberTimeoutException(f.scheduleTimeoutMillis + "ms");
+                f.source.removeWaiter(f);
+                f.source = null;
+            }
+            f.scheduleTimeoutMillis = 0;
+            f.scheduleNanoTime = 0;
             f.fiberGroup.tryMakeFiberReady(f, true);
         }
     }
@@ -310,7 +316,7 @@ public class Dispatcher extends AbstractLifeCircle {
     }
 
     private void addToScheduleQueue(long millis, Fiber fiber) {
-        fiber.inSchedule = true;
+        fiber.scheduleTimeoutMillis = millis;
         fiber.scheduleNanoTime = ts.getNanoTime() + TimeUnit.MILLISECONDS.toNanos(millis);
         scheduleQueue.add(fiber);
     }
@@ -350,8 +356,8 @@ public class Dispatcher extends AbstractLifeCircle {
     }
 
     void tryRemoveFromScheduleQueue(Fiber f) {
-        if (f.inSchedule) {
-            f.inSchedule = false;
+        if (f.scheduleTimeoutMillis > 0) {
+            f.scheduleTimeoutMillis = 0;
             f.scheduleNanoTime = 0;
             scheduleQueue.remove(f);
         }

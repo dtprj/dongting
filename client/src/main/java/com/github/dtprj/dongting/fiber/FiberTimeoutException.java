@@ -18,7 +18,10 @@ package com.github.dtprj.dongting.fiber;
 /**
  * @author huangli
  */
-@FunctionalInterface
-public interface FrameCall {
-    FrameCallResult execute() throws Exception;
+public class FiberTimeoutException extends FiberException {
+    private static final long serialVersionUID = -7870794955007854373L;
+
+    public FiberTimeoutException(String msg) {
+        super(msg);
+    }
 }
