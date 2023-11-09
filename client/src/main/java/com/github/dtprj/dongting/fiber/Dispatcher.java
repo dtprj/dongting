@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -149,16 +150,18 @@ public class Dispatcher extends AbstractLifeCircle {
         try {
             currentFiber = fiber;
             FiberFrame currentFrame = fiber.stackTop;
-            if (fiber.source instanceof FiberFuture) {
-                FiberFuture fu = (FiberFuture) fiber.source;
-                fiber.lastEx = fu.execEx;
-                lastResultObj = fu.resultObj;
-                lastResultInt = fu.resultInt;
-                lastResultLong = fu.resultLong;
-                fiber.source = null;
-            }
             while (currentFrame != null) {
-                process(fiber, currentFrame);
+                if (fiber.source != null) {
+                    if (fiber.source instanceof FiberFuture) {
+                        FiberFuture fu = (FiberFuture) fiber.source;
+                        fiber.lastEx = fu.execEx;
+                        lastResultObj = fu.resultObj;
+                        lastResultInt = fu.resultInt;
+                        lastResultLong = fu.resultLong;
+                    }
+                    fiber.source = null;
+                }
+                processFrame(fiber, currentFrame);
                 if (fatalError != null) {
                     fiber.lastEx = fatalError;
                     break;
@@ -167,6 +170,16 @@ public class Dispatcher extends AbstractLifeCircle {
                     return;
                 }
                 if (currentFrame == fiber.stackTop) {
+                    if (fiber.source != null) {
+                        // called awaitOn() on a completed future
+                        if (fiber.lastEx == null) {
+                            continue;
+                        } else {
+                            // user code throws ex after called awaitOn
+                            BugLog.getLog().error("usage fatal error: throw ex after called awaitOn", fiber.lastEx);
+                            break;
+                        }
+                    }
                     FiberFrame oldFrame = currentFrame;
                     currentFrame = fiber.popFrame();
                     if (currentFrame != null && fiber.lastEx == null) {
@@ -207,7 +220,7 @@ public class Dispatcher extends AbstractLifeCircle {
         }
     }
 
-    private void process(Fiber fiber, FiberFrame currentFrame) {
+    private void processFrame(Fiber fiber, FiberFrame currentFrame) {
         try {
             if (fiber.lastEx != null) {
                 currentFrame.bodyFinished = true;
@@ -274,8 +287,14 @@ public class Dispatcher extends AbstractLifeCircle {
         checkCurrentFrame(currentFrame);
         currentFrame.resumePoint = resumePoint;
         Fiber fiber = currentFrame.fiber;
-        fiber.ready = false;
         fiber.source = c;
+        if (c instanceof FiberFuture) {
+            FiberFuture fu = (FiberFuture) c;
+            if (fu.isDone()) {
+                return;
+            }
+        }
+        fiber.ready = false;
         if (millis > 0) {
             addToScheduleQueue(millis, fiber);
         }
