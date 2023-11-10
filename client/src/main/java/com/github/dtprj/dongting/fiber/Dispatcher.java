@@ -32,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
+@SuppressWarnings({"rawtypes", "unchecked"})
 public class Dispatcher extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(Dispatcher.class);
 
@@ -51,9 +52,7 @@ public class Dispatcher extends AbstractLifeCircle {
 
     private boolean shouldStop = false;
 
-    Object lastResultObj;
-    int lastResultInt;
-    long lastResultLong;
+    Object inputOutputObj;
     private Throwable fatalError;
 
     public Dispatcher(String name) {
@@ -161,9 +160,7 @@ public class Dispatcher extends AbstractLifeCircle {
                     if (fiber.source instanceof FiberFuture) {
                         FiberFuture fu = (FiberFuture) fiber.source;
                         fiber.lastEx = fu.execEx;
-                        lastResultObj = fu.resultObj;
-                        lastResultInt = fu.resultInt;
-                        lastResultLong = fu.resultLong;
+                        inputOutputObj = fu.result;
                     }
                     fiber.source = null;
                 }
@@ -186,17 +183,7 @@ public class Dispatcher extends AbstractLifeCircle {
                             break;
                         }
                     }
-                    FiberFrame oldFrame = currentFrame;
                     currentFrame = fiber.popFrame();
-                    if (currentFrame != null && fiber.lastEx == null) {
-                        lastResultObj = oldFrame.outputObj;
-                        lastResultInt = oldFrame.outputInt;
-                        lastResultLong = oldFrame.outputLong;
-                    } else {
-                        lastResultObj = null;
-                        lastResultInt = 0;
-                        lastResultLong = 0;
-                    }
                 } else {
                     // call new frame
                     if (fiber.lastEx != null) {
@@ -204,9 +191,6 @@ public class Dispatcher extends AbstractLifeCircle {
                                 "usage fatal error: suspendCall() should be last statement", fiber.lastEx);
                         break;
                     }
-                    lastResultObj = null;
-                    lastResultInt = 0;
-                    lastResultLong = 0;
                     currentFrame = fiber.stackTop;
                 }
             }
@@ -217,9 +201,7 @@ public class Dispatcher extends AbstractLifeCircle {
             fiber.ready = false;
             g.removeFiber(fiber);
         } finally {
-            lastResultObj = null;
-            lastResultInt = 0;
-            lastResultLong = 0;
+            inputOutputObj = null;
             currentFiber = null;
             fiber.lastEx = null;
             fatalError = null;
@@ -236,11 +218,13 @@ public class Dispatcher extends AbstractLifeCircle {
                 try {
                     FrameCall r = currentFrame.resumePoint;
                     FrameCallResult result;
+                    Object input = inputOutputObj;
+                    inputOutputObj = null;
                     if (r == null) {
-                        result = currentFrame.execute();
+                        result = currentFrame.execute(input);
                     } else {
                         currentFrame.resumePoint = null;
-                        result = r.execute();
+                        result = r.execute(input);
                     }
                     if (result == FrameCallResult.RETURN) {
                         currentFrame.bodyFinished = true;
@@ -281,11 +265,12 @@ public class Dispatcher extends AbstractLifeCircle {
         return false;
     }
 
-    void suspendCall(FiberFrame currentFrame, FiberFrame newFrame, FrameCall resumePoint) {
+    void suspendCall(Object input, FiberFrame currentFrame, FiberFrame newFrame, FrameCall resumePoint) {
         checkCurrentFrame(currentFrame);
         currentFrame.resumePoint = resumePoint;
         newFrame.fiberGroup = currentFrame.fiberGroup;
         newFrame.fiber = currentFrame.fiber;
+        inputOutputObj = input;
         currentFiber.pushFrame(newFrame);
     }
 

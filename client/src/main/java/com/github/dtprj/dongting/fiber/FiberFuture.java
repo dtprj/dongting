@@ -18,51 +18,26 @@ package com.github.dtprj.dongting.fiber;
 /**
  * @author huangli
  */
-public class FiberFuture extends WaitSource {
+public class FiberFuture<T> extends WaitSource {
 
     private boolean done;
 
     // use by FiberFuture
-    Object resultObj;
-    int resultInt;
-    long resultLong;
+    T result;
     Throwable execEx;
 
     FiberFuture(FiberGroup group) {
         super(group);
     }
 
-    public Object getResultObj() {
-        return resultObj;
-    }
-
-    public int getResultInt() {
-        return resultInt;
-    }
-
-    public long getResultLong() {
-        return resultLong;
+    public T getResult() {
+        return result;
     }
 
     private void checkDone() {
         if (done) {
             throw new FiberException("already done");
         }
-    }
-
-    public void setResultObj(Object obj) {
-        checkDone();
-        this.resultObj = obj;
-    }
-
-    public void setResultInt(int resultInt) {
-        checkDone();
-        this.resultInt = resultInt;
-    }
-
-    public void setResultLong(long resultLong) {
-        checkDone();
-        this.resultLong = resultLong;
     }
 
     public Throwable getEx() {
@@ -85,28 +60,26 @@ public class FiberFuture extends WaitSource {
         return execEx instanceof FiberCancelException;
     }
 
-    public void complete() {
+    public void complete(T result) {
         if (done) {
             return;
         }
-        group.dispatcher.doInDispatcherThread(() -> complete0(null));
+        group.dispatcher.doInDispatcherThread(() -> complete0(result, null));
     }
 
     public void completeExceptionally(Throwable ex) {
         if (done) {
             return;
         }
-        group.dispatcher.doInDispatcherThread(() -> complete0(ex));
+        group.dispatcher.doInDispatcherThread(() -> complete0(null, ex));
     }
 
-    private void complete0(Throwable ex) {
+    private void complete0(T result, Throwable ex) {
         if (done) {
             return;
         }
         if (ex == null) {
-            this.resultObj = null;
-            this.resultInt = 0;
-            this.resultLong = 0;
+            this.result = result;
         } else {
             this.execEx = ex;
         }

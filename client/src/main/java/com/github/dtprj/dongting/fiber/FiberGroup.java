@@ -86,8 +86,8 @@ public class FiberGroup {
         return new FiberCondition(this);
     }
 
-    public FiberFuture newFuture() {
-        return new FiberFuture(this);
+    public <T> FiberFuture<T> newFuture() {
+        return new FiberFuture<>(this);
     }
 
     boolean isInGroupThread() {

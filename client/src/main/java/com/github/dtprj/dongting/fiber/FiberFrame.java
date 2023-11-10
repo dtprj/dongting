@@ -18,7 +18,8 @@ package com.github.dtprj.dongting.fiber;
 /**
  * @author huangli
  */
-public abstract class FiberFrame implements FrameCall {
+@SuppressWarnings("rawtypes")
+public abstract class FiberFrame<I, O> implements FrameCall<I> {
     Fiber fiber;
     FiberGroup fiberGroup;
     FiberFrame prev;
@@ -28,35 +29,43 @@ public abstract class FiberFrame implements FrameCall {
 
     FrameCall resumePoint;
 
-    int outputInt;
-    long outputLong;
-    Object outputObj;
-
     protected FrameCallResult doFinally() {
         return FrameCallResult.RETURN;
     }
 
-    protected FrameCallResult suspendCall(FiberFrame fiberFrame, FrameCall resumePoint) {
-        fiberGroup.dispatcher.suspendCall(this, fiberFrame, resumePoint);
+    protected <I2, O2> FrameCallResult suspendCall(I2 input, FiberFrame<I2, O2> fiberFrame, FrameCall<O2> resumePoint) {
+        fiberGroup.dispatcher.suspendCall(input, this, fiberFrame, resumePoint);
         return FrameCallResult.CALL_NEXT_FRAME;
     }
 
-    protected FrameCallResult awaitOn(WaitSource waitSource, FrameCall resumePoint) {
-        fiberGroup.dispatcher.awaitOn(this, waitSource, 0, resumePoint);
+    protected FrameCallResult awaitOn(FiberCondition c, FrameCall<Void> resumePoint) {
+        fiberGroup.dispatcher.awaitOn(this, c, 0, resumePoint);
         return FrameCallResult.SUSPEND;
     }
 
-    protected FrameCallResult awaitOn(WaitSource waitSource, long millis, FrameCall resumePoint) {
-        fiberGroup.dispatcher.awaitOn(this, waitSource, millis, resumePoint);
+    protected FrameCallResult awaitOn(FiberCondition c, long millis, FrameCall<Void> resumePoint) {
+        fiberGroup.dispatcher.awaitOn(this, c, millis, resumePoint);
         return FrameCallResult.SUSPEND;
     }
 
-    protected FrameCallResult sleep(long millis, FrameCall resumePoint) {
+    protected <T> FrameCallResult awaitOn(FiberFuture<T> f, FrameCall<T> resumePoint) {
+        fiberGroup.dispatcher.awaitOn(this, f, 0, resumePoint);
+        return FrameCallResult.SUSPEND;
+    }
+
+    protected <T> FrameCallResult awaitOn(FiberFuture<T> f, long millis, FrameCall<T> resumePoint) {
+        fiberGroup.dispatcher.awaitOn(this, f, millis, resumePoint);
+        return FrameCallResult.SUSPEND;
+    }
+
+
+    protected FrameCallResult sleep(long millis, FrameCall<Void> resumePoint) {
         fiberGroup.dispatcher.sleep(this, millis, resumePoint);
         return FrameCallResult.SUSPEND;
     }
 
-    protected FrameCallResult frameReturn() {
+    protected FrameCallResult frameReturn(O result) {
+        fiberGroup.dispatcher.inputOutputObj = result;
         return FrameCallResult.RETURN;
     }
 
@@ -72,27 +81,4 @@ public abstract class FiberFrame implements FrameCall {
         return fiberGroup;
     }
 
-    protected final void setOutputObj(Object obj) {
-        outputObj = obj;
-    }
-
-    protected final void setOutputInt(int v) {
-        outputInt = v;
-    }
-
-    protected final void setOutputLong(long v) {
-        outputLong = v;
-    }
-
-    protected final Object getLastResultObj() {
-        return fiberGroup.dispatcher.lastResultObj;
-    }
-
-    protected final int getLastResultInt() {
-        return fiberGroup.dispatcher.lastResultInt;
-    }
-
-    protected final long getLastResultLong() {
-        return fiberGroup.dispatcher.lastResultLong;
-    }
 }

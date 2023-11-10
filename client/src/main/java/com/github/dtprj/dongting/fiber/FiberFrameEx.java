@@ -18,6 +18,6 @@ package com.github.dtprj.dongting.fiber;
 /**
  * @author huangli
  */
-public abstract class FiberFrameEx extends FiberFrame {
+public abstract class FiberFrameEx<I, O> extends FiberFrame<I, O> {
     public abstract FrameCallResult handle(Throwable ex);
 }
