@@ -52,7 +52,7 @@ public class Dispatcher extends AbstractLifeCircle {
 
     private boolean shouldStop = false;
 
-    Object inputOutputObj;
+    Object inputObj;
     private Throwable fatalError;
 
     public Dispatcher(String name) {
@@ -160,7 +160,7 @@ public class Dispatcher extends AbstractLifeCircle {
                     if (fiber.source instanceof FiberFuture) {
                         FiberFuture fu = (FiberFuture) fiber.source;
                         fiber.lastEx = fu.execEx;
-                        inputOutputObj = fu.result;
+                        inputObj = fu.result;
                     }
                     fiber.source = null;
                 }
@@ -183,6 +183,7 @@ public class Dispatcher extends AbstractLifeCircle {
                             break;
                         }
                     }
+                    inputObj = currentFrame.result;
                     currentFrame = fiber.popFrame();
                 } else {
                     // call new frame
@@ -201,7 +202,7 @@ public class Dispatcher extends AbstractLifeCircle {
             fiber.ready = false;
             g.removeFiber(fiber);
         } finally {
-            inputOutputObj = null;
+            inputObj = null;
             currentFiber = null;
             fiber.lastEx = null;
             fatalError = null;
@@ -218,8 +219,8 @@ public class Dispatcher extends AbstractLifeCircle {
                 try {
                     FrameCall r = currentFrame.resumePoint;
                     FrameCallResult result;
-                    Object input = inputOutputObj;
-                    inputOutputObj = null;
+                    Object input = inputObj;
+                    inputObj = null;
                     if (r == null) {
                         result = currentFrame.execute(input);
                     } else {
@@ -270,7 +271,7 @@ public class Dispatcher extends AbstractLifeCircle {
         currentFrame.resumePoint = resumePoint;
         newFrame.fiberGroup = currentFrame.fiberGroup;
         newFrame.fiber = currentFrame.fiber;
-        inputOutputObj = input;
+        inputObj = input;
         currentFiber.pushFrame(newFrame);
     }
 

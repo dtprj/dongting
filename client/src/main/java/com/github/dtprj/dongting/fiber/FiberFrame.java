@@ -29,6 +29,8 @@ public abstract class FiberFrame<I, O> implements FrameCall<I> {
 
     FrameCall resumePoint;
 
+    O result;
+
     protected FrameCallResult doFinally() {
         return FrameCallResult.RETURN;
     }
@@ -64,9 +66,12 @@ public abstract class FiberFrame<I, O> implements FrameCall<I> {
         return FrameCallResult.SUSPEND;
     }
 
-    protected FrameCallResult frameReturn(O result) {
-        fiberGroup.dispatcher.inputOutputObj = result;
+    protected FrameCallResult frameReturn() {
         return FrameCallResult.RETURN;
+    }
+
+    protected void setResult(O result){
+        this.result = result;
     }
 
     protected <T> FiberChannel<T> createOrGetChannel(int type) {
