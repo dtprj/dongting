@@ -86,4 +86,13 @@ public abstract class FiberFrame<I, O> implements FrameCall<I> {
         return fiberGroup;
     }
 
+    protected <O2> FiberFrame<I, O2> then(FrameCall<O> nextAction) {
+        FiberFrame<I, O2> nextFrame = new FiberFrame<I, O2>() {
+            @Override
+            public FrameCallResult execute(I input) {
+                return suspendCall(input, FiberFrame.this, nextAction);
+            }
+        };
+        return nextFrame;
+    }
 }
