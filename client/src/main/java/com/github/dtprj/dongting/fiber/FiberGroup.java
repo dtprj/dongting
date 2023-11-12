@@ -94,10 +94,11 @@ public class FiberGroup {
         return Thread.currentThread() == dispatcher.thread;
     }
 
-    void start(Fiber f) {
+    void start(Fiber f, FiberFrame<Void, Void> firstFrame) {
         if (f.started) {
             throw new FiberException("fiber already started: " + f.getFiberName());
         }
+        f.stackTop = firstFrame;
         if (f.daemon) {
             daemonFibers.add(f);
         } else {

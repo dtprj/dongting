@@ -39,13 +39,10 @@ public class Fiber {
 
     FiberFrame stackTop;
 
-    public Fiber(String fiberName, FiberGroup fiberGroup, FiberFrame entryFrame, boolean daemon) {
+    public Fiber(String fiberName, FiberGroup fiberGroup, boolean daemon) {
         this.fiberGroup = fiberGroup;
         this.fiberName = fiberName;
-        this.stackTop = entryFrame;
         this.daemon = daemon;
-        entryFrame.fiber = this;
-        entryFrame.fiberGroup = fiberGroup;
     }
 
     FiberFrame popFrame() {
@@ -72,8 +69,8 @@ public class Fiber {
         dispatcher.doInDispatcherThread(() -> dispatcher.interrupt(f));
     }
 
-    public void start(Fiber f) {
-        fiberGroup.dispatcher.doInDispatcherThread(() -> fiberGroup.start(f));
+    public void start(FiberFrame<Void, Void> firstFrame) {
+        fiberGroup.dispatcher.doInDispatcherThread(() -> fiberGroup.start(Fiber.this, firstFrame));
     }
 
     public String getFiberName() {

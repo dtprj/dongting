@@ -19,6 +19,6 @@ package com.github.dtprj.dongting.fiber;
  * @author huangli
  */
 @FunctionalInterface
-public interface FrameCall<I> {
-    FrameCallResult execute(I input) throws Exception;
+public interface FrameCall<T, O> {
+    FrameCallResult execute(FiberFrame<?, O> currentFrame, T input) throws Exception;
 }

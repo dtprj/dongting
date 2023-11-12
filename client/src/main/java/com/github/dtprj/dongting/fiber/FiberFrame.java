@@ -19,80 +19,89 @@ package com.github.dtprj.dongting.fiber;
  * @author huangli
  */
 @SuppressWarnings("rawtypes")
-public abstract class FiberFrame<I, O> implements FrameCall<I> {
+public class FiberFrame<I, O> {
     Fiber fiber;
-    FiberGroup fiberGroup;
     FiberFrame prev;
-    boolean bodyFinished;
-    boolean finallyCalled;
-    boolean handleCalled;
 
+    FrameCall<I, O> body;
+    FrameCall<Throwable, O> catchClause;
+    FrameCall<Void, O> finallyClause;
     FrameCall resumePoint;
 
     O result;
 
-    protected FrameCallResult doFinally() {
-        return FrameCallResult.RETURN;
+    FiberFrame() {
     }
 
-    protected <I2, O2> FrameCallResult suspendCall(I2 input, FiberFrame<I2, O2> fiberFrame, FrameCall<O2> resumePoint) {
-        fiberGroup.dispatcher.suspendCall(input, this, fiberFrame, resumePoint);
+    public static <I, O> FiberFrame<I, O> create(Fiber fiber, FrameCall<I, O> body,
+                                                 FrameCall<Throwable, O> catchClause,
+                                                 FrameCall<Void, O> finallyClause) {
+        FiberFrame<I, O> frame = new FiberFrame<>();
+        frame.fiber = fiber;
+        frame.body = body;
+        frame.catchClause = catchClause;
+        frame.finallyClause = finallyClause;
+        return frame;
+    }
+
+    public static <I, O> FiberFrame<I, O> create(Fiber fiber, FrameCall<I, O> body) {
+        return create(fiber, body, null, null);
+    }
+
+    public <I2, O2> FrameCallResult suspendCall(I2 input, FiberFrame<I2, O2> subFrame, FrameCall<O2, O> resumePoint) {
+        fiber.fiberGroup.dispatcher.suspendCall(input, this, subFrame, resumePoint);
         return FrameCallResult.CALL_NEXT_FRAME;
     }
 
-    protected FrameCallResult awaitOn(FiberCondition c, FrameCall<Void> resumePoint) {
-        fiberGroup.dispatcher.awaitOn(this, c, 0, resumePoint);
+    public FrameCallResult awaitOn(FiberCondition c, FrameCall<Void, O> resumePoint) {
+        fiber.fiberGroup.dispatcher.awaitOn(this, c, 0, resumePoint);
         return FrameCallResult.SUSPEND;
     }
 
-    protected FrameCallResult awaitOn(FiberCondition c, long millis, FrameCall<Void> resumePoint) {
-        fiberGroup.dispatcher.awaitOn(this, c, millis, resumePoint);
+    public FrameCallResult awaitOn(FiberCondition c, long millis, FrameCall<Void, O> resumePoint) {
+        fiber.fiberGroup.dispatcher.awaitOn(this, c, millis, resumePoint);
         return FrameCallResult.SUSPEND;
     }
 
-    protected <T> FrameCallResult awaitOn(FiberFuture<T> f, FrameCall<T> resumePoint) {
-        fiberGroup.dispatcher.awaitOn(this, f, 0, resumePoint);
+    public <T> FrameCallResult awaitOn(FiberFuture<T> f, FrameCall<T, O> resumePoint) {
+        fiber.fiberGroup.dispatcher.awaitOn(this, f, 0, resumePoint);
         return FrameCallResult.SUSPEND;
     }
 
-    protected <T> FrameCallResult awaitOn(FiberFuture<T> f, long millis, FrameCall<T> resumePoint) {
-        fiberGroup.dispatcher.awaitOn(this, f, millis, resumePoint);
+    public <T> FrameCallResult awaitOn(FiberFuture<T> f, long millis, FrameCall<T, O> resumePoint) {
+        fiber.fiberGroup.dispatcher.awaitOn(this, f, millis, resumePoint);
         return FrameCallResult.SUSPEND;
     }
 
 
-    protected FrameCallResult sleep(long millis, FrameCall<Void> resumePoint) {
-        fiberGroup.dispatcher.sleep(this, millis, resumePoint);
+    public FrameCallResult sleep(long millis, FrameCall<Void, O> resumePoint) {
+        fiber.fiberGroup.dispatcher.sleep(this, millis, resumePoint);
         return FrameCallResult.SUSPEND;
     }
 
-    protected FrameCallResult frameReturn() {
+    public FrameCallResult frameReturn() {
         return FrameCallResult.RETURN;
     }
 
-    protected void setResult(O result){
+    public void setResult(O result) {
         this.result = result;
     }
 
-    protected <T> FiberChannel<T> createOrGetChannel(int type) {
-        return fiberGroup.createOrGetChannel(type);
+    public <T> FiberChannel<T> createOrGetChannel(int type) {
+        return fiber.fiberGroup.createOrGetChannel(type);
     }
 
-    protected Fiber getFiber() {
+    public Fiber getFiber() {
         return fiber;
     }
 
-    protected FiberGroup getFiberGroup() {
-        return fiberGroup;
+    public FiberGroup getFiberGroup() {
+        return fiber.fiberGroup;
     }
 
-    protected <O2> FiberFrame<I, O2> then(FrameCall<O> nextAction) {
-        FiberFrame<I, O2> nextFrame = new FiberFrame<I, O2>() {
-            @Override
-            public FrameCallResult execute(I input) {
-                return suspendCall(input, FiberFrame.this, nextAction);
-            }
-        };
-        return nextFrame;
+    public <O2> FiberFrame<I, O2> then(FrameCall<O, O2> nextAction) {
+         FrameCall<I, O2> body = (currentFrame, input) ->
+                 currentFrame.suspendCall(input, FiberFrame.this, nextAction);
+        return create(fiber, body);
     }
 }

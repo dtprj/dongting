@@ -212,27 +212,23 @@ public class Dispatcher extends AbstractLifeCircle {
     private void processFrame(Fiber fiber, FiberFrame currentFrame) {
         try {
             if (fiber.lastEx != null) {
-                currentFrame.bodyFinished = true;
                 currentFrame.resumePoint = null;
                 tryHandleEx(currentFrame, fiber.lastEx);
             } else {
                 try {
-                    FrameCall r = currentFrame.resumePoint;
-                    FrameCallResult result;
                     Object input = inputObj;
                     inputObj = null;
-                    if (r == null) {
-                        result = currentFrame.execute(input);
-                    } else {
+                    FrameCall r = currentFrame.resumePoint;
+                    if (r != null) {
                         currentFrame.resumePoint = null;
-                        result = r.execute(input);
+                    } else {
+                        r = currentFrame.body;
+                        // assert body not null
+                        currentFrame.body = null;
                     }
-                    if (result == FrameCallResult.RETURN) {
-                        currentFrame.bodyFinished = true;
-                    }
+                    FrameCallResult result = r.execute(currentFrame, input);
                     checkResult(result, fiber);
                 } catch (Throwable e) {
-                    currentFrame.bodyFinished = true;
                     if (!tryHandleEx(currentFrame, e)) {
                         fiber.lastEx = e;
                     }
@@ -240,9 +236,10 @@ public class Dispatcher extends AbstractLifeCircle {
             }
         } finally {
             try {
-                if (currentFrame.bodyFinished && !currentFrame.finallyCalled) {
-                    currentFrame.finallyCalled = true;
-                    FrameCallResult result = currentFrame.doFinally();
+                FrameCall c = currentFrame.finallyClause;
+                if (currentFrame.resumePoint == null && c != null) {
+                    currentFrame.finallyClause = null;
+                    FrameCallResult result = c.execute(currentFrame, null);
                     checkResult(result, fiber);
                 }
             } catch (Throwable e) {
@@ -252,11 +249,12 @@ public class Dispatcher extends AbstractLifeCircle {
     }
 
     private boolean tryHandleEx(FiberFrame currentFrame, Throwable x) {
-        if (!currentFrame.handleCalled && currentFrame instanceof FiberFrameEx) {
-            currentFrame.handleCalled = true;
+        FrameCall c = currentFrame.catchClause;
+        if (c != null) {
+            currentFrame.catchClause = null;
             currentFrame.fiber.lastEx = null;
             try {
-                FrameCallResult result = ((FiberFrameEx) currentFrame).handle(x);
+                FrameCallResult result = c.execute(currentFrame, x);
                 checkResult(result, currentFrame.fiber);
             } catch (Throwable e) {
                 currentFrame.fiber.lastEx = e;
@@ -269,8 +267,6 @@ public class Dispatcher extends AbstractLifeCircle {
     void suspendCall(Object input, FiberFrame currentFrame, FiberFrame newFrame, FrameCall resumePoint) {
         checkCurrentFrame(currentFrame);
         currentFrame.resumePoint = resumePoint;
-        newFrame.fiberGroup = currentFrame.fiberGroup;
-        newFrame.fiber = currentFrame.fiber;
         inputObj = input;
         currentFiber.pushFrame(newFrame);
     }
