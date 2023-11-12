@@ -31,8 +31,23 @@ public class FrameContext<O> {
         this.dispatcher = dispatcher;
     }
 
-    public <I2, O2> FrameCallResult suspendCall(I2 input, FiberFrame<I2, O2> subFrame, FrameCall<O2, O> resumePoint) {
-        dispatcher.suspendCall(fiber, input, frame, subFrame, resumePoint);
+    public <I, O> FiberFrame<I, O> newFrame(FrameCall<I, O> body,
+                                            FrameCall<Throwable, O> catchClause,
+                                            FrameCall<Void, O> finallyClause) {
+        return new FiberFrame<>(body, catchClause, finallyClause);
+    }
+
+    public <I, O> FiberFrame<I, O> newFrame(FrameCall<I, O> body,
+                                            FrameCall<Throwable, O> catchClause) {
+        return new FiberFrame<>(body, catchClause);
+    }
+
+    public <I, O> FiberFrame<I, O> newFrame(FrameCall<I, O> body) {
+        return new FiberFrame<>(body);
+    }
+
+    public <I2, O2> FrameCallResult call(I2 input, FiberFrame<I2, O2> subFrame, FrameCall<O2, O> resumePoint) {
+        dispatcher.call(fiber, input, frame, subFrame, resumePoint);
         return FrameCallResult.CALL_NEXT_FRAME;
     }
 
