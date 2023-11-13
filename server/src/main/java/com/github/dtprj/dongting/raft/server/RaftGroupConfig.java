@@ -15,12 +15,11 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 
@@ -33,13 +32,13 @@ public class RaftGroupConfig {
     private final String nodeIdOfObservers;
     private String dataDir = "./data";
     private String statusFile = "raft.status";
-    private int[] ioRetryInterval = new int[]{100, 1000, 3000, 5000, 10000, 20000};
+    private long[] ioRetryInterval = new long[]{100, 1000, 3000, 5000, 10000, 20000};
 
     private Timestamp ts;
     private RefBufferFactory heapPool;
-    private ByteBufferPool directPool;
+    private RefBufferFactory directPool;
     private ExecutorService ioExecutor;
-    private Executor raftExecutor;
+    private FiberGroup fiberGroup;
     private Supplier<Boolean> stopIndicator;
     private RaftStatus raftStatus;
     private RaftCodecFactory codecFactory;
@@ -95,20 +94,20 @@ public class RaftGroupConfig {
         this.heapPool = heapPool;
     }
 
-    public ByteBufferPool getDirectPool() {
+    public RefBufferFactory getDirectPool() {
         return directPool;
     }
 
-    public void setDirectPool(ByteBufferPool directPool) {
+    public void setDirectPool(RefBufferFactory directPool) {
         this.directPool = directPool;
     }
 
-    public Executor getRaftExecutor() {
-        return raftExecutor;
+    public FiberGroup getFiberGroup() {
+        return fiberGroup;
     }
 
-    public void setRaftExecutor(Executor raftExecutor) {
-        this.raftExecutor = raftExecutor;
+    public void setFiberGroup(FiberGroup fiberGroup) {
+        this.fiberGroup = fiberGroup;
     }
 
     public Supplier<Boolean> getStopIndicator() {
@@ -143,11 +142,11 @@ public class RaftGroupConfig {
         this.ioExecutor = ioExecutor;
     }
 
-    public int[] getIoRetryInterval() {
+    public long[] getIoRetryInterval() {
         return ioRetryInterval;
     }
 
-    public void setIoRetryInterval(int[] ioRetryInterval) {
+    public void setIoRetryInterval(long[] ioRetryInterval) {
         this.ioRetryInterval = ioRetryInterval;
     }
 }
