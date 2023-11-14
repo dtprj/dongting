@@ -20,12 +20,13 @@ package com.github.dtprj.dongting.fiber;
  */
 @SuppressWarnings("rawtypes")
 public abstract class FiberFrame<I, O> implements FrameCall<I> {
+    static final int STATUS_BODY_CALLED = 1;
+    static final int STATUS_CATCH_CALLED = 2;
+    static final int STATUS_FINALLY_CALLED = 3;
     Fiber fiber;
     FiberGroup fiberGroup;
     FiberFrame prev;
-    boolean bodyFinished;
-    boolean finallyCalled;
-    boolean handleCalled;
+    int status;
 
     FrameCall resumePoint;
 
@@ -33,6 +34,10 @@ public abstract class FiberFrame<I, O> implements FrameCall<I> {
 
     protected FrameCallResult doFinally() {
         return FrameCallResult.RETURN;
+    }
+
+    protected FrameCallResult handle(Throwable ex) throws Throwable {
+        throw ex;
     }
 
     protected <I2, O2> FrameCallResult call(I2 input, FiberFrame<I2, O2> subFrame, FrameCall<O2> resumePoint) {
