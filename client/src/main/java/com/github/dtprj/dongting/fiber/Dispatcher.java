@@ -44,6 +44,7 @@ public class Dispatcher extends AbstractLifeCircle {
 
     private final Timestamp ts = new Timestamp();
 
+    private Fiber currentFiber;
     final Thread thread;
 
     private boolean poll = true;
@@ -53,8 +54,6 @@ public class Dispatcher extends AbstractLifeCircle {
 
     Object inputObj;
     private Throwable fatalError;
-
-    private final FrameContext context = new FrameContext(this);
 
     public Dispatcher(String name) {
         thread = new Thread(this::run, name);
@@ -134,7 +133,6 @@ public class Dispatcher extends AbstractLifeCircle {
     }
 
     private void execGroup(FiberGroup g) {
-        context.group = g;
         IndexedQueue<Fiber> readyQueue = g.readyFibers;
         int size = readyQueue.size();
         for (int i = 0; i < size; i++) {
@@ -151,12 +149,11 @@ public class Dispatcher extends AbstractLifeCircle {
         } else {
             g.ready = readyQueue.size() > 0;
         }
-        context.group = null;
     }
 
     private void execFiber(FiberGroup g, Fiber fiber) {
         try {
-            context.fiber = fiber;
+            currentFiber = fiber;
             FiberFrame currentFrame = fiber.stackTop;
             while (currentFrame != null) {
                 if (fiber.source != null) {
@@ -206,18 +203,17 @@ public class Dispatcher extends AbstractLifeCircle {
             g.removeFiber(fiber);
         } finally {
             inputObj = null;
+            currentFiber = null;
             fiber.lastEx = null;
             fatalError = null;
-            context.fiber = null;
         }
     }
 
     private void processFrame(Fiber fiber, FiberFrame currentFrame) {
         try {
-            context.frame = currentFrame;
             if (fiber.lastEx != null) {
                 currentFrame.resumePoint = null;
-                tryHandleEx(fiber, currentFrame, fiber.lastEx);
+                tryHandleEx(currentFrame, fiber.lastEx);
             } else {
                 try {
                     Object input = inputObj;
@@ -230,21 +226,20 @@ public class Dispatcher extends AbstractLifeCircle {
                         // assert body not null
                         currentFrame.body = null;
                     }
-                    FrameCallResult result = r.execute(context, input);
+                    FrameCallResult result = r.execute(currentFrame, input);
                     checkResult(result, fiber);
                 } catch (Throwable e) {
-                    if (!tryHandleEx(fiber, currentFrame, e)) {
+                    if (!tryHandleEx(currentFrame, e)) {
                         fiber.lastEx = e;
                     }
                 }
             }
         } finally {
-            context.frame = null;
             try {
                 FrameCall c = currentFrame.finallyClause;
                 if (currentFrame.resumePoint == null && c != null) {
                     currentFrame.finallyClause = null;
-                    FrameCallResult result = c.execute(context, null);
+                    FrameCallResult result = c.execute(currentFrame, null);
                     checkResult(result, fiber);
                 }
             } catch (Throwable e) {
@@ -253,33 +248,33 @@ public class Dispatcher extends AbstractLifeCircle {
         }
     }
 
-    private boolean tryHandleEx(Fiber fiber, FiberFrame currentFrame, Throwable x) {
+    private boolean tryHandleEx(FiberFrame currentFrame, Throwable x) {
         FrameCall c = currentFrame.catchClause;
         if (c != null) {
             currentFrame.catchClause = null;
-            fiber.lastEx = null;
+            currentFrame.fiber.lastEx = null;
             try {
-                FrameCallResult result = c.execute(context, x);
-                checkResult(result, fiber);
+                FrameCallResult result = c.execute(currentFrame, x);
+                checkResult(result, currentFrame.fiber);
             } catch (Throwable e) {
-                fiber.lastEx = e;
+                currentFrame.fiber.lastEx = e;
             }
             return true;
         }
         return false;
     }
 
-    void suspendCall(Fiber fiber, Object input, FiberFrame currentFrame, FiberFrame subFrame, FrameCall resumePoint) {
+    void suspendCall(Object input, FiberFrame currentFrame, FiberFrame newFrame, FrameCall resumePoint) {
         checkCurrentFrame(currentFrame);
         currentFrame.resumePoint = resumePoint;
         inputObj = input;
-        fiber.pushFrame(subFrame);
+        currentFiber.pushFrame(newFrame);
     }
 
     void awaitOn(FiberFrame currentFrame, WaitSource c, long millis, FrameCall resumePoint) {
         checkCurrentFrame(currentFrame);
         currentFrame.resumePoint = resumePoint;
-        Fiber fiber = context.fiber;
+        Fiber fiber = currentFrame.fiber;
         fiber.source = c;
         if (c instanceof FiberFuture) {
             FiberFuture fu = (FiberFuture) c;
@@ -297,7 +292,7 @@ public class Dispatcher extends AbstractLifeCircle {
     void sleep(FiberFrame currentFrame, long millis, FrameCall resumePoint) {
         checkCurrentFrame(currentFrame);
         currentFrame.resumePoint = resumePoint;
-        Fiber fiber = context.fiber;
+        Fiber fiber = currentFrame.fiber;
         fiber.ready = false;
         addToScheduleQueue(millis, fiber);
     }
@@ -312,7 +307,10 @@ public class Dispatcher extends AbstractLifeCircle {
         if (current.resumePoint != null) {
             throwFatalError("usage fatal error: already suspended");
         }
-        Fiber fiber = context.fiber;
+        Fiber fiber = current.fiber;
+        if (fiber != currentFiber) {
+            throwFatalError("usage fatal error: fiber not match");
+        }
         if (fiber.interrupted) {
             fiber.interrupted = false;
             throw new FiberInterruptException("fiber is interrupted");
@@ -321,7 +319,7 @@ public class Dispatcher extends AbstractLifeCircle {
             throwFatalError("usage fatal error: fiber not ready state");
         }
         if (fiber.stackTop != current) {
-            throwFatalError("usage fatal error: current frame not on top of stack");
+            throwFatalError("usage fatal error: can't call suspendCall twice");
         }
     }
 

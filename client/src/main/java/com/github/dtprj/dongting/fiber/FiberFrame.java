@@ -20,6 +20,7 @@ package com.github.dtprj.dongting.fiber;
  */
 @SuppressWarnings("rawtypes")
 public class FiberFrame<I, O> {
+    Fiber fiber;
     FiberFrame prev;
 
     FrameCall<I, O> body;
@@ -32,23 +33,75 @@ public class FiberFrame<I, O> {
     FiberFrame() {
     }
 
-    public static <I, O> FiberFrame<I, O> create(FrameCall<I, O> body,
+    public static <I, O> FiberFrame<I, O> create(Fiber fiber, FrameCall<I, O> body,
                                                  FrameCall<Throwable, O> catchClause,
                                                  FrameCall<Void, O> finallyClause) {
         FiberFrame<I, O> frame = new FiberFrame<>();
+        frame.fiber = fiber;
         frame.body = body;
         frame.catchClause = catchClause;
         frame.finallyClause = finallyClause;
         return frame;
     }
 
-    public static <I, O> FiberFrame<I, O> create(FrameCall<I, O> body) {
-        return create(body, null, null);
+    public static <I, O> FiberFrame<I, O> create(Fiber fiber, FrameCall<I, O> body) {
+        return create(fiber, body, null, null);
+    }
+
+    public <I2, O2> FrameCallResult suspendCall(I2 input, FiberFrame<I2, O2> subFrame, FrameCall<O2, O> resumePoint) {
+        fiber.fiberGroup.dispatcher.suspendCall(input, this, subFrame, resumePoint);
+        return FrameCallResult.CALL_NEXT_FRAME;
+    }
+
+    public FrameCallResult awaitOn(FiberCondition c, FrameCall<Void, O> resumePoint) {
+        fiber.fiberGroup.dispatcher.awaitOn(this, c, 0, resumePoint);
+        return FrameCallResult.SUSPEND;
+    }
+
+    public FrameCallResult awaitOn(FiberCondition c, long millis, FrameCall<Void, O> resumePoint) {
+        fiber.fiberGroup.dispatcher.awaitOn(this, c, millis, resumePoint);
+        return FrameCallResult.SUSPEND;
+    }
+
+    public <T> FrameCallResult awaitOn(FiberFuture<T> f, FrameCall<T, O> resumePoint) {
+        fiber.fiberGroup.dispatcher.awaitOn(this, f, 0, resumePoint);
+        return FrameCallResult.SUSPEND;
+    }
+
+    public <T> FrameCallResult awaitOn(FiberFuture<T> f, long millis, FrameCall<T, O> resumePoint) {
+        fiber.fiberGroup.dispatcher.awaitOn(this, f, millis, resumePoint);
+        return FrameCallResult.SUSPEND;
+    }
+
+
+    public FrameCallResult sleep(long millis, FrameCall<Void, O> resumePoint) {
+        fiber.fiberGroup.dispatcher.sleep(this, millis, resumePoint);
+        return FrameCallResult.SUSPEND;
+    }
+
+    public FrameCallResult frameReturn() {
+        return FrameCallResult.RETURN;
+    }
+
+    public void setResult(O result) {
+        this.result = result;
+    }
+
+    public <T> FiberChannel<T> createOrGetChannel(int type) {
+        return fiber.fiberGroup.createOrGetChannel(type);
+    }
+
+    public Fiber getFiber() {
+        return fiber;
+    }
+
+    public FiberGroup getFiberGroup() {
+        return fiber.fiberGroup;
     }
 
     public <O2> FiberFrame<I, O2> then(FrameCall<O, O2> nextAction) {
          FrameCall<I, O2> body = (currentFrame, input) ->
                  currentFrame.suspendCall(input, FiberFrame.this, nextAction);
-        return create(body);
+        return create(fiber, body);
     }
 }
