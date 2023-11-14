@@ -39,7 +39,7 @@ public class FiberGroup {
     boolean finished;
     boolean ready;
 
-    FiberGroup(String name, Dispatcher dispatcher) {
+    public FiberGroup(String name, Dispatcher dispatcher) {
         this.name = name;
         this.dispatcher = dispatcher;
     }

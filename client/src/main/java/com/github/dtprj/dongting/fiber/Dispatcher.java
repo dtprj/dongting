@@ -59,15 +59,14 @@ public class Dispatcher extends AbstractLifeCircle {
         thread = new Thread(this::run, name);
     }
 
-    public CompletableFuture<FiberGroup> createFiberGroup(String name) {
-        CompletableFuture<FiberGroup> future = new CompletableFuture<>();
-        FiberGroup g = new FiberGroup(name, this);
+    public CompletableFuture<Void> start(FiberGroup fiberGroup) {
+        CompletableFuture<Void> future = new CompletableFuture<>();
         shareQueue.offer(() -> {
             if (shouldStop) {
-                future.completeExceptionally(new FiberException("fiber group already stopped"));
+                future.completeExceptionally(new FiberException("dispatcher already stopped"));
             } else {
-                groups.add(g);
-                future.complete(g);
+                groups.add(fiberGroup);
+                future.complete(null);
             }
         });
         return future;
