@@ -269,7 +269,7 @@ public class Dispatcher extends AbstractLifeCircle {
         return false;
     }
 
-    void call(Fiber fiber, Object input, FiberFrame currentFrame, FiberFrame subFrame, FrameCall resumePoint) {
+    void suspendCall(Fiber fiber, Object input, FiberFrame currentFrame, FiberFrame subFrame, FrameCall resumePoint) {
         checkCurrentFrame(currentFrame);
         currentFrame.resumePoint = resumePoint;
         inputObj = input;

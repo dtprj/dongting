@@ -19,7 +19,7 @@ package com.github.dtprj.dongting.fiber;
  * @author huangli
  */
 @SuppressWarnings("rawtypes")
-public final class FiberFrame<I, O> {
+public class FiberFrame<I, O> {
     FiberFrame prev;
 
     FrameCall<I, O> body;
@@ -29,27 +29,26 @@ public final class FiberFrame<I, O> {
 
     O result;
 
-    FiberFrame(FrameCall<I, O> body,
-                      FrameCall<Throwable, O> catchClause,
-                      FrameCall<Void, O> finallyClause) {
-        this.body = body;
-        this.catchClause = catchClause;
-        this.finallyClause = finallyClause;
+    FiberFrame() {
     }
 
-    FiberFrame(FrameCall<I, O> body,
-                      FrameCall<Throwable, O> catchClause) {
-        this.body = body;
-        this.catchClause = catchClause;
+    public static <I, O> FiberFrame<I, O> create(FrameCall<I, O> body,
+                                                 FrameCall<Throwable, O> catchClause,
+                                                 FrameCall<Void, O> finallyClause) {
+        FiberFrame<I, O> frame = new FiberFrame<>();
+        frame.body = body;
+        frame.catchClause = catchClause;
+        frame.finallyClause = finallyClause;
+        return frame;
     }
 
-    FiberFrame(FrameCall<I, O> body) {
-        this.body = body;
+    public static <I, O> FiberFrame<I, O> create(FrameCall<I, O> body) {
+        return create(body, null, null);
     }
 
     public <O2> FiberFrame<I, O2> then(FrameCall<O, O2> nextAction) {
-        FrameCall<I, O2> body = (currentFrame, input) ->
-                currentFrame.call(input, FiberFrame.this, nextAction);
-        return new FiberFrame<>(body);
+         FrameCall<I, O2> body = (currentFrame, input) ->
+                 currentFrame.suspendCall(input, FiberFrame.this, nextAction);
+        return create(body);
     }
 }
