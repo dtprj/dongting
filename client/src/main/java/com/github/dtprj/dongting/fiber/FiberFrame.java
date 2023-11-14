@@ -35,8 +35,8 @@ public abstract class FiberFrame<I, O> implements FrameCall<I> {
         return FrameCallResult.RETURN;
     }
 
-    protected <I2, O2> FrameCallResult suspendCall(I2 input, FiberFrame<I2, O2> fiberFrame, FrameCall<O2> resumePoint) {
-        fiberGroup.dispatcher.suspendCall(input, this, fiberFrame, resumePoint);
+    protected <I2, O2> FrameCallResult call(I2 input, FiberFrame<I2, O2> subFrame, FrameCall<O2> resumePoint) {
+        fiberGroup.dispatcher.call(input, this, subFrame, resumePoint);
         return FrameCallResult.CALL_NEXT_FRAME;
     }
 
@@ -90,7 +90,7 @@ public abstract class FiberFrame<I, O> implements FrameCall<I> {
         FiberFrame<I, O2> nextFrame = new FiberFrame<I, O2>() {
             @Override
             public FrameCallResult execute(I input) {
-                return suspendCall(input, FiberFrame.this, nextAction);
+                return call(input, FiberFrame.this, nextAction);
             }
         };
         return nextFrame;
