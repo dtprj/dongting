@@ -15,11 +15,15 @@
  */
 package com.github.dtprj.dongting.fiber;
 
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
+
 /**
  * @author huangli
  */
 @SuppressWarnings("rawtypes")
 public abstract class FiberFrame<I, O> implements FrameCall<I> {
+    private static DtLog log = DtLogs.getLogger(FiberFrame.class);
     static final int STATUS_BODY_CALLED = 1;
     static final int STATUS_CATCH_CALLED = 2;
     static final int STATUS_FINALLY_CALLED = 3;
@@ -71,6 +75,16 @@ public abstract class FiberFrame<I, O> implements FrameCall<I> {
         return FrameCallResult.SUSPEND;
     }
 
+    protected FrameCallResult fatal(Throwable ex) throws Throwable {
+        log.error("encountered fatal error, raft group will shutdown", ex);
+        fiberGroup.requestShutdown();
+        throw ex;
+    }
+
+    protected boolean isGroupShouldStop() {
+        return fiberGroup.shouldStop;
+    }
+
     protected FrameCallResult frameReturn() {
         return FrameCallResult.RETURN;
     }
@@ -91,13 +105,7 @@ public abstract class FiberFrame<I, O> implements FrameCall<I> {
         return fiberGroup;
     }
 
-    protected <O2> FiberFrame<I, O2> then(FrameCall<O> nextAction) {
-        FiberFrame<I, O2> nextFrame = new FiberFrame<I, O2>() {
-            @Override
-            public FrameCallResult execute(I input) {
-                return call(input, FiberFrame.this, nextAction);
-            }
-        };
-        return nextFrame;
+    protected boolean finished(Fiber fiber) {
+        return fiber.finished;
     }
 }

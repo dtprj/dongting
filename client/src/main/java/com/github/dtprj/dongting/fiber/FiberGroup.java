@@ -62,7 +62,7 @@ public class FiberGroup {
      * can call in any thread
      */
     public void requestShutdown() {
-        dispatcher.shareQueue.offer(() -> {
+        dispatcher.doInDispatcherThread(() -> {
             shouldStop = true;
             updateFinishStatus();
         });

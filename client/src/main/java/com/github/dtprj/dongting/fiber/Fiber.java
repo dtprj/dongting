@@ -89,7 +89,4 @@ public class Fiber {
         return fiberGroup;
     }
 
-    public boolean isGroupShouldStop() {
-        return fiberGroup.shouldStop;
-    }
 }
