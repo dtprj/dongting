@@ -28,7 +28,7 @@ import java.util.function.Supplier;
 /**
  * @author huangli
  */
-public class IoRetryFrame<O> extends FiberFrame<Void, O> {
+public class IoRetryFrame<O> extends FiberFrame<O> {
 
     private final RaftGroupConfig groupConfig;
     private final Supplier<FiberFuture<O>> futureSupplier;

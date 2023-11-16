@@ -67,8 +67,8 @@ public class StatusManager implements AutoCloseable {
         this.updateDoneCondition = fg.newCondition();
     }
 
-    public FiberFrame<Void, Void> initStatusFile() {
-        FiberFrame<Void, Void> subFrame = statusFile.init();
+    public FiberFrame<Void> initStatusFile() {
+        FiberFrame<Void> subFrame = statusFile.init();
         return new PostFiberFrame<>(subFrame) {
             @Override
             protected FrameCallResult postProcess(Void result) {
@@ -90,7 +90,7 @@ public class StatusManager implements AutoCloseable {
         needUpdateCondition.signal();
     }
 
-    private class UpdateFiberFrame extends FiberFrame<Void, Void> {
+    private class UpdateFiberFrame extends FiberFrame<Void> {
         private long version;
         private final Supplier<FiberFuture<Void>> futureSupplier = () -> {
             copyWriteData();
@@ -109,7 +109,7 @@ public class StatusManager implements AutoCloseable {
         }
 
         private FrameCallResult resumeOnNeedUpdate(Void v) {
-            return call(null, ioFrame, this::resumeOnUpdateDone);
+            return call(ioFrame, this::resumeOnUpdateDone);
         }
 
         private FrameCallResult resumeOnUpdateDone(Void v) {
@@ -145,7 +145,7 @@ public class StatusManager implements AutoCloseable {
         needUpdateCondition.signal();
     }
 
-    public FiberFrame<Void, Void> persistSync() {
+    public FiberFrame<Void> persistSync() {
 
         return new FiberFrame<>() {
             private long reqVersion;

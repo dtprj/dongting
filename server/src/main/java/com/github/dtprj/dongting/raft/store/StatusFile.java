@@ -72,7 +72,7 @@ public class StatusFile implements AutoCloseable {
         return properties;
     }
 
-    public FiberFrame<Void, Void> init() {
+    public FiberFrame<Void> init() {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) throws Exception {
