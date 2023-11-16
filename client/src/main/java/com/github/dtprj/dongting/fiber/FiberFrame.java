@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 @SuppressWarnings("rawtypes")
 public abstract class FiberFrame<O> implements FrameCall<Void> {
     private static final DtLog log = DtLogs.getLogger(FiberFrame.class);
+    static final int STATUS_INIT = 0;
     static final int STATUS_BODY_CALLED = 1;
     static final int STATUS_CATCH_CALLED = 2;
     static final int STATUS_FINALLY_CALLED = 3;
@@ -43,6 +44,19 @@ public abstract class FiberFrame<O> implements FrameCall<Void> {
     protected FrameCallResult handle(Throwable ex) throws Throwable {
         throw ex;
     }
+
+    void reset(Fiber f) {
+        if (this.status != STATUS_INIT && this.status != STATUS_FINALLY_CALLED) {
+            throw new FiberException("frame is in use");
+        }
+        this.fiber = f;
+        this.fiberGroup = f.fiberGroup;
+        this.prev = null;
+        this.status = STATUS_INIT;
+        this.resumePoint = null;
+        this.result = null;
+    }
+
 
     protected <O2> FrameCallResult call(FiberFrame<O2> subFrame, FrameCall<O2> resumePoint) {
         fiberGroup.dispatcher.call(this, subFrame, resumePoint);

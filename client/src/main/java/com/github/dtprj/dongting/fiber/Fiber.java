@@ -49,8 +49,7 @@ public class Fiber {
         this.fiberName = fiberName;
         this.stackTop = entryFrame;
         this.daemon = daemon;
-        entryFrame.fiber = this;
-        entryFrame.fiberGroup = fiberGroup;
+        entryFrame.reset(this);
     }
 
     FiberFrame popFrame() {

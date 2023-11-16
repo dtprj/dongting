@@ -261,8 +261,7 @@ public class Dispatcher extends AbstractLifeCircle {
     void call(FiberFrame currentFrame, FiberFrame subFrame, FrameCall resumePoint) {
         checkCurrentFrame(currentFrame);
         currentFrame.resumePoint = resumePoint;
-        subFrame.fiberGroup = currentFrame.fiberGroup;
-        subFrame.fiber = currentFrame.fiber;
+        subFrame.reset(currentFiber);
         inputObj = null;
         currentFiber.pushFrame(subFrame);
     }
@@ -301,34 +300,35 @@ public class Dispatcher extends AbstractLifeCircle {
 
     private void checkCurrentFrame(FiberFrame current) {
         if (current.resumePoint != null) {
-            throwFatalError("usage fatal error: already suspended");
+            throwFatalError(current.fiberGroup, "usage fatal error: already suspended");
         }
         Fiber fiber = current.fiber;
         if (fiber != currentFiber) {
-            throwFatalError("usage fatal error: fiber not match");
+            throwFatalError(current.fiberGroup, "usage fatal error: fiber not match");
         }
         if (fiber.interrupted) {
             fiber.interrupted = false;
             throw new FiberInterruptException("fiber is interrupted");
         }
         if (!fiber.ready) {
-            throwFatalError("usage fatal error: fiber not ready state");
+            throwFatalError(current.fiberGroup, "usage fatal error: fiber not ready state");
         }
         if (fiber.stackTop != current) {
-            throwFatalError("usage fatal error: can't call suspendCall twice");
+            throwFatalError(current.fiberGroup, "usage fatal error: can't call suspendCall twice");
         }
     }
 
-    void throwFatalError(String msg) {
+    void throwFatalError(FiberGroup g, String msg) {
         FiberException fe = new FiberException(msg);
         fatalError = fe;
+        g.requestShutdown();
         throw fe;
     }
 
     void checkResult(FrameCallResult r, Fiber f) {
         if (r == FrameCallResult.CALL_NEXT_FRAME) {
             if (!f.ready) {
-                throwFatalError("usage fatal error: fiber not ready");
+                throwFatalError(f.fiberGroup, "usage fatal error: fiber not ready");
             }
         }
     }
