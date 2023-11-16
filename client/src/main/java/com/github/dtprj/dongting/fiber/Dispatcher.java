@@ -50,7 +50,7 @@ public class Dispatcher extends AbstractLifeCircle {
     private boolean poll = true;
     private long pollTimeout = TimeUnit.MILLISECONDS.toNanos(50);
 
-    private boolean shouldStop = false;
+    private volatile boolean shouldStop = false;
 
     Object inputObj;
     private Throwable fatalError;
