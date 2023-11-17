@@ -68,7 +68,7 @@ public class StatusManager implements AutoCloseable {
     }
 
     public FiberFrame<Void> initStatusFile() {
-        FiberFrame<Void> subFrame = statusFile.init();
+        FiberFrame<Void> subFrame = statusFile.init(groupConfig.getIoTimeout());
         return new PostFiberFrame<>(subFrame) {
             @Override
             protected FrameCallResult postProcess(Void result) {
@@ -92,13 +92,16 @@ public class StatusManager implements AutoCloseable {
 
     private class UpdateFiberFrame extends FiberFrame<Void> {
         private long version;
-        private final Supplier<FiberFuture<Void>> futureSupplier = () -> {
+        private final Supplier<FiberFuture<Void>> ioCallback = () -> {
             copyWriteData();
             version = requestUpdateVersion;
-            return statusFile.update(lastNeedFlushVersion > finishedUpdateVersion);
+            FiberFuture<Void> f = getFiberGroup().newFuture();
+            statusFile.update(lastNeedFlushVersion > finishedUpdateVersion, AsyncIoTask.wrap(f));
+            return f;
         };
         // the frame is reused
-        private final IoRetryFrame<Void> ioFrame = new IoRetryFrame<>(groupConfig, futureSupplier, 10000);
+        private final IoRetryFrame<Void> ioFrame = new IoRetryFrame<>(groupConfig,
+                groupConfig.getIoTimeout(), ioCallback);
         @Override
         public FrameCallResult execute(Void input) {
             if (closed) {

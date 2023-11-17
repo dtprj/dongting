@@ -30,6 +30,7 @@ import java.io.File;
 import java.io.StringReader;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
+import java.nio.channels.CompletionHandler;
 import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.OpenOption;
@@ -72,7 +73,7 @@ public class StatusFile implements AutoCloseable {
         return properties;
     }
 
-    public FiberFrame<Void> init() {
+    public FiberFrame<Void> init(long ioTimeout) {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) throws Exception {
@@ -91,10 +92,10 @@ public class StatusFile implements AutoCloseable {
                     throw new RaftException("bad status file length: " + file.length());
                 }
                 ByteBuffer buf = ByteBuffer.wrap(data);
-                AsyncIoTask task = new AsyncIoTask(fiberGroup, channel, null);
-
-                FiberFuture<Void> f = task.read(buf, 0);
-                return awaitOn(f, 15000, this::resumeAfterRead);
+                AsyncIoTask task = new AsyncIoTask(channel, null);
+                FiberFuture<Void> f = getFiberGroup().newFuture();
+                task.read(buf, 0, AsyncIoTask.wrap(f));
+                return awaitOn(f, ioTimeout, this::resumeAfterRead);
             }
 
             private FrameCallResult resumeAfterRead(Void input) throws Exception {
@@ -123,7 +124,7 @@ public class StatusFile implements AutoCloseable {
         };
     }
 
-    public FiberFuture<Void> update(boolean flush) {
+    public void update(boolean flush, CompletionHandler<Void, Void> handler) {
         try {
             bos.reset();
             this.properties.store(bos, null);
@@ -141,10 +142,14 @@ public class StatusFile implements AutoCloseable {
             System.arraycopy(crcBytes, 0, data, 0, CRC_HEX_LENGTH);
             ByteBuffer buf = ByteBuffer.wrap(data);
 
-            AsyncIoTask task = new AsyncIoTask(fiberGroup, channel, null);
-            return task.write(flush, false, buf, 0);
+            AsyncIoTask task = new AsyncIoTask(channel, null);
+            if (flush) {
+                task.writeAndFlush(buf, 0, false, handler);
+            } else {
+                task.write(buf, 0, handler);
+            }
         } catch (Exception e) {
-            throw new RaftException("update status file failed. file=" + file.getPath(), e);
+            handler.failed(new RaftException("update status file failed. file=" + file.getPath(), e), null);
         }
     }
 

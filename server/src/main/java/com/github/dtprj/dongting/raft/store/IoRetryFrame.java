@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberInterruptException;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 
 import java.util.function.Supplier;
@@ -31,19 +32,22 @@ import java.util.function.Supplier;
 public class IoRetryFrame<O> extends FiberFrame<O> {
 
     private final RaftGroupConfig groupConfig;
-    private final Supplier<FiberFuture<O>> futureSupplier;
     private final long timeoutMillis;
+    private final Supplier<FiberFuture<O>> callback;
     private int retryCount;
 
-    public IoRetryFrame(RaftGroupConfig groupConfig, Supplier<FiberFuture<O>> futureSupplier, long timeoutMillis) {
+    public IoRetryFrame(RaftGroupConfig groupConfig, long timeoutMillis, Supplier<FiberFuture<O>> ioCallback) {
         this.groupConfig = groupConfig;
-        this.futureSupplier = futureSupplier;
         this.timeoutMillis = timeoutMillis;
+        this.callback = ioCallback;
     }
 
     @Override
     public FrameCallResult execute(Void input) {
-        FiberFuture<O> f = futureSupplier.get();
+        if (retryCount > 0 && isGroupShouldStop()) {
+            throw new RaftException("group should stop, stop retry");
+        }
+        FiberFuture<O> f = callback.get();
         return awaitOn(f, timeoutMillis, this::resume);
     }
 
@@ -65,7 +69,7 @@ public class IoRetryFrame<O> extends FiberFrame<O> {
             throw ex;
         }
         long sleepTime = groupConfig.getIoRetryInterval()[retryCount++];
-        return sleep(sleepTime, this);
+        return awaitOn(groupConfig.getStopCondition(), sleepTime, this);
     }
 
     @Override

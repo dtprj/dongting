@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.fiber.FiberCancelException;
 import com.github.dtprj.dongting.fiber.FiberFuture;
-import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.RaftException;
 
 import java.nio.ByteBuffer;
@@ -28,10 +28,9 @@ import java.util.function.Supplier;
 /**
  * @author huangli
  */
-public class AsyncIoTask implements CompletionHandler<Integer, FiberFuture<Void>> {
+public class AsyncIoTask implements CompletionHandler<Integer, CompletionHandler<Void,Void>> {
     private final AsynchronousFileChannel channel;
     private final Supplier<Boolean> cancelIndicator;
-    private final FiberGroup fiberGroup;
 
     private ByteBuffer ioBuffer;
     private long filePos;
@@ -40,82 +39,101 @@ public class AsyncIoTask implements CompletionHandler<Integer, FiberFuture<Void>
     private boolean flush;
     private boolean flushMeta;
 
-    public AsyncIoTask(FiberGroup fiberGroup, AsynchronousFileChannel channel, Supplier<Boolean> cancelIndicator) {
-        Objects.requireNonNull(fiberGroup);
+    public AsyncIoTask(AsynchronousFileChannel channel, Supplier<Boolean> cancelIndicator) {
         Objects.requireNonNull(channel);
-        this.fiberGroup = fiberGroup;
         this.channel = channel;
         this.cancelIndicator = cancelIndicator;
     }
 
-    public FiberFuture<Void> read(ByteBuffer ioBuffer, long filePos) {
-        return exec(false, false, false, ioBuffer, filePos);
-    }
-
-    public FiberFuture<Void> write(boolean flush, boolean flushMeta, ByteBuffer ioBuffer, long filePos) {
-        return exec(true, flush, flushMeta, ioBuffer, filePos);
-    }
-
-    private FiberFuture<Void> exec(boolean write, boolean flush, boolean flushMeta,
-                                         ByteBuffer ioBuffer, long filePos) {
-        this.write = write;
+    public void read(ByteBuffer ioBuffer, long filePos, CompletionHandler<Void, Void> handler) {
         this.ioBuffer = ioBuffer;
         this.filePos = filePos;
-        this.flush = flush;
-        this.flushMeta = flushMeta;
         this.position = ioBuffer.position();
-
-        FiberFuture<Void> f = fiberGroup.newFuture();
-        exec(f, filePos);
-        return f;
+        this.write = false;
+        this.flush = false;
+        this.flushMeta = false;
+        exec(handler, filePos);
     }
 
-    public FiberFuture<Void> retry() {
+    public void write(ByteBuffer ioBuffer, long filePos, CompletionHandler<Void, Void> handler) {
+        this.ioBuffer = ioBuffer;
+        this.filePos = filePos;
+        this.position = ioBuffer.position();
+        this.write = true;
+        this.flush = false;
+        this.flushMeta = false;
+        exec(handler, filePos);
+    }
+
+    public void writeAndFlush(ByteBuffer ioBuffer, long filePos, boolean flushMeta,
+                              CompletionHandler<Void, Void> handler) {
+        this.ioBuffer = ioBuffer;
+        this.filePos = filePos;
+        this.position = ioBuffer.position();
+        this.write = true;
+        this.flush = true;
+        this.flushMeta = flushMeta;
+        exec(handler, filePos);
+    }
+
+    public void retry(CompletionHandler<Void, Void> handler) {
         ioBuffer.position(position);
-        FiberFuture<Void> f = fiberGroup.newFuture();
-        exec(f, filePos);
-        return f;
+        exec(handler, filePos);
     }
 
-    private void exec(FiberFuture<Void> f, long pos) {
+    private void exec(CompletionHandler<Void, Void> handler, long pos) {
         try {
             if (write) {
-                channel.write(ioBuffer, pos, f, this);
+                channel.write(ioBuffer, pos, handler, this);
             } else {
-                channel.read(ioBuffer, pos, f, this);
+                channel.read(ioBuffer, pos, handler, this);
             }
         } catch (Throwable e) {
-            f.completeExceptionally(e);
+            handler.failed(e, null);
         }
     }
 
     @Override
-    public void completed(Integer result, FiberFuture<Void> f) {
+    public void completed(Integer result, CompletionHandler<Void, Void> handler) {
         if (result < 0) {
-            f.completeExceptionally(new RaftException("read end of file"));
+            handler.failed(new RaftException("read end of file"), null);
             return;
         }
         if (ioBuffer.hasRemaining()) {
             if (cancelIndicator != null && cancelIndicator.get()) {
-                f.cancel();
+                handler.failed(new FiberCancelException(), null);
                 return;
             }
             int bytes = ioBuffer.position() - position;
-            exec(f, filePos + bytes);
+            exec(handler, filePos + bytes);
         } else {
             try {
                 if (flush) {
                     channel.force(flushMeta);
                 }
-                f.complete(null);
+                handler.completed(null, null);
             } catch (Throwable e) {
-                f.completeExceptionally(e);
+                handler.failed(e, null);
             }
         }
     }
 
     @Override
-    public void failed(Throwable exc, FiberFuture<Void> f) {
-        f.completeExceptionally(exc);
+    public void failed(Throwable exc, CompletionHandler<Void, Void> handler) {
+        handler.failed(exc, null);
+    }
+
+    public static CompletionHandler<Void, Void> wrap(FiberFuture<Void> f) {
+        return new CompletionHandler<>() {
+            @Override
+            public void completed(Void result, Void attachment) {
+                f.complete(null);
+            }
+
+            @Override
+            public void failed(Throwable exc, Void attachment) {
+                f.completeExceptionally(exc);
+            }
+        };
     }
 }

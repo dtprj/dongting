@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
@@ -33,6 +34,8 @@ public class RaftGroupConfig {
     private String dataDir = "./data";
     private String statusFile = "raft.status";
     private long[] ioRetryInterval = new long[]{100, 1000, 3000, 5000, 10000, 20000};
+    private long ioTimeout = 15_000;
+    private long allocateTimeout = 120_000;
 
     private Timestamp ts;
     private RefBufferFactory heapPool;
@@ -42,6 +45,8 @@ public class RaftGroupConfig {
     private Supplier<Boolean> stopIndicator;
     private RaftStatus raftStatus;
     private RaftCodecFactory codecFactory;
+
+    private FiberCondition stopCondition;
 
     public RaftGroupConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         this.groupId = groupId;
@@ -148,5 +153,29 @@ public class RaftGroupConfig {
 
     public void setIoRetryInterval(long[] ioRetryInterval) {
         this.ioRetryInterval = ioRetryInterval;
+    }
+
+    public long getIoTimeout() {
+        return ioTimeout;
+    }
+
+    public void setIoTimeout(long ioTimeout) {
+        this.ioTimeout = ioTimeout;
+    }
+
+    public long getAllocateTimeout() {
+        return allocateTimeout;
+    }
+
+    public void setAllocateTimeout(long allocateTimeout) {
+        this.allocateTimeout = allocateTimeout;
+    }
+
+    public FiberCondition getStopCondition() {
+        return stopCondition;
+    }
+
+    public void setStopCondition(FiberCondition stopCondition) {
+        this.stopCondition = stopCondition;
     }
 }

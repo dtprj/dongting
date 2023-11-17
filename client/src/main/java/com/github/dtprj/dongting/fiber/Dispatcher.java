@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.ArrayList;
+import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -267,6 +268,7 @@ public class Dispatcher extends AbstractLifeCircle {
     }
 
     void awaitOn(FiberFrame currentFrame, WaitSource c, long millis, FrameCall resumePoint) {
+        Objects.requireNonNull(c);
         checkCurrentFrame(currentFrame);
         currentFrame.resumePoint = resumePoint;
         Fiber fiber = currentFrame.fiber;

@@ -87,4 +87,17 @@ public class FiberFuture<T> extends WaitSource {
         signalAll0();
     }
 
+    public FiberFrame<T> toFrame(long timeTimeoutMillis) {
+        return new FiberFrame<T>() {
+            @Override
+            public FrameCallResult execute(Void input) throws Exception {
+                return awaitOn(FiberFuture.this, timeTimeoutMillis, this::resume);
+            }
+
+            private FrameCallResult resume(T t) {
+                setResult(t);
+                return frameReturn();
+            }
+        };
+    }
 }
