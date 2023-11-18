@@ -25,10 +25,18 @@ public class FiberCondition extends WaitSource {
     }
 
     public void signal() {
-        group.dispatcher.doInDispatcherThread(this::signal0);
+        if (group.isInGroupThread()) {
+            signal0();
+        } else {
+            throw new FiberException("signal can only call in group thread");
+        }
     }
 
     public void signalAll() {
-        group.dispatcher.doInDispatcherThread(this::signalAll0);
+        if (group.isInGroupThread()) {
+            signalAll0();
+        } else {
+            throw new FiberException("signal can only call in group thread");
+        }
     }
 }
