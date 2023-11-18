@@ -90,6 +90,10 @@ public class FiberGroup {
         return new FiberFuture<>(this);
     }
 
+    public FiberLock newLock(){
+        return new FiberLock(this);
+    }
+
     boolean isInGroupThread() {
         return Thread.currentThread() == dispatcher.thread;
     }

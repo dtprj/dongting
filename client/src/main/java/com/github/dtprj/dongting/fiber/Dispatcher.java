@@ -122,7 +122,9 @@ public class Dispatcher extends AbstractLifeCircle {
             }
             scheduleQueue.poll();
             if (f.source != null) {
-                f.lastEx = new FiberTimeoutException(f.scheduleTimeoutMillis + "ms");
+                if (!(f.source instanceof FiberLock)) {
+                    f.lastEx = new FiberTimeoutException(f.scheduleTimeoutMillis + "ms");
+                }
                 f.source.removeWaiter(f);
                 f.source = null;
             }
@@ -267,23 +269,21 @@ public class Dispatcher extends AbstractLifeCircle {
         currentFiber.pushFrame(subFrame);
     }
 
-    void awaitOn(FiberFrame currentFrame, WaitSource c, long millis, FrameCall resumePoint) {
+    FrameCallResult awaitOn(FiberFrame currentFrame, WaitSource c, long millis, FrameCall resumePoint) {
         Objects.requireNonNull(c);
         checkCurrentFrame(currentFrame);
         currentFrame.resumePoint = resumePoint;
         Fiber fiber = currentFrame.fiber;
-        fiber.source = c;
-        if (c instanceof FiberFuture) {
-            FiberFuture fu = (FiberFuture) c;
-            if (fu.isDone()) {
-                return;
-            }
+        if (!c.shouldWait(fiber)) {
+            return FrameCallResult.RETURN;
         }
+        fiber.source = c;
         fiber.ready = false;
         if (millis > 0) {
             addToScheduleQueue(millis, fiber);
         }
         c.addWaiter(fiber);
+        return FrameCallResult.SUSPEND;
     }
 
     void sleep(FiberFrame currentFrame, long millis, FrameCall resumePoint) {

@@ -18,14 +18,16 @@ package com.github.dtprj.dongting.fiber;
 /**
  * @author huangli
  */
-public abstract class WaitSource {
-    private Fiber firstWaiter;
+abstract class WaitSource {
+    Fiber firstWaiter;
     private Fiber lastWaiter;
     protected final FiberGroup group;
 
     public WaitSource(FiberGroup group) {
         this.group = group;
     }
+
+    protected abstract boolean shouldWait(Fiber currentFiber);
 
     void addWaiter(Fiber f) {
         if (firstWaiter == null) {

@@ -30,6 +30,11 @@ public class FiberFuture<T> extends WaitSource {
         super(group);
     }
 
+    @Override
+    protected boolean shouldWait(Fiber currentFiber) {
+        return !done;
+    }
+
     public T getResult() {
         return result;
     }

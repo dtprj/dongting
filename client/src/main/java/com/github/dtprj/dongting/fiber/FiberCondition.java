@@ -24,6 +24,11 @@ public class FiberCondition extends WaitSource {
         super(group);
     }
 
+    @Override
+    protected boolean shouldWait(Fiber currentFiber) {
+        return true;
+    }
+
     public void signal() {
         if (group.isInGroupThread()) {
             signal0();

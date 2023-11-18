@@ -64,25 +64,40 @@ public abstract class FiberFrame<O> implements FrameCall<Void> {
     }
 
     protected FrameCallResult awaitOn(FiberCondition c, FrameCall<Void> resumePoint) {
-        fiberGroup.dispatcher.awaitOn(this, c, 0, resumePoint);
-        return FrameCallResult.SUSPEND;
+        return fiberGroup.dispatcher.awaitOn(this, c, 0, resumePoint);
     }
 
     protected FrameCallResult awaitOn(FiberCondition c, long millis, FrameCall<Void> resumePoint) {
-        fiberGroup.dispatcher.awaitOn(this, c, millis, resumePoint);
-        return FrameCallResult.SUSPEND;
+        return fiberGroup.dispatcher.awaitOn(this, c, millis, resumePoint);
     }
 
     protected <T> FrameCallResult awaitOn(FiberFuture<T> f, FrameCall<T> resumePoint) {
-        fiberGroup.dispatcher.awaitOn(this, f, 0, resumePoint);
-        return FrameCallResult.SUSPEND;
+        return fiberGroup.dispatcher.awaitOn(this, f, 0, resumePoint);
     }
 
     protected <T> FrameCallResult awaitOn(FiberFuture<T> f, long millis, FrameCall<T> resumePoint) {
-        fiberGroup.dispatcher.awaitOn(this, f, millis, resumePoint);
-        return FrameCallResult.SUSPEND;
+        return fiberGroup.dispatcher.awaitOn(this, f, millis, resumePoint);
     }
 
+    protected FrameCallResult lock(FiberLock lock, FrameCall<Void> resumePoint) {
+        return lock.lock(this, 0, resumePoint);
+    }
+
+    protected FrameCallResult tryLock(FiberLock lock, long millis, FrameCall<Boolean> resumePoint) {
+        return lock.lock(this, millis, resumePoint);
+    }
+
+    protected boolean tryLock(FiberLock lock) {
+        return lock.tryLock(fiber);
+    }
+
+    protected boolean isHeldByCurrentFiber(FiberLock lock) {
+        return lock.isHeldByCurrentFiber(fiber);
+    }
+
+    protected void unlock(FiberLock lock) {
+        lock.unlock(this);
+    }
 
     protected FrameCallResult sleep(long millis, FrameCall<Void> resumePoint) {
         fiberGroup.dispatcher.sleep(this, millis, resumePoint);
