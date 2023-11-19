@@ -48,7 +48,7 @@ public class DoInLockFrame<O> extends FiberFrame<O> {
     @Override
     protected FrameCallResult doFinally() {
         if (locked) {
-            lock.unlock(this);
+            lock.unlock();
         }
         locked = false;
         return frameReturn();

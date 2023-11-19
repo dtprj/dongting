@@ -45,7 +45,7 @@ public class Dispatcher extends AbstractLifeCircle {
 
     private final Timestamp ts = new Timestamp();
 
-    private Fiber currentFiber;
+    Fiber currentFiber;
     final Thread thread;
 
     private boolean poll = true;

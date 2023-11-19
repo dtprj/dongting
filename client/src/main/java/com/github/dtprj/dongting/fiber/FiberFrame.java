@@ -87,18 +87,6 @@ public abstract class FiberFrame<O> implements FrameCall<Void> {
         return lock.lock(this, millis, resumePoint);
     }
 
-    protected boolean tryLock(FiberLock lock) {
-        return lock.tryLock(fiber);
-    }
-
-    protected boolean isHeldByCurrentFiber(FiberLock lock) {
-        return lock.isHeldByCurrentFiber(fiber);
-    }
-
-    protected void unlock(FiberLock lock) {
-        lock.unlock(this);
-    }
-
     protected FrameCallResult sleep(long millis, FrameCall<Void> resumePoint) {
         fiberGroup.dispatcher.sleep(this, millis, resumePoint);
         return FrameCallResult.SUSPEND;

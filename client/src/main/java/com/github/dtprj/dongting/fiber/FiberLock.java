@@ -48,10 +48,12 @@ public class FiberLock extends WaitSource {
         });
     }
 
-    boolean tryLock(Fiber fiber) {
-        if (fiber.fiberGroup != group) {
-            throw new FiberException("fiber not in group");
+    public boolean tryLock() {
+        if(!group.isInGroupThread()) {
+            throw new FiberException("not in fiber group");
         }
+        Fiber fiber = group.dispatcher.currentFiber;
+
         if (owner == null) {
             owner = fiber;
             count = 1;
@@ -64,18 +66,18 @@ public class FiberLock extends WaitSource {
         }
     }
 
-    boolean isHeldByCurrentFiber(Fiber fiber) {
-        if (fiber.fiberGroup != group) {
-            throw new FiberException("fiber not in group");
+    public boolean isHeldByCurrentFiber() {
+        if(!group.isInGroupThread()) {
+            throw new FiberException("not in fiber group");
         }
-        return fiber == owner;
+        return owner == group.dispatcher.currentFiber;
     }
 
-    FrameCallResult unlock(FiberFrame<?> frame) {
-        Fiber fiber = frame.fiber;
-        if (fiber.fiberGroup != group) {
-            throw new FiberException("fiber not in group");
+    public void unlock() {
+        if(!group.isInGroupThread()) {
+            throw new FiberException("not in fiber group");
         }
+        Fiber fiber = group.dispatcher.currentFiber;
         if (fiber == owner) {
             count--;
             if (count <= 0) {
@@ -89,6 +91,5 @@ public class FiberLock extends WaitSource {
         } else {
             throw new FiberException("not owner");
         }
-        return FrameCallResult.RETURN;
     }
 }
