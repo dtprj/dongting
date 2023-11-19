@@ -57,37 +57,53 @@ public abstract class FiberFrame<O> implements FrameCall<Void> {
         this.result = null;
     }
 
+    private void check() {
+        if (fiberGroup.dispatcher.currentFiber != fiber) {
+            throw new FiberException("usage error: not current fiber");
+        }
+        if (fiber.stackTop != this) {
+            throw new FiberException("usage error: not current frame");
+        }
+    }
 
     protected <O2> FrameCallResult call(FiberFrame<O2> subFrame, FrameCall<O2> resumePoint) {
+        check();
         fiberGroup.dispatcher.call(this, subFrame, resumePoint);
         return FrameCallResult.CALL_NEXT_FRAME;
     }
 
     protected FrameCallResult awaitOn(FiberCondition c, FrameCall<Void> resumePoint) {
+        check();
         return fiberGroup.dispatcher.awaitOn(this, c, 0, resumePoint);
     }
 
     protected FrameCallResult awaitOn(FiberCondition c, long millis, FrameCall<Void> resumePoint) {
+        check();
         return fiberGroup.dispatcher.awaitOn(this, c, millis, resumePoint);
     }
 
     protected <T> FrameCallResult awaitOn(FiberFuture<T> f, FrameCall<T> resumePoint) {
+        check();
         return fiberGroup.dispatcher.awaitOn(this, f, 0, resumePoint);
     }
 
     protected <T> FrameCallResult awaitOn(FiberFuture<T> f, long millis, FrameCall<T> resumePoint) {
+        check();
         return fiberGroup.dispatcher.awaitOn(this, f, millis, resumePoint);
     }
 
     protected FrameCallResult lock(FiberLock lock, FrameCall<Void> resumePoint) {
+        check();
         return lock.lock(this, 0, resumePoint);
     }
 
     protected FrameCallResult lock(FiberLock lock, long millis, FrameCall<Void> resumePoint) {
+        check();
         return lock.lock(this, millis, resumePoint);
     }
 
     protected FrameCallResult sleep(long millis, FrameCall<Void> resumePoint) {
+        check();
         fiberGroup.dispatcher.sleep(this, millis, resumePoint);
         return FrameCallResult.SUSPEND;
     }

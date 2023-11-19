@@ -303,18 +303,12 @@ public class Dispatcher extends AbstractLifeCircle {
             throwFatalError(current.fiberGroup, "usage fatal error: already suspended");
         }
         Fiber fiber = current.fiber;
-        if (fiber != currentFiber) {
-            throwFatalError(current.fiberGroup, "usage fatal error: fiber not match");
-        }
         if (fiber.interrupted) {
             fiber.interrupted = false;
             throw new FiberInterruptException("fiber is interrupted");
         }
         if (!fiber.ready) {
             throwFatalError(current.fiberGroup, "usage fatal error: fiber not ready state");
-        }
-        if (fiber.stackTop != current) {
-            throwFatalError(current.fiberGroup, "usage fatal error: can't call suspendCall twice");
         }
     }
 
