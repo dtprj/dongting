@@ -83,7 +83,7 @@ public abstract class FiberFrame<O> implements FrameCall<Void> {
         return lock.lock(this, 0, resumePoint);
     }
 
-    protected FrameCallResult tryLock(FiberLock lock, long millis, FrameCall<Boolean> resumePoint) {
+    protected FrameCallResult lock(FiberLock lock, long millis, FrameCall<Void> resumePoint) {
         return lock.lock(this, millis, resumePoint);
     }
 

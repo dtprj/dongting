@@ -122,9 +122,7 @@ public class Dispatcher extends AbstractLifeCircle {
             }
             scheduleQueue.poll();
             if (f.source != null) {
-                if (!(f.source instanceof FiberLock)) {
-                    f.lastEx = new FiberTimeoutException(f.scheduleTimeoutMillis + "ms");
-                }
+                f.lastEx = new FiberTimeoutException("wait " + f.source + "timeout:" + f.scheduleTimeoutMillis + "ms");
                 f.source.removeWaiter(f);
                 f.source = null;
             }

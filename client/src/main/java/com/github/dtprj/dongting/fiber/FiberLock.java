@@ -31,32 +31,20 @@ public class FiberLock extends WaitSource {
         return currentFiber != null && currentFiber != owner;
     }
 
-    FrameCallResult lock(FiberFrame<?> frame, long millis,
-                            @SuppressWarnings("rawtypes") FrameCall resumePoint) {
+    FrameCallResult lock(FiberFrame<?> frame, long millis, FrameCall<Void> resumePoint) {
         Fiber fiber = frame.fiber;
         if (fiber.fiberGroup != group) {
             throw new FiberException("fiber not in group");
         }
 
         return group.dispatcher.awaitOn(frame, this, millis, v -> {
-            Boolean locked;
             if (owner == null) {
                 owner = fiber;
                 count = 1;
-                locked = Boolean.TRUE;
             } else if (fiber == owner) {
                 count++;
-                locked = Boolean.TRUE;
-            } else {
-                locked = Boolean.FALSE;
             }
-            if (millis > 0) {
-                // tryLock with timeout
-                return resumePoint.execute(locked);
-            } else {
-                // lock
-                return resumePoint.execute(null);
-            }
+            return resumePoint.execute(null);
         });
     }
 
