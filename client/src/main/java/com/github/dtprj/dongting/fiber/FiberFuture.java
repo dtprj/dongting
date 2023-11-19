@@ -15,16 +15,24 @@
  */
 package com.github.dtprj.dongting.fiber;
 
+import com.github.dtprj.dongting.common.RunnableEx;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
+
+import java.util.LinkedList;
+
 /**
  * @author huangli
  */
 public class FiberFuture<T> extends WaitSource {
+    private static final DtLog log = DtLogs.getLogger(FiberFuture.class);
 
     private boolean done;
 
-    // use by FiberFuture
     T result;
     Throwable execEx;
+
+    private LinkedList<RunnableEx<Throwable>> callbacks;
 
     FiberFuture(FiberGroup group) {
         super(group);
@@ -37,12 +45,6 @@ public class FiberFuture<T> extends WaitSource {
 
     public T getResult() {
         return result;
-    }
-
-    private void checkDone() {
-        if (done) {
-            throw new FiberException("already done");
-        }
     }
 
     public Throwable getEx() {
@@ -89,13 +91,22 @@ public class FiberFuture<T> extends WaitSource {
             this.execEx = ex;
         }
         this.done = true;
+        if (callbacks != null) {
+            for (RunnableEx<Throwable> r : callbacks) {
+                try {
+                    r.run();
+                } catch (Throwable e) {
+                    log.error("callback error in future {}", this, e);
+                }
+            }
+        }
         signalAll0();
     }
 
     public FiberFrame<T> toFrame(long timeTimeoutMillis) {
         return new FiberFrame<T>() {
             @Override
-            public FrameCallResult execute(Void input) throws Exception {
+            public FrameCallResult execute(Void input) {
                 return awaitOn(FiberFuture.this, timeTimeoutMillis, this::resume);
             }
 
@@ -104,5 +115,12 @@ public class FiberFuture<T> extends WaitSource {
                 return frameReturn();
             }
         };
+    }
+
+    public void registerCallback(RunnableEx<Throwable> r) {
+        if (callbacks == null) {
+            callbacks = new LinkedList<>();
+        }
+        callbacks.add(r);
     }
 }
