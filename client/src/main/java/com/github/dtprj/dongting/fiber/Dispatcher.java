@@ -93,8 +93,12 @@ public class Dispatcher extends AbstractLifeCircle {
             processScheduleFibers();
             int len = localData.size();
             for (int i = 0; i < len; i++) {
-                Runnable r = localData.get(i);
-                r.run();
+                try {
+                    Runnable r = localData.get(i);
+                    r.run();
+                } catch (Throwable e) {
+                    log.error("dispatcher run task fail", e);
+                }
             }
 
             len = readyGroups.size();
