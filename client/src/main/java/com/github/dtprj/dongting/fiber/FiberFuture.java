@@ -118,6 +118,9 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     public void registerCallback(RunnableEx<Throwable> r) {
+        if (!group.isInGroupThread()) {
+            throw new FiberException("register callback must be in group thread");
+        }
         if (callbacks == null) {
             callbacks = new LinkedList<>();
         }
