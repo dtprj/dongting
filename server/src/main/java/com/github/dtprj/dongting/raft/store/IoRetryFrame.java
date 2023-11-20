@@ -17,12 +17,14 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.fiber.FiberCancelException;
+import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberInterruptException;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 
 import java.util.function.Supplier;
 
@@ -31,15 +33,20 @@ import java.util.function.Supplier;
  */
 public class IoRetryFrame<O> extends FiberFrame<O> {
 
-    private final RaftGroupConfig groupConfig;
+    private static final DtLog log = DtLogs.getLogger(IoRetryFrame.class);
+
+    private final long[] retryInterval;
     private final long timeoutMillis;
     private final Supplier<FiberFuture<O>> callback;
+    private final FiberCondition stopCondition;
     private int retryCount;
 
-    public IoRetryFrame(RaftGroupConfig groupConfig, long timeoutMillis, Supplier<FiberFuture<O>> ioCallback) {
-        this.groupConfig = groupConfig;
+    public IoRetryFrame(long[] retryInterval, long timeoutMillis, FiberCondition stopCondition,
+                        Supplier<FiberFuture<O>> ioCallback) {
+        this.retryInterval = retryInterval;
         this.timeoutMillis = timeoutMillis;
         this.callback = ioCallback;
+        this.stopCondition = stopCondition;
     }
 
     @Override
@@ -59,17 +66,23 @@ public class IoRetryFrame<O> extends FiberFrame<O> {
     @Override
     protected FrameCallResult handle(Throwable ex) throws Throwable {
         if (isGroupShouldStop()) {
-            throw ex;
+            throw new RaftException("group should stop, stop retry", ex);
         }
         Throwable root = DtUtil.rootCause(ex);
         if (root instanceof FiberInterruptException || root instanceof FiberCancelException) {
             throw ex;
         }
-        if (retryCount >= groupConfig.getIoRetryInterval().length) {
+        if (retryInterval == null || retryInterval.length == 0) {
             throw ex;
         }
-        long sleepTime = groupConfig.getIoRetryInterval()[retryCount++];
-        return awaitOn(groupConfig.getStopCondition(), sleepTime, this);
+        long sleepTime;
+        if (retryCount >= retryInterval.length) {
+            sleepTime = retryInterval[retryInterval.length - 1];
+        } else {
+            sleepTime = retryInterval[retryCount++];
+        }
+        log.error("io error, retry after {} ms", sleepTime, ex);
+        return awaitOn(stopCondition, sleepTime, this);
     }
 
     @Override

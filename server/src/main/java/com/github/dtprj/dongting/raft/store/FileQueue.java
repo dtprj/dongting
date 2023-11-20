@@ -18,13 +18,13 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IndexedQueue;
+import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 
@@ -65,9 +65,10 @@ abstract class FileQueue implements AutoCloseable {
     protected long queueStartPosition;
     protected long queueEndPosition;
 
-    protected FiberFuture<LogFile> allocateFuture;
-
+    private FiberFuture<LogFile> allocateFuture;
+    private boolean allocating;
     private boolean deleting;
+    private final FiberCondition fileOpsCondition;
 
     public FileQueue(File dir, RaftGroupConfig groupConfig, long fileSize) {
         this.dir = dir;
@@ -79,6 +80,7 @@ abstract class FileQueue implements AutoCloseable {
         this.fileSize = fileSize;
         this.fileLenMask = fileSize - 1;
         this.fileLenShiftBits = BitUtil.zeroCountOfBinary(fileSize);
+        this.fileOpsCondition = groupConfig.getFiberGroup().newCondition();
     }
 
     protected final long getFileSize() {
@@ -90,7 +92,7 @@ abstract class FileQueue implements AutoCloseable {
     }
 
 
-    public void init() throws IOException {
+    public void init(String name) throws IOException {
         File[] files = dir.listFiles();
         if (files == null || files.length == 0) {
             return;
@@ -138,29 +140,35 @@ abstract class FileQueue implements AutoCloseable {
         return queue.get(index);
     }
 
-    private void finishAllocate() {
-        if (allocateFuture == null || !allocateFuture.isDone()) {
-            return;
+    private class FileOpsFiberFrame extends FiberFrame<Void> {
+        @Override
+        public FrameCallResult execute(Void input) {
+            return null;
         }
-        if (allocateFuture.getEx() == null) {
-            LogFile newFile = allocateFuture.getResult();
-            queue.addLast(newFile);
-            queueEndPosition = newFile.endPos;
+    }
+
+    private void finishAllocateIfDone() {
+        if (allocateFuture != null && allocateFuture.isDone()) {
+            if (allocateFuture.getEx() == null) {
+                LogFile newFile = allocateFuture.getResult();
+                queue.addLast(newFile);
+                queueEndPosition = newFile.endPos;
+            }
+            allocateFuture = null;
+            allocating = false;
+            fileOpsCondition.signalAll();
+            // exception is logged in allocate() method
         }
-        // exception is logged in allocate() method
-        allocateFuture = null;
     }
 
     protected boolean checkPosReady(long pos) {
         if (allocateFuture == null) {
-            if (pos >= queueEndPosition - fileSize) {
+            if (pos >= queueEndPosition - fileSize && !deleting) {
                 // maybe pre allocate next file
-                allocateFuture = allocate(queueEndPosition);
+                allocate();
             }
-        } else if (allocateFuture.isDone()) {
-            finishAllocate();
         }
-
+        finishAllocateIfDone();
         return pos < queueEndPosition;
     }
 
@@ -168,78 +176,86 @@ abstract class FileQueue implements AutoCloseable {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
+                finishAllocateIfDone();
                 if (pos >= queueEndPosition) {
-                    return call(allocateSync(queueEndPosition, retry), this::resume);
+                    if (allocating || deleting) {
+                        // resume on this method
+                        return awaitOn(fileOpsCondition, this);
+                    } else {
+                        return call(allocateSync(retry), this::resume);
+                    }
                 } else {
                     return frameReturn();
                 }
             }
 
             private FrameCallResult resume(LogFile logFile) {
-                finishAllocate();
+                finishAllocateIfDone();
                 // loop
                 return execute(null);
             }
         };
     }
 
-    private FiberFrame<LogFile> allocateSync(long start, boolean retry) {
-        if (retry) {
-            return new IoRetryFrame<>(groupConfig, groupConfig.getAllocateTimeout(), () -> {
-                if (allocateFuture == null) {
-                    allocateFuture = allocate(start);
-                }
-                return allocateFuture;
-            });
-        } else {
-            if (allocateFuture == null) {
-                allocateFuture = allocate(start);
-            }
-            return allocateFuture.toFrame(groupConfig.getAllocateTimeout());
+    private FiberFrame<LogFile> allocateSync(boolean retry) {
+        long[] retryInterval = retry ? groupConfig.getIoRetryInterval() : null;
+        return new IoRetryFrame<>(retryInterval, groupConfig.getAllocateTimeout(),
+                groupConfig.getStopCondition(), () -> {
+            allocate();
+            return allocateFuture;
+        });
+    }
+
+    private void allocate() {
+        allocating = true;
+        allocateFuture = groupConfig.getFiberGroup().newFuture();
+        try {
+            ioExecutor.execute(() -> doAllocateInIoThread(queueEndPosition, allocateFuture));
+        } catch (Throwable e) {
+            log.error("submit allocate task fail: ", e);
+            allocateFuture.completeExceptionally(e);
         }
     }
 
-    private FiberFuture<LogFile> allocate(long fileStartPos) {
-        FiberFuture<LogFile> future = groupConfig.getFiberGroup().newFuture();
-        ioExecutor.execute(() -> {
-            AsynchronousFileChannel channel = null;
-            try {
-                // in io thread we can't use ts of raft dispatcher thread
-                long startTime = System.currentTimeMillis();
-                File f = new File(dir, String.format("%020d", fileStartPos));
-                HashSet<OpenOption> openOptions = new HashSet<>();
-                openOptions.add(StandardOpenOption.READ);
-                openOptions.add(StandardOpenOption.WRITE);
-                openOptions.add(StandardOpenOption.CREATE);
-                channel = AsynchronousFileChannel.open(f.toPath(), openOptions, ioExecutor);
-                LogFile logFile = new LogFile(fileStartPos, fileStartPos + getFileSize(), channel, f);
+    // this method run in io executor
+    private void doAllocateInIoThread(long fileStartPos, FiberFuture<LogFile> future) {
+        AsynchronousFileChannel channel = null;
+        // in io thread we can't use ts of raft dispatcher thread
+        long startTime = System.currentTimeMillis();
+        try {
+            File f = new File(dir, String.format("%020d", fileStartPos));
+            HashSet<OpenOption> openOptions = new HashSet<>();
+            openOptions.add(StandardOpenOption.READ);
+            openOptions.add(StandardOpenOption.WRITE);
+            openOptions.add(StandardOpenOption.CREATE);
+            channel = AsynchronousFileChannel.open(f.toPath(), openOptions, ioExecutor);
+            LogFile logFile = new LogFile(fileStartPos, fileStartPos + getFileSize(), channel, f);
 
-                ByteBuffer buf = ByteBuffer.allocate(1);
+            ByteBuffer buf = ByteBuffer.allocate(1);
 
-                AsyncIoTask t = new AsyncIoTask(logFile.channel, null);
-                t.writeAndFlush(buf, getFileSize() - 1, true, new CompletionHandler<>() {
-                    @Override
-                    public void completed(Void result, Void attachment) {
-                        long time = System.currentTimeMillis() - startTime;
-                        log.info("allocate log file done, cost {} ms: {}", time, logFile.file.getPath());
-                        future.complete(logFile);
-                    }
-
-                    @Override
-                    public void failed(Throwable exc, Void attachment) {
-                        long time = System.currentTimeMillis() - startTime;
-                        log.info("allocate log file failed, cost {} ms: {}", time, logFile.file.getPath(), exc);
-                        future.completeExceptionally(exc);
-                    }
-                });
-            } catch (Throwable e) {
-                if (channel != null) {
-                    DtUtil.close(channel);
+            AsyncIoTask t = new AsyncIoTask(logFile.channel, null);
+            t.writeAndFlush(buf, getFileSize() - 1, true, new CompletionHandler<>() {
+                @Override
+                public void completed(Void result, Void attachment) {
+                    long time = System.currentTimeMillis() - startTime;
+                    log.info("allocate log file done, cost {} ms: {}", time, logFile.file.getPath());
+                    future.complete(logFile);
                 }
-                future.completeExceptionally(e);
+
+                @Override
+                public void failed(Throwable exc, Void attachment) {
+                    long time = System.currentTimeMillis() - startTime;
+                    log.info("allocate log file failed, cost {} ms: {}", time, logFile.file.getPath(), exc);
+                    future.completeExceptionally(exc);
+                }
+            });
+        } catch (Throwable e) {
+            log.error("allocate log file fail: ", e);
+            if (channel != null) {
+                DtUtil.close(channel);
             }
-        });
-        return future;
+            future.completeExceptionally(e);
+        }
     }
 
     @Override
@@ -266,15 +282,23 @@ abstract class FileQueue implements AutoCloseable {
         }
         deleting = true;
         long stateMachineEpoch = raftStatus.getStateMachineEpoch();
-        ioExecutor.execute(() -> {
-            try {
-                delete(logFile);
-                raftExecutor.execute(() -> processDeleteResult(true, shouldDelete, stateMachineEpoch));
-            } catch (Throwable e) {
-                log.error("delete file fail: ", logFile.file.getPath(), e);
-                raftExecutor.execute(() -> processDeleteResult(false, shouldDelete, stateMachineEpoch));
-            }
-        });
+        FiberFuture<Void> deleteFuture = groupConfig.getFiberGroup().newFuture();
+        deleteFuture.registerCallback(() -> processDeleteResult(deleteFuture.getEx() == null,
+                shouldDelete, stateMachineEpoch));
+        try {
+            ioExecutor.execute(() -> {
+                try {
+                    delete(logFile);
+                    deleteFuture.complete(null);
+                } catch (Throwable e) {
+                    log.error("delete file fail: ", logFile.file.getPath(), e);
+                    deleteFuture.completeExceptionally(e);
+                }
+            });
+        } catch (Throwable e) {
+            log.error("submit delete task fail: ", e);
+            deleteFuture.completeExceptionally(e);
+        }
     }
 
     protected void delete(LogFile logFile) throws IOException {
@@ -287,6 +311,7 @@ abstract class FileQueue implements AutoCloseable {
     private void processDeleteResult(boolean success, Predicate<LogFile> shouldDelete, long stateMachineEpoch) {
         // access variable deleting in raft thread
         deleting = false;
+        fileOpsCondition.signalAll();
         if (stateMachineEpoch != raftStatus.getStateMachineEpoch()) {
             log.info("state machine epoch changed, ignore process delete result");
             return;
@@ -302,14 +327,24 @@ abstract class FileQueue implements AutoCloseable {
     protected void afterDelete() {
     }
 
-    protected void forceDeleteAll() throws Exception {
-        for (int i = 0; i < queue.size(); i++) {
-            LogFile lf = queue.get(0);
-            if (lf.use > 0) {
-                log.warn("file is in use: {}", lf.file.getName());
+    protected FiberFrame<Void> forceDeleteAll() throws Exception {
+        return new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) throws Exception {
+                if(deleting || allocating) {
+                    return awaitOn(fileOpsCondition, this);
+                } else {
+                    // sync operation so don't need to set deleting flag
+                    for (int i = 0; i < queue.size(); i++) {
+                        LogFile lf = queue.get(0);
+                        if (lf.use > 0) {
+                            log.warn("file is in use: {}", lf.file.getName());
+                        }
+                        delete(lf);
+                    }
+                    return frameReturn();
+                }
             }
-            FileUtil.doWithRetry(() -> delete(lf), groupConfig.getStopIndicator(),
-                    false, groupConfig.getIoRetryInterval());
-        }
+        };
     }
 }

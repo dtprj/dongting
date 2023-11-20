@@ -23,6 +23,8 @@ import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.fiber.PostFiberFrame;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
@@ -36,6 +38,7 @@ import java.util.function.Supplier;
  * @author huangli
  */
 public class StatusManager implements AutoCloseable {
+    private static final DtLog log = DtLogs.getLogger(StatusManager.class);
 
     private static final String CURRENT_TERM_KEY = "currentTerm";
     private static final String VOTED_FOR_KEY = "votedFor";
@@ -100,18 +103,22 @@ public class StatusManager implements AutoCloseable {
             return f;
         };
         // the frame is reused
-        private final IoRetryFrame<Void> ioFrame = new IoRetryFrame<>(groupConfig,
-                groupConfig.getIoTimeout(), ioCallback);
+        private final IoRetryFrame<Void> ioFrame = new IoRetryFrame<>(groupConfig.getIoRetryInterval(),
+                groupConfig.getIoTimeout(), groupConfig.getStopCondition(), ioCallback);
         @Override
         public FrameCallResult execute(Void input) {
             if (closed) {
                 updateDoneCondition.signal();
                 return frameReturn();
             }
-            return awaitOn(needUpdateCondition, this::resumeOnNeedUpdate);
+            if (requestUpdateVersion > finishedUpdateVersion) {
+                return doUpdate(null);
+            } else {
+                return awaitOn(needUpdateCondition, this::doUpdate);
+            }
         }
 
-        private FrameCallResult resumeOnNeedUpdate(Void v) {
+        private FrameCallResult doUpdate(Void v) {
             return call(ioFrame, this::resumeOnUpdateDone);
         }
 
@@ -125,6 +132,7 @@ public class StatusManager implements AutoCloseable {
         @Override
         protected FrameCallResult handle(Throwable ex) throws Throwable {
             updateDoneCondition.signal();
+            log.error("update status file error", ex);
             return fatal(ex);
         }
 
