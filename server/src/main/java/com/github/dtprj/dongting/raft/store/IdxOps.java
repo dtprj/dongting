@@ -13,28 +13,15 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.impl;
+package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
-
-import java.nio.ByteBuffer;
-import java.util.zip.CRC32C;
+import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * @author huangli
  */
-public class RaftUtil {
-    private static final DtLog log = DtLogs.getLogger(RaftUtil.class);
-
-    public static void updateCrc(CRC32C crc32c, ByteBuffer buf, int startPos, int len) {
-        int oldPos = buf.position();
-        int oldLimit = buf.limit();
-        buf.limit(startPos + len);
-        buf.position(startPos);
-        crc32c.update(buf);
-        buf.limit(oldLimit);
-        buf.position(oldPos);
-    }
-
+interface IdxOps {
+    void put(long index, long position, boolean recover) throws InterruptedException;
+    CompletableFuture<Long> loadLogPos(long itemIndex) throws IOException;
 }

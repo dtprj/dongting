@@ -108,6 +108,7 @@ public class StatusManager implements AutoCloseable {
         @Override
         public FrameCallResult execute(Void input) {
             if (closed) {
+                log.debug("status update fiber exit");
                 updateDoneCondition.signal();
                 return frameReturn();
             }
