@@ -68,9 +68,7 @@ public class FiberGroup {
     public void requestShutdown() {
         shouldStopPlain = true;
         shouldStop = true;
-        dispatcher.doInDispatcherThread(() -> {
-            updateFinishStatus();
-        });
+        dispatcher.doInDispatcherThread(this::updateFinishStatus);
     }
 
     @SuppressWarnings("unchecked")

@@ -15,15 +15,11 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
-
 /**
  * @author huangli
  */
 @SuppressWarnings("rawtypes")
 public abstract class FiberFrame<O> implements FrameCall<Void> {
-    private static final DtLog log = DtLogs.getLogger(FiberFrame.class);
     static final int STATUS_INIT = 0;
     static final int STATUS_BODY_CALLED = 1;
     static final int STATUS_CATCH_CALLED = 2;

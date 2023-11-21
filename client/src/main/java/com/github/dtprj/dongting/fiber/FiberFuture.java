@@ -15,24 +15,15 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.common.RunnableEx;
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
-
-import java.util.LinkedList;
-
 /**
  * @author huangli
  */
 public class FiberFuture<T> extends WaitSource {
-    private static final DtLog log = DtLogs.getLogger(FiberFuture.class);
 
     private boolean done;
 
     T result;
     Throwable execEx;
-
-    private LinkedList<RunnableEx<Throwable>> callbacks;
 
     FiberFuture(FiberGroup group) {
         super(group);
@@ -91,15 +82,6 @@ public class FiberFuture<T> extends WaitSource {
             this.execEx = ex;
         }
         this.done = true;
-        if (callbacks != null) {
-            for (RunnableEx<Throwable> r : callbacks) {
-                try {
-                    r.run();
-                } catch (Throwable e) {
-                    log.error("callback error in future {}", this, e);
-                }
-            }
-        }
         signalAll0();
     }
 
@@ -112,7 +94,7 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     public FiberFrame<T> toFrame(long timeTimeoutMillis) {
-        return new FiberFrame<T>() {
+        return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return awaitOn(timeTimeoutMillis, this::resume);
