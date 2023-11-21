@@ -68,8 +68,8 @@ public class Fiber {
 
     public static FrameCallResult fatal(Throwable ex) throws Throwable {
         log.error("encountered fatal error, raft group will shutdown", ex);
-        Fiber f = Dispatcher.checkAndGetCurrentFiber();
-        f.fiberGroup.requestShutdown();
+        DispatcherThead t = DispatcherThead.currentDispatcherThread();
+        t.currentGroup.requestShutdown();
         throw ex;
     }
 

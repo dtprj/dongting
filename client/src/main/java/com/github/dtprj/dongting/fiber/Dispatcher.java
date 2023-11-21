@@ -222,7 +222,6 @@ public class Dispatcher extends AbstractLifeCircle {
                 tryHandleEx(currentFrame, fiber.lastEx);
             } else {
                 try {
-                    FrameCallResult result;
                     Object input = inputObj;
                     inputObj = null;
                     if (currentFrame.status < FiberFrame.STATUS_BODY_CALLED) {
@@ -230,7 +229,7 @@ public class Dispatcher extends AbstractLifeCircle {
                     }
                     FrameCall r = currentFrame.resumePoint;
                     currentFrame.resumePoint = null;
-                    result = r.execute(input);
+                    r.execute(input);
                 } catch (Throwable e) {
                     tryHandleEx(currentFrame, e);
                 }
@@ -239,7 +238,7 @@ public class Dispatcher extends AbstractLifeCircle {
             try {
                 if (currentFrame.status < FiberFrame.STATUS_FINALLY_CALLED && currentFrame.resumePoint == null) {
                     currentFrame.status = FiberFrame.STATUS_FINALLY_CALLED;
-                    FrameCallResult result = currentFrame.doFinally();
+                    currentFrame.doFinally();
                 }
             } catch (Throwable e) {
                 fiber.lastEx = e;
@@ -265,6 +264,7 @@ public class Dispatcher extends AbstractLifeCircle {
 
     static void call(FiberFrame subFrame, FrameCall resumePoint) {
         Fiber fiber = checkAndGetCurrentFiber();
+        checkReentry(fiber);
         FiberFrame currentFrame = fiber.stackTop;
         currentFrame.resumePoint = resumePoint;
         subFrame.reset(fiber);
@@ -279,6 +279,7 @@ public class Dispatcher extends AbstractLifeCircle {
 
     static FrameCallResult awaitOn(Fiber fiber, WaitSource c, long millis, FrameCall resumePoint) {
         checkInterrupt(fiber);
+        checkReentry(fiber);
         FiberFrame currentFrame = fiber.stackTop;
         currentFrame.resumePoint = resumePoint;
         if (!c.shouldWait(fiber)) {
@@ -296,6 +297,7 @@ public class Dispatcher extends AbstractLifeCircle {
     static void sleep(long millis, FrameCall resumePoint) {
         Fiber fiber = checkAndGetCurrentFiber();
         checkInterrupt(fiber);
+        checkReentry(fiber);
         FiberFrame currentFrame = fiber.stackTop;
         currentFrame.resumePoint = resumePoint;
         fiber.ready = false;
@@ -317,6 +319,14 @@ public class Dispatcher extends AbstractLifeCircle {
         return fiber;
     }
 
+    private static void checkReentry(Fiber fiber) {
+        if (fiber.stackTop.resumePoint != null) {
+            throwFatalError(fiber.fiberGroup, "usage fatal error: " +
+                    "current frame resume point is not null, may invoke call()/awaitOn()/sleep() twice, " +
+                    "or not return after invoke");
+        }
+    }
+
     private static void checkInterrupt(Fiber fiber) {
         if (fiber.interrupted) {
             fiber.interrupted = false;
@@ -324,7 +334,7 @@ public class Dispatcher extends AbstractLifeCircle {
         }
     }
 
-    static void throwFatalError(FiberGroup g, String msg) {
+    private static void throwFatalError(FiberGroup g, String msg) {
         FiberException fe = new FiberException(msg);
         g.dispatcher.fatalError = fe;
         g.requestShutdown();
