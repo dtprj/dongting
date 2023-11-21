@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
@@ -85,7 +86,7 @@ public class StatusFile implements AutoCloseable {
                 channel = AsynchronousFileChannel.open(file.toPath(), options, ioExecutor);
                 lock = channel.tryLock();
                 if (!needLoad) {
-                    return frameReturn();
+                    return Fiber.frameReturn();
                 }
                 log.info("loading status file: {}", file.getPath());
                 if (file.length() != FILE_LENGTH) {
@@ -95,7 +96,7 @@ public class StatusFile implements AutoCloseable {
                 AsyncIoTask task = new AsyncIoTask(channel, null);
                 FiberFuture<Void> f = getFiberGroup().newFuture();
                 task.read(buf, 0, AsyncIoTask.wrap(f));
-                return awaitOn(f, ioTimeout, this::resumeAfterRead);
+                return f.awaitOn(ioTimeout, this::resumeAfterRead);
             }
 
             private FrameCallResult resumeAfterRead(Void input) throws Exception {
@@ -113,7 +114,7 @@ public class StatusFile implements AutoCloseable {
 
                 properties.load(new StringReader(new String(
                         data, CONTENT_START_POS, CONTENT_LENGTH, StandardCharsets.UTF_8)));
-                return frameReturn();
+                return Fiber.frameReturn();
             }
 
             @Override

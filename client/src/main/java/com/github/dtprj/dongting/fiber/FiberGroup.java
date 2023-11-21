@@ -35,9 +35,13 @@ public class FiberGroup {
     private final HashSet<Fiber> daemonFibers = new HashSet<>();
     private final IntObjMap<FiberChannel<Object>> channels = new IntObjMap<>();
 
-    boolean shouldStop = false;
+    protected volatile boolean shouldStop = false;
+    boolean shouldStopPlain = false;
+
     boolean finished;
     boolean ready;
+
+    Fiber currentFiber;
 
     public FiberGroup(String name, Dispatcher dispatcher) {
         this.name = name;
@@ -62,8 +66,9 @@ public class FiberGroup {
      * can call in any thread
      */
     public void requestShutdown() {
+        shouldStopPlain = true;
+        shouldStop = true;
         dispatcher.doInDispatcherThread(() -> {
-            shouldStop = true;
             updateFinishStatus();
         });
     }
@@ -76,6 +81,10 @@ public class FiberGroup {
         }
         channels.put(type, channel);
         return (FiberChannel<T>) channel;
+    }
+
+    public static FiberGroup currentGroup() {
+        return Dispatcher.checkAndGetCurrentFiber().fiberGroup;
     }
 
     public String getName() {
@@ -153,8 +162,11 @@ public class FiberGroup {
 
     private void updateFinishStatus() {
         if (!finished) {
-            finished = shouldStop && normalFibers.isEmpty();
+            finished = shouldStopPlain && normalFibers.isEmpty();
         }
     }
 
+    public boolean isShouldStop() {
+        return shouldStop;
+    }
 }

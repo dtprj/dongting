@@ -15,11 +15,15 @@
  */
 package com.github.dtprj.dongting.fiber;
 
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
+
 /**
  * @author huangli
  */
 @SuppressWarnings("rawtypes")
 public class Fiber {
+    private static final DtLog log = DtLogs.getLogger(Fiber.class);
     protected final FiberGroup fiberGroup;
     protected final String fiberName;
     protected final boolean daemon;
@@ -50,6 +54,27 @@ public class Fiber {
         this.stackTop = entryFrame;
         this.daemon = daemon;
         entryFrame.reset(this);
+    }
+
+    public static <O2> FrameCallResult call(FiberFrame<O2> subFrame, FrameCall<O2> resumePoint) {
+        Dispatcher.call(subFrame, resumePoint);
+        return FrameCallResult.CALL_NEXT_FRAME;
+    }
+
+    public static FrameCallResult sleep(long millis, FrameCall<Void> resumePoint) {
+        Dispatcher.sleep(millis, resumePoint);
+        return FrameCallResult.SUSPEND;
+    }
+
+    public static FrameCallResult fatal(Throwable ex) throws Throwable {
+        log.error("encountered fatal error, raft group will shutdown", ex);
+        Fiber f = Dispatcher.checkAndGetCurrentFiber();
+        f.fiberGroup.requestShutdown();
+        throw ex;
+    }
+
+    public static FrameCallResult frameReturn() {
+        return FrameCallResult.RETURN;
     }
 
     FiberFrame popFrame() {

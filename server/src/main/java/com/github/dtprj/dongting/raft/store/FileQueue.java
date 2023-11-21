@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IndexedQueue;
+import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
@@ -180,12 +181,12 @@ abstract class FileQueue implements AutoCloseable {
                 if (pos >= queueEndPosition) {
                     if (allocating || deleting) {
                         // resume on this method
-                        return awaitOn(fileOpsCondition, this);
+                        return fileOpsCondition.awaitOn(this);
                     } else {
-                        return call(allocateSync(retry), this::resume);
+                        return Fiber.call(allocateSync(retry), this::resume);
                     }
                 } else {
-                    return frameReturn();
+                    return Fiber.frameReturn();
                 }
             }
 
@@ -332,7 +333,7 @@ abstract class FileQueue implements AutoCloseable {
             @Override
             public FrameCallResult execute(Void input) throws Exception {
                 if(deleting || allocating) {
-                    return awaitOn(fileOpsCondition, this);
+                    return fileOpsCondition.awaitOn(this);
                 } else {
                     // sync operation so don't need to set deleting flag
                     for (int i = 0; i < queue.size(); i++) {
@@ -342,7 +343,7 @@ abstract class FileQueue implements AutoCloseable {
                         }
                         delete(lf);
                     }
-                    return frameReturn();
+                    return Fiber.frameReturn();
                 }
             }
         };

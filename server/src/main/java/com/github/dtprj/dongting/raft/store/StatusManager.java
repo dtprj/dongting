@@ -82,7 +82,7 @@ public class StatusManager implements AutoCloseable {
                 raftStatus.setCommitIndex(Integer.parseInt(loadedProps.getProperty(COMMIT_INDEX_KEY, "0")));
 
                 updateFiber.start();
-                return frameReturn();
+                return Fiber.frameReturn();
             }
         };
     }
@@ -110,17 +110,17 @@ public class StatusManager implements AutoCloseable {
             if (closed) {
                 log.debug("status update fiber exit");
                 updateDoneCondition.signal();
-                return frameReturn();
+                return Fiber.frameReturn();
             }
             if (requestUpdateVersion > finishedUpdateVersion) {
                 return doUpdate(null);
             } else {
-                return awaitOn(needUpdateCondition, this::doUpdate);
+                return needUpdateCondition.awaitOn(this::doUpdate);
             }
         }
 
         private FrameCallResult doUpdate(Void v) {
-            return call(ioFrame, this::resumeOnUpdateDone);
+            return Fiber.call(ioFrame, this::resumeOnUpdateDone);
         }
 
         private FrameCallResult resumeOnUpdateDone(Void v) {
@@ -134,13 +134,13 @@ public class StatusManager implements AutoCloseable {
         protected FrameCallResult handle(Throwable ex) throws Throwable {
             updateDoneCondition.signal();
             log.error("update status file error", ex);
-            return fatal(ex);
+            return Fiber.fatal(ex);
         }
 
         @Override
         protected FrameCallResult doFinally() {
             DtUtil.close(statusFile);
-            return frameReturn();
+            return Fiber.frameReturn();
         }
 
         private void copyWriteData() {
@@ -177,12 +177,12 @@ public class StatusManager implements AutoCloseable {
                     throw new RaftException("update fiber is finished");
                 }
                 needUpdateCondition.signal();
-                return awaitOn(updateDoneCondition, this::resume);
+                return updateDoneCondition.awaitOn(this::resume);
             }
 
             private FrameCallResult resume(Void unused) {
                 if (finishedUpdateVersion >= reqVersion) {
-                    return frameReturn();
+                    return Fiber.frameReturn();
                 }
                 return execute0();
             }

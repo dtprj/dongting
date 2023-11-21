@@ -29,19 +29,29 @@ public class FiberCondition extends WaitSource {
         return true;
     }
 
-    public void signal() {
-        if (group.isInGroupThread()) {
-            signal0();
-        } else {
-            throw new FiberException("signal can only call in group thread");
+    private Fiber check() {
+        Fiber fiber = Dispatcher.checkAndGetCurrentFiber();
+        if (fiber.fiberGroup != group) {
+            throw new FiberException("condition not belong to the current fiber group");
         }
+        return fiber;
+    }
+
+    public void signal() {
+        check();
+        signal0();
     }
 
     public void signalAll() {
-        if (group.isInGroupThread()) {
-            signalAll0();
-        } else {
-            throw new FiberException("signal can only call in group thread");
-        }
+        check();
+        signalAll0();
+    }
+
+    public FrameCallResult awaitOn(FrameCall<Void> resumePoint) {
+        return Dispatcher.awaitOn(this, 0, resumePoint);
+    }
+
+    public FrameCallResult awaitOn(long millis, FrameCall<Void> resumePoint) {
+        return Dispatcher.awaitOn(this, millis, resumePoint);
     }
 }

@@ -10,7 +10,7 @@ public abstract class PostFiberFrame<O1, O2> extends FiberFrame<O2> {
 
     @Override
     public final FrameCallResult execute(Void v) {
-        return call(subFrame, this::postProcess);
+        return Fiber.call(subFrame, this::postProcess);
     }
 
     protected abstract FrameCallResult postProcess(O1 result) throws Exception;

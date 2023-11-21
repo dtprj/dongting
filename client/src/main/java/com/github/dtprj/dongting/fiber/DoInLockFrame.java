@@ -24,6 +24,10 @@ public class DoInLockFrame<O> extends FiberFrame<O> {
     private final FiberFrame<O> subFrame;
     private boolean locked;
 
+    public DoInLockFrame(FiberLock lock, FiberFrame<O> subFrame) {
+        this(lock, 0, subFrame);
+    }
+
     public DoInLockFrame(FiberLock lock, long timeoutMillis, FiberFrame<O> subFrame) {
         this.lock = lock;
         this.timeoutMillis = timeoutMillis;
@@ -32,17 +36,17 @@ public class DoInLockFrame<O> extends FiberFrame<O> {
 
     @Override
     public FrameCallResult execute(Void input) throws Exception {
-        return lock.lock(this, timeoutMillis, this::afterGetLock);
+        return lock.lock(timeoutMillis, this::afterGetLock);
     }
 
     private FrameCallResult afterGetLock(Void v) {
         locked = true;
-        return call(subFrame, this::afterSubFrameReturn);
+        return Fiber.call(subFrame, this::afterSubFrameReturn);
     }
 
     private FrameCallResult afterSubFrameReturn(O o) {
         setResult(o);
-        return frameReturn();
+        return Fiber.frameReturn();
     }
 
     @Override
@@ -51,6 +55,6 @@ public class DoInLockFrame<O> extends FiberFrame<O> {
             lock.unlock();
         }
         locked = false;
-        return frameReturn();
+        return Fiber.frameReturn();
     }
 }

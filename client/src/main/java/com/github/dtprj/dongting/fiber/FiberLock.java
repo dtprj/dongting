@@ -31,13 +31,22 @@ public class FiberLock extends WaitSource {
         return currentFiber != null && currentFiber != owner;
     }
 
-    FrameCallResult lock(FiberFrame<?> frame, long millis, FrameCall<Void> resumePoint) {
-        Fiber fiber = frame.fiber;
-        if (fiber.fiberGroup != group) {
-            throw new FiberException("fiber not in group");
-        }
+    public FrameCallResult lock(FrameCall<Void> resumePoint) {
+        return lock(0, resumePoint);
+    }
 
-        return group.dispatcher.awaitOn(frame, this, millis, v -> {
+    private Fiber check() {
+        Fiber fiber = Dispatcher.checkAndGetCurrentFiber();
+        if (fiber.fiberGroup != group) {
+            throw new FiberException("lock not belong to current fiber group");
+        }
+        return fiber;
+    }
+
+    public FrameCallResult lock(long millis, FrameCall<Void> resumePoint) {
+        Fiber fiber = check();
+
+        return Dispatcher.awaitOn(fiber, this, millis, v -> {
             if (owner == null) {
                 owner = fiber;
                 count = 1;
@@ -49,10 +58,7 @@ public class FiberLock extends WaitSource {
     }
 
     public boolean tryLock() {
-        if(!group.isInGroupThread()) {
-            throw new FiberException("not in fiber group");
-        }
-        Fiber fiber = group.dispatcher.currentFiber;
+        Fiber fiber = check();
 
         if (owner == null) {
             owner = fiber;
@@ -67,17 +73,11 @@ public class FiberLock extends WaitSource {
     }
 
     public boolean isHeldByCurrentFiber() {
-        if(!group.isInGroupThread()) {
-            throw new FiberException("not in fiber group");
-        }
-        return owner == group.dispatcher.currentFiber;
+        return owner == check();
     }
 
     public void unlock() {
-        if(!group.isInGroupThread()) {
-            throw new FiberException("not in fiber group");
-        }
-        Fiber fiber = group.dispatcher.currentFiber;
+        Fiber fiber = check();
         if (fiber == owner) {
             count--;
             if (count <= 0) {
