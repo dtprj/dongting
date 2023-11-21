@@ -125,13 +125,24 @@ public class FiberFuture<T> extends WaitSource {
         };
     }
 
-    public void registerCallback(RunnableEx<Throwable> r) {
-        if (!group.isInGroupThread()) {
-            throw new FiberException("register callback must be in group thread");
-        }
-        if (callbacks == null) {
-            callbacks = new LinkedList<>();
-        }
-        callbacks.add(r);
+    /**
+     * this method can call in any thread
+     */
+    public void registerCallback(FiberFrame<Void> callbackFiberEntryFrame) {
+        Fiber f = new Fiber("future-callback", group, callbackFiberEntryFrame);
+        f.source = this;
+        f.start();
+    }
+
+    /**
+     * this method can call in any thread
+     */
+    public void registerCallback(FrameCall<Void> callbackFiberEntryFrameBody) {
+        registerCallback(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) throws Exception {
+                return callbackFiberEntryFrameBody.execute(null);
+            }
+        });
     }
 }

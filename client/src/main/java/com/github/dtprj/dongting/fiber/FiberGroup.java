@@ -99,7 +99,7 @@ public class FiberGroup {
         return new FiberFuture<>(this);
     }
 
-    public FiberLock newLock(){
+    public FiberLock newLock() {
         return new FiberLock(this);
     }
 
@@ -116,7 +116,17 @@ public class FiberGroup {
         } else {
             normalFibers.add(f);
         }
-        tryMakeFiberReady(f, false);
+        if (f.source == null) {
+            tryMakeFiberReady(f, false);
+        } else {
+            // the fiber is future callback fiber
+            FiberFuture future = (FiberFuture) f.source;
+            if (future.isDone()) {
+                tryMakeFiberReady(f, false);
+            } else {
+                future.addWaiter(f);
+            }
+        }
     }
 
     void removeFiber(Fiber f) {

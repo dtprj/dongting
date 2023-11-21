@@ -284,8 +284,8 @@ abstract class FileQueue implements AutoCloseable {
         deleting = true;
         long stateMachineEpoch = raftStatus.getStateMachineEpoch();
         FiberFuture<Void> deleteFuture = groupConfig.getFiberGroup().newFuture();
-        deleteFuture.registerCallback(() -> processDeleteResult(deleteFuture.getEx() == null,
-                shouldDelete, stateMachineEpoch));
+        deleteFuture.registerCallback(v -> processDeleteResult(
+                deleteFuture.getEx() == null, shouldDelete, stateMachineEpoch));
         try {
             ioExecutor.execute(() -> {
                 try {
@@ -309,13 +309,13 @@ abstract class FileQueue implements AutoCloseable {
         Files.delete(logFile.file.toPath());
     }
 
-    private void processDeleteResult(boolean success, Predicate<LogFile> shouldDelete, long stateMachineEpoch) {
+    private FrameCallResult processDeleteResult(boolean success, Predicate<LogFile> shouldDelete, long stateMachineEpoch) {
         // access variable deleting in raft thread
         deleting = false;
         fileOpsCondition.signalAll();
         if (stateMachineEpoch != raftStatus.getStateMachineEpoch()) {
             log.info("state machine epoch changed, ignore process delete result");
-            return;
+            Fiber.frameReturn();
         }
         if (success) {
             queue.removeFirst();
@@ -323,6 +323,7 @@ abstract class FileQueue implements AutoCloseable {
             submitDeleteTask(shouldDelete);
             afterDelete();
         }
+        return Fiber.frameReturn();
     }
 
     protected void afterDelete() {
