@@ -93,7 +93,7 @@ abstract class FileQueue implements AutoCloseable {
     }
 
 
-    public void init(String name) throws IOException {
+    public void init() throws IOException {
         File[] files = dir.listFiles();
         if (files == null || files.length == 0) {
             return;
@@ -200,8 +200,7 @@ abstract class FileQueue implements AutoCloseable {
 
     private FiberFrame<LogFile> allocateSync(boolean retry) {
         long[] retryInterval = retry ? groupConfig.getIoRetryInterval() : null;
-        return new IoRetryFrame<>(retryInterval, groupConfig.getAllocateTimeout(),
-                groupConfig.getStopCondition(), () -> {
+        return new IoRetryFrame<>(retryInterval, groupConfig.getAllocateTimeout(), () -> {
             allocate();
             return allocateFuture;
         });

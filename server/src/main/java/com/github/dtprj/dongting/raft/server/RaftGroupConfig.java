@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
@@ -45,8 +44,6 @@ public class RaftGroupConfig {
     private Supplier<Boolean> stopIndicator;
     private RaftStatus raftStatus;
     private RaftCodecFactory codecFactory;
-
-    private FiberCondition stopCondition;
 
     public RaftGroupConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         this.groupId = groupId;
@@ -169,13 +166,5 @@ public class RaftGroupConfig {
 
     public void setAllocateTimeout(long allocateTimeout) {
         this.allocateTimeout = allocateTimeout;
-    }
-
-    public FiberCondition getStopCondition() {
-        return stopCondition;
-    }
-
-    public void setStopCondition(FiberCondition stopCondition) {
-        this.stopCondition = stopCondition;
     }
 }

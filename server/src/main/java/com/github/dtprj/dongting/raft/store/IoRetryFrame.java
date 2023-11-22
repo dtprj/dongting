@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCancelException;
-import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberInterruptException;
@@ -39,15 +38,12 @@ public class IoRetryFrame<O> extends FiberFrame<O> {
     private final long[] retryInterval;
     private final long timeoutMillis;
     private final Supplier<FiberFuture<O>> callback;
-    private final FiberCondition stopCondition;
     private int retryCount;
 
-    public IoRetryFrame(long[] retryInterval, long timeoutMillis, FiberCondition stopCondition,
-                        Supplier<FiberFuture<O>> ioCallback) {
+    public IoRetryFrame(long[] retryInterval, long timeoutMillis, Supplier<FiberFuture<O>> ioCallback) {
         this.retryInterval = retryInterval;
         this.timeoutMillis = timeoutMillis;
         this.callback = ioCallback;
-        this.stopCondition = stopCondition;
     }
 
     @Override
@@ -83,7 +79,7 @@ public class IoRetryFrame<O> extends FiberFrame<O> {
             sleepTime = retryInterval[retryCount++];
         }
         log.error("io error, retry after {} ms", sleepTime, ex);
-        return stopCondition.awaitOn(sleepTime, this);
+        return getFiberGroup().getShouldStopFuture().awaitOn(sleepTime, this);
     }
 
     @Override

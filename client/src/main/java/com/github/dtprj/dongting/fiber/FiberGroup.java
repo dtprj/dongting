@@ -43,6 +43,8 @@ public class FiberGroup {
 
     Fiber currentFiber;
 
+    private final FiberFuture<Void> shouldStopFuture = new FiberFuture<>(this);
+
     public FiberGroup(String name, Dispatcher dispatcher) {
         this.name = name;
         this.dispatcher = dispatcher;
@@ -66,9 +68,15 @@ public class FiberGroup {
      * can call in any thread
      */
     public void requestShutdown() {
+        if (shouldStop) {
+            return;
+        }
         shouldStopPlain = true;
         shouldStop = true;
-        dispatcher.doInDispatcherThread(this::updateFinishStatus);
+        dispatcher.doInDispatcherThread(() -> {
+            shouldStopFuture.complete(null);
+            this.updateFinishStatus();
+        });
     }
 
     @SuppressWarnings("unchecked")
@@ -176,5 +184,9 @@ public class FiberGroup {
 
     public boolean isShouldStop() {
         return shouldStop;
+    }
+
+    public FiberFuture<Void> getShouldStopFuture() {
+        return shouldStopFuture;
     }
 }

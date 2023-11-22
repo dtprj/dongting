@@ -104,7 +104,7 @@ public class StatusManager implements AutoCloseable {
         };
         // the frame is reused
         private final IoRetryFrame<Void> ioFrame = new IoRetryFrame<>(groupConfig.getIoRetryInterval(),
-                groupConfig.getIoTimeout(), groupConfig.getStopCondition(), ioCallback);
+                groupConfig.getIoTimeout(), ioCallback);
         @Override
         public FrameCallResult execute(Void input) {
             if (closed) {
