@@ -127,4 +127,18 @@ public class FiberFuture<T> extends WaitSource {
             }
         });
     }
+
+    public static <T> FiberFuture<T> failedFuture(FiberGroup group, Throwable ex) {
+        FiberFuture<T> f = new FiberFuture<>(group);
+        f.done = true;
+        f.execEx = ex;
+        return f;
+    }
+
+    public static <T> FiberFuture<T> completedFuture(FiberGroup group, T result) {
+        FiberFuture<T> f = new FiberFuture<>(group);
+        f.done = true;
+        f.result = result;
+        return f;
+    }
 }

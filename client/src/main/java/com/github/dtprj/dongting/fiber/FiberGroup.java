@@ -90,7 +90,7 @@ public class FiberGroup {
     }
 
     public static FiberGroup currentGroup() {
-        return Dispatcher.checkAndGetCurrentFiber().fiberGroup;
+        return DispatcherThead.currentGroup();
     }
 
     public String getName() {
