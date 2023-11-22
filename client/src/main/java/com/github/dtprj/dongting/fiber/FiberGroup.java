@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.IntObjMap;
+import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -35,8 +36,7 @@ public class FiberGroup {
     private final HashSet<Fiber> daemonFibers = new HashSet<>();
     private final IntObjMap<FiberChannel<Object>> channels = new IntObjMap<>();
 
-    protected volatile boolean shouldStop = false;
-    boolean shouldStopPlain = false;
+    boolean shouldStop = false;
 
     boolean finished;
     boolean ready;
@@ -71,8 +71,10 @@ public class FiberGroup {
         if (shouldStop) {
             return;
         }
-        shouldStopPlain = true;
+        VersionFactory vf = VersionFactory.getInstance();
+        vf.fullFence();
         shouldStop = true;
+        vf.fullFence();
         dispatcher.doInDispatcherThread(() -> {
             shouldStopFuture.complete(null);
             this.updateFinishStatus();
@@ -178,7 +180,7 @@ public class FiberGroup {
 
     private void updateFinishStatus() {
         if (!finished) {
-            finished = shouldStopPlain && normalFibers.isEmpty();
+            finished = shouldStop && normalFibers.isEmpty();
         }
     }
 

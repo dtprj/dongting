@@ -16,13 +16,29 @@
 package com.github.dtprj.dongting.java8;
 
 import com.github.dtprj.dongting.common.AbstractRefCountUpdater;
+import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
+import sun.misc.Unsafe;
+
+import java.lang.reflect.Field;
 
 /**
  * @author huangli
  */
 public class Java8Factory extends VersionFactory {
+
+    private static final Unsafe unsafe;
+
+    static {
+        try {
+            Field field = Unsafe.class.getDeclaredField("theUnsafe");
+            field.setAccessible(true);
+            unsafe = (Unsafe) field.get(null);
+        } catch (Exception e) {
+            throw new DtException(e);
+        }
+    }
 
     @Override
     public AbstractRefCountUpdater newRefCountUpdater(boolean plain) {
@@ -32,5 +48,20 @@ public class Java8Factory extends VersionFactory {
     @Override
     public <E> MpscLinkedQueue<E> newMpscLinkedQueue() {
         return new Java8MpscLinkedQueue<>();
+    }
+
+    @Override
+    public void releaseFence() {
+        unsafe.storeFence();
+    }
+
+    @Override
+    public void acquireFence() {
+        unsafe.loadFence();
+    }
+
+    @Override
+    public void fullFence() {
+        unsafe.fullFence();
     }
 }

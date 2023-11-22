@@ -80,7 +80,7 @@ public class Dispatcher extends AbstractLifeCircle {
     protected void doStop(DtTime timeout, boolean force) {
         shareQueue.offer(() -> {
             shouldStop = true;
-            groups.forEach(g -> g.shouldStopPlain = true);
+            groups.forEach(FiberGroup::requestShutdown);
         });
     }
 

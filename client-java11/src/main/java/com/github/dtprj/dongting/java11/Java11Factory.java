@@ -19,6 +19,8 @@ import com.github.dtprj.dongting.common.AbstractRefCountUpdater;
 import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 
+import java.lang.invoke.VarHandle;
+
 /**
  * @author huangli
  */
@@ -34,4 +36,20 @@ public class Java11Factory extends VersionFactory {
     public <E> MpscLinkedQueue<E> newMpscLinkedQueue() {
         return new Java11MpscLinkedQueue<>();
     }
+
+    @Override
+    public void releaseFence() {
+        VarHandle.releaseFence();
+    }
+
+    @Override
+    public void acquireFence() {
+        VarHandle.acquireFence();
+    }
+
+    @Override
+    public void fullFence() {
+        VarHandle.fullFence();
+    }
+
 }
