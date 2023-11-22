@@ -94,7 +94,7 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     public FiberFrame<T> toFrame(long timeTimeoutMillis) {
-        return new FiberFrame<>() {
+        return new FiberFrame<T>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return awaitOn(timeTimeoutMillis, this::resume);
@@ -120,7 +120,7 @@ public class FiberFuture<T> extends WaitSource {
      * this method can call in any thread
      */
     public void registerCallback(FrameCall<Void> callbackFiberEntryFrameBody) {
-        registerCallback(new FiberFrame<>() {
+        registerCallback(new FiberFrame<T>() {
             @Override
             public FrameCallResult execute(Void input) throws Exception {
                 return callbackFiberEntryFrameBody.execute(null);
@@ -129,7 +129,7 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     public static <T> FiberFuture<T> failedFuture(FiberGroup group, Throwable ex) {
-        FiberFuture<T> f = new FiberFuture<>(group);
+        FiberFuture<T> f = new FiberFuture<T>(group);
         f.done = true;
         f.execEx = ex;
         return f;
