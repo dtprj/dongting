@@ -38,18 +38,6 @@
                 </configuration>
                 <executions>
                     <execution>
-                        <id>default-testCompile</id>
-                        <phase>test-compile</phase>
-                        <goals>
-                            <goal>testCompile</goal>
-                        </goals>
-                        <configuration>
-                            <source>11</source>
-                            <target>11</target>
-                            <release>11</release>
-                        </configuration>
-                    </execution>
-                    <execution>
                         <id>default-compile</id>
                         <configuration>
                             <source>11</source>
@@ -68,6 +56,18 @@
                             <excludes>
                                 <exclude>module-info.java</exclude>
                             </excludes>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>default-testCompile</id>
+                        <phase>test-compile</phase>
+                        <goals>
+                            <goal>testCompile</goal>
+                        </goals>
+                        <configuration>
+                            <source>11</source>
+                            <target>11</target>
+                            <release>11</release>
                         </configuration>
                     </execution>
                 </executions>
