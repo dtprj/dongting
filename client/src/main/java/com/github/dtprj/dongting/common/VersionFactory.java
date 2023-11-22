@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.common;
 
-import com.github.dtprj.dongting.java8.Java8Factory;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
@@ -46,17 +45,32 @@ class VfHolder {
     static final VersionFactory FACTORY;
 
     static {
-        if (DtUtil.javaVersion() < 11) {
-            FACTORY = new Java8Factory();
-        } else {
-            VersionFactory f = null;
-            try {
-                Class<?> clz = Class.forName("com.github.dtprj.dongting.java11.Java11Factory");
-                f = (VersionFactory) clz.getDeclaredConstructor().newInstance();
-            } catch (Exception e) {
-                log.error("", e);
-            }
-            FACTORY = f != null ? f : new Java8Factory();
+        Class<?> java8Factory = null;
+        try {
+            java8Factory = Class.forName("com.github.dtprj.dongting.java8.Java8Factory");
+        } catch (ClassNotFoundException e) {
         }
+        Class<?> java11Factory = null;
+        try {
+            java11Factory = Class.forName("com.github.dtprj.dongting.java11.Java11Factory");
+        } catch (ClassNotFoundException e) {
+        }
+        if (java8Factory == null && java11Factory == null) {
+            throw new DtException("can't find VersionFactory implementation");
+        }
+        Class<?> factoryClass = java8Factory;
+        if (DtUtil.javaVersion() > 8 && java11Factory != null) {
+            factoryClass = java11Factory;
+        }
+        VersionFactory f = null;
+        try {
+            f = (VersionFactory) factoryClass.getDeclaredConstructor().newInstance();
+        } catch (Throwable e) {
+            log.error("can't init VersionFactory instance", e);
+            throw new DtException(e);
+        } finally {
+            FACTORY = f;
+        }
+
     }
 }
