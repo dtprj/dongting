@@ -98,9 +98,7 @@ public class StatusManager implements AutoCloseable {
         private final Supplier<FiberFuture<Void>> ioCallback = () -> {
             copyWriteData();
             version = requestUpdateVersion;
-            FiberFuture<Void> f = getFiberGroup().newFuture();
-            statusFile.update(lastNeedFlushVersion > finishedUpdateVersion, AsyncIoTask.wrap(f));
-            return f;
+            return statusFile.update(lastNeedFlushVersion > finishedUpdateVersion);
         };
         // the frame is reused
         private final IoRetryFrame<Void> ioFrame = new IoRetryFrame<>(groupConfig.getIoRetryInterval(),

@@ -33,7 +33,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
-import java.nio.channels.CompletionHandler;
 import java.nio.file.Files;
 import java.nio.file.OpenOption;
 import java.nio.file.StandardOpenOption;
@@ -234,19 +233,16 @@ abstract class FileQueue implements AutoCloseable {
             ByteBuffer buf = ByteBuffer.allocate(1);
 
             AsyncIoTask t = new AsyncIoTask(logFile.channel, null);
-            t.writeAndFlush(buf, getFileSize() - 1, true, new CompletionHandler<>() {
-                @Override
-                public void completed(Void result, Void attachment) {
-                    long time = System.currentTimeMillis() - startTime;
+            FiberFuture<Void> writeFuture = groupConfig.getFiberGroup().newFuture();
+            t.writeAndFlush(buf, getFileSize() - 1, true, writeFuture);
+            writeFuture.registerCallback((v, ex) -> {
+                long time = System.currentTimeMillis() - startTime;
+                if (ex == null) {
                     log.info("allocate log file done, cost {} ms: {}", time, logFile.file.getPath());
                     future.complete(logFile);
-                }
-
-                @Override
-                public void failed(Throwable exc, Void attachment) {
-                    long time = System.currentTimeMillis() - startTime;
-                    log.info("allocate log file failed, cost {} ms: {}", time, logFile.file.getPath(), exc);
-                    future.completeExceptionally(exc);
+                } else {
+                    log.info("allocate log file failed, cost {} ms: {}", time, logFile.file.getPath(), ex);
+                    future.completeExceptionally(ex);
                 }
             });
         } catch (Throwable e) {
@@ -283,8 +279,8 @@ abstract class FileQueue implements AutoCloseable {
         deleting = true;
         long stateMachineEpoch = raftStatus.getStateMachineEpoch();
         FiberFuture<Void> deleteFuture = groupConfig.getFiberGroup().newFuture();
-        deleteFuture.registerCallback(v -> processDeleteResult(
-                deleteFuture.getEx() == null, shouldDelete, stateMachineEpoch));
+        deleteFuture.registerCallback((v, ex) -> processDeleteResult(
+                ex == null, shouldDelete, stateMachineEpoch));
         try {
             ioExecutor.execute(() -> {
                 try {

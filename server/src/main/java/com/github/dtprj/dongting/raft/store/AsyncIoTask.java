@@ -28,7 +28,7 @@ import java.util.function.Supplier;
 /**
  * @author huangli
  */
-public class AsyncIoTask implements CompletionHandler<Integer, CompletionHandler<Void,Void>> {
+public class AsyncIoTask implements CompletionHandler<Integer, FiberFuture<Void>> {
     private final AsynchronousFileChannel channel;
     private final Supplier<Boolean> cancelIndicator;
 
@@ -45,95 +45,81 @@ public class AsyncIoTask implements CompletionHandler<Integer, CompletionHandler
         this.cancelIndicator = cancelIndicator;
     }
 
-    public void read(ByteBuffer ioBuffer, long filePos, CompletionHandler<Void, Void> handler) {
+    public void read(ByteBuffer ioBuffer, long filePos, FiberFuture<Void> f) {
         this.ioBuffer = ioBuffer;
         this.filePos = filePos;
         this.position = ioBuffer.position();
         this.write = false;
         this.flush = false;
         this.flushMeta = false;
-        exec(handler, filePos);
+        exec(f, filePos);
     }
 
-    public void write(ByteBuffer ioBuffer, long filePos, CompletionHandler<Void, Void> handler) {
+    public void write(ByteBuffer ioBuffer, long filePos, FiberFuture<Void> f) {
         this.ioBuffer = ioBuffer;
         this.filePos = filePos;
         this.position = ioBuffer.position();
         this.write = true;
         this.flush = false;
         this.flushMeta = false;
-        exec(handler, filePos);
+        exec(f, filePos);
     }
 
     public void writeAndFlush(ByteBuffer ioBuffer, long filePos, boolean flushMeta,
-                              CompletionHandler<Void, Void> handler) {
+                              FiberFuture<Void> f) {
         this.ioBuffer = ioBuffer;
         this.filePos = filePos;
         this.position = ioBuffer.position();
         this.write = true;
         this.flush = true;
         this.flushMeta = flushMeta;
-        exec(handler, filePos);
+        exec(f, filePos);
     }
 
-    public void retry(CompletionHandler<Void, Void> handler) {
+    public void retry(FiberFuture<Void> f) {
         ioBuffer.position(position);
-        exec(handler, filePos);
+        exec(f, filePos);
     }
 
-    private void exec(CompletionHandler<Void, Void> handler, long pos) {
+    private void exec(FiberFuture<Void> f, long pos) {
         try {
             if (write) {
-                channel.write(ioBuffer, pos, handler, this);
+                channel.write(ioBuffer, pos, f, this);
             } else {
-                channel.read(ioBuffer, pos, handler, this);
+                channel.read(ioBuffer, pos, f, this);
             }
         } catch (Throwable e) {
-            handler.failed(e, null);
+            f.completeExceptionally(e);
         }
     }
 
     @Override
-    public void completed(Integer result, CompletionHandler<Void, Void> handler) {
+    public void completed(Integer result, FiberFuture<Void> f) {
         if (result < 0) {
-            handler.failed(new RaftException("read end of file"), null);
+            f.completeExceptionally(new RaftException("read end of file"));
             return;
         }
         if (ioBuffer.hasRemaining()) {
             if (cancelIndicator != null && cancelIndicator.get()) {
-                handler.failed(new FiberCancelException(), null);
+                f.completeExceptionally(new FiberCancelException());
                 return;
             }
             int bytes = ioBuffer.position() - position;
-            exec(handler, filePos + bytes);
+            exec(f, filePos + bytes);
         } else {
             try {
                 if (flush) {
                     channel.force(flushMeta);
                 }
-                handler.completed(null, null);
+                f.complete(null);
             } catch (Throwable e) {
-                handler.failed(e, null);
+                f.completeExceptionally(e);
             }
         }
     }
 
     @Override
-    public void failed(Throwable exc, CompletionHandler<Void, Void> handler) {
-        handler.failed(exc, null);
-    }
-
-    public static CompletionHandler<Void, Void> wrap(FiberFuture<Void> f) {
-        return new CompletionHandler<>() {
-            @Override
-            public void completed(Void result, Void attachment) {
-                f.complete(null);
-            }
-
-            @Override
-            public void failed(Throwable exc, Void attachment) {
-                f.completeExceptionally(exc);
-            }
-        };
+    public void failed(Throwable exc, FiberFuture<Void> f) {
+        f.completeExceptionally(exc);
     }
 }

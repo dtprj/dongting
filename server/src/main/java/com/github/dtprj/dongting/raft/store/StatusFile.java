@@ -31,7 +31,6 @@ import java.io.File;
 import java.io.StringReader;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
-import java.nio.channels.CompletionHandler;
 import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.OpenOption;
@@ -95,7 +94,7 @@ public class StatusFile implements AutoCloseable {
                 ByteBuffer buf = ByteBuffer.wrap(data);
                 AsyncIoTask task = new AsyncIoTask(channel, null);
                 FiberFuture<Void> f = getFiberGroup().newFuture();
-                task.read(buf, 0, AsyncIoTask.wrap(f));
+                task.read(buf, 0, f);
                 return f.awaitOn(ioTimeout, this::resumeAfterRead);
             }
 
@@ -125,7 +124,8 @@ public class StatusFile implements AutoCloseable {
         };
     }
 
-    public void update(boolean flush, CompletionHandler<Void, Void> handler) {
+    public FiberFuture<Void> update(boolean flush) {
+        FiberFuture<Void> f = fiberGroup.newFuture();
         try {
             bos.reset();
             this.properties.store(bos, null);
@@ -145,13 +145,14 @@ public class StatusFile implements AutoCloseable {
 
             AsyncIoTask task = new AsyncIoTask(channel, null);
             if (flush) {
-                task.writeAndFlush(buf, 0, false, handler);
+                task.writeAndFlush(buf, 0, false, f);
             } else {
-                task.write(buf, 0, handler);
+                task.write(buf, 0, f);
             }
-        } catch (Exception e) {
-            handler.failed(new RaftException("update status file failed. file=" + file.getPath(), e), null);
+        } catch (Throwable e) {
+            f.completeExceptionally(new RaftException("update status file failed. file=" + file.getPath(), e));
         }
+        return f;
     }
 
     @Override
