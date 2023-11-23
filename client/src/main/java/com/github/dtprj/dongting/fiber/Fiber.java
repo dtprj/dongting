@@ -31,6 +31,7 @@ public class Fiber {
     long scheduleTimeoutMillis;
     long scheduleNanoTime;
 
+    Fiber previousWaiter;
     Fiber nextWaiter;
 
     boolean started;

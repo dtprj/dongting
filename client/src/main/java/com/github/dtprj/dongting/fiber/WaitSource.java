@@ -19,8 +19,8 @@ package com.github.dtprj.dongting.fiber;
  * @author huangli
  */
 abstract class WaitSource {
-    Fiber firstWaiter;
     private Fiber lastWaiter;
+    Fiber firstWaiter;
     protected final FiberGroup group;
 
     public WaitSource(FiberGroup group) {
@@ -32,57 +32,74 @@ abstract class WaitSource {
     void addWaiter(Fiber f) {
         if (firstWaiter == null) {
             firstWaiter = f;
+            lastWaiter = f;
         } else {
             lastWaiter.nextWaiter = f;
+            f.previousWaiter = lastWaiter;
+            lastWaiter = f;
         }
-        lastWaiter = f;
     }
 
     void removeWaiter(Fiber f) {
-        if (firstWaiter == f) {
+        if (f == firstWaiter && f == lastWaiter) {
+            firstWaiter = null;
+            lastWaiter = null;
+        } else if (f == firstWaiter) {
             firstWaiter = f.nextWaiter;
-            if (firstWaiter == null) {
-                lastWaiter = null;
+            if (firstWaiter != null) {
+                firstWaiter.previousWaiter = null;
+            }
+        } else if (f == lastWaiter) {
+            lastWaiter = f.previousWaiter;
+            if (lastWaiter != null) {
+                lastWaiter.nextWaiter = null;
             }
         } else {
-            Fiber prev = firstWaiter;
-            Fiber cur = firstWaiter.nextWaiter;
-            while (cur != null) {
-                if (cur == f) {
-                    prev.nextWaiter = cur.nextWaiter;
-                    if (cur == lastWaiter) {
-                        lastWaiter = prev;
-                    }
-                    break;
-                }
-                prev = cur;
-                cur = cur.nextWaiter;
-            }
+            f.previousWaiter.nextWaiter = f.nextWaiter;
+            f.nextWaiter.previousWaiter = f.previousWaiter;
         }
+        f.nextWaiter = null;
+        f.previousWaiter = null;
     }
 
-    private Fiber popNextWaiter() {
-        Fiber f = firstWaiter;
-        if (f == null) {
-            return null;
-        } else {
-            firstWaiter = f.nextWaiter;
-            if (firstWaiter == null) {
+    private Fiber popTailWaiter() {
+        Fiber result = lastWaiter;
+        if (result != null) {
+            if (result == firstWaiter) {
+                firstWaiter = null;
                 lastWaiter = null;
+            } else {
+                lastWaiter = result.previousWaiter;
+                lastWaiter.nextWaiter = null;
+                result.previousWaiter = null;
             }
-            f.nextWaiter = null;
-            return f;
         }
+        return result;
+    }
+
+    private Fiber popHeadWaiter() {
+        Fiber result = firstWaiter;
+        if (result != null) {
+            if (result == lastWaiter) {
+                firstWaiter = null;
+                lastWaiter = null;
+            } else {
+                firstWaiter = result.nextWaiter;
+                firstWaiter.previousWaiter = null;
+                result.nextWaiter = null;
+            }
+        }
+        return result;
     }
 
     void signal0() {
         if (group.finished) {
             return;
         }
-        Fiber f = popNextWaiter();
+        Fiber f = popHeadWaiter();
         if (f != null) {
             group.dispatcher.tryRemoveFromScheduleQueue(f);
-            group.tryMakeFiberReady(f, false);
+            group.tryMakeFiberReady(f, true);
         }
     }
 
@@ -91,9 +108,9 @@ abstract class WaitSource {
             return;
         }
         Fiber f;
-        while ((f = popNextWaiter()) != null) {
+        while ((f = popTailWaiter()) != null) {
             group.dispatcher.tryRemoveFromScheduleQueue(f);
-            group.tryMakeFiberReady(f, false);
+            group.tryMakeFiberReady(f, true);
         }
     }
 }
