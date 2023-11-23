@@ -127,6 +127,7 @@ public class Dispatcher extends AbstractLifeCircle {
                 f.lastEx = new FiberTimeoutException("wait " + f.source + "timeout:" + f.scheduleTimeoutMillis + "ms");
                 f.source.removeWaiter(f);
                 f.source = null;
+                f.stackTop.resumePoint = null;
             }
             f.scheduleTimeoutMillis = 0;
             f.scheduleNanoTime = 0;
@@ -166,8 +167,12 @@ public class Dispatcher extends AbstractLifeCircle {
                 if (fiber.source != null) {
                     if (fiber.source instanceof FiberFuture) {
                         FiberFuture fu = (FiberFuture) fiber.source;
-                        fiber.lastEx = fu.execEx;
-                        inputObj = fu.result;
+                        if (fu.execEx != null) {
+                            fiber.lastEx = fu.execEx;
+                            currentFrame.resumePoint = null;
+                        } else {
+                            inputObj = fu.result;
+                        }
                     }
                     fiber.source = null;
                 }
@@ -360,6 +365,7 @@ public class Dispatcher extends AbstractLifeCircle {
                 fiber.source.removeWaiter(fiber);
                 fiber.source = null;
             }
+            fiber.stackTop.resumePoint = null;
             fiber.interrupted = false;
             fiber.lastEx = new FiberInterruptException("fiber is interrupted during wait");
             tryRemoveFromScheduleQueue(fiber);
