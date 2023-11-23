@@ -45,25 +45,15 @@ class VfHolder {
     static final VersionFactory FACTORY;
 
     static {
-        Class<?> java8Factory = null;
-        try {
-            java8Factory = Class.forName("com.github.dtprj.dongting.vf8.Java8Factory");
-        } catch (ClassNotFoundException ignored) {
-        }
-        Class<?> java11Factory = null;
-        try {
-            java11Factory = Class.forName("com.github.dtprj.dongting.java11.Java11Factory");
-        } catch (ClassNotFoundException ignored) {
-        }
-        if (java8Factory == null && java11Factory == null) {
-            throw new DtException("can't find VersionFactory implementation");
-        }
-        Class<?> factoryClass = java8Factory;
-        if (DtUtil.javaVersion() > 8 && java11Factory != null) {
-            factoryClass = java11Factory;
+        String className;
+        if (DtUtil.javaVersion() > 8) {
+            className = "com.github.dtprj.dongting.java11.Java11Factory";
+        } else {
+            className = "com.github.dtprj.dongting.vf8.Java8Factory";
         }
         VersionFactory f = null;
         try {
+            Class<?> factoryClass = Class.forName(className);
             f = (VersionFactory) factoryClass.getDeclaredConstructor().newInstance();
         } catch (Throwable e) {
             log.error("can't init VersionFactory instance", e);
