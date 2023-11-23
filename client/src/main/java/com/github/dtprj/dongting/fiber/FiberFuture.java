@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.fiber;
 
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+
 /**
  * @author huangli
  */
@@ -119,13 +122,42 @@ public class FiberFuture<T> extends WaitSource {
     /**
      * this method can call in any thread
      */
-    public void registerCallback(FrameCall<Void> callbackFiberEntryFrameBody) {
-        registerCallback(new FiberFrame<T>() {
+    public void registerCallback(BiConsumer<T, Throwable> callback) {
+        registerCallback(new FiberFrame<Void>() {
             @Override
-            public FrameCallResult execute(Void input) throws Exception {
-                return callbackFiberEntryFrameBody.execute(null);
+            public FrameCallResult execute(Void input) {
+                FiberFuture<T> f = FiberFuture.this;
+                callback.accept(f.result, null);
+                return Fiber.frameReturn();
+            }
+
+            @Override
+            protected FrameCallResult handle(Throwable ex) {
+                FiberFuture<T> f = FiberFuture.this;
+                callback.accept(null, ex);
+                return Fiber.frameReturn();
             }
         });
+    }
+
+    public <T2> FiberFuture<T2> convert(Function<T, T2> converter) {
+        FiberFuture<T2> newFuture = new FiberFuture<>(group);
+        registerCallback(new FiberFrame<Void>() {
+            @Override
+            public FrameCallResult execute(Void input) throws Throwable {
+                FiberFuture<T> f = FiberFuture.this;
+                T2 r2 = converter.apply(f.result);
+                newFuture.complete(r2);
+                return Fiber.frameReturn();
+            }
+
+            @Override
+            protected FrameCallResult handle(Throwable ex) throws Throwable {
+                newFuture.completeExceptionally(ex);
+                return Fiber.frameReturn();
+            }
+        });
+        return newFuture;
     }
 
     public static <T> FiberFuture<T> failedFuture(FiberGroup group, Throwable ex) {
