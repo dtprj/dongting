@@ -13,25 +13,17 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.java11;
+package com.github.dtprj.dongting.java8;
 
-import com.github.dtprj.dongting.common.RefCount;
-import com.github.dtprj.dongting.java8.Java8Factory;
-import org.junit.jupiter.api.Test;
+import com.github.dtprj.dongting.java11.MpscLinkedQueueTest;
+import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 
 /**
  * @author huangli
  */
-public class Java8RefCountTest extends AbstractMultiThreadRefCountTest {
-
+public class Java8MpscLinkedQueueTest extends MpscLinkedQueueTest {
     @Override
-    protected RefCount createInstance() {
-        return new RefCount(new Java8Factory().newRefCountUpdater(false)){
-        };
-    }
-
-    @Test
-    public void overflowTest(){
-        super.doOverflowTest();
+    protected <E> MpscLinkedQueue<E> create() {
+        return new Java8MpscLinkedQueue<>();
     }
 }

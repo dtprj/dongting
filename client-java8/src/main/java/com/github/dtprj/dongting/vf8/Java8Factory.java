@@ -13,11 +13,14 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.java8;
+package com.github.dtprj.dongting.vf8;
 
 import com.github.dtprj.dongting.common.AbstractRefCountUpdater;
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.VersionFactory;
+import com.github.dtprj.dongting.java8.Java8MpscLinkedQueue;
+import com.github.dtprj.dongting.java8.Java8RefCountUpdater;
+import com.github.dtprj.dongting.java8.PlainRefCountUpdater;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 import sun.misc.Unsafe;
 
@@ -26,6 +29,7 @@ import java.lang.reflect.Field;
 /**
  * @author huangli
  */
+@SuppressWarnings("unused")
 public class Java8Factory extends VersionFactory {
 
     private static final Unsafe unsafe;

@@ -47,13 +47,13 @@ class VfHolder {
     static {
         Class<?> java8Factory = null;
         try {
-            java8Factory = Class.forName("com.github.dtprj.dongting.java8.Java8Factory");
-        } catch (ClassNotFoundException e) {
+            java8Factory = Class.forName("com.github.dtprj.dongting.vf8.Java8Factory");
+        } catch (ClassNotFoundException ignored) {
         }
         Class<?> java11Factory = null;
         try {
             java11Factory = Class.forName("com.github.dtprj.dongting.java11.Java11Factory");
-        } catch (ClassNotFoundException e) {
+        } catch (ClassNotFoundException ignored) {
         }
         if (java8Factory == null && java11Factory == null) {
             throw new DtException("can't find VersionFactory implementation");

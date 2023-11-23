@@ -37,7 +37,7 @@
         </dependency>
         <dependency>
             <groupId>com.github.dtprj.dongting</groupId>
-            <artifactId>dongting-client-java11</artifactId>
+            <artifactId>dongting-client-java8</artifactId>
             <version>0.2-SNAPSHOT</version>
         </dependency>
         <dependency>

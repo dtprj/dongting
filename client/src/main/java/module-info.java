@@ -1,5 +1,4 @@
 module dongting.client {
-    requires jdk.unsupported;
     requires static java.logging;
     requires static org.slf4j;
     exports com.github.dtprj.dongting.buf;
@@ -12,5 +11,4 @@ module dongting.client {
     exports com.github.dtprj.dongting.queue;
     exports com.github.dtprj.dongting.raft;
     exports com.github.dtprj.dongting.java8;
-    opens com.github.dtprj.dongting.common to dongting.client.java11;
 }

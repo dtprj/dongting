@@ -55,6 +55,7 @@
                             <!-- recompile everything for target VM except the module-info.java -->
                             <excludes>
                                 <exclude>module-info.java</exclude>
+                                <exclude>com/github/dtprj/dongting/java11/*</exclude>
                             </excludes>
                         </configuration>
                     </execution>

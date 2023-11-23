@@ -13,10 +13,10 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.java11;
+package com.github.dtprj.dongting.java8;
 
 import com.github.dtprj.dongting.common.RefCount;
-import com.github.dtprj.dongting.java8.Java8Factory;
+import com.github.dtprj.dongting.java11.AbstractRefCountTest;
 
 /**
  * @author huangli
@@ -24,7 +24,7 @@ import com.github.dtprj.dongting.java8.Java8Factory;
 public class Java8PlainRefCountTest extends AbstractRefCountTest {
     @Override
     protected RefCount createInstance() {
-        return new RefCount(new Java8Factory().newRefCountUpdater(true)){
+        return new RefCount(PlainRefCountUpdater.getInstance()){
         };
     }
 }
