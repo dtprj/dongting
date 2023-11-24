@@ -232,9 +232,8 @@ abstract class FileQueue implements AutoCloseable {
 
             ByteBuffer buf = ByteBuffer.allocate(1);
 
-            AsyncIoTask t = new AsyncIoTask(logFile.channel, null);
-            FiberFuture<Void> writeFuture = groupConfig.getFiberGroup().newFuture();
-            t.writeAndFlush(buf, getFileSize() - 1, true, writeFuture);
+            AsyncIoTask t = new AsyncIoTask(groupConfig.getFiberGroup(), logFile.channel, null);
+            FiberFuture<Void> writeFuture = t.writeAndFlush(buf, getFileSize() - 1, true);
             writeFuture.registerCallback((v, ex) -> {
                 long time = System.currentTimeMillis() - startTime;
                 if (ex == null) {

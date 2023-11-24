@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.fiber.FiberCancelException;
 import com.github.dtprj.dongting.fiber.FiberFuture;
+import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.RaftException;
 
 import java.nio.ByteBuffer;
@@ -31,6 +32,7 @@ import java.util.function.Supplier;
 public class AsyncIoTask implements CompletionHandler<Integer, FiberFuture<Void>> {
     private final AsynchronousFileChannel channel;
     private final Supplier<Boolean> cancelIndicator;
+    private final FiberGroup fiberGroup;
 
     private ByteBuffer ioBuffer;
     private long filePos;
@@ -39,46 +41,54 @@ public class AsyncIoTask implements CompletionHandler<Integer, FiberFuture<Void>
     private boolean flush;
     private boolean flushMeta;
 
-    public AsyncIoTask(AsynchronousFileChannel channel, Supplier<Boolean> cancelIndicator) {
+    public AsyncIoTask(FiberGroup fiberGroup, AsynchronousFileChannel channel, Supplier<Boolean> cancelIndicator) {
         Objects.requireNonNull(channel);
+        this.fiberGroup = fiberGroup;
         this.channel = channel;
         this.cancelIndicator = cancelIndicator;
     }
 
-    public void read(ByteBuffer ioBuffer, long filePos, FiberFuture<Void> f) {
+    public FiberFuture<Void> read(ByteBuffer ioBuffer, long filePos) {
         this.ioBuffer = ioBuffer;
         this.filePos = filePos;
         this.position = ioBuffer.position();
         this.write = false;
         this.flush = false;
         this.flushMeta = false;
+        FiberFuture<Void> f = fiberGroup.newFuture();
         exec(f, filePos);
+        return f;
     }
 
-    public void write(ByteBuffer ioBuffer, long filePos, FiberFuture<Void> f) {
+    public FiberFuture<Void> write(ByteBuffer ioBuffer, long filePos) {
         this.ioBuffer = ioBuffer;
         this.filePos = filePos;
         this.position = ioBuffer.position();
         this.write = true;
         this.flush = false;
         this.flushMeta = false;
+        FiberFuture<Void> f = fiberGroup.newFuture();
         exec(f, filePos);
+        return f;
     }
 
-    public void writeAndFlush(ByteBuffer ioBuffer, long filePos, boolean flushMeta,
-                              FiberFuture<Void> f) {
+    public FiberFuture<Void> writeAndFlush(ByteBuffer ioBuffer, long filePos, boolean flushMeta) {
         this.ioBuffer = ioBuffer;
         this.filePos = filePos;
         this.position = ioBuffer.position();
         this.write = true;
         this.flush = true;
         this.flushMeta = flushMeta;
+        FiberFuture<Void> f = fiberGroup.newFuture();
         exec(f, filePos);
+        return f;
     }
 
-    public void retry(FiberFuture<Void> f) {
+    public FiberFuture<Void> retry() {
+        FiberFuture<Void> f = fiberGroup.newFuture();
         ioBuffer.position(position);
         exec(f, filePos);
+        return f;
     }
 
     private void exec(FiberFuture<Void> f, long pos) {

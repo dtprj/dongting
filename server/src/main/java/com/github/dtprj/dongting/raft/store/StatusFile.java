@@ -92,9 +92,8 @@ public class StatusFile implements AutoCloseable {
                     throw new RaftException("bad status file length: " + file.length());
                 }
                 ByteBuffer buf = ByteBuffer.wrap(data);
-                AsyncIoTask task = new AsyncIoTask(channel, null);
-                FiberFuture<Void> f = getFiberGroup().newFuture();
-                task.read(buf, 0, f);
+                AsyncIoTask task = new AsyncIoTask(fiberGroup, channel, null);
+                FiberFuture<Void> f = task.read(buf, 0);
                 return f.awaitOn(ioTimeout, this::resumeAfterRead);
             }
 
@@ -125,7 +124,6 @@ public class StatusFile implements AutoCloseable {
     }
 
     public FiberFuture<Void> update(boolean flush) {
-        FiberFuture<Void> f = fiberGroup.newFuture();
         try {
             bos.reset();
             this.properties.store(bos, null);
@@ -143,16 +141,16 @@ public class StatusFile implements AutoCloseable {
             System.arraycopy(crcBytes, 0, data, 0, CRC_HEX_LENGTH);
             ByteBuffer buf = ByteBuffer.wrap(data);
 
-            AsyncIoTask task = new AsyncIoTask(channel, null);
+            AsyncIoTask task = new AsyncIoTask(fiberGroup, channel, null);
             if (flush) {
-                task.writeAndFlush(buf, 0, false, f);
+                return task.writeAndFlush(buf, 0, false);
             } else {
-                task.write(buf, 0, f);
+                return task.write(buf, 0);
             }
         } catch (Throwable e) {
-            f.completeExceptionally(new RaftException("update status file failed. file=" + file.getPath(), e));
+            RaftException raftException = new RaftException("update status file failed. file=" + file.getPath(), e);
+            return FiberFuture.failedFuture(fiberGroup, raftException);
         }
-        return f;
     }
 
     @Override
