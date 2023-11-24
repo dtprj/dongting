@@ -96,6 +96,10 @@ public class FiberFuture<T> extends WaitSource {
         return Dispatcher.awaitOn(this, millis, resumePoint);
     }
 
+    public FiberFrame<T> toFrame() {
+        return toFrame(0);
+    }
+
     public FiberFrame<T> toFrame(long timeTimeoutMillis) {
         return new FiberFrame<T>() {
             @Override
