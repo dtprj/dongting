@@ -16,8 +16,12 @@
 package com.github.dtprj.dongting.bench;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.codec.RefBufferDecoder;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.ByteBufferWriteFrame;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.HostPort;
@@ -37,6 +41,7 @@ import java.util.concurrent.TimeUnit;
  * @author huangli
  */
 public class NioServerBenchmark extends BenchBase {
+    private static final DtLog log = DtLogs.getLogger(NioServerBenchmark.class);
     private NioServer server;
     private NioClient client;
 
@@ -76,6 +81,11 @@ public class NioServerBenchmark extends BenchBase {
     public void shutdown() {
         client.stop(new DtTime(3, TimeUnit.SECONDS));
         server.stop(new DtTime(3, TimeUnit.SECONDS));
+
+        TwoLevelPool direct = (TwoLevelPool) TwoLevelPool.getDefaultFactory().apply(new Timestamp(), true);
+        TwoLevelPool heap = (TwoLevelPool) TwoLevelPool.getDefaultFactory().apply(new Timestamp(), false);
+        log.info("global direct pool stats: {}", direct.getLargePool().formatStat());
+        log.info("global heap pool stats: {}", heap.getLargePool().formatStat());
     }
 
     @Override
