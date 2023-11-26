@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.HashSet;
+import java.util.function.Consumer;
 
 /**
  * @author huangli
@@ -115,9 +116,21 @@ public class FiberGroup {
         return Thread.currentThread() == dispatcher.thread;
     }
 
-    void start(Fiber f) {
+    void start(Fiber f, Consumer<Exception> startFailCallback) {
         if (f.started) {
             throw new FiberException("fiber already started: " + f.getFiberName());
+        }
+        if (finished) {
+            if (startFailCallback != null) {
+                try {
+                    startFailCallback.accept(new FiberException("group already finished"));
+                } catch (Throwable e) {
+                    log.error("startFailCallback fail", e);
+                }
+            } else {
+                log.warn("group already finished, ignore start: {}", f.getFiberName());
+            }
+            return;
         }
         if (f.daemon) {
             daemonFibers.add(f);

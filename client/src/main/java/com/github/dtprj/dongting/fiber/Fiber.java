@@ -18,6 +18,8 @@ package com.github.dtprj.dongting.fiber;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
+import java.util.function.Consumer;
+
 /**
  * @author huangli
  */
@@ -102,8 +104,25 @@ public class Fiber {
         dispatcher.doInDispatcherThread(() -> dispatcher.interrupt(f));
     }
 
+    public void start(Consumer<Exception> startFailCallback) {
+        try {
+            fiberGroup.dispatcher.doInDispatcherThread(() -> fiberGroup.start(Fiber.this, startFailCallback));
+        } catch (FiberException e) {
+            if (startFailCallback != null) {
+                try {
+                    startFailCallback.accept(e);
+                } catch (Throwable e1) {
+                    log.error("start fiber fail", e);
+                    log.error("startFailCallback fail", e1);
+                }
+            } else {
+                log.error("start fiber fail", e);
+            }
+        }
+    }
+
     public void start() {
-        fiberGroup.dispatcher.doInDispatcherThread(() -> fiberGroup.start(Fiber.this));
+        start(null);
     }
 
     public String getFiberName() {

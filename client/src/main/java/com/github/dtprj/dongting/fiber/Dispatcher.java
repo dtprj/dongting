@@ -399,13 +399,16 @@ public class Dispatcher extends AbstractLifeCircle {
     }
 
     private boolean finished() {
-        return shouldStop && groups.isEmpty();
+        return shouldStop && groups.isEmpty() && shareQueue.size() == 0;
     }
 
     void doInDispatcherThread(Runnable r) {
         if (Thread.currentThread() == thread) {
             r.run();
         } else {
+            if (finished()) {
+                throw new FiberException("dispatcher already stopped");
+            }
             shareQueue.offer(r);
         }
     }
