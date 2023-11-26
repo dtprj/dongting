@@ -92,7 +92,7 @@ public class StatusFile implements AutoCloseable {
                     throw new RaftException("bad status file length: " + file.length());
                 }
                 ByteBuffer buf = ByteBuffer.wrap(data);
-                AsyncIoTask task = new AsyncIoTask(fiberGroup, channel, null);
+                AsyncIoTask task = new AsyncIoTask(fiberGroup, channel, null, null);
                 FiberFuture<Void> f = task.read(buf, 0);
                 return f.awaitOn(ioTimeout, this::resumeAfterRead);
             }
@@ -141,7 +141,8 @@ public class StatusFile implements AutoCloseable {
             System.arraycopy(crcBytes, 0, data, 0, CRC_HEX_LENGTH);
             ByteBuffer buf = ByteBuffer.wrap(data);
 
-            AsyncIoTask task = new AsyncIoTask(fiberGroup, channel, null);
+            // retry in status manager
+            AsyncIoTask task = new AsyncIoTask(fiberGroup, channel, null, null);
             if (flush) {
                 return task.writeAndFlush(buf, 0, false);
             } else {

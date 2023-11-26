@@ -90,7 +90,7 @@ public class StatusManager implements AutoCloseable {
     public void close() {
         closed = true;
         // wake up update fiber
-        needUpdateCondition.signal();
+        needUpdateCondition.signalAll();
     }
 
     private class UpdateFiberFrame extends FiberFrame<Void> {
@@ -101,13 +101,12 @@ public class StatusManager implements AutoCloseable {
             return statusFile.update(lastNeedFlushVersion > finishedUpdateVersion);
         };
         // the frame is reused
-        private final IoRetryFrame<Void> ioFrame = new IoRetryFrame<>(groupConfig.getIoRetryInterval(),
-                groupConfig.getIoTimeout(), ioCallback);
+        private final IoRetryFrame<Void> ioFrame = new IoRetryFrame<>(groupConfig.getIoRetryInterval(), ioCallback);
         @Override
         public FrameCallResult execute(Void input) {
             if (closed) {
                 log.debug("status update fiber exit");
-                updateDoneCondition.signal();
+                updateDoneCondition.signalAll();
                 return Fiber.frameReturn();
             }
             if (requestUpdateVersion > finishedUpdateVersion) {
@@ -123,14 +122,14 @@ public class StatusManager implements AutoCloseable {
 
         private FrameCallResult resumeOnUpdateDone(Void v) {
             finishedUpdateVersion = version;
-            updateDoneCondition.signal();
+            updateDoneCondition.signalAll();
             // loop
             return execute(v);
         }
 
         @Override
         protected FrameCallResult handle(Throwable ex) throws Throwable {
-            updateDoneCondition.signal();
+            updateDoneCondition.signalAll();
             log.error("update status file error", ex);
             return Fiber.fatal(ex);
         }

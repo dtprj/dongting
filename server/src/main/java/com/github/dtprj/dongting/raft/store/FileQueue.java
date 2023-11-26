@@ -161,6 +161,12 @@ abstract class FileQueue implements AutoCloseable {
         }
     }
 
+    protected void tryAllocate() {
+        if (!allocating && !deleting) {
+            allocate();
+        }
+    }
+
     protected boolean checkPosReady(long pos) {
         if (allocateFuture == null) {
             if (pos >= queueEndPosition - fileSize && !deleting) {
@@ -199,7 +205,7 @@ abstract class FileQueue implements AutoCloseable {
 
     private FiberFrame<LogFile> allocateSync(boolean retry) {
         long[] retryInterval = retry ? groupConfig.getIoRetryInterval() : null;
-        return new IoRetryFrame<>(retryInterval, groupConfig.getAllocateTimeout(), () -> {
+        return new IoRetryFrame<>(retryInterval, () -> {
             allocate();
             return allocateFuture;
         });
@@ -232,15 +238,16 @@ abstract class FileQueue implements AutoCloseable {
 
             ByteBuffer buf = ByteBuffer.allocate(1);
 
-            AsyncIoTask t = new AsyncIoTask(groupConfig.getFiberGroup(), logFile.channel, null);
+            AsyncIoTask t = new AsyncIoTask(groupConfig.getFiberGroup(),
+                    logFile.channel, null, null);
             FiberFuture<Void> writeFuture = t.writeAndFlush(buf, getFileSize() - 1, true);
             writeFuture.registerCallback((v, ex) -> {
                 long time = System.currentTimeMillis() - startTime;
                 if (ex == null) {
-                    log.info("allocate log file done, cost {} ms: {}", time, logFile.file.getPath());
+                    log.info("allocate file done, cost {} ms: {}", time, logFile.file.getPath());
                     future.complete(logFile);
                 } else {
-                    log.info("allocate log file failed, cost {} ms: {}", time, logFile.file.getPath(), ex);
+                    log.info("allocate file failed, cost {} ms: {}", time, logFile.file.getPath(), ex);
                     future.completeExceptionally(ex);
                 }
             });

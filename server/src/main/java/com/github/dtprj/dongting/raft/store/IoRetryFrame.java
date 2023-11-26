@@ -36,13 +36,11 @@ public class IoRetryFrame<O> extends FiberFrame<O> {
     private static final DtLog log = DtLogs.getLogger(IoRetryFrame.class);
 
     private final long[] retryInterval;
-    private final long timeoutMillis;
     private final Supplier<FiberFuture<O>> callback;
     private int retryCount;
 
-    public IoRetryFrame(long[] retryInterval, long timeoutMillis, Supplier<FiberFuture<O>> ioCallback) {
+    public IoRetryFrame(long[] retryInterval, Supplier<FiberFuture<O>> ioCallback) {
         this.retryInterval = retryInterval;
-        this.timeoutMillis = timeoutMillis;
         this.callback = ioCallback;
     }
 
@@ -52,7 +50,7 @@ public class IoRetryFrame<O> extends FiberFrame<O> {
             throw new RaftException("group should stop, stop retry");
         }
         FiberFuture<O> f = callback.get();
-        return f.awaitOn(timeoutMillis, this::resume);
+        return f.awaitOn(this::resume);
     }
 
     private FrameCallResult resume(O o) {
@@ -79,7 +77,7 @@ public class IoRetryFrame<O> extends FiberFrame<O> {
             sleepTime = retryInterval[retryCount++];
         }
         log.error("io error, retry after {} ms", sleepTime, ex);
-        return getFiberGroup().getShouldStopFuture().awaitOn(sleepTime, this);
+        return Fiber.sleepUntilShouldStop(sleepTime, this);
     }
 
     @Override
