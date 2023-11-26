@@ -124,10 +124,12 @@ public class Dispatcher extends AbstractLifeCircle {
             }
             scheduleQueue.poll();
             if (f.source != null) {
-                f.lastEx = new FiberTimeoutException("wait " + f.source + "timeout:" + f.scheduleTimeoutMillis + "ms");
                 f.source.removeWaiter(f);
+                if (f.source != f.fiberGroup.shouldStopCondition) {
+                    f.lastEx = new FiberTimeoutException("wait " + f.source + "timeout:" + f.scheduleTimeoutMillis + "ms");
+                    f.stackTop.resumePoint = null;
+                }
                 f.source = null;
-                f.stackTop.resumePoint = null;
             }
             f.scheduleTimeoutMillis = 0;
             f.scheduleNanoTime = 0;
@@ -299,12 +301,28 @@ public class Dispatcher extends AbstractLifeCircle {
         return FrameCallResult.SUSPEND;
     }
 
-    static void sleep(long millis, FrameCall resumePoint) {
+    static void sleep(long millis, FrameCall<Void> resumePoint) {
         Fiber fiber = checkAndGetCurrentFiber();
         checkInterrupt(fiber);
         checkReentry(fiber);
         FiberFrame currentFrame = fiber.stackTop;
         currentFrame.resumePoint = resumePoint;
+        fiber.ready = false;
+        fiber.fiberGroup.dispatcher.addToScheduleQueue(millis, fiber);
+    }
+
+    static void sleepUntilShouldStop(long millis, FrameCall<Void> resumePoint) {
+        Fiber fiber = checkAndGetCurrentFiber();
+        checkInterrupt(fiber);
+        checkReentry(fiber);
+        FiberFrame currentFrame = fiber.stackTop;
+        currentFrame.resumePoint = resumePoint;
+        FiberGroup g = fiber.fiberGroup;
+        if (g.shouldStop) {
+            return;
+        }
+        fiber.source = g.shouldStopCondition;
+        g.shouldStopCondition.addWaiter(fiber);
         fiber.ready = false;
         fiber.fiberGroup.dispatcher.addToScheduleQueue(millis, fiber);
     }
@@ -399,7 +417,7 @@ public class Dispatcher extends AbstractLifeCircle {
     }
 
     private boolean finished() {
-        return shouldStop && groups.isEmpty() && shareQueue.size() == 0;
+        return shouldStop && groups.isEmpty() && shareQueue.isEmpty();
     }
 
     void doInDispatcherThread(Runnable r) {

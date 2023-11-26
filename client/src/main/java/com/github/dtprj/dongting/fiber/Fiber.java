@@ -69,6 +69,11 @@ public class Fiber {
         return FrameCallResult.SUSPEND;
     }
 
+    public static FrameCallResult sleepUntilShouldStop(long millis, FrameCall<Void> resumePoint) {
+        Dispatcher.sleepUntilShouldStop(millis, resumePoint);
+        return FrameCallResult.SUSPEND;
+    }
+
     public static FrameCallResult fatal(Throwable ex) throws Throwable {
         log.error("encountered fatal error, raft group will shutdown", ex);
         DispatcherThead t = DispatcherThead.currentDispatcherThread();

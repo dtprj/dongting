@@ -44,7 +44,7 @@ public class FiberGroup {
 
     Fiber currentFiber;
 
-    private final FiberFuture<Void> shouldStopFuture = new FiberFuture<>(this);
+    final FiberCondition shouldStopCondition = new FiberCondition(this);
 
     public FiberGroup(String name, Dispatcher dispatcher) {
         this.name = name;
@@ -77,7 +77,7 @@ public class FiberGroup {
         shouldStop = true;
         vf.fullFence();
         dispatcher.doInDispatcherThread(() -> {
-            shouldStopFuture.complete(null);
+            shouldStopCondition.signalAll();
             this.updateFinishStatus();
         });
     }
@@ -199,9 +199,5 @@ public class FiberGroup {
 
     public boolean isShouldStop() {
         return shouldStop;
-    }
-
-    public FiberFuture<Void> getShouldStopFuture() {
-        return shouldStopFuture;
     }
 }
