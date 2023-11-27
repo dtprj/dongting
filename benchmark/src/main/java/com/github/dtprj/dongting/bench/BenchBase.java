@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.bench;
 
 import java.text.DecimalFormat;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -27,7 +28,7 @@ public abstract class BenchBase {
     protected final int threadCount;
     private final long testTime;
     private final long warmupTime;
-    protected volatile int state;
+    protected AtomicInteger state = new AtomicInteger(0);
     private final LongAdder successCount = new LongAdder();
     private final LongAdder failCount = new LongAdder();
 
@@ -61,10 +62,10 @@ public abstract class BenchBase {
             threads[i].start();
         }
         Thread.sleep(warmupTime);
-        state = 1;
+        state.set(1);
 
         Thread.sleep(testTime);
-        state = 2;
+        state.set(2);
 
         for (Thread t : threads) {
             t.join();
@@ -89,9 +90,9 @@ public abstract class BenchBase {
 
     public void run(int threadIndex) {
         int s;
-        while ((s = state) != 2) {
+        while ((s = state.getOpaque()) != 2) {
             long startTime = 0;
-            if (LOG_RT && state == 1) {
+            if (LOG_RT && s == 1) {
                 startTime = System.nanoTime();
             }
             try {
