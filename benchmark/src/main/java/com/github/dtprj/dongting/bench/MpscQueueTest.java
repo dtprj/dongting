@@ -16,7 +16,7 @@ public class MpscQueueTest extends BenchBase {
     private final MpscLinkedQueue<Object> queue = MpscLinkedQueue.newInstance();
 
     public static void main(String[] args) throws Exception {
-        new MpscQueueTest(3, 5000, 1000).start();
+        new MpscQueueTest(1, 5000, 1000).start();
     }
 
     public MpscQueueTest(int threadCount, long testTime, long warmupTime) {
@@ -34,7 +34,7 @@ public class MpscQueueTest extends BenchBase {
             MpscLinkedQueue<Object> queue = this.queue;
             int s;
             while ((s = state.getOpaque()) < 2) {
-                if (queue.relaxedPoll() != null) {
+                if (queue.poll() != null) {
                     success(s);
                 }
             }

@@ -15,7 +15,7 @@ public class LinkedBlockingQueueTest extends BenchBase {
     private final LinkedBlockingQueue<Object> queue = new LinkedBlockingQueue<>();
 
     public static void main(String[] args) throws Exception {
-        new LinkedBlockingQueueTest(3, 5000, 1000).start();
+        new LinkedBlockingQueueTest(1, 5000, 1000).start();
     }
 
     public LinkedBlockingQueueTest(int threadCount, long testTime, long warmupTime) {

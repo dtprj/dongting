@@ -41,7 +41,12 @@ public class Java8MpscLinkedQueue<E> extends MpscLinkedQueue<E> {
 
     @Override
     @SuppressWarnings("unchecked")
-    protected LinkedNode<E> getAndSetProducerNodeRelease(LinkedNode<E> nextNode) {
+    protected LinkedNode<E> getAndSetProducerNode(LinkedNode<E> nextNode) {
         return (LinkedNode<E>) PRODUCER_NODE.getAndSet(this, nextNode);
+    }
+
+    @Override
+    protected LinkedNode<E> getProducerNodeAcquire() {
+        return producerNode;
     }
 }

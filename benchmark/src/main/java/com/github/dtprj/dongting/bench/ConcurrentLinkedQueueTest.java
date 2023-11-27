@@ -15,7 +15,7 @@ public class ConcurrentLinkedQueueTest extends BenchBase {
     private final ConcurrentLinkedQueue<Object> queue = new ConcurrentLinkedQueue<>();
 
     public static void main(String[] args) throws Exception {
-        new ConcurrentLinkedQueueTest(3, 5000, 1000).start();
+        new ConcurrentLinkedQueueTest(1, 5000, 1000).start();
     }
 
     public ConcurrentLinkedQueueTest(int threadCount, long testTime, long warmupTime) {
