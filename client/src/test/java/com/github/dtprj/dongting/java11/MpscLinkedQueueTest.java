@@ -39,15 +39,13 @@ public class MpscLinkedQueueTest {
     public void simpleTest() {
         MpscLinkedQueue<String> q = create();
         assertNull(q.relaxedPoll());
-        assertNull(q.poll());
         q.offer("1");
         q.offer("2");
         assertEquals("1", q.relaxedPoll());
         q.offer("3");
         assertEquals("2", q.relaxedPoll());
-        assertEquals("3", q.poll());
+        assertEquals("3", q.relaxedPoll());
         assertNull(q.relaxedPoll());
-        assertNull(q.poll());
         q.shutdown();
         assertThrows(DtException.class, () -> q.offer("4"));
     }
@@ -55,11 +53,6 @@ public class MpscLinkedQueueTest {
     @Test
     @Timeout(30)
     public void multiThreadTest() throws Throwable {
-        multiThreadTest(true);
-        multiThreadTest(false);
-    }
-
-    private void multiThreadTest(boolean relax) throws Throwable {
         int threads = 100;
         int loop = 20000;
         MpscLinkedQueue<Long> q = create();
@@ -86,7 +79,7 @@ public class MpscLinkedQueueTest {
             try {
                 readyLatch.countDown();
                 startLatch.await();
-                consume(threads - 1, loop, q, relax);
+                consume(threads - 1, loop, q);
             } catch (Throwable e) {
                 ex.set(e);
             } finally {
@@ -108,11 +101,11 @@ public class MpscLinkedQueueTest {
         }
     }
 
-    private void consume(int producerThreads, int loop, MpscLinkedQueue<Long> q, boolean relax) {
+    private void consume(int producerThreads, int loop, MpscLinkedQueue<Long> q) {
         int[] status = new int[producerThreads];
         long total = (long) producerThreads * loop;
         while (total > 0) {
-            Long v = relax ? q.relaxedPoll() : q.poll();
+            Long v = q.relaxedPoll();
             if (v != null) {
                 total--;
                 int thread = (int) (v >>> 32);

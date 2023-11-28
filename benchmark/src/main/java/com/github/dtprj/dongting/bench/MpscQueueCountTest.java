@@ -5,8 +5,6 @@ package com.github.dtprj.dongting.bench;
 
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 
-import java.util.concurrent.atomic.AtomicInteger;
-
 /**
  * @author <a href="mailto:areyouok@gmail.com">huangli</a>
  */
@@ -30,6 +28,6 @@ public class MpscQueueCountTest extends MpscCountBenchBase {
 
     @Override
     protected boolean poll() {
-        return queue.poll() != null;
+        return queue.relaxedPoll() != null;
     }
 }

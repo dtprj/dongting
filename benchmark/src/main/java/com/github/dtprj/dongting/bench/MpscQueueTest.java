@@ -34,7 +34,7 @@ public class MpscQueueTest extends BenchBase {
             MpscLinkedQueue<Object> queue = this.queue;
             int s;
             while ((s = state.getOpaque()) < 2) {
-                if (queue.poll() != null) {
+                if (queue.relaxedPoll() != null) {
                     success(s);
                 }
             }

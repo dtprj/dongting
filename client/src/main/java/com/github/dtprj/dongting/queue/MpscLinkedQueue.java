@@ -71,20 +71,6 @@ public abstract class MpscLinkedQueue<E> {
         return null;
     }
 
-    public E poll() {
-        LinkedNode<E> cn = consumerNode;
-        LinkedNode<E> next = cn.getNextAcquire();
-        if (next != null) {
-            return poll0(next);
-        } else if (consumerNode != getProducerNodeAcquire()) {
-            // spin
-            //noinspection StatementWithEmptyBody
-            while ((next = cn.getNextAcquire()) == null) ;
-            return poll0(next);
-        }
-        return null;
-    }
-
     public boolean offer(E value) {
         Objects.requireNonNull(value);
         // set plain
@@ -109,8 +95,6 @@ public abstract class MpscLinkedQueue<E> {
     protected abstract LinkedNode<E> getAndSetProducerNode(LinkedNode<E> nextNode);
 
     protected abstract LinkedNode<E> newNode(E value);
-
-    protected abstract LinkedNode<E> getProducerNodeAcquire();
 
     @SuppressWarnings("unchecked")
     public void shutdown() {

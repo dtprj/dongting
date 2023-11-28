@@ -44,9 +44,4 @@ public class Java8MpscLinkedQueue<E> extends MpscLinkedQueue<E> {
     protected LinkedNode<E> getAndSetProducerNode(LinkedNode<E> nextNode) {
         return (LinkedNode<E>) PRODUCER_NODE.getAndSet(this, nextNode);
     }
-
-    @Override
-    protected LinkedNode<E> getProducerNodeAcquire() {
-        return producerNode;
-    }
 }
