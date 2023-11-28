@@ -32,18 +32,18 @@ public abstract class MpscLinkedQueue<E> {
     long p00, p01, p02, p03, p04, p05, p06, p07, p08, p09, p0a, p0b, p0c, p0d, p0e, p0f;
 
     protected boolean shutdown;
-    protected volatile LinkedNode<E> producerNode;
+    protected volatile LinkedNode<E> tail;
 
     long p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p1a, p1b, p1c, p1d, p1e, p1f;
 
-    protected LinkedNode<E> consumerNode;
+    protected LinkedNode<E> head;
 
     long p20, p21, p22, p23, p24, p25, p26, p27, p28, p29, p2a, p2b, p2c, p2d, p2e, p2f;
 
     protected MpscLinkedQueue() {
         LinkedNode<E> node = newNode(null);
-        consumerNode = node;
-        producerNode = node;
+        head = node;
+        tail = node;
     }
 
     public static <E> MpscLinkedQueue<E> newInstance() {
@@ -51,48 +51,43 @@ public abstract class MpscLinkedQueue<E> {
     }
 
     public E relaxedPoll() {
-        LinkedNode<E> cn = consumerNode;
-        LinkedNode<E> next = cn.getNextAcquire();
-        if (next != null) {
-            return poll0(next);
+        LinkedNode<E> next = head.getNextAcquire();
+        if (next == null) {
+            return null;
         }
-        return null;
-    }
-
-    private E poll0(LinkedNode<E> next) {
         if (next != SHUTDOWN_NODE) {
             E value = next.getValue();
             next.setValue(null); // just mark
-            consumerNode = next;
+            head = next;
             return value;
         }
         //noinspection unchecked
-        consumerNode = SHUTDOWN_NODE;
+        head = SHUTDOWN_NODE;
         return null;
     }
 
     public boolean offer(E value) {
         Objects.requireNonNull(value);
         // set plain
-        LinkedNode<E> newProducerNode = newNode(value);
-        offer0(newProducerNode);
+        LinkedNode<E> newTail = newNode(value);
+        offer0(newTail);
         return true;
     }
 
-    private void offer0(LinkedNode<E> newProducerNode) {
-        LinkedNode<E> oldProducerNode = getAndSetProducerNode(newProducerNode);
-        if (shutdown && newProducerNode != SHUTDOWN_NODE) {
+    private void offer0(LinkedNode<E> newTail) {
+        LinkedNode<E> oldTail = getAndSetTail(newTail);
+        if (shutdown && newTail != SHUTDOWN_NODE) {
             // don't keep reference of newProduceNode
             //noinspection unchecked
-            producerNode = SHUTDOWN_NODE;
+            tail = SHUTDOWN_NODE;
 
             throw new DtException("queue is shutdown");
         }
         // so consumer can read value
-        oldProducerNode.setNextRelease(newProducerNode);
+        oldTail.setNextRelease(newTail);
     }
 
-    protected abstract LinkedNode<E> getAndSetProducerNode(LinkedNode<E> nextNode);
+    protected abstract LinkedNode<E> getAndSetTail(LinkedNode<E> nextNode);
 
     protected abstract LinkedNode<E> newNode(E value);
 

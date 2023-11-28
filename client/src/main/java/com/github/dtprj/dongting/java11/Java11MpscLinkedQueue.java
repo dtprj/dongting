@@ -30,7 +30,7 @@ public class Java11MpscLinkedQueue<E> extends MpscLinkedQueue<E> {
     static {
         try {
             MethodHandles.Lookup l = MethodHandles.lookup();
-            PRODUCER_NODE = l.findVarHandle(MpscLinkedQueue.class, "producerNode", LinkedNode.class);
+            PRODUCER_NODE = l.findVarHandle(MpscLinkedQueue.class, "tail", LinkedNode.class);
         } catch (Exception e) {
             throw new Error(e);
         }
@@ -43,7 +43,7 @@ public class Java11MpscLinkedQueue<E> extends MpscLinkedQueue<E> {
 
     @Override
     @SuppressWarnings("unchecked")
-    protected LinkedNode<E> getAndSetProducerNode(LinkedNode<E> nextNode) {
+    protected LinkedNode<E> getAndSetTail(LinkedNode<E> nextNode) {
         return (LinkedNode<E>) PRODUCER_NODE.getAndSet(this, nextNode);
     }
 }
