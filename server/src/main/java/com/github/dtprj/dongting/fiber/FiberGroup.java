@@ -17,11 +17,12 @@ package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.IntObjMap;
-import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.HashSet;
 import java.util.function.Consumer;
 
@@ -37,7 +38,17 @@ public class FiberGroup {
     private final HashSet<Fiber> daemonFibers = new HashSet<>();
     private final IntObjMap<FiberChannel<Object>> channels = new IntObjMap<>();
 
-    boolean shouldStop = false;
+    @SuppressWarnings("FieldMayBeFinal")
+    private volatile boolean shouldStop = false;
+    private final static VarHandle SHOULD_STOP;
+    static {
+        try {
+            MethodHandles.Lookup l = MethodHandles.lookup();
+            SHOULD_STOP = l.findVarHandle(FiberGroup.class, "shouldStop", boolean.class);
+        } catch (Exception e) {
+            throw new Error(e);
+        }
+    }
 
     boolean finished;
     boolean ready;
@@ -73,17 +84,14 @@ public class FiberGroup {
      * can call in any thread
      */
     public void requestShutdown() {
-        if (shouldStop) {
-            return;
-        }
-        VersionFactory vf = VersionFactory.getInstance();
-        vf.fullFence();
-        shouldStop = true;
-        vf.fullFence();
         // if the dispatcher stopped, no ops
         dispatcher.doInDispatcherThread(new FiberQueueTask() {
             @Override
             protected void run() {
+                if ((boolean) SHOULD_STOP.get(this)) {
+                    return;
+                }
+                SHOULD_STOP.setVolatile(this, true);
                 shouldStopCondition.signalAll();
                 updateFinishStatus();
             }
@@ -206,11 +214,16 @@ public class FiberGroup {
 
     private void updateFinishStatus() {
         if (!finished) {
-            finished = shouldStop && normalFibers.isEmpty();
+            boolean ss = (boolean) SHOULD_STOP.get(this);
+            finished = ss && normalFibers.isEmpty();
         }
     }
 
     public boolean isShouldStop() {
-        return shouldStop;
+        return (boolean) SHOULD_STOP.getOpaque(this);
+    }
+
+    boolean isShouldStopPlain() {
+        return (boolean) SHOULD_STOP.get(this);
     }
 }

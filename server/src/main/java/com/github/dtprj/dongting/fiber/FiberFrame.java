@@ -54,7 +54,7 @@ public abstract class FiberFrame<O> implements FrameCall<Void> {
     }
 
     protected boolean isGroupShouldStopPlain() {
-        return fiberGroup.shouldStop;
+        return fiberGroup.isShouldStopPlain();
     }
 
     protected void setResult(O result){

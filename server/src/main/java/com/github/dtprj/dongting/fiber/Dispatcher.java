@@ -48,7 +48,7 @@ public class Dispatcher extends AbstractLifeCircle {
     private boolean poll = true;
     private long pollTimeout = TimeUnit.MILLISECONDS.toNanos(50);
 
-    private volatile boolean shouldStop = false;
+    private boolean shouldStop = false;
 
     Object inputObj;
     private Throwable fatalError;
@@ -332,7 +332,7 @@ public class Dispatcher extends AbstractLifeCircle {
         FiberFrame currentFrame = fiber.stackTop;
         currentFrame.resumePoint = resumePoint;
         FiberGroup g = fiber.fiberGroup;
-        if (g.shouldStop) {
+        if (g.isShouldStopPlain()) {
             return;
         }
         fiber.source = g.shouldStopCondition;
