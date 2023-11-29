@@ -7,7 +7,7 @@ module dongting.client {
     exports com.github.dtprj.dongting.log;
     exports com.github.dtprj.dongting.net;
     exports com.github.dtprj.dongting.codec;
-    exports com.github.dtprj.dongting.queue;
+    //exports com.github.dtprj.dongting.queue;
     exports com.github.dtprj.dongting.raft;
-    exports com.github.dtprj.dongting.java8;
+    //exports com.github.dtprj.dongting.java8;
 }
