@@ -65,14 +65,26 @@ public class FiberFuture<T> extends WaitSource {
         if (done) {
             return;
         }
-        group.dispatcher.doInDispatcherThread(() -> complete0(result, null));
+        // if dispatcher stopped, op ops
+        group.dispatcher.doInDispatcherThread(new FiberQueueTask() {
+            @Override
+            protected void run() {
+                complete0(result, null);
+            }
+        });
     }
 
     public void completeExceptionally(Throwable ex) {
         if (done) {
             return;
         }
-        group.dispatcher.doInDispatcherThread(() -> complete0(null, ex));
+        // if dispatcher stopped, op ops
+        group.dispatcher.doInDispatcherThread(new FiberQueueTask() {
+            @Override
+            protected void run() {
+                complete0(null, ex);
+            }
+        });
     }
 
     private void complete0(T result, Throwable ex) {

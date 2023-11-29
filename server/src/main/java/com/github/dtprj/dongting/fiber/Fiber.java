@@ -106,23 +106,24 @@ public class Fiber {
     public void interrupt() {
         Dispatcher dispatcher = fiberGroup.dispatcher;
         Fiber f = this;
-        dispatcher.doInDispatcherThread(() -> dispatcher.interrupt(f));
+        // if the dispatcher stopped, no ops
+        dispatcher.doInDispatcherThread(new FiberQueueTask() {
+            @Override
+            protected void run() {
+                dispatcher.interrupt(f);
+            }
+        });
     }
 
     public void start(Consumer<Exception> startFailCallback) {
-        try {
-            fiberGroup.dispatcher.doInDispatcherThread(() -> fiberGroup.start(Fiber.this, startFailCallback));
-        } catch (FiberException e) {
-            if (startFailCallback != null) {
-                try {
-                    startFailCallback.accept(e);
-                } catch (Throwable e1) {
-                    log.error("start fiber fail", e);
-                    log.error("startFailCallback fail", e1);
-                }
-            } else {
-                log.error("start fiber fail", e);
+        FiberQueueTask t = new FiberQueueTask() {
+            @Override
+            protected void run() {
+                fiberGroup.start(Fiber.this, startFailCallback);
             }
+        };
+        if (!fiberGroup.dispatcher.doInDispatcherThread(t)) {
+            FiberGroup.callStartFail(this, startFailCallback, new FiberException("dispatcher stopped"));
         }
     }
 

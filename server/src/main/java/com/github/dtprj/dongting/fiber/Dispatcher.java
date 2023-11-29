@@ -26,7 +26,6 @@ import com.github.dtprj.dongting.log.DtLogs;
 import java.util.ArrayList;
 import java.util.PriorityQueue;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -36,7 +35,7 @@ import java.util.concurrent.TimeUnit;
 public class Dispatcher extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(Dispatcher.class);
 
-    final LinkedBlockingQueue<Runnable> shareQueue = new LinkedBlockingQueue<>();
+    private final FiberQueue shareQueue = new FiberQueue();
     private final ArrayList<FiberGroup> groups = new ArrayList<>();
     private final ArrayList<FiberGroup> finishedGroups = new ArrayList<>();
     final IndexedQueue<FiberGroup> readyGroups = new IndexedQueue<>(8);
@@ -60,14 +59,20 @@ public class Dispatcher extends AbstractLifeCircle {
 
     public CompletableFuture<Void> start(FiberGroup fiberGroup) {
         CompletableFuture<Void> future = new CompletableFuture<>();
-        shareQueue.offer(() -> {
-            if (shouldStop) {
-                future.completeExceptionally(new FiberException("dispatcher already stopped"));
-            } else {
-                groups.add(fiberGroup);
-                future.complete(null);
+        boolean b = shareQueue.offer(new FiberQueueTask() {
+            @Override
+            protected void run() {
+                if (shouldStop) {
+                    future.completeExceptionally(new FiberException("dispatcher should stop"));
+                } else {
+                    groups.add(fiberGroup);
+                    future.complete(null);
+                }
             }
         });
+        if (!b) {
+            future.completeExceptionally(new FiberException("dispatcher already stopped"));
+        }
         return future;
     }
 
@@ -78,40 +83,49 @@ public class Dispatcher extends AbstractLifeCircle {
 
     @Override
     protected void doStop(DtTime timeout, boolean force) {
-        shareQueue.offer(() -> {
-            shouldStop = true;
-            groups.forEach(FiberGroup::requestShutdown);
+        shareQueue.offer(new FiberQueueTask() {
+            @Override
+            protected void run() {
+                shouldStop = true;
+                groups.forEach(FiberGroup::requestShutdown);
+            }
         });
     }
 
     private void run() {
-        ArrayList<Runnable> localData = new ArrayList<>(64);
+        ArrayList<FiberQueueTask> localData = new ArrayList<>(64);
         while (!finished()) {
-            pollAndRefreshTs(ts, localData);
-            processScheduleFibers();
-            int len = localData.size();
-            for (int i = 0; i < len; i++) {
-                try {
-                    Runnable r = localData.get(i);
-                    r.run();
-                } catch (Throwable e) {
-                    log.error("dispatcher run task fail", e);
-                }
-            }
+            runImpl(localData);
+        }
+        shareQueue.shutdown();
+        runImpl(localData);
+        log.info("fiber dispatcher exit: {}", thread.getName());
+    }
 
-            len = readyGroups.size();
-            for (int i = 0; i < len; i++) {
-                FiberGroup g = readyGroups.removeFirst();
-                execGroup(g);
-                if (g.ready) {
-                    readyGroups.addLast(g);
-                }
-            }
-            if (!finishedGroups.isEmpty()) {
-                groups.removeAll(finishedGroups);
+    private void runImpl(ArrayList<FiberQueueTask> localData) {
+        pollAndRefreshTs(ts, localData);
+        processScheduleFibers();
+        int len = localData.size();
+        for (int i = 0; i < len; i++) {
+            try {
+                FiberQueueTask r = localData.get(i);
+                r.run();
+            } catch (Throwable e) {
+                log.error("dispatcher run task fail", e);
             }
         }
-        log.info("fiber dispatcher exit: {}", thread.getName());
+
+        len = readyGroups.size();
+        for (int i = 0; i < len; i++) {
+            FiberGroup g = readyGroups.removeFirst();
+            execGroup(g);
+            if (g.ready) {
+                readyGroups.addLast(g);
+            }
+        }
+        if (!finishedGroups.isEmpty()) {
+            groups.removeAll(finishedGroups);
+        }
     }
 
     private void processScheduleFibers() {
@@ -391,7 +405,7 @@ public class Dispatcher extends AbstractLifeCircle {
         }
     }
 
-    private void pollAndRefreshTs(Timestamp ts, ArrayList<Runnable> localData) {
+    private void pollAndRefreshTs(Timestamp ts, ArrayList<FiberQueueTask> localData) {
         try {
             long oldNanos = ts.getNanoTime();
             Fiber f = scheduleQueue.peek();
@@ -400,7 +414,7 @@ public class Dispatcher extends AbstractLifeCircle {
                 t = f.scheduleNanoTime - oldNanos;
             }
             if (poll && t > 0) {
-                Runnable o = shareQueue.poll(Math.min(t, pollTimeout), TimeUnit.NANOSECONDS);
+                FiberQueueTask o = shareQueue.poll(Math.min(t, pollTimeout), TimeUnit.NANOSECONDS);
                 if (o != null) {
                     localData.add(o);
                 }
@@ -417,17 +431,15 @@ public class Dispatcher extends AbstractLifeCircle {
     }
 
     private boolean finished() {
-        return shouldStop && groups.isEmpty() && shareQueue.isEmpty();
+        return shouldStop && groups.isEmpty();
     }
 
-    void doInDispatcherThread(Runnable r) {
+    boolean doInDispatcherThread(FiberQueueTask r) {
         if (Thread.currentThread() == thread) {
             r.run();
+            return true;
         } else {
-            if (finished()) {
-                throw new FiberException("dispatcher already stopped");
-            }
-            shareQueue.offer(r);
+            return shareQueue.offer(r);
         }
     }
 

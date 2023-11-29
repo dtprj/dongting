@@ -55,13 +55,17 @@ public class FiberGroup {
      * can call in any thread
      */
     public void fireMessage(int type, Object data) {
-        dispatcher.shareQueue.offer(() -> {
-            FiberChannel<Object> c = channels.get(type);
-            if (c == null) {
-                log.warn("channel not found: {}", type);
-                return;
+        // if the dispatcher stopped, no ops
+        dispatcher.doInDispatcherThread(new FiberQueueTask() {
+            @Override
+            protected void run() {
+                FiberChannel<Object> c = channels.get(type);
+                if (c == null) {
+                    log.warn("channel not found: {}", type);
+                    return;
+                }
+                c.offer(data);
             }
-            c.offer(data);
         });
     }
 
@@ -76,9 +80,13 @@ public class FiberGroup {
         vf.fullFence();
         shouldStop = true;
         vf.fullFence();
-        dispatcher.doInDispatcherThread(() -> {
-            shouldStopCondition.signalAll();
-            this.updateFinishStatus();
+        // if the dispatcher stopped, no ops
+        dispatcher.doInDispatcherThread(new FiberQueueTask() {
+            @Override
+            protected void run() {
+                shouldStopCondition.signalAll();
+                updateFinishStatus();
+            }
         });
     }
 
@@ -118,18 +126,11 @@ public class FiberGroup {
 
     void start(Fiber f, Consumer<Exception> startFailCallback) {
         if (f.started) {
-            throw new FiberException("fiber already started: " + f.getFiberName());
+            BugLog.getLog().error("fiber already started: {}", f.getFiberName());
+            return;
         }
         if (finished) {
-            if (startFailCallback != null) {
-                try {
-                    startFailCallback.accept(new FiberException("group already finished"));
-                } catch (Throwable e) {
-                    log.error("startFailCallback fail", e);
-                }
-            } else {
-                log.warn("group already finished, ignore start: {}", f.getFiberName());
-            }
+            callStartFail(f, startFailCallback, new FiberException("group already finished"));
             return;
         }
         if (f.daemon) {
@@ -147,6 +148,18 @@ public class FiberGroup {
             } else {
                 future.addWaiter(f);
             }
+        }
+    }
+
+    static void callStartFail(Fiber f, Consumer<Exception> startFailCallback, FiberException ex) {
+        if (startFailCallback != null) {
+            try {
+                startFailCallback.accept(ex);
+            } catch (Throwable e) {
+                log.error("startFailCallback fail", e);
+            }
+        } else {
+            log.warn("group already finished, ignore start: {}", f.getFiberName());
         }
     }
 
