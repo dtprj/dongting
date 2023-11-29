@@ -113,7 +113,7 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     public FiberFrame<T> toFrame(long timeTimeoutMillis) {
-        return new FiberFrame<T>() {
+        return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return awaitOn(timeTimeoutMillis, this::resume);
@@ -139,7 +139,7 @@ public class FiberFuture<T> extends WaitSource {
      * this method can call in any thread
      */
     public void registerCallback(BiConsumer<T, Throwable> callback) {
-        registerCallback(new FiberFrame<Void>() {
+        registerCallback(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 FiberFuture<T> f = FiberFuture.this;
@@ -149,7 +149,6 @@ public class FiberFuture<T> extends WaitSource {
 
             @Override
             protected FrameCallResult handle(Throwable ex) {
-                FiberFuture<T> f = FiberFuture.this;
                 callback.accept(null, ex);
                 return Fiber.frameReturn();
             }
@@ -158,9 +157,9 @@ public class FiberFuture<T> extends WaitSource {
 
     public <T2> FiberFuture<T2> convert(Function<T, T2> converter) {
         FiberFuture<T2> newFuture = new FiberFuture<>(group);
-        registerCallback(new FiberFrame<Void>() {
+        registerCallback(new FiberFrame<>() {
             @Override
-            public FrameCallResult execute(Void input) throws Throwable {
+            public FrameCallResult execute(Void input) {
                 FiberFuture<T> f = FiberFuture.this;
                 T2 r2 = converter.apply(f.result);
                 newFuture.complete(r2);
@@ -168,7 +167,7 @@ public class FiberFuture<T> extends WaitSource {
             }
 
             @Override
-            protected FrameCallResult handle(Throwable ex) throws Throwable {
+            protected FrameCallResult handle(Throwable ex) {
                 newFuture.completeExceptionally(ex);
                 return Fiber.frameReturn();
             }
@@ -177,7 +176,7 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     public static <T> FiberFuture<T> failedFuture(FiberGroup group, Throwable ex) {
-        FiberFuture<T> f = new FiberFuture<T>(group);
+        FiberFuture<T> f = new FiberFuture<>(group);
         f.done = true;
         f.execEx = ex;
         return f;

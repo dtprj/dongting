@@ -142,7 +142,7 @@ public class FiberGroup {
             tryMakeFiberReady(f, false);
         } else {
             // the fiber is future callback fiber
-            FiberFuture future = (FiberFuture) f.source;
+            FiberFuture<?> future = (FiberFuture<?>) f.source;
             if (future.isDone()) {
                 tryMakeFiberReady(f, true);
             } else {

@@ -57,7 +57,9 @@ class FiberQueue {
         lock.lock();
         try {
             if (head == null) {
-                notEmpty.await(timeout, timeUnit);
+                if (!notEmpty.await(timeout, timeUnit)) {
+                    return null;
+                }
             }
             FiberQueueTask result = head;
             if (result.next == null) {
