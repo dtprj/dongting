@@ -25,7 +25,7 @@ public class FiberFuture<T> extends WaitSource {
 
     private boolean done;
 
-    T result;
+    T execResult;
     Throwable execEx;
 
     FiberFuture(FiberGroup group) {
@@ -38,7 +38,7 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     public T getResult() {
-        return result;
+        return execResult;
     }
 
     public Throwable getEx() {
@@ -92,7 +92,7 @@ public class FiberFuture<T> extends WaitSource {
             return;
         }
         if (ex == null) {
-            this.result = result;
+            this.execResult = result;
         } else {
             this.execEx = ex;
         }
@@ -127,23 +127,26 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     /**
-     * this method can call in any thread
+     * this method should call in dispatcher thread
      */
     public void registerCallback(FiberFrame<Void> callbackFiberEntryFrame) {
+        if (!group.isInGroupThread()) {
+            throw new FiberException("registerCallback should call in dispatcher thread");
+        }
         Fiber f = new Fiber("future-callback", group, callbackFiberEntryFrame);
         f.source = this;
         f.start();
     }
 
     /**
-     * this method can call in any thread
+     * this method should call in dispatcher thread
      */
     public void registerCallback(BiConsumer<T, Throwable> callback) {
         registerCallback(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 FiberFuture<T> f = FiberFuture.this;
-                callback.accept(f.result, null);
+                callback.accept(f.execResult, null);
                 return Fiber.frameReturn();
             }
 
@@ -155,13 +158,16 @@ public class FiberFuture<T> extends WaitSource {
         });
     }
 
+    /**
+     * this method should call in dispatcher thread
+     */
     public <T2> FiberFuture<T2> convert(Function<T, T2> converter) {
         FiberFuture<T2> newFuture = new FiberFuture<>(group);
         registerCallback(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 FiberFuture<T> f = FiberFuture.this;
-                T2 r2 = converter.apply(f.result);
+                T2 r2 = converter.apply(f.execResult);
                 newFuture.complete(r2);
                 return Fiber.frameReturn();
             }
@@ -185,7 +191,7 @@ public class FiberFuture<T> extends WaitSource {
     public static <T> FiberFuture<T> completedFuture(FiberGroup group, T result) {
         FiberFuture<T> f = new FiberFuture<>(group);
         f.done = true;
-        f.result = result;
+        f.execResult = result;
         return f;
     }
 }

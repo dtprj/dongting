@@ -187,7 +187,7 @@ public class Dispatcher extends AbstractLifeCircle {
                             fiber.lastEx = fu.execEx;
                             currentFrame.resumePoint = null;
                         } else {
-                            inputObj = fu.result;
+                            inputObj = fu.execResult;
                         }
                     }
                     fiber.source = null;
