@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.java11;
 
-import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -39,7 +38,7 @@ public class MpscLinkedQueueTest {
     public void simpleTest() {
         MpscLinkedQueue<String> q = create();
         assertNull(q.relaxedPoll());
-        q.offer("1");
+        assertTrue(q.offer("1"));
         q.offer("2");
         assertEquals("1", q.relaxedPoll());
         q.offer("3");
@@ -47,7 +46,7 @@ public class MpscLinkedQueueTest {
         assertEquals("3", q.relaxedPoll());
         assertNull(q.relaxedPoll());
         q.shutdownByConsumer();
-        assertThrows(DtException.class, () -> q.offer("4"));
+        assertFalse(q.offer("4"));
     }
 
     @Test
