@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.queue;
 
-import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.VersionFactory;
 
 import java.util.Objects;
@@ -44,6 +43,7 @@ public abstract class MpscLinkedQueue<E> {
         LinkedNode<E> node = newNode(null);
         head = node;
         tail = node;
+        VersionFactory.getInstance().releaseFence();
     }
 
     public static <E> MpscLinkedQueue<E> newInstance() {
@@ -70,21 +70,21 @@ public abstract class MpscLinkedQueue<E> {
         Objects.requireNonNull(value);
         // set plain
         LinkedNode<E> newTail = newNode(value);
-        offer0(newTail);
-        return true;
+        return offer0(newTail);
     }
 
-    private void offer0(LinkedNode<E> newTail) {
+    private boolean offer0(LinkedNode<E> newTail) {
         LinkedNode<E> oldTail = getAndSetTail(newTail);
         if (shutdown && newTail != SHUTDOWN_NODE) {
             // don't keep reference of newProduceNode
             //noinspection unchecked
             tail = SHUTDOWN_NODE;
 
-            throw new DtException("queue is shutdown");
+            return false;
         }
         // so consumer can read value
         oldTail.setNextRelease(newTail);
+        return true;
     }
 
     protected abstract LinkedNode<E> getAndSetTail(LinkedNode<E> nextNode);
@@ -92,7 +92,7 @@ public abstract class MpscLinkedQueue<E> {
     protected abstract LinkedNode<E> newNode(E value);
 
     @SuppressWarnings("unchecked")
-    public void shutdown() {
+    public void shutdownByConsumer() {
         shutdown = true;
         offer0(SHUTDOWN_NODE);
     }

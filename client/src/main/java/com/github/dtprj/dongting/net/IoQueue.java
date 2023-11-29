@@ -33,24 +33,20 @@ class IoQueue {
     private final NioWorker worker;
     private int invokeIndex;
 
-    private volatile boolean close;
-
     public IoQueue(NioWorker worker) {
         this.worker = worker;
     }
 
     public void writeFromBizThread(WriteData data) {
-        if (!close) {
-            queue.offer(data);
-        } else if (data.getFuture() != null) {
-            data.getFuture().completeExceptionally(new NetException("IoQueue closed"));
+        if (!queue.offer(data)) {
+            if (data.getFuture() != null) {
+                data.getFuture().completeExceptionally(new NetException("IoQueue closed"));
+            }
         }
     }
 
     public void scheduleFromBizThread(Runnable runnable) throws NetException {
-        if (!close) {
-            queue.offer(runnable);
-        } else {
+        if (!queue.offer(runnable)) {
             throw new NetException("IoQueue closed");
         }
     }
@@ -133,6 +129,6 @@ class IoQueue {
     }
 
     public void close() {
-        close = true;
+        queue.shutdownByConsumer();
     }
 }
