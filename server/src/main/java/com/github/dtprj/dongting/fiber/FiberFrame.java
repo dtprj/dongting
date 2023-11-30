@@ -61,10 +61,6 @@ public abstract class FiberFrame<O> implements FrameCall<Void> {
         this.result = result;
     }
 
-    protected <T> FiberChannel<T> createOrGetChannel(int type) {
-        return fiberGroup.createOrGetChannel(type);
-    }
-
     protected Fiber getFiber() {
         return fiber;
     }

@@ -18,8 +18,6 @@ package com.github.dtprj.dongting.fiber;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
-import java.util.function.Consumer;
-
 /**
  * @author huangli
  */
@@ -104,31 +102,14 @@ public class Fiber {
     }
 
     public void interrupt() {
+        fiberGroup.checkThread();
         Dispatcher dispatcher = fiberGroup.dispatcher;
-        Fiber f = this;
-        // if the dispatcher stopped, no ops
-        dispatcher.doInDispatcherThread(new FiberQueueTask() {
-            @Override
-            protected void run() {
-                dispatcher.interrupt(f);
-            }
-        });
-    }
-
-    public void start(Consumer<Exception> startFailCallback) {
-        FiberQueueTask t = new FiberQueueTask() {
-            @Override
-            protected void run() {
-                fiberGroup.start(Fiber.this, startFailCallback);
-            }
-        };
-        if (!fiberGroup.dispatcher.doInDispatcherThread(t)) {
-            FiberGroup.callStartFail(this, startFailCallback, new FiberException("dispatcher stopped"));
-        }
+        dispatcher.interrupt(this);
     }
 
     public void start() {
-        start(null);
+        fiberGroup.checkThread();
+        fiberGroup.start(Fiber.this);
     }
 
     public String getFiberName() {

@@ -62,29 +62,13 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     public void complete(T result) {
-        if (done) {
-            return;
-        }
-        // if dispatcher stopped, op ops
-        group.dispatcher.doInDispatcherThread(new FiberQueueTask() {
-            @Override
-            protected void run() {
-                complete0(result, null);
-            }
-        });
+        group.checkThread();
+        complete0(result, null);
     }
 
     public void completeExceptionally(Throwable ex) {
-        if (done) {
-            return;
-        }
-        // if dispatcher stopped, op ops
-        group.dispatcher.doInDispatcherThread(new FiberQueueTask() {
-            @Override
-            protected void run() {
-                complete0(null, ex);
-            }
-        });
+        group.checkThread();
+        complete0(null, ex);
     }
 
     private void complete0(T result, Throwable ex) {
@@ -130,9 +114,7 @@ public class FiberFuture<T> extends WaitSource {
      * this method should call in dispatcher thread
      */
     public void registerCallback(FiberFrame<Void> callbackFiberEntryFrame) {
-        if (!group.isInGroupThread()) {
-            throw new FiberException("registerCallback should call in dispatcher thread");
-        }
+        group.checkThread();
         Fiber f = new Fiber("future-callback", group, callbackFiberEntryFrame);
         f.source = this;
         f.start();

@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.fiber;
 
+import com.github.dtprj.dongting.common.DtException;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.log.BugLog;
@@ -24,7 +26,6 @@ import com.github.dtprj.dongting.log.DtLogs;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.HashSet;
-import java.util.function.Consumer;
 
 /**
  * @author huangli
@@ -41,6 +42,7 @@ public class FiberGroup {
     @SuppressWarnings("FieldMayBeFinal")
     private volatile boolean shouldStop = false;
     private final static VarHandle SHOULD_STOP;
+
     static {
         try {
             MethodHandles.Lookup l = MethodHandles.lookup();
@@ -83,6 +85,38 @@ public class FiberGroup {
     /**
      * can call in any thread
      */
+    public void fireFiber(Fiber fiber) {
+        if (fiber.fiberGroup != this) {
+            throw new DtException("fiber not in group");
+        }
+        // if the dispatcher stopped, no ops
+        dispatcher.doInDispatcherThread(new FiberQueueTask() {
+            @Override
+            protected void run() {
+                start(fiber);
+            }
+        });
+    }
+
+    /**
+     * can call in any thread
+     */
+    public void fireTask(Runnable task) {
+        // if the dispatcher stopped, no ops
+        dispatcher.doInDispatcherThread(new FiberQueueTask() {
+            @Override
+            protected void run() {
+                if (finished) {
+                    log.warn("group already finished, ignore task", task);
+                }
+                task.run();
+            }
+        });
+    }
+
+    /**
+     * can call in any thread
+     */
     public void requestShutdown() {
         // if the dispatcher stopped, no ops
         dispatcher.doInDispatcherThread(new FiberQueueTask() {
@@ -99,7 +133,7 @@ public class FiberGroup {
     }
 
     @SuppressWarnings("unchecked")
-    <T> FiberChannel<T> createOrGetChannel(int type) {
+    public <T> FiberChannel<T> createOrGetChannel(int type) {
         FiberChannel<Object> channel = channels.get(type);
         if (channel == null) {
             channel = new FiberChannel<>(this);
@@ -128,17 +162,22 @@ public class FiberGroup {
         return new FiberLock(this);
     }
 
-    boolean isInGroupThread() {
-        return Thread.currentThread() == dispatcher.thread;
+    void checkThread() {
+        if (!DtUtil.DEBUG) {
+            return;
+        }
+        if (Thread.currentThread() != dispatcher.thread) {
+            throw new FiberException("not in dispatcher thread");
+        }
     }
 
-    void start(Fiber f, Consumer<Exception> startFailCallback) {
+    void start(Fiber f) {
         if (f.started) {
             BugLog.getLog().error("fiber already started: {}", f.getFiberName());
             return;
         }
         if (finished) {
-            callStartFail(f, startFailCallback, new FiberException("group already finished"));
+            log.error("group already finished");
             return;
         }
         if (f.daemon) {
@@ -156,18 +195,6 @@ public class FiberGroup {
             } else {
                 future.addWaiter(f);
             }
-        }
-    }
-
-    static void callStartFail(Fiber f, Consumer<Exception> startFailCallback, FiberException ex) {
-        if (startFailCallback != null) {
-            try {
-                startFailCallback.accept(ex);
-            } catch (Throwable e) {
-                log.error("startFailCallback fail", e);
-            }
-        } else {
-            log.warn("group already finished, ignore start: {}", f.getFiberName());
         }
     }
 
