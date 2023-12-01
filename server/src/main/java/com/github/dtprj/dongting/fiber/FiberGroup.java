@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.fiber;
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IndexedQueue;
-import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -37,7 +36,6 @@ public class FiberGroup {
     final IndexedQueue<Fiber> readyFibers = new IndexedQueue<>(64);
     private final HashSet<Fiber> normalFibers = new HashSet<>();
     private final HashSet<Fiber> daemonFibers = new HashSet<>();
-    private final IntObjMap<FiberChannel<Object>> channels = new IntObjMap<>();
 
     @SuppressWarnings("FieldMayBeFinal")
     private volatile boolean shouldStop = false;
@@ -62,24 +60,6 @@ public class FiberGroup {
     public FiberGroup(String name, Dispatcher dispatcher) {
         this.name = name;
         this.dispatcher = dispatcher;
-    }
-
-    /**
-     * can call in any thread
-     */
-    public void fireMessage(int type, Object data) {
-        // if the dispatcher stopped, no ops
-        dispatcher.doInDispatcherThread(new FiberQueueTask() {
-            @Override
-            protected void run() {
-                FiberChannel<Object> c = channels.get(type);
-                if (c == null) {
-                    log.warn("channel not found: {}", type);
-                    return;
-                }
-                c.offer(data);
-            }
-        });
     }
 
     /**
@@ -132,16 +112,6 @@ public class FiberGroup {
         });
     }
 
-    @SuppressWarnings("unchecked")
-    public <T> FiberChannel<T> createOrGetChannel(int type) {
-        FiberChannel<Object> channel = channels.get(type);
-        if (channel == null) {
-            channel = new FiberChannel<>(this);
-        }
-        channels.put(type, channel);
-        return (FiberChannel<T>) channel;
-    }
-
     public static FiberGroup currentGroup() {
         return DispatcherThead.currentGroup();
     }
@@ -156,6 +126,11 @@ public class FiberGroup {
 
     public <T> FiberFuture<T> newFuture() {
         return new FiberFuture<>(this);
+    }
+
+    public <T> FiberChannel<T> newChannel() {
+        FiberChannel<T> channel = new FiberChannel<>(this);
+        return channel;
     }
 
     public FiberLock newLock() {

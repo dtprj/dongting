@@ -33,16 +33,23 @@ public class FiberChannel<T> {
         this.notEmptyCondition = group.newCondition();
     }
 
-    void offer(T data) {
+    public boolean offer(T data) {
         queue.addLast(data);
-        notEmptyCondition.signal();
+        if (queue.size() == 1) {
+            notEmptyCondition.signal();
+        }
+        return true;
     }
 
-    public IndexedQueue<T> getQueue() {
-        return queue;
-    }
-
-    public FiberCondition getNotEmptyCondition() {
-        return notEmptyCondition;
+    public FrameCallResult take(FrameCall<T> resumePoint) throws Throwable {
+        if (queue.size() > 0) {
+            T data = queue.removeFirst();
+            return resumePoint.execute(data);
+        } else {
+            return notEmptyCondition.awaitOn(noUseVoid -> {
+                T data = queue.removeFirst();
+                return resumePoint.execute(data);
+            });
+        }
     }
 }
