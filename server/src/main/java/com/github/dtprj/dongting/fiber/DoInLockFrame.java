@@ -18,43 +18,42 @@ package com.github.dtprj.dongting.fiber;
 /**
  * @author huangli
  */
-public class DoInLockFrame<O> extends FiberFrame<O> {
+public abstract class DoInLockFrame<O> extends FiberFrame<O> {
     private final FiberLock lock;
     private final long timeoutMillis;
-    private final FiberFrame<O> subFrame;
     private boolean locked;
 
-    public DoInLockFrame(FiberLock lock, FiberFrame<O> subFrame) {
-        this(lock, 0, subFrame);
+    public DoInLockFrame(FiberLock lock) {
+        this(lock, 0);
     }
 
-    public DoInLockFrame(FiberLock lock, long timeoutMillis, FiberFrame<O> subFrame) {
+    public DoInLockFrame(FiberLock lock, long timeoutMillis) {
         this.lock = lock;
         this.timeoutMillis = timeoutMillis;
-        this.subFrame = subFrame;
     }
 
     @Override
-    public FrameCallResult execute(Void input) throws Exception {
-        return lock.lock(timeoutMillis, this::afterGetLock);
+    public final FrameCallResult execute(Void input) throws Exception {
+        return lock.lock(timeoutMillis, this::resume);
     }
 
-    private FrameCallResult afterGetLock(Void v) {
+    private FrameCallResult resume(Void v) {
         locked = true;
-        return Fiber.call(subFrame, this::afterSubFrameReturn);
+        return afterGetLock();
     }
 
-    private FrameCallResult afterSubFrameReturn(O o) {
-        setResult(o);
-        return Fiber.frameReturn();
-    }
+    protected abstract FrameCallResult afterGetLock();
 
     @Override
-    protected FrameCallResult doFinally() {
+    protected final FrameCallResult doFinally() {
         if (locked) {
             lock.unlock();
         }
         locked = false;
+        doFinallyAfterTryReleaseLock();
         return Fiber.frameReturn();
+    }
+
+    protected final void doFinallyAfterTryReleaseLock() {
     }
 }
