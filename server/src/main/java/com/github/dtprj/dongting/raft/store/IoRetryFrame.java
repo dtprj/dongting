@@ -19,14 +19,11 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCancelException;
 import com.github.dtprj.dongting.fiber.FiberFrame;
-import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberInterruptException;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
-
-import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -36,12 +33,14 @@ public class IoRetryFrame<O> extends FiberFrame<O> {
     private static final DtLog log = DtLogs.getLogger(IoRetryFrame.class);
 
     private final long[] retryInterval;
-    private final Supplier<FiberFuture<O>> callback;
+    private final FiberFrame<O> subFrame;
+    private final boolean retryForever;
     private int retryCount;
 
-    public IoRetryFrame(long[] retryInterval, Supplier<FiberFuture<O>> ioCallback) {
+    public IoRetryFrame(FiberFrame<O> subFrame, long[] retryInterval, boolean retryForever) {
         this.retryInterval = retryInterval;
-        this.callback = ioCallback;
+        this.subFrame = subFrame;
+        this.retryForever = retryForever;
     }
 
     @Override
@@ -49,8 +48,7 @@ public class IoRetryFrame<O> extends FiberFrame<O> {
         if (retryCount > 0 && isGroupShouldStopPlain()) {
             throw new RaftException("group should stop, stop retry");
         }
-        FiberFuture<O> f = callback.get();
-        return f.awaitOn(this::resume);
+        return Fiber.call(subFrame, this::resume);
     }
 
     private FrameCallResult resume(O o) {
@@ -72,7 +70,11 @@ public class IoRetryFrame<O> extends FiberFrame<O> {
         }
         long sleepTime;
         if (retryCount >= retryInterval.length) {
+            if (!retryForever) {
+                throw ex;
+            }
             sleepTime = retryInterval[retryInterval.length - 1];
+            retryCount++;
         } else {
             sleepTime = retryInterval[retryCount++];
         }

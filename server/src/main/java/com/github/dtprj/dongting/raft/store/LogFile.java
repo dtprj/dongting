@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.fiber.FiberLock;
+
 import java.io.File;
 import java.nio.channels.AsynchronousFileChannel;
 
@@ -27,7 +29,7 @@ class LogFile {
     final long startPos;
     final long endPos;
 
-    int use = 0;
+    final FiberLock lock;
 
     long firstTimestamp;
     long firstIndex;
@@ -35,10 +37,11 @@ class LogFile {
 
     long deleteTimestamp;
 
-    public LogFile(long startPos, long endPos, AsynchronousFileChannel channel, File file) {
+    public LogFile(long startPos, long endPos, AsynchronousFileChannel channel, File file, FiberLock lock) {
         this.startPos = startPos;
         this.endPos = endPos;
         this.channel = channel;
         this.file = file;
+        this.lock = lock;
     }
 }

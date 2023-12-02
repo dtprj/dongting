@@ -32,7 +32,6 @@ import com.github.dtprj.dongting.raft.server.RaftStatus;
 
 import java.io.File;
 import java.util.Properties;
-import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -95,13 +94,7 @@ public class StatusManager implements AutoCloseable {
 
     private class UpdateFiberFrame extends FiberFrame<Void> {
         private long version;
-        private final Supplier<FiberFuture<Void>> ioCallback = () -> {
-            copyWriteData();
-            version = requestUpdateVersion;
-            return statusFile.update(lastNeedFlushVersion > finishedUpdateVersion);
-        };
-        // the frame is reused
-        private final IoRetryFrame<Void> ioFrame = new IoRetryFrame<>(groupConfig.getIoRetryInterval(), ioCallback);
+
         @Override
         public FrameCallResult execute(Void input) {
             if (closed) {
@@ -117,7 +110,18 @@ public class StatusManager implements AutoCloseable {
         }
 
         private FrameCallResult doUpdate(Void v) {
-            return Fiber.call(ioFrame, this::resumeOnUpdateDone);
+            FiberFrame<Void> updateFrame = new FiberFrame<>(){
+                @Override
+                public FrameCallResult execute(Void input) {
+                    copyWriteData();
+                    version = requestUpdateVersion;
+                    FiberFuture<Void> f = statusFile.update(lastNeedFlushVersion > finishedUpdateVersion);
+                    return f.awaitOn(groupConfig.getIoTimeout(), this::justReturn);
+                }
+            };
+            IoRetryFrame<Void> ioRetryFrame = new IoRetryFrame<>(updateFrame,
+                    groupConfig.getIoRetryInterval(), true);
+            return Fiber.call(ioRetryFrame, this::resumeOnUpdateDone);
         }
 
         private FrameCallResult resumeOnUpdateDone(Void v) {
