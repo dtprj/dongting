@@ -71,6 +71,14 @@ public class FiberFuture<T> extends WaitSource {
         complete0(null, ex);
     }
 
+    public void fireComplete(T result) {
+        group.fireTask(() -> complete0(result, null));
+    }
+
+    public void fireCompleteExceptionally(Throwable ex) {
+        group.fireTask(() -> complete0(null, ex));
+    }
+
     private void complete0(T result, Throwable ex) {
         if (done) {
             return;
