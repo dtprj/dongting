@@ -15,13 +15,13 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import java.io.IOException;
-import java.util.concurrent.CompletableFuture;
+import com.github.dtprj.dongting.fiber.FrameCall;
+import com.github.dtprj.dongting.fiber.FrameCallResult;
 
 /**
  * @author huangli
  */
 interface IdxOps {
     void put(long index, long position, boolean recover) throws InterruptedException;
-    CompletableFuture<Long> loadLogPos(long itemIndex) throws IOException;
+    FrameCallResult loadLogPos(long itemIndex, FrameCall<Long> resumePoint) throws Throwable;
 }

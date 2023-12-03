@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.common.Pair;
+import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.raft.server.LogItem;
 
 import java.util.List;
@@ -29,7 +30,7 @@ import java.util.function.Supplier;
  */
 public interface RaftLog extends AutoCloseable {
 
-    Pair<Integer, Long> init(AppendCallback appendCallback) throws Exception;
+    FiberFrame<Pair<Integer, Long>> init(AppendCallback appendCallback) throws Exception;
 
     /**
      * Batch append logs.

@@ -17,12 +17,14 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -58,5 +60,10 @@ class LogFileQueue extends FileQueue {
 
     public long fileLength() {
         return fileSize;
+    }
+
+    public FiberFrame<Integer> restore(long restoreIndex, long restoreIndexPos, long firstValidPos,
+                                       Supplier<Boolean> stopIndicator) {
+        return null;
     }
 }

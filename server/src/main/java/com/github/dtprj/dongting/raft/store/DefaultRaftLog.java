@@ -15,14 +15,26 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.fiber.Fiber;
+import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+
+import java.io.File;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
+
+import static com.github.dtprj.dongting.raft.store.IdxFileQueue.KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT;
 
 /**
  * @author huangli
  */
-public class DefaultRaftLog {
+public class DefaultRaftLog implements RaftLog {
     private final RaftGroupConfig groupConfig;
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
@@ -45,5 +57,113 @@ public class DefaultRaftLog {
         this.statusManager = statusManager;
 
         this.lastTaskNanos = ts.getNanoTime();
+    }
+
+    @Override
+    public FiberFrame<Pair<Integer, Long>> init(AppendCallback appendCallback) throws Exception {
+        Supplier<Boolean> stopIndicator = raftStatus::isStop;
+        return new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) throws Exception {
+                File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
+
+                idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"),
+                        statusManager, groupConfig, idxItemsPerFile, idxMaxCacheItems);
+                logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"),
+                        groupConfig, idxFiles, appendCallback, logFileSize, logWriteBufferSize);
+                logFiles.init();
+                RaftUtil.checkStop(stopIndicator);
+                idxFiles.init();
+                RaftUtil.checkStop(stopIndicator);
+
+                return Fiber.call(idxFiles.initRestorePos(), this::afterIdxFileQueueInit);
+            }
+
+            private FrameCallResult afterIdxFileQueueInit(Pair<Long, Long> p) {
+                if (p == null) {
+                    raftStatus.setInstallSnapshot(true);
+                    setResult(new Pair<>(0, 0L));
+                    return Fiber.frameReturn();
+                }
+                long restoreIndex = p.getLeft();
+                long restoreIndexPos = p.getRight();
+                long firstValidPos = Long.parseLong(statusManager.getProperties()
+                        .getProperty(KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT, "0"));
+                return Fiber.call(logFiles.restore(restoreIndex, restoreIndexPos, firstValidPos, stopIndicator),
+                        this::afterLogRestore);
+            }
+
+            private FrameCallResult afterLogRestore(int lastTerm) {
+                RaftUtil.checkStop(stopIndicator);
+                if (idxFiles.getNextIndex() == 1) {
+                    setResult(new Pair<>(0, 0L));
+                } else {
+                    long lastIndex = idxFiles.getNextIndex() - 1;
+                    setResult(new Pair<>(lastTerm, lastIndex));
+                }
+                return Fiber.frameReturn();
+            }
+
+            @Override
+            protected FrameCallResult handle(Throwable ex) throws Throwable {
+                close();
+                throw ex;
+            }
+        };
+    }
+
+    @Override
+    public void append() {
+
+    }
+
+    @Override
+    public void truncateTail(long index) {
+
+    }
+
+    @Override
+    public LogIterator openIterator(Supplier<Boolean> cancelIndicator) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Pair<Integer, Long>> tryFindMatchPos(int suggestTerm, long suggestIndex, Supplier<Boolean> cancelIndicator) {
+        return null;
+    }
+
+    @Override
+    public void markTruncateByIndex(long index, long delayMillis) {
+
+    }
+
+    @Override
+    public void markTruncateByTimestamp(long timestampBound, long delayMillis) {
+
+    }
+
+    @Override
+    public void doDelete() {
+
+    }
+
+    @Override
+    public void beginInstall() throws Exception {
+
+    }
+
+    @Override
+    public void finishInstall(long nextLogIndex, long nextLogPos) throws Exception {
+
+    }
+
+    @Override
+    public long syncLoadNextItemPos(long index) throws Exception {
+        return 0;
+    }
+
+    @Override
+    public void close() throws Exception {
+
     }
 }
