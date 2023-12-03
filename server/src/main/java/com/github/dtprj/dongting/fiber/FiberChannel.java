@@ -41,7 +41,7 @@ public class FiberChannel<T> {
         return true;
     }
 
-    public FrameCallResult take(FrameCall<T> resumePoint) throws Throwable {
+    public FrameCallResult take(FrameCall<T> resumePoint) throws Exception {
         if (queue.size() > 0) {
             T data = queue.removeFirst();
             return resumePoint.execute(data);
