@@ -104,4 +104,12 @@ class LogAppender {
         }
     }
 
+    public void setNextPersistIndex(long nextPersistIndex) {
+        this.nextPersistIndex = nextPersistIndex;
+    }
+
+    public void setNextPersistPos(long nextPersistPos) {
+        this.nextPersistPos = nextPersistPos;
+    }
+
 }

@@ -16,10 +16,15 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 
 import java.io.File;
@@ -64,6 +69,64 @@ class LogFileQueue extends FileQueue {
 
     public FiberFrame<Integer> restore(long restoreIndex, long restoreIndexPos, long firstValidPos,
                                        Supplier<Boolean> stopIndicator) {
-        return null;
+        log.info("start restore from {}, {}", restoreIndex, restoreIndexPos);
+        Restorer restorer = new Restorer(idxOps, this, restoreIndex, restoreIndexPos, firstValidPos);
+        if (queue.size() == 0) {
+            tryAllocate();
+            logAppender.setNextPersistIndex(1);
+            logAppender.setNextPersistPos(0);
+            return FiberFrame.completedFrame(0);
+        }
+        if (restoreIndexPos < queue.get(0).startPos) {
+            throw new RaftException("restoreIndexPos is illegal. " + restoreIndexPos);
+        }
+        if (restoreIndexPos >= queue.get(queue.size() - 1).endPos) {
+            throw new RaftException("restoreIndexPos is illegal. " + restoreIndexPos);
+        }
+        return new FiberFrame<>() {
+            long writePos = 0;
+            int i = 0;
+            @Override
+            public FrameCallResult execute(Void input) {
+                RaftUtil.checkStop(stopIndicator);
+                if (i >= queue.size()) {
+                    // finish loop
+                    return finish();
+                }
+                LogFile lf = queue.get(i);
+                return Fiber.call(restorer.restoreFile(writeBuffer, lf, stopIndicator),
+                        this::afterRestoreSingleFile);
+            }
+
+            private FrameCallResult afterRestoreSingleFile(Pair<Boolean, Long> singleResult) {
+                writePos = singleResult.getRight();
+                if (singleResult.getLeft()) {
+                    // break for loop
+                    return finish();
+                }
+                // loop
+                i++;
+                return execute(null);
+            }
+
+            private FrameCallResult finish() {
+                if (queue.size() > 1) {
+                    LogFile first = queue.get(0);
+                    if (firstValidPos > first.startPos && firstValidPos < first.endPos && first.firstIndex == 0) {
+                        // after install snapshot, the firstValidPos is too large in file, so this file has no items
+                        queue.removeFirst();
+                        delete(first);
+                    }
+                }
+
+                log.info("restore finished. lastTerm={}, lastIndex={}, lastPos={}, lastFile={}",
+                        restorer.previousTerm, restorer.previousIndex, writePos,
+                        queue.get(queue.size() - 1).file.getPath());
+                logAppender.setNextPersistIndex(restorer.previousIndex + 1);
+                logAppender.setNextPersistPos(writePos);
+                setResult(restorer.previousTerm);
+                return Fiber.frameReturn();
+            }
+        };
     }
 }
