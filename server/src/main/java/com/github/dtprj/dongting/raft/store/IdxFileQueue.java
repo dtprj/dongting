@@ -144,6 +144,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 protected FrameCallResult handle(Throwable ex) throws Throwable {
                     if (finalRestoreIndex == firstValidIndex) {
                         // next index not write after install snapshot
+                        // return null will cause install snapshot
                         log.warn("load log pos failed", ex);
                         setResult(null);
                         return Fiber.frameReturn();
@@ -165,7 +166,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     @Override
-    public void put(long index, long position, boolean recover) throws InterruptedException {
+    public void put(long index, long position, boolean recover) {
 
     }
 

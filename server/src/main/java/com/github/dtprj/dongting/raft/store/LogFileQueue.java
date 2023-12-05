@@ -70,7 +70,8 @@ class LogFileQueue extends FileQueue {
     public FiberFrame<Integer> restore(long restoreIndex, long restoreIndexPos, long firstValidPos,
                                        Supplier<Boolean> stopIndicator) {
         log.info("start restore from {}, {}", restoreIndex, restoreIndexPos);
-        Restorer restorer = new Restorer(idxOps, this, restoreIndex, restoreIndexPos, firstValidPos);
+        Restorer restorer = new Restorer(idxOps, this, stopIndicator,
+                restoreIndex, restoreIndexPos, firstValidPos);
         if (queue.size() == 0) {
             tryAllocate();
             logAppender.setNextPersistIndex(1);
@@ -94,7 +95,7 @@ class LogFileQueue extends FileQueue {
                     return finish();
                 }
                 LogFile lf = queue.get(i);
-                return Fiber.call(restorer.restoreFile(writeBuffer, lf, stopIndicator),
+                return Fiber.call(restorer.restoreFile(writeBuffer, lf),
                         this::afterRestoreSingleFile);
             }
 
@@ -128,5 +129,9 @@ class LogFileQueue extends FileQueue {
                 return Fiber.frameReturn();
             }
         };
+    }
+
+    public long filePos(long absolutePos) {
+        return absolutePos & fileLenMask;
     }
 }

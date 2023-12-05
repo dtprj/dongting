@@ -22,6 +22,6 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
  * @author huangli
  */
 interface IdxOps {
-    void put(long index, long position, boolean recover) throws InterruptedException;
+    void put(long index, long position, boolean recover);
     FrameCallResult loadLogPos(long itemIndex, FrameCall<Long> resumePoint) throws Throwable;
 }

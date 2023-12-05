@@ -87,4 +87,15 @@ public abstract class FiberFrame<O> implements FrameCall<Void> {
             }
         };
     }
+
+
+    private static final FiberFrame<Void> VOID_COMPLETED_FRAME = new FiberFrame<>() {
+        @Override
+        public FrameCallResult execute(Void input) {
+            return Fiber.frameReturn();
+        }
+    };
+    public static FiberFrame<Void> voidCompletedFrame() {
+        return VOID_COMPLETED_FRAME;
+    }
 }
