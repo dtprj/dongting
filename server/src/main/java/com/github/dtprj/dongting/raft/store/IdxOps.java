@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 
@@ -22,6 +23,6 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
  * @author huangli
  */
 interface IdxOps {
-    void put(long index, long position, boolean recover);
+    FiberFrame<Void> put(long index, long position);
     FrameCallResult loadLogPos(long itemIndex, FrameCall<Long> resumePoint) throws Throwable;
 }

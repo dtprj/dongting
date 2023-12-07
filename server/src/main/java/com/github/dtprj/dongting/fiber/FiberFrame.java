@@ -78,12 +78,21 @@ public abstract class FiberFrame<O> implements FrameCall<Void> {
         return Fiber.frameReturn();
     }
 
-    public static <O> FiberFrame<O> completedFrame(O result) {
+    public static <O> FiberFrame<O> completedFrame(O theResult) {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                setResult(result);
+                setResult(theResult);
                 return Fiber.frameReturn();
+            }
+        };
+    }
+
+    public static <O> FiberFrame<O> failedFrame(Exception theEx) {
+        return new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) throws Exception {
+                throw theEx;
             }
         };
     }
@@ -95,6 +104,7 @@ public abstract class FiberFrame<O> implements FrameCall<Void> {
             return Fiber.frameReturn();
         }
     };
+
     public static FiberFrame<Void> voidCompletedFrame() {
         return VOID_COMPLETED_FRAME;
     }

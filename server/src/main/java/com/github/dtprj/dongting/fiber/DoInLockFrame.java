@@ -54,6 +54,6 @@ public abstract class DoInLockFrame<O> extends FiberFrame<O> {
         return Fiber.frameReturn();
     }
 
-    protected final void doFinallyAfterTryReleaseLock() {
+    protected void doFinallyAfterTryReleaseLock() {
     }
 }

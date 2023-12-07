@@ -116,7 +116,7 @@ abstract class FileQueue implements AutoCloseable {
                 openOptions.add(StandardOpenOption.WRITE);
                 AsynchronousFileChannel channel = AsynchronousFileChannel.open(f.toPath(), openOptions, ioExecutor);
                 queue.addLast(new LogFile(startPos, startPos + getFileSize(), channel,
-                        f, groupConfig.getFiberGroup().newLock()));
+                        f, groupConfig.getFiberGroup().newCondition()));
                 count++;
             }
         }
@@ -149,14 +149,13 @@ abstract class FileQueue implements AutoCloseable {
         }
     }
 
-    protected boolean checkPosReady(long pos) {
+    protected void tryAllocateAsync(long pos) {
         if (allocateFuture == null) {
             if (pos >= queueEndPosition - fileSize) {
                 // maybe pre allocate next file
                 allocateAsync();
             }
         }
-        return pos < queueEndPosition;
     }
 
     protected FiberFrame<Void> ensureWritePosReady(long pos, boolean retry) {
@@ -251,7 +250,7 @@ abstract class FileQueue implements AutoCloseable {
             file = input.getLeft();
             channel = input.getRight();
             logFile = new LogFile(fileStartPos, fileStartPos + getFileSize(), channel,
-                    file, fiberGroup.newLock());
+                    file, fiberGroup.newCondition());
             ByteBuffer buf = ByteBuffer.allocate(1);
             // no retry here, allocateSync() will retry
             AsyncIoTask t = new AsyncIoTask(groupConfig.getFiberGroup(), logFile.channel);
@@ -286,53 +285,50 @@ abstract class FileQueue implements AutoCloseable {
     }
 
     protected FiberFrame<Void> delete(LogFile logFile) {
-        return new DeleteFrame(logFile);
-    }
-
-    private class DeleteFrame extends DoInLockFrame<Void> {
-        private final LogFile logFile;
-
-        public DeleteFrame(LogFile logFile) {
-            super(logFile.lock);
-            this.logFile = logFile;
-        }
-
-        @Override
-        protected FrameCallResult afterGetLock() {
-            FiberFuture<Void> deleteFuture = groupConfig.getFiberGroup().newFuture();
-            FiberGroup fiberGroup = getFiberGroup();
-            try {
-                ioExecutor.execute(() -> {
-                    try {
-                        log.debug("close log file: {}", logFile.file.getPath());
-                        DtUtil.close(logFile.channel);
-                        log.info("delete log file: {}", logFile.file.getPath());
-                        Files.delete(logFile.file.toPath());
-
-                        fiberGroup.fireTask(() -> deleteFuture.complete(null));
-                    } catch (Throwable e) {
-                        log.error("delete file fail: ", logFile.file.getPath(), e);
-                        fiberGroup.fireTask(() -> deleteFuture.completeExceptionally(e));
-                    }
-                });
-            } catch (Throwable e) {
-                log.error("submit delete task fail: ", e);
-                deleteFuture.completeExceptionally(e);
+        return new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void v) throws Exception {
+                return logFile.awaitNotUse(this::afterNotUse);
             }
-            return deleteFuture.awaitOn(this::afterDelete);
-        }
 
-        private FrameCallResult afterDelete(Void unused) {
-            if (queue.size() > 1) {
-                queue.removeFirst();
+            private FrameCallResult afterNotUse(Void unused) {
+                FiberFuture<Void> deleteFuture = groupConfig.getFiberGroup().newFuture();
+                FiberGroup fiberGroup = getFiberGroup();
+                // mark deleted first, so that other fibers will not use this file
+                logFile.deleted = true;
+                try {
+                    ioExecutor.execute(() -> {
+                        try {
+                            log.debug("close log file: {}", logFile.file.getPath());
+                            DtUtil.close(logFile.channel);
+                            log.info("delete log file: {}", logFile.file.getPath());
+                            Files.delete(logFile.file.toPath());
+
+                            fiberGroup.fireTask(() -> deleteFuture.complete(null));
+                        } catch (Throwable e) {
+                            log.error("delete file fail: ", logFile.file.getPath(), e);
+                            fiberGroup.fireTask(() -> deleteFuture.completeExceptionally(e));
+                        }
+                    });
+                } catch (Throwable e) {
+                    log.error("submit delete task fail: ", e);
+                    deleteFuture.completeExceptionally(e);
+                }
+                return deleteFuture.awaitOn(this::afterDelete);
             }
-            if (queue.size() > 1) {
-                queueStartPosition = queue.get(0).startPos;
-            } else {
-                queueStartPosition = 0;
-                queueEndPosition = 0;
+
+            private FrameCallResult afterDelete(Void unused) {
+                if (queue.size() > 1) {
+                    queue.removeFirst();
+                }
+                if (queue.size() > 1) {
+                    queueStartPosition = queue.get(0).startPos;
+                } else {
+                    queueStartPosition = 0;
+                    queueEndPosition = 0;
+                }
+                return Fiber.frameReturn();
             }
-            return Fiber.frameReturn();
-        }
+        };
     }
 }
