@@ -73,7 +73,7 @@ class LogFileQueue extends FileQueue {
         Restorer restorer = new Restorer(idxOps, this, stopIndicator,
                 restoreIndex, restoreIndexPos, firstValidPos);
         if (queue.size() == 0) {
-            tryAllocate();
+            tryAllocateAsync(0);
             logAppender.setNextPersistIndex(1);
             logAppender.setNextPersistPos(0);
             return FiberFrame.completedFrame(0);

@@ -71,15 +71,13 @@ public class DefaultRaftLog implements RaftLog {
                         statusManager, groupConfig, idxItemsPerFile, idxMaxCacheItems);
                 logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"),
                         groupConfig, idxFiles, appendCallback, logFileSize, logWriteBufferSize);
-                logFiles.init();
+                logFiles.initQueue();
                 RaftUtil.checkStop(stopIndicator);
-                idxFiles.init();
-                RaftUtil.checkStop(stopIndicator);
-
                 return Fiber.call(idxFiles.initRestorePos(), this::afterIdxFileQueueInit);
             }
 
             private FrameCallResult afterIdxFileQueueInit(Pair<Long, Long> p) {
+                RaftUtil.checkStop(stopIndicator);
                 if (p == null) {
                     raftStatus.setInstallSnapshot(true);
                     setResult(new Pair<>(0, 0L));
@@ -95,6 +93,8 @@ public class DefaultRaftLog implements RaftLog {
 
             private FrameCallResult afterLogRestore(int lastTerm) {
                 RaftUtil.checkStop(stopIndicator);
+                idxFiles.setInitialized(true);
+                logFiles.setInitialized(true);
                 if (idxFiles.getNextIndex() == 1) {
                     setResult(new Pair<>(0, 0L));
                 } else {

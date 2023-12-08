@@ -21,7 +21,6 @@ import com.github.dtprj.dongting.log.DtLogs;
 /**
  * @author huangli
  */
-@SuppressWarnings("rawtypes")
 public class Fiber {
     private static final DtLog log = DtLogs.getLogger(Fiber.class);
     protected final FiberGroup fiberGroup;
@@ -43,13 +42,14 @@ public class Fiber {
 
     WaitSource source;
 
+    @SuppressWarnings("rawtypes")
     FiberFrame stackTop;
 
-    public Fiber(String fiberName, FiberGroup fiberGroup, FiberFrame entryFrame) {
+    public Fiber(String fiberName, FiberGroup fiberGroup, FiberFrame<Void> entryFrame) {
         this(fiberName, fiberGroup, entryFrame, false);
     }
 
-    public Fiber(String fiberName, FiberGroup fiberGroup, FiberFrame entryFrame, boolean daemon) {
+    public Fiber(String fiberName, FiberGroup fiberGroup, FiberFrame<Void> entryFrame, boolean daemon) {
         this.fiberGroup = fiberGroup;
         this.fiberName = fiberName;
         this.stackTop = entryFrame;
@@ -88,6 +88,7 @@ public class Fiber {
         return FrameCallResult.RETURN;
     }
 
+    @SuppressWarnings("rawtypes")
     FiberFrame popFrame() {
         if (stackTop == null) {
             return null;
@@ -99,6 +100,7 @@ public class Fiber {
         }
     }
 
+    @SuppressWarnings("rawtypes")
     void pushFrame(FiberFrame frame) {
         if (stackTop != null) {
             frame.prev = stackTop;

@@ -70,6 +70,8 @@ abstract class FileQueue implements AutoCloseable {
     private FiberFuture<Void> allocateFuture;
     private FiberLock fileOpsLock;
 
+    protected boolean initialized;
+
     public FileQueue(File dir, RaftGroupConfig groupConfig, long fileSize) {
         this.dir = dir;
         this.ioExecutor = groupConfig.getIoExecutor();
@@ -94,7 +96,7 @@ abstract class FileQueue implements AutoCloseable {
     }
 
 
-    public void init() throws IOException {
+    protected void initQueue() throws IOException {
         File[] files = dir.listFiles();
         if (files == null || files.length == 0) {
             return;
@@ -143,12 +145,6 @@ abstract class FileQueue implements AutoCloseable {
         return queue.get(index);
     }
 
-    protected void tryAllocate() {
-        if (allocateFuture == null) {
-            allocateAsync();
-        }
-    }
-
     protected void tryAllocateAsync(long pos) {
         if (allocateFuture == null) {
             if (pos >= queueEndPosition - fileSize) {
@@ -158,7 +154,7 @@ abstract class FileQueue implements AutoCloseable {
         }
     }
 
-    protected FiberFrame<Void> ensureWritePosReady(long pos, boolean retry) {
+    protected FiberFrame<Void> ensureWritePosReady(long pos) {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -167,6 +163,7 @@ abstract class FileQueue implements AutoCloseable {
                         // resume on this method
                         return allocateFuture.awaitOn(this);
                     } else {
+                        boolean retry = initialized && !isGroupShouldStopPlain();
                         return Fiber.call(allocateSync(retry), this);
                     }
                 } else {
@@ -191,9 +188,9 @@ abstract class FileQueue implements AutoCloseable {
 
     private void allocateAsync() {
         allocateFuture = groupConfig.getFiberGroup().newFuture();
-        Fiber f = new Fiber("allocate-file", groupConfig.getFiberGroup(), new FiberFrame() {
+        Fiber f = new Fiber("allocate-file", groupConfig.getFiberGroup(), new FiberFrame<Void>() {
             @Override
-            public FrameCallResult execute(Object input) {
+            public FrameCallResult execute(Void input) {
                 return Fiber.call(new AllocateFrame(), this::justReturn);
             }
 
@@ -330,5 +327,9 @@ abstract class FileQueue implements AutoCloseable {
                 return Fiber.frameReturn();
             }
         };
+    }
+
+    public void setInitialized(boolean initialized) {
+        this.initialized = initialized;
     }
 }
