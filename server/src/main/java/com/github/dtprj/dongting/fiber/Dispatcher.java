@@ -51,13 +51,14 @@ public class Dispatcher extends AbstractLifeCircle {
     private boolean shouldStop = false;
 
     Object inputObj;
+    // fatal error will cause fiber exit
     private Throwable fatalError;
 
     public Dispatcher(String name) {
         thread = new DispatcherThead(this::run, name);
     }
 
-    public CompletableFuture<Void> start(FiberGroup fiberGroup) {
+    public CompletableFuture<Void> startGroup(FiberGroup fiberGroup) {
         CompletableFuture<Void> future = new CompletableFuture<>();
         boolean b = shareQueue.offer(new FiberQueueTask() {
             @Override
@@ -212,12 +213,13 @@ public class Dispatcher extends AbstractLifeCircle {
                         }
                     }
                     inputObj = currentFrame.result;
-                    currentFrame = fiber.popFrame();
+                    fiber.popFrame(); // remove self
+                    currentFrame = fiber.stackTop;
                 } else {
                     // call new frame
                     if (fiber.lastEx != null) {
                         fiber.lastEx = new FiberException(
-                                "usage fatal error: suspendCall() should be last statement", fiber.lastEx);
+                                "usage fatal error: suspend call should be last statement", fiber.lastEx);
                         break;
                     }
                     currentFrame = fiber.stackTop;

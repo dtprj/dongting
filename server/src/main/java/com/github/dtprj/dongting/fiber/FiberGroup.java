@@ -81,35 +81,20 @@ public class FiberGroup {
     /**
      * can call in any thread
      */
-    public void fireTask(Runnable task) {
-        // if the dispatcher stopped, no ops
-        dispatcher.doInDispatcherThread(new FiberQueueTask() {
-            @Override
-            protected void run() {
-                if (finished) {
-                    log.warn("group already finished, ignore task", task);
-                }
-                task.run();
-            }
-        });
-    }
-
-    /**
-     * can call in any thread
-     */
     public void requestShutdown() {
         // if the dispatcher stopped, no ops
-        dispatcher.doInDispatcherThread(new FiberQueueTask() {
+        Fiber shutdownGroupFiber = new Fiber("shutdownGroup", this, new FiberFrame<>() {
             @Override
-            protected void run() {
-                if ((boolean) SHOULD_STOP.get(this)) {
-                    return;
+            public FrameCallResult execute(Void input) {
+                if ((boolean) SHOULD_STOP.get(FiberGroup.this)) {
+                    return Fiber.frameReturn();
                 }
-                SHOULD_STOP.setVolatile(this, true);
+                SHOULD_STOP.setVolatile(FiberGroup.this, true);
                 shouldStopCondition.signalAll();
-                updateFinishStatus();
+                return Fiber.frameReturn();
             }
         });
+        fireFiber(shutdownGroupFiber);
     }
 
     public static FiberGroup currentGroup() {

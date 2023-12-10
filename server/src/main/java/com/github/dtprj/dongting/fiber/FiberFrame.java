@@ -49,7 +49,7 @@ public abstract class FiberFrame<O> implements FrameCall<Void> {
         this.fiberGroup = f.fiberGroup;
         this.prev = null;
         this.status = STATUS_INIT;
-        this.resumePoint = null;
+        this.resumePoint = this;
         this.result = null;
     }
 

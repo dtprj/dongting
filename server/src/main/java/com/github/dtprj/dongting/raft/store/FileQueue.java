@@ -298,10 +298,10 @@ abstract class FileQueue implements AutoCloseable {
                             log.info("delete log file: {}", logFile.file.getPath());
                             Files.delete(logFile.file.toPath());
 
-                            fiberGroup.fireTask(() -> deleteFuture.complete(null));
+                            deleteFuture.fireComplete(null);
                         } catch (Throwable e) {
                             log.error("delete file fail: ", logFile.file.getPath(), e);
-                            fiberGroup.fireTask(() -> deleteFuture.completeExceptionally(e));
+                            deleteFuture.fireCompleteExceptionally(e);
                         }
                     });
                 } catch (Throwable e) {
