@@ -143,10 +143,6 @@ public class RaftStatusImpl extends RaftStatus {
         this.error = errorState;
     }
 
-    public void setStop(boolean stop) {
-        this.stop = stop;
-    }
-
     public RaftRole getRole() {
         return role;
     }

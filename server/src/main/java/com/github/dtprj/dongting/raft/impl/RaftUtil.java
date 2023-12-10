@@ -15,12 +15,12 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 
 import java.nio.ByteBuffer;
-import java.util.function.Supplier;
 import java.util.zip.CRC32C;
 
 /**
@@ -42,8 +42,8 @@ public class RaftUtil {
         buf.position(oldPos);
     }
 
-    public static void checkStop(Supplier<Boolean> stopIndicator) {
-        if (stopIndicator.get()) {
+    public static void checkStop(FiberGroup fiberGroup) {
+        if (fiberGroup.isShouldStop()) {
             throw new RaftException("raft group stopped");
         }
     }

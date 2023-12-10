@@ -21,7 +21,6 @@ import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.util.concurrent.ExecutorService;
-import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -41,7 +40,6 @@ public class RaftGroupConfig {
     private RefBufferFactory directPool;
     private ExecutorService ioExecutor;
     private FiberGroup fiberGroup;
-    private Supplier<Boolean> stopIndicator;
     private RaftStatus raftStatus;
     private RaftCodecFactory codecFactory;
 
@@ -110,14 +108,6 @@ public class RaftGroupConfig {
 
     public void setFiberGroup(FiberGroup fiberGroup) {
         this.fiberGroup = fiberGroup;
-    }
-
-    public Supplier<Boolean> getStopIndicator() {
-        return stopIndicator;
-    }
-
-    public void setStopIndicator(Supplier<Boolean> stopIndicator) {
-        this.stopIndicator = stopIndicator;
     }
 
     public RaftStatus getRaftStatus() {

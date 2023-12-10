@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
@@ -39,6 +40,7 @@ public class DefaultRaftLog implements RaftLog {
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
     private final StatusManager statusManager;
+    private final FiberGroup fiberGroup = FiberGroup.currentGroup();
     LogFileQueue logFiles;
     IdxFileQueue idxFiles;
 
@@ -60,7 +62,6 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public FiberFrame<Pair<Integer, Long>> init(AppendCallback appendCallback) throws Exception {
-        Supplier<Boolean> stopIndicator = raftStatus::isStop;
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) throws Exception {
@@ -71,12 +72,12 @@ public class DefaultRaftLog implements RaftLog {
                 logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"),
                         groupConfig, idxFiles, appendCallback, logFileSize);
                 logFiles.init();
-                RaftUtil.checkStop(stopIndicator);
+                RaftUtil.checkStop(fiberGroup);
                 return Fiber.call(idxFiles.initRestorePos(), this::afterIdxFileQueueInit);
             }
 
             private FrameCallResult afterIdxFileQueueInit(Pair<Long, Long> p) {
-                RaftUtil.checkStop(stopIndicator);
+                RaftUtil.checkStop(fiberGroup);
                 if (p == null) {
                     raftStatus.setInstallSnapshot(true);
                     setResult(new Pair<>(0, 0L));
@@ -86,12 +87,12 @@ public class DefaultRaftLog implements RaftLog {
                 long restoreIndexPos = p.getRight();
                 long firstValidPos = Long.parseLong(statusManager.getProperties()
                         .getProperty(KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT, "0"));
-                return Fiber.call(logFiles.restore(restoreIndex, restoreIndexPos, firstValidPos, stopIndicator),
+                return Fiber.call(logFiles.restore(restoreIndex, restoreIndexPos, firstValidPos),
                         this::afterLogRestore);
             }
 
             private FrameCallResult afterLogRestore(int lastTerm) {
-                RaftUtil.checkStop(stopIndicator);
+                RaftUtil.checkStop(fiberGroup);
                 idxFiles.setInitialized(true);
                 logFiles.setInitialized(true);
                 if (idxFiles.getNextIndex() == 1) {

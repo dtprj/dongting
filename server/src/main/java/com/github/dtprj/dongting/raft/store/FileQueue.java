@@ -42,7 +42,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -56,7 +55,6 @@ abstract class FileQueue implements AutoCloseable {
     protected final File dir;
 
     protected final ExecutorService ioExecutor;
-    protected final Supplier<Boolean> stopIndicator;
     protected final RaftGroupConfig groupConfig;
     private final RaftStatusImpl raftStatus;
 
@@ -75,7 +73,6 @@ abstract class FileQueue implements AutoCloseable {
     public FileQueue(File dir, RaftGroupConfig groupConfig, long fileSize) {
         this.dir = dir;
         this.ioExecutor = groupConfig.getIoExecutor();
-        this.stopIndicator = groupConfig.getStopIndicator();
         this.groupConfig = groupConfig;
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
 

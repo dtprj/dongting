@@ -141,7 +141,7 @@ class LogAppender {
     }
 
     private ByteBuffer borrowBuffer(int size) {
-        size = Math.min(size, 128 * 1024);
+        size = Math.min(size, LogFileQueue.MAX_WRITE_BUFFER_SIZE);
         return groupConfig.getDirectPool().getPool().borrow(size);
     }
 

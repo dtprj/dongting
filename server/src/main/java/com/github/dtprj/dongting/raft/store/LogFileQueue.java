@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -30,7 +31,6 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -39,7 +39,9 @@ class LogFileQueue extends FileQueue {
     private static final DtLog log = DtLogs.getLogger(LogFileQueue.class);
 
     public static final long DEFAULT_LOG_FILE_SIZE = 1024 * 1024 * 1024;
-    public static final int DEFAULT_WRITE_BUFFER_SIZE = 128 * 1024;
+    public static final int MAX_WRITE_BUFFER_SIZE = 128 * 1024;
+
+    private final FiberGroup fiberGroup = FiberGroup.currentGroup();
 
     protected final RefBufferFactory heapPool;
     protected final RefBufferFactory directPool;
@@ -69,10 +71,9 @@ class LogFileQueue extends FileQueue {
         return fileSize;
     }
 
-    public FiberFrame<Integer> restore(long restoreIndex, long restoreIndexPos, long firstValidPos,
-                                       Supplier<Boolean> stopIndicator) {
+    public FiberFrame<Integer> restore(long restoreIndex, long restoreIndexPos, long firstValidPos) {
         log.info("start restore from {}, {}", restoreIndex, restoreIndexPos);
-        Restorer restorer = new Restorer(idxOps, this, stopIndicator,
+        Restorer restorer = new Restorer(idxOps, this,
                 restoreIndex, restoreIndexPos, firstValidPos);
         if (queue.size() == 0) {
             tryAllocateAsync(0);
@@ -89,10 +90,10 @@ class LogFileQueue extends FileQueue {
         return new FiberFrame<>() {
             long writePos = 0;
             int i = 0;
-            ByteBuffer buffer = directPool.getPool().borrow(DEFAULT_WRITE_BUFFER_SIZE);
+            ByteBuffer buffer = directPool.getPool().borrow(MAX_WRITE_BUFFER_SIZE);
             @Override
             public FrameCallResult execute(Void input) {
-                RaftUtil.checkStop(stopIndicator);
+                RaftUtil.checkStop(fiberGroup);
                 if (i >= queue.size()) {
                     // finish loop
                     return finish();
