@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -44,7 +45,7 @@ class LogFileQueue extends FileQueue {
     private final FiberGroup fiberGroup = FiberGroup.currentGroup();
 
     protected final RefBufferFactory heapPool;
-    protected final RefBufferFactory directPool;
+    protected final ByteBufferPool directPool;
 
     private final IdxOps idxOps;
 
@@ -90,7 +91,7 @@ class LogFileQueue extends FileQueue {
         return new FiberFrame<>() {
             long writePos = 0;
             int i = 0;
-            ByteBuffer buffer = directPool.getPool().borrow(MAX_WRITE_BUFFER_SIZE);
+            ByteBuffer buffer = directPool.borrow(MAX_WRITE_BUFFER_SIZE);
             @Override
             public FrameCallResult execute(Void input) {
                 RaftUtil.checkStop(fiberGroup);
@@ -135,7 +136,7 @@ class LogFileQueue extends FileQueue {
 
             @Override
             protected FrameCallResult doFinally() {
-                directPool.getPool().release(buffer);
+                directPool.release(buffer);
                 return super.doFinally();
             }
         };

@@ -142,7 +142,7 @@ class LogAppender {
 
     private ByteBuffer borrowBuffer(int size) {
         size = Math.min(size, LogFileQueue.MAX_WRITE_BUFFER_SIZE);
-        return groupConfig.getDirectPool().getPool().borrow(size);
+        return groupConfig.getDirectPool().borrow(size);
     }
 
     private FrameCallResult afterPosReady(Void unused) throws Exception {
@@ -195,7 +195,7 @@ class LogAppender {
         if (buffer.position() > 0) {
             write(file, buffer);
         } else {
-            groupConfig.getDirectPool().getPool().release(buffer);
+            groupConfig.getDirectPool().release(buffer);
         }
 
         nextPersistIndex += items.size();
@@ -314,7 +314,7 @@ class LogAppender {
     }
 
     private void processWriteResult(WriteTask wt, Throwable ex) {
-        groupConfig.getDirectPool().getPool().release(wt.buffer);
+        groupConfig.getDirectPool().release(wt.buffer);
         if (fiberGroup.isShouldStop()) {
             return;
         }

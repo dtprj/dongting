@@ -329,14 +329,14 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 // don't cross file
                 len = (int) (fileSize - startIdxPos);
             }
-            buf = groupConfig.getDirectPool().getPool().borrow(len);
+            buf = groupConfig.getDirectPool().borrow(len);
             buf.limit(len);
         }
 
         @Override
         protected FrameCallResult doFinally() {
             logFile.descUseCount();
-            groupConfig.getDirectPool().getPool().release(buf);
+            groupConfig.getDirectPool().release(buf);
             return super.doFinally();
         }
     }
