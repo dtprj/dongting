@@ -167,7 +167,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     @Override
-    public FiberFrame<Void> put(long itemIndex, long dataPosition) {
+    public void put(long itemIndex, long dataPosition) {
         if (itemIndex > nextIndex) {
             throw new RaftException("index not match : " + nextIndex + ", " + itemIndex);
         }
@@ -185,32 +185,35 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         removeHead();
         cache.put(itemIndex, dataPosition);
         nextIndex = itemIndex + 1;
-
         tryAllocateAsync(indexToPos(nextIndex));
-
         if (shouldFlush()) {
             needFlushCondition.signal();
         }
-        if (cache.size() >= maxCacheItems) {
-            // block until flush done
-            return new FiberFrame<>() {
-                @Override
-                public FrameCallResult execute(Void input) {
-                    log.warn("cache size exceed {}: {}", maxCacheItems, cache.size());
-                    return flushDoneCondition.awaitOn(this::afterFlush);
-                }
+    }
 
-                private FrameCallResult afterFlush(Void unused) {
-                    removeHead();
-                    if (shouldFlush()) {
-                        needFlushCondition.signal();
-                    }
-                    return Fiber.frameReturn();
+    @Override
+    public boolean needWaitFlush() {
+        return cache.size() >= maxCacheItems;
+    }
+
+    @Override
+    public FiberFrame<Void> waitFlush() {
+        // block until flush done
+        return new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                log.warn("cache size exceed {}: {}", maxCacheItems, cache.size());
+                return flushDoneCondition.awaitOn(this::afterFlush);
+            }
+
+            private FrameCallResult afterFlush(Void unused) {
+                removeHead();
+                if (shouldFlush()) {
+                    needFlushCondition.signal();
                 }
-            };
-        } else {
-            return FiberFrame.voidCompletedFrame();
-        }
+                return Fiber.frameReturn();
+            }
+        };
     }
 
     private long getFlushDiff() {

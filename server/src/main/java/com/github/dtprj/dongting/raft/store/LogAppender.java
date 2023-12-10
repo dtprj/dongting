@@ -105,6 +105,9 @@ class LogAppender {
 
         @Override
         public FrameCallResult execute(Void input) {
+            if (idxOps.needWaitFlush()) {
+                return Fiber.call(idxOps.waitFlush(), this);
+            }
             TailCache tailCache = LogAppender.this.cache;
             long nextPersistIndex = LogAppender.this.nextPersistIndex;
             if (tailCache.size() > 0 && tailCache.getLastIndex() > nextPersistIndex) {

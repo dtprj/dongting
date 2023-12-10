@@ -165,6 +165,10 @@ class Restorer {
         private FrameCallResult afterRead(int readBytes) {
             buffer.flip();
             int result = restore(buffer, lf);
+            return Fiber.call(idxOps.waitFlush(), v->afterIdxFlush(readBytes, result));
+        }
+
+        private FrameCallResult afterIdxFlush(int readBytes, int result) {
             switch (result) {
                 case RT_CONTINUE_LOAD:
                     StoreUtil.prepareNextRead(buffer);

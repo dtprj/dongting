@@ -23,6 +23,10 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
  * @author huangli
  */
 interface IdxOps {
-    FiberFrame<Void> put(long index, long position);
+    void put(long index, long position);
+
+    boolean needWaitFlush();
+
+    FiberFrame<Void> waitFlush();
     FrameCallResult loadLogPos(long itemIndex, FrameCall<Long> resumePoint) throws Throwable;
 }
