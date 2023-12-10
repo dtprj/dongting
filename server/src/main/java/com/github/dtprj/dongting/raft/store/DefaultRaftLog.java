@@ -48,7 +48,6 @@ public class DefaultRaftLog implements RaftLog {
     int idxItemsPerFile = IdxFileQueue.DEFAULT_ITEMS_PER_FILE;
     int idxMaxCacheItems = IdxFileQueue.DEFAULT_MAX_CACHE_ITEMS;
     long logFileSize = LogFileQueue.DEFAULT_LOG_FILE_SIZE;
-    int logWriteBufferSize = LogFileQueue.DEFAULT_WRITE_BUFFER_SIZE;
 
     public DefaultRaftLog(RaftGroupConfig groupConfig, StatusManager statusManager) {
         this.groupConfig = groupConfig;
@@ -70,8 +69,8 @@ public class DefaultRaftLog implements RaftLog {
                 idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"),
                         statusManager, groupConfig, idxItemsPerFile, idxMaxCacheItems);
                 logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"),
-                        groupConfig, idxFiles, appendCallback, logFileSize, logWriteBufferSize);
-                logFiles.initQueue();
+                        groupConfig, idxFiles, appendCallback, logFileSize);
+                logFiles.init();
                 RaftUtil.checkStop(stopIndicator);
                 return Fiber.call(idxFiles.initRestorePos(), this::afterIdxFileQueueInit);
             }

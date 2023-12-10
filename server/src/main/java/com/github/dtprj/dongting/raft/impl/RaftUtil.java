@@ -30,6 +30,9 @@ public class RaftUtil {
     private static final DtLog log = DtLogs.getLogger(RaftUtil.class);
 
     public static void updateCrc(CRC32C crc32c, ByteBuffer buf, int startPos, int len) {
+        if (len == 0) {
+            return;
+        }
         int oldPos = buf.position();
         int oldLimit = buf.limit();
         buf.limit(startPos + len);

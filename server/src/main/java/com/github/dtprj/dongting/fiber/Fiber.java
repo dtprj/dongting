@@ -77,11 +77,11 @@ public class Fiber {
         return FrameCallResult.SUSPEND;
     }
 
-    public static FrameCallResult fatal(Throwable ex) throws Throwable {
+    public static FrameCallResult fatal(Throwable ex) {
         log.error("encountered fatal error, raft group will shutdown", ex);
         DispatcherThead t = DispatcherThead.currentDispatcherThread();
         t.currentGroup.requestShutdown();
-        throw ex;
+        throw new FiberException("encountered fatal error, raft group will shutdown", ex);
     }
 
     public static FrameCallResult frameReturn() {

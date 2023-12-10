@@ -132,7 +132,7 @@ public class StatusManager implements AutoCloseable {
         }
 
         @Override
-        protected FrameCallResult handle(Throwable ex) throws Throwable {
+        protected FrameCallResult handle(Throwable ex) {
             updateDoneCondition.signalAll();
             log.error("update status file error", ex);
             return Fiber.fatal(ex);

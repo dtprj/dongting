@@ -28,6 +28,7 @@ import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.function.Supplier;
 
@@ -46,12 +47,14 @@ class LogFileQueue extends FileQueue {
     private final IdxOps idxOps;
 
     private final Timestamp ts;
-    private final ByteBuffer writeBuffer;
 
     private final LogAppender logAppender;
 
+    // read in io thread
+    private volatile boolean closed;
+
     public LogFileQueue(File dir, RaftGroupConfig groupConfig, IdxOps idxOps, RaftLog.AppendCallback callback,
-                        long fileSize, int writeBufferSize) {
+                        long fileSize) {
         super(dir, groupConfig, fileSize);
         this.idxOps = idxOps;
         this.ts = groupConfig.getTs();
@@ -59,8 +62,7 @@ class LogFileQueue extends FileQueue {
         this.heapPool = groupConfig.getHeapPool();
         this.directPool = groupConfig.getDirectPool();
 
-        this.writeBuffer = ByteBuffer.allocateDirect(writeBufferSize);
-        this.logAppender = new LogAppender(idxOps, this, groupConfig, writeBuffer, callback);
+        this.logAppender = new LogAppender(idxOps, this, groupConfig, callback);
     }
 
     public long fileLength() {
@@ -87,6 +89,7 @@ class LogFileQueue extends FileQueue {
         return new FiberFrame<>() {
             long writePos = 0;
             int i = 0;
+            ByteBuffer buffer = directPool.getPool().borrow(DEFAULT_WRITE_BUFFER_SIZE);
             @Override
             public FrameCallResult execute(Void input) {
                 RaftUtil.checkStop(stopIndicator);
@@ -95,7 +98,7 @@ class LogFileQueue extends FileQueue {
                     return finish();
                 }
                 LogFile lf = queue.get(i);
-                return Fiber.call(restorer.restoreFile(writeBuffer, lf),
+                return Fiber.call(restorer.restoreFile(buffer, lf),
                         this::afterRestoreSingleFile);
             }
 
@@ -128,10 +131,39 @@ class LogFileQueue extends FileQueue {
                 setResult(restorer.previousTerm);
                 return Fiber.frameReturn();
             }
+
+            @Override
+            protected FrameCallResult doFinally() {
+                directPool.getPool().release(buffer);
+                return super.doFinally();
+            }
         };
+    }
+
+    public void append() {
+        logAppender.append();
+    }
+
+    public long nextFilePos(long absolutePos) {
+        return ((absolutePos >>> fileLenShiftBits) + 1) << fileLenShiftBits;
     }
 
     public long filePos(long absolutePos) {
         return absolutePos & fileLenMask;
+    }
+
+    public void init() throws IOException {
+        super.initQueue();
+        logAppender.startFiber();
+    }
+
+    @Override
+    public void close() {
+        closed = true;
+        super.close();
+    }
+
+    public boolean isClosed() {
+        return closed;
     }
 }
