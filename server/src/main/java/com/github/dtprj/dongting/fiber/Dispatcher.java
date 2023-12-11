@@ -115,6 +115,7 @@ public class Dispatcher extends AbstractLifeCircle {
                 log.error("dispatcher run task fail", e);
             }
         }
+        localData.clear();
 
         len = readyGroups.size();
         for (int i = 0; i < len; i++) {
@@ -138,6 +139,12 @@ public class Dispatcher extends AbstractLifeCircle {
                 break;
             }
             scheduleQueue.poll();
+            if (f.fiberGroup.finished) {
+                if (!f.daemon) {
+                    BugLog.getLog().error("group finished, but suspend fiber is not daemon: {}", f.getFiberName());
+                }
+                continue;
+            }
             if (f.source != null) {
                 f.source.removeWaiter(f);
                 if (f.source != f.fiberGroup.shouldStopCondition) {
@@ -214,7 +221,6 @@ public class Dispatcher extends AbstractLifeCircle {
                     }
                     inputObj = currentFrame.result;
                     fiber.popFrame(); // remove self
-                    currentFrame = fiber.stackTop;
                 } else {
                     // call new frame
                     if (fiber.lastEx != null) {
@@ -222,8 +228,8 @@ public class Dispatcher extends AbstractLifeCircle {
                                 "usage fatal error: suspend call should be last statement", fiber.lastEx);
                         break;
                     }
-                    currentFrame = fiber.stackTop;
                 }
+                currentFrame = fiber.stackTop;
             }
             if (fiber.lastEx != null) {
                 log.error("fiber execute error, group={}, fiber={}", g.getName(), fiber.getFiberName(), fiber.lastEx);
@@ -436,12 +442,11 @@ public class Dispatcher extends AbstractLifeCircle {
         return shouldStop && groups.isEmpty();
     }
 
-    boolean doInDispatcherThread(FiberQueueTask r) {
+    void doInDispatcherThread(FiberQueueTask r) {
         if (Thread.currentThread() == thread) {
             r.run();
-            return true;
         } else {
-            return shareQueue.offer(r);
+            shareQueue.offer(r);
         }
     }
 
