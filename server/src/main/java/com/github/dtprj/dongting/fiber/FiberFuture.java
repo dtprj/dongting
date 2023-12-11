@@ -110,32 +110,10 @@ public class FiberFuture<T> extends WaitSource {
         return Dispatcher.awaitOn(this, millis, resumePoint);
     }
 
-    public FiberFrame<T> toFrame() {
-        return toFrame(0);
-    }
-
-    public FiberFrame<T> toFrame(long timeTimeoutMillis) {
-        return new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                return awaitOn(timeTimeoutMillis, this::resume);
-            }
-
-            private FrameCallResult resume(T t) {
-                setResult(t);
-                return Fiber.frameReturn();
-            }
-        };
-    }
-
-    /**
-     * this method should call in dispatcher thread
-     */
-    public void registerCallback(FiberFrame<Void> callbackFiberEntryFrame) {
+    private void registerCallback(FiberFrame<Void> callback) {
         group.checkThread();
-        Fiber f = new Fiber("future-callback", group, callbackFiberEntryFrame);
-        f.source = this;
-        f.start();
+        Fiber callbackFiber = new Fiber("future-callback", group, callback);
+        callbackFiber.start();
     }
 
     /**
@@ -146,7 +124,11 @@ public class FiberFuture<T> extends WaitSource {
             @Override
             public FrameCallResult execute(Void input) {
                 FiberFuture<T> f = FiberFuture.this;
-                callback.accept(f.execResult, null);
+                return f.awaitOn(this::resume);
+            }
+
+            private FrameCallResult resume(T t) {
+                callback.accept(t, null);
                 return Fiber.frameReturn();
             }
 
@@ -167,8 +149,11 @@ public class FiberFuture<T> extends WaitSource {
             @Override
             public FrameCallResult execute(Void input) {
                 FiberFuture<T> f = FiberFuture.this;
-                T2 r2 = converter.apply(f.execResult);
-                newFuture.complete(r2);
+                return f.awaitOn(this::resume);
+            }
+
+            private FrameCallResult resume(T t) {
+                newFuture.complete(converter.apply(t));
                 return Fiber.frameReturn();
             }
 

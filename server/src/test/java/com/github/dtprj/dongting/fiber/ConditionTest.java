@@ -29,8 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class ConditionTest extends AbstractFiberTest {
 
     @Test
-    public void testCondition() throws Exception {
-        CountDownLatch latch = new CountDownLatch(1);
+    public void testTimeout() {
         FiberCondition c = group.newCondition();
         AtomicBoolean error = new AtomicBoolean();
         AtomicBoolean finish = new AtomicBoolean();
@@ -41,12 +40,35 @@ public class ConditionTest extends AbstractFiberTest {
             }
 
             private FrameCallResult resume(Void v) {
-                // timeout
-                latch.countDown();
-                return c.awaitOn(1000000, this::resume2);
+                finish.set(true);
+                return Fiber.frameReturn();
             }
 
-            private FrameCallResult resume2(Void v) {
+            @Override
+            protected FrameCallResult handle(Throwable ex) {
+                error.set(true);
+                return Fiber.frameReturn();
+            }
+        });
+        group.fireFiber(f);
+        TestUtil.waitUtil(finish::get);
+        Assertions.assertFalse(error.get());
+    }
+
+    @Test
+    public void testSignal() throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        FiberCondition c = group.newCondition();
+        AtomicBoolean error = new AtomicBoolean();
+        AtomicBoolean finish = new AtomicBoolean();
+        Fiber f = new Fiber("f", group, new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                latch.countDown();
+                return c.awaitOn(100000, this::resume);
+            }
+
+            private FrameCallResult resume(Void v) {
                 finish.set(true);
                 return Fiber.frameReturn();
             }
@@ -73,7 +95,7 @@ public class ConditionTest extends AbstractFiberTest {
     }
 
     @Test
-    public void testConditionInterrupt() throws Exception {
+    public void testInterrupt() throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         FiberCondition c = group.newCondition();
         AtomicBoolean interrupt = new AtomicBoolean();

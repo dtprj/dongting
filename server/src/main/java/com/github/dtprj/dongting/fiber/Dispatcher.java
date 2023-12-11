@@ -311,10 +311,10 @@ public class Dispatcher extends AbstractLifeCircle {
         checkReentry(fiber);
         FiberFrame currentFrame = fiber.stackTop;
         currentFrame.resumePoint = resumePoint;
+        fiber.source = c;
         if (!c.shouldWait(fiber)) {
             return FrameCallResult.RETURN;
         }
-        fiber.source = c;
         fiber.ready = false;
         if (millis > 0) {
             fiber.fiberGroup.dispatcher.addToScheduleQueue(millis, fiber);
@@ -398,7 +398,7 @@ public class Dispatcher extends AbstractLifeCircle {
         if (fiber.finished || fiber.fiberGroup.finished) {
             return;
         }
-        if (fiber.ready) {
+        if (!fiber.started || fiber.ready) {
             fiber.interrupted = true;
         } else {
             if (fiber.source != null) {

@@ -32,12 +32,11 @@ abstract class WaitSource {
     void addWaiter(Fiber f) {
         if (firstWaiter == null) {
             firstWaiter = f;
-            lastWaiter = f;
         } else {
             lastWaiter.nextWaiter = f;
             f.previousWaiter = lastWaiter;
-            lastWaiter = f;
         }
+        lastWaiter = f;
     }
 
     void removeWaiter(Fiber f) {

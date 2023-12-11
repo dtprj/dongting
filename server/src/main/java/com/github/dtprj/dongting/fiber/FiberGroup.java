@@ -141,17 +141,7 @@ public class FiberGroup {
         } else {
             normalFibers.add(f);
         }
-        if (f.source == null) {
-            tryMakeFiberReady(f, false);
-        } else {
-            // the fiber is future callback fiber
-            FiberFuture<?> future = (FiberFuture<?>) f.source;
-            if (future.isDone()) {
-                tryMakeFiberReady(f, true);
-            } else {
-                future.addWaiter(f);
-            }
-        }
+        tryMakeFiberReady(f, false);
     }
 
     void removeFiber(Fiber f) {
