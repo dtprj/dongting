@@ -24,11 +24,17 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author huangli
  */
 class FiberQueue {
+    private static FiberQueueTask TAIL = new FiberQueueTask() {
+        @Override
+        protected void run() {
+        }
+    };
+
     private final ReentrantLock lock = new ReentrantLock();
     private final Condition notEmpty = lock.newCondition();
 
-    private FiberQueueTask head;
-    private FiberQueueTask tail;
+    private FiberQueueTask head = TAIL;
+    private FiberQueueTask tail = TAIL;
     private boolean shutdown;
 
     public FiberQueue() {
@@ -40,12 +46,17 @@ class FiberQueue {
             if (shutdown) {
                 return false;
             }
-            if (head == null) {
+            if (task.next != null) {
+                throw new FiberException("FiberQueueTask is already in queue");
+            }
+            if (head == TAIL) {
                 head = tail = task;
+                task.next = TAIL;
                 notEmpty.signal();
             } else {
                 tail.next = task;
                 tail = task;
+                task.next = TAIL;
             }
             return true;
         } finally {
@@ -56,17 +67,18 @@ class FiberQueue {
     public FiberQueueTask poll(long timeout, TimeUnit timeUnit) throws InterruptedException {
         lock.lock();
         try {
-            if (head == null) {
+            if (head == TAIL) {
                 if (!notEmpty.await(timeout, timeUnit)) {
                     return null;
                 }
             }
             FiberQueueTask result = head;
-            if (result.next == null) {
-                head = tail = null;
+            if (result.next == TAIL) {
+                head = tail = TAIL;
             } else {
                 head = result.next;
             }
+            result.next = null;
             return result;
         } finally {
             lock.unlock();
@@ -77,11 +89,13 @@ class FiberQueue {
         lock.lock();
         try {
             FiberQueueTask task = head;
-            while (task != null) {
+            while (task != TAIL) {
                 list.add(task);
+                FiberQueueTask tmp = task;
                 task = task.next;
+                tmp.next = null;
             }
-            head = tail = null;
+            head = tail = TAIL;
         } finally {
             lock.unlock();
         }
