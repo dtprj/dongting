@@ -114,8 +114,7 @@ public class FiberGroup {
     }
 
     public <T> FiberChannel<T> newChannel() {
-        FiberChannel<T> channel = new FiberChannel<>(this);
-        return channel;
+        return new FiberChannel<>(this);
     }
 
     public FiberLock newLock() {
@@ -136,10 +135,7 @@ public class FiberGroup {
             BugLog.getLog().error("fiber already started: {}", f.getFiberName());
             return;
         }
-        if (finished) {
-            log.error("group already finished");
-            return;
-        }
+        f.started = true;
         if (f.daemon) {
             daemonFibers.add(f);
         } else {

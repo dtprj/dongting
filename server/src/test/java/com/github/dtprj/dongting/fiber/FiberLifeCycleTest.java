@@ -15,43 +15,16 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.raft.test.TestUtil;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * @author huangli
  */
-public class FiberLifeCycleTest {
-    private Dispatcher dispatcher;
-    private FiberGroup group;
-
-    @BeforeEach
-    public void setup() throws Exception {
-        dispatcher = new Dispatcher("test");
-        dispatcher.start();
-        group = new FiberGroup("test group", dispatcher);
-        dispatcher.startGroup(group).get();
-    }
-
-    @AfterEach
-    public void tearDown() throws Exception {
-        if (dispatcher.thread.isAlive()) {
-            dispatcher.stop(new DtTime(1, TimeUnit.SECONDS));
-            dispatcher.thread.join(1000);
-            Assertions.assertFalse(dispatcher.thread.isAlive());
-            assertTrue(group.finished);
-        }
-    }
+public class FiberLifeCycleTest extends AbstractFiberTest {
 
     @Test
     public void testDispatcherStop() {

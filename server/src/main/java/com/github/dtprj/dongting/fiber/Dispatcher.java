@@ -147,7 +147,7 @@ public class Dispatcher extends AbstractLifeCircle {
             }
             if (f.source != null) {
                 f.source.removeWaiter(f);
-                if (f.source != f.fiberGroup.shouldStopCondition) {
+                if (!(f.source instanceof FiberCondition)) {
                     f.lastEx = new FiberTimeoutException("wait " + f.source + "timeout:" + f.scheduleTimeoutMillis + "ms");
                     f.stackTop.resumePoint = null;
                 }
