@@ -36,23 +36,30 @@ public class TwoLevelPool extends ByteBufferPool {
 
     private static SimpleByteBufferPool GLOBAL_POOL;
 
+    public static final int[] DEFAULT_GLOBAL_SIZE = new int[]{32 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 512 * 1024,
+            1024 * 1024, 2 * 1024 * 1024, 4 * 1024 * 1024};
+    // 2,621,440 bytes
+    public static final int[] DEFAULT_GLOBAL_MIN_COUNT = new int[]{16, 8, 4, 2, 1, 0, 0, 0};
+    // 104,857,600 bytes
+    public static final int[] DEFAULT_GLOBAL_MAX_COUNT = new int[]{128, 128, 64, 64, 32, 16, 8, 4};
+
+    public static final int[] DEFAULT_SMALL_SIZE = new int[]{128, 256, 512, 1024, 2048, 4096, 8192, 16384};
+    // 557,056 bytes
+    public static final int[] DEFAULT_SMALL_MIN_COUNT = new int[]{128, 64, 32, 16, 16, 16, 16, 16};
+    // 18,874,368 bytes
+    public static final int[] DEFAULT_SMALL_MAX_COUNT = new int[]{8192, 4096, 2048, 1024, 1024, 1024, 512, 256};
+
     private static BiFunction<Timestamp, Boolean, ByteBufferPool> DEFAULT_FACTORY = (ts, direct) -> {
         synchronized (TwoLevelPool.class) {
             if (GLOBAL_POOL == null) {
-                int[] bufSize = new int[]{32 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 512 * 1024,
-                        1024 * 1024, 2 * 1024 * 1024, 4 * 1024 * 1024};
-                int[] minCount = new int[]{16, 8, 4, 2, 1, 0, 0, 0};
-                int[] maxCount = new int[]{128, 128, 64, 64, 32, 16, 8, 4};
                 // Thread safe pool should use a dedicated timestamp
                 GLOBAL_POOL = new SimpleByteBufferPool(null, direct, 0, true,
-                        bufSize, minCount, maxCount, 30000);
+                        DEFAULT_GLOBAL_SIZE, DEFAULT_GLOBAL_MIN_COUNT, DEFAULT_GLOBAL_MAX_COUNT,30000);
             }
         }
-        int[] bufSize = new int[]{128, 256, 512, 1024, 2048, 4096, 8192, 16384};
-        int[] minCount = new int[]{128, 64, 32, 16, 16, 16, 16, 16};
-        int[] maxCount = new int[]{8192, 4096, 2048, 1024, 1024, 1024, 512, 256};
+
         SimpleByteBufferPool p1 = new SimpleByteBufferPool(ts, direct, 64, false,
-                bufSize, minCount, maxCount, 10000);
+                DEFAULT_SMALL_SIZE, DEFAULT_SMALL_MIN_COUNT, DEFAULT_SMALL_MAX_COUNT, 10000);
         return new TwoLevelPool(direct, p1, GLOBAL_POOL, 16 * 1024);
     };
 

@@ -14,11 +14,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author <a href="mailto:areyouok@gmail.com">huangli</a>
@@ -268,16 +264,24 @@ public class SimpleByteBufferPoolTest {
     }
 
     public static void main(String[] args) {
-        int[] bufSize = new int[]{32 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 512 * 1024, 1024 * 1024, 2 * 1024 * 1024, 4 * 1024 * 1024};
-        int[] minCount = new int[]{16, 8, 4, 2, 1, 0, 0, 0};
-        int[] maxCount = new int[]{128, 128, 64, 64, 32, 16, 8, 4};
+        calcSize("default SimpleByteBufferPool", SimpleByteBufferPool.DEFAULT_BUF_SIZE,
+                SimpleByteBufferPool.DEFAULT_MIN_COUNT, SimpleByteBufferPool.DEFAULT_MAX_COUNT);
+
+        calcSize("default two level global", TwoLevelPool.DEFAULT_GLOBAL_SIZE,
+                TwoLevelPool.DEFAULT_GLOBAL_MIN_COUNT, TwoLevelPool.DEFAULT_GLOBAL_MAX_COUNT);
+
+        calcSize("default two level small", TwoLevelPool.DEFAULT_SMALL_SIZE,
+                TwoLevelPool.DEFAULT_SMALL_MIN_COUNT, TwoLevelPool.DEFAULT_SMALL_MAX_COUNT);
+    }
+
+    private static void calcSize(String name, int[] bufSize, int[] minCount, int[] maxCount) {
         long totalMax = 0;
         long totalMin = 0;
         for (int i = 0; i < bufSize.length; i++) {
             totalMax += (long) bufSize[i] * maxCount[i];
             totalMin += (long) bufSize[i] * minCount[i];
         }
-        System.out.printf("max:%,d\nmin:%,d", totalMax, totalMin);
+        System.out.printf("%s\nmax:%,d\nmin:%,d\n\n", name, totalMax, totalMin);
     }
 
 }

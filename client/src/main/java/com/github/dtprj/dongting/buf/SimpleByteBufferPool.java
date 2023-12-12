@@ -48,10 +48,12 @@ public class SimpleByteBufferPool extends ByteBufferPool {
             32 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 512 * 1024, 1024 * 1024, 2 * 1024 * 1024,
             4 * 1024 * 1024};
 
+    // 111,149,056 bytes
     public static final int[] DEFAULT_MAX_COUNT = new int[]{1024, 512, 256, 128, 128,
             128, 128, 64, 64, 32, 16, 8,
             4};
 
+    // 3,129,344 bytes
     public static final int[] DEFAULT_MIN_COUNT = new int[]{16, 16, 16, 16, 16,
             16, 8, 4, 2, 1, 0, 0,
             0};
