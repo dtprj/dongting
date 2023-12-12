@@ -61,7 +61,7 @@ abstract class WaitSource {
         f.previousWaiter = null;
     }
 
-    private Fiber popTailWaiter() {
+    Fiber popTailWaiter() {
         Fiber result = lastWaiter;
         if (result != null) {
             if (result == firstWaiter) {
@@ -76,7 +76,7 @@ abstract class WaitSource {
         return result;
     }
 
-    private Fiber popHeadWaiter() {
+    Fiber popHeadWaiter() {
         Fiber result = firstWaiter;
         if (result != null) {
             if (result == lastWaiter) {
