@@ -215,7 +215,7 @@ public class Dispatcher extends AbstractLifeCircle {
                             continue;
                         } else {
                             // user code throws ex after called awaitOn
-                            BugLog.getLog().error("usage fatal error: throw ex after called awaitOn", fiber.lastEx);
+                            BugLog.getLog().error("usage fatal error: throw ex after suspend call", fiber.lastEx);
                             break;
                         }
                     }
@@ -224,6 +224,7 @@ public class Dispatcher extends AbstractLifeCircle {
                 } else {
                     // call new frame
                     if (fiber.lastEx != null) {
+                        BugLog.getLog().error("usage fatal error: suspend call should be last statement");
                         fiber.lastEx = new FiberException(
                                 "usage fatal error: suspend call should be last statement", fiber.lastEx);
                         break;
