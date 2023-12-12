@@ -14,6 +14,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import static com.github.dtprj.dongting.buf.SimpleByteBufferPool.calcTotalSize;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -259,6 +260,32 @@ public class SimpleByteBufferPoolTest {
     }
 
     @Test
+    public void testShareSize() {
+        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0, false);
+        c.setBufSizes(new int[]{100, 200});
+        c.setMaxCount(new int[]{2, 2});
+        c.setMinCount(new int[]{1, 1});
+        c.setTimeoutMillis(1000);
+        c.setShareSize(500);
+        pool = new SimpleByteBufferPool(c);
+        ByteBuffer buf1 = pool.borrow(200);
+        ByteBuffer buf2 = pool.borrow(200);
+        ByteBuffer buf3 = pool.borrow(200);
+        ByteBuffer buf4 = pool.borrow(200);
+        ByteBuffer buf5 = pool.borrow(200);
+        pool.release(buf1);
+        pool.release(buf2);
+        pool.release(buf3);
+        pool.release(buf4);
+        pool.release(buf5);
+
+        assertSame(buf4, pool.borrow(200));
+        plus(pool, 1001);
+        pool.clean();
+        assertSame(buf3, pool.borrow(200));
+    }
+
+    @Test
     public void testThreadSafe() throws Exception {
         SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(null, false, 0, true);
         c.setBufSizes(new int[]{16, 32, 64, 128});
@@ -303,24 +330,20 @@ public class SimpleByteBufferPoolTest {
     }
 
     public static void main(String[] args) {
-        calcSize("default SimpleByteBufferPool", SimpleByteBufferPool.DEFAULT_BUF_SIZE,
-                SimpleByteBufferPool.DEFAULT_MIN_COUNT, SimpleByteBufferPool.DEFAULT_MAX_COUNT);
+        System.out.println("default SimpleByteBufferPool");
+        System.out.printf("max:%,d\nmin:%,d\n\n",
+                calcTotalSize(SimpleByteBufferPool.DEFAULT_BUF_SIZE, SimpleByteBufferPool.DEFAULT_MAX_COUNT),
+                calcTotalSize(SimpleByteBufferPool.DEFAULT_BUF_SIZE, SimpleByteBufferPool.DEFAULT_MIN_COUNT));
 
-        calcSize("default two level global", TwoLevelPool.DEFAULT_GLOBAL_SIZE,
-                TwoLevelPool.DEFAULT_GLOBAL_MIN_COUNT, TwoLevelPool.DEFAULT_GLOBAL_MAX_COUNT);
+        System.out.println("default SimpleByteBufferPool");
+        System.out.printf("max:%,d\nmin:%,d\n\n",
+                calcTotalSize(TwoLevelPool.DEFAULT_GLOBAL_SIZE, TwoLevelPool.DEFAULT_GLOBAL_MAX_COUNT),
+                calcTotalSize(TwoLevelPool.DEFAULT_GLOBAL_SIZE, TwoLevelPool.DEFAULT_GLOBAL_MIN_COUNT));
 
-        calcSize("default two level small", TwoLevelPool.DEFAULT_SMALL_SIZE,
-                TwoLevelPool.DEFAULT_SMALL_MIN_COUNT, TwoLevelPool.DEFAULT_SMALL_MAX_COUNT);
-    }
-
-    private static void calcSize(String name, int[] bufSize, int[] minCount, int[] maxCount) {
-        long totalMax = 0;
-        long totalMin = 0;
-        for (int i = 0; i < bufSize.length; i++) {
-            totalMax += (long) bufSize[i] * maxCount[i];
-            totalMin += (long) bufSize[i] * minCount[i];
-        }
-        System.out.printf("%s\nmax:%,d\nmin:%,d\n\n", name, totalMax, totalMin);
+        System.out.println("default two level small");
+        System.out.printf("max:%,d\nmin:%,d\n\n",
+                calcTotalSize(TwoLevelPool.DEFAULT_SMALL_SIZE, TwoLevelPool.DEFAULT_SMALL_MAX_COUNT),
+                calcTotalSize(TwoLevelPool.DEFAULT_SMALL_SIZE, TwoLevelPool.DEFAULT_SMALL_MIN_COUNT));
     }
 
 }

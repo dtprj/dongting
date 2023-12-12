@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.buf;
 
+import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Timestamp;
 
 import java.nio.ByteBuffer;
@@ -37,12 +38,14 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     private final long timeoutNanos;
     private final boolean direct;
     private final boolean threadSafe;
+    private final long shareSize;
 
     private long statBorrowTooSmallCount;
     private long statBorrowTooLargeCount;
 
     private Timestamp ts;
     private final Pool[] pools;
+    private long currentUsedShareSize;
 
     public static final int[] DEFAULT_BUF_SIZE = new int[]{1024, 2048, 4096, 8192, 16 * 1024,
             32 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 512 * 1024, 1024 * 1024, 2 * 1024 * 1024,
@@ -83,6 +86,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         this.threshold = config.getThreshold();
         this.bufSizes = config.getBufSizes();
         this.timeoutNanos = config.getTimeoutMillis() * 1000 * 1000;
+        this.shareSize = config.getShareSize();
 
         int[] bufSizes = this.bufSizes;
         int[] minCount = config.getMinCount();
@@ -116,7 +120,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
         this.pools = new Pool[bufferTypeCount];
         for (int i = 0; i < bufferTypeCount; i++) {
-            this.pools[i] = new Pool(minCount[i], maxCount[i]);
+            this.pools[i] = new Pool(minCount[i], maxCount[i], bufSizes[i]);
         }
     }
 
@@ -300,6 +304,14 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         sb.deleteCharAt(sb.length() - 1);
     }
 
+    public static long calcTotalSize(int[] bufSizes, int[] count) {
+        long total = 0;
+        for (int i = 0; i < bufSizes.length; i++) {
+            total += (long) bufSizes[i] * count[i];
+        }
+        return total;
+    }
+
     // for unit test
     void setTs(Timestamp ts) {
         this.ts = ts;
@@ -309,92 +321,74 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     Timestamp getTs() {
         return this.ts;
     }
-}
 
-class Pool {
-    private final ByteBuffer[] bufferStack;
-    private final long[] returnTimes;
-    private final int minCount;
+    class Pool {
+        private final int bufferSize;
+        private final int maxCount;
+        private final int minCount;
 
-    private int bottom;
-    private int top;
-    private int stackSize;
+        private final IndexedQueue<ByteBuffer> bufferStask;
 
-    long statBorrowCount;
-    long statBorrowHitCount;
-    long statReleaseCount;
-    long statReleaseHitCount;
+        long statBorrowCount;
+        long statBorrowHitCount;
+        long statReleaseCount;
+        long statReleaseHitCount;
 
-    public Pool(int minCount, int maxCount) {
-        this.minCount = minCount;
-        this.bufferStack = new ByteBuffer[maxCount];
-        this.returnTimes = new long[maxCount];
-    }
-
-    public ByteBuffer borrow() {
-        statBorrowCount++;
-        if (stackSize == 0) {
-            // no buffer available
-            return null;
+        public Pool(int minCount, int maxCount, int bufferSize) {
+            if (bufferSize < 8) {
+                throw new IllegalArgumentException("buffer size too small: " + bufferSize);
+            }
+            this.minCount = minCount;
+            this.maxCount = maxCount;
+            this.bufferSize = bufferSize;
+            this.bufferStask = new IndexedQueue<>(maxCount);
         }
 
-        statBorrowHitCount++;
-        ByteBuffer[] bufferStack = this.bufferStack;
-        int top = this.top;
-        top = top == 0 ? bufferStack.length - 1 : top - 1;
-        stackSize--;
-
-        // get from pool
-        ByteBuffer buf = bufferStack[top];
-        bufferStack[top] = null;
-        this.top = top;
-        return buf;
-    }
-
-    public void release(ByteBuffer buf, long nanos) {
-        statReleaseCount++;
-
-        ByteBuffer[] bufferStack = this.bufferStack;
-        int stackCapacity = bufferStack.length;
-        if (stackSize >= stackCapacity) {
-            // too many buffer in pool
-            return;
+        public ByteBuffer borrow() {
+            statBorrowCount++;
+            ByteBuffer buf = bufferStask.removeLast();
+            if (buf != null) {
+                statBorrowHitCount++;
+            }
+            return buf;
         }
-        statReleaseHitCount++;
 
-        // return it to pool
-        buf.clear();
-        int top = this.top;
-        bufferStack[top] = buf;
-        returnTimes[top] = nanos;
+        public void release(ByteBuffer buf, long nanos) {
+            statReleaseCount++;
 
-        this.top = top + 1 >= stackCapacity ? 0 : top + 1;
+            if (bufferStask.size() >= maxCount) {
+                long newUsedShareSize = currentUsedShareSize + bufferSize;
+                if (newUsedShareSize > shareSize) {
+                    // too many buffer in pool
+                    return;
+                } else {
+                    currentUsedShareSize = newUsedShareSize;
+                }
+            }
+            statReleaseHitCount++;
 
-        stackSize++;
-    }
+            // return it to pool
+            buf.clear();
+            // use the buffer to store return time
+            buf.putLong(0, nanos);
 
-    public void clean(long expireNanos) {
-        ByteBuffer[] bufferStack = this.bufferStack;
-        long[] returnTimes = this.returnTimes;
-        int stackSize = this.stackSize;
-        int bottom = this.bottom;
-        int capacity = bufferStack.length;
-        int minCount = this.minCount;
-        while (stackSize > minCount) {
-            if (returnTimes[bottom] - expireNanos > 0) {
-                break;
-            } else {
-                // expired
-                bufferStack[bottom] = null;
-                stackSize--;
-                bottom++;
-                if (bottom >= capacity) {
-                    bottom = 0;
+            bufferStask.addLast(buf);
+        }
+
+        public void clean(long expireNanos) {
+            IndexedQueue<ByteBuffer> stack = this.bufferStask;
+            int size = stack.size();
+            for (int i = 0; i < size - minCount; i++) {
+                ByteBuffer buf = stack.get(0);
+                if (buf.getLong(0) - expireNanos > 0) {
+                    break;
+                } else {
+                    stack.removeFirst();
                 }
             }
         }
-        this.bottom = bottom;
-        this.stackSize = stackSize;
-    }
 
+    }
 }
+
+

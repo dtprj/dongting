@@ -29,6 +29,7 @@ public class SimpleByteBufferPoolConfig {
     private int[] minCount = SimpleByteBufferPool.DEFAULT_MIN_COUNT;
     private int[] maxCount = SimpleByteBufferPool.DEFAULT_MAX_COUNT;
     private long timeoutMillis = SimpleByteBufferPool.DEFAULT_TIME_OUT_MILLIS;
+    private long shareSize = 0;
 
     public SimpleByteBufferPoolConfig() {
     }
@@ -107,5 +108,13 @@ public class SimpleByteBufferPoolConfig {
 
     public void setTimeoutMillis(long timeoutMillis) {
         this.timeoutMillis = timeoutMillis;
+    }
+
+    public long getShareSize() {
+        return shareSize;
+    }
+
+    public void setShareSize(long shareSize) {
+        this.shareSize = shareSize;
     }
 }

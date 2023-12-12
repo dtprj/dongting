@@ -22,6 +22,8 @@ import java.nio.ByteBuffer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
+import static com.github.dtprj.dongting.buf.SimpleByteBufferPool.calcTotalSize;
+
 /**
  * @author huangli
  */
@@ -59,6 +61,7 @@ public class TwoLevelPool extends ByteBufferPool {
                 c.setMinCount(DEFAULT_GLOBAL_MIN_COUNT);
                 c.setMaxCount(DEFAULT_GLOBAL_MAX_COUNT);
                 c.setTimeoutMillis(30000);
+                c.setShareSize(calcTotalSize(c.getBufSizes(), c.getMaxCount()) / 2);
                 GLOBAL_POOL = new SimpleByteBufferPool(c);
             }
         }
@@ -68,6 +71,7 @@ public class TwoLevelPool extends ByteBufferPool {
         c.setMinCount(DEFAULT_SMALL_MIN_COUNT);
         c.setMaxCount(DEFAULT_SMALL_MAX_COUNT);
         c.setTimeoutMillis(10000);
+        c.setShareSize(calcTotalSize(c.getBufSizes(), c.getMaxCount()) / 2);
         SimpleByteBufferPool p1 = new SimpleByteBufferPool(c);
         return new TwoLevelPool(direct, p1, GLOBAL_POOL, 16 * 1024);
     };
