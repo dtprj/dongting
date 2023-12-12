@@ -28,11 +28,7 @@ public class FiberLock extends WaitSource {
 
     @Override
     protected boolean shouldWait(Fiber currentFiber) {
-        return currentFiber != null && currentFiber != owner;
-    }
-
-    public FrameCallResult lock(FrameCall<Void> resumePoint) {
-        return lock(0, resumePoint);
+        return owner != null && currentFiber != owner;
     }
 
     private Fiber check() {
@@ -43,10 +39,10 @@ public class FiberLock extends WaitSource {
         return fiber;
     }
 
-    public FrameCallResult lock(long millis, FrameCall<Void> resumePoint) {
+    public FrameCallResult lock(FrameCall<Void> resumePoint) {
         Fiber fiber = check();
 
-        return Dispatcher.awaitOn(fiber, this, millis, v -> {
+        return Dispatcher.awaitOn(fiber, this, 0, v -> {
             if (owner == null) {
                 owner = fiber;
                 count = 1;
@@ -54,6 +50,23 @@ public class FiberLock extends WaitSource {
                 count++;
             }
             return resumePoint.execute(null);
+        });
+    }
+
+    public FrameCallResult tryLock(long millis, FrameCall<Boolean> resumePoint) {
+        Fiber fiber = check();
+
+        return Dispatcher.awaitOn(fiber, this, millis, v -> {
+            if (owner == null) {
+                owner = fiber;
+                count = 1;
+                return resumePoint.execute(Boolean.TRUE);
+            } else if (fiber == owner) {
+                count++;
+                return resumePoint.execute(Boolean.TRUE);
+            } else {
+                return resumePoint.execute(Boolean.FALSE);
+            }
         });
     }
 

@@ -34,11 +34,11 @@ public abstract class DoInLockFrame<O> extends FiberFrame<O> {
 
     @Override
     public final FrameCallResult execute(Void input) throws Exception {
-        return lock.lock(timeoutMillis, this::resume);
+        return lock.tryLock(timeoutMillis, this::resume);
     }
 
-    private FrameCallResult resume(Void v) {
-        locked = true;
+    private FrameCallResult resume(Boolean locked) {
+        this.locked = locked;
         return afterGetLock();
     }
 

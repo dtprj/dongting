@@ -81,6 +81,20 @@ public class FiberGroup {
     /**
      * can call in any thread
      */
+    public void fireFiber(String fiberName, FiberFrame<Void> firstFrame) {
+        Fiber fiber = new Fiber(fiberName, this, firstFrame);
+        // if the dispatcher stopped, no ops
+        dispatcher.doInDispatcherThread(new FiberQueueTask() {
+            @Override
+            protected void run() {
+                start(fiber);
+            }
+        });
+    }
+
+    /**
+     * can call in any thread
+     */
     public void requestShutdown() {
         // if the dispatcher stopped, no ops
         Fiber shutdownGroupFiber = new Fiber("shutdownGroup", this, new FiberFrame<>() {

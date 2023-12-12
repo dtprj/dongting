@@ -147,7 +147,7 @@ public class Dispatcher extends AbstractLifeCircle {
             }
             if (f.source != null) {
                 f.source.removeWaiter(f);
-                if (!(f.source instanceof FiberCondition)) {
+                if (f.source instanceof FiberFuture) {
                     f.lastEx = new FiberTimeoutException("wait " + f.source + "timeout:" + f.scheduleTimeoutMillis + "ms");
                     f.stackTop.resumePoint = null;
                 }
@@ -210,7 +210,7 @@ public class Dispatcher extends AbstractLifeCircle {
                 }
                 if (currentFrame == fiber.stackTop) {
                     if (fiber.source != null) {
-                        // called awaitOn() on a completed future
+                        // called awaitOn() on a completed future or get lock
                         if (fiber.lastEx == null) {
                             continue;
                         } else {
