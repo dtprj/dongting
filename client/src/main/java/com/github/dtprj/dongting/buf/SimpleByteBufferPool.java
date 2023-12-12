@@ -61,38 +61,39 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     public static final long DEFAULT_TIME_OUT_MILLIS = 10 * 1000;
 
     public SimpleByteBufferPool(Timestamp ts, boolean direct, int threshold) {
-        this(ts, direct, threshold, false, DEFAULT_BUF_SIZE,
-                DEFAULT_MIN_COUNT, DEFAULT_MAX_COUNT, DEFAULT_TIME_OUT_MILLIS);
+        this(new SimpleByteBufferPoolConfig(ts, direct, threshold, false));
     }
 
     public SimpleByteBufferPool(Timestamp ts, boolean direct) {
-        this(ts, direct, DEFAULT_THRESHOLD, false, DEFAULT_BUF_SIZE,
-                DEFAULT_MIN_COUNT, DEFAULT_MAX_COUNT, DEFAULT_TIME_OUT_MILLIS);
+        this(new SimpleByteBufferPoolConfig(ts, direct));
     }
 
-    public SimpleByteBufferPool(Timestamp ts, boolean direct, int threshold, boolean threadSafe,
-                                int[] bufSizes, int[] minCount, int[] maxCount, long timeoutMillis) {
-        Objects.requireNonNull(bufSizes);
-        Objects.requireNonNull(minCount);
-        Objects.requireNonNull(maxCount);
-        this.threadSafe = threadSafe;
+    public SimpleByteBufferPool(SimpleByteBufferPoolConfig config) {
+        Objects.requireNonNull(config.getBufSizes());
+        Objects.requireNonNull(config.getMinCount());
+        Objects.requireNonNull(config.getMaxCount());
+        this.threadSafe = config.isThreadSafe();
         if (threadSafe) {
             // Thread safe pool should use a dedicated Timestamp
             this.ts = new Timestamp();
         } else {
-            this.ts = ts;
+            this.ts = config.getTs();
         }
-        this.direct = direct;
-        this.threshold = threshold;
-        this.bufSizes = bufSizes;
-        this.timeoutNanos = timeoutMillis * 1000 * 1000;
+        this.direct = config.isDirect();
+        this.threshold = config.getThreshold();
+        this.bufSizes = config.getBufSizes();
+        this.timeoutNanos = config.getTimeoutMillis() * 1000 * 1000;
+
+        int[] bufSizes = this.bufSizes;
+        int[] minCount = config.getMinCount();
+        int[] maxCount = config.getMaxCount();
 
         int bufferTypeCount = bufSizes.length;
         if (bufferTypeCount != minCount.length || bufferTypeCount != maxCount.length) {
             throw new IllegalArgumentException();
         }
-        if (timeoutMillis <= 0) {
-            throw new IllegalArgumentException("timeout<=0. timeout=" + timeoutMillis);
+        if (config.getTimeoutMillis() <= 0) {
+            throw new IllegalArgumentException("timeout<=0. timeout=" + config.getTimeoutMillis());
         }
         for (int i : bufSizes) {
             if (i <= 0) {

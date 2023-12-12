@@ -42,22 +42,35 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testConstructor() {
-        assertThrows(NullPointerException.class, () -> new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024, 2048},
-                new int[]{10, 10}, null, 1000));
-        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024, 2048},
-                new int[]{10, 10}, new int[]{10}, 1000));
+        SimpleByteBufferPoolConfig c1 = new SimpleByteBufferPoolConfig(TS, false);
+        c1.setMinCount(null);
+        assertThrows(NullPointerException.class, () -> new SimpleByteBufferPool(c1));
 
-        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(TS, false, 0, false, new int[]{-1},
-                new int[]{10}, new int[]{10}, 1000));
-        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024},
-                new int[]{-1}, new int[]{10}, 1000));
-        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024},
-                new int[]{10}, new int[]{-1}, 1000));
-        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024},
-                new int[]{10}, new int[]{10}, -1));
+        SimpleByteBufferPoolConfig c2 = new SimpleByteBufferPoolConfig(TS, false);
+        c2.setMinCount(new int[]{100});
+        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c2));
 
-        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024, 2048},
-                new int[]{10, 10}, new int[]{9, 9}, 1000));
+        SimpleByteBufferPoolConfig c3 = new SimpleByteBufferPoolConfig(TS, false);
+        c3.setBufSizes(new int[]{-1});
+        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c3));
+
+        SimpleByteBufferPoolConfig c4 = new SimpleByteBufferPoolConfig(TS, false);
+        c4.setMinCount(new int[]{-1});
+        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c4));
+
+        SimpleByteBufferPoolConfig c5 = new SimpleByteBufferPoolConfig(TS, false);
+        c5.setMaxCount(new int[]{-1});
+        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c5));
+
+        SimpleByteBufferPoolConfig c6 = new SimpleByteBufferPoolConfig(TS, false);
+        c6.setTimeoutMillis(-1);
+        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c6));
+
+        SimpleByteBufferPoolConfig c7 = new SimpleByteBufferPoolConfig(TS, false);
+        c7.setBufSizes(new int[]{1024, 2048});
+        c7.setMaxCount(new int[]{9, 9});
+        c7.setMinCount(new int[]{10, 10});
+        assertThrows(IllegalArgumentException.class, () -> new SimpleByteBufferPool(c7));
     }
 
     @Test
@@ -85,41 +98,51 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testBorrow3() {
-        pool = new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024, 2048},
-                new int[]{10, 10}, new int[]{10, 10}, 1000);
-        ByteBuffer buf1 = pool.borrow(4000);
+        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0, false);
+        c.setBufSizes(new int[]{100, 200});
+        c.setMinCount(new int[]{10, 10});
+        c.setMaxCount(new int[]{10, 10});
+        pool = new SimpleByteBufferPool(c);
+        ByteBuffer buf1 = pool.borrow(300);
         pool.release(buf1);
-        assertNotSame(buf1, pool.borrow(4000));
+        assertNotSame(buf1, pool.borrow(300));
     }
 
     @Test
     public void testRelease() {
-        pool = new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024, 2048},
-                new int[]{1, 1}, new int[]{2, 2}, 1000);
-        ByteBuffer buf1 = pool.borrow(1024);
-        ByteBuffer buf2 = pool.borrow(1024);
-        ByteBuffer buf3 = pool.borrow(1024);
+        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0, false);
+        c.setBufSizes(new int[]{100, 200});
+        c.setMaxCount(new int[]{2, 2});
+        c.setMinCount(new int[]{1, 1});
+        pool = new SimpleByteBufferPool(c);
+        ByteBuffer buf1 = pool.borrow(100);
+        ByteBuffer buf2 = pool.borrow(100);
+        ByteBuffer buf3 = pool.borrow(100);
         pool.release(buf1);
         pool.release(buf2);
         pool.release(buf3);
-        assertSame(buf2, pool.borrow(1024));
-        assertSame(buf1, pool.borrow(1024));
+        assertSame(buf2, pool.borrow(100));
+        assertSame(buf1, pool.borrow(100));
     }
 
     @Test
     public void testClean1() {
-        pool = new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024, 2048},
-                new int[]{1, 1}, new int[]{2, 2}, 1000);
-        ByteBuffer buf1 = pool.borrow(1024);
-        ByteBuffer buf2 = pool.borrow(1024);
+        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0, false);
+        c.setBufSizes(new int[]{100, 200});
+        c.setMaxCount(new int[]{2, 2});
+        c.setMinCount(new int[]{1, 1});
+        c.setTimeoutMillis(1000);
+        pool = new SimpleByteBufferPool(c);
+        ByteBuffer buf1 = pool.borrow(100);
+        ByteBuffer buf2 = pool.borrow(100);
         pool.release(buf1);
         pool.release(buf2);
 
         // not clean
         plus(pool, 500);
         pool.clean();
-        ByteBuffer buf3 = pool.borrow(1024);
-        ByteBuffer buf4 = pool.borrow(1024);
+        ByteBuffer buf3 = pool.borrow(100);
+        ByteBuffer buf4 = pool.borrow(100);
         assertSame(buf2, buf3);
         assertSame(buf1, buf4);
         pool.release(buf1);
@@ -147,8 +170,12 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testClean2() {
-        pool = new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024, 2048},
-                new int[]{1, 1}, new int[]{3, 3}, 1000);
+        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0, false);
+        c.setBufSizes(new int[]{1024, 2048});
+        c.setMaxCount(new int[]{3, 3});
+        c.setMinCount(new int[]{1, 1});
+        c.setTimeoutMillis(1000);
+        pool = new SimpleByteBufferPool(c);
         ByteBuffer buf1 = pool.borrow(1024);
         ByteBuffer buf2 = pool.borrow(1024);
         ByteBuffer buf3 = pool.borrow(1024);
@@ -177,8 +204,12 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testClean3() {
-        pool = new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024, 2048},
-                new int[]{1, 1}, new int[]{2, 2}, 1000);
+        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0, false);
+        c.setBufSizes(new int[]{1024, 2048});
+        c.setMaxCount(new int[]{2, 2});
+        c.setMinCount(new int[]{1, 1});
+        c.setTimeoutMillis(1000);
+        pool = new SimpleByteBufferPool(c);
         ByteBuffer buf1 = pool.borrow(2048);
         ByteBuffer buf2 = pool.borrow(2048);
         pool.release(buf1);
@@ -201,8 +232,12 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testClean4() {
-        pool = new SimpleByteBufferPool(TS, false, 0, false, new int[]{1024, 2048},
-                new int[]{0, 0}, new int[]{2, 2}, 1000);
+        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(TS, false, 0, false);
+        c.setBufSizes(new int[]{1024, 2048});
+        c.setMaxCount(new int[]{2, 2});
+        c.setMinCount(new int[]{0, 0});
+        c.setTimeoutMillis(1000);
+        pool = new SimpleByteBufferPool(c);
         ByteBuffer buf1 = pool.borrow(2048);
         ByteBuffer buf2 = pool.borrow(2048);
         pool.release(buf1);
@@ -225,8 +260,12 @@ public class SimpleByteBufferPoolTest {
 
     @Test
     public void testThreadSafe() throws Exception {
-        pool = new SimpleByteBufferPool(TS, false, 0, true, new int[]{16, 32, 64, 128},
-                new int[]{1, 1, 1, 1}, new int[]{20, 20, 20, 20}, 1000);
+        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(null, false, 0, true);
+        c.setBufSizes(new int[]{16, 32, 64, 128});
+        c.setMaxCount(new int[]{20, 20, 20, 20});
+        c.setMinCount(new int[]{1, 1, 1, 1});
+        c.setTimeoutMillis(1000);
+        pool = new SimpleByteBufferPool(c);
         threadSafeTest(pool, 128);
     }
 

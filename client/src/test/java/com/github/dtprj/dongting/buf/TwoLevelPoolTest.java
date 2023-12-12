@@ -37,10 +37,21 @@ public class TwoLevelPoolTest {
 
     @BeforeEach
     public void init() {
-        p1 = new SimpleByteBufferPool(new Timestamp(), false, 0, false,
-                new int[]{16, 32}, new int[]{1, 2}, new int[]{2, 2}, 1000);
-        p2 = new SimpleByteBufferPool(new Timestamp(), false, 0, true,
-                new int[]{128, 256}, new int[]{1, 2}, new int[]{2, 2}, 1000);
+        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(
+                new Timestamp(), false, 0, false);
+        c.setBufSizes(new int[]{16, 32});
+        c.setMinCount(new int[]{1, 2});
+        c.setMaxCount(new int[]{2, 2});
+        c.setTimeoutMillis(1000);
+        p1 = new SimpleByteBufferPool(c);
+
+        c = new SimpleByteBufferPoolConfig(
+                null, false, 0, true);
+        c.setBufSizes(new int[]{128, 256});
+        c.setMinCount(new int[]{1, 2});
+        c.setMaxCount(new int[]{2, 2});
+        c.setTimeoutMillis(1000);
+        p2 = new SimpleByteBufferPool(c);
     }
 
     @Test

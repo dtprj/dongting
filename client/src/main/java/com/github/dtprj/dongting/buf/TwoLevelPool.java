@@ -53,13 +53,22 @@ public class TwoLevelPool extends ByteBufferPool {
         synchronized (TwoLevelPool.class) {
             if (GLOBAL_POOL == null) {
                 // Thread safe pool should use a dedicated timestamp
-                GLOBAL_POOL = new SimpleByteBufferPool(null, direct, 0, true,
-                        DEFAULT_GLOBAL_SIZE, DEFAULT_GLOBAL_MIN_COUNT, DEFAULT_GLOBAL_MAX_COUNT,30000);
+                SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(
+                        null, direct, 0, true);
+                c.setBufSizes(DEFAULT_GLOBAL_SIZE);
+                c.setMinCount(DEFAULT_GLOBAL_MIN_COUNT);
+                c.setMaxCount(DEFAULT_GLOBAL_MAX_COUNT);
+                c.setTimeoutMillis(30000);
+                GLOBAL_POOL = new SimpleByteBufferPool(c);
             }
         }
-
-        SimpleByteBufferPool p1 = new SimpleByteBufferPool(ts, direct, 64, false,
-                DEFAULT_SMALL_SIZE, DEFAULT_SMALL_MIN_COUNT, DEFAULT_SMALL_MAX_COUNT, 10000);
+        SimpleByteBufferPoolConfig c = new SimpleByteBufferPoolConfig(
+                ts, direct, 64, false);
+        c.setBufSizes(DEFAULT_SMALL_SIZE);
+        c.setMinCount(DEFAULT_SMALL_MIN_COUNT);
+        c.setMaxCount(DEFAULT_SMALL_MAX_COUNT);
+        c.setTimeoutMillis(10000);
+        SimpleByteBufferPool p1 = new SimpleByteBufferPool(c);
         return new TwoLevelPool(direct, p1, GLOBAL_POOL, 16 * 1024);
     };
 
