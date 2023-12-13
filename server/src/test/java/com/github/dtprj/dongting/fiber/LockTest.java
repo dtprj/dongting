@@ -29,9 +29,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class LockTest extends AbstractFiberTest {
     @Test
     public void testTryLock() throws Exception {
-        FiberLock lock = group.newLock();
+        FiberLock lock = fiberGroup.newLock();
         AtomicInteger lockCount = new AtomicInteger();
-        group.fireFiber("f1", new FiberFrame<>() {
+        fiberGroup.fireFiber("f1", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 if (lock.tryLock()) {
@@ -40,7 +40,7 @@ public class LockTest extends AbstractFiberTest {
                 return Fiber.frameReturn();
             }
         });
-        group.fireFiber("f2", new FiberFrame<>() {
+        fiberGroup.fireFiber("f2", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 if (lock.tryLock()) {
@@ -49,7 +49,7 @@ public class LockTest extends AbstractFiberTest {
                 return Fiber.frameReturn();
             }
         });
-        super.tearDown();
+        super.shutdownDispatcher();
         Assertions.assertEquals(1, lockCount.get());
     }
 
@@ -96,14 +96,14 @@ public class LockTest extends AbstractFiberTest {
     }
 
     private void testLockImpl(int lockType) throws Exception {
-        FiberLock lock = group.newLock();
+        FiberLock lock = fiberGroup.newLock();
         AtomicInteger lockCount = new AtomicInteger();
         CountDownLatch beforeLockLatch = new CountDownLatch(2);
-        FiberFuture<Void> future = group.newFuture();
-        group.fireFiber("f1", new TestLockFrame(lock, lockCount, future, beforeLockLatch, lockType));
-        group.fireFiber("f2", new TestLockFrame(lock, lockCount, future, beforeLockLatch, lockType));
+        FiberFuture<Void> future = fiberGroup.newFuture();
+        fiberGroup.fireFiber("f1", new TestLockFrame(lock, lockCount, future, beforeLockLatch, lockType));
+        fiberGroup.fireFiber("f2", new TestLockFrame(lock, lockCount, future, beforeLockLatch, lockType));
         Assertions.assertTrue(beforeLockLatch.await(1, TimeUnit.SECONDS));
-        group.fireFiber("f3", new FiberFrame<>() {
+        fiberGroup.fireFiber("f3", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 future.complete(null);

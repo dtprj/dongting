@@ -32,7 +32,7 @@ public class SleepTest extends AbstractFiberTest {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean interrupt = new AtomicBoolean();
         AtomicBoolean sleepOk = new AtomicBoolean();
-        Fiber f = new Fiber("f", group, new FiberFrame<>() {
+        Fiber f = new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 latch.countDown();
@@ -52,16 +52,16 @@ public class SleepTest extends AbstractFiberTest {
                 return Fiber.frameReturn();
             }
         });
-        group.fireFiber(f);
+        fiberGroup.fireFiber(f);
         latch.await();
-        Fiber f2 = new Fiber("f2", group, new FiberFrame<>() {
+        Fiber f2 = new Fiber("f2", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 f.interrupt();
                 return Fiber.frameReturn();
             }
         });
-        group.fireFiber(f2);
+        fiberGroup.fireFiber(f2);
 
         TestUtil.waitUtil(interrupt::get);
         Assertions.assertFalse(sleepOk.get());
@@ -72,7 +72,7 @@ public class SleepTest extends AbstractFiberTest {
     public void testSleepUntilShouldStop() throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean error = new AtomicBoolean();
-        Fiber f = new Fiber("f", group, new FiberFrame<>() {
+        Fiber f = new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 latch.countDown();
@@ -85,11 +85,11 @@ public class SleepTest extends AbstractFiberTest {
                 return super.handle(ex);
             }
         });
-        group.fireFiber(f);
+        fiberGroup.fireFiber(f);
         latch.await();
-        group.requestShutdown();
+        fiberGroup.requestShutdown();
 
-        super.tearDown();
+        super.shutdownDispatcher();
         Assertions.assertFalse(error.get());
     }
 }

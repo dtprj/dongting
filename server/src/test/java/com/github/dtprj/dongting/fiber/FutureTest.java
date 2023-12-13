@@ -34,10 +34,10 @@ public class FutureTest extends AbstractFiberTest {
 
     @Test
     public void testTimeout() {
-        FiberFuture<Void> f = group.newFuture();
+        FiberFuture<Void> f = fiberGroup.newFuture();
         AtomicBoolean timeout = new AtomicBoolean();
         AtomicBoolean finish = new AtomicBoolean();
-        group.fireFiber(new Fiber("f", group, new FiberFrame<>() {
+        fiberGroup.fireFiber(new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return f.awaitOn(1, this::resume);
@@ -62,10 +62,10 @@ public class FutureTest extends AbstractFiberTest {
 
     @Test
     public void testInterrupt1() {
-        FiberFuture<Void> f = group.newFuture();
+        FiberFuture<Void> f = fiberGroup.newFuture();
         AtomicBoolean interrupt = new AtomicBoolean();
         AtomicBoolean finish = new AtomicBoolean();
-        Fiber f1 = new Fiber("f", group, new FiberFrame<>() {
+        Fiber f1 = new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return f.awaitOn(this::resume);
@@ -84,8 +84,8 @@ public class FutureTest extends AbstractFiberTest {
                 return Fiber.frameReturn();
             }
         });
-        group.fireFiber(f1);
-        group.fireFiber(new Fiber("f2", group, new FiberFrame<>() {
+        fiberGroup.fireFiber(f1);
+        fiberGroup.fireFiber(new Fiber("f2", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 f1.interrupt();
@@ -98,10 +98,10 @@ public class FutureTest extends AbstractFiberTest {
 
     @Test
     public void testInterrupt2() {
-        FiberFuture<Void> f = group.newFuture();
+        FiberFuture<Void> f = fiberGroup.newFuture();
         AtomicBoolean interrupt = new AtomicBoolean();
         AtomicBoolean finish = new AtomicBoolean();
-        Fiber f1 = new Fiber("f", group, new FiberFrame<>() {
+        Fiber f1 = new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return f.awaitOn(this::resume);
@@ -121,25 +121,25 @@ public class FutureTest extends AbstractFiberTest {
             }
         });
         // interrupt before await
-        group.fireFiber(new Fiber("f2", group, new FiberFrame<>() {
+        fiberGroup.fireFiber(new Fiber("f2", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 f1.interrupt();
                 return Fiber.frameReturn();
             }
         }));
-        group.fireFiber(f1);
+        fiberGroup.fireFiber(f1);
         TestUtil.waitUtil(interrupt::get);
         Assertions.assertFalse(finish.get());
     }
 
     @Test
     public void testComplete1() throws Exception {
-        FiberFuture<Integer> f = group.newFuture();
+        FiberFuture<Integer> f = fiberGroup.newFuture();
         AtomicInteger futureResult = new AtomicInteger();
         AtomicReference<Throwable> futureEx = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        Fiber fiber = new Fiber("f", group, new FiberFrame<>() {
+        Fiber fiber = new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 latch.countDown();
@@ -157,7 +157,7 @@ public class FutureTest extends AbstractFiberTest {
                 return Fiber.frameReturn();
             }
         });
-        group.fireFiber(fiber);
+        fiberGroup.fireFiber(fiber);
         assertTrue(latch.await(1, TimeUnit.SECONDS));
         f.fireComplete(100);
         TestUtil.waitUtil(() -> futureResult.get() == 100);
@@ -169,10 +169,10 @@ public class FutureTest extends AbstractFiberTest {
 
     @Test
     public void testComplete2() {
-        FiberFuture<Integer> f = group.newFuture();
+        FiberFuture<Integer> f = fiberGroup.newFuture();
         AtomicInteger futureResult = new AtomicInteger();
         AtomicReference<Throwable> futureEx = new AtomicReference<>();
-        Fiber fiber = new Fiber("f", group, new FiberFrame<>() {
+        Fiber fiber = new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return f.awaitOn(this::resume);
@@ -191,7 +191,7 @@ public class FutureTest extends AbstractFiberTest {
         });
         // complete before await
         f.fireComplete(100);
-        group.fireFiber(fiber);
+        fiberGroup.fireFiber(fiber);
         TestUtil.waitUtil(() -> futureResult.get() == 100);
         assertNull(futureEx.get());
 
@@ -201,11 +201,11 @@ public class FutureTest extends AbstractFiberTest {
 
     @Test
     public void testCompleteEx1() throws Exception {
-        FiberFuture<Integer> f = group.newFuture();
+        FiberFuture<Integer> f = fiberGroup.newFuture();
         AtomicInteger futureResult = new AtomicInteger();
         AtomicReference<Throwable> futureEx = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        Fiber fiber = new Fiber("f", group, new FiberFrame<>() {
+        Fiber fiber = new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 latch.countDown();
@@ -223,7 +223,7 @@ public class FutureTest extends AbstractFiberTest {
                 return Fiber.frameReturn();
             }
         });
-        group.fireFiber(fiber);
+        fiberGroup.fireFiber(fiber);
         assertTrue(latch.await(1, TimeUnit.SECONDS));
         Exception ex = new Exception();
         f.fireCompleteExceptionally(ex);
@@ -236,10 +236,10 @@ public class FutureTest extends AbstractFiberTest {
 
     @Test
     public void testCompleteEx2() {
-        FiberFuture<Integer> f = group.newFuture();
+        FiberFuture<Integer> f = fiberGroup.newFuture();
         AtomicInteger futureResult = new AtomicInteger();
         AtomicReference<Throwable> futureEx = new AtomicReference<>();
-        Fiber fiber = new Fiber("f", group, new FiberFrame<>() {
+        Fiber fiber = new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return f.awaitOn(this::resume);
@@ -261,7 +261,7 @@ public class FutureTest extends AbstractFiberTest {
         Exception ex = new Exception();
         f.fireCompleteExceptionally(ex);
 
-        group.fireFiber(fiber);
+        fiberGroup.fireFiber(fiber);
         TestUtil.waitUtil(() -> futureEx.get() == ex);
         assertEquals(0, futureResult.get());
 
@@ -271,11 +271,11 @@ public class FutureTest extends AbstractFiberTest {
 
     @Test
     public void testCallback1() throws InterruptedException {
-        FiberFuture<Integer> f = group.newFuture();
+        FiberFuture<Integer> f = fiberGroup.newFuture();
         AtomicReference<Integer> futureResult = new AtomicReference<>();
         AtomicReference<Throwable> futureEx = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        group.fireFiber(new Fiber("f", group, new FiberFrame<>() {
+        fiberGroup.fireFiber(new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 latch.countDown();
@@ -294,13 +294,13 @@ public class FutureTest extends AbstractFiberTest {
 
     @Test
     public void testCallback2() {
-        FiberFuture<Integer> f = group.newFuture();
+        FiberFuture<Integer> f = fiberGroup.newFuture();
         AtomicReference<Integer> futureResult = new AtomicReference<>();
         AtomicReference<Throwable> futureEx = new AtomicReference<>();
 
         // complete before register callback
         f.fireComplete(100);
-        group.fireFiber(new Fiber("f", group, new FiberFrame<>() {
+        fiberGroup.fireFiber(new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 f.registerCallback((value, ex) -> {
@@ -317,11 +317,11 @@ public class FutureTest extends AbstractFiberTest {
 
     @Test
     public void testCallback3() throws InterruptedException {
-        FiberFuture<Integer> f = group.newFuture();
+        FiberFuture<Integer> f = fiberGroup.newFuture();
         AtomicReference<Integer> futureResult = new AtomicReference<>();
         AtomicReference<Throwable> futureEx = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        group.fireFiber(new Fiber("f", group, new FiberFrame<>() {
+        fiberGroup.fireFiber(new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 latch.countDown();
@@ -342,14 +342,14 @@ public class FutureTest extends AbstractFiberTest {
 
     @Test
     public void testCallback4() {
-        FiberFuture<Integer> f = group.newFuture();
+        FiberFuture<Integer> f = fiberGroup.newFuture();
         AtomicReference<Integer> futureResult = new AtomicReference<>();
         AtomicReference<Throwable> futureEx = new AtomicReference<>();
 
         // complete before register callback
         Exception ex = new Exception();
         f.fireCompleteExceptionally(ex);
-        group.fireFiber(new Fiber("f", group, new FiberFrame<>() {
+        fiberGroup.fireFiber(new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 f.registerCallback((value, ex) -> {
@@ -366,11 +366,11 @@ public class FutureTest extends AbstractFiberTest {
 
     @Test
     public void testConvert1() throws InterruptedException {
-        FiberFuture<Integer> f = group.newFuture();
+        FiberFuture<Integer> f = fiberGroup.newFuture();
         AtomicReference<String> futureResult = new AtomicReference<>();
         AtomicReference<Throwable> futureEx = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        group.fireFiber(new Fiber("f", group, new FiberFrame<>() {
+        fiberGroup.fireFiber(new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 latch.countDown();
@@ -390,12 +390,12 @@ public class FutureTest extends AbstractFiberTest {
 
     @Test
     public void testConvert2() {
-        FiberFuture<Integer> f = group.newFuture();
+        FiberFuture<Integer> f = fiberGroup.newFuture();
         AtomicReference<String> futureResult = new AtomicReference<>();
         AtomicReference<Throwable> futureEx = new AtomicReference<>();
         // complete before convert
         f.fireComplete(100);
-        group.fireFiber(new Fiber("f", group, new FiberFrame<>() {
+        fiberGroup.fireFiber(new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return f.convert(String::valueOf).awaitOn(this::resume);
@@ -413,11 +413,11 @@ public class FutureTest extends AbstractFiberTest {
 
     @Test
     public void testConvert3() throws InterruptedException {
-        FiberFuture<Integer> f = group.newFuture();
+        FiberFuture<Integer> f = fiberGroup.newFuture();
         AtomicReference<String> futureResult = new AtomicReference<>();
         AtomicReference<Throwable> futureEx = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        group.fireFiber(new Fiber("f", group, new FiberFrame<>() {
+        fiberGroup.fireFiber(new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 latch.countDown();
@@ -444,13 +444,13 @@ public class FutureTest extends AbstractFiberTest {
 
     @Test
     public void testConvert4() {
-        FiberFuture<Integer> f = group.newFuture();
+        FiberFuture<Integer> f = fiberGroup.newFuture();
         AtomicReference<String> futureResult = new AtomicReference<>();
         AtomicReference<Throwable> futureEx = new AtomicReference<>();
         // complete before convert
         Exception ex = new Exception();
         f.fireCompleteExceptionally(ex);
-        group.fireFiber(new Fiber("f", group, new FiberFrame<>() {
+        fiberGroup.fireFiber(new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return f.convert(String::valueOf).awaitOn(this::resume);
@@ -474,11 +474,11 @@ public class FutureTest extends AbstractFiberTest {
 
     @Test
     public void testCancel1() throws InterruptedException {
-        FiberFuture<Integer> f = group.newFuture();
+        FiberFuture<Integer> f = fiberGroup.newFuture();
         AtomicReference<Integer> futureResult = new AtomicReference<>();
         AtomicReference<Throwable> futureEx = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        group.fireFiber(new Fiber("f", group, new FiberFrame<>() {
+        fiberGroup.fireFiber(new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 latch.countDown();
@@ -497,7 +497,7 @@ public class FutureTest extends AbstractFiberTest {
             }
         }));
         assertTrue(latch.await(1, TimeUnit.SECONDS));
-        group.fireFiber(new Fiber("cancel", group, new FiberFrame<>() {
+        fiberGroup.fireFiber(new Fiber("cancel", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 f.cancel();
@@ -511,12 +511,12 @@ public class FutureTest extends AbstractFiberTest {
 
     @Test
     public void testCancel2() throws InterruptedException {
-        FiberFuture<Integer> f = group.newFuture();
+        FiberFuture<Integer> f = fiberGroup.newFuture();
         AtomicReference<Integer> futureResult = new AtomicReference<>();
         AtomicReference<Throwable> futureEx = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
         // cancel before await
-        group.fireFiber(new Fiber("cancel", group, new FiberFrame<>() {
+        fiberGroup.fireFiber(new Fiber("cancel", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 latch.countDown();
@@ -525,7 +525,7 @@ public class FutureTest extends AbstractFiberTest {
             }
         }));
         assertTrue(latch.await(1, TimeUnit.SECONDS));
-        group.fireFiber(new Fiber("f", group, new FiberFrame<>() {
+        fiberGroup.fireFiber(new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return f.awaitOn(this::resume);

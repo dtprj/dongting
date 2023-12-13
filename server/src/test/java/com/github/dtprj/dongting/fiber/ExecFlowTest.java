@@ -37,7 +37,7 @@ public class ExecFlowTest extends AbstractFiberTest {
         AtomicBoolean f1FinallyCalled = new AtomicBoolean();
         AtomicBoolean f2FinallyCalled = new AtomicBoolean();
 
-        FiberCondition c = group.newCondition();
+        FiberCondition c = fiberGroup.newCondition();
         FiberFrame<Integer> f2 = new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -76,9 +76,9 @@ public class ExecFlowTest extends AbstractFiberTest {
             }
         };
 
-        Fiber fiber = new Fiber("fiber", group, f1);
-        group.fireFiber(fiber);
-        group.fireFiber(new Fiber("signal", group, new FiberFrame<>() {
+        Fiber fiber = new Fiber("fiber", fiberGroup, f1);
+        fiberGroup.fireFiber(fiber);
+        fiberGroup.fireFiber(new Fiber("signal", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 c.signal();
@@ -116,7 +116,7 @@ public class ExecFlowTest extends AbstractFiberTest {
                 return super.doFinally();
             }
         };
-        group.fireFiber("f", new FiberFrame<>() {
+        fiberGroup.fireFiber("f", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return Fiber.call(sub, this::resume);
@@ -156,7 +156,7 @@ public class ExecFlowTest extends AbstractFiberTest {
                 return super.doFinally();
             }
         };
-        group.fireFiber("f", new FiberFrame<>() {
+        fiberGroup.fireFiber("f", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return Fiber.call(sub, this::resume);
@@ -197,7 +197,7 @@ public class ExecFlowTest extends AbstractFiberTest {
                 return super.doFinally();
             }
         };
-        group.fireFiber("f", new FiberFrame<>() {
+        fiberGroup.fireFiber("f", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return Fiber.call(sub, this::resume);
@@ -237,7 +237,7 @@ public class ExecFlowTest extends AbstractFiberTest {
                 return super.doFinally();
             }
         };
-        group.fireFiber("f", new FiberFrame<>() {
+        fiberGroup.fireFiber("f", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return Fiber.call(sub, this::justReturn);
@@ -284,7 +284,7 @@ public class ExecFlowTest extends AbstractFiberTest {
                 return super.doFinally();
             }
         };
-        group.fireFiber("f", new FiberFrame<>() {
+        fiberGroup.fireFiber("f", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return Fiber.call(sub, this::justReturn);
@@ -330,7 +330,7 @@ public class ExecFlowTest extends AbstractFiberTest {
                 return super.doFinally();
             }
         };
-        group.fireFiber("f", new FiberFrame<>() {
+        fiberGroup.fireFiber("f", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return Fiber.call(sub, this::resume);
@@ -371,7 +371,7 @@ public class ExecFlowTest extends AbstractFiberTest {
                 return Fiber.frameReturn();
             }
         };
-        group.fireFiber("f", new FiberFrame<>() {
+        fiberGroup.fireFiber("f", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return Fiber.call(sub, this::resume);
@@ -407,7 +407,7 @@ public class ExecFlowTest extends AbstractFiberTest {
                 return super.doFinally();
             }
         };
-        group.fireFiber("f", new FiberFrame<>() {
+        fiberGroup.fireFiber("f", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return Fiber.call(sub, this::resume);
@@ -443,7 +443,7 @@ public class ExecFlowTest extends AbstractFiberTest {
                 throw ex2;
             }
         };
-        group.fireFiber("f", new FiberFrame<>() {
+        fiberGroup.fireFiber("f", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return Fiber.call(sub, this::justReturn);
@@ -486,7 +486,7 @@ public class ExecFlowTest extends AbstractFiberTest {
                 throw ex2;
             }
         };
-        group.fireFiber("f", new FiberFrame<>() {
+        fiberGroup.fireFiber("f", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return Fiber.call(sub, this::justReturn);

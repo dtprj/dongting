@@ -34,7 +34,7 @@ public class FiberLifeCycleTest extends AbstractFiberTest {
     @Test
     public void testDaemonFiber() throws Exception {
         CountDownLatch countDownLatch = new CountDownLatch(1);
-        Fiber f = new Fiber("daemonFiber", group, new FiberFrame<>() {
+        Fiber f = new Fiber("daemonFiber", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 if (countDownLatch.getCount() == 1) {
@@ -43,7 +43,7 @@ public class FiberLifeCycleTest extends AbstractFiberTest {
                 return Fiber.sleep(1, this);
             }
         }, true);
-        group.fireFiber(f);
+        fiberGroup.fireFiber(f);
         // wait daemon fiber exec
         countDownLatch.await();
     }
@@ -52,12 +52,12 @@ public class FiberLifeCycleTest extends AbstractFiberTest {
     public void testGroupShutdown() throws Exception {
         FiberGroup g2 = new FiberGroup("g2", dispatcher);
         dispatcher.startGroup(g2).get();
-        group.requestShutdown();
+        fiberGroup.requestShutdown();
         AtomicBoolean groupFinished = new AtomicBoolean();
         g2.fireFiber(new Fiber("f", g2, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                if (group.finished) {
+                if (FiberLifeCycleTest.this.fiberGroup.finished) {
                     groupFinished.set(true);
                     return Fiber.frameReturn();
                 }

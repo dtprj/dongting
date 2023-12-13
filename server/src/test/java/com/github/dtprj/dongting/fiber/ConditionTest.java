@@ -30,10 +30,10 @@ public class ConditionTest extends AbstractFiberTest {
 
     @Test
     public void testTimeout() {
-        FiberCondition c = group.newCondition();
+        FiberCondition c = fiberGroup.newCondition();
         AtomicBoolean error = new AtomicBoolean();
         AtomicBoolean finish = new AtomicBoolean();
-        Fiber f = new Fiber("f", group, new FiberFrame<>() {
+        Fiber f = new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return c.awaitOn(1, this::resume);
@@ -50,7 +50,7 @@ public class ConditionTest extends AbstractFiberTest {
                 return Fiber.frameReturn();
             }
         });
-        group.fireFiber(f);
+        fiberGroup.fireFiber(f);
         TestUtil.waitUtil(finish::get);
         Assertions.assertFalse(error.get());
     }
@@ -58,10 +58,10 @@ public class ConditionTest extends AbstractFiberTest {
     @Test
     public void testSignal() throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
-        FiberCondition c = group.newCondition();
+        FiberCondition c = fiberGroup.newCondition();
         AtomicBoolean error = new AtomicBoolean();
         AtomicBoolean finish = new AtomicBoolean();
-        Fiber f = new Fiber("f", group, new FiberFrame<>() {
+        Fiber f = new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 latch.countDown();
@@ -79,16 +79,16 @@ public class ConditionTest extends AbstractFiberTest {
                 return Fiber.frameReturn();
             }
         });
-        group.fireFiber(f);
+        fiberGroup.fireFiber(f);
         Assertions.assertTrue(latch.await(1 , TimeUnit.SECONDS));
-        Fiber f2 = new Fiber("f2", group, new FiberFrame<>() {
+        Fiber f2 = new Fiber("f2", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 c.signal();
                 return Fiber.frameReturn();
             }
         });
-        group.fireFiber(f2);
+        fiberGroup.fireFiber(f2);
 
         TestUtil.waitUtil(finish::get);
         Assertions.assertFalse(error.get());
@@ -97,10 +97,10 @@ public class ConditionTest extends AbstractFiberTest {
     @Test
     public void testInterrupt() throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
-        FiberCondition c = group.newCondition();
+        FiberCondition c = fiberGroup.newCondition();
         AtomicBoolean interrupt = new AtomicBoolean();
         AtomicBoolean finish = new AtomicBoolean();
-        Fiber f = new Fiber("f", group, new FiberFrame<>() {
+        Fiber f = new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 latch.countDown();
@@ -120,16 +120,16 @@ public class ConditionTest extends AbstractFiberTest {
                 return Fiber.frameReturn();
             }
         });
-        group.fireFiber(f);
+        fiberGroup.fireFiber(f);
         Assertions.assertTrue(latch.await(1 , TimeUnit.SECONDS));
-        Fiber f2 = new Fiber("f2", group, new FiberFrame<>() {
+        Fiber f2 = new Fiber("f2", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 f.interrupt();
                 return Fiber.frameReturn();
             }
         });
-        group.fireFiber(f2);
+        fiberGroup.fireFiber(f2);
 
         TestUtil.waitUtil(interrupt::get);
         Assertions.assertFalse(finish.get());
@@ -162,21 +162,21 @@ public class ConditionTest extends AbstractFiberTest {
     public void testSignalAll() throws Exception {
         CountDownLatch startLatch = new CountDownLatch(2);
         CountDownLatch finishLatch = new CountDownLatch(2);
-        FiberCondition c = group.newCondition();
+        FiberCondition c = fiberGroup.newCondition();
 
-        Fiber f1 = new Fiber("f1", group,new F(startLatch, finishLatch, c));
-        Fiber f2 = new Fiber("f2", group,new F(startLatch, finishLatch, c));
-        group.fireFiber(f1);
-        group.fireFiber(f2);
+        Fiber f1 = new Fiber("f1", fiberGroup,new F(startLatch, finishLatch, c));
+        Fiber f2 = new Fiber("f2", fiberGroup,new F(startLatch, finishLatch, c));
+        fiberGroup.fireFiber(f1);
+        fiberGroup.fireFiber(f2);
         Assertions.assertTrue(startLatch.await(1, TimeUnit.SECONDS));
-        Fiber f3 = new Fiber("f3", group, new FiberFrame<>() {
+        Fiber f3 = new Fiber("f3", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 c.signalAll();
                 return Fiber.frameReturn();
             }
         });
-        group.fireFiber(f3);
+        fiberGroup.fireFiber(f3);
 
         Assertions.assertTrue(finishLatch.await(1, TimeUnit.SECONDS));
     }

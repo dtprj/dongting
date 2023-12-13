@@ -112,4 +112,8 @@ abstract class WaitSource {
             group.tryMakeFiberReady(f, true);
         }
     }
+
+    public FiberGroup getGroup() {
+        return group;
+    }
 }

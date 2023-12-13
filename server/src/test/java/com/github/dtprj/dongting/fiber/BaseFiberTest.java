@@ -16,31 +16,33 @@
 package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.common.DtTime;
-import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.BeforeAll;
 
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
+ * This class used for biz tests.
+ *
  * @author huangli
  */
-class AbstractFiberTest {
-    protected Dispatcher dispatcher;
-    protected FiberGroup fiberGroup;
+public class BaseFiberTest {
+    protected static Dispatcher dispatcher;
+    protected static FiberGroup fiberGroup;
 
-    @BeforeEach
-    public void initGroup() throws Exception {
+    @BeforeAll
+    public static void initGroup() throws Exception {
         dispatcher = new Dispatcher("test");
         dispatcher.start();
         fiberGroup = new FiberGroup("test group", dispatcher);
         dispatcher.startGroup(fiberGroup).get();
     }
 
-    @AfterEach
-    public void shutdownDispatcher() throws Exception {
+    @AfterAll
+    public static void shutdownDispatcher() throws Exception {
         if (dispatcher.thread.isAlive()) {
             dispatcher.stop(new DtTime(1000, TimeUnit.MILLISECONDS));
             dispatcher.thread.join(1500);

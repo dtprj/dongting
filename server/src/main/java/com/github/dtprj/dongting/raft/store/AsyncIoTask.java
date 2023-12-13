@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.CompletionHandler;
@@ -75,6 +76,9 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     }
 
     public FiberFuture<Void> read(ByteBuffer ioBuffer, long filePos) {
+        if (this.ioBuffer != null) {
+            throw new RaftException("io task can't reused");
+        }
         this.ioBuffer = ioBuffer;
         this.filePos = filePos;
         this.position = ioBuffer.position();
@@ -86,6 +90,9 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     }
 
     public FiberFuture<Void> write(ByteBuffer ioBuffer, long filePos) {
+        if (this.ioBuffer != null) {
+            throw new RaftException("io task can't reused");
+        }
         this.ioBuffer = ioBuffer;
         this.filePos = filePos;
         this.position = ioBuffer.position();
@@ -97,6 +104,9 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     }
 
     public FiberFuture<Void> writeAndFlush(ByteBuffer ioBuffer, long filePos, boolean flushMeta) {
+        if (this.ioBuffer != null) {
+            throw new RaftException("io task can't reused");
+        }
         this.ioBuffer = ioBuffer;
         this.filePos = filePos;
         this.position = ioBuffer.position();
@@ -112,7 +122,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
             future.fireCompleteExceptionally(ioEx);
             return;
         }
-        if (shouldCancelRetry()) {
+        if (shouldCancelRetry(ioEx)) {
             return;
         }
         long sleepTime;
@@ -128,7 +138,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
             sleepTime = retryInterval[retryCount++];
         }
 
-        Fiber retryFiber = new Fiber("io-retry-fiber", fiberGroup, new FiberFrame<Void>() {
+        Fiber retryFiber = new Fiber("io-retry-fiber", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 log.warn("io error, retry after {} ms", sleepTime, ioEx);
@@ -136,7 +146,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
             }
 
             private FrameCallResult resume(Void v) {
-                if (shouldCancelRetry()) {
+                if (shouldCancelRetry(ioEx)) {
                     return Fiber.frameReturn();
                 }
                 ioBuffer.position(position);
@@ -154,16 +164,17 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         fiberGroup.fireFiber(retryFiber);
     }
 
-    private boolean shouldCancelRetry() {
+    private boolean shouldCancelRetry(Throwable ioEx) {
         if (cancelIndicator != null && cancelIndicator.get()) {
             log.warn("retry canceled");
-            future.fireCompleteExceptionally(new FiberCancelException());
+            future.fireCompleteExceptionally(ioEx);
             return true;
         }
         return false;
     }
 
-    private void exec(long pos) {
+    // this method set to protected for mock error in unit test
+    protected void exec(long pos) {
         try {
             if (write) {
                 channel.write(ioBuffer, pos, null, this);
@@ -190,13 +201,18 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
             exec(filePos + bytes);
         } else {
             try {
-                if (flush) {
-                    channel.force(flushMeta);
-                }
+                doFlush();
                 future.fireComplete(null);
             } catch (Throwable e) {
                 retry(e);
             }
+        }
+    }
+
+    // this method set to protected for mock error in unit test
+    protected void doFlush() throws IOException {
+        if (flush) {
+            channel.force(flushMeta);
         }
     }
 
