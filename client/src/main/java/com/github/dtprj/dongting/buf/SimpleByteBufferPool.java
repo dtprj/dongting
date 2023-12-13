@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.buf;
 
+import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Timestamp;
 
@@ -22,13 +23,13 @@ import java.nio.ByteBuffer;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.Objects;
+import java.util.Random;
 
 /**
  * Simple ByteBuffer pool, not thread safe.
  *
  * @author huangli
  */
-// TODO byte buffer pool need optimise
 public class SimpleByteBufferPool extends ByteBufferPool {
     public static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0).asReadOnlyBuffer();
     public static final int DEFAULT_THRESHOLD = 128;
@@ -119,8 +120,9 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         }
 
         this.pools = new Pool[bufferTypeCount];
+        Random r = new Random();
         for (int i = 0; i < bufferTypeCount; i++) {
-            this.pools[i] = new Pool(minCount[i], maxCount[i], bufSizes[i]);
+            this.pools[i] = new Pool(minCount[i], maxCount[i], bufSizes[i], r.nextLong());
         }
     }
 
@@ -323,31 +325,39 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     }
 
     class Pool {
+        private static final int MAGIC_INDEX = 0;
+        private static final int RETURN_TIME_INDEX = 8;
         private final int bufferSize;
         private final int maxCount;
         private final int minCount;
+        private final long magic;
 
-        private final IndexedQueue<ByteBuffer> bufferStask;
+        private final IndexedQueue<ByteBuffer> bufferStack;
 
         long statBorrowCount;
         long statBorrowHitCount;
         long statReleaseCount;
         long statReleaseHitCount;
 
-        public Pool(int minCount, int maxCount, int bufferSize) {
-            if (bufferSize < 8) {
+        public Pool(int minCount, int maxCount, int bufferSize, long magic) {
+            this.magic = magic;
+            if (bufferSize < 16) {
                 throw new IllegalArgumentException("buffer size too small: " + bufferSize);
             }
             this.minCount = minCount;
             this.maxCount = maxCount;
             this.bufferSize = bufferSize;
-            this.bufferStask = new IndexedQueue<>(maxCount);
+            this.bufferStack = new IndexedQueue<>(maxCount);
         }
 
         public ByteBuffer borrow() {
             statBorrowCount++;
-            ByteBuffer buf = bufferStask.removeLast();
+            ByteBuffer buf = bufferStack.removeLast();
             if (buf != null) {
+                long bufMagic = buf.getLong(MAGIC_INDEX);
+                if (bufMagic != magic) {
+                    throw new DtException("A bug may exist where the buffer is written to after release.");
+                }
                 statBorrowHitCount++;
             }
             return buf;
@@ -355,8 +365,17 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
         public void release(ByteBuffer buf, long nanos) {
             statReleaseCount++;
+            IndexedQueue<ByteBuffer> bufferStack = this.bufferStack;
+            if (buf.getLong(MAGIC_INDEX) == magic) {
+                // shit
+                for (int i = 0, stackSize = bufferStack.size(); i < stackSize; i++) {
+                    if (bufferStack.get(i) == buf) {
+                        throw new DtException("A bug may exist where the buffer is released twice.");
+                    }
+                }
+            }
 
-            if (bufferStask.size() >= maxCount) {
+            if (bufferStack.size() >= maxCount) {
                 long newUsedShareSize = currentUsedShareSize + bufferSize;
                 if (newUsedShareSize > shareSize) {
                     // too many buffer in pool
@@ -369,18 +388,19 @@ public class SimpleByteBufferPool extends ByteBufferPool {
 
             // return it to pool
             buf.clear();
-            // use the buffer to store return time
-            buf.putLong(0, nanos);
+            // use the buffer to store return time and magic
+            buf.putLong(MAGIC_INDEX, magic);
+            buf.putLong(RETURN_TIME_INDEX, nanos);
 
-            bufferStask.addLast(buf);
+            bufferStack.addLast(buf);
         }
 
         public void clean(long expireNanos) {
-            IndexedQueue<ByteBuffer> stack = this.bufferStask;
+            IndexedQueue<ByteBuffer> stack = this.bufferStack;
             int size = stack.size();
             for (int i = 0; i < size - minCount; i++) {
                 ByteBuffer buf = stack.get(0);
-                if (buf.getLong(0) - expireNanos > 0) {
+                if (buf.getLong(RETURN_TIME_INDEX) - expireNanos > 0) {
                     break;
                 } else {
                     stack.removeFirst();

@@ -3,8 +3,10 @@
  */
 package com.github.dtprj.dongting.buf;
 
+import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.Timestamp;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -327,6 +329,22 @@ public class SimpleByteBufferPoolTest {
         } finally {
             executorService.shutdown();
         }
+    }
+
+    @Test
+    public void testBadUsage() {
+        pool = new SimpleByteBufferPool(TS, false);
+        ByteBuffer buf1 = pool.borrow(400);
+        pool.release(buf1);
+        assertThrows(DtException.class, () -> pool.release(buf1));
+        ByteBuffer buf2 = pool.borrow(400);
+        pool.release(buf2);
+        buf2.putLong(0, buf2.getLong(0) + 1);
+        assertThrows(DtException.class, () -> pool.borrow(400));
+        ByteBuffer buf3 = pool.borrow(400);
+        // buf2 is dropped
+        Assertions.assertNotSame(buf2, buf3);
+        pool.release(buf3);
     }
 
     public static void main(String[] args) {
