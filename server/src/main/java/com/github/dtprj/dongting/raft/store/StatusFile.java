@@ -59,7 +59,8 @@ public class StatusFile implements AutoCloseable {
     private FileLock lock;
     private AsynchronousFileChannel channel;
     private final byte[] data = new byte[FILE_LENGTH];
-    private final ByteArrayOutputStream bos = new ByteArrayOutputStream(128);
+    private final ByteArrayOutputStream bos = new ByteArrayOutputStream(FILE_LENGTH);
+    private final CRC32C crc32c = new CRC32C();
 
     private final Properties properties = new Properties();
 
@@ -75,6 +76,9 @@ public class StatusFile implements AutoCloseable {
 
     public FiberFrame<Void> init(long ioTimeout) {
         return new FiberFrame<>() {
+            // don't use data since the init method may be timeout
+            private final byte[] initData = new byte[FILE_LENGTH];
+
             @Override
             public FrameCallResult execute(Void input) throws Exception {
                 boolean needLoad = file.exists() && file.length() != 0;
@@ -91,27 +95,26 @@ public class StatusFile implements AutoCloseable {
                 if (file.length() != FILE_LENGTH) {
                     throw new RaftException("bad status file length: " + file.length());
                 }
-                ByteBuffer buf = ByteBuffer.wrap(data);
+                ByteBuffer buf = ByteBuffer.wrap(initData);
                 AsyncIoTask task = new AsyncIoTask(fiberGroup, channel);
                 FiberFuture<Void> f = task.read(buf, 0);
                 return f.awaitOn(ioTimeout, this::resumeAfterRead);
             }
 
             private FrameCallResult resumeAfterRead(Void input) throws Exception {
-                CRC32C crc32c = new CRC32C();
-
-                crc32c.update(data, CONTENT_START_POS, CONTENT_LENGTH);
+                crc32c.reset();
+                crc32c.update(initData, CONTENT_START_POS, CONTENT_LENGTH);
                 int expectCrc = (int) crc32c.getValue();
 
                 int actualCrc = Integer.parseUnsignedInt(new String(
-                        data, 0, 8, StandardCharsets.UTF_8), 16);
+                        initData, 0, 8, StandardCharsets.UTF_8), 16);
 
                 if (actualCrc != expectCrc) {
                     throw new ChecksumException("bad status file crc: " + actualCrc + ", expect: " + expectCrc);
                 }
 
                 properties.load(new StringReader(new String(
-                        data, CONTENT_START_POS, CONTENT_LENGTH, StandardCharsets.UTF_8)));
+                        initData, CONTENT_START_POS, CONTENT_LENGTH, StandardCharsets.UTF_8)));
                 return Fiber.frameReturn();
             }
 
@@ -133,7 +136,7 @@ public class StatusFile implements AutoCloseable {
             data[CONTENT_START_POS - 2] = '\r';
             data[CONTENT_START_POS - 1] = '\n';
 
-            CRC32C crc32c = new CRC32C();
+            crc32c.reset();
             crc32c.update(data, CONTENT_START_POS, CONTENT_LENGTH);
             int crc = (int) crc32c.getValue();
             String crcHex = String.format("%08x", crc);
@@ -156,7 +159,9 @@ public class StatusFile implements AutoCloseable {
 
     @Override
     public void close() {
-        DtUtil.close(lock, channel);
+        if (channel.isOpen()) {
+            DtUtil.close(lock, channel);
+        }
     }
 
 }
