@@ -55,16 +55,16 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     private int retryCount = 0;
 
     public AsyncIoTask(FiberGroup fiberGroup, AsynchronousFileChannel channel) {
-        this(fiberGroup, channel, null, null);
+        this(fiberGroup, channel, null, false, null);
     }
 
     public AsyncIoTask(FiberGroup fiberGroup, AsynchronousFileChannel channel,
-                       Supplier<Boolean> cancelIndicator, long[] retryInterval) {
-        this(fiberGroup, channel, cancelIndicator, retryInterval, false);
+                       long[] retryInterval, boolean retryForever) {
+        this(fiberGroup, channel, retryInterval, retryForever, null);
     }
 
     public AsyncIoTask(FiberGroup fiberGroup, AsynchronousFileChannel channel,
-                       Supplier<Boolean> cancelIndicator, long[] retryInterval, boolean retryForever) {
+                       long[] retryInterval, boolean retryForever, Supplier<Boolean> cancelIndicator) {
         Objects.requireNonNull(fiberGroup);
         Objects.requireNonNull(channel);
         this.retryInterval = retryInterval;
@@ -122,7 +122,8 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
             future.fireCompleteExceptionally(ioEx);
             return;
         }
-        if (shouldCancelRetry(ioEx)) {
+        if (shouldCancelRetry()) {
+            future.fireCompleteExceptionally(ioEx);
             return;
         }
         long sleepTime;
@@ -142,11 +143,12 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
             @Override
             public FrameCallResult execute(Void input) {
                 log.warn("io error, retry after {} ms", sleepTime, ioEx);
-                return Fiber.sleep(sleepTime, this::resume);
+                return Fiber.sleepUntilShouldStop(sleepTime, this::resume);
             }
 
             private FrameCallResult resume(Void v) {
-                if (shouldCancelRetry(ioEx)) {
+                if (shouldCancelRetry()) {
+                    future.fireCompleteExceptionally(ioEx);
                     return Fiber.frameReturn();
                 }
                 ioBuffer.position(position);
@@ -164,10 +166,13 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         fiberGroup.fireFiber(retryFiber);
     }
 
-    private boolean shouldCancelRetry(Throwable ioEx) {
+    private boolean shouldCancelRetry() {
+        if (fiberGroup.isShouldStop()) {
+            // if fiber group is stopped, ignore cancelIndicator and retryForever
+            return true;
+        }
         if (cancelIndicator != null && cancelIndicator.get()) {
-            log.warn("retry canceled");
-            future.fireCompleteExceptionally(ioEx);
+            log.warn("retry canceled by cancelIndicator");
             return true;
         }
         return false;

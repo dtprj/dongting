@@ -298,7 +298,7 @@ class LogAppender {
         buffer.flip();
         int bytes = buffer.remaining();
         long[] retry = (logFileQueue.initialized && !logFileQueue.isClosed()) ? groupConfig.getIoRetryInterval() : null;
-        AsyncIoTask task = new AsyncIoTask(fiberGroup, file.channel, writeStopIndicator, retry, true);
+        AsyncIoTask task = new AsyncIoTask(fiberGroup, file.channel, retry, true, writeStopIndicator);
         FiberFuture<Void> future;
         if (lastItem == null) {
             future = task.write(buffer, writeStartPosInFile);

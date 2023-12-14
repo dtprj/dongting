@@ -295,7 +295,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             long nextPersistIndexAfterWrite = index;
 
             AsyncIoTask currentWriteTask = new AsyncIoTask(getFiberGroup(), logFile.channel,
-                    this::isGroupShouldStopPlain, groupConfig.getIoRetryInterval(), true);
+                    groupConfig.getIoRetryInterval(), true);
             FiberFuture<Void> f = currentWriteTask.writeAndFlush(buf, indexToPos(startIndex), false);
             return f.awaitOn(notUsedVoid -> afterWrite(nextPersistIndexAfterWrite));
         }

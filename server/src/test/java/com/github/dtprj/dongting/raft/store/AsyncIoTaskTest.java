@@ -110,12 +110,12 @@ public class AsyncIoTaskTest extends BaseFiberTest {
 
         // fail on first read
         buf.clear();
-        ReadFailTask t = new ReadFailTask(1, () -> false, new long[]{1}, false);
+        ReadFailTask t = new ReadFailTask(1, new long[]{1}, false, null);
         toJdkFuture(t.read(buf, 0)).get(1, TimeUnit.SECONDS);
 
         // fail twice, so retry failed
         buf.clear();
-        t = new ReadFailTask(2, () -> false, new long[]{1}, false);
+        t = new ReadFailTask(2, new long[]{1}, false, null);
         try {
             toJdkFuture(t.read(buf, 0)).get(1, TimeUnit.SECONDS);
             fail();
@@ -125,12 +125,12 @@ public class AsyncIoTaskTest extends BaseFiberTest {
 
         // fail twice but retry forever
         buf.clear();
-        t = new ReadFailTask(2, () -> false, new long[]{1}, true);
+        t = new ReadFailTask(2, new long[]{1}, true, () -> false);
         toJdkFuture(t.read(buf, 0)).get(1, TimeUnit.SECONDS);
 
         // fail, cancel indicator return true
         buf.clear();
-        t = new ReadFailTask(2, () -> true, new long[]{1}, true);
+        t = new ReadFailTask(2, new long[]{1}, true, () -> true);
         try {
             toJdkFuture(t.read(buf, 0)).get(1, TimeUnit.SECONDS);
             fail();
@@ -141,8 +141,8 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         // fail, cancel indicator return true
         buf.clear();
         AtomicInteger cancelIndicatorCount = new AtomicInteger();
-        t = new ReadFailTask(2, () -> cancelIndicatorCount.getAndIncrement() == 1,
-                new long[]{1}, true);
+        t = new ReadFailTask(2, new long[]{1}, true,
+                () -> cancelIndicatorCount.getAndIncrement() == 1);
         try {
             toJdkFuture(t.read(buf, 0)).get(1, TimeUnit.SECONDS);
             fail();
@@ -152,7 +152,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
 
         // no retry
         buf.clear();
-        t = new ReadFailTask(2, null, null, false);
+        t = new ReadFailTask(2, null, false, null);
         try {
             toJdkFuture(t.read(buf, 0)).get(1, TimeUnit.SECONDS);
             fail();
@@ -166,9 +166,9 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         private int count;
         IOException ex = new IOException("mock error");
 
-        public ReadFailTask(int failCount, Supplier<Boolean> cancelIndicator,
-                            long[] retryInterval, boolean retryForever) {
-            super(fiberGroup, channel, cancelIndicator, retryInterval, retryForever);
+        public ReadFailTask(int failCount, long[] retryInterval,
+                            boolean retryForever, Supplier<Boolean> cancelIndicator) {
+            super(fiberGroup, channel, retryInterval, retryForever, cancelIndicator);
             this.failCount = failCount;
         }
 
@@ -187,7 +187,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         ByteBuffer buf = ByteBuffer.allocate(1);
 
         // fail on first read
-        FlushFailTask t = new FlushFailTask(1, () -> false, new long[]{1}, false);
+        FlushFailTask t = new FlushFailTask(1, new long[]{1}, false, () -> false);
         toJdkFuture(t.writeAndFlush(buf, 0, false)).get(1, TimeUnit.SECONDS);
     }
 
@@ -196,9 +196,9 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         private int count;
         IOException ex = new IOException("mock error");
 
-        public FlushFailTask(int failCount, Supplier<Boolean> cancelIndicator,
-                             long[] retryInterval, boolean retryForever) {
-            super(fiberGroup, channel, cancelIndicator, retryInterval, retryForever);
+        public FlushFailTask(int failCount, long[] retryInterval, boolean retryForever,
+                             Supplier<Boolean> cancelIndicator) {
+            super(fiberGroup, channel, retryInterval, retryForever, cancelIndicator);
             this.failCount = failCount;
         }
 
