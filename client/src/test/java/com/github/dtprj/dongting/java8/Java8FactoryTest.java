@@ -18,6 +18,8 @@ package com.github.dtprj.dongting.java8;
 import com.github.dtprj.dongting.common.VersionFactory;
 import org.junit.jupiter.api.Test;
 
+import java.nio.ByteBuffer;
+
 /**
  * @author huangli
  */
@@ -28,5 +30,7 @@ public class Java8FactoryTest {
         f.newRefCountUpdater(true);
         f.newRefCountUpdater(false);
         f.newMpscLinkedQueue();
+        ByteBuffer buffer = ByteBuffer.allocateDirect(1);
+        f.releaseDirectBuffer(buffer);
     }
 }
