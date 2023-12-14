@@ -19,6 +19,8 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 
+import java.nio.ByteBuffer;
+
 /**
  * @author huangli
  */
@@ -32,6 +34,7 @@ public abstract class VersionFactory {
 
     public abstract <E> MpscLinkedQueue<E> newMpscLinkedQueue();
 
+    public abstract void releaseDirectBuffer(ByteBuffer buffer);
 }
 
 class VfHolder {
@@ -44,7 +47,7 @@ class VfHolder {
         if (DtUtil.javaVersion() > 8) {
             className = "com.github.dtprj.dongting.java11.Java11Factory";
         } else {
-            className = "com.github.dtprj.dongting.vf8.Java8Factory";
+            className = "com.github.dtprj.dongting.java8.Java8Factory";
         }
         VersionFactory f = null;
         try {

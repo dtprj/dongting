@@ -19,32 +19,54 @@ import com.github.dtprj.dongting.common.DtException;
 import sun.misc.Unsafe;
 
 import java.lang.reflect.Field;
+import java.nio.ByteBuffer;
 
 /**
+ * This class is compiled as java source 8, target 8, but without release flag.
+ * The jdk.internal.misc.Unsafe need set --add-opens at runtime, so we not use it.
+ * Use sun.misc.Unsafe can't set --release flag of javac.
+ * Notice not all method of this class is available in java 8.
+ *
  * @author huangli
  */
 public class DtUnsafe {
-    private static final Unsafe unsafe;
+    private static final Unsafe UNSAFE;
 
     static {
         try {
             Field field = Unsafe.class.getDeclaredField("theUnsafe");
             field.setAccessible(true);
-            unsafe = (Unsafe) field.get(null);
+            UNSAFE = (Unsafe) field.get(null);
         } catch (Exception e) {
             throw new DtException(e);
         }
     }
 
+    /**
+     * This method can be used in java 8/11/17/21.
+     */
     public static void releaseFence() {
-        unsafe.storeFence();
+        UNSAFE.storeFence();
     }
 
+    /**
+     * This method can be used in java 8/11/17/21.
+     */
     public static void acquireFence() {
-        unsafe.loadFence();
+        UNSAFE.loadFence();
     }
 
+    /**
+     * This method can be used in java 8/11/17/21.
+     */
     public static void fullFence() {
-        unsafe.fullFence();
+        UNSAFE.fullFence();
+    }
+
+    /**
+     * This method can't be used in java 8. It can be used in java 11/17/21.
+     */
+    public static void freeDirectBuffer(ByteBuffer buffer) {
+        UNSAFE.invokeCleaner(buffer);
     }
 }

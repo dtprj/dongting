@@ -18,6 +18,9 @@ package com.github.dtprj.dongting.java11;
 import com.github.dtprj.dongting.common.AbstractRefCountUpdater;
 import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
+import com.github.dtprj.dongting.unsafe.DtUnsafe;
+
+import java.nio.ByteBuffer;
 
 /**
  * @author huangli
@@ -35,4 +38,8 @@ public class Java11Factory extends VersionFactory {
         return new Java11MpscLinkedQueue<>();
     }
 
+    @Override
+    public void releaseDirectBuffer(ByteBuffer buffer) {
+        DtUnsafe.freeDirectBuffer(buffer);
+    }
 }
