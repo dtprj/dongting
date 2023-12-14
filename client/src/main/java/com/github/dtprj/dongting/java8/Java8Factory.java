@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.java8;
 import com.github.dtprj.dongting.common.AbstractRefCountUpdater;
 import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
-import com.github.dtprj.dongting.unsafe.DtUnsafe;
 
 /**
  * @author huangli
@@ -36,18 +35,4 @@ public class Java8Factory extends VersionFactory {
         return new Java8MpscLinkedQueue<>();
     }
 
-    @Override
-    public void releaseFence() {
-        DtUnsafe.releaseFence();
-    }
-
-    @Override
-    public void acquireFence() {
-        DtUnsafe.acquireFence();
-    }
-
-    @Override
-    public void fullFence() {
-        DtUnsafe.fullFence();
-    }
 }

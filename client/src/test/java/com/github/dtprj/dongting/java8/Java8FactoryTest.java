@@ -28,6 +28,5 @@ public class Java8FactoryTest {
         f.newRefCountUpdater(true);
         f.newRefCountUpdater(false);
         f.newMpscLinkedQueue();
-        f.fullFence();
     }
 }

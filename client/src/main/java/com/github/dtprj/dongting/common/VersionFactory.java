@@ -32,11 +32,6 @@ public abstract class VersionFactory {
 
     public abstract <E> MpscLinkedQueue<E> newMpscLinkedQueue();
 
-    public abstract void releaseFence();
-
-    public abstract void acquireFence();
-
-    public abstract void fullFence();
 }
 
 class VfHolder {
