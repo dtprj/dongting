@@ -55,7 +55,6 @@
 
     <modules>
         <module>client</module>
-        <module>client-java8</module>
         <module>server</module>
         <module>report</module>
         <module>benchmark</module>

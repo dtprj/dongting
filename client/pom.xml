@@ -31,11 +31,6 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <source>8</source>
-                    <target>8</target>
-                    <release>8</release>
-                </configuration>
                 <executions>
                     <execution>
                         <id>default-compile</id>
@@ -43,7 +38,21 @@
                             <source>11</source>
                             <target>11</target>
                             <release>11</release>
-                            <!-- no excludes: compile everything to ensure module-info contains right entries -->
+                            <!-- compile everything to ensure module-info contains right entries -->
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>unsafe-compile</id>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                        <configuration>
+                            <source>8</source>
+                            <target>8</target>
+                            <!-- can't set release flag here, otherwise compile will fail -->
+                            <includes>
+                                <include>com/github/dtprj/dongting/unsafe/*</include>
+                            </includes>
                         </configuration>
                     </execution>
                     <execution>
@@ -52,10 +61,14 @@
                             <goal>compile</goal>
                         </goals>
                         <configuration>
-                            <!-- recompile everything for target VM except the module-info.java -->
+                            <!-- main compile -->
+                            <source>8</source>
+                            <target>8</target>
+                            <release>8</release>
                             <excludes>
                                 <exclude>module-info.java</exclude>
                                 <exclude>com/github/dtprj/dongting/java11/*</exclude>
+                                <exclude>com/github/dtprj/dongting/unsafe/*</exclude>
                             </excludes>
                         </configuration>
                     </execution>
