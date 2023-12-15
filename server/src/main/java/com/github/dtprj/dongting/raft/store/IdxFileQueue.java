@@ -127,7 +127,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             final long finalRestoreIndex = restoreIndex;
             return new FiberFrame<>() {
                 @Override
-                public FrameCallResult execute(Void input) throws Exception {
+                public FrameCallResult execute(Void input) throws Throwable {
                     return loadLogPos(finalRestoreIndex, this::afterLoad);
                 }
 
@@ -345,7 +345,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     @Override
-    public FrameCallResult loadLogPos(long itemIndex, FrameCall<Long> resumePoint) throws Exception {
+    public FrameCallResult loadLogPos(long itemIndex, FrameCall<Long> resumePoint) throws Throwable {
         DtUtil.checkPositive(itemIndex, "index");
         if (itemIndex >= nextIndex) {
             BugLog.getLog().error("index is too large : lastIndex={}, index={}", nextIndex, itemIndex);

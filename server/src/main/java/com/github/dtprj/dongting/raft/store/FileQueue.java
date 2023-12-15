@@ -173,7 +173,7 @@ abstract class FileQueue implements AutoCloseable {
     private FiberFrame<Void> allocateSync(boolean retry) {
         long[] retryInterval = retry ? groupConfig.getIoRetryInterval() : null;
         allocateFuture = groupConfig.getFiberGroup().newFuture();
-        return new IoRetryFrame<>(new AllocateFrame(), retryInterval, true) {
+        return new RetryFrame<>(new AllocateFrame(), retryInterval, true) {
             @Override
             protected FrameCallResult doFinally() {
                 allocateFuture.complete(null);
@@ -281,7 +281,7 @@ abstract class FileQueue implements AutoCloseable {
     protected FiberFrame<Void> delete(LogFile logFile) {
         return new FiberFrame<>() {
             @Override
-            public FrameCallResult execute(Void v) throws Exception {
+            public FrameCallResult execute(Void v) throws Throwable {
                 return logFile.awaitNotUse(this::afterNotUse);
             }
 

@@ -62,7 +62,7 @@ public class Fiber {
         return FrameCallResult.CALL_NEXT_FRAME;
     }
 
-    public static <O2> FrameCallResult resume(O2 input, FrameCall<O2> resumePoint) throws Exception {
+    public static <O2> FrameCallResult resume(O2 input, FrameCall<O2> resumePoint) throws Throwable {
         resumePoint.execute(input);
         return FrameCallResult.RETURN;
     }

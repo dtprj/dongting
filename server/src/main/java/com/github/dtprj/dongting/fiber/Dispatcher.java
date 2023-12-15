@@ -402,13 +402,24 @@ public class Dispatcher extends AbstractLifeCircle {
         if (!fiber.started || fiber.ready) {
             fiber.interrupted = true;
         } else {
+            String str;
             if (fiber.source != null) {
-                fiber.source.removeWaiter(fiber);
+                WaitSource s = fiber.source;
+                s.removeWaiter(fiber);
                 fiber.source = null;
+                if (s instanceof FiberFuture) {
+                    str = "future " + s;
+                } else if (s instanceof FiberCondition) {
+                    str = "condition " + s;
+                } else {
+                    str = "lock " + s;
+                }
+            } else {
+                str = "sleep";
             }
             fiber.stackTop.resumePoint = null;
             fiber.interrupted = false;
-            fiber.lastEx = new FiberInterruptException("fiber is interrupted during wait");
+            fiber.lastEx = new FiberInterruptException("fiber is interrupted during wait " + str);
             tryRemoveFromScheduleQueue(fiber);
             fiber.fiberGroup.tryMakeFiberReady(fiber, false);
         }

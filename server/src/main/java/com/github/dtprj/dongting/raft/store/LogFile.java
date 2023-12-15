@@ -60,7 +60,7 @@ class LogFile {
         }
     }
 
-    public FrameCallResult awaitNotUse(FrameCall<Void> resumePoint) throws Exception {
+    public FrameCallResult awaitNotUse(FrameCall<Void> resumePoint) throws Throwable {
         if (use == 0) {
             return resumePoint.execute(null);
         } else {

@@ -15,10 +15,32 @@
  */
 package com.github.dtprj.dongting.fiber;
 
+import com.github.dtprj.dongting.common.Pair;
+
 /**
  * @author huangli
  */
-@FunctionalInterface
-public interface FrameCall<I> {
-    FrameCallResult execute(I input) throws Throwable;
+public class HandlerFrame<O> extends FiberFrame<Pair<O, Throwable>> {
+
+    private final FiberFrame<O> subFrame;
+
+    public HandlerFrame(FiberFrame<O> subFrame) {
+        this.subFrame = subFrame;
+    }
+
+    @Override
+    public FrameCallResult execute(Void input) throws Exception {
+        return Fiber.call(subFrame, this::resume);
+    }
+
+    private FrameCallResult resume(O o) {
+        setResult(new Pair<>(o, null));
+        return Fiber.frameReturn();
+    }
+
+    @Override
+    protected FrameCallResult handle(Throwable ex) throws Throwable {
+        setResult(new Pair<>(null, ex));
+        return Fiber.frameReturn();
+    }
 }

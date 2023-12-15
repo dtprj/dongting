@@ -119,9 +119,9 @@ public class StatusManager implements AutoCloseable {
                     return f.awaitOn(groupConfig.getIoTimeout(), this::justReturn);
                 }
             };
-            IoRetryFrame<Void> ioRetryFrame = new IoRetryFrame<>(updateFrame,
+            RetryFrame<Void> retryFrame = new RetryFrame<>(updateFrame,
                     groupConfig.getIoRetryInterval(), true);
-            return Fiber.call(ioRetryFrame, this::resumeOnUpdateDone);
+            return Fiber.call(retryFrame, this::resumeOnUpdateDone);
         }
 
         private FrameCallResult resumeOnUpdateDone(Void v) {

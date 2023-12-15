@@ -148,7 +148,7 @@ class LogAppender {
         return groupConfig.getDirectPool().borrow(size);
     }
 
-    private FrameCallResult afterPosReady(Void unused) throws Exception {
+    private FrameCallResult afterPosReady(Void unused) throws Throwable {
         // reset 5 status fields
         writeStartPosInFile = nextPersistPos & fileLenMask;
         restBytes = 0;
