@@ -21,10 +21,10 @@ package com.github.dtprj.dongting.fiber;
 abstract class WaitSource {
     private Fiber lastWaiter;
     Fiber firstWaiter;
-    protected final FiberGroup group;
+    protected final FiberGroup fiberGroup;
 
     public WaitSource(FiberGroup group) {
-        this.group = group;
+        this.fiberGroup = group;
     }
 
     protected abstract boolean shouldWait(Fiber currentFiber);
@@ -92,28 +92,28 @@ abstract class WaitSource {
     }
 
     void signal0() {
-        if (group.finished) {
+        if (fiberGroup.finished) {
             return;
         }
         Fiber f = popHeadWaiter();
         if (f != null) {
-            group.dispatcher.tryRemoveFromScheduleQueue(f);
-            group.tryMakeFiberReady(f, true);
+            fiberGroup.dispatcher.tryRemoveFromScheduleQueue(f);
+            fiberGroup.tryMakeFiberReady(f, true);
         }
     }
 
     void signalAll0() {
-        if (group.finished) {
+        if (fiberGroup.finished) {
             return;
         }
         Fiber f;
         while ((f = popTailWaiter()) != null) {
-            group.dispatcher.tryRemoveFromScheduleQueue(f);
-            group.tryMakeFiberReady(f, true);
+            fiberGroup.dispatcher.tryRemoveFromScheduleQueue(f);
+            fiberGroup.tryMakeFiberReady(f, true);
         }
     }
 
     public FiberGroup getGroup() {
-        return group;
+        return fiberGroup;
     }
 }

@@ -31,7 +31,7 @@ public class FiberCondition extends WaitSource {
 
     private Fiber check() {
         Fiber fiber = Dispatcher.checkAndGetCurrentFiber();
-        if (fiber.fiberGroup != group) {
+        if (fiber.fiberGroup != fiberGroup) {
             throw new FiberException("condition not belong to the current fiber group");
         }
         return fiber;

@@ -33,7 +33,7 @@ public class FiberLock extends WaitSource {
 
     private Fiber check() {
         Fiber fiber = Dispatcher.checkAndGetCurrentFiber();
-        if (fiber.fiberGroup != group) {
+        if (fiber.fiberGroup != fiberGroup) {
             throw new FiberException("lock not belong to current fiber group");
         }
         return fiber;

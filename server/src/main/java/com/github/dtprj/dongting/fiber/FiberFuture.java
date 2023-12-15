@@ -62,12 +62,12 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     public void complete(T result) {
-        group.checkThread();
+        fiberGroup.checkThread();
         complete0(result, null);
     }
 
     public void completeExceptionally(Throwable ex) {
-        group.checkThread();
+        fiberGroup.checkThread();
         complete0(null, ex);
     }
 
@@ -80,7 +80,7 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     private void fireComplete0(T r, Throwable ex) {
-        group.dispatcher.doInDispatcherThread(new FiberQueueTask() {
+        fiberGroup.dispatcher.doInDispatcherThread(new FiberQueueTask() {
             @Override
             protected void run() {
                 complete0(r, ex);
@@ -111,8 +111,8 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     private void registerCallback(FiberFrame<Void> callback) {
-        group.checkThread();
-        Fiber callbackFiber = new Fiber("future-callback", group, callback);
+        fiberGroup.checkThread();
+        Fiber callbackFiber = new Fiber("future-callback", fiberGroup, callback);
         callbackFiber.start();
     }
 
@@ -144,7 +144,7 @@ public class FiberFuture<T> extends WaitSource {
      * this method should call in dispatcher thread
      */
     public <T2> FiberFuture<T2> convert(Function<T, T2> converter) {
-        FiberFuture<T2> newFuture = new FiberFuture<>(group);
+        FiberFuture<T2> newFuture = new FiberFuture<>(fiberGroup);
         registerCallback(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
