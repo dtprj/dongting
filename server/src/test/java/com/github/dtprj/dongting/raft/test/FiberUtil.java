@@ -31,7 +31,7 @@ public class FiberUtil {
         fiberFuture.getGroup().fireFiber("toJdkFuture", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                return fiberFuture.awaitOn(this::resume);
+                return fiberFuture.await(this::resume);
             }
 
             private FrameCallResult resume(T t) {

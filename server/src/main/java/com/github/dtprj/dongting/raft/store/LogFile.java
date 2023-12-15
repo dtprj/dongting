@@ -65,7 +65,7 @@ class LogFile {
             return resumePoint.execute(null);
         } else {
             // loop to this method and recheck use count
-            return notUseCondition.awaitOn(v -> awaitNotUse(resumePoint));
+            return notUseCondition.await(v -> awaitNotUse(resumePoint));
         }
     }
 

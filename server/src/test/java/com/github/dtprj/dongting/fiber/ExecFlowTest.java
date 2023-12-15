@@ -41,7 +41,7 @@ public class ExecFlowTest extends AbstractFiberTest {
         FiberFrame<Integer> f2 = new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                return c.awaitOn(this::resume);
+                return c.await(this::resume);
             }
 
             private FrameCallResult resume(Void unused) {

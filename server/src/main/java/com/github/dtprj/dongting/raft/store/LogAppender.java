@@ -111,7 +111,7 @@ class LogAppender {
             TailCache tailCache = LogAppender.this.cache;
             long nextPersistIndex = LogAppender.this.nextPersistIndex;
             if (tailCache.size() > 0 && tailCache.getLastIndex() > nextPersistIndex) {
-                needAppendCondition.awaitOn(this);
+                needAppendCondition.await(this);
             }
             if (nextPersistIndex < tailCache.getFirstIndex()) {
                 BugLog.getLog().error("nextPersistIndex {} < tailCache.getFirstIndex() {}",

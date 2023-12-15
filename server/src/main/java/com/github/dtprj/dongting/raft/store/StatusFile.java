@@ -98,7 +98,7 @@ public class StatusFile implements AutoCloseable {
                 ByteBuffer buf = ByteBuffer.wrap(initData);
                 AsyncIoTask task = new AsyncIoTask(fiberGroup, channel);
                 FiberFuture<Void> f = task.read(buf, 0);
-                return f.awaitOn(ioTimeout, this::resumeAfterRead);
+                return f.await(ioTimeout, this::resumeAfterRead);
             }
 
             private FrameCallResult resumeAfterRead(Void input) throws Exception {

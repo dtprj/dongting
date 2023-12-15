@@ -40,7 +40,7 @@ public class FutureTest extends AbstractFiberTest {
         fiberGroup.fireFiber(new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                return f.awaitOn(1, this::resume);
+                return f.await(1, this::resume);
             }
 
             private FrameCallResult resume(Void v) {
@@ -68,7 +68,7 @@ public class FutureTest extends AbstractFiberTest {
         Fiber f1 = new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                return f.awaitOn(this::resume);
+                return f.await(this::resume);
             }
 
             private FrameCallResult resume(Void v) {
@@ -104,7 +104,7 @@ public class FutureTest extends AbstractFiberTest {
         Fiber f1 = new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                return f.awaitOn(this::resume);
+                return f.await(this::resume);
             }
 
             private FrameCallResult resume(Void v) {
@@ -143,7 +143,7 @@ public class FutureTest extends AbstractFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 latch.countDown();
-                return f.awaitOn(this::resume);
+                return f.await(this::resume);
             }
 
             private FrameCallResult resume(Integer v) {
@@ -175,7 +175,7 @@ public class FutureTest extends AbstractFiberTest {
         Fiber fiber = new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                return f.awaitOn(this::resume);
+                return f.await(this::resume);
             }
 
             private FrameCallResult resume(Integer v) {
@@ -209,7 +209,7 @@ public class FutureTest extends AbstractFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 latch.countDown();
-                return f.awaitOn(this::resume);
+                return f.await(this::resume);
             }
 
             private FrameCallResult resume(Integer v) {
@@ -242,7 +242,7 @@ public class FutureTest extends AbstractFiberTest {
         Fiber fiber = new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                return f.awaitOn(this::resume);
+                return f.await(this::resume);
             }
 
             private FrameCallResult resume(Integer v) {
@@ -374,7 +374,7 @@ public class FutureTest extends AbstractFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 latch.countDown();
-                return f.convert(String::valueOf).awaitOn(this::resume);
+                return f.convert(String::valueOf).await(this::resume);
             }
 
             private FrameCallResult resume(String s) {
@@ -398,7 +398,7 @@ public class FutureTest extends AbstractFiberTest {
         fiberGroup.fireFiber(new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                return f.convert(String::valueOf).awaitOn(this::resume);
+                return f.convert(String::valueOf).await(this::resume);
             }
 
             private FrameCallResult resume(String s) {
@@ -421,7 +421,7 @@ public class FutureTest extends AbstractFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 latch.countDown();
-                return f.convert(String::valueOf).awaitOn(this::resume);
+                return f.convert(String::valueOf).await(this::resume);
             }
 
             private FrameCallResult resume(String s) {
@@ -453,7 +453,7 @@ public class FutureTest extends AbstractFiberTest {
         fiberGroup.fireFiber(new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                return f.convert(String::valueOf).awaitOn(this::resume);
+                return f.convert(String::valueOf).await(this::resume);
             }
 
             private FrameCallResult resume(String s) {
@@ -482,7 +482,7 @@ public class FutureTest extends AbstractFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 latch.countDown();
-                return f.awaitOn(this::resume);
+                return f.await(this::resume);
             }
 
             private FrameCallResult resume(Integer r) {
@@ -528,7 +528,7 @@ public class FutureTest extends AbstractFiberTest {
         fiberGroup.fireFiber(new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                return f.awaitOn(this::resume);
+                return f.await(this::resume);
             }
 
             private FrameCallResult resume(Integer r) {

@@ -86,7 +86,7 @@ public class LockTest extends AbstractFiberTest {
                 lockCount.incrementAndGet();
                 Assertions.assertTrue(lock.isHeldByCurrentFiber());
             }
-            return future.awaitOn(this::resume2);
+            return future.await(this::resume2);
         }
 
         private FrameCallResult resume2(Void unused) {

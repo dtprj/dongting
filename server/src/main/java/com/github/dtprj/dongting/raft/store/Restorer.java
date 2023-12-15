@@ -105,7 +105,7 @@ class Restorer {
                 firstItemPos = 0;
             }
             AsyncIoTask task = new AsyncIoTask(fiberGroup, lf.channel);
-            return task.read(buffer, firstItemPos).awaitOn(this::afterReadFirstItemHeader);
+            return task.read(buffer, firstItemPos).await(this::afterReadFirstItemHeader);
         }
 
         private FrameCallResult afterReadFirstItemHeader(Void unused) {
@@ -151,7 +151,7 @@ class Restorer {
                     buffer.limit(buffer.position() + (int) fileRest);
                 }
                 int readBytes = buffer.remaining();
-                return task.read(buffer, readPos).awaitOn(unusedVoid -> afterRead(readBytes));
+                return task.read(buffer, readPos).await(unusedVoid -> afterRead(readBytes));
             }
             // loop finished
             if (state == STATE_ITEM_HEADER) {

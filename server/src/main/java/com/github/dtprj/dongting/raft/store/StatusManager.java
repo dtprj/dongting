@@ -105,7 +105,7 @@ public class StatusManager implements AutoCloseable {
             if (requestUpdateVersion > finishedUpdateVersion) {
                 return doUpdate(null);
             } else {
-                return needUpdateCondition.awaitOn(this::doUpdate);
+                return needUpdateCondition.await(this::doUpdate);
             }
         }
 
@@ -116,7 +116,7 @@ public class StatusManager implements AutoCloseable {
                     copyWriteData();
                     version = requestUpdateVersion;
                     FiberFuture<Void> f = statusFile.update(lastNeedFlushVersion > finishedUpdateVersion);
-                    return f.awaitOn(groupConfig.getIoTimeout(), this::justReturn);
+                    return f.await(groupConfig.getIoTimeout(), this::justReturn);
                 }
             };
             RetryFrame<Void> retryFrame = new RetryFrame<>(updateFrame,
@@ -178,7 +178,7 @@ public class StatusManager implements AutoCloseable {
                     throw new RaftException("update fiber is finished");
                 }
                 needUpdateCondition.signal();
-                return updateDoneCondition.awaitOn(this::resume);
+                return updateDoneCondition.await(this::resume);
             }
 
             private FrameCallResult resume(Void unused) {

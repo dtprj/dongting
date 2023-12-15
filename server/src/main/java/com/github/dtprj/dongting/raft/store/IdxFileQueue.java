@@ -203,7 +203,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             @Override
             public FrameCallResult execute(Void input) {
                 log.warn("cache size exceed {}: {}", maxCacheItems, cache.size());
-                return flushDoneCondition.awaitOn(this::afterFlush);
+                return flushDoneCondition.await(this::afterFlush);
             }
 
             private FrameCallResult afterFlush(Void unused) {
@@ -246,7 +246,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 }
             } else {
                 if (!shouldFlush()) {
-                    return needFlushCondition.awaitOn(this);
+                    return needFlushCondition.await(this);
                 }
             }
 
@@ -297,7 +297,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             AsyncIoTask currentWriteTask = new AsyncIoTask(getFiberGroup(), logFile.channel,
                     groupConfig.getIoRetryInterval(), true);
             FiberFuture<Void> f = currentWriteTask.writeAndFlush(buf, indexToPos(startIndex), false);
-            return f.awaitOn(notUsedVoid -> afterWrite(nextPersistIndexAfterWrite));
+            return f.await(notUsedVoid -> afterWrite(nextPersistIndexAfterWrite));
         }
 
         private FrameCallResult afterWrite(long nextPersistIndexAfterWrite) {
@@ -371,7 +371,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 lf.incUseCount();
                 long filePos = pos & fileLenMask;
                 AsyncIoTask t = new AsyncIoTask(getFiberGroup(), lf.channel);
-                return t.read(buffer, filePos).awaitOn(this::afterLoad);
+                return t.read(buffer, filePos).await(this::afterLoad);
             }
 
             private FrameCallResult afterLoad(Void unused) {

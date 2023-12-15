@@ -102,11 +102,11 @@ public class FiberFuture<T> extends WaitSource {
         signalAll0();
     }
 
-    public FrameCallResult awaitOn(FrameCall<T> resumePoint) {
+    public FrameCallResult await(FrameCall<T> resumePoint) {
         return Dispatcher.awaitOn(this, 0, resumePoint);
     }
 
-    public FrameCallResult awaitOn(long millis, FrameCall<T> resumePoint) {
+    public FrameCallResult await(long millis, FrameCall<T> resumePoint) {
         return Dispatcher.awaitOn(this, millis, resumePoint);
     }
 
@@ -124,7 +124,7 @@ public class FiberFuture<T> extends WaitSource {
             @Override
             public FrameCallResult execute(Void input) {
                 FiberFuture<T> f = FiberFuture.this;
-                return f.awaitOn(this::resume);
+                return f.await(this::resume);
             }
 
             private FrameCallResult resume(T t) {
@@ -149,7 +149,7 @@ public class FiberFuture<T> extends WaitSource {
             @Override
             public FrameCallResult execute(Void input) {
                 FiberFuture<T> f = FiberFuture.this;
-                return f.awaitOn(this::resume);
+                return f.await(this::resume);
             }
 
             private FrameCallResult resume(T t) {

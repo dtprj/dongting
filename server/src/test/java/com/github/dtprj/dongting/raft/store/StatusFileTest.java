@@ -51,7 +51,7 @@ public class StatusFileTest extends BaseFiberTest {
 
             private FrameCallResult afterInit(Void unused) {
                 statusFile.getProperties().putAll(data);
-                return statusFile.update(true).awaitOn(this::afterWrite);
+                return statusFile.update(true).await(this::afterWrite);
             }
 
             private FrameCallResult afterWrite(Void unused) {
@@ -89,7 +89,7 @@ public class StatusFileTest extends BaseFiberTest {
                     assertEquals("100", statusFile.getProperties().getProperty("1"));
                     assertEquals("200", statusFile.getProperties().getProperty("2"));
                     statusFile.getProperties().setProperty("3", "300");
-                    return statusFile.update(true).awaitOn(this::afterWrite);
+                    return statusFile.update(true).await(this::afterWrite);
                 }
 
                 private FrameCallResult afterWrite(Void unused) {

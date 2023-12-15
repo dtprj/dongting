@@ -36,7 +36,7 @@ public class ConditionTest extends AbstractFiberTest {
         Fiber f = new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                return c.awaitOn(1, this::resume);
+                return c.await(1, this::resume);
             }
 
             private FrameCallResult resume(Void v) {
@@ -65,7 +65,7 @@ public class ConditionTest extends AbstractFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 latch.countDown();
-                return c.awaitOn(100000, this::resume);
+                return c.await(100000, this::resume);
             }
 
             private FrameCallResult resume(Void v) {
@@ -104,7 +104,7 @@ public class ConditionTest extends AbstractFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 latch.countDown();
-                return c.awaitOn(1000000, this::resume);
+                return c.await(1000000, this::resume);
             }
 
             private FrameCallResult resume(Void v) {
@@ -149,7 +149,7 @@ public class ConditionTest extends AbstractFiberTest {
         @Override
         public FrameCallResult execute(Void input) {
             startLatch.countDown();
-            return condition.awaitOn(this::resume);
+            return condition.await(this::resume);
         }
 
         private FrameCallResult resume(Void unused) {

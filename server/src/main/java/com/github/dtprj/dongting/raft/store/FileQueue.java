@@ -158,7 +158,7 @@ abstract class FileQueue implements AutoCloseable {
                 if (pos >= queueEndPosition) {
                     if (allocateFuture != null) {
                         // resume on this method
-                        return allocateFuture.awaitOn(this);
+                        return allocateFuture.await(this);
                     } else {
                         boolean retry = initialized && !isGroupShouldStopPlain();
                         return Fiber.call(allocateSync(retry), this);
@@ -237,7 +237,7 @@ abstract class FileQueue implements AutoCloseable {
                     createFileFuture.fireCompleteExceptionally(e);
                 }
             });
-            return createFileFuture.awaitOn(this::afterCreateFile);
+            return createFileFuture.await(this::afterCreateFile);
         }
 
         private FrameCallResult afterCreateFile(Pair<File, AsynchronousFileChannel> input) {
@@ -249,7 +249,7 @@ abstract class FileQueue implements AutoCloseable {
             // no retry here, allocateSync() will retry
             AsyncIoTask t = new AsyncIoTask(groupConfig.getFiberGroup(), logFile.channel);
             FiberFuture<Void> writeFuture = t.writeAndFlush(buf, getFileSize() - 1, true);
-            return writeFuture.awaitOn(this::afterWrite);
+            return writeFuture.await(this::afterWrite);
         }
 
         private FrameCallResult afterWrite(Void unused) {
@@ -308,7 +308,7 @@ abstract class FileQueue implements AutoCloseable {
                     log.error("submit delete task fail: ", e);
                     deleteFuture.completeExceptionally(e);
                 }
-                return deleteFuture.awaitOn(this::afterDelete);
+                return deleteFuture.await(this::afterDelete);
             }
 
             private FrameCallResult afterDelete(Void unused) {

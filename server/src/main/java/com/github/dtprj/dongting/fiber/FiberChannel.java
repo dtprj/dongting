@@ -46,7 +46,7 @@ public class FiberChannel<T> {
             T data = queue.removeFirst();
             return resumePoint.execute(data);
         } else {
-            return notEmptyCondition.awaitOn(noUseVoid -> {
+            return notEmptyCondition.await(noUseVoid -> {
                 T data = queue.removeFirst();
                 return resumePoint.execute(data);
             });
