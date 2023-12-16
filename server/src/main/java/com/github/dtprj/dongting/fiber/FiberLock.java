@@ -31,47 +31,43 @@ public class FiberLock extends WaitSource {
         return owner != null && currentFiber != owner;
     }
 
-    private Fiber check() {
-        Fiber fiber = Dispatcher.checkAndGetCurrentFiber();
-        if (fiber.fiberGroup != fiberGroup) {
-            throw new FiberException("lock not belong to current fiber group");
+    @Override
+    protected boolean throwWhenTimeout() {
+        return false;
+    }
+
+    @Override
+    protected void prepare(Fiber fiber, FiberFrame<?> fiberFrame) {
+        Object inputObj;
+        if (owner == null) {
+            owner = fiber;
+            count = 1;
+        } else if (fiber == owner) {
+            count++;
         }
-        return fiber;
+        if (fiber.scheduleTimeoutMillis >= 0) {
+            inputObj = owner == fiber ? Boolean.TRUE : Boolean.FALSE;
+        } else {
+            inputObj = null;
+        }
+        fiberGroup.dispatcher.inputObj = inputObj;
     }
 
     public FrameCallResult lock(FrameCall<Void> resumePoint) {
-        Fiber fiber = check();
-
-        return Dispatcher.awaitOn(fiber, this, 0, v -> {
-            if (owner == null) {
-                owner = fiber;
-                count = 1;
-            } else if (fiber == owner) {
-                count++;
-            }
-            return resumePoint.execute(null);
-        });
+        Fiber fiber = Dispatcher.getCurrentFiberAndCheck(fiberGroup);
+        return Dispatcher.awaitOn(fiber, this, -1, resumePoint);
     }
 
     public FrameCallResult tryLock(long millis, FrameCall<Boolean> resumePoint) {
-        Fiber fiber = check();
-
-        return Dispatcher.awaitOn(fiber, this, millis, v -> {
-            if (owner == null) {
-                owner = fiber;
-                count = 1;
-                return resumePoint.execute(Boolean.TRUE);
-            } else if (fiber == owner) {
-                count++;
-                return resumePoint.execute(Boolean.TRUE);
-            } else {
-                return resumePoint.execute(Boolean.FALSE);
-            }
-        });
+        if (millis < 0) {
+            throw new IllegalArgumentException("millis<0 : " + millis);
+        }
+        Fiber fiber = Dispatcher.getCurrentFiberAndCheck(fiberGroup);
+        return Dispatcher.awaitOn(fiber, this, millis, resumePoint);
     }
 
     public boolean tryLock() {
-        Fiber fiber = check();
+        Fiber fiber = Dispatcher.getCurrentFiberAndCheck(fiberGroup);
 
         if (owner == null) {
             owner = fiber;
@@ -86,11 +82,11 @@ public class FiberLock extends WaitSource {
     }
 
     public boolean isHeldByCurrentFiber() {
-        return owner == check();
+        return owner == Dispatcher.getCurrentFiberAndCheck(fiberGroup);
     }
 
     public void unlock() {
-        Fiber fiber = check();
+        Fiber fiber = Dispatcher.getCurrentFiberAndCheck(fiberGroup);
         if (fiber == owner) {
             count--;
             if (count <= 0) {

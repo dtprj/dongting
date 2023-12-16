@@ -43,7 +43,7 @@ public class Dispatcher extends AbstractLifeCircle {
 
     private final Timestamp ts = new Timestamp();
 
-    final DispatcherThead thread;
+    final DispatcherThread thread;
 
     private boolean poll = true;
     private long pollTimeout = TimeUnit.MILLISECONDS.toNanos(50);
@@ -55,7 +55,7 @@ public class Dispatcher extends AbstractLifeCircle {
     private Throwable fatalError;
 
     public Dispatcher(String name) {
-        thread = new DispatcherThead(this::run, name);
+        thread = new DispatcherThread(this::run, name);
     }
 
     public CompletableFuture<Void> startGroup(FiberGroup fiberGroup) {
@@ -147,14 +147,12 @@ public class Dispatcher extends AbstractLifeCircle {
             }
             if (f.source != null) {
                 f.source.removeWaiter(f);
-                if (f.source instanceof FiberFuture) {
+                if (f.source.throwWhenTimeout()) {
                     f.lastEx = new FiberTimeoutException("wait " + f.source + "timeout:" + f.scheduleTimeoutMillis + "ms");
                     f.stackTop.resumePoint = null;
                 }
                 f.source = null;
             }
-            f.scheduleTimeoutMillis = 0;
-            f.scheduleNanoTime = 0;
             f.fiberGroup.tryMakeFiberReady(f, true);
         }
     }
@@ -189,17 +187,11 @@ public class Dispatcher extends AbstractLifeCircle {
             FiberFrame currentFrame = fiber.stackTop;
             while (currentFrame != null) {
                 if (fiber.source != null) {
-                    if (fiber.source instanceof FiberFuture) {
-                        FiberFuture fu = (FiberFuture) fiber.source;
-                        if (fu.execEx != null) {
-                            fiber.lastEx = fu.execEx;
-                            currentFrame.resumePoint = null;
-                        } else {
-                            inputObj = fu.execResult;
-                        }
-                    }
+                    fiber.source.prepare(fiber, currentFrame);
                     fiber.source = null;
                 }
+                fiber.scheduleTimeoutMillis = 0;
+                fiber.scheduleNanoTime = 0;
                 processFrame(fiber, currentFrame);
                 if (fatalError != null) {
                     fiber.lastEx = fatalError;
@@ -238,6 +230,7 @@ public class Dispatcher extends AbstractLifeCircle {
             fiber.finished = true;
             fiber.ready = false;
             g.removeFiber(fiber);
+            fiber.signalAll0();
         } finally {
             inputObj = null;
             g.currentFiber = null;
@@ -293,7 +286,7 @@ public class Dispatcher extends AbstractLifeCircle {
     }
 
     static void call(FiberFrame subFrame, FrameCall resumePoint) {
-        Fiber fiber = checkAndGetCurrentFiber();
+        Fiber fiber = getCurrentFiberAndCheck(null);
         checkReentry(fiber);
         FiberFrame currentFrame = fiber.stackTop;
         currentFrame.resumePoint = resumePoint;
@@ -303,7 +296,7 @@ public class Dispatcher extends AbstractLifeCircle {
     }
 
     static FrameCallResult awaitOn(WaitSource c, long millis, FrameCall resumePoint) {
-        Fiber fiber = checkAndGetCurrentFiber();
+        Fiber fiber = getCurrentFiberAndCheck(c.fiberGroup);
         return awaitOn(fiber, c, millis, resumePoint);
     }
 
@@ -313,34 +306,36 @@ public class Dispatcher extends AbstractLifeCircle {
         FiberFrame currentFrame = fiber.stackTop;
         currentFrame.resumePoint = resumePoint;
         fiber.source = c;
+        fiber.scheduleTimeoutMillis = millis;
         if (!c.shouldWait(fiber)) {
+            // not execute resumePoint here
             return FrameCallResult.RETURN;
         }
         fiber.ready = false;
-        if (millis > 0) {
-            fiber.fiberGroup.dispatcher.addToScheduleQueue(millis, fiber);
-        }
+        fiber.fiberGroup.dispatcher.addToScheduleQueue(millis, fiber);
         c.addWaiter(fiber);
         return FrameCallResult.SUSPEND;
     }
 
     static void sleep(long millis, FrameCall<Void> resumePoint) {
-        Fiber fiber = checkAndGetCurrentFiber();
+        Fiber fiber = getCurrentFiberAndCheck(null);
         checkInterrupt(fiber);
         checkReentry(fiber);
         FiberFrame currentFrame = fiber.stackTop;
         currentFrame.resumePoint = resumePoint;
+        fiber.scheduleTimeoutMillis = millis;
         fiber.ready = false;
         fiber.fiberGroup.dispatcher.addToScheduleQueue(millis, fiber);
     }
 
     static void sleepUntilShouldStop(long millis, FrameCall<Void> resumePoint) {
-        Fiber fiber = checkAndGetCurrentFiber();
+        Fiber fiber = getCurrentFiberAndCheck(null);
         checkInterrupt(fiber);
         checkReentry(fiber);
         FiberFrame currentFrame = fiber.stackTop;
         currentFrame.resumePoint = resumePoint;
         FiberGroup g = fiber.fiberGroup;
+        fiber.scheduleTimeoutMillis = millis;
         if (g.isShouldStopPlain()) {
             return;
         }
@@ -351,16 +346,20 @@ public class Dispatcher extends AbstractLifeCircle {
     }
 
     private void addToScheduleQueue(long millis, Fiber fiber) {
-        fiber.scheduleTimeoutMillis = millis;
-        fiber.scheduleNanoTime = ts.getNanoTime() + TimeUnit.MILLISECONDS.toNanos(millis);
-        scheduleQueue.add(fiber);
+        if (millis > 0) {
+            fiber.scheduleNanoTime = ts.getNanoTime() + TimeUnit.MILLISECONDS.toNanos(millis);
+            scheduleQueue.add(fiber);
+        }
     }
 
-    static Fiber checkAndGetCurrentFiber() {
-        DispatcherThead dispatcherThead = DispatcherThead.currentDispatcherThread();
-        Fiber fiber = dispatcherThead.currentGroup.currentFiber;
+    static Fiber getCurrentFiberAndCheck(FiberGroup expectGroup) {
+        DispatcherThread dispatcherThread = DispatcherThread.currentDispatcherThread();
+        if (expectGroup != null && dispatcherThread.currentGroup != expectGroup) {
+            throw new FiberException("current fiber group not match");
+        }
+        Fiber fiber = dispatcherThread.currentGroup.currentFiber;
         if (!fiber.ready) {
-            throwFatalError(dispatcherThead.currentGroup, "usage fatal error: current fiber not ready state");
+            throwFatalError(dispatcherThread.currentGroup, "usage fatal error: current fiber not ready state");
         }
         return fiber;
     }
@@ -389,8 +388,6 @@ public class Dispatcher extends AbstractLifeCircle {
 
     void tryRemoveFromScheduleQueue(Fiber f) {
         if (f.scheduleTimeoutMillis > 0) {
-            f.scheduleTimeoutMillis = 0;
-            f.scheduleNanoTime = 0;
             scheduleQueue.remove(f);
         }
     }
@@ -407,13 +404,7 @@ public class Dispatcher extends AbstractLifeCircle {
                 WaitSource s = fiber.source;
                 s.removeWaiter(fiber);
                 fiber.source = null;
-                if (s instanceof FiberFuture) {
-                    str = "future " + s;
-                } else if (s instanceof FiberCondition) {
-                    str = "condition " + s;
-                } else {
-                    str = "lock " + s;
-                }
+                str = s.toString();
             } else {
                 str = "sleep";
             }

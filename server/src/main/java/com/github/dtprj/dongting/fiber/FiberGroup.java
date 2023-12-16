@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.common.DtException;
-import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -81,7 +80,7 @@ public class FiberGroup {
     /**
      * can call in any thread
      */
-    public void fireFiber(String fiberName, FiberFrame<Void> firstFrame) {
+    public Fiber fireFiber(String fiberName, FiberFrame<Void> firstFrame) {
         Fiber fiber = new Fiber(fiberName, this, firstFrame);
         // if the dispatcher stopped, no ops
         dispatcher.doInDispatcherThread(new FiberQueueTask() {
@@ -90,6 +89,7 @@ public class FiberGroup {
                 start(fiber);
             }
         });
+        return fiber;
     }
 
     /**
@@ -112,7 +112,7 @@ public class FiberGroup {
     }
 
     public static FiberGroup currentGroup() {
-        return DispatcherThead.currentGroup();
+        return DispatcherThread.currentGroup();
     }
 
     public String getName() {
@@ -136,9 +136,6 @@ public class FiberGroup {
     }
 
     void checkThread() {
-        if (!DtUtil.DEBUG) {
-            return;
-        }
         if (Thread.currentThread() != dispatcher.thread) {
             throw new FiberException("not in dispatcher thread");
         }

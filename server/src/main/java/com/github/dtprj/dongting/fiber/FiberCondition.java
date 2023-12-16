@@ -29,29 +29,33 @@ public class FiberCondition extends WaitSource {
         return true;
     }
 
-    private Fiber check() {
-        Fiber fiber = Dispatcher.checkAndGetCurrentFiber();
-        if (fiber.fiberGroup != fiberGroup) {
-            throw new FiberException("condition not belong to the current fiber group");
-        }
-        return fiber;
+    @Override
+    protected boolean throwWhenTimeout() {
+        return false;
+    }
+
+    @Override
+    protected void prepare(Fiber fiber, FiberFrame<?> fiberFrame) {
     }
 
     public void signal() {
-        check();
+        Dispatcher.getCurrentFiberAndCheck(fiberGroup);
         signal0();
     }
 
     public void signalAll() {
-        check();
+        Dispatcher.getCurrentFiberAndCheck(fiberGroup);
         signalAll0();
     }
 
     public FrameCallResult await(FrameCall<Void> resumePoint) {
-        return Dispatcher.awaitOn(this, 0, resumePoint);
+        return Dispatcher.awaitOn(this, -1, resumePoint);
     }
 
     public FrameCallResult await(long millis, FrameCall<Void> resumePoint) {
+        if (millis < 0) {
+            throw new IllegalArgumentException("millis<0 : " + millis);
+        }
         return Dispatcher.awaitOn(this, millis, resumePoint);
     }
 }

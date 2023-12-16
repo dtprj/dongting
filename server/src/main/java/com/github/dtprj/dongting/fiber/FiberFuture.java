@@ -37,6 +37,21 @@ public class FiberFuture<T> extends WaitSource {
         return !done;
     }
 
+    @Override
+    protected boolean throwWhenTimeout() {
+        return true;
+    }
+
+    @Override
+    protected void prepare(Fiber currentFiber, FiberFrame<?> currentFrame) {
+        if (execEx != null) {
+            currentFiber.lastEx = execEx;
+            currentFrame.resumePoint = null;
+        } else {
+            fiberGroup.dispatcher.inputObj = execResult;
+        }
+    }
+
     public T getResult() {
         return execResult;
     }
@@ -103,10 +118,13 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     public FrameCallResult await(FrameCall<T> resumePoint) {
-        return Dispatcher.awaitOn(this, 0, resumePoint);
+        return Dispatcher.awaitOn(this, -1, resumePoint);
     }
 
     public FrameCallResult await(long millis, FrameCall<T> resumePoint) {
+        if (millis < 0) {
+            throw new IllegalArgumentException("millis<0 : " + millis);
+        }
         return Dispatcher.awaitOn(this, millis, resumePoint);
     }
 

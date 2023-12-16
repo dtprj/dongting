@@ -21,9 +21,8 @@ import com.github.dtprj.dongting.log.DtLogs;
 /**
  * @author huangli
  */
-public class Fiber {
+public class Fiber extends WaitSource {
     private static final DtLog log = DtLogs.getLogger(Fiber.class);
-    protected final FiberGroup fiberGroup;
     protected final String fiberName;
     protected final boolean daemon;
 
@@ -50,7 +49,7 @@ public class Fiber {
     }
 
     public Fiber(String fiberName, FiberGroup fiberGroup, FiberFrame<Void> entryFrame, boolean daemon) {
-        this.fiberGroup = fiberGroup;
+        super(fiberGroup);
         this.fiberName = fiberName;
         this.stackTop = entryFrame;
         this.daemon = daemon;
@@ -79,7 +78,7 @@ public class Fiber {
 
     public static FrameCallResult fatal(Throwable ex) {
         log.error("encountered fatal error, raft group will shutdown", ex);
-        DispatcherThead t = DispatcherThead.currentDispatcherThread();
+        DispatcherThread t = DispatcherThread.currentDispatcherThread();
         t.currentGroup.requestShutdown();
         throw new FiberException("encountered fatal error, raft group will shutdown", ex);
     }
@@ -89,14 +88,11 @@ public class Fiber {
     }
 
     @SuppressWarnings("rawtypes")
-    FiberFrame popFrame() {
-        if (stackTop == null) {
-            return null;
-        } else {
+    void popFrame() {
+        if (stackTop != null) {
             FiberFrame f = stackTop;
             stackTop = f.prev;
             f.prev = null;
-            return f;
         }
     }
 
@@ -114,6 +110,53 @@ public class Fiber {
         dispatcher.interrupt(this);
     }
 
+    @Override
+    protected boolean shouldWait(Fiber currentFiber) {
+        return !finished;
+    }
+
+    @Override
+    protected boolean throwWhenTimeout() {
+        return false;
+    }
+
+    @Override
+    protected void prepare(Fiber currentFiber, FiberFrame<?> currentFrame) {
+        Object inputObj;
+        if (currentFiber.scheduleTimeoutMillis >= 0) {
+            inputObj = finished ? Boolean.TRUE : Boolean.FALSE;
+        } else {
+            inputObj = null;
+        }
+        fiberGroup.dispatcher.inputObj = inputObj;
+    }
+
+    public FrameCallResult join(FrameCall<Void> resumePoint) {
+        Fiber currentFibber = check();
+        return Dispatcher.awaitOn(currentFibber, this, -1, resumePoint);
+    }
+
+    public FrameCallResult join(long millis, FrameCall<Boolean> resumePoint) {
+        if (millis < 0) {
+            throw new IllegalArgumentException("millis<0 : " + millis);
+        }
+        Fiber currentFibber = check();
+        return Dispatcher.awaitOn(currentFibber, this, millis, resumePoint);
+    }
+
+    private Fiber check() {
+        if (!started) {
+            throw new FiberException("fiber not started");
+        }
+        Fiber fiber = Dispatcher.getCurrentFiberAndCheck(fiberGroup);
+        if (fiber == this) {
+            throw new FiberException("can't join self");
+        }
+        return fiber;
+    }
+
+
+
     public void start() {
         fiberGroup.checkThread();
         fiberGroup.start(Fiber.this);
@@ -127,4 +170,8 @@ public class Fiber {
         return fiberGroup;
     }
 
+    @Override
+    public String toString() {
+        return "Fiber " + fiberName;
+    }
 }

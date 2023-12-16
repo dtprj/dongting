@@ -29,6 +29,11 @@ abstract class WaitSource {
 
     protected abstract boolean shouldWait(Fiber currentFiber);
 
+    protected abstract boolean throwWhenTimeout();
+
+    protected abstract void prepare(Fiber fiber, FiberFrame<?> fiberFrame);
+
+
     void addWaiter(Fiber f) {
         if (firstWaiter == null) {
             firstWaiter = f;

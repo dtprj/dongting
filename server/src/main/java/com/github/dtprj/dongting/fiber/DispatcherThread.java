@@ -18,17 +18,17 @@ package com.github.dtprj.dongting.fiber;
 /**
  * @author huangli
  */
-class DispatcherThead extends Thread {
+class DispatcherThread extends Thread {
 
     FiberGroup currentGroup;
 
-    DispatcherThead(Runnable r, String name) {
+    DispatcherThread(Runnable r, String name) {
         super(r, name);
     }
 
-    static DispatcherThead currentDispatcherThread() {
+    static DispatcherThread currentDispatcherThread() {
         try {
-            return (DispatcherThead) Thread.currentThread();
+            return (DispatcherThread) Thread.currentThread();
         } catch (ClassCastException e) {
             throw new FiberException("not run in dispatcher thread");
         }
