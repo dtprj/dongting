@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.fiber;
 
+import com.github.dtprj.dongting.common.DtUtil;
+
 /**
  * @author huangli
  */
@@ -59,9 +61,7 @@ public class FiberLock extends WaitSource {
     }
 
     public FrameCallResult tryLock(long millis, FrameCall<Boolean> resumePoint) {
-        if (millis < 0) {
-            throw new IllegalArgumentException("millis<0 : " + millis);
-        }
+        DtUtil.checkPositive(millis, "millis");
         Fiber fiber = Dispatcher.getCurrentFiberAndCheck(fiberGroup);
         return Dispatcher.awaitOn(fiber, this, millis, resumePoint);
     }

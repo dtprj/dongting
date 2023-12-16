@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.fiber;
 
+import com.github.dtprj.dongting.common.DtUtil;
+
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -122,9 +124,7 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     public FrameCallResult await(long millis, FrameCall<T> resumePoint) {
-        if (millis < 0) {
-            throw new IllegalArgumentException("millis<0 : " + millis);
-        }
+        DtUtil.checkPositive(millis, "millis");
         return Dispatcher.awaitOn(this, millis, resumePoint);
     }
 

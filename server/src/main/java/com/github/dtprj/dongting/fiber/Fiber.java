@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.fiber;
 
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -67,11 +68,13 @@ public class Fiber extends WaitSource {
     }
 
     public static FrameCallResult sleep(long millis, FrameCall<Void> resumePoint) {
+        DtUtil.checkPositive(millis, "millis");
         Dispatcher.sleep(millis, resumePoint);
         return FrameCallResult.SUSPEND;
     }
 
     public static FrameCallResult sleepUntilShouldStop(long millis, FrameCall<Void> resumePoint) {
+        DtUtil.checkPositive(millis, "millis");
         Dispatcher.sleepUntilShouldStop(millis, resumePoint);
         return FrameCallResult.SUSPEND;
     }
@@ -137,9 +140,7 @@ public class Fiber extends WaitSource {
     }
 
     public FrameCallResult join(long millis, FrameCall<Boolean> resumePoint) {
-        if (millis < 0) {
-            throw new IllegalArgumentException("millis<0 : " + millis);
-        }
+        DtUtil.checkPositive(millis, "millis");
         Fiber currentFibber = check();
         return Dispatcher.awaitOn(currentFibber, this, millis, resumePoint);
     }

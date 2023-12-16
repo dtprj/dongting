@@ -74,8 +74,6 @@ public class LockTest extends AbstractFiberTest {
             beforeLockLatch.countDown();
             if (lockType == 1) {
                 return lock.lock(v -> resume(true));
-            } else if (lockType == 2) {
-                return lock.tryLock(0, this::resume);
             } else {
                 return lock.tryLock(100000, this::resume);
             }
@@ -121,10 +119,5 @@ public class LockTest extends AbstractFiberTest {
     @Test
     public void testLock2() throws Exception {
         testLockImpl(2);
-    }
-
-    @Test
-    public void testLock3() throws Exception {
-        testLockImpl(3);
     }
 }

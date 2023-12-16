@@ -29,7 +29,6 @@ public class JoinTest extends AbstractFiberTest {
     public void testJoin() throws Exception{
         testJoinImpl(1);
         testJoinImpl(2);
-        testJoinImpl(3);
     }
 
     private void testJoinImpl(int joinType) throws Exception {
@@ -50,11 +49,10 @@ public class JoinTest extends AbstractFiberTest {
                 f.interrupt();
                 if (joinType == 1) {
                     return f.join(this::resume);
-                } else if (joinType == 2) {
-                    return f.join(1000, this::resume2);
                 } else {
-                    return f.join(0, this::resume2);
+                    return f.join(1000, this::resume2);
                 }
+
             }
             private FrameCallResult resume(Void unused) {
                 Assertions.assertTrue(f.finished);
