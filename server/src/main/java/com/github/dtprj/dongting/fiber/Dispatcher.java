@@ -202,7 +202,7 @@ public class Dispatcher extends AbstractLifeCircle {
                 }
                 if (currentFrame == fiber.stackTop) {
                     if (fiber.source != null) {
-                        // called awaitOn() on a completed future or get lock
+                        // called awaitOn() on a completed future, or get lock successfully, or join finished fiber
                         if (fiber.lastEx == null) {
                             continue;
                         } else {
@@ -247,9 +247,6 @@ public class Dispatcher extends AbstractLifeCircle {
                 try {
                     Object input = inputObj;
                     inputObj = null;
-                    if (currentFrame.status < FiberFrame.STATUS_BODY_CALLED) {
-                        currentFrame.status = FiberFrame.STATUS_BODY_CALLED;
-                    }
                     FrameCall r = currentFrame.resumePoint;
                     currentFrame.resumePoint = null;
                     r.execute(input);
@@ -259,8 +256,8 @@ public class Dispatcher extends AbstractLifeCircle {
             }
         } finally {
             try {
-                if (currentFrame.status < FiberFrame.STATUS_FINALLY_CALLED && currentFrame.resumePoint == null) {
-                    currentFrame.status = FiberFrame.STATUS_FINALLY_CALLED;
+                if (!currentFrame.finallyCalled && currentFrame.resumePoint == null) {
+                    currentFrame.finallyCalled = true;
                     currentFrame.doFinally();
                 }
             } catch (Throwable e) {
@@ -272,8 +269,8 @@ public class Dispatcher extends AbstractLifeCircle {
     private void tryHandleEx(FiberFrame currentFrame, Throwable x) {
         currentFrame.resumePoint = null;
         Fiber fiber = currentFrame.fiber;
-        if (currentFrame.status < FiberFrame.STATUS_CATCH_CALLED) {
-            currentFrame.status = FiberFrame.STATUS_CATCH_CALLED;
+        if (!currentFrame.catchCalled) {
+            currentFrame.catchCalled = true;
             fiber.lastEx = null;
             try {
                 currentFrame.handle(x);
@@ -290,7 +287,7 @@ public class Dispatcher extends AbstractLifeCircle {
         checkReentry(fiber);
         FiberFrame currentFrame = fiber.stackTop;
         currentFrame.resumePoint = resumePoint;
-        subFrame.reset(fiber);
+        subFrame.setFiber(fiber);
         fiber.fiberGroup.dispatcher.inputObj = null;
         fiber.pushFrame(subFrame);
     }

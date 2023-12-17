@@ -54,7 +54,7 @@ public class Fiber extends WaitSource {
         this.fiberName = fiberName;
         this.stackTop = entryFrame;
         this.daemon = daemon;
-        entryFrame.reset(this);
+        entryFrame.setFiber(this);
     }
 
     public static <O2> FrameCallResult call(FiberFrame<O2> subFrame, FrameCall<O2> resumePoint) {

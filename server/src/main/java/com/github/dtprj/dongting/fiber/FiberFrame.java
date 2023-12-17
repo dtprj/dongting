@@ -20,14 +20,11 @@ package com.github.dtprj.dongting.fiber;
  */
 @SuppressWarnings("rawtypes")
 public abstract class FiberFrame<O> implements FrameCall<Void> {
-    static final int STATUS_INIT = 0;
-    static final int STATUS_BODY_CALLED = 1;
-    static final int STATUS_CATCH_CALLED = 2;
-    static final int STATUS_FINALLY_CALLED = 3;
     Fiber fiber;
     FiberGroup fiberGroup;
     FiberFrame prev;
-    int status;
+    boolean catchCalled;
+    boolean finallyCalled;
 
     FrameCall resumePoint = this;
 
@@ -41,16 +38,9 @@ public abstract class FiberFrame<O> implements FrameCall<Void> {
         throw ex;
     }
 
-    void reset(Fiber f) {
-        if (this.status != STATUS_INIT && this.status != STATUS_FINALLY_CALLED) {
-            throw new FiberException("frame is in use");
-        }
+    void setFiber(Fiber f) {
         this.fiber = f;
         this.fiberGroup = f.fiberGroup;
-        this.prev = null;
-        this.status = STATUS_INIT;
-        this.resumePoint = this;
-        this.result = null;
     }
 
     protected boolean isGroupShouldStopPlain() {
