@@ -70,6 +70,54 @@ public class FinallyTest extends AbstractFiberTest {
     }
 
     @Test
+    public void testFinallySuspendWithEx() {
+        AtomicBoolean subFinallyCalled = new AtomicBoolean();
+        AtomicBoolean parentFinallyCalled = new AtomicBoolean();
+        AtomicReference<Integer> resultRef = new AtomicReference<>();
+        Exception ex = new Exception("mock ex");
+        AtomicReference<Throwable> exRef = new AtomicReference<>();
+        FiberFrame<Integer> sub = new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) throws Exception {
+                setResult(100);
+                throw ex;
+            }
+            @Override
+            protected FrameCallResult doFinally() {
+                subFinallyCalled.set(true);
+                return Fiber.sleep(1, this::resume);
+            }
+            private FrameCallResult resume(Void unused) {
+                return Fiber.frameReturn();
+            }
+        };
+        fiberGroup.fireFiber("f", new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                return Fiber.call(sub, this::resume);
+            }
+            private FrameCallResult resume(Integer integer) {
+                resultRef.set(integer);
+                return Fiber.frameReturn();
+            }
+            @Override
+            protected FrameCallResult handle(Throwable ex) {
+                exRef.set(ex);
+                return Fiber.frameReturn();
+            }
+            @Override
+            protected FrameCallResult doFinally() {
+                parentFinallyCalled.set(true);
+                return super.doFinally();
+            }
+        });
+        TestUtil.waitUtil(parentFinallyCalled::get);
+        assertTrue(subFinallyCalled.get());
+        assertNull(resultRef.get());
+        assertSame(ex, exRef.get());
+    }
+
+    @Test
     public void testFinallyReturnValue() {
         AtomicBoolean parentFinallyCalled = new AtomicBoolean();
         AtomicReference<Integer> resultRef = new AtomicReference<>();
@@ -141,6 +189,7 @@ public class FinallyTest extends AbstractFiberTest {
         });
         TestUtil.waitUtil(parentFinallyCalled::get);
         assertSame(ex2, exRef.get());
+        assertSame(ex1, exRef.get().getSuppressed()[0]);
     }
 
     // error occurs after resume
@@ -182,5 +231,6 @@ public class FinallyTest extends AbstractFiberTest {
         });
         TestUtil.waitUtil(parentFinallyCalled::get);
         assertSame(ex2, exRef.get());
+        assertSame(ex1, exRef.get().getSuppressed()[0]);
     }
 }

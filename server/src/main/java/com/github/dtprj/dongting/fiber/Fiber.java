@@ -38,12 +38,14 @@ public class Fiber extends WaitSource {
     boolean finished;
 
     boolean interrupted;
-    Throwable lastEx;
 
     WaitSource source;
 
     @SuppressWarnings("rawtypes")
     FiberFrame stackTop;
+
+    Object inputObj;
+    Throwable inputEx;
 
     public Fiber(String fiberName, FiberGroup fiberGroup, FiberFrame<Void> entryFrame) {
         this(fiberName, fiberGroup, entryFrame, false);
@@ -54,7 +56,7 @@ public class Fiber extends WaitSource {
         this.fiberName = fiberName;
         this.stackTop = entryFrame;
         this.daemon = daemon;
-        entryFrame.setFiber(this);
+        entryFrame.init(this);
     }
 
     public static <O2> FrameCallResult call(FiberFrame<O2> subFrame, FrameCall<O2> resumePoint) {
@@ -131,7 +133,7 @@ public class Fiber extends WaitSource {
         } else {
             inputObj = null;
         }
-        fiberGroup.dispatcher.inputObj = inputObj;
+        currentFiber.inputObj = inputObj;
     }
 
     public FrameCallResult join(FrameCall<Void> resumePoint) {

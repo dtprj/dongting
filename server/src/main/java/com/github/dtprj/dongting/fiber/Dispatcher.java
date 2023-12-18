@@ -50,7 +50,6 @@ public class Dispatcher extends AbstractLifeCircle {
 
     private boolean shouldStop = false;
 
-    Object inputObj;
     // fatal error will cause fiber exit
     private Throwable fatalError;
 
@@ -148,7 +147,7 @@ public class Dispatcher extends AbstractLifeCircle {
             if (f.source != null) {
                 f.source.removeWaiter(f);
                 if (f.source.throwWhenTimeout()) {
-                    f.lastEx = new FiberTimeoutException("wait " + f.source + "timeout:" + f.scheduleTimeoutMillis + "ms");
+                    f.inputEx = new FiberTimeoutException("wait " + f.source + "timeout:" + f.scheduleTimeoutMillis + "ms");
                     f.stackTop.resumePoint = null;
                 }
                 f.source = null;
@@ -194,59 +193,50 @@ public class Dispatcher extends AbstractLifeCircle {
                 fiber.scheduleNanoTime = 0;
                 processFrame(fiber, currentFrame);
                 if (fatalError != null) {
-                    fiber.lastEx = fatalError;
                     break;
                 }
                 if (!fiber.ready) {
                     return;
                 }
+                //noinspection StatementWithEmptyBody
                 if (currentFrame == fiber.stackTop) {
                     if (fiber.source != null) {
                         // called awaitOn() on a completed future, or get lock successfully, or join finished fiber
-                        if (fiber.lastEx == null) {
-                            continue;
-                        } else {
-                            // user code throws ex after called awaitOn
-                            BugLog.getLog().error("usage fatal error: throw ex after suspend call", fiber.lastEx);
-                            break;
-                        }
+                        continue;
                     }
-                    inputObj = currentFrame.result;
+                    fiber.inputObj = currentFrame.frameResult;
+                    fiber.inputEx = currentFrame.frameEx;
                     fiber.popFrame(); // remove self
+                    currentFrame.finish();
                 } else {
                     // call new frame
-                    if (fiber.lastEx != null) {
-                        BugLog.getLog().error("usage fatal error: suspend call should be last statement");
-                        fiber.lastEx = new FiberException(
-                                "usage fatal error: suspend call should be last statement", fiber.lastEx);
-                        break;
-                    }
                 }
                 currentFrame = fiber.stackTop;
             }
-            if (fiber.lastEx != null) {
-                log.error("fiber execute error, group={}, fiber={}", g.getName(), fiber.getFiberName(), fiber.lastEx);
+            if (fatalError != null) {
+                log.error("fiber execute error, group={}, fiber={}", g.getName(), fiber.getFiberName(), fatalError);
             }
             fiber.finished = true;
             fiber.ready = false;
             g.removeFiber(fiber);
             fiber.signalAll0();
         } finally {
-            inputObj = null;
             g.currentFiber = null;
-            fiber.lastEx = null;
             fatalError = null;
         }
     }
 
     private void processFrame(Fiber fiber, FiberFrame currentFrame) {
         try {
-            if (fiber.lastEx != null) {
-                tryHandleEx(currentFrame, fiber.lastEx);
+            if (fiber.inputEx != null) {
+                Throwable x = fiber.inputEx;
+                fiber.inputEx = null;
+                fiber.inputObj = null;
+                tryHandleEx(currentFrame, x);
             } else {
                 try {
-                    Object input = inputObj;
-                    inputObj = null;
+                    Object input = fiber.inputObj;
+                    fiber.inputObj = null;
                     FrameCall r = currentFrame.resumePoint;
                     currentFrame.resumePoint = null;
                     r.execute(input);
@@ -257,28 +247,40 @@ public class Dispatcher extends AbstractLifeCircle {
         } finally {
             try {
                 if (!currentFrame.finallyCalled && currentFrame.resumePoint == null) {
+                    currentFrame.catchCalled = true;
                     currentFrame.finallyCalled = true;
                     currentFrame.doFinally();
                 }
             } catch (Throwable e) {
-                fiber.lastEx = e;
+                // here the method will not return false
+                setEx(currentFrame, e);
             }
         }
     }
 
+    void setEx(FiberFrame currentFrame, Throwable ex) {
+        if (currentFrame.frameEx != null) {
+            ex.addSuppressed(currentFrame.frameEx);
+            if (!currentFrame.finallyCalled) {
+                BugLog.getLog().error("usage fatal error: throw ex after fiber suspend", ex);
+                fatalError = ex;
+                return;
+            }
+        }
+        currentFrame.frameEx = ex;
+    }
+
     private void tryHandleEx(FiberFrame currentFrame, Throwable x) {
         currentFrame.resumePoint = null;
-        Fiber fiber = currentFrame.fiber;
         if (!currentFrame.catchCalled) {
             currentFrame.catchCalled = true;
-            fiber.lastEx = null;
             try {
                 currentFrame.handle(x);
             } catch (Throwable e) {
-                fiber.lastEx = e;
+                currentFrame.frameEx = e;
             }
         } else {
-            fiber.lastEx = x;
+            setEx(currentFrame, x);
         }
     }
 
@@ -287,8 +289,7 @@ public class Dispatcher extends AbstractLifeCircle {
         checkReentry(fiber);
         FiberFrame currentFrame = fiber.stackTop;
         currentFrame.resumePoint = resumePoint;
-        subFrame.setFiber(fiber);
-        fiber.fiberGroup.dispatcher.inputObj = null;
+        subFrame.init(fiber);
         fiber.pushFrame(subFrame);
     }
 
@@ -407,7 +408,7 @@ public class Dispatcher extends AbstractLifeCircle {
             }
             fiber.stackTop.resumePoint = null;
             fiber.interrupted = false;
-            fiber.lastEx = new FiberInterruptException("fiber is interrupted during wait " + str);
+            fiber.inputEx = new FiberInterruptException("fiber is interrupted during wait " + str);
             tryRemoveFromScheduleQueue(fiber);
             fiber.fiberGroup.tryMakeFiberReady(fiber, false);
         }

@@ -47,10 +47,10 @@ public class FiberFuture<T> extends WaitSource {
     @Override
     protected void prepare(Fiber currentFiber, FiberFrame<?> currentFrame) {
         if (execEx != null) {
-            currentFiber.lastEx = execEx;
+            currentFiber.inputEx = execEx;
             currentFrame.resumePoint = null;
         } else {
-            fiberGroup.dispatcher.inputObj = execResult;
+            currentFiber.inputObj = execResult;
         }
     }
 

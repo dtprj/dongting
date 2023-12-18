@@ -22,13 +22,15 @@ package com.github.dtprj.dongting.fiber;
 public abstract class FiberFrame<O> implements FrameCall<Void> {
     Fiber fiber;
     FiberGroup fiberGroup;
+
     FiberFrame prev;
     boolean catchCalled;
     boolean finallyCalled;
 
     FrameCall resumePoint = this;
 
-    O result;
+    O frameResult;
+    Throwable frameEx;
 
     protected FrameCallResult doFinally() {
         return FrameCallResult.RETURN;
@@ -38,17 +40,38 @@ public abstract class FiberFrame<O> implements FrameCall<Void> {
         throw ex;
     }
 
-    void setFiber(Fiber f) {
+    void init(Fiber f) {
+        if (fiber != null) {
+            throw new FiberException("the fiber frame is in use");
+        }
+        if (fiberGroup != null) {
+            // this frame is reused
+            reset();
+        }
         this.fiber = f;
         this.fiberGroup = f.fiberGroup;
+    }
+
+    void finish() {
+        fiber = null;
+    }
+
+    protected void reset() {
+        fiberGroup = null;
+        prev = null;
+        catchCalled = false;
+        finallyCalled = false;
+        resumePoint = this;
+        frameResult = null;
+        frameEx = null;
     }
 
     protected boolean isGroupShouldStopPlain() {
         return fiberGroup.isShouldStopPlain();
     }
 
-    protected void setResult(O result){
-        this.result = result;
+    protected void setResult(O result) {
+        this.frameResult = result;
     }
 
     protected Fiber getFiber() {

@@ -52,7 +52,7 @@ public class FiberLock extends WaitSource {
         } else {
             inputObj = null;
         }
-        fiberGroup.dispatcher.inputObj = inputObj;
+        fiber.inputObj = inputObj;
     }
 
     public FrameCallResult lock(FrameCall<Void> resumePoint) {
