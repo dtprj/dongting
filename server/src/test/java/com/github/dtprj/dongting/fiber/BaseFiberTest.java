@@ -20,6 +20,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -49,5 +50,27 @@ public class BaseFiberTest {
             Assertions.assertFalse(dispatcher.thread.isAlive());
             assertTrue(fiberGroup.finished);
         }
+    }
+
+    public void doInFiber(FiberFrame<Void> fiberFrame) throws Exception {
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        fiberGroup.fireFiber("test-fiber", new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                return Fiber.call(fiberFrame, this::resume);
+            }
+
+            private FrameCallResult resume(Void unused) {
+                f.complete(null);
+                return Fiber.frameReturn();
+            }
+
+            @Override
+            protected FrameCallResult handle(Throwable ex) {
+                f.completeExceptionally(ex);
+                return Fiber.frameReturn();
+            }
+        });
+        f.get(10, TimeUnit.SECONDS);
     }
 }

@@ -39,9 +39,9 @@ import java.util.Properties;
 public class StatusManager implements AutoCloseable {
     private static final DtLog log = DtLogs.getLogger(StatusManager.class);
 
-    private static final String CURRENT_TERM_KEY = "currentTerm";
-    private static final String VOTED_FOR_KEY = "votedFor";
-    private static final String COMMIT_INDEX_KEY = "commitIndex";
+    static final String CURRENT_TERM_KEY = "currentTerm";
+    static final String VOTED_FOR_KEY = "votedFor";
+    static final String COMMIT_INDEX_KEY = "commitIndex";
 
     private final RaftGroupConfig groupConfig;
     private final RaftStatus raftStatus;
@@ -54,12 +54,12 @@ public class StatusManager implements AutoCloseable {
     private long finishedUpdateVersion;
 
     private final FiberCondition needUpdateCondition;
-    private final FiberCondition updateDoneCondition;
-    private final Fiber updateFiber;
+    final FiberCondition updateDoneCondition;
+    final Fiber updateFiber;
 
-    public StatusManager(RaftGroupConfig groupConfig, RaftStatus raftStatus) {
+    public StatusManager(RaftGroupConfig groupConfig) {
         this.groupConfig = groupConfig;
-        this.raftStatus = raftStatus;
+        this.raftStatus = groupConfig.getRaftStatus();
         File dir = FileUtil.ensureDir(groupConfig.getDataDir());
         File file = new File(dir, groupConfig.getStatusFile());
         FiberGroup fg = groupConfig.getFiberGroup();
@@ -86,6 +86,7 @@ public class StatusManager implements AutoCloseable {
         };
     }
 
+    @Override
     public void close() {
         closed = true;
         // wake up update fiber
