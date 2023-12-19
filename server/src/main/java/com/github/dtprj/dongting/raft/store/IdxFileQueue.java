@@ -156,12 +156,12 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         }
     }
 
-    private long indexToPos(long index) {
+    public long indexToPos(long index) {
         // each item 8 bytes
         return index << 3;
     }
 
-    private long posToIndex(long pos) {
+    public long posToIndex(long pos) {
         // each item 8 bytes
         return pos >>> 3;
     }
@@ -389,8 +389,24 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         return Fiber.call(loadFrame, resumePoint);
     }
 
+    public void truncateTail(long index) {
+        DtUtil.checkPositive(index, "index");
+        if (index <= raftStatus.getCommitIndex()) {
+            throw new RaftException("truncateTail index is too small: " + index);
+        }
+        if (index < cache.getFirstKey() || index > cache.getLastKey()) {
+            throw new RaftException("truncateTail out of cache range: " + index);
+        }
+        cache.truncate(index);
+        nextIndex = index;
+    }
+
     public long getNextIndex() {
         return nextIndex;
+    }
+
+    public long getNextPersistIndex() {
+        return nextPersistIndex;
     }
 
     @Override

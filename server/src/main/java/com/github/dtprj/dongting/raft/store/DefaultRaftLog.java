@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -24,6 +25,7 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 
 import java.io.File;
@@ -44,12 +46,13 @@ public class DefaultRaftLog implements RaftLog {
     LogFileQueue logFiles;
     IdxFileQueue idxFiles;
 
-    private long lastTaskNanos;
-    private static final long TASK_INTERVAL_NANOS = 10 * 1000 * 1000 * 1000L;
+    private static final long TASK_INTERVAL_MILLIS = 10 * 1000;
 
     int idxItemsPerFile = IdxFileQueue.DEFAULT_ITEMS_PER_FILE;
     int idxMaxCacheItems = IdxFileQueue.DEFAULT_MAX_CACHE_ITEMS;
     long logFileSize = LogFileQueue.DEFAULT_LOG_FILE_SIZE;
+
+    private Fiber deleteFiber;
 
     public DefaultRaftLog(RaftGroupConfig groupConfig, StatusManager statusManager) {
         this.groupConfig = groupConfig;
@@ -57,7 +60,8 @@ public class DefaultRaftLog implements RaftLog {
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
         this.statusManager = statusManager;
 
-        this.lastTaskNanos = ts.getNanoTime();
+        this.deleteFiber = new Fiber("delete-" + groupConfig.getGroupId(),
+                fiberGroup, new DeleteFiberFrame(), true);
     }
 
     @Override
@@ -101,6 +105,7 @@ public class DefaultRaftLog implements RaftLog {
                     long lastIndex = idxFiles.getNextIndex() - 1;
                     setResult(new Pair<>(lastTerm, lastIndex));
                 }
+                deleteFiber.start();
                 return Fiber.frameReturn();
             }
 
@@ -114,12 +119,17 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public void append() {
-
+        logFiles.append();
     }
 
     @Override
     public void truncateTail(long index) {
+        TailCache tailCache = raftStatus.getTailCache();
+        tailCache.truncate(index);
 
+        if (index < idxFiles.getNextIndex()) {
+            idxFiles.truncateTail(index);
+        }
     }
 
     @Override
@@ -134,17 +144,15 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public void markTruncateByIndex(long index, long delayMillis) {
-
+        long bound = Math.min(raftStatus.getLastApplied(), idxFiles.getNextPersistIndex());
+        bound = Math.min(bound, index);
+        logFiles.markDelete(bound, Long.MAX_VALUE, delayMillis);
     }
 
     @Override
     public void markTruncateByTimestamp(long timestampBound, long delayMillis) {
-
-    }
-
-    @Override
-    public void doDelete() {
-
+        long bound = Math.min(raftStatus.getLastApplied(), idxFiles.getNextPersistIndex());
+        logFiles.markDelete(bound, timestampBound, delayMillis);
     }
 
     @Override
@@ -164,6 +172,47 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public void close() throws Exception {
+        DtUtil.close(idxFiles, logFiles);
+    }
 
+    private class DeleteFiberFrame extends FiberFrame<Void> {
+        @Override
+        public FrameCallResult execute(Void input) {
+            if (isGroupShouldStopPlain()) {
+                return Fiber.frameReturn();
+            }
+            return Fiber.sleepUntilShouldStop(TASK_INTERVAL_MILLIS, this::deleteLogs);
+        }
+
+        private FrameCallResult deleteLogs(Void unused) {
+            if (isGroupShouldStopPlain()) {
+                return Fiber.frameReturn();
+            }
+            long taskStartTimestamp = ts.getNanoTime();
+            // ex handled by delete method
+            FiberFrame<Void> f = logFiles.delete(logFile -> {
+                if (isGroupShouldStopPlain()) {
+                    return false;
+                }
+                long deleteTimestamp = logFile.deleteTimestamp;
+                return deleteTimestamp > 0 && deleteTimestamp < taskStartTimestamp;
+            });
+            return Fiber.call(f, this::deleteIdx);
+        }
+
+        private FrameCallResult deleteIdx(Void unused) {
+            if (isGroupShouldStopPlain()) {
+                return Fiber.frameReturn();
+            }
+            // ex handled by delete method
+            FiberFrame<Void> f = idxFiles.delete(logFile -> {
+                if (isGroupShouldStopPlain()) {
+                    return false;
+                }
+                return idxFiles.posToIndex(logFile.endPos) < logFiles.getFirstIndex();
+            });
+            // loop
+            return Fiber.call(f, this::execute);
+        }
     }
 }

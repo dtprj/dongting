@@ -159,6 +159,38 @@ class LogFileQueue extends FileQueue {
         logAppender.startFiber();
     }
 
+    public long getFirstIndex() {
+        if (queue.size() > 0) {
+            return queue.get(0).firstIndex;
+        }
+        return 0;
+    }
+
+    public void markDelete(long boundIndex, long timestampBound, long delayMills) {
+        long deleteTimestamp = ts.getWallClockMillis() + delayMills;
+        int queueSize = queue.size();
+        for (int i = 0; i < queueSize - 1; i++) {
+            LogFile logFile = queue.get(i);
+            LogFile nextFile = queue.get(i + 1);
+            boolean result = nextFile.firstTimestamp > 0
+                    && timestampBound > nextFile.firstTimestamp
+                    && boundIndex >= nextFile.firstIndex;
+            if (log.isDebugEnabled()) {
+                log.debug("mark {} delete: {}. timestampBound={}, nextFileFirstTimeStamp={}, boundIndex={}, nextFileFirstIndex={}",
+                        logFile.file.getName(), result, timestampBound, nextFile.firstTimestamp, boundIndex, nextFile.firstIndex);
+            }
+            if (result) {
+                if (logFile.deleteTimestamp == 0) {
+                    logFile.deleteTimestamp = deleteTimestamp;
+                } else {
+                    logFile.deleteTimestamp = Math.min(deleteTimestamp, logFile.deleteTimestamp);
+                }
+            } else {
+                return;
+            }
+        }
+    }
+
     @Override
     public void close() {
         closed = true;

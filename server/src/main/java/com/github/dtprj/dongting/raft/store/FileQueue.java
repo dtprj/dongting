@@ -42,6 +42,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -286,7 +287,6 @@ abstract class FileQueue implements AutoCloseable {
 
             private FrameCallResult afterNotUse(Void unused) {
                 FiberFuture<Void> deleteFuture = groupConfig.getFiberGroup().newFuture();
-                FiberGroup fiberGroup = getFiberGroup();
                 // mark deleted first, so that other fibers will not use this file
                 logFile.deleted = true;
                 try {
@@ -320,6 +320,30 @@ abstract class FileQueue implements AutoCloseable {
                     queueStartPosition = 0;
                     queueEndPosition = 0;
                 }
+                return Fiber.frameReturn();
+            }
+        };
+    }
+
+    public FiberFrame<Void> delete(Predicate<LogFile> shouldDelete) {
+        return new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                if (queue.size() > 1) {
+                    LogFile first = queue.get(0);
+                    if (shouldDelete.test(first)) {
+                        return Fiber.call(delete(first), this::execute);
+                    } else {
+                        return Fiber.frameReturn();
+                    }
+                } else {
+                    return Fiber.frameReturn();
+                }
+            }
+
+            @Override
+            protected FrameCallResult handle(Throwable ex) {
+                log.error("delete log file fail: ", ex);
                 return Fiber.frameReturn();
             }
         };

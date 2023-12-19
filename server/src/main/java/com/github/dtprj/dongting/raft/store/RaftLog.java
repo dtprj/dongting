@@ -65,8 +65,6 @@ public interface RaftLog extends AutoCloseable {
      */
     void markTruncateByTimestamp(long timestampBound, long delayMillis);
 
-    void doDelete();
-
     void beginInstall() throws Exception;
 
     void finishInstall(long nextLogIndex, long nextLogPos) throws Exception;
