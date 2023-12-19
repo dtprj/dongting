@@ -202,7 +202,6 @@ abstract class FileQueue implements AutoCloseable {
     }
 
     private class AllocateFrame extends DoInLockFrame<Void> {
-        private final FiberGroup fiberGroup = getFiberGroup();
 
         private long startTime;
         private long fileStartPos;
@@ -223,7 +222,7 @@ abstract class FileQueue implements AutoCloseable {
             fileStartPos = queueEndPosition;
             fileName = String.format("%020d", fileStartPos);
 
-            FiberFuture<Pair<File, AsynchronousFileChannel>> createFileFuture = fiberGroup.newFuture();
+            FiberFuture<Pair<File, AsynchronousFileChannel>> createFileFuture = getFiberGroup().newFuture();
             ioExecutor.execute(() -> {
                 try {
                     File f = new File(dir, fileName);
@@ -244,7 +243,7 @@ abstract class FileQueue implements AutoCloseable {
             file = input.getLeft();
             channel = input.getRight();
             logFile = new LogFile(fileStartPos, fileStartPos + getFileSize(), channel,
-                    file, fiberGroup.newCondition());
+                    file, getFiberGroup().newCondition());
             ByteBuffer buf = ByteBuffer.allocate(1);
             // no retry here, allocateSync() will retry
             AsyncIoTask t = new AsyncIoTask(groupConfig.getFiberGroup(), logFile.channel);
@@ -266,7 +265,7 @@ abstract class FileQueue implements AutoCloseable {
             if (channel != null) {
                 DtUtil.close(channel);
             }
-            log.info("allocate file failed, cost {} ms: {}", time, logFile.file.getPath(), ex);
+            log.info("allocate file failed, cost {} ms: {}", time, file, ex);
             throw ex;
         }
     }

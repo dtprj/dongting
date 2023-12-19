@@ -20,25 +20,19 @@ package com.github.dtprj.dongting.fiber;
  */
 public abstract class DoInLockFrame<O> extends FiberFrame<O> {
     private final FiberLock lock;
-    private final long timeoutMillis;
     private boolean locked;
 
     public DoInLockFrame(FiberLock lock) {
-        this(lock, 0);
-    }
-
-    public DoInLockFrame(FiberLock lock, long timeoutMillis) {
         this.lock = lock;
-        this.timeoutMillis = timeoutMillis;
     }
 
     @Override
     public final FrameCallResult execute(Void input) throws Exception {
-        return lock.tryLock(timeoutMillis, this::resume);
+            return lock.lock(this::resume);
     }
 
-    private FrameCallResult resume(Boolean locked) {
-        this.locked = locked;
+    private FrameCallResult resume(Void unused) {
+        this.locked = true;
         return afterGetLock();
     }
 
