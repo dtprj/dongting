@@ -80,7 +80,7 @@ public class IndexedQueue<T> {
 
     public T get(int index) {
         if (index < 0 || index >= size) {
-            throw new IndexOutOfBoundsException("Index out of range");
+            throw new IndexOutOfBoundsException("Index out of range: " + index);
         }
 
         int position = (readIndex + index) & mask;

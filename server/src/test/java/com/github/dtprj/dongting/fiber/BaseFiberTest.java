@@ -71,6 +71,6 @@ public class BaseFiberTest {
                 return Fiber.frameReturn();
             }
         });
-        f.get(10, TimeUnit.SECONDS);
+        f.get(5, TimeUnit.SECONDS);
     }
 }

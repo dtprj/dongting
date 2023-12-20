@@ -91,7 +91,6 @@ public class StatusFile implements AutoCloseable {
                 if (!needLoad) {
                     return Fiber.frameReturn();
                 }
-                log.info("loading status file: {}", file.getPath());
                 if (file.length() != FILE_LENGTH) {
                     throw new RaftException("bad status file length: " + file.length());
                 }
@@ -115,6 +114,7 @@ public class StatusFile implements AutoCloseable {
 
                 properties.load(new StringReader(new String(
                         initData, CONTENT_START_POS, CONTENT_LENGTH, StandardCharsets.UTF_8)));
+                log.info("loaded status file: {}, content: {}", file.getPath(), properties);
                 return Fiber.frameReturn();
             }
 

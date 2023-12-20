@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.RandomAccessFile;
+import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -143,20 +144,27 @@ public class FileQueueTest extends BaseFiberTest {
 
     @Test
     public void testDelete() throws Exception {
-        // TODO not finished
-        /*
-        fileQueue.ensureWritePosReady(0);
-        fileQueue.ensureWritePosReady(1024);
-        fileQueue.ensureWritePosReady(2048);
-        assertEquals(3, fileQueue.queue.size());
-        Predicate<LogFile> p = lf -> {
-            String n = lf.file.getName();
-            return n.endsWith("0000") || n.endsWith("1024");
-        };
-        fileQueue.submitDeleteTask(p);
-        fileQueue.submitDeleteTask(p);
-        TestUtil.waitUtilInExecutor(MockExecutors.raftExecutor(), 1, () -> fileQueue.queue.size());
-        */
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                fileQueue.setInitialized(true);
+                return Fiber.call(fileQueue.ensureWritePosReady(2048), this::resume);
+            }
+
+            private FrameCallResult resume(Void unused) {
+                assertEquals(3, fileQueue.queue.size());
+                Predicate<LogFile> p = lf -> {
+                    String n = lf.file.getName();
+                    return n.endsWith("0000") || n.endsWith("1024");
+                };
+                return Fiber.call(fileQueue.delete(p), this::resume2);
+            }
+
+            private FrameCallResult resume2(Void unused) {
+                assertEquals(1, fileQueue.queue.size());
+                return Fiber.frameReturn();
+            }
+        });
     }
 
 }

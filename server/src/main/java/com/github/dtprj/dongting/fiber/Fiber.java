@@ -158,11 +158,19 @@ public class Fiber extends WaitSource {
         return fiber;
     }
 
-
-
     public void start() {
         fiberGroup.checkThread();
         fiberGroup.start(Fiber.this);
+    }
+
+    public boolean isStarted() {
+        fiberGroup.checkThread();
+        return started;
+    }
+
+    public boolean isFinished() {
+        fiberGroup.checkThread();
+        return finished;
     }
 
     public String getFiberName() {

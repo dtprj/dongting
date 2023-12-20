@@ -95,17 +95,18 @@ public class StatusManager implements AutoCloseable {
 
     private class UpdateFiberFrame extends FiberFrame<Void> {
         private long version;
+        private boolean flush;
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (closed) {
-                log.debug("status update fiber exit");
-                updateDoneCondition.signalAll();
-                return Fiber.frameReturn();
-            }
             if (requestUpdateVersion > finishedUpdateVersion) {
                 return doUpdate(null);
             } else {
+                if (closed) {
+                    log.info("status update fiber exit, groupId={}", groupConfig.getGroupId());
+                    updateDoneCondition.signalAll();
+                    return Fiber.frameReturn();
+                }
                 return needUpdateCondition.await(this::doUpdate);
             }
         }
@@ -116,7 +117,8 @@ public class StatusManager implements AutoCloseable {
                 public FrameCallResult execute(Void input) {
                     copyWriteData();
                     version = requestUpdateVersion;
-                    FiberFuture<Void> f = statusFile.update(lastNeedFlushVersion > finishedUpdateVersion);
+                    flush = lastNeedFlushVersion > finishedUpdateVersion;
+                    FiberFuture<Void> f = statusFile.update(flush);
                     return f.await(groupConfig.getIoTimeout(), this::justReturn);
                 }
             };
@@ -126,6 +128,7 @@ public class StatusManager implements AutoCloseable {
         }
 
         private FrameCallResult resumeOnUpdateDone(Void v) {
+            log.info("status update done, version={}, flush={}", version, flush);
             finishedUpdateVersion = version;
             updateDoneCondition.signalAll();
             // loop
@@ -135,7 +138,7 @@ public class StatusManager implements AutoCloseable {
         @Override
         protected FrameCallResult handle(Throwable ex) {
             updateDoneCondition.signalAll();
-            log.error("update status file error", ex);
+            log.error("update status file error, groupId={}", groupConfig.getGroupId(), ex);
             return Fiber.fatal(ex);
         }
 
@@ -160,7 +163,9 @@ public class StatusManager implements AutoCloseable {
     }
 
     public FiberFrame<Void> persistSync() {
-
+        if (closed) {
+            throw new RaftException("status manager is closed");
+        }
         return new FiberFrame<>() {
             private long reqVersion;
             @Override
@@ -172,10 +177,7 @@ public class StatusManager implements AutoCloseable {
             }
 
             private FrameCallResult execute0() {
-                if (closed) {
-                    throw new RaftException("status manager is closed");
-                }
-                if (finished(updateFiber)) {
+                if (updateFiber.isFinished()) {
                     throw new RaftException("update fiber is finished");
                 }
                 needUpdateCondition.signal();

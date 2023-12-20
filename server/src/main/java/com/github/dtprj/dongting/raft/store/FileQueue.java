@@ -67,7 +67,7 @@ abstract class FileQueue implements AutoCloseable {
     protected long queueEndPosition;
 
     private FiberFuture<Void> allocateFuture;
-    private FiberLock fileOpsLock;
+    private final FiberLock fileOpsLock;
 
     protected boolean initialized;
 
@@ -186,7 +186,7 @@ abstract class FileQueue implements AutoCloseable {
 
     private void allocateAsync() {
         allocateFuture = groupConfig.getFiberGroup().newFuture();
-        Fiber f = new Fiber("allocate-file", groupConfig.getFiberGroup(), new FiberFrame<Void>() {
+        Fiber f = new Fiber("allocate-file", groupConfig.getFiberGroup(), new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return Fiber.call(new AllocateFrame(), this::justReturn);
@@ -307,10 +307,10 @@ abstract class FileQueue implements AutoCloseable {
                     log.error("submit delete task fail: ", e);
                     deleteFuture.completeExceptionally(e);
                 }
-                return deleteFuture.await(this::afterDelete);
+                return deleteFuture.await(this::doAfterDelete);
             }
 
-            private FrameCallResult afterDelete(Void unused) {
+            private FrameCallResult doAfterDelete(Void unused) {
                 if (queue.size() > 1) {
                     queue.removeFirst();
                 }
@@ -320,9 +320,13 @@ abstract class FileQueue implements AutoCloseable {
                     queueStartPosition = 0;
                     queueEndPosition = 0;
                 }
+                FileQueue.this.afterDelete();
                 return Fiber.frameReturn();
             }
         };
+    }
+
+    protected void afterDelete() {
     }
 
     public FiberFrame<Void> delete(Predicate<LogFile> shouldDelete) {
@@ -332,7 +336,7 @@ abstract class FileQueue implements AutoCloseable {
                 if (queue.size() > 1) {
                     LogFile first = queue.get(0);
                     if (shouldDelete.test(first)) {
-                        return Fiber.call(delete(first), this::execute);
+                        return Fiber.call(delete(first), this);
                     } else {
                         return Fiber.frameReturn();
                     }

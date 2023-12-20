@@ -82,10 +82,6 @@ public abstract class FiberFrame<O> implements FrameCall<Void> {
         return fiberGroup;
     }
 
-    protected boolean finished(Fiber fiber) {
-        return fiber.finished;
-    }
-
     protected FrameCallResult justReturn(O result) {
         setResult(result);
         return Fiber.frameReturn();
