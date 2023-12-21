@@ -196,6 +196,11 @@ public class Dispatcher extends AbstractLifeCircle {
                     break;
                 }
                 if (!fiber.ready) {
+                    if (fiber.source == null && fiber.scheduleTimeoutMillis == 0) {
+                        // yield
+                        fiber.ready = true;
+                        fiber.fiberGroup.readyFibers.addLast(fiber);
+                    }
                     return;
                 }
                 //noinspection StatementWithEmptyBody
@@ -341,6 +346,14 @@ public class Dispatcher extends AbstractLifeCircle {
         g.shouldStopCondition.addWaiter(fiber);
         fiber.ready = false;
         fiber.fiberGroup.dispatcher.addToScheduleQueue(millis, fiber);
+    }
+
+    static void yield(FrameCall<Void> resumePoint) {
+        Fiber fiber = getCurrentFiberAndCheck(null);
+        checkReentry(fiber);
+        FiberFrame currentFrame = fiber.stackTop;
+        currentFrame.resumePoint = resumePoint;
+        fiber.ready = false;
     }
 
     private void addToScheduleQueue(long millis, Fiber fiber) {

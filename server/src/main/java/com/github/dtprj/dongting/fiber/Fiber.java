@@ -81,6 +81,11 @@ public class Fiber extends WaitSource {
         return FrameCallResult.SUSPEND;
     }
 
+    public static FrameCallResult yield(FrameCall<Void> resumePoint) {
+        Dispatcher.yield(resumePoint);
+        return FrameCallResult.RETURN;
+    }
+
     public static FrameCallResult fatal(Throwable ex) {
         log.error("encountered fatal error, raft group will shutdown", ex);
         DispatcherThread t = DispatcherThread.currentDispatcherThread();
