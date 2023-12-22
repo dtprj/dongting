@@ -86,8 +86,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         this.flushItems = this.maxCacheItems / 2;
         this.flushFiber = new Fiber("idxFlush-" + groupConfig.getGroupId(),
                 groupConfig.getFiberGroup(), new FlushLoopFrame());
-        this.needFlushCondition = groupConfig.getFiberGroup().newCondition();
-        this.flushDoneCondition = groupConfig.getFiberGroup().newCondition();
+        this.needFlushCondition = groupConfig.getFiberGroup().newCondition("IdxNeedFlush-" + groupConfig.getGroupId());
+        this.flushDoneCondition = groupConfig.getFiberGroup().newCondition("IdxFlushDone-" + groupConfig.getGroupId());
     }
 
     public FiberFrame<Pair<Long, Long>> initRestorePos() throws Exception {

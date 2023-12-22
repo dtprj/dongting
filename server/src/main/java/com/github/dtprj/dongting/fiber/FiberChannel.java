@@ -30,7 +30,7 @@ public class FiberChannel<T> {
 
     FiberChannel(FiberGroup group, int initSize) {
         this.queue = new IndexedQueue<>(initSize);
-        this.notEmptyCondition = group.newCondition();
+        this.notEmptyCondition = group.newCondition("FiberChannelNotEmpty");
     }
 
     public boolean offer(T data) {

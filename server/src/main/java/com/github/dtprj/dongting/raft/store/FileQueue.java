@@ -116,7 +116,7 @@ abstract class FileQueue implements AutoCloseable {
                 openOptions.add(StandardOpenOption.WRITE);
                 AsynchronousFileChannel channel = AsynchronousFileChannel.open(f.toPath(), openOptions, ioExecutor);
                 queue.addLast(new LogFile(startPos, startPos + getFileSize(), channel,
-                        f, groupConfig.getFiberGroup().newCondition()));
+                        f, groupConfig.getFiberGroup()));
                 count++;
             }
         }
@@ -244,7 +244,7 @@ abstract class FileQueue implements AutoCloseable {
             file = input.getLeft();
             channel = input.getRight();
             logFile = new LogFile(fileStartPos, fileStartPos + getFileSize(), channel,
-                    file, getFiberGroup().newCondition());
+                    file, getFiberGroup());
             ByteBuffer buf = ByteBuffer.allocate(1);
             // no retry here, allocateSync() will retry
             AsyncIoTask t = new AsyncIoTask(groupConfig.getFiberGroup(), logFile.channel);

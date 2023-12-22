@@ -17,13 +17,14 @@ package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.common.DtTime;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * This class used for biz tests.
@@ -36,9 +37,9 @@ public class BaseFiberTest {
 
     @BeforeAll
     public static void initGroup() throws Exception {
-        dispatcher = new Dispatcher("test");
+        dispatcher = new Dispatcher("TestDispatcher");
         dispatcher.start();
-        fiberGroup = new FiberGroup("test group", dispatcher);
+        fiberGroup = new FiberGroup("TestGroup", dispatcher);
         dispatcher.startGroup(fiberGroup).get();
     }
 
@@ -47,7 +48,10 @@ public class BaseFiberTest {
         if (dispatcher.thread.isAlive()) {
             dispatcher.stop(new DtTime(1000, TimeUnit.MILLISECONDS));
             dispatcher.thread.join(1500);
-            Assertions.assertFalse(dispatcher.thread.isAlive());
+            if (dispatcher.thread.isAlive()) {
+                fiberGroup.fireLogGroupInfo();
+                fail();
+            }
             assertTrue(fiberGroup.finished);
         }
     }
@@ -71,6 +75,11 @@ public class BaseFiberTest {
                 return Fiber.frameReturn();
             }
         });
-        f.get(5, TimeUnit.SECONDS);
+        try {
+            f.get(5, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            fiberGroup.fireLogGroupInfo();
+            throw e;
+        }
     }
 }

@@ -24,6 +24,8 @@ import com.github.dtprj.dongting.log.DtLogs;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.HashSet;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author huangli
@@ -54,11 +56,12 @@ public class FiberGroup {
 
     Fiber currentFiber;
 
-    final FiberCondition shouldStopCondition = new FiberCondition(this);
+    final FiberCondition shouldStopCondition;
 
     public FiberGroup(String name, Dispatcher dispatcher) {
         this.name = name;
         this.dispatcher = dispatcher;
+        this.shouldStopCondition = newCondition(name + "-shouldStop");
     }
 
     /**
@@ -119,8 +122,8 @@ public class FiberGroup {
         return name;
     }
 
-    public FiberCondition newCondition() {
-        return new FiberCondition(this);
+    public FiberCondition newCondition(String name) {
+        return new FiberCondition(name, this);
     }
 
     public <T> FiberFuture<T> newFuture() {
@@ -209,5 +212,56 @@ public class FiberGroup {
 
     boolean isShouldStopPlain() {
         return (boolean) SHOULD_STOP.get(this);
+    }
+
+    public void fireLogGroupInfo() {
+        if (!log.isInfoEnabled()) {
+            return;
+        }
+        if (Thread.currentThread() == dispatcher.thread) {
+            logGroupInfo0();
+        } else {
+            CompletableFuture<Void> f = new CompletableFuture<>();
+            dispatcher.doInDispatcherThread(new FiberQueueTask() {
+                @Override
+                protected void run() {
+                    logGroupInfo0();
+                    f.complete(null);
+                }
+            });
+            try {
+                f.get(3, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                log.error("can't log group info, group={}", name, e);
+            }
+        }
+    }
+
+    private void logGroupInfo0() {
+        StringBuilder sb = new StringBuilder(256);
+        sb.append("group ").append(name)
+                .append(", ready=").append(readyFibers.size())
+                .append(", normal=").append(normalFibers.size())
+                .append(", daemon=").append(daemonFibers.size())
+                .append("\n")
+                .append("--------------------------------------------------\n")
+                .append("readyFibers:\n");
+        for (int i = 0; i < readyFibers.size(); i++) {
+            Fiber f = readyFibers.get(i);
+            sb.append(f.getFiberName()).append(", currentFrame=").append(f.stackTop).append(", resumePoint=");
+            if (f.stackTop == null) {
+                sb.append("null");
+            } else {
+                sb.append(f.stackTop.resumePoint);
+            }
+            sb.append("\n");
+        }
+        sb.append("--------------------------------------------------\n");
+        sb.append("normalFibers:\n");
+        for (Fiber f : normalFibers) {
+            sb.append(f.getFiberName()).append(", waitOn=").append(f.source).append('\n');
+        }
+        sb.append("--------------------------------------------------\n");
+        log.info(sb.toString());
     }
 }

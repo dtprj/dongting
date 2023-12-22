@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.fiber.FiberCondition;
+import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 
@@ -41,12 +42,12 @@ class LogFile {
     boolean deleted;
 
     public LogFile(long startPos, long endPos, AsynchronousFileChannel channel,
-                   File file, FiberCondition notUseCondition) {
+                   File file, FiberGroup fiberGroup) {
         this.startPos = startPos;
         this.endPos = endPos;
         this.channel = channel;
         this.file = file;
-        this.notUseCondition = notUseCondition;
+        this.notUseCondition = fiberGroup.newCondition("FileNotUse-" + file.getName());
     }
 
     public void incUseCount(){

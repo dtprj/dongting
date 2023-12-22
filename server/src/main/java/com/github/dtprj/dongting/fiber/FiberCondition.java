@@ -22,8 +22,16 @@ import com.github.dtprj.dongting.common.DtUtil;
  */
 public class FiberCondition extends WaitSource {
 
-    public FiberCondition(FiberGroup group) {
+    private final String name;
+
+    public FiberCondition(String name, FiberGroup group) {
         super(group);
+        this.name = name;
+    }
+
+    @Override
+    public String toString() {
+        return "Condition:" + name + "@" + hashCode();
     }
 
     @Override

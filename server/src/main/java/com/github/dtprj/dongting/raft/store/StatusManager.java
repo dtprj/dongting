@@ -64,9 +64,9 @@ public class StatusManager implements AutoCloseable {
         File file = new File(dir, groupConfig.getStatusFile());
         FiberGroup fg = groupConfig.getFiberGroup();
         this.statusFile = new StatusFile(file, groupConfig.getIoExecutor(), fg);
-        this.updateFiber = new Fiber("status-update", fg, new UpdateFiberFrame());
-        this.needUpdateCondition = fg.newCondition();
-        this.updateDoneCondition = fg.newCondition();
+        this.updateFiber = new Fiber("status-update-" + groupConfig.getGroupId(), fg, new UpdateFiberFrame());
+        this.needUpdateCondition = fg.newCondition("StatusNeedUpdate" + groupConfig.getGroupId());
+        this.updateDoneCondition = fg.newCondition("StatusUpdateDone" + groupConfig.getGroupId());
     }
 
     public FiberFrame<Void> initStatusFile() {

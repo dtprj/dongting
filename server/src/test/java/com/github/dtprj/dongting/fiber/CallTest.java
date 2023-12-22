@@ -37,7 +37,7 @@ public class CallTest extends AbstractFiberTest {
         AtomicBoolean f1FinallyCalled = new AtomicBoolean();
         AtomicBoolean f2FinallyCalled = new AtomicBoolean();
 
-        FiberCondition c = fiberGroup.newCondition();
+        FiberCondition c = fiberGroup.newCondition("testCondition");
         FiberFrame<Integer> f2 = new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {

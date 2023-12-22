@@ -30,7 +30,7 @@ public class ConditionTest extends AbstractFiberTest {
 
     @Test
     public void testTimeout() {
-        FiberCondition c = fiberGroup.newCondition();
+        FiberCondition c = fiberGroup.newCondition("testCondition");
         AtomicBoolean error = new AtomicBoolean();
         AtomicBoolean finish = new AtomicBoolean();
         Fiber f = new Fiber("f", fiberGroup, new FiberFrame<>() {
@@ -58,7 +58,7 @@ public class ConditionTest extends AbstractFiberTest {
     @Test
     public void testSignal() throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
-        FiberCondition c = fiberGroup.newCondition();
+        FiberCondition c = fiberGroup.newCondition("testCondition");
         AtomicBoolean error = new AtomicBoolean();
         AtomicBoolean finish = new AtomicBoolean();
         Fiber f = new Fiber("f", fiberGroup, new FiberFrame<>() {
@@ -97,7 +97,7 @@ public class ConditionTest extends AbstractFiberTest {
     @Test
     public void testInterrupt() throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
-        FiberCondition c = fiberGroup.newCondition();
+        FiberCondition c = fiberGroup.newCondition("testCondition");
         AtomicBoolean interrupt = new AtomicBoolean();
         AtomicBoolean finish = new AtomicBoolean();
         Fiber f = new Fiber("f", fiberGroup, new FiberFrame<>() {
@@ -162,7 +162,7 @@ public class ConditionTest extends AbstractFiberTest {
     public void testSignalAll() throws Exception {
         CountDownLatch startLatch = new CountDownLatch(2);
         CountDownLatch finishLatch = new CountDownLatch(2);
-        FiberCondition c = fiberGroup.newCondition();
+        FiberCondition c = fiberGroup.newCondition("testCondition");
 
         Fiber f1 = new Fiber("f1", fiberGroup,new F(startLatch, finishLatch, c));
         Fiber f2 = new Fiber("f2", fiberGroup,new F(startLatch, finishLatch, c));

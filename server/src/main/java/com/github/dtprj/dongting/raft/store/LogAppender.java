@@ -93,7 +93,7 @@ class LogAppender {
         this.cache = raftStatus.getTailCache();
         this.fiberGroup = groupConfig.getFiberGroup();
         this.appendFiber = new Fiber("append-" + groupConfig.getGroupId(), fiberGroup, appendFiberFrame);
-        this.needAppendCondition = fiberGroup.newCondition();
+        this.needAppendCondition = fiberGroup.newCondition("NeedAppend-" + groupConfig.getGroupId());
         this.writeStopIndicator = logFileQueue::isClosed;
     }
 
