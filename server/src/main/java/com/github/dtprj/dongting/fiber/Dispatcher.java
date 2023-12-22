@@ -147,7 +147,7 @@ public class Dispatcher extends AbstractLifeCircle {
             if (f.source != null) {
                 f.source.removeWaiter(f);
                 if (f.source.throwWhenTimeout()) {
-                    f.inputEx = new FiberTimeoutException("wait " + f.source + "timeout:" + f.scheduleTimeoutMillis + "ms");
+                    f.inputEx = new FiberTimeoutException("wait " + f.source + " timeout:" + f.scheduleTimeoutMillis + "ms");
                     f.stackTop.resumePoint = null;
                 }
                 f.source = null;
@@ -465,7 +465,7 @@ public class Dispatcher extends AbstractLifeCircle {
     }
 
     private int compareFiberByScheduleTime(Fiber f1, Fiber f2) {
-        long diff = f1.scheduleNanoTime = f2.scheduleNanoTime;
+        long diff = f1.scheduleNanoTime - f2.scheduleNanoTime;
         return diff < 0 ? -1 : diff > 0 ? 1 : 0;
     }
 }
