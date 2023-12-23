@@ -221,6 +221,9 @@ public class Dispatcher extends AbstractLifeCircle {
             if (fatalError != null) {
                 log.error("fiber execute error, group={}, fiber={}", g.getName(), fiber.getFiberName(), fatalError);
             }
+            if (fiber.inputEx != null) {
+                log.error("fiber execute error, group={}, fiber={}", g.getName(), fiber.getFiberName(), fiber.inputEx);
+            }
             fiber.finished = true;
             fiber.ready = false;
             g.removeFiber(fiber);
