@@ -139,6 +139,7 @@ public class FiberFuture<T> extends WaitSource {
      */
     public void registerCallback(BiConsumer<T, Throwable> callback) {
         registerCallback(new FiberFrame<>() {
+            private boolean callbackCalled = false;
             @Override
             public FrameCallResult execute(Void input) {
                 FiberFuture<T> f = FiberFuture.this;
@@ -146,13 +147,19 @@ public class FiberFuture<T> extends WaitSource {
             }
 
             private FrameCallResult resume(T t) {
+                callbackCalled = true;
                 callback.accept(t, null);
                 return Fiber.frameReturn();
             }
 
             @Override
-            protected FrameCallResult handle(Throwable ex) {
-                callback.accept(null, ex);
+            protected FrameCallResult handle(Throwable ex) throws Throwable {
+                // maybe callback failed
+                if (!callbackCalled) {
+                    callback.accept(null, ex);
+                } else {
+                    throw ex;
+                }
                 return Fiber.frameReturn();
             }
         });
@@ -177,6 +184,7 @@ public class FiberFuture<T> extends WaitSource {
 
             @Override
             protected FrameCallResult handle(Throwable ex) {
+                // if the ex is thrown by converter, completeExceptionally with the ex is ok
                 newFuture.completeExceptionally(ex);
                 return Fiber.frameReturn();
             }
