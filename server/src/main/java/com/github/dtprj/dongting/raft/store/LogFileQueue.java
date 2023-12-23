@@ -80,8 +80,7 @@ class LogFileQueue extends FileQueue {
                 restoreIndex, restoreIndexPos, firstValidPos);
         if (queue.size() == 0) {
             tryAllocateAsync(0);
-            logAppender.setNextPersistIndex(1);
-            logAppender.setNextPersistPos(0);
+            logAppender.setNext(1, 0);
             return FiberFrame.completedFrame(0);
         }
         if (restoreIndexPos < queue.get(0).startPos) {
@@ -130,8 +129,7 @@ class LogFileQueue extends FileQueue {
                 log.info("restore finished. lastTerm={}, lastIndex={}, lastPos={}, lastFile={}",
                         restorer.previousTerm, restorer.previousIndex, writePos,
                         queue.get(queue.size() - 1).file.getPath());
-                logAppender.setNextPersistIndex(restorer.previousIndex + 1);
-                logAppender.setNextPersistPos(writePos);
+                logAppender.setNext(restorer.previousIndex + 1, writePos);
                 setResult(restorer.previousTerm);
                 return Fiber.frameReturn();
             }

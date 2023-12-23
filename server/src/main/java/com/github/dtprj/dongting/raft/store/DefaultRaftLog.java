@@ -52,7 +52,7 @@ public class DefaultRaftLog implements RaftLog {
     int idxMaxCacheItems = IdxFileQueue.DEFAULT_MAX_CACHE_ITEMS;
     long logFileSize = LogFileQueue.DEFAULT_LOG_FILE_SIZE;
 
-    private Fiber deleteFiber;
+    private final Fiber deleteFiber;
 
     public DefaultRaftLog(RaftGroupConfig groupConfig, StatusManager statusManager) {
         this.groupConfig = groupConfig;
@@ -127,9 +127,14 @@ public class DefaultRaftLog implements RaftLog {
         TailCache tailCache = raftStatus.getTailCache();
         tailCache.truncate(index);
 
+        // committed logs can't truncate, and we wait write finish before truncate,
+        // so we can assert the index is in the cache
+        long pos = idxFiles.loadLogPosInCache(index);
+
         if (index < idxFiles.getNextIndex()) {
             idxFiles.truncateTail(index);
         }
+        logFiles.logAppender.setNext(index, pos);
     }
 
     @Override

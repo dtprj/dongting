@@ -61,6 +61,9 @@ public class TailCache {
         pendingBytes += value.getInput().getFlowControlSize();
     }
 
+    /**
+     * truncate tail to index (inclusive)
+     */
     public void truncate(long index) {
         if (index < firstIndex) {
             throw new IllegalArgumentException("index " + index + " is less than firstIndex " + firstIndex);

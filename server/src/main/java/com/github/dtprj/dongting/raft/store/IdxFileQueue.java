@@ -348,6 +348,10 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         }
     }
 
+    public long loadLogPosInCache(long index) {
+        return cache.get(index);
+    }
+
     @Override
     public FrameCallResult loadLogPos(long itemIndex, FrameCall<Long> resumePoint) throws Throwable {
         DtUtil.checkPositive(itemIndex, "index");
@@ -393,6 +397,9 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         return Fiber.call(loadFrame, resumePoint);
     }
 
+    /**
+     * truncate tail index (inclusive)
+     */
     public void truncateTail(long index) {
         DtUtil.checkPositive(index, "index");
         if (index <= raftStatus.getCommitIndex()) {

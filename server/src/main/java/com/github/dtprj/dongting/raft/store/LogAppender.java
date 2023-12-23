@@ -414,11 +414,8 @@ class LogAppender {
         return item.getIndex();
     }
 
-    public void setNextPersistIndex(long nextPersistIndex) {
+    public void setNext(long nextPersistIndex, long nextPersistPos) {
         this.nextPersistIndex = nextPersistIndex;
-    }
-
-    public void setNextPersistPos(long nextPersistPos) {
         this.nextPersistPos = nextPersistPos;
     }
 
