@@ -58,7 +58,7 @@ public class BaseFiberTest {
 
     public void doInFiber(FiberFrame<Void> fiberFrame) throws Exception {
         CompletableFuture<Void> f = new CompletableFuture<>();
-        fiberGroup.fireFiber("test-fiber", new FiberFrame<>() {
+        fiberGroup.fireFiber("do-in-fiber", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return Fiber.call(fiberFrame, this::resume);

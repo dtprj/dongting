@@ -42,7 +42,7 @@ class LogFileQueue extends FileQueue {
     public static final long DEFAULT_LOG_FILE_SIZE = 1024 * 1024 * 1024;
     public static final int MAX_WRITE_BUFFER_SIZE = 128 * 1024;
 
-    private final FiberGroup fiberGroup = FiberGroup.currentGroup();
+    private final FiberGroup fiberGroup;
 
     protected final RefBufferFactory heapPool;
     protected final ByteBufferPool directPool;
@@ -51,17 +51,19 @@ class LogFileQueue extends FileQueue {
 
     private final Timestamp ts;
 
-    private final LogAppender logAppender;
+    final LogAppender logAppender;
 
     // read in io thread
     private volatile boolean closed;
+
+    int maxWriteBufferSize = MAX_WRITE_BUFFER_SIZE;
 
     public LogFileQueue(File dir, RaftGroupConfig groupConfig, IdxOps idxOps, RaftLog.AppendCallback callback,
                         long fileSize) {
         super(dir, groupConfig, fileSize);
         this.idxOps = idxOps;
         this.ts = groupConfig.getTs();
-
+        this.fiberGroup = groupConfig.getFiberGroup();
         this.heapPool = groupConfig.getHeapPool();
         this.directPool = groupConfig.getDirectPool();
 
@@ -91,7 +93,7 @@ class LogFileQueue extends FileQueue {
         return new FiberFrame<>() {
             long writePos = 0;
             int i = 0;
-            ByteBuffer buffer = directPool.borrow(MAX_WRITE_BUFFER_SIZE);
+            final ByteBuffer buffer = directPool.borrow(maxWriteBufferSize);
             @Override
             public FrameCallResult execute(Void input) {
                 RaftUtil.checkStop(fiberGroup);
@@ -194,6 +196,7 @@ class LogFileQueue extends FileQueue {
     @Override
     public void close() {
         closed = true;
+        logAppender.needAppendCondition.signal();
         super.close();
     }
 

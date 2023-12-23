@@ -48,6 +48,7 @@ import java.util.zip.CRC32C;
  */
 class LogAppender {
     private static final DtLog log = DtLogs.getLogger(LogAppender.class);
+    private static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocateDirect(0);
 
     private final TailCache cache;
 
@@ -68,17 +69,17 @@ class LogAppender {
 
     private final Fiber appendFiber;
     private final AppendFiberFrame appendFiberFrame = new AppendFiberFrame();
-    private final FiberCondition needAppendCondition;
+    final FiberCondition needAppendCondition;
 
-    // 5 temp status fields, should reset in afterPosReady()
+    // 4 temp status fields, should reset in writeData()
     private final ArrayList<LogItem> items = new ArrayList<>(32);
-    private long calculatedItemIndex = -1;
     private LogItem lastItem;
     private long writeStartPosInFile;
-    private int restBytes;
+    private int bytesToWrite;
 
     private final Supplier<Boolean> writeStopIndicator;
 
+    private final FiberCondition noPendingCondition;
 
     LogAppender(IdxOps idxOps, LogFileQueue logFileQueue, RaftGroupConfig groupConfig,
                 RaftLog.AppendCallback appendCallback) {
@@ -95,6 +96,7 @@ class LogAppender {
         this.appendFiber = new Fiber("append-" + groupConfig.getGroupId(), fiberGroup, appendFiberFrame);
         this.needAppendCondition = fiberGroup.newCondition("NeedAppend-" + groupConfig.getGroupId());
         this.writeStopIndicator = logFileQueue::isClosed;
+        this.noPendingCondition = fiberGroup.newCondition("NoPending-" + groupConfig.getGroupId());
     }
 
     public void startFiber() {
@@ -105,22 +107,45 @@ class LogAppender {
 
         @Override
         public FrameCallResult execute(Void input) {
+            if (logFileQueue.isClosed()) {
+                noPendingCondition.signalAll();
+                return Fiber.frameReturn();
+            }
             if (idxOps.needWaitFlush()) {
                 return Fiber.call(idxOps.waitFlush(), this);
             }
+            if (logFileQueue.isClosed()) {
+                noPendingCondition.signalAll();
+                return Fiber.frameReturn();
+            }
             TailCache tailCache = LogAppender.this.cache;
             long nextPersistIndex = LogAppender.this.nextPersistIndex;
-            if (tailCache.size() > 0 && tailCache.getLastIndex() > nextPersistIndex) {
-                needAppendCondition.await(this);
+            if (tailCache.size() > 0 && tailCache.getLastIndex() >= nextPersistIndex) {
+                if (nextPersistIndex < tailCache.getFirstIndex()) {
+                    BugLog.getLog().error("nextPersistIndex {} < tailCache.getFirstIndex() {}",
+                            nextPersistIndex, tailCache.getFirstIndex());
+                    return Fiber.fatal(new RaftException("nextPersistIndex<tailCache.getFirstIndex()"));
+                }
+                return Fiber.call(logFileQueue.ensureWritePosReady(nextPersistPos), this::afterPosReady);
+            } else {
+                return needAppendCondition.await(this);
             }
-            if (nextPersistIndex < tailCache.getFirstIndex()) {
-                BugLog.getLog().error("nextPersistIndex {} < tailCache.getFirstIndex() {}",
-                        nextPersistIndex, tailCache.getFirstIndex());
-                return Fiber.fatal(new RaftException("nextPersistIndex<tailCache.getFirstIndex()"));
+        }
+
+        private FrameCallResult afterPosReady(Void unused) throws Throwable {
+            if (logFileQueue.isClosed()) {
+                noPendingCondition.signalAll();
+                return Fiber.frameReturn();
             }
-            return Fiber.call(logFileQueue.ensureWritePosReady(nextPersistPos), LogAppender.this::afterPosReady);
+            return writeData();
+        }
+
+        @Override
+        protected FrameCallResult handle(Throwable ex) {
+            return Fiber.fatal(ex);
         }
     }
+
 
     @SuppressWarnings("FieldMayBeFinal")
     static class WriteTask {
@@ -144,49 +169,51 @@ class LogAppender {
     }
 
     private ByteBuffer borrowBuffer(int size) {
-        size = Math.min(size, LogFileQueue.MAX_WRITE_BUFFER_SIZE);
-        return groupConfig.getDirectPool().borrow(size);
+        if (size == 0) {
+            return EMPTY_BUFFER;
+        } else {
+            size = Math.min(size, logFileQueue.maxWriteBufferSize);
+            return groupConfig.getDirectPool().borrow(size);
+        }
     }
 
-    private FrameCallResult afterPosReady(Void unused) throws Throwable {
-        // reset 5 status fields
+    private FrameCallResult writeData() throws Throwable {
+        // reset 4 status fields
         writeStartPosInFile = nextPersistPos & fileLenMask;
-        restBytes = 0;
+        bytesToWrite = 0;
         ArrayList<LogItem> items = this.items;
         items.clear();
-        calculatedItemIndex = -1;
         lastItem = null;
 
+        long calculatedItemIndex = -1;
         LogFile file = logFileQueue.getLogFile(nextPersistPos);
         boolean writeEndHeader = false;
-        for (long lastIndex = cache.getLastIndex(), i = this.nextPersistIndex,
-             fileRestBytes = file.endPos - writeStartPosInFile; i <= lastIndex; i++) {
-            RaftTask rt = cache.get(i);
+        boolean rollNextFile = false;
+        for (long lastIndex = cache.getLastIndex(), fileRestBytes = file.endPos - nextPersistPos;
+             this.nextPersistIndex <= lastIndex; ) {
+            RaftTask rt = cache.get(nextPersistIndex);
             LogItem li = rt.getItem();
-            initItemSize(li);
+            calculatedItemIndex = initItemSize(li, calculatedItemIndex);
             int len = LogHeader.computeTotalLen(0, li.getActualHeaderSize(),
                     li.getActualBodySize());
             if (len <= fileRestBytes) {
                 items.add(li);
-                restBytes += len;
+                bytesToWrite += len;
                 fileRestBytes -= len;
+                nextPersistIndex++;
+                nextPersistPos += len;
             } else {
+                rollNextFile = true;
+                // file rest bytes not enough
                 if (fileRestBytes >= LogHeader.ITEM_HEADER_SIZE) {
                     writeEndHeader = true;
-                    restBytes += LogHeader.ITEM_HEADER_SIZE;
+                    bytesToWrite += LogHeader.ITEM_HEADER_SIZE;
                 }
-                if (!items.isEmpty() || writeEndHeader) {
-                    break;
-                } else {
-                    nextPersistPos = logFileQueue.nextFilePos(nextPersistPos);
-                    FiberFrame<Void> f = logFileQueue.ensureWritePosReady(nextPersistPos);
-                    // continue loop
-                    return Fiber.call(f, appendFiberFrame);
-                }
+                break;
             }
         }
 
-        ByteBuffer buffer = borrowBuffer(restBytes);
+        ByteBuffer buffer = borrowBuffer(bytesToWrite);
         buffer = writeItems(items, file, buffer);
 
         if (writeEndHeader) {
@@ -198,12 +225,22 @@ class LogAppender {
         if (buffer.position() > 0) {
             write(file, buffer);
         } else {
-            groupConfig.getDirectPool().release(buffer);
+            if (buffer.capacity() > 0) {
+                BugLog.getLog().error("buffer capacity > 0", buffer.capacity());
+            }
         }
 
-        nextPersistIndex += items.size();
-        nextPersistPos += writeStartPosInFile - (nextPersistPos & fileLenMask);
         items.clear();
+        if (nextPersistPos == file.endPos) {
+            log.info("current file {} has no enough space, nextPersistPos is {}, next file start pos is {}",
+                    file.file.getName(), nextPersistPos, nextPersistPos);
+        } else if (rollNextFile) {
+            // prepare to write new file
+            long next = logFileQueue.nextFilePos(nextPersistPos);
+            log.info("current file {} has no enough space, nextPersistPos is {}, next file start pos is {}",
+                    file.file.getName(), nextPersistPos, next);
+            nextPersistPos = next;
+        }
         // continue loop
         return Fiber.resume(null, appendFiberFrame);
     }
@@ -306,54 +343,61 @@ class LogAppender {
             future = task.writeAndFlush(buffer, writeStartPosInFile, false);
         }
         WriteTask wt = new WriteTask(buffer, lastItem, future);
-        future.registerCallback((v, ex) -> processWriteResult(wt, ex));
         writeTaskQueue.addLast(wt);
 
+        future.registerCallback((v, ex) -> processWriteResult(wt, ex));
+
         writeStartPosInFile += bytes;
-        restBytes -= bytes;
+        bytesToWrite -= bytes;
         lastItem = null;
 
-        return borrowBuffer(restBytes);
+        return borrowBuffer(bytesToWrite);
     }
 
     private void processWriteResult(WriteTask wt, Throwable ex) {
-        groupConfig.getDirectPool().release(wt.buffer);
-        if (fiberGroup.isShouldStop()) {
-            return;
-        }
-        if (ex != null) {
-            //noinspection StatementWithEmptyBody
-            if (DtUtil.rootCause(ex) instanceof FiberCancelException) {
-                // no ops
-            } else {
-                log.error("log append fail", ex);
-                fiberGroup.requestShutdown();
+        try {
+            if (logFileQueue.isClosed()) {
+                return;
             }
-        } else {
-            int lastItem = 0;
-            long lastIndex = 0;
-            while (writeTaskQueue.size() > 0) {
-                if (writeTaskQueue.get(0).future.isDone()) {
-                    WriteTask head = writeTaskQueue.removeFirst();
-                    if (head.lastTerm > 0) {
-                        lastItem = head.lastTerm;
-                        lastIndex = head.lastIndex;
-                    }
+            if (ex != null) {
+                //noinspection StatementWithEmptyBody
+                if (DtUtil.rootCause(ex) instanceof FiberCancelException) {
+                    // no ops
                 } else {
-                    break;
+                    log.error("log append fail", ex);
+                    fiberGroup.requestShutdown();
+                }
+            } else {
+                int lastItem = 0;
+                long lastIndex = 0;
+                while (writeTaskQueue.size() > 0) {
+                    if (writeTaskQueue.get(0).future.isDone()) {
+                        WriteTask head = writeTaskQueue.removeFirst();
+                        if (head.lastTerm > 0) {
+                            lastItem = head.lastTerm;
+                            lastIndex = head.lastIndex;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                if (lastItem > 0) {
+                    appendCallback.finish(lastItem, lastIndex);
+                    if (lastIndex >= cache.getLastIndex()) {
+                        noPendingCondition.signalAll();
+                    }
                 }
             }
-            if (lastItem > 0) {
-                appendCallback.finish(lastItem, lastIndex);
-            }
+        } finally {
+            groupConfig.getDirectPool().release(wt.buffer);
         }
     }
 
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    private void initItemSize(LogItem item) {
+    private long initItemSize(LogItem item, long calculatedItemIndex) {
         if (calculatedItemIndex >= item.getIndex()) {
-            return;
+            return calculatedItemIndex;
         }
         if (item.getHeaderBuffer() != null) {
             item.setActualHeaderSize(item.getHeaderBuffer().remaining());
@@ -367,7 +411,7 @@ class LogAppender {
             Encoder encoder = codecFactory.createBodyEncoder(item.getBizType());
             item.setActualBodySize(encoder.actualSize(item.getBody()));
         }
-        calculatedItemIndex = item.getIndex();
+        return item.getIndex();
     }
 
     public void setNextPersistIndex(long nextPersistIndex) {
@@ -376,6 +420,20 @@ class LogAppender {
 
     public void setNextPersistPos(long nextPersistPos) {
         this.nextPersistPos = nextPersistPos;
+    }
+
+    public FiberFrame<Void> waitWriteFinishOrShouldStopOrClose() {
+        return new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                if (!isGroupShouldStopPlain() && !logFileQueue.isClosed()
+                        && nextPersistIndex <= cache.getLastIndex()) {
+                    return noPendingCondition.await(1000, this);
+                } else {
+                    return Fiber.frameReturn();
+                }
+            }
+        };
     }
 
 }
