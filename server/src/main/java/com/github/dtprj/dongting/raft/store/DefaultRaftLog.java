@@ -75,7 +75,7 @@ public class DefaultRaftLog implements RaftLog {
                         statusManager, groupConfig, idxItemsPerFile, idxMaxCacheItems);
                 logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"),
                         groupConfig, idxFiles, appendCallback, logFileSize);
-                logFiles.init();
+                logFiles.initQueue();
                 RaftUtil.checkStop(fiberGroup);
                 return Fiber.call(idxFiles.initRestorePos(), this::afterIdxFileQueueInit);
             }

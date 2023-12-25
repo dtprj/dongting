@@ -62,8 +62,8 @@ class LogAppender {
     private final RaftLog.AppendCallback appendCallback;
     private final FiberGroup fiberGroup;
 
-    private long nextPersistIndex = -1;
-    private long nextPersistPos = -1;
+    long nextPersistIndex = -1;
+    long nextPersistPos = -1;
 
     private final IndexedQueue<WriteTask> writeTaskQueue = new IndexedQueue<>(32);
 

@@ -30,7 +30,6 @@ import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 
 /**
@@ -81,6 +80,7 @@ class LogFileQueue extends FileQueue {
         if (queue.size() == 0) {
             tryAllocateAsync(0);
             logAppender.setNext(1, 0);
+            logAppender.startFiber();
             return FiberFrame.completedFrame(0);
         }
         if (restoreIndexPos < queue.get(0).startPos) {
@@ -130,6 +130,7 @@ class LogFileQueue extends FileQueue {
                         restorer.previousTerm, restorer.previousIndex, writePos,
                         queue.get(queue.size() - 1).file.getPath());
                 logAppender.setNext(restorer.previousIndex + 1, writePos);
+                logAppender.startFiber();
                 setResult(restorer.previousTerm);
                 return Fiber.frameReturn();
             }
@@ -152,11 +153,6 @@ class LogFileQueue extends FileQueue {
 
     public long filePos(long absolutePos) {
         return absolutePos & fileLenMask;
-    }
-
-    public void init() throws IOException {
-        super.initQueue();
-        logAppender.startFiber();
     }
 
     public long getFirstIndex() {
