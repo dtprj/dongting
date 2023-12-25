@@ -152,6 +152,36 @@ public class Fiber extends WaitSource {
         return Dispatcher.awaitOn(currentFibber, this, millis, resumePoint);
     }
 
+    public FiberFuture<Void> join() {
+        check();
+        Fiber waitSource = this;
+        FiberFuture<Void> fu = fiberGroup.newFuture();
+        FiberFrame<Void> entryFrame = new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                return waitSource.join(this::afterJoin);
+            }
+
+            private FrameCallResult afterJoin(Void result) {
+                fu.complete(null);
+                return Fiber.frameReturn();
+            }
+        };
+        Fiber f = new Fiber("wait-finish", fiberGroup, entryFrame) {
+            private String toStr;
+
+            @Override
+            public String toString() {
+                if (toStr == null) {
+                    toStr = super.toString() + "-" + waitSource;
+                }
+                return toStr;
+            }
+        };
+        fiberGroup.start(f);
+        return fu;
+    }
+
     private Fiber check() {
         if (!started) {
             throw new FiberException("fiber not started");

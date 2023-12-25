@@ -38,6 +38,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.function.Consumer;
@@ -63,7 +64,7 @@ public class LogFileQueueTest extends BaseFiberTest {
     private final HashMap<Long, Long> idxMap = new HashMap<>();
     private Throwable mockLoadEx;
 
-    private static class AppendCallback implements RaftLog.AppendCallback {
+    static class MockAppendCallback implements RaftLog.AppendCallback {
 
         int lastPersistTerm;
         long lastPersistIndex;
@@ -75,7 +76,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         }
     }
 
-    private AppendCallback appendCallback;
+    private MockAppendCallback appendCallback;
 
 
     private final IdxOps idxOps = new IdxOps() {
@@ -110,7 +111,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         prevTerm = 0;
         bizHeaderLen = 64;
         mockLoadEx = null;
-        appendCallback = new AppendCallback();
+        appendCallback = new MockAppendCallback();
 
         idxMap.clear();
 
@@ -143,9 +144,10 @@ public class LogFileQueueTest extends BaseFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 if (logFileQueue != null) {
-                    logFileQueue.close();
+                    return logFileQueue.close().await(this::justReturn);
+                } else {
+                    return Fiber.frameReturn();
                 }
-                return Fiber.frameReturn();
             }
         });
     }
@@ -164,14 +166,13 @@ public class LogFileQueueTest extends BaseFiberTest {
         }
     }
 
-    private LogItem createItem(int totalSize) {
+    static LogItem createItem(RaftGroupConfig config, int term, int prevTerm, long index, int totalSize, int bizHeaderLen) {
         LogItem item = new LogItem(config.getHeapPool().getPool());
         item.setType(1);
         item.setBizType(2);
         item.setTerm(term);
         item.setPrevLogTerm(prevTerm);
-        prevTerm = term;
-        item.setIndex(index++);
+        item.setIndex(index);
         item.setTimestamp(config.getTs().getWallClockMillis());
         ByteBuffer buf = ByteBuffer.allocate(bizHeaderLen);
         for (int i = 0; i < bizHeaderLen; i++) {
@@ -197,7 +198,9 @@ public class LogFileQueueTest extends BaseFiberTest {
         long fileSize = 1024;
         LogItem[] items = new LogItem[totalSizes.length];
         for (int i = 0; i < totalSizes.length; i++) {
-            items[i] = createItem(totalSizes[i]);
+            items[i] = createItem(config, term, prevTerm, index, totalSizes[i], bizHeaderLen);
+            index++;
+            prevTerm = term;
             RaftInput ri = new RaftInput(0, null, null, null, 0);
             RaftTask rt = new RaftTask(config.getTs(), LogItem.TYPE_NORMAL, ri, null);
             rt.setItem(items[i]);
@@ -336,8 +339,11 @@ public class LogFileQueueTest extends BaseFiberTest {
         append(false, 0L, 200, 200, 1023, 500);
         doInFiber(new FiberFrame<>() {
             @Override
-            public FrameCallResult execute(Void input) throws Throwable {
-                logFileQueue.close();
+            public FrameCallResult execute(Void input) {
+                return logFileQueue.close().await(this::afterClose);
+            }
+
+            private FrameCallResult afterClose(Void unused) throws IOException {
                 logFileQueue = new LogFileQueue(dir, config, idxOps, appendCallback, 1024);
                 logFileQueue.initQueue();
                 assertThrows(RaftException.class, () -> logFileQueue.restore(1, -1, 0));
@@ -369,8 +375,12 @@ public class LogFileQueueTest extends BaseFiberTest {
                                   long restorePos, long firstValidPos) throws Exception {
         doInFiber(new FiberFrame<>() {
             @Override
-            public FrameCallResult execute(Void input) throws Throwable {
-                logFileQueue.close();
+            public FrameCallResult execute(Void input) {
+                return logFileQueue.close().await(this::afterClose);
+
+            }
+
+            private FrameCallResult afterClose(Void unused) throws IOException {
                 logFileQueue = new LogFileQueue(dir, config, idxOps, appendCallback, 1024);
                 logFileQueue.maxWriteBufferSize = maxWriteBufferSize;
                 logFileQueue.initQueue();
@@ -438,8 +448,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                logFileQueue.close();
-                return Fiber.frameReturn();
+                return logFileQueue.close().await(this::justReturn);
             }
         });
         if (updater != null) {

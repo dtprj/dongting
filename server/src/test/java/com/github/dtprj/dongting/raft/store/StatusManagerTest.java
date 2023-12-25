@@ -78,8 +78,7 @@ public class StatusManagerTest extends BaseFiberTest {
             }
             @Override
             protected FrameCallResult doFinally() {
-                statusManager.close();
-                return Fiber.frameReturn();
+                return statusManager.close().await(this::justReturn);
             }
         });
         check();
@@ -112,8 +111,7 @@ public class StatusManagerTest extends BaseFiberTest {
             }
             @Override
             protected FrameCallResult doFinally() {
-                statusManager.close();
-                return statusManager.updateFiber.join(this::justReturn);
+                return statusManager.close().await(this::justReturn);
             }
         });
     }
@@ -136,8 +134,7 @@ public class StatusManagerTest extends BaseFiberTest {
             }
             @Override
             protected FrameCallResult doFinally() {
-                statusManager.close();
-                return Fiber.frameReturn();
+                return statusManager.close().await(this::justReturn);
             }
         });
         check();

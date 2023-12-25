@@ -36,7 +36,7 @@ import java.util.Properties;
 /**
  * @author huangli
  */
-public class StatusManager implements AutoCloseable {
+public class StatusManager {
     private static final DtLog log = DtLogs.getLogger(StatusManager.class);
 
     static final String CURRENT_TERM_KEY = "currentTerm";
@@ -86,11 +86,15 @@ public class StatusManager implements AutoCloseable {
         };
     }
 
-    @Override
-    public void close() {
+    public FiberFuture<Void> close() {
         closed = true;
         // wake up update fiber
         needUpdateCondition.signalAll();
+        if (updateFiber.isStarted()) {
+            return updateFiber.join();
+        } else {
+            return FiberFuture.completedFuture(groupConfig.getFiberGroup(), null);
+        }
     }
 
     private class UpdateFiberFrame extends FiberFrame<Void> {

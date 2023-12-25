@@ -49,7 +49,7 @@ import java.util.regex.Pattern;
 /**
  * @author huangli
  */
-abstract class FileQueue implements AutoCloseable {
+abstract class FileQueue {
     private static final DtLog log = DtLogs.getLogger(FileQueue.class);
     private static final Pattern PATTERN = Pattern.compile("^(\\d{20})$");
     protected final IndexedQueue<LogFile> queue = new IndexedQueue<>(32);
@@ -271,8 +271,7 @@ abstract class FileQueue implements AutoCloseable {
         }
     }
 
-    @Override
-    public void close() {
+    protected void closeChannel() {
         for (int i = 0; i < queue.size(); i++) {
             DtUtil.close(queue.get(i).channel);
         }

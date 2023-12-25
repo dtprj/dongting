@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
@@ -93,6 +94,7 @@ class LogFileQueue extends FileQueue {
             long writePos = 0;
             int i = 0;
             final ByteBuffer buffer = directPool.borrow(maxWriteBufferSize);
+
             @Override
             public FrameCallResult execute(Void input) {
                 RaftUtil.checkStop(fiberGroup);
@@ -187,11 +189,22 @@ class LogFileQueue extends FileQueue {
         }
     }
 
-    @Override
-    public void close() {
+    public FiberFuture<Void> close() {
         closed = true;
         logAppender.needAppendCondition.signal();
-        super.close();
+        FiberFuture<Void> f;
+        if (logAppender.appendFiber.isStarted()) {
+            f = logAppender.appendFiber.join();
+        } else {
+            f = FiberFuture.completedFuture(groupConfig.getFiberGroup(), null);
+        }
+        return f.convertWithHandle((v, ex) -> {
+            if (ex != null) {
+                log.error("close log file queue failed", ex);
+            }
+            closeChannel();
+            return null;
+        });
     }
 
     public boolean isClosed() {

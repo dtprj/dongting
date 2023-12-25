@@ -67,7 +67,7 @@ class LogAppender {
 
     private final IndexedQueue<WriteTask> writeTaskQueue = new IndexedQueue<>(32);
 
-    private final Fiber appendFiber;
+    final Fiber appendFiber;
     private final AppendFiberFrame appendFiberFrame = new AppendFiberFrame();
     final FiberCondition needAppendCondition;
 

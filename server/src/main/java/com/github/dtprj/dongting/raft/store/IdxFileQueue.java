@@ -425,11 +425,22 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         return nextPersistIndex;
     }
 
-    @Override
-    public void close() {
+    public FiberFuture<Void> close() {
         closed = true;
         needFlushCondition.signal();
-        super.close();
+        FiberFuture<Void> f;
+        if (flushFiber.isStarted()) {
+            f = flushFiber.join();
+        } else {
+            f = FiberFuture.completedFuture(groupConfig.getFiberGroup(), null);
+        }
+        return f.convertWithHandle((v, ex) -> {
+            if (ex != null) {
+                log.error("close idx file queue failed", ex);
+            }
+            closeChannel();
+            return null;
+        });
     }
 
 }

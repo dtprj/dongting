@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.fiber;
 import com.github.dtprj.dongting.common.DtUtil;
 
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 /**
@@ -140,6 +141,7 @@ public class FiberFuture<T> extends WaitSource {
     public void registerCallback(BiConsumer<T, Throwable> callback) {
         registerCallback(new FiberFrame<>() {
             private boolean callbackCalled = false;
+
             @Override
             public FrameCallResult execute(Void input) {
                 FiberFuture<T> f = FiberFuture.this;
@@ -191,6 +193,51 @@ public class FiberFuture<T> extends WaitSource {
         });
         return newFuture;
     }
+
+    /**
+     * this method should call in dispatcher thread
+     */
+    public <T2> FiberFuture<T2> convertWithHandle(BiFunction<T, Throwable, T2> converter) {
+        FiberFuture<T2> newFuture = new FiberFuture<>(fiberGroup);
+        registerCallback((t, ex) -> {
+            try {
+                T2 t2 = converter.apply(t, ex);
+                newFuture.complete(t2);
+            } catch (Throwable newEx) {
+                newFuture.completeExceptionally(newEx);
+            }
+        });
+        return newFuture;
+    }
+
+    public static FiberFuture<Void> allOf(FiberFuture<?>... futures) {
+        FiberGroup g = FiberGroup.currentGroup();
+        FiberFuture<Void> newFuture = g.newFuture();
+        Fiber f = new Fiber("wait-all-future", g, new FiberFrame<Void>() {
+            private int i;
+            @Override
+            public FrameCallResult execute(Void input) {
+                return loop(null);
+            }
+
+            public FrameCallResult loop(Object unused) {
+                if (i < futures.length) {
+                    return futures[i++].await(this::loop);
+                } else {
+                    newFuture.complete(null);
+                    return Fiber.frameReturn();
+                }
+            }
+
+            @Override
+            protected FrameCallResult handle(Throwable ex) {
+                newFuture.completeExceptionally(ex);
+                return Fiber.frameReturn();
+            }
+        });
+        g.start(f);
+        return newFuture;
+     }
 
     public static <T> FiberFuture<T> failedFuture(FiberGroup group, Throwable ex) {
         FiberFuture<T> f = new FiberFuture<>(group);

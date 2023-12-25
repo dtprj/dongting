@@ -74,27 +74,16 @@ public class IdxFileQueueTest extends BaseFiberTest {
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                idxFileQueue.close();
-                if (idxFileQueue.flushFiber.isStarted()) {
-                    return idxFileQueue.flushFiber.join(this::afterFlushFinish);
-                } else {
-                    return afterFlushFinish(null);
-                }
+                return idxFileQueue.close().await(this::afterFlushFinish);
             }
 
             private FrameCallResult afterFlushFinish(Void unused) {
-                statusManager.close();
-                if (statusManager.updateFiber.isStarted()) {
-                    return statusManager.updateFiber.join(this::justReturn);
-                } else {
-                    return Fiber.frameReturn();
-                }
+                return statusManager.close().await(this::justReturn);
             }
         });
     }
 
     @Test
-    @SuppressWarnings("resource")
     public void testConstructor() {
         RaftGroupConfig c = new RaftGroupConfig(1, "1", "1");
         assertThrows(IllegalArgumentException.class, () -> new IdxFileQueue(
@@ -307,13 +296,11 @@ public class IdxFileQueueTest extends BaseFiberTest {
                 if (idxFileQueue.needWaitFlush()) {
                     return Fiber.call(idxFileQueue.waitFlush(), this::waitFlush);
                 }
-                idxFileQueue.close();
-                return idxFileQueue.flushFiber.join(this::afterFlushFinish);
+                return idxFileQueue.close().await(this::afterFlushFinish);
             }
 
             private FrameCallResult afterFlushFinish(Void unused) {
-                statusManager.close();
-                return statusManager.updateFiber.join(this::justReturn);
+                return statusManager.close().await(this::justReturn);
             }
         });
 
@@ -367,13 +354,11 @@ public class IdxFileQueueTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterPersist(Void unused) {
-                idxFileQueue.close();
-                return idxFileQueue.flushFiber.join(this::afterFlushFinish);
+                return idxFileQueue.close().await(this::afterFlushFinish);
             }
 
             private FrameCallResult afterFlushFinish(Void unused) {
-                statusManager.close();
-                return statusManager.updateFiber.join(this::justReturn);
+                return statusManager.close().await(this::justReturn);
             }
         });
 

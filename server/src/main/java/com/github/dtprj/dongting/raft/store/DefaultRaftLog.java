@@ -15,11 +15,11 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
@@ -42,7 +42,7 @@ public class DefaultRaftLog implements RaftLog {
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
     private final StatusManager statusManager;
-    private final FiberGroup fiberGroup = FiberGroup.currentGroup();
+    private final FiberGroup fiberGroup;
     LogFileQueue logFiles;
     IdxFileQueue idxFiles;
 
@@ -59,6 +59,7 @@ public class DefaultRaftLog implements RaftLog {
         this.ts = groupConfig.getTs();
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
         this.statusManager = statusManager;
+        this.fiberGroup = groupConfig.getFiberGroup();
 
         this.deleteFiber = new Fiber("delete-" + groupConfig.getGroupId(),
                 fiberGroup, new DeleteFiberFrame(), true);
@@ -176,8 +177,10 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public void close() throws Exception {
-        DtUtil.close(idxFiles, logFiles);
+    public FiberFuture<Void> close() {
+        FiberFuture<Void> f1 = idxFiles.close();
+        FiberFuture<Void> f2 = logFiles.close();
+        return FiberFuture.allOf(f1, f2);
     }
 
     private class DeleteFiberFrame extends FiberFrame<Void> {
