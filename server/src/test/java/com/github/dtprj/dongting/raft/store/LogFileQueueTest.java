@@ -358,20 +358,21 @@ public class LogFileQueueTest extends BaseFiberTest {
         setup(1024, 1024);
         // last file finished
         append(false, 0L, 200, 1024);
-        closeThenRestore(3, 2048);
+        closeThenRestore(1024, 3, 2048);
     }
 
-    private void closeThenRestore(long expectIndex, long expectPos) throws Exception {
-        closeThenRestore(expectIndex, expectPos, 1, 0, 0);
+    private void closeThenRestore(int maxWriteBufferSize, long expectIndex, long expectPos) throws Exception {
+        closeThenRestore(maxWriteBufferSize, expectIndex, expectPos, 1, 0, 0);
     }
 
-    private void closeThenRestore(long expectIndex, long expectPos, long restoreIndex,
+    private void closeThenRestore(int maxWriteBufferSize, long expectIndex, long expectPos, long restoreIndex,
                                   long restorePos, long firstValidPos) throws Exception {
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) throws Throwable {
                 logFileQueue.close();
                 logFileQueue = new LogFileQueue(dir, config, idxOps, appendCallback, 1024);
+                logFileQueue.maxWriteBufferSize = maxWriteBufferSize;
                 logFileQueue.initQueue();
                 FiberFrame<Integer> f = logFileQueue.restore(restoreIndex, restorePos, firstValidPos);
                 return Fiber.call(f, this::resume);
@@ -390,7 +391,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         setup(1024, 256);
         append(false, 0L, 300, 500, 1024);
         // small buffer
-        closeThenRestore(4, 2048);
+        closeThenRestore(256, 4, 2048);
     }
 
     @Test
@@ -398,7 +399,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         setup(1024, 256);
         append(false, 0L, 256, 256, 1024);
         // small buffer
-        closeThenRestore(4, 2048);
+        closeThenRestore(256, 4, 2048);
     }
 
     @Test
@@ -406,7 +407,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         setup(1024, 256);
         append(false, 0L, 255, 255, 1024);
         // small buffer
-        closeThenRestore(4, 2048);
+        closeThenRestore(256, 4, 2048);
     }
 
     @Test
@@ -414,7 +415,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         setup(1024, 256);
         append(false, 0L, 257, 257, 1024);
         // small buffer
-        closeThenRestore(4, 2048);
+        closeThenRestore(256, 4, 2048);
     }
 
     @Test
@@ -422,7 +423,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         setup(1024, 1024);
         append(false, 0L, 200, 200, 1024);
 
-        closeThenRestore(4, 2048, 3, 1024, 0);
+        closeThenRestore(1024, 4, 2048, 3, 1024, 0);
         // restore from second file, first item of first file crc fail
         closeUpdateRestore(3, 1024, () -> {
             ByteBuffer data = load(0);
@@ -557,7 +558,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         // zero biz header len
         bizHeaderLen = 0;
         append(false, 0L, 200, 200);
-        closeThenRestore(3, 400, 1, 0, 0);
+        closeThenRestore(1024, 3, 400, 1, 0, 0);
     }
 
     @Test
@@ -566,7 +567,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         // zero biz body len
         int len = LogHeader.ITEM_HEADER_SIZE + bizHeaderLen + 4;
         append(false, 0L, len, len);
-        closeThenRestore(3, len + len, 1, 0, 0);
+        closeThenRestore(1024, 3, len + len, 1, 0, 0);
     }
 
     @Test
