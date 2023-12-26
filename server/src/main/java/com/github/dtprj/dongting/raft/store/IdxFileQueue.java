@@ -59,13 +59,14 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private final RaftStatusImpl raftStatus;
 
     private long nextPersistIndex;
+    long persistedIndex;
     private long nextIndex;
     private long firstIndex;
 
     private long lastFlushNanos;
     private static final long FLUSH_INTERVAL_NANOS = 15L * 1000 * 1000 * 1000;
 
-    final Fiber flushFiber;
+    private final Fiber flushFiber;
     private final FiberCondition needFlushCondition;
     private final FiberCondition flushDoneCondition;
 
@@ -188,7 +189,11 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     @Override
     public boolean needWaitFlush() {
-        return cache.size() >= maxCacheItems;
+        if (cache.size() >= maxCacheItems && shouldFlush()) {
+            log.warn("cache size exceed {}, current cache size is {}", maxCacheItems, cache.size());
+            return true;
+        }
+        return false;
     }
 
     @Override
@@ -198,7 +203,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                log.warn("cache size exceed {}: {}", maxCacheItems, cache.size());
                 return flushDoneCondition.await(this::afterFlush);
             }
 
@@ -254,9 +258,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         private FrameCallResult afterPosReady(Void v) {
             LogFile logFile = getLogFile(indexToPos(nextPersistIndex));
             if (logFile.deleted) {
-                log.warn("file deleted, ignore idx flush: {}", logFile.file.getPath());
-                // loop
-                return execute(null);
+                BugLog.getLog().error("idx file deleted, flush fail: {}", logFile.file.getPath());
+                return Fiber.fatal(new RaftException("idx file deleted, flush fail"));
             }
             return Fiber.call(new FlushFrame(logFile), this);
         }
@@ -303,10 +306,10 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
         private FrameCallResult afterWrite(long nextPersistIndexAfterWrite) {
             nextPersistIndex = nextPersistIndexAfterWrite;
-            long idxPersisIndex = nextPersistIndex - 1;
+            persistedIndex = nextPersistIndex - 1;
             removeHead();
 
-            statusManager.getProperties().setProperty(KEY_PERSIST_IDX_INDEX, String.valueOf(idxPersisIndex));
+            statusManager.getProperties().setProperty(KEY_PERSIST_IDX_INDEX, String.valueOf(persistedIndex));
             if (closed) {
                 return Fiber.call(statusManager.persistSync(), this::afterStatusPersist);
             } else {

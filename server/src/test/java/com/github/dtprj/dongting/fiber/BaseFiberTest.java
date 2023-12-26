@@ -49,7 +49,7 @@ public class BaseFiberTest {
             dispatcher.stop(new DtTime(1000, TimeUnit.MILLISECONDS));
             dispatcher.thread.join(1500);
             if (dispatcher.thread.isAlive()) {
-                fiberGroup.fireLogGroupInfo();
+                fiberGroup.fireLogGroupInfo("shutdown dispatcher timeout");
                 fail();
             }
             assertTrue(fiberGroup.finished);
@@ -78,7 +78,7 @@ public class BaseFiberTest {
         try {
             f.get(5, TimeUnit.SECONDS);
         } catch (TimeoutException e) {
-            fiberGroup.fireLogGroupInfo();
+            fiberGroup.fireLogGroupInfo("doInFiber timeout(5s)");
             throw e;
         }
     }

@@ -22,6 +22,8 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -38,6 +40,7 @@ import static com.github.dtprj.dongting.raft.store.IdxFileQueue.KEY_NEXT_POS_AFT
  * @author huangli
  */
 public class DefaultRaftLog implements RaftLog {
+    private static final DtLog log = DtLogs.getLogger(DefaultRaftLog.class);
     private final RaftGroupConfig groupConfig;
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
@@ -46,7 +49,7 @@ public class DefaultRaftLog implements RaftLog {
     LogFileQueue logFiles;
     IdxFileQueue idxFiles;
 
-    private static final long TASK_INTERVAL_MILLIS = 10 * 1000;
+    private static final long DEFAULT_DELETE_INTERVAL_MILLIS = 10 * 1000;
 
     int idxItemsPerFile = IdxFileQueue.DEFAULT_ITEMS_PER_FILE;
     int idxMaxCacheItems = IdxFileQueue.DEFAULT_MAX_CACHE_ITEMS;
@@ -54,7 +57,7 @@ public class DefaultRaftLog implements RaftLog {
 
     private final Fiber deleteFiber;
 
-    public DefaultRaftLog(RaftGroupConfig groupConfig, StatusManager statusManager) {
+    DefaultRaftLog(RaftGroupConfig groupConfig, StatusManager statusManager, long deleteIntervalMillis) {
         this.groupConfig = groupConfig;
         this.ts = groupConfig.getTs();
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
@@ -62,7 +65,11 @@ public class DefaultRaftLog implements RaftLog {
         this.fiberGroup = groupConfig.getFiberGroup();
 
         this.deleteFiber = new Fiber("delete-" + groupConfig.getGroupId(),
-                fiberGroup, new DeleteFiberFrame(), true);
+                fiberGroup, new DeleteFiberFrame(deleteIntervalMillis), true);
+    }
+
+    public DefaultRaftLog(RaftGroupConfig groupConfig, StatusManager statusManager) {
+        this(groupConfig, statusManager, DEFAULT_DELETE_INTERVAL_MILLIS);
     }
 
     @Override
@@ -180,23 +187,31 @@ public class DefaultRaftLog implements RaftLog {
     public FiberFuture<Void> close() {
         FiberFuture<Void> f1 = idxFiles.close();
         FiberFuture<Void> f2 = logFiles.close();
+        // delete fiber is daemon
         return FiberFuture.allOf(f1, f2);
     }
 
     private class DeleteFiberFrame extends FiberFrame<Void> {
+
+        private final long deleteIntervalMillis;
+
+        public DeleteFiberFrame(long deleteIntervalMillis) {
+            this.deleteIntervalMillis = deleteIntervalMillis;
+        }
+
         @Override
         public FrameCallResult execute(Void input) {
             if (isGroupShouldStopPlain()) {
                 return Fiber.frameReturn();
             }
-            return Fiber.sleepUntilShouldStop(TASK_INTERVAL_MILLIS, this::deleteLogs);
+            return Fiber.sleepUntilShouldStop(deleteIntervalMillis, this::deleteLogs);
         }
 
         private FrameCallResult deleteLogs(Void unused) {
             if (isGroupShouldStopPlain()) {
                 return Fiber.frameReturn();
             }
-            long taskStartTimestamp = ts.getNanoTime();
+            long taskStartTimestamp = ts.getWallClockMillis();
             // ex handled by delete method
             FiberFrame<Void> f = logFiles.delete(logFile -> {
                 if (isGroupShouldStopPlain()) {
@@ -217,7 +232,9 @@ public class DefaultRaftLog implements RaftLog {
                 if (isGroupShouldStopPlain()) {
                     return false;
                 }
-                return idxFiles.posToIndex(logFile.endPos) < logFiles.getFirstIndex();
+                long firstIndexOfNextFile = idxFiles.posToIndex(logFile.endPos);
+                return firstIndexOfNextFile < logFiles.getFirstIndex()
+                        && firstIndexOfNextFile < idxFiles.persistedIndex;
             });
             // loop
             return Fiber.call(f, this::execute);

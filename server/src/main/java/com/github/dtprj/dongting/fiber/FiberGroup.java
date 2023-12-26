@@ -214,18 +214,18 @@ public class FiberGroup {
         return (boolean) SHOULD_STOP.get(this);
     }
 
-    public void fireLogGroupInfo() {
+    public void fireLogGroupInfo(String msg) {
         if (!log.isInfoEnabled()) {
             return;
         }
         if (Thread.currentThread() == dispatcher.thread) {
-            logGroupInfo0();
+            logGroupInfo0(msg);
         } else {
             CompletableFuture<Void> f = new CompletableFuture<>();
             dispatcher.doInDispatcherThread(new FiberQueueTask() {
                 @Override
                 protected void run() {
-                    logGroupInfo0();
+                    logGroupInfo0(msg);
                     f.complete(null);
                 }
             });
@@ -237,9 +237,9 @@ public class FiberGroup {
         }
     }
 
-    private void logGroupInfo0() {
+    private void logGroupInfo0(String msg) {
         StringBuilder sb = new StringBuilder(256);
-        sb.append("group ").append(name)
+        sb.append(msg).append("\ngroup ").append(name)
                 .append(", ready=").append(readyFibers.size())
                 .append(", normal=").append(normalFibers.size())
                 .append(", daemon=").append(daemonFibers.size())
