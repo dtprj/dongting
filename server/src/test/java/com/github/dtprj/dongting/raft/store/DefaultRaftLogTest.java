@@ -57,7 +57,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
     }
 
     private void init() throws Exception {
-        raftStatus = new RaftStatusImpl();
+        raftStatus = new RaftStatusImpl(dispatcher.getTs());
         config = new RaftGroupConfig(1, "1", "1");
         config.setFiberGroup(fiberGroup);
         config.setDataDir(dataDir);

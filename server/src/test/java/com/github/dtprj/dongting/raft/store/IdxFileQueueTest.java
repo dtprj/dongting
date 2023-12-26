@@ -53,7 +53,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
 
         RaftGroupConfig c = new RaftGroupConfig(1, "1", "1");
         c.setIoExecutor(MockExecutors.ioExecutor());
-        raftStatus = new RaftStatusImpl();
+        raftStatus = new RaftStatusImpl(dispatcher.getTs());
         c.setRaftStatus(raftStatus);
         c.setTs(raftStatus.getTs());
         c.setFiberGroup(fiberGroup);

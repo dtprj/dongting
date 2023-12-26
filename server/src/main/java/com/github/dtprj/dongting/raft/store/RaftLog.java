@@ -31,6 +31,10 @@ import java.util.function.Supplier;
  */
 public interface RaftLog {
 
+    /**
+     * @param appendCallback callback when append complete
+     * @return term and index of persisted last item
+     */
     FiberFrame<Pair<Integer, Long>> init(AppendCallback appendCallback) throws Exception;
 
     /**

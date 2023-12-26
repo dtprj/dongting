@@ -471,4 +471,8 @@ public class Dispatcher extends AbstractLifeCircle {
         long diff = f1.scheduleNanoTime - f2.scheduleNanoTime;
         return diff < 0 ? -1 : diff > 0 ? 1 : 0;
     }
+
+    public Timestamp getTs() {
+        return ts;
+    }
 }

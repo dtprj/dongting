@@ -37,7 +37,7 @@ public class RaftStatusImpl extends RaftStatus {
 
     private RaftRole role; // shared
     private RaftMember currentLeader; // shared
-    private final Timestamp ts = new Timestamp();
+    private final Timestamp ts;
     private int electQuorum;
     private int rwQuorum;
 
@@ -80,7 +80,8 @@ public class RaftStatusImpl extends RaftStatus {
     private final IndexedQueue<Runnable> waitWriteFinishedQueue = new IndexedQueue<>(16);
     private final IndexedQueue<Runnable> waitAppendQueue = new IndexedQueue<>(16);
 
-    public RaftStatusImpl() {
+    public RaftStatusImpl(Timestamp ts) {
+        this.ts = ts;
         lastElectTime = ts.getNanoTime();
         heartbeatTime = ts.getNanoTime();
     }
