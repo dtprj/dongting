@@ -77,8 +77,22 @@ public class TailCache {
         }
 
         log.info("truncate tail cache to {}, old nextWriteIndex={}", index, nextWriteIndex);
-        while (index < nextWriteIndex()) {
-            cache.removeLast();
+        while (size() > 0 && index < nextWriteIndex()) {
+            RaftTask raftTask = cache.removeLast();
+            if (cache.size() == 0) {
+                firstIndex = -1;
+            }
+            release(raftTask);
+        }
+    }
+
+    private void release(RaftTask t) {
+        pending--;
+        pendingBytes -= t.getInput().getFlowControlSize();
+        RaftTask x = t;
+        while (x != null) {
+            x.getItem().release();
+            x = x.getNextReader();
         }
     }
 
@@ -88,13 +102,7 @@ public class TailCache {
         }
         RaftTask t = cache.removeFirst();
         if (t != null) {
-            pending--;
-            pendingBytes -= t.getInput().getFlowControlSize();
-            RaftTask x = t;
-            while (x != null) {
-                x.getItem().release();
-                x = x.getNextReader();
-            }
+            release(t);
         } else {
             throw new IllegalStateException("pending is empty: index=" + index);
         }
