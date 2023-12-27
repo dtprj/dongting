@@ -53,6 +53,8 @@ public class Dispatcher extends AbstractLifeCircle {
     // fatal error will cause fiber exit
     private Throwable fatalError;
 
+    private DtTime stopTimeout;
+
     public Dispatcher(String name) {
         thread = new DispatcherThread(this::run, name);
     }
@@ -87,6 +89,7 @@ public class Dispatcher extends AbstractLifeCircle {
             @Override
             protected void run() {
                 shouldStop = true;
+                stopTimeout = timeout;
                 groups.forEach(FiberGroup::requestShutdown);
             }
         });
@@ -94,8 +97,16 @@ public class Dispatcher extends AbstractLifeCircle {
 
     private void run() {
         ArrayList<FiberQueueTask> localData = new ArrayList<>(64);
-        while (!finished()) {
+        while (!shouldStop || !groups.isEmpty()) {
             runImpl(localData);
+            if (shouldStop && stopTimeout != null && stopTimeout.isTimeout(ts)) {
+                long millis = stopTimeout.getTimeout(TimeUnit.MILLISECONDS);
+                log.warn("dispatcher stop timeout: {}ms", millis);
+                for(FiberGroup g : groups){
+                    g.fireLogGroupInfo("group not finished in " + millis + "ms");
+                }
+                stopTimeout = null;
+            }
         }
         shareQueue.shutdown();
         runImpl(localData);
@@ -456,10 +467,6 @@ public class Dispatcher extends AbstractLifeCircle {
             log.info("fiber dispatcher receive interrupt signal");
             pollTimeout = TimeUnit.MICROSECONDS.toNanos(1);
         }
-    }
-
-    private boolean finished() {
-        return shouldStop && groups.isEmpty();
     }
 
     void doInDispatcherThread(FiberQueueTask r) {
