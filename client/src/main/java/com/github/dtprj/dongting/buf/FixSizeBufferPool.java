@@ -73,6 +73,8 @@ class FixSizeBufferPool {
     public void release(ByteBuffer buf, long nanos) {
         statReleaseCount++;
         IndexedQueue<ByteBuffer> bufferStack = this.bufferStack;
+        // ByteBuffer.getLong may check limit, so we clear buffer first
+        buf.clear();
         if (buf.getLong(MAGIC_INDEX) == magic) {
             // shit
             for (int i = 0, stackSize = bufferStack.size(); i < stackSize; i++) {
@@ -97,7 +99,6 @@ class FixSizeBufferPool {
         statReleaseHitCount++;
 
         // return it to pool
-        buf.clear();
         // use the buffer to store return time and magic
         buf.putLong(MAGIC_INDEX, magic);
         buf.putLong(RETURN_TIME_INDEX, nanos);
