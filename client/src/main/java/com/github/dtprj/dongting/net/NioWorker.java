@@ -672,4 +672,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     public ArrayList<DtChannel> getChannelsList() {
         return channelsList;
     }
+
+    protected void logWorkerStatus() {
+        log.info("worker={}, outgoingConnects={}, pendingOutgoingRequests={}",
+                workerName, outgoingConnects.size(), pendingOutgoingRequests.size());
+    }
 }

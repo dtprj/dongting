@@ -153,11 +153,13 @@ public class NioClient extends NioNet {
                     log.info("client {} pre-stop done", config.getName());
                 } else {
                     log.warn("client {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
+                    worker.logWorkerStatus();
                 }
             } catch (InterruptedException e) {
                 DtUtil.restoreInterruptStatus();
             } catch (TimeoutException e) {
                 log.warn("client {} pre-stop timeout. {}ms", config.getName(), timeout.getTimeout(TimeUnit.MILLISECONDS));
+                worker.logWorkerStatus();
             } catch (ExecutionException e) {
                 BugLog.log(e);
             }
