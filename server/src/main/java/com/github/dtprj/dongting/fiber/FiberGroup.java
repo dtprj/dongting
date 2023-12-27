@@ -138,9 +138,9 @@ public class FiberGroup {
         return new FiberLock(this);
     }
 
-    void checkThread() {
-        if (Thread.currentThread() != dispatcher.thread) {
-            throw new FiberException("not in dispatcher thread");
+    void checkGroup() {
+        if (DispatcherThread.currentGroup() != this) {
+            throw new FiberException("not in current group: " + name);
         }
     }
 

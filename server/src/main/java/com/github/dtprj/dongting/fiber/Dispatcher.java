@@ -372,6 +372,9 @@ public class Dispatcher extends AbstractLifeCircle {
             throw new FiberException("current fiber group not match");
         }
         Fiber fiber = dispatcherThread.currentGroup.currentFiber;
+        if (fiber == null) {
+            throwFatalError(dispatcherThread.currentGroup, "usage fatal error: current fiber is null");
+        }
         if (!fiber.ready) {
             throwFatalError(dispatcherThread.currentGroup, "usage fatal error: current fiber not ready state");
         }

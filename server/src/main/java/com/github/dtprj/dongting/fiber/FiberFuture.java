@@ -80,12 +80,12 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     public void complete(T result) {
-        fiberGroup.checkThread();
+        fiberGroup.checkGroup();
         complete0(result, null);
     }
 
     public void completeExceptionally(Throwable ex) {
-        fiberGroup.checkThread();
+        fiberGroup.checkGroup();
         complete0(null, ex);
     }
 
@@ -130,7 +130,7 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     private void registerCallback(FiberFrame<Void> callback) {
-        fiberGroup.checkThread();
+        fiberGroup.checkGroup();
         Fiber callbackFiber = new Fiber("future-callback", fiberGroup, callback);
         callbackFiber.start();
     }

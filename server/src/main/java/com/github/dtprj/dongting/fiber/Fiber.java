@@ -115,7 +115,7 @@ public class Fiber extends WaitSource {
     }
 
     public void interrupt() {
-        fiberGroup.checkThread();
+        fiberGroup.checkGroup();
         Dispatcher dispatcher = fiberGroup.dispatcher;
         dispatcher.interrupt(this);
     }
@@ -194,17 +194,17 @@ public class Fiber extends WaitSource {
     }
 
     public void start() {
-        fiberGroup.checkThread();
+        fiberGroup.checkGroup();
         fiberGroup.start(Fiber.this);
     }
 
     public boolean isStarted() {
-        fiberGroup.checkThread();
+        fiberGroup.checkGroup();
         return started;
     }
 
     public boolean isFinished() {
-        fiberGroup.checkThread();
+        fiberGroup.checkGroup();
         return finished;
     }
 

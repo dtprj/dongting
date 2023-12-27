@@ -18,30 +18,48 @@ package com.github.dtprj.dongting.fiber;
 import com.github.dtprj.dongting.common.IndexedQueue;
 
 /**
+ * This queue is unbound and only block consumer.
+ *
  * @author huangli
  */
 public class FiberChannel<T> {
+    private final FiberGroup groupOfConsumer;
     private final IndexedQueue<T> queue;
     private final FiberCondition notEmptyCondition;
 
-    FiberChannel(FiberGroup group) {
-        this(group, 8);
+    FiberChannel(FiberGroup groupOfConsumer) {
+        this(groupOfConsumer, 64);
     }
 
-    FiberChannel(FiberGroup group, int initSize) {
+    FiberChannel(FiberGroup groupOfConsumer, int initSize) {
+        this.groupOfConsumer = groupOfConsumer;
         this.queue = new IndexedQueue<>(initSize);
-        this.notEmptyCondition = group.newCondition("FiberChannelNotEmpty");
+        this.notEmptyCondition = groupOfConsumer.newCondition("FiberChannelNotEmpty");
     }
 
-    public boolean offer(T data) {
+    public void fireOffer(T data) {
+        groupOfConsumer.dispatcher.doInDispatcherThread(new FiberQueueTask() {
+            @Override
+            protected void run() {
+                offer0(data);
+            }
+        });
+    }
+
+    public void offer(T data) {
+        groupOfConsumer.checkGroup();
+        offer0(data);
+    }
+
+    private void offer0(T data) {
         queue.addLast(data);
         if (queue.size() == 1) {
-            notEmptyCondition.signal();
+            notEmptyCondition.signal0();
         }
-        return true;
     }
 
     public FrameCallResult take(FrameCall<T> resumePoint) throws Throwable {
+        groupOfConsumer.checkGroup();
         if (queue.size() > 0) {
             T data = queue.removeFirst();
             return resumePoint.execute(data);
