@@ -105,7 +105,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             return FiberFrame.completedFrame(null);
         }
 
-        log.info("load raft status file. firstIndex={}, {}={}, {}={}, ", firstIndex, KEY_PERSIST_IDX_INDEX, restoreIndex,
+        log.info("load raft status file. firstIndex={}, {}={}, {}={}", firstIndex, KEY_PERSIST_IDX_INDEX, restoreIndex,
                 KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, firstValidIndex);
         restoreIndex = Math.max(restoreIndex, firstValidIndex);
         restoreIndex = Math.max(restoreIndex, firstIndex);
@@ -119,7 +119,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             if (queueEndPosition == 0) {
                 tryAllocateAsync(0);
             }
-            log.info("restore index: {}, pos: {}", restoreIndex, restoreIndexPos);
+            log.info("restore from index: {}, pos: {}", restoreIndex, restoreIndexPos);
             flushFiber.start();
             return FiberFrame.completedFrame(new Pair<>(restoreIndex, restoreIndexPos));
         } else {
@@ -136,7 +136,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                     if (queueEndPosition == 0) {
                         tryAllocateAsync(0);
                     }
-                    log.info("restore index: {}, pos: {}", finalRestoreIndex, restoreIndexPos);
+                    log.info("restore from index: {}, pos: {}", finalRestoreIndex, restoreIndexPos);
                     setResult(new Pair<>(finalRestoreIndex, restoreIndexPos));
                     flushFiber.start();
                     return Fiber.frameReturn();
@@ -176,7 +176,9 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             throw new RaftException("try update committed index: " + itemIndex);
         }
         if (itemIndex < nextIndex) {
-             throw new RaftException("put index!=nextIndex " + itemIndex + ", " + nextIndex);
+            if (initialized || itemIndex != nextIndex - 1) {
+                throw new RaftException("put index!=nextIndex " + itemIndex + ", " + nextIndex);
+            }
         }
         removeHead();
         cache.put(itemIndex, dataPosition);
@@ -216,7 +218,9 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     private long getFlushDiff() {
-        return raftStatus.getCommitIndex() - nextPersistIndex + 1;
+        // in recovery, the commit index may be larger than last key
+        long lastNeedFlushItem = Math.min(cache.getLastKey(), raftStatus.getCommitIndex());
+        return lastNeedFlushItem - nextPersistIndex + 1;
     }
 
     private boolean shouldFlush() {
