@@ -32,7 +32,7 @@ public class ConcurrentLinkedQueueTest extends BenchBase {
             AtomicInteger state = this.state;
             ConcurrentLinkedQueue<Object> queue = this.queue;
             int s;
-            while ((s = state.getOpaque()) < 2) {
+            while ((s = state.getOpaque()) < STATE_BEFORE_SHUTDOWN) {
                 if (queue.poll() != null) {
                     success(s);
                 }

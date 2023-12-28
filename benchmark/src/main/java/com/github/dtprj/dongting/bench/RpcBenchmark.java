@@ -16,10 +16,8 @@
 package com.github.dtprj.dongting.bench;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.codec.RefBufferDecoder;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.ByteBufferWriteFrame;
@@ -40,22 +38,24 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-public class NioServerBenchmark extends BenchBase {
-    private static final DtLog log = DtLogs.getLogger(NioServerBenchmark.class);
+public class RpcBenchmark extends BenchBase {
+    private static final DtLog log = DtLogs.getLogger(RpcBenchmark.class);
     private NioServer server;
     private NioClient client;
-
+    private final int cmd;
     private byte[] data;
+
     private static final int DATA_LEN = 128;
     private static final boolean SYNC = false;
     private static final int THREAD_COUNT = 1;
-    private static final long TIME = 10 * 1000;
-    private static final long WARMUP_TIME = 5000;
-    private static final long TIMEOUT = 5000;
-    private static final int CMD = Commands.CMD_PING;
+    private static final long TIME = 1 * 1000;
+    private static final long WARMUP_TIME = 200;
+    private static final long TIMEOUT = 1500;
 
-    public NioServerBenchmark(int threadCount, long testTime, long warmupTime) {
+
+    public RpcBenchmark(int threadCount, long testTime, long warmupTime, int cmd) {
         super(threadCount, testTime, warmupTime);
+        this.cmd = cmd;
     }
 
     @Override
@@ -65,6 +65,7 @@ public class NioServerBenchmark extends BenchBase {
         serverConfig.setBizThreads(0);
         serverConfig.setPort(9000);
         server = new NioServer(serverConfig);
+        registerProcessor(server);
         server.start();
 
         NioClientConfig clientConfig = new NioClientConfig();
@@ -77,15 +78,18 @@ public class NioServerBenchmark extends BenchBase {
         new Random().nextBytes(data);
     }
 
+    protected void registerProcessor(NioServer server) {
+    }
+
     @Override
     public void shutdown() {
         client.stop(new DtTime(3, TimeUnit.SECONDS));
         server.stop(new DtTime(3, TimeUnit.SECONDS));
 
-        TwoLevelPool direct = (TwoLevelPool) TwoLevelPool.getDefaultFactory().apply(new Timestamp(), true);
-        TwoLevelPool heap = (TwoLevelPool) TwoLevelPool.getDefaultFactory().apply(new Timestamp(), false);
-        log.info("global direct pool stats: {}", direct.getLargePool().formatStat());
-        log.info("global heap pool stats: {}", heap.getLargePool().formatStat());
+        // TwoLevelPool direct = (TwoLevelPool) TwoLevelPool.getDefaultFactory().apply(new Timestamp(), true);
+        // TwoLevelPool heap = (TwoLevelPool) TwoLevelPool.getDefaultFactory().apply(new Timestamp(), false);
+        // log.info("global direct pool stats: {}", direct.getLargePool().formatStat());
+        // log.info("global heap pool stats: {}", heap.getLargePool().formatStat());
     }
 
     @Override
@@ -93,7 +97,7 @@ public class NioServerBenchmark extends BenchBase {
         try {
             final DtTime timeout = new DtTime(TIMEOUT, TimeUnit.MILLISECONDS);
             ByteBufferWriteFrame req = new ByteBufferWriteFrame(ByteBuffer.wrap(data));
-            req.setCommand(CMD);
+            req.setCommand(cmd);
             CompletableFuture<ReadFrame<RefBuffer>> f = client.sendRequest(req, RefBufferDecoder.PLAIN_INSTANCE, timeout);
 
             if (SYNC) {
@@ -123,7 +127,28 @@ public class NioServerBenchmark extends BenchBase {
         }
     }
 
+    private static RpcBenchmark createPingBenchmark(int threadCount, long testTime, long warmupTime) {
+        return new RpcBenchmark(threadCount, testTime, warmupTime, Commands.CMD_PING);
+    }
+
+    private static RpcBenchmark createRaftLogBenchmark(int threadCount, long testTime, long warmupTime) {
+        return new RpcBenchmark(threadCount, testTime, warmupTime, RaftLogProcessor.COMMAND) {
+            private final RaftLogProcessor processor = new RaftLogProcessor();
+            @Override
+            protected void registerProcessor(NioServer server) {
+                server.register(RaftLogProcessor.COMMAND, processor, null);
+            }
+
+            @Override
+            public void shutdown() {
+                super.shutdown();
+                processor.shutdown();
+            }
+        };
+    }
+
     public static void main(String[] args) throws Exception {
-        new NioServerBenchmark(THREAD_COUNT, TIME, WARMUP_TIME).start();
+        RpcBenchmark benchmark = createRaftLogBenchmark(THREAD_COUNT, TIME, WARMUP_TIME);
+        benchmark.start();
     }
 }

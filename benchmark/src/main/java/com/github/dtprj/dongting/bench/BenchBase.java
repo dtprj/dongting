@@ -24,11 +24,15 @@ import java.util.concurrent.atomic.LongAdder;
  * @author huangli
  */
 public abstract class BenchBase {
+    protected static final int STATE_WARMUP = 0;
+    protected static final int STATE_TEST = 1;
+    protected static final int STATE_BEFORE_SHUTDOWN = 2;
+    protected static final int STATE_AFTER_SHUTDOWN = 3;
 
     protected final int threadCount;
     private final long testTime;
     private final long warmupTime;
-    protected AtomicInteger state = new AtomicInteger(0);
+    protected AtomicInteger state = new AtomicInteger(STATE_WARMUP);
     private final LongAdder successCount = new LongAdder();
     private final LongAdder failCount = new LongAdder();
 
@@ -62,15 +66,16 @@ public abstract class BenchBase {
             threads[i].start();
         }
         Thread.sleep(warmupTime);
-        state.set(1);
+        state.set(STATE_TEST);
 
         Thread.sleep(testTime);
-        state.set(2);
+        state.set(STATE_BEFORE_SHUTDOWN);
 
         for (Thread t : threads) {
             t.join();
         }
         shutdown();
+        state.set(STATE_AFTER_SHUTDOWN);
 
         long sc = successCount.sum();
         long fc = failCount.sum();
@@ -90,7 +95,7 @@ public abstract class BenchBase {
 
     public void run(int threadIndex) {
         int s;
-        while ((s = state.getOpaque()) != 2) {
+        while ((s = state.getOpaque()) < STATE_BEFORE_SHUTDOWN) {
             long startTime = 0;
             if (LOG_RT && s == 1) {
                 startTime = System.nanoTime();
