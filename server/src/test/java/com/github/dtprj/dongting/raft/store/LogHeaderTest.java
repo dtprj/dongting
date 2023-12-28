@@ -38,7 +38,9 @@ public class LogHeaderTest {
         item.setTimestamp(Long.MAX_VALUE);
         ByteBuffer buf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE);
         CRC32C crc32C = new CRC32C();
-        LogHeader.writeHeader(crc32C, buf, item, 0, 200, 300);
+        item.setActualHeaderSize(200);
+        item.setActualBodySize(300);
+        LogHeader.writeHeader(crc32C, buf, item);
 
         buf.clear();
         LogHeader header = new LogHeader();

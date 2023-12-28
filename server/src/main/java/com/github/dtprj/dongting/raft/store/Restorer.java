@@ -260,7 +260,7 @@ class Restorer {
             }
         } else {
             if (header.index != restoreIndex) {
-                throwEx("restoreIndex not match", lf, itemStartPosOfFile);
+                throwEx("restoreIndex not match: " + header.index + "," + restoreIndex, lf, itemStartPosOfFile);
             }
         }
         if (header.term <= 0 || header.prevLogTerm < 0) {

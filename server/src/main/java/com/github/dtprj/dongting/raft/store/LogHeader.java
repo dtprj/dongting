@@ -95,13 +95,13 @@ class LogHeader {
                 + (bodyLen == 0 ? 0 : bodyLen + 4);
     }
 
-    public static void writeHeader(CRC32C crc, ByteBuffer buffer, LogItem log,
-                                   int contextLen, int bizHeaderLen, int bodyLen) {
+    public static int writeHeader(CRC32C crc, ByteBuffer buffer, LogItem log) {
         int startPos = buffer.position();
-        buffer.putInt(computeTotalLen(contextLen, bizHeaderLen, bodyLen));
-        buffer.putInt(contextLen);
-        buffer.putInt(bizHeaderLen);
-        buffer.putInt(bodyLen);
+        int len = computeTotalLen(0, log.getActualHeaderSize(), log.getActualBodySize());
+        buffer.putInt(len);
+        buffer.putInt(0);
+        buffer.putInt(log.getActualHeaderSize());
+        buffer.putInt(log.getActualBodySize());
         buffer.put((byte) log.getType());
         buffer.put((byte) log.getBizType());
         buffer.putInt(log.getTerm());
@@ -111,6 +111,7 @@ class LogHeader {
         crc.reset();
         RaftUtil.updateCrc(crc, buffer, startPos, ITEM_HEADER_SIZE - 4);
         buffer.putInt((int) crc.getValue());
+        return len;
     }
 
     public static void writeEndHeader(CRC32C crc, ByteBuffer buffer) {

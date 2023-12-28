@@ -246,6 +246,7 @@ class LogAppender {
     }
 
     private ByteBuffer writeItems(ArrayList<LogItem> items, LogFile file, ByteBuffer buffer) {
+        long dataPos = file.startPos + writeStartPosInFile;
         for (int count = items.size(), i = 0; i < count; i++) {
             LogItem li = items.get(i);
             if (file.firstIndex == 0) {
@@ -253,13 +254,14 @@ class LogAppender {
                 file.firstTerm = li.getTerm();
                 file.firstTimestamp = li.getTimestamp();
             }
-            idxOps.put(li.getIndex(), file.startPos + writeStartPosInFile);
             if (buffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
                 buffer = write(file, buffer);
             }
-            LogHeader.writeHeader(crc32c, buffer, li, 0, li.getActualHeaderSize(), li.getActualBodySize());
+            int len = LogHeader.writeHeader(crc32c, buffer, li);
             buffer = writeBizHeader(li, buffer, file);
             buffer = writeBizBody(li, buffer, file);
+            idxOps.put(li.getIndex(), dataPos);
+            dataPos += len;
             lastItem = li;
         }
         return buffer;
