@@ -15,10 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberGroup;
-import com.github.dtprj.dongting.fiber.FrameCall;
-import com.github.dtprj.dongting.fiber.FrameCallResult;
 
 import java.io.File;
 import java.nio.channels.AsynchronousFileChannel;
@@ -26,10 +23,7 @@ import java.nio.channels.AsynchronousFileChannel;
 /**
  * @author huangli
  */
-class LogFile {
-    final File file;
-    final FiberCondition notUseCondition;
-    final AsynchronousFileChannel channel;
+class LogFile extends DtFile {
     final long startPos;
     final long endPos;
 
@@ -37,37 +31,13 @@ class LogFile {
     long firstIndex;
     int firstTerm;
 
-    private int use;
     long deleteTimestamp;
     boolean deleted;
 
     public LogFile(long startPos, long endPos, AsynchronousFileChannel channel,
                    File file, FiberGroup fiberGroup) {
+        super(file, channel, fiberGroup);
         this.startPos = startPos;
         this.endPos = endPos;
-        this.channel = channel;
-        this.file = file;
-        this.notUseCondition = fiberGroup.newCondition("FileNotUse-" + file.getName());
     }
-
-    public void incUseCount(){
-        use++;
-    }
-
-    public void descUseCount() {
-        use--;
-        if (use == 0) {
-            notUseCondition.signalAll();
-        }
-    }
-
-    public FrameCallResult awaitNotUse(FrameCall<Void> resumePoint) throws Throwable {
-        if (use == 0) {
-            return resumePoint.execute(null);
-        } else {
-            // loop to this method and recheck use count
-            return notUseCondition.await(v -> awaitNotUse(resumePoint));
-        }
-    }
-
 }

@@ -130,7 +130,7 @@ class LogFileQueue extends FileQueue {
 
                 log.info("restore finished. lastTerm={}, lastIndex={}, lastPos={}, lastFile={}",
                         restorer.previousTerm, restorer.previousIndex, writePos,
-                        queue.get(queue.size() - 1).file.getPath());
+                        queue.get(queue.size() - 1).getFile().getPath());
                 logAppender.setNext(restorer.previousIndex + 1, writePos);
                 logAppender.startFiber();
                 setResult(restorer.previousTerm);
@@ -175,7 +175,7 @@ class LogFileQueue extends FileQueue {
                     && boundIndex >= nextFile.firstIndex;
             if (log.isDebugEnabled()) {
                 log.debug("mark {} delete: {}. timestampBound={}, nextFileFirstTimeStamp={}, boundIndex={}, nextFileFirstIndex={}",
-                        logFile.file.getName(), result, timestampBound, nextFile.firstTimestamp, boundIndex, nextFile.firstIndex);
+                        logFile.getFile().getName(), result, timestampBound, nextFile.firstTimestamp, boundIndex, nextFile.firstIndex);
             }
             if (result) {
                 if (logFile.deleteTimestamp == 0) {

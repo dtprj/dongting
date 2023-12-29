@@ -233,12 +233,12 @@ class LogAppender {
         items.clear();
         if (nextPersistPos == file.endPos) {
             log.info("current file {} has no enough space, nextPersistPos is {}, next file start pos is {}",
-                    file.file.getName(), nextPersistPos, nextPersistPos);
+                    file.getFile().getName(), nextPersistPos, nextPersistPos);
         } else if (rollNextFile) {
             // prepare to write new file
             long next = logFileQueue.nextFilePos(nextPersistPos);
             log.info("current file {} has no enough space, nextPersistPos is {}, next file start pos is {}",
-                    file.file.getName(), nextPersistPos, next);
+                    file.getFile().getName(), nextPersistPos, next);
             nextPersistPos = next;
         }
         // continue loop
@@ -337,7 +337,7 @@ class LogAppender {
         buffer.flip();
         int bytes = buffer.remaining();
         long[] retry = (logFileQueue.initialized && !logFileQueue.isClosed()) ? groupConfig.getIoRetryInterval() : null;
-        AsyncIoTask task = new AsyncIoTask(fiberGroup, file.channel, retry, true, writeStopIndicator);
+        AsyncIoTask task = new AsyncIoTask(fiberGroup, file, retry, true, writeStopIndicator);
         FiberFuture<Void> future;
         if (lastItem == null) {
             future = task.write(buffer, writeStartPosInFile);

@@ -154,7 +154,7 @@ public class FileQueueTest extends BaseFiberTest {
             private FrameCallResult resume(Void unused) {
                 assertEquals(3, fileQueue.queue.size());
                 Predicate<LogFile> p = lf -> {
-                    String n = lf.file.getName();
+                    String n = lf.getFile().getName();
                     return n.endsWith("0000") || n.endsWith("1024");
                 };
                 return Fiber.call(fileQueue.delete(p), this::resume2);

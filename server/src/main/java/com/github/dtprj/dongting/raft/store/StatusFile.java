@@ -57,7 +57,7 @@ public class StatusFile implements AutoCloseable {
     private final ExecutorService ioExecutor;
     private final FiberGroup fiberGroup;
     private FileLock lock;
-    private AsynchronousFileChannel channel;
+    private DtFile dtFile;
     private final byte[] data = new byte[FILE_LENGTH];
     private final ByteArrayOutputStream bos = new ByteArrayOutputStream(FILE_LENGTH);
     private final CRC32C crc32c = new CRC32C();
@@ -86,7 +86,8 @@ public class StatusFile implements AutoCloseable {
                 options.add(StandardOpenOption.CREATE);
                 options.add(StandardOpenOption.READ);
                 options.add(StandardOpenOption.WRITE);
-                channel = AsynchronousFileChannel.open(file.toPath(), options, ioExecutor);
+                AsynchronousFileChannel channel = AsynchronousFileChannel.open(file.toPath(), options, ioExecutor);
+                dtFile = new DtFile(file, channel, fiberGroup);
                 lock = channel.tryLock();
                 if (!needLoad) {
                     return Fiber.frameReturn();
@@ -95,7 +96,7 @@ public class StatusFile implements AutoCloseable {
                     throw new RaftException("bad status file length: " + file.length());
                 }
                 ByteBuffer buf = ByteBuffer.wrap(initData);
-                AsyncIoTask task = new AsyncIoTask(fiberGroup, channel);
+                AsyncIoTask task = new AsyncIoTask(fiberGroup, dtFile);
                 FiberFuture<Void> f = task.read(buf, 0);
                 return f.await(ioTimeout, this::resumeAfterRead);
             }
@@ -120,7 +121,7 @@ public class StatusFile implements AutoCloseable {
 
             @Override
             protected FrameCallResult handle(Throwable ex) {
-                DtUtil.close(lock, channel);
+                DtUtil.close(lock, dtFile.getChannel());
                 throw new RaftException(ex);
             }
         };
@@ -145,7 +146,7 @@ public class StatusFile implements AutoCloseable {
             ByteBuffer buf = ByteBuffer.wrap(data);
 
             // retry in status manager
-            AsyncIoTask task = new AsyncIoTask(fiberGroup, channel);
+            AsyncIoTask task = new AsyncIoTask(fiberGroup, dtFile);
             if (flush) {
                 return task.writeAndFlush(buf, 0, false);
             } else {
@@ -159,8 +160,8 @@ public class StatusFile implements AutoCloseable {
 
     @Override
     public void close() {
-        if (channel.isOpen()) {
-            DtUtil.close(lock, channel);
+        if (dtFile.getChannel().isOpen()) {
+            DtUtil.close(lock, dtFile.getChannel());
         }
     }
 

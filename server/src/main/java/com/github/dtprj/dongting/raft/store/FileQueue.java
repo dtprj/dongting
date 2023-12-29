@@ -134,7 +134,7 @@ abstract class FileQueue {
             queueStartPosition = queue.get(0).startPos;
             queueEndPosition = queue.get(queue.size() - 1).endPos;
             log.info("load {} files in {}, first={}, last={}", count, dir.getPath(),
-                    queue.get(0).file.getName(), queue.get(queue.size() - 1).file.getName());
+                    queue.get(0).getFile().getName(), queue.get(queue.size() - 1).getFile().getName());
         }
     }
 
@@ -247,14 +247,14 @@ abstract class FileQueue {
                     file, getFiberGroup());
             ByteBuffer buf = ByteBuffer.allocate(1);
             // no retry here, allocateSync() will retry
-            AsyncIoTask t = new AsyncIoTask(groupConfig.getFiberGroup(), logFile.channel);
+            AsyncIoTask t = new AsyncIoTask(groupConfig.getFiberGroup(), logFile);
             FiberFuture<Void> writeFuture = t.writeAndFlush(buf, getFileSize() - 1, true);
             return writeFuture.await(this::afterWrite);
         }
 
         private FrameCallResult afterWrite(Void unused) {
             long time = System.currentTimeMillis() - startTime;
-            log.info("allocate file done, cost {} ms: {}", time, logFile.file.getPath());
+            log.info("allocate file done, cost {} ms: {}", time, logFile.getFile().getPath());
             queue.addLast(logFile);
             queueEndPosition = logFile.endPos;
             return Fiber.frameReturn();
@@ -273,7 +273,7 @@ abstract class FileQueue {
 
     protected void closeChannel() {
         for (int i = 0; i < queue.size(); i++) {
-            DtUtil.close(queue.get(i).channel);
+            DtUtil.close(queue.get(i).getChannel());
         }
     }
 
@@ -291,14 +291,14 @@ abstract class FileQueue {
                 try {
                     ioExecutor.execute(() -> {
                         try {
-                            log.debug("close log file: {}", logFile.file.getPath());
-                            DtUtil.close(logFile.channel);
-                            log.info("delete log file: {}", logFile.file.getPath());
-                            Files.delete(logFile.file.toPath());
+                            log.debug("close log file: {}", logFile.getFile().getPath());
+                            DtUtil.close(logFile.getChannel());
+                            log.info("delete log file: {}", logFile.getFile().getPath());
+                            Files.delete(logFile.getFile().toPath());
 
                             deleteFuture.fireComplete(null);
                         } catch (Throwable e) {
-                            log.error("delete file fail: ", logFile.file.getPath(), e);
+                            log.error("delete file fail: ", logFile.getFile().getPath(), e);
                             deleteFuture.fireCompleteExceptionally(e);
                         }
                     });

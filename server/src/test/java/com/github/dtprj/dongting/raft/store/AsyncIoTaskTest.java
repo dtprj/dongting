@@ -46,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class AsyncIoTaskTest extends BaseFiberTest {
     private static File dir;
     private File file;
-    private AsynchronousFileChannel channel;
+    private DtFile dtFile;
 
     @BeforeAll
     public static void setupDir() {
@@ -68,14 +68,15 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         s.add(StandardOpenOption.CREATE);
         s.add(StandardOpenOption.WRITE);
         s.add(StandardOpenOption.READ);
-        channel = AsynchronousFileChannel.open(file.toPath(), s, MockExecutors.ioExecutor());
+        AsynchronousFileChannel channel = AsynchronousFileChannel.open(file.toPath(), s, MockExecutors.ioExecutor());
+        dtFile = new DtFile(file, channel, fiberGroup);
     }
 
     @SuppressWarnings("ResultOfMethodCallIgnored")
     @AfterEach
     public void clean() throws Exception {
         if (file != null && file.exists()) {
-            channel.close();
+            dtFile.getChannel().close();
             file.delete();
         }
     }
@@ -83,17 +84,17 @@ public class AsyncIoTaskTest extends BaseFiberTest {
     @Test
     public void testRW() throws Exception {
         ByteBuffer buf = ByteBuffer.allocate(1024);
-        AsyncIoTask t = new AsyncIoTask(fiberGroup, channel);
+        AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
         FiberFuture<Void> f = t.write(buf, 0);
         toJdkFuture(f).get(1, TimeUnit.SECONDS);
 
         buf = ByteBuffer.allocate(768);
-        t = new AsyncIoTask(fiberGroup, channel);
+        t = new AsyncIoTask(fiberGroup, dtFile);
         toJdkFuture(t.read(buf, 0)).get(1, TimeUnit.SECONDS);
 
         buf.clear();
         try {
-            t = new AsyncIoTask(fiberGroup, channel);
+            t = new AsyncIoTask(fiberGroup, dtFile);
             toJdkFuture(t.read(buf, 512)).get(1, TimeUnit.SECONDS);
             fail();
         } catch (Exception e) {
@@ -105,7 +106,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
     public void testReadEx() throws Exception {
         ByteBuffer buf = ByteBuffer.allocate(1);
 
-        AsyncIoTask wt = new AsyncIoTask(fiberGroup, channel);
+        AsyncIoTask wt = new AsyncIoTask(fiberGroup, dtFile);
         toJdkFuture(wt.writeAndFlush(buf, 0, false)).get(1, TimeUnit.SECONDS);
 
         // fail on first read
@@ -168,7 +169,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
 
         public ReadFailTask(int failCount, long[] retryInterval,
                             boolean retryForever, Supplier<Boolean> cancelIndicator) {
-            super(fiberGroup, channel, retryInterval, retryForever, cancelIndicator);
+            super(fiberGroup, dtFile, retryInterval, retryForever, cancelIndicator);
             this.failCount = failCount;
         }
 
@@ -198,7 +199,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
 
         public FlushFailTask(int failCount, long[] retryInterval, boolean retryForever,
                              Supplier<Boolean> cancelIndicator) {
-            super(fiberGroup, channel, retryInterval, retryForever, cancelIndicator);
+            super(fiberGroup, dtFile, retryInterval, retryForever, cancelIndicator);
             this.failCount = failCount;
         }
 

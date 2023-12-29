@@ -104,7 +104,7 @@ class Restorer {
             } else {
                 firstItemPos = 0;
             }
-            AsyncIoTask task = new AsyncIoTask(fiberGroup, lf.channel);
+            AsyncIoTask task = new AsyncIoTask(fiberGroup, lf);
             return task.read(buffer, firstItemPos).await(this::afterReadFirstItemHeader);
         }
 
@@ -120,7 +120,7 @@ class Restorer {
             }
 
             if (lf.endPos > restoreIndexPos) {
-                log.info("try restore file {}", lf.file.getPath());
+                log.info("try restore file {}", lf.getFile().getPath());
                 if (restoreIndexPos >= lf.startPos) {
                     // check from restoreIndex
                     itemStartPosOfFile = logFileQueue.filePos(restoreIndexPos);
@@ -137,7 +137,7 @@ class Restorer {
                     setResult(new Pair<>(false, lf.endPos));
                     return Fiber.frameReturn();
                 } else {
-                    throw new RaftException("first item header crc fail: " + lf.file.getPath());
+                    throw new RaftException("first item header crc fail: " + lf.getFile().getPath());
                 }
             }
         }
@@ -145,7 +145,7 @@ class Restorer {
         private FrameCallResult loopRestoreFileBlock() {
             if (readPos < logFileQueue.fileLength()) { // loop begin
                 RaftUtil.checkStop(fiberGroup);
-                AsyncIoTask task = new AsyncIoTask(getFiberGroup(), lf.channel);
+                AsyncIoTask task = new AsyncIoTask(getFiberGroup(), lf);
                 long fileRest = logFileQueue.fileLength() - readPos;
                 if (buffer.remaining() > fileRest) {
                     buffer.limit(buffer.position() + (int) fileRest);
@@ -158,7 +158,7 @@ class Restorer {
                 setResult(new Pair<>(false, lf.endPos));
                 return Fiber.frameReturn();
             } else {
-                throw new RaftException("end of file, state=" + state + ", file=" + lf.file.getPath());
+                throw new RaftException("end of file, state=" + state + ", file=" + lf.getFile().getPath());
             }
         }
 
@@ -195,10 +195,10 @@ class Restorer {
     private int crcFail(LogFile lf) {
         if (restoreIndexChecked) {
             if (header.totalLen == 0) {
-                log.info("reach end of file. file={}, pos={}", lf.file.getPath(), itemStartPosOfFile);
+                log.info("reach end of file. file={}, pos={}", lf.getFile().getPath(), itemStartPosOfFile);
             } else {
                 log.warn("reach end of file. last write maybe not finished. file={}, pos={}",
-                        lf.file.getPath(), itemStartPosOfFile);
+                        lf.getFile().getPath(), itemStartPosOfFile);
             }
             return RT_RESTORE_FINISHED;
         } else {
@@ -304,6 +304,6 @@ class Restorer {
     }
 
     private void throwEx(String msg, LogFile lf, long itemStartPosOfFile) {
-        throw new RaftException(msg + ". file=" + lf.file.getPath() + ", pos=" + itemStartPosOfFile);
+        throw new RaftException(msg + ". file=" + lf.getFile().getPath() + ", pos=" + itemStartPosOfFile);
     }
 }

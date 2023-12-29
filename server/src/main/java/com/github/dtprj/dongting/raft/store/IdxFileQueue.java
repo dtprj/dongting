@@ -262,7 +262,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         private FrameCallResult afterPosReady(Void v) {
             LogFile logFile = getLogFile(indexToPos(nextPersistIndex));
             if (logFile.deleted) {
-                BugLog.getLog().error("idx file deleted, flush fail: {}", logFile.file.getPath());
+                BugLog.getLog().error("idx file deleted, flush fail: {}", logFile.getFile().getPath());
                 return Fiber.fatal(new RaftException("idx file deleted, flush fail"));
             }
             return Fiber.call(new FlushFrame(logFile), this);
@@ -301,7 +301,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
             long nextPersistIndexAfterWrite = index;
 
-            AsyncIoTask currentWriteTask = new AsyncIoTask(getFiberGroup(), logFile.channel,
+            AsyncIoTask currentWriteTask = new AsyncIoTask(getFiberGroup(), logFile,
                     groupConfig.getIoRetryInterval(), true);
             long filePos = indexToPos(startIndex) & fileLenMask;
             FiberFuture<Void> f = currentWriteTask.writeAndFlush(buf, filePos, false);
@@ -378,14 +378,14 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         ByteBuffer buffer = ByteBuffer.allocate(8);
         LogFile lf = getLogFile(pos);
         if (lf.deleted) {
-            throw new RaftException("file mark deleted: " + lf.file.getPath());
+            throw new RaftException("file mark deleted: " + lf.getFile().getPath());
         }
         FiberFrame<Long> loadFrame = new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void v) {
                 lf.incUseCount();
                 long filePos = pos & fileLenMask;
-                AsyncIoTask t = new AsyncIoTask(getFiberGroup(), lf.channel);
+                AsyncIoTask t = new AsyncIoTask(getFiberGroup(), lf);
                 return t.read(buffer, filePos).await(this::afterLoad);
             }
 

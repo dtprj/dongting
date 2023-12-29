@@ -27,7 +27,6 @@ import com.github.dtprj.dongting.raft.RaftException;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.CompletionHandler;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -37,7 +36,7 @@ import java.util.function.Supplier;
  */
 public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     private static final DtLog log = DtLogs.getLogger(AsyncIoTask.class);
-    private final AsynchronousFileChannel channel;
+    private final DtFile dtFile;
     private final Supplier<Boolean> cancelIndicator;
     private final FiberGroup fiberGroup;
     private final long[] retryInterval;
@@ -54,22 +53,22 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
 
     private int retryCount = 0;
 
-    public AsyncIoTask(FiberGroup fiberGroup, AsynchronousFileChannel channel) {
-        this(fiberGroup, channel, null, false, null);
+    public AsyncIoTask(FiberGroup fiberGroup, DtFile dtFile) {
+        this(fiberGroup, dtFile, null, false, null);
     }
 
-    public AsyncIoTask(FiberGroup fiberGroup, AsynchronousFileChannel channel,
+    public AsyncIoTask(FiberGroup fiberGroup, DtFile dtFile,
                        long[] retryInterval, boolean retryForever) {
-        this(fiberGroup, channel, retryInterval, retryForever, null);
+        this(fiberGroup, dtFile, retryInterval, retryForever, null);
     }
 
-    public AsyncIoTask(FiberGroup fiberGroup, AsynchronousFileChannel channel,
+    public AsyncIoTask(FiberGroup fiberGroup, DtFile dtFile,
                        long[] retryInterval, boolean retryForever, Supplier<Boolean> cancelIndicator) {
         Objects.requireNonNull(fiberGroup);
-        Objects.requireNonNull(channel);
+        Objects.requireNonNull(dtFile);
         this.retryInterval = retryInterval;
         this.fiberGroup = fiberGroup;
-        this.channel = channel;
+        this.dtFile = dtFile;
         this.retryForever = retryForever;
         this.cancelIndicator = cancelIndicator;
         this.future = fiberGroup.newFuture();
@@ -182,9 +181,9 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     protected void exec(long pos) {
         try {
             if (write) {
-                channel.write(ioBuffer, pos, null, this);
+                dtFile.getChannel().write(ioBuffer, pos, null, this);
             } else {
-                channel.read(ioBuffer, pos, null, this);
+                dtFile.getChannel().read(ioBuffer, pos, null, this);
             }
         } catch (Throwable e) {
             future.fireCompleteExceptionally(e);
@@ -217,7 +216,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     // this method set to protected for mock error in unit test
     protected void doFlush() throws IOException {
         if (flush) {
-            channel.force(flushMeta);
+            dtFile.getChannel().force(flushMeta);
         }
     }
 
