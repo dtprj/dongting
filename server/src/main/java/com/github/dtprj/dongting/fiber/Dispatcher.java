@@ -202,7 +202,7 @@ public class Dispatcher extends AbstractLifeCircle {
                 }
                 fiber.scheduleTimeoutMillis = 0;
                 fiber.scheduleNanoTime = 0;
-                processFrame(fiber, currentFrame);
+                execFrame(fiber, currentFrame);
                 if (fatalError != null) {
                     break;
                 }
@@ -218,6 +218,10 @@ public class Dispatcher extends AbstractLifeCircle {
                 if (currentFrame == fiber.stackTop) {
                     if (fiber.source != null) {
                         // called awaitOn() on a completed future, or get lock successfully, or join finished fiber
+                        continue;
+                    }
+                    if (currentFrame.resumePoint != null) {
+                        // call Fiber.resume
                         continue;
                     }
                     fiber.inputObj = currentFrame.frameResult;
@@ -245,7 +249,7 @@ public class Dispatcher extends AbstractLifeCircle {
         }
     }
 
-    private void processFrame(Fiber fiber, FiberFrame currentFrame) {
+    private void execFrame(Fiber fiber, FiberFrame currentFrame) {
         try {
             if (fiber.inputEx != null) {
                 Throwable x = fiber.inputEx;
@@ -310,6 +314,14 @@ public class Dispatcher extends AbstractLifeCircle {
         currentFrame.resumePoint = resumePoint;
         subFrame.init(fiber);
         fiber.pushFrame(subFrame);
+    }
+
+    static <O> void resume(O input, FrameCall<O> resumePoint) {
+        Fiber fiber = getCurrentFiberAndCheck(null);
+        checkReentry(fiber);
+        FiberFrame currentFrame = fiber.stackTop;
+        fiber.inputObj = input;
+        currentFrame.resumePoint = resumePoint;
     }
 
     static FrameCallResult awaitOn(WaitSource c, long millis, FrameCall resumePoint) {
@@ -386,6 +398,7 @@ public class Dispatcher extends AbstractLifeCircle {
         if (fiber == null) {
             throwFatalError(dispatcherThread.currentGroup, "usage fatal error: current fiber is null");
         }
+        //noinspection DataFlowIssue
         if (!fiber.ready) {
             throwFatalError(dispatcherThread.currentGroup, "usage fatal error: current fiber not ready state");
         }

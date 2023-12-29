@@ -154,7 +154,7 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
             return queue.take(this::afterTake);
         }
 
-        private FrameCallResult afterTake(ReqData reqData) throws Throwable {
+        private FrameCallResult afterTake(ReqData reqData) {
             LogItem item = createItems(nextIndex++, ts, reqData.frame.getBody());
             RaftInput ri = new RaftInput(0, null, null, null, 0);
             RaftTask rt = new RaftTask(ts, LogItem.TYPE_NORMAL, ri, null);

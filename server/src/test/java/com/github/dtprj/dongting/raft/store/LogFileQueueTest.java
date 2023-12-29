@@ -62,7 +62,7 @@ public class LogFileQueueTest extends BaseFiberTest {
     private int bizHeaderLen;
 
     private final HashMap<Long, Long> idxMap = new HashMap<>();
-    private Throwable mockLoadEx;
+    private RuntimeException mockLoadEx;
 
     static class MockAppendCallback implements RaftLog.AppendCallback {
 
@@ -96,7 +96,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         }
 
         @Override
-        public FrameCallResult loadLogPos(long itemIndex, FrameCall<Long> resumePoint) throws Throwable {
+        public FrameCallResult loadLogPos(long itemIndex, FrameCall<Long> resumePoint) {
             if (mockLoadEx == null) {
                 return Fiber.resume(idxMap.get(itemIndex), resumePoint);
             } else {

@@ -59,13 +59,13 @@ public class Fiber extends WaitSource {
         entryFrame.init(this);
     }
 
-    public static <O2> FrameCallResult call(FiberFrame<O2> subFrame, FrameCall<O2> resumePoint) {
+    public static <O> FrameCallResult call(FiberFrame<O> subFrame, FrameCall<O> resumePoint) {
         Dispatcher.call(subFrame, resumePoint);
         return FrameCallResult.CALL_NEXT_FRAME;
     }
 
-    public static <O2> FrameCallResult resume(O2 input, FrameCall<O2> resumePoint) throws Throwable {
-        resumePoint.execute(input);
+    public static <O> FrameCallResult resume(O input, FrameCall<O> resumePoint) {
+        Dispatcher.resume(input, resumePoint);
         return FrameCallResult.RETURN;
     }
 

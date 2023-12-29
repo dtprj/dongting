@@ -132,7 +132,7 @@ class LogAppender {
             }
         }
 
-        private FrameCallResult afterPosReady(Void unused) throws Throwable {
+        private FrameCallResult afterPosReady(Void unused) {
             if (logFileQueue.isClosed()) {
                 noPendingCondition.signalAll();
                 return Fiber.frameReturn();
@@ -177,7 +177,7 @@ class LogAppender {
         }
     }
 
-    private FrameCallResult writeData() throws Throwable {
+    private FrameCallResult writeData() {
         // reset 4 status fields
         writeStartPosInFile = nextPersistPos & fileLenMask;
         bytesToWrite = 0;

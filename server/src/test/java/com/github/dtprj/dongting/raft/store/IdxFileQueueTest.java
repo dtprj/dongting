@@ -179,7 +179,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
         }
 
         @Override
-        public FrameCallResult execute(Void input) throws Throwable {
+        public FrameCallResult execute(Void input) {
             return idxFileQueue.loadLogPos(index, this:: resume);
         }
 
@@ -207,7 +207,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
                 return Fiber.call(new LoadLogPosFrame(4, 400), this::afterCheckPos);
             }
 
-            private FrameCallResult afterCheckPos(Void unused) throws Throwable {
+            private FrameCallResult afterCheckPos(Void unused) {
                 try {
                     idxFileQueue.loadLogPos(5, null);
                     fail();

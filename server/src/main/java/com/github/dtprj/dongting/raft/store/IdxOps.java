@@ -28,5 +28,5 @@ interface IdxOps {
     boolean needWaitFlush();
 
     FiberFrame<Void> waitFlush();
-    FrameCallResult loadLogPos(long itemIndex, FrameCall<Long> resumePoint) throws Throwable;
+    FrameCallResult loadLogPos(long itemIndex, FrameCall<Long> resumePoint);
 }
