@@ -19,6 +19,8 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.codec.Decoder;
+import com.github.dtprj.dongting.codec.EncodeContext;
+import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.codec.RefBufferDecoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IndexedQueue;
@@ -42,10 +44,13 @@ import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
+import com.github.dtprj.dongting.raft.store.ByteBufferEncoder;
 import com.github.dtprj.dongting.raft.store.DefaultRaftLog;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
+import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -69,6 +74,8 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
     private final FiberGroup fiberGroup;
     private final IndexedQueue<ReqData> pending = new IndexedQueue<>(16 * 1024);
 
+    private final Callback callback = new Callback();
+
     static class ReqData {
         ReadFrame<RefBuffer> frame;
         ChannelContext channelContext;
@@ -84,17 +91,50 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
         queue = fiberGroup.newChannel();
         raftStatus = new RaftStatusImpl(dispatcher.getTs());
         this.ts = dispatcher.getTs();
-        RaftGroupConfig config = new RaftGroupConfig(1, "1", "1");
-        config.setFiberGroup(fiberGroup);
-        config.setDataDir(DATA_DIR);
-        config.setIoExecutor(MockExecutors.ioExecutor());
-        config.setTs(dispatcher.getTs());
-        config.setDirectPool(TwoLevelPool.getDefaultFactory().apply(config.getTs(), true));
-        config.setHeapPool(new RefBufferFactory(TwoLevelPool.getDefaultFactory().apply(config.getTs(), false), 128));
-        config.setRaftStatus(raftStatus);
+        RaftGroupConfig groupConfig = new RaftGroupConfig(1, "1", "1");
+        groupConfig.setFiberGroup(fiberGroup);
+        groupConfig.setDataDir(DATA_DIR);
+        groupConfig.setIoExecutor(MockExecutors.ioExecutor());
+        groupConfig.setTs(dispatcher.getTs());
+        groupConfig.setDirectPool(TwoLevelPool.getDefaultFactory().apply(groupConfig.getTs(), true));
+        groupConfig.setHeapPool(new RefBufferFactory(TwoLevelPool.getDefaultFactory().apply(groupConfig.getTs(), false), 128));
+        groupConfig.setRaftStatus(raftStatus);
+        groupConfig.setCodecFactory(new RaftCodecFactory() {
+            @Override
+            public Decoder<?> createHeaderDecoder(int bizType) {
+                return null;
+            }
 
-        statusManager = new StatusManager(config);
-        this.raftLog = new DefaultRaftLog(config, statusManager);
+            @Override
+            public Decoder<?> createBodyDecoder(int bizType) {
+                return null;
+            }
+
+            @Override
+            public Encoder<?> createHeaderEncoder(int bizType) {
+                return null;
+            }
+
+            private final Encoder<RefBuffer> encoder = new Encoder<>() {
+                @Override
+                public boolean encode(EncodeContext context, ByteBuffer buffer, RefBuffer data) {
+                    return ByteBufferEncoder.INSTANCE.encode(context, buffer, data.getBuffer());
+                }
+
+                @Override
+                public int actualSize(RefBuffer data) {
+                    return data.getBuffer().remaining();
+                }
+            };
+
+            @Override
+            public Encoder<?> createBodyEncoder(int bizType) {
+                return encoder;
+            }
+        });
+
+        statusManager = new StatusManager(groupConfig);
+        this.raftLog = new DefaultRaftLog(groupConfig, statusManager);
         CompletableFuture<Void> initFuture = new CompletableFuture<>();
 
         fiberGroup.fireFiber("init", new FiberFrame<>() {
@@ -104,7 +144,7 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
             }
 
             private FrameCallResult afterStatusManagerInit(Void unused) throws Exception {
-                return Fiber.call(raftLog.init(new Callback()), this::afterRaftLogInit);
+                return Fiber.call(raftLog.init(callback), this::afterRaftLogInit);
             }
 
             private FrameCallResult afterRaftLogInit(Pair<Integer, Long> p) {
@@ -130,7 +170,7 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
 
     @Override
     public Decoder<RefBuffer> createDecoder() {
-        return RefBufferDecoder.PLAIN_INSTANCE;
+        return RefBufferDecoder.INSTANCE;
     }
 
     public static LogItem createItems(long index, Timestamp ts, RefBuffer bodyBuffer) {
@@ -142,7 +182,7 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
         item.setPrevLogTerm(100);
         item.setTimestamp(ts.getWallClockMillis());
 
-        item.setBodyBuffer(bodyBuffer.getBuffer());
+        item.setBody(bodyBuffer);
         item.setActualBodySize(bodyBuffer.getBuffer().remaining());
         return item;
     }
@@ -170,8 +210,20 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
     }
 
     private class Callback implements RaftLog.AppendCallback {
+        private long finishCount;
+        private long finishItems;
+        private long lastIdx;
+
         @Override
         public void finish(int lastPersistTerm, long lastPersistIndex) {
+            if (lastIdx == 0) {
+                lastIdx = lastPersistIndex;
+            } else {
+                finishCount++;
+                finishItems += lastPersistIndex - lastIdx;
+                lastIdx = lastPersistIndex;
+            }
+
             raftStatus.setCommitIndex(lastPersistIndex);
             raftStatus.setLastApplied(lastPersistIndex);
             raftStatus.setLastLogIndex(lastPersistIndex);
@@ -200,6 +252,7 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
             }
         });
         dispatcher.stop(new DtTime(1, TimeUnit.SECONDS));
+        System.out.printf("avg write batch: %.2f\n", 1.0f * callback.finishItems / callback.finishCount);
     }
 
 }

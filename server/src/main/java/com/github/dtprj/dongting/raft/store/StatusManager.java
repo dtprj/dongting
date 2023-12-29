@@ -132,7 +132,7 @@ public class StatusManager {
         }
 
         private FrameCallResult resumeOnUpdateDone(Void v) {
-            log.info("status update done, version={}, flush={}", version, flush);
+            // log.info("status update done, version={}, flush={}", version, flush);
             finishedUpdateVersion = version;
             updateDoneCondition.signalAll();
             // loop

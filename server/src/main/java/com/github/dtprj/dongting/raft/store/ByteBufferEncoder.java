@@ -24,7 +24,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-class ByteBufferEncoder implements Encoder<ByteBuffer> {
+public class ByteBufferEncoder implements Encoder<ByteBuffer> {
 
     public static final ByteBufferEncoder INSTANCE = new ByteBufferEncoder();
 
