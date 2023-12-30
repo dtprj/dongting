@@ -36,7 +36,6 @@ import java.util.function.Supplier;
  */
 public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     private static final DtLog log = DtLogs.getLogger(AsyncIoTask.class);
-    private final long opId;
     private final DtFile dtFile;
     private final Supplier<Boolean> cancelIndicator;
     private final FiberGroup fiberGroup;
@@ -73,7 +72,6 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         this.retryForever = retryForever;
         this.cancelIndicator = cancelIndicator;
         this.future = fiberGroup.newFuture();
-        this.opId = dtFile.nextOperationId();
     }
 
     public FiberFuture<Void> read(ByteBuffer ioBuffer, long filePos) {
@@ -217,10 +215,6 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
 
     public FiberFuture<Void> getFuture() {
         return future;
-    }
-
-    public long getOpId() {
-        return opId;
     }
 
     // this method set to protected for mock error in unit test
