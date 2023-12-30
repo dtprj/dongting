@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.common.IndexedQueue;
  */
 public class FiberChannel<T> {
     private final FiberGroup groupOfConsumer;
+    private final Dispatcher dispatcherOfConsumer;
     private final IndexedQueue<T> queue;
     private final FiberCondition notEmptyCondition;
 
@@ -33,12 +34,13 @@ public class FiberChannel<T> {
 
     FiberChannel(FiberGroup groupOfConsumer, int initSize) {
         this.groupOfConsumer = groupOfConsumer;
+        this.dispatcherOfConsumer = groupOfConsumer.dispatcher;
         this.queue = new IndexedQueue<>(initSize);
         this.notEmptyCondition = groupOfConsumer.newCondition("FiberChannelNotEmpty");
     }
 
     public void fireOffer(T data) {
-        groupOfConsumer.dispatcher.doInDispatcherThread(new FiberQueueTask() {
+        dispatcherOfConsumer.doInDispatcherThread(new FiberQueueTask() {
             @Override
             protected void run() {
                 offer0(data);
