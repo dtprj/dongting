@@ -27,6 +27,8 @@ public class Fiber extends WaitSource {
     protected final String fiberName;
     protected final boolean daemon;
 
+    long id;
+
     long scheduleTimeoutMillis;
     long scheduleNanoTime;
 

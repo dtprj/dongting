@@ -17,13 +17,13 @@ package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.IndexedQueue;
+import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
-import java.util.HashSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -35,12 +35,14 @@ public class FiberGroup {
     private final String name;
     final Dispatcher dispatcher;
     final IndexedQueue<Fiber> readyFibers = new IndexedQueue<>(64);
-    private final HashSet<Fiber> normalFibers = new HashSet<>();
-    private final HashSet<Fiber> daemonFibers = new HashSet<>();
+    private final LongObjMap<Fiber> normalFibers = new LongObjMap<>(32, 0.6f);
+    private final LongObjMap<Fiber> daemonFibers = new LongObjMap<>(32, 0.6f);
 
     @SuppressWarnings("FieldMayBeFinal")
     private volatile boolean shouldStop = false;
     private final static VarHandle SHOULD_STOP;
+
+    private long nextId;
 
     static {
         try {
@@ -150,10 +152,12 @@ public class FiberGroup {
             return;
         }
         f.started = true;
+        long id = nextId++;
+        f.id = id;
         if (f.daemon) {
-            daemonFibers.add(f);
+            daemonFibers.put(id, f);
         } else {
-            normalFibers.add(f);
+            normalFibers.put(id, f);
         }
         tryMakeFiberReady(f, false);
     }
@@ -161,9 +165,9 @@ public class FiberGroup {
     void removeFiber(Fiber f) {
         boolean removed;
         if (f.daemon) {
-            removed = daemonFibers.remove(f);
+            removed = daemonFibers.remove(f.id) != null;
         } else {
-            removed = normalFibers.remove(f);
+            removed = normalFibers.remove(f.id) != null;
             updateFinishStatus();
         }
         if (!removed) {
@@ -202,7 +206,7 @@ public class FiberGroup {
     private void updateFinishStatus() {
         if (!finished) {
             boolean ss = (boolean) SHOULD_STOP.get(this);
-            finished = ss && normalFibers.isEmpty();
+            finished = ss && normalFibers.size() == 0;
         }
     }
 
@@ -258,9 +262,9 @@ public class FiberGroup {
         }
         sb.append("--------------------------------------------------\n");
         sb.append("normalFibers:\n");
-        for (Fiber f : normalFibers) {
+        normalFibers.forEach((key, f) -> {
             sb.append(f.getFiberName()).append(", waitOn=").append(f.source).append('\n');
-        }
+        });
         sb.append("--------------------------------------------------\n");
         log.info(sb.toString());
     }
