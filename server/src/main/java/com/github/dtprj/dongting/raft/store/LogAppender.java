@@ -23,7 +23,6 @@ import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCancelException;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
-import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
@@ -148,20 +147,16 @@ class LogAppender {
 
 
     @SuppressWarnings("FieldMayBeFinal")
-    static class WriteTask {
-        private ByteBuffer buffer;
-        private FiberFuture<Void> future;
-        private int lastTerm;
-        private long lastIndex;
+    static class WriteTask extends AsyncIoTask {
+        ByteBuffer buffer;
+        int lastTerm;
+        long lastIndex;
 
-        public WriteTask(ByteBuffer buffer, LogItem lastItem, FiberFuture<Void> future) {
-            this.buffer = buffer;
-            this.future = future;
-            if (lastItem != null) {
-                this.lastTerm = lastItem.getTerm();
-                this.lastIndex = lastItem.getIndex();
-            }
+        public WriteTask(FiberGroup fiberGroup, DtFile dtFile,
+                         long[] retryInterval, boolean retryForever, Supplier<Boolean> cancelIndicator) {
+            super(fiberGroup, dtFile, retryInterval, retryForever, cancelIndicator);
         }
+
     }
 
     public void append() {
@@ -337,17 +332,22 @@ class LogAppender {
         buffer.flip();
         int bytes = buffer.remaining();
         long[] retry = (logFileQueue.initialized && !logFileQueue.isClosed()) ? groupConfig.getIoRetryInterval() : null;
-        AsyncIoTask task = new AsyncIoTask(fiberGroup, file, retry, true, writeStopIndicator);
-        FiberFuture<Void> future;
-        if (lastItem == null) {
-            future = task.write(buffer, writeStartPosInFile);
-        } else {
-            future = task.writeAndFlush(buffer, writeStartPosInFile, false);
+        WriteTask task = new WriteTask(fiberGroup, file, retry, true, writeStopIndicator);
+        task.buffer = buffer;
+        if (lastItem != null) {
+            task.lastTerm = lastItem.getTerm();
+            task.lastIndex = lastItem.getIndex();
         }
-        WriteTask wt = new WriteTask(buffer, lastItem, future);
-        writeTaskQueue.addLast(wt);
 
-        future.registerCallback((v, ex) -> processWriteResult(wt, ex));
+        if (lastItem == null) {
+            task.write(buffer, writeStartPosInFile);
+        } else {
+            task.writeAndFlush(buffer, writeStartPosInFile, false);
+        }
+
+        writeTaskQueue.addLast(task);
+
+        task.getFuture().registerCallback((v, ex) -> processWriteResult(task, ex));
 
         writeStartPosInFile += bytes;
         bytesToWrite -= bytes;
@@ -373,7 +373,7 @@ class LogAppender {
                 int lastItem = 0;
                 long lastIndex = 0;
                 while (writeTaskQueue.size() > 0) {
-                    if (writeTaskQueue.get(0).future.isDone()) {
+                    if (writeTaskQueue.get(0).getFuture().isDone()) {
                         WriteTask head = writeTaskQueue.removeFirst();
                         if (head.lastTerm > 0) {
                             lastItem = head.lastTerm;

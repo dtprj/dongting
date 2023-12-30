@@ -180,7 +180,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 throw new RaftException("put index!=nextIndex " + itemIndex + ", " + nextIndex);
             }
         }
-        removeHead();
         cache.put(itemIndex, dataPosition);
         nextIndex = itemIndex + 1;
         tryAllocateAsync(indexToPos(nextIndex));
@@ -191,7 +190,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     @Override
     public boolean needWaitFlush() {
-        if (cache.size() >= maxCacheItems && shouldFlush()) {
+        removeHead();
+        if (cache.size() > maxCacheItems && shouldFlush()) {
             log.warn("cache size exceed {}, current cache size is {}", maxCacheItems, cache.size());
             return true;
         }
@@ -230,6 +230,9 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     private void removeHead() {
+        LongLongSeqMap cache = this.cache;
+        long maxCacheItems = this.maxCacheItems;
+        long nextPersistIndex = this.nextPersistIndex;
         while (cache.size() >= maxCacheItems && cache.getFirstKey() < nextPersistIndex) {
             cache.remove();
         }

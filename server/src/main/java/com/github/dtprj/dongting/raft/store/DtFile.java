@@ -27,6 +27,7 @@ import java.nio.channels.AsynchronousFileChannel;
  * @author huangli
  */
 public class DtFile {
+    private long nextOperationId = 0;
     private final File file;
     private final FiberCondition notUseCondition;
     private final AsynchronousFileChannel channel;
@@ -57,6 +58,10 @@ public class DtFile {
             // loop to this method and recheck use count
             return getNotUseCondition().await(v -> awaitNotUse(resumePoint));
         }
+    }
+
+    public long nextOperationId() {
+        return nextOperationId++;
     }
 
     public File getFile() {
