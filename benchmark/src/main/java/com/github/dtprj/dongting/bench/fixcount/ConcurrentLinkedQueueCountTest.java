@@ -1,9 +1,7 @@
 /**
  * Created on 2022/12/30.
  */
-package com.github.dtprj.dongting.bench;
-
-import com.github.dtprj.dongting.queue.MpscLinkedQueue;
+package com.github.dtprj.dongting.bench.fixcount;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 

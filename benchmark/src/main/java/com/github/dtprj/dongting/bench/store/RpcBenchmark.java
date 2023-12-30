@@ -13,8 +13,9 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.bench;
+package com.github.dtprj.dongting.bench.store;
 
+import com.github.dtprj.dongting.bench.BenchBase;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.RefBufferDecoder;
 import com.github.dtprj.dongting.common.DtTime;

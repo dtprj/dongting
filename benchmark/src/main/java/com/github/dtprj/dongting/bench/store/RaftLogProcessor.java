@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.bench;
+package com.github.dtprj.dongting.bench.store;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
@@ -190,7 +190,7 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
     private class StoreFiberFrame extends FiberFrame<Void> {
 
         @Override
-        public FrameCallResult execute(Void input) throws Throwable {
+        public FrameCallResult execute(Void input) {
             return queue.take(this::afterTake);
         }
 

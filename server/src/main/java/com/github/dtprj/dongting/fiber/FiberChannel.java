@@ -58,11 +58,11 @@ public class FiberChannel<T> {
         }
     }
 
-    public FrameCallResult take(FrameCall<T> resumePoint) throws Throwable {
+    public FrameCallResult take(FrameCall<T> resumePoint)  {
         groupOfConsumer.checkGroup();
         if (queue.size() > 0) {
             T data = queue.removeFirst();
-            return resumePoint.execute(data);
+            return Fiber.resume(data, resumePoint);
         } else {
             return notEmptyCondition.await(noUseVoid -> {
                 T data = queue.removeFirst();

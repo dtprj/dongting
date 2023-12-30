@@ -111,7 +111,7 @@ public abstract class BenchBase {
     public abstract void test(int threadIndex, long startTime, int state);
 
     protected void logRt(long startTime, int state) {
-        if (LOG_RT && state == 1) {
+        if (LOG_RT && state == STATE_TEST) {
             long x = System.nanoTime() - startTime;
             while (x > maxNanos.longValue()) {
                 maxNanos.compareAndSet(maxNanos.longValue(), x);
@@ -121,13 +121,13 @@ public abstract class BenchBase {
     }
 
     protected void success(int state) {
-        if (state == 1) {
+        if (state == STATE_TEST) {
             successCount.increment();
         }
     }
 
     protected void fail(int state) {
-        if (state == 1) {
+        if (state == STATE_TEST) {
             failCount.increment();
         }
     }

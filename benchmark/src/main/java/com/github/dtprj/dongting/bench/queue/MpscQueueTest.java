@@ -1,8 +1,9 @@
 /**
  * Created on 2022/12/30.
  */
-package com.github.dtprj.dongting.bench;
+package com.github.dtprj.dongting.bench.queue;
 
+import com.github.dtprj.dongting.bench.BenchBase;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 
 import java.util.concurrent.atomic.AtomicInteger;
