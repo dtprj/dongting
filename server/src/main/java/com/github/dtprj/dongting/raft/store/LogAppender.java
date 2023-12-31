@@ -370,21 +370,21 @@ class LogAppender {
                     fiberGroup.requestShutdown();
                 }
             } else {
-                int lastItem = 0;
+                int lastTerm = 0;
                 long lastIndex = 0;
                 while (writeTaskQueue.size() > 0) {
                     if (writeTaskQueue.get(0).getFuture().isDone()) {
                         WriteTask head = writeTaskQueue.removeFirst();
                         if (head.lastTerm > 0) {
-                            lastItem = head.lastTerm;
+                            lastTerm = head.lastTerm;
                             lastIndex = head.lastIndex;
                         }
                     } else {
                         break;
                     }
                 }
-                if (lastItem > 0) {
-                    appendCallback.finish(lastItem, lastIndex);
+                if (lastTerm > 0) {
+                    appendCallback.finish(lastTerm, lastIndex);
                     if (lastIndex >= cache.getLastIndex()) {
                         noPendingCondition.signalAll();
                     }
