@@ -41,9 +41,6 @@ public class FiberGroup {
     @SuppressWarnings("FieldMayBeFinal")
     private volatile boolean shouldStop = false;
     private final static VarHandle SHOULD_STOP;
-
-    private long nextId;
-
     static {
         try {
             MethodHandles.Lookup l = MethodHandles.lookup();
@@ -52,6 +49,8 @@ public class FiberGroup {
             throw new Error(e);
         }
     }
+
+    private long nextId;
 
     boolean finished;
     boolean ready;
@@ -267,5 +266,9 @@ public class FiberGroup {
         });
         sb.append("--------------------------------------------------\n");
         log.info(sb.toString());
+    }
+
+    public Dispatcher getDispatcher() {
+        return dispatcher;
     }
 }

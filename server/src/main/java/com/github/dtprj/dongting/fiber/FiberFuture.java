@@ -98,12 +98,16 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     private void fireComplete0(T r, Throwable ex) {
-        fiberGroup.dispatcher.doInDispatcherThread(new FiberQueueTask() {
-            @Override
-            protected void run() {
-                complete0(r, ex);
-            }
-        });
+        if (Thread.currentThread() == fiberGroup.dispatcher.thread) {
+            complete0(r, ex);
+        } else {
+            fiberGroup.dispatcher.doInDispatcherThread(new FiberQueueTask() {
+                @Override
+                protected void run() {
+                    complete0(r, ex);
+                }
+            });
+        }
     }
 
     private void complete0(T result, Throwable ex) {

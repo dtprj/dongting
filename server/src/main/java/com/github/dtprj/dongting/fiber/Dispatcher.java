@@ -23,9 +23,12 @@ import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.ArrayList;
 import java.util.PriorityQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -48,12 +51,25 @@ public class Dispatcher extends AbstractLifeCircle {
     private boolean poll = true;
     private long pollTimeout = TimeUnit.MILLISECONDS.toNanos(50);
 
-    private boolean shouldStop = false;
+    @SuppressWarnings("FieldMayBeFinal")
+    private volatile boolean shouldStop = false;
+    private final static VarHandle SHOULD_STOP;
+    static {
+        try {
+            MethodHandles.Lookup l = MethodHandles.lookup();
+            SHOULD_STOP = l.findVarHandle(Dispatcher.class, "shouldStop", boolean.class);
+        } catch (Exception e) {
+            throw new Error(e);
+        }
+    }
+    private volatile boolean terminate;
 
     // fatal error will cause fiber exit
     private Throwable fatalError;
 
     private DtTime stopTimeout;
+
+    private final DispatcherExecutor executor = new DispatcherExecutor(this);
 
     public Dispatcher(String name) {
         thread = new DispatcherThread(this::run, name);
@@ -64,7 +80,7 @@ public class Dispatcher extends AbstractLifeCircle {
         boolean b = shareQueue.offer(new FiberQueueTask() {
             @Override
             protected void run() {
-                if (shouldStop) {
+                if (isShouldStopPlain()) {
                     future.completeExceptionally(new FiberException("dispatcher should stop"));
                 } else {
                     groups.add(fiberGroup);
@@ -88,7 +104,7 @@ public class Dispatcher extends AbstractLifeCircle {
         shareQueue.offer(new FiberQueueTask() {
             @Override
             protected void run() {
-                shouldStop = true;
+                SHOULD_STOP.setVolatile(Dispatcher.this, true);
                 stopTimeout = timeout;
                 groups.forEach(FiberGroup::requestShutdown);
             }
@@ -97,9 +113,9 @@ public class Dispatcher extends AbstractLifeCircle {
 
     private void run() {
         ArrayList<FiberQueueTask> localData = new ArrayList<>(64);
-        while (!shouldStop || !groups.isEmpty()) {
+        while (!isShouldStopPlain() || !groups.isEmpty()) {
             runImpl(localData);
-            if (shouldStop && stopTimeout != null && stopTimeout.isTimeout(ts)) {
+            if (isShouldStopPlain() && stopTimeout != null && stopTimeout.isTimeout(ts)) {
                 long millis = stopTimeout.getTimeout(TimeUnit.MILLISECONDS);
                 log.warn("dispatcher stop timeout: {}ms", millis);
                 for(FiberGroup g : groups){
@@ -110,6 +126,7 @@ public class Dispatcher extends AbstractLifeCircle {
         }
         shareQueue.shutdown();
         runImpl(localData);
+        terminate = true;
         log.info("fiber dispatcher exit: {}", thread.getName());
     }
 
@@ -497,5 +514,21 @@ public class Dispatcher extends AbstractLifeCircle {
 
     public Timestamp getTs() {
         return ts;
+    }
+
+    private boolean isShouldStopPlain() {
+        return (boolean) SHOULD_STOP.get(this);
+    }
+
+    boolean isShouldStopVolatile() {
+        return (boolean) SHOULD_STOP.getVolatile(this);
+    }
+
+    boolean isTerminate() {
+        return terminate;
+    }
+
+    public ExecutorService getExecutor() {
+        return executor;
     }
 }

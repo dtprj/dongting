@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IndexedQueue;
-import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.DoInLockFrame;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -34,7 +33,7 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.io.RandomAccessFile;
 import java.nio.channels.AsynchronousFileChannel;
 import java.nio.file.Files;
 import java.nio.file.OpenOption;
@@ -85,6 +84,10 @@ abstract class FileQueue {
         this.fileOpsLock = g.newLock();
     }
 
+    protected ExecutorService getChannelExecutor() {
+        return ioExecutor;
+    }
+
     protected final long getFileSize() {
         return fileSize;
     }
@@ -114,7 +117,8 @@ abstract class FileQueue {
                 HashSet<OpenOption> openOptions = new HashSet<>();
                 openOptions.add(StandardOpenOption.READ);
                 openOptions.add(StandardOpenOption.WRITE);
-                AsynchronousFileChannel channel = AsynchronousFileChannel.open(f.toPath(), openOptions, ioExecutor);
+                AsynchronousFileChannel channel = AsynchronousFileChannel.open(f.toPath(),
+                        openOptions, getChannelExecutor());
                 queue.addLast(new LogFile(startPos, startPos + getFileSize(), channel,
                         f, groupConfig.getFiberGroup()));
                 count++;
@@ -203,8 +207,6 @@ abstract class FileQueue {
     }
 
     private class AllocateFrame extends DoInLockFrame<Void> {
-
-        private long startTime;
         private long fileStartPos;
         private String fileName;
 
@@ -219,42 +221,37 @@ abstract class FileQueue {
 
         @Override
         protected FrameCallResult afterGetLock() {
-            startTime = System.currentTimeMillis();
             fileStartPos = queueEndPosition;
             fileName = String.format("%020d", fileStartPos);
-
-            FiberFuture<Pair<File, AsynchronousFileChannel>> createFileFuture = getFiberGroup().newFuture();
+            file = new File(dir, fileName);
+            FiberFuture<Void> createFileFuture = getFiberGroup().newFuture();
             ioExecutor.execute(() -> {
+                long startTime = System.currentTimeMillis();
                 try {
-                    File f = new File(dir, fileName);
+                    RandomAccessFile raf = new RandomAccessFile(file, "rw");
+                    raf.setLength(getFileSize());
+                    raf.getFD().sync();
+                    raf.close();
                     HashSet<OpenOption> openOptions = new HashSet<>();
                     openOptions.add(StandardOpenOption.READ);
                     openOptions.add(StandardOpenOption.WRITE);
                     openOptions.add(StandardOpenOption.CREATE);
-                    AsynchronousFileChannel channel = AsynchronousFileChannel.open(f.toPath(), openOptions, ioExecutor);
-                    createFileFuture.fireComplete(new Pair<>(f, channel));
+                    channel = AsynchronousFileChannel.open(file.toPath(), openOptions, getChannelExecutor());
+                    long time = System.currentTimeMillis() - startTime;
+                    createFileFuture.fireComplete(null);
+                    log.info("allocate file done, cost {} ms: {}", time, file.getPath());
                 } catch (Throwable e) {
+                    long time = System.currentTimeMillis() - startTime;
                     createFileFuture.fireCompleteExceptionally(e);
+                    log.info("allocate file failed, cost {} ms: {}", time, file, e);
                 }
             });
             return createFileFuture.await(this::afterCreateFile);
         }
 
-        private FrameCallResult afterCreateFile(Pair<File, AsynchronousFileChannel> input) {
-            file = input.getLeft();
-            channel = input.getRight();
+        private FrameCallResult afterCreateFile(Void v) {
             logFile = new LogFile(fileStartPos, fileStartPos + getFileSize(), channel,
                     file, getFiberGroup());
-            ByteBuffer buf = ByteBuffer.allocate(1);
-            // no retry here, allocateSync() will retry
-            AsyncIoTask t = new AsyncIoTask(groupConfig.getFiberGroup(), logFile);
-            FiberFuture<Void> writeFuture = t.writeAndFlush(buf, getFileSize() - 1, true);
-            return writeFuture.await(this::afterWrite);
-        }
-
-        private FrameCallResult afterWrite(Void unused) {
-            long time = System.currentTimeMillis() - startTime;
-            log.info("allocate file done, cost {} ms: {}", time, logFile.getFile().getPath());
             queue.addLast(logFile);
             queueEndPosition = logFile.endPos;
             return Fiber.frameReturn();
@@ -262,11 +259,9 @@ abstract class FileQueue {
 
         @Override
         protected FrameCallResult handle(Throwable ex) throws Throwable {
-            long time = System.currentTimeMillis() - startTime;
             if (channel != null) {
                 DtUtil.close(channel);
             }
-            log.info("allocate file failed, cost {} ms: {}", time, file, ex);
             throw ex;
         }
     }
