@@ -120,7 +120,7 @@ public class FiberFuture<T> extends WaitSource {
         }
         this.done = true;
         // if group finished, no ops
-        signalAll0();
+        signalAll0(true);
     }
 
     public FrameCallResult await(FrameCall<T> resumePoint) {

@@ -94,7 +94,7 @@ public class FiberLock extends WaitSource {
                 if (firstWaiter != null) {
                     // prevent other fiber takes the lock
                     owner = firstWaiter;
-                    signal0();
+                    signal0(true);
                 }
             }
         } else {

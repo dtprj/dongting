@@ -50,12 +50,17 @@ public class FiberCondition extends WaitSource {
 
     public void signal() {
         Dispatcher.getCurrentFiberAndCheck(fiberGroup);
-        signal0();
+        signal0(true);
+    }
+
+    public void signalLater() {
+        Dispatcher.getCurrentFiberAndCheck(fiberGroup);
+        signal0(false);
     }
 
     public void signalAll() {
         Dispatcher.getCurrentFiberAndCheck(fiberGroup);
-        signalAll0();
+        signalAll0(true);
     }
 
     public FrameCallResult await(FrameCall<Void> resumePoint) {

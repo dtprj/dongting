@@ -259,7 +259,7 @@ public class Dispatcher extends AbstractLifeCircle {
             fiber.finished = true;
             fiber.ready = false;
             g.removeFiber(fiber);
-            fiber.signalAll0();
+            fiber.signalAll0(false);
         } finally {
             g.currentFiber = null;
             fatalError = null;

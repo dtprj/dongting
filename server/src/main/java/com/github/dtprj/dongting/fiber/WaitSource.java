@@ -96,25 +96,25 @@ abstract class WaitSource {
         return result;
     }
 
-    void signal0() {
+    void signal0(boolean addFirst) {
         if (fiberGroup.finished) {
             return;
         }
         Fiber f = popHeadWaiter();
         if (f != null) {
             fiberGroup.dispatcher.tryRemoveFromScheduleQueue(f);
-            fiberGroup.tryMakeFiberReady(f, true);
+            fiberGroup.tryMakeFiberReady(f, addFirst);
         }
     }
 
-    void signalAll0() {
+    void signalAll0(boolean addFirst) {
         if (fiberGroup.finished) {
             return;
         }
         Fiber f;
         while ((f = popTailWaiter()) != null) {
             fiberGroup.dispatcher.tryRemoveFromScheduleQueue(f);
-            fiberGroup.tryMakeFiberReady(f, true);
+            fiberGroup.tryMakeFiberReady(f, addFirst);
         }
     }
 

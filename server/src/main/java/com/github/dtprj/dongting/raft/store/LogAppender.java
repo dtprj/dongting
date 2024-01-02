@@ -102,8 +102,7 @@ class LogAppender {
         this.needAppendCondition = fiberGroup.newCondition("NeedAppend-" + groupConfig.getGroupId());
         this.writeStopIndicator = logFileQueue::isClosed;
         this.noPendingCondition = fiberGroup.newCondition("NoPending-" + groupConfig.getGroupId());
-        FsyncFiberFrame fsyncFiberFrame = new FsyncFiberFrame();
-        this.fsyncFiber = new Fiber("fsync-" + groupConfig.getGroupId(), fiberGroup, fsyncFiberFrame);
+        this.fsyncFiber = new Fiber("fsync-" + groupConfig.getGroupId(), fiberGroup, new FsyncFiberFrame());
         this.needFsyncCondition = fiberGroup.newCondition("NeedFsync-" + groupConfig.getGroupId());
     }
 
@@ -186,7 +185,7 @@ class LogAppender {
     }
 
     public void append() {
-        needAppendCondition.signal();
+        needAppendCondition.signalLater();
     }
 
     private ByteBuffer borrowBuffer(int size) {
@@ -412,7 +411,7 @@ class LogAppender {
                     }
                 }
                 if (syncWriteTaskQueueHead != null) {
-                    needFsyncCondition.signal();
+                    needFsyncCondition.signalLater();
                 }
             }
         } finally {

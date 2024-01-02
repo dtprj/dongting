@@ -58,7 +58,7 @@ public class FiberChannel<T> {
     private void offer0(T data) {
         queue.addLast(data);
         if (queue.size() == 1) {
-            notEmptyCondition.signal0();
+            notEmptyCondition.signal0(true);
         }
     }
 
