@@ -73,7 +73,8 @@ class LogAppender {
     private final AppendFiberFrame appendFiberFrame = new AppendFiberFrame();
     private final FiberCondition needAppendCondition;
 
-    private boolean inSync;
+    private final Fiber fsyncFiber;
+    private final FiberCondition needFsyncCondition;
 
     // 4 temp status fields, should reset in writeData()
     private final ArrayList<LogItem> items = new ArrayList<>(32);
@@ -101,22 +102,32 @@ class LogAppender {
         this.needAppendCondition = fiberGroup.newCondition("NeedAppend-" + groupConfig.getGroupId());
         this.writeStopIndicator = logFileQueue::isClosed;
         this.noPendingCondition = fiberGroup.newCondition("NoPending-" + groupConfig.getGroupId());
+        FsyncFiberFrame fsyncFiberFrame = new FsyncFiberFrame();
+        this.fsyncFiber = new Fiber("fsync-" + groupConfig.getGroupId(), fiberGroup, fsyncFiberFrame);
+        this.needFsyncCondition = fiberGroup.newCondition("NeedFsync-" + groupConfig.getGroupId());
     }
 
     public void startFiber() {
         appendFiber.start();
+        fsyncFiber.start();
     }
 
     public FiberFuture<Void> close() {
         needAppendCondition.signal();
+        needFsyncCondition.signal();
         noPendingCondition.signalAll();
-        FiberFuture<Void> f;
+        FiberFuture<Void> f1, f2;
         if (appendFiber.isStarted()) {
-            f = appendFiber.join();
+            f1 = appendFiber.join();
         } else {
-            f = FiberFuture.completedFuture(groupConfig.getFiberGroup(), null);
+            f1 = FiberFuture.completedFuture(groupConfig.getFiberGroup(), null);
         }
-        return f;
+        if (fsyncFiber.isStarted()) {
+            f2 = fsyncFiber.join();
+        } else {
+            f2 = FiberFuture.completedFuture(groupConfig.getFiberGroup(), null);
+        }
+        return FiberFuture.allOf(f1, f2);
     }
 
     private class AppendFiberFrame extends FiberFrame<Void> {
@@ -358,7 +369,13 @@ class LogAppender {
 
         writeTaskQueue.addLast(task);
 
-        task.getFuture().registerCallback(new WriteFutureCallbackFrame(task));
+        task.getFuture().registerCallback(new FiberFuture.FutureCallback<>() {
+            @Override
+            protected FrameCallResult onCompleted(Void unused, Throwable ex) {
+                processWriteResult(task, ex);
+                return Fiber.frameReturn();
+            }
+        });
 
         writeStartPosInFile += bytes;
         bytesToWrite -= bytes;
@@ -367,30 +384,20 @@ class LogAppender {
         return borrowBuffer(bytesToWrite);
     }
 
-    private class WriteFutureCallbackFrame extends FiberFuture.FutureCallback<Void> {
-
-        private final WriteTask wt;
-
-        WriteFutureCallbackFrame(WriteTask wt) {
-            this.wt = wt;
-        }
-
-        @Override
-        protected FrameCallResult onCompleted(Void unused, Throwable ex) {
-            try {
-                if (logFileQueue.isClosed()) {
-                    return Fiber.frameReturn();
+    private void processWriteResult(WriteTask wt, Throwable ex) {
+        try {
+            if (logFileQueue.isClosed()) {
+                return;
+            }
+            if (ex != null) {
+                //noinspection StatementWithEmptyBody
+                if (DtUtil.rootCause(ex) instanceof FiberCancelException) {
+                    // no ops
+                } else {
+                    log.error("log append fail", ex);
+                    fiberGroup.requestShutdown();
                 }
-                if (ex != null) {
-                    //noinspection StatementWithEmptyBody
-                    if (DtUtil.rootCause(ex) instanceof FiberCancelException) {
-                        // no ops
-                    } else {
-                        log.error("log append fail", ex);
-                        fiberGroup.requestShutdown();
-                    }
-                    return Fiber.frameReturn();
-                }
+            } else {
                 while (writeTaskQueue.size() > 0) {
                     if (!writeTaskQueue.get(0).getFuture().isDone()) {
                         break;
@@ -404,26 +411,26 @@ class LogAppender {
                         }
                     }
                 }
-                if (!inSync && syncWriteTaskQueueHead != null) {
-                    inSync = true;
-                    return Fiber.call(new SyncFrame(), this::justReturn);
-                } else {
-                    return Fiber.frameReturn();
+                if (syncWriteTaskQueueHead != null) {
+                    needFsyncCondition.signal();
                 }
-            } finally {
-                if (wt.getIoBuffer() != null) {
-                    groupConfig.getDirectPool().release(wt.getIoBuffer());
-                    wt.setIoBuffer(null);
-                }
+            }
+        } finally {
+            if (wt.getIoBuffer() != null) {
+                groupConfig.getDirectPool().release(wt.getIoBuffer());
+                wt.setIoBuffer(null);
             }
         }
     }
 
-    private class SyncFrame extends FiberFrame<Void> {
+    private class FsyncFiberFrame extends FiberFrame<Void> {
         @Override
         public FrameCallResult execute(Void input) {
-            if (syncWriteTaskQueueHead == null) {
+            if (logFileQueue.isClosed()) {
                 return Fiber.frameReturn();
+            }
+            if (syncWriteTaskQueueHead == null) {
+                return needFsyncCondition.await(this);
             } else {
                 return fsync().await(this::afterFsync);
             }
@@ -463,12 +470,6 @@ class LogAppender {
                 syncWriteTaskQueueHead = head.nextNeedSyncTask;
             }
             return Fiber.resume(null, this);
-        }
-
-        @Override
-        protected FrameCallResult doFinally() {
-            inSync = false;
-            return Fiber.frameReturn();
         }
     }
 
