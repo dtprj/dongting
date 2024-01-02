@@ -51,6 +51,7 @@ import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -188,22 +189,25 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
     }
 
     private class StoreFiberFrame extends FiberFrame<Void> {
+        private final ArrayList<ReqData> list = new ArrayList<>(2048);
 
         @Override
         public FrameCallResult execute(Void input) {
-            return queue.take(this::afterTake);
+            return queue.takeAll(list, this::afterTake);
         }
 
-        private FrameCallResult afterTake(ReqData reqData) {
-            LogItem item = createItems(nextIndex++, ts, reqData.frame.getBody());
-            RaftInput ri = new RaftInput(0, null, null, null, 0);
-            RaftTask rt = new RaftTask(ts, LogItem.TYPE_NORMAL, ri, null);
-            rt.setItem(item);
-            raftStatus.getTailCache().put(item.getIndex(), rt);
+        private FrameCallResult afterTake(Void v) {
+            for (ReqData reqData : list) {
+                LogItem item = createItems(nextIndex++, ts, reqData.frame.getBody());
+                RaftInput ri = new RaftInput(0, null, null, null, 0);
+                RaftTask rt = new RaftTask(ts, LogItem.TYPE_NORMAL, ri, null);
+                rt.setItem(item);
+                raftStatus.getTailCache().put(item.getIndex(), rt);
 
-            reqData.raftLogIndex = item.getIndex();
-            pending.addLast(reqData);
-
+                reqData.raftLogIndex = item.getIndex();
+                pending.addLast(reqData);
+            }
+            list.clear();
             raftLog.append();
             return Fiber.resume(null, this);
         }

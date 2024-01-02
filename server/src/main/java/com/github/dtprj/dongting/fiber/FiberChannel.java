@@ -17,6 +17,8 @@ package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.common.IndexedQueue;
 
+import java.util.Collection;
+
 /**
  * This queue is unbound and only block consumer.
  *
@@ -60,16 +62,26 @@ public class FiberChannel<T> {
         }
     }
 
-    public FrameCallResult take(FrameCall<T> resumePoint)  {
+    public FrameCallResult take(FrameCall<T> resumePoint) {
         groupOfConsumer.checkGroup();
-        if (queue.size() > 0) {
-            T data = queue.removeFirst();
+        T data = queue.removeFirst();
+        if (data != null) {
             return Fiber.resume(data, resumePoint);
         } else {
-            return notEmptyCondition.await(noUseVoid -> {
-                T data = queue.removeFirst();
-                return resumePoint.execute(data);
-            });
+            return notEmptyCondition.await(noUseVoid -> take(resumePoint));
+        }
+    }
+
+    public FrameCallResult takeAll(Collection<T> c, FrameCall<Void> resumePoint) {
+        groupOfConsumer.checkGroup();
+        if (queue.size() > 0) {
+            T data;
+            while ((data = queue.removeFirst()) != null) {
+                c.add(data);
+            }
+            return Fiber.resume(null, resumePoint);
+        } else {
+            return notEmptyCondition.await(noUseVoid -> takeAll(c, resumePoint));
         }
     }
 }
