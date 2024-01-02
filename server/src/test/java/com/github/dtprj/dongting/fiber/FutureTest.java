@@ -279,9 +279,13 @@ public class FutureTest extends AbstractFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 latch.countDown();
-                f.registerCallback((value, ex) -> {
-                    futureResult.set(value);
-                    futureEx.set(ex);
+                f.registerCallback(new FiberFuture.FutureCallback<>() {
+                    @Override
+                    protected FrameCallResult onCompleted(Integer value, Throwable ex) {
+                        futureResult.set(value);
+                        futureEx.set(ex);
+                        return Fiber.frameReturn();
+                    }
                 });
                 return Fiber.frameReturn();
             }
@@ -303,9 +307,13 @@ public class FutureTest extends AbstractFiberTest {
         fiberGroup.fireFiber(new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                f.registerCallback((value, ex) -> {
-                    futureResult.set(value);
-                    futureEx.set(ex);
+                f.registerCallback(new FiberFuture.FutureCallback<>() {
+                    @Override
+                    protected FrameCallResult onCompleted(Integer value, Throwable ex) {
+                        futureResult.set(value);
+                        futureEx.set(ex);
+                        return Fiber.frameReturn();
+                    }
                 });
                 return Fiber.frameReturn();
             }
@@ -325,9 +333,13 @@ public class FutureTest extends AbstractFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 latch.countDown();
-                f.registerCallback((value, ex) -> {
-                    futureResult.set(value);
-                    futureEx.set(ex);
+                f.registerCallback(new FiberFuture.FutureCallback<>() {
+                    @Override
+                    protected FrameCallResult onCompleted(Integer value, Throwable ex) {
+                        futureResult.set(value);
+                        futureEx.set(ex);
+                        return Fiber.frameReturn();
+                    }
                 });
                 return Fiber.frameReturn();
             }
@@ -352,9 +364,13 @@ public class FutureTest extends AbstractFiberTest {
         fiberGroup.fireFiber(new Fiber("f", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                f.registerCallback((value, ex) -> {
-                    futureResult.set(value);
-                    futureEx.set(ex);
+                f.registerCallback(new FiberFuture.FutureCallback<>() {
+                    @Override
+                    protected FrameCallResult onCompleted(Integer value, Throwable ex) {
+                        futureResult.set(value);
+                        futureEx.set(ex);
+                        return Fiber.frameReturn();
+                    }
                 });
                 return Fiber.frameReturn();
             }

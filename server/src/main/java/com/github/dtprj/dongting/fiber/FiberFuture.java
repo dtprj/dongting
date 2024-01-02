@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.common.DtUtil;
 
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -133,7 +132,10 @@ public class FiberFuture<T> extends WaitSource {
         return Dispatcher.awaitOn(this, millis, resumePoint);
     }
 
-    private void registerCallback(FiberFrame<Void> callback) {
+    /**
+     * this method should call in dispatcher thread
+     */
+    private void registerCallback0(FiberFrame<Void> callback) {
         fiberGroup.checkGroup();
         Fiber callbackFiber = new Fiber("future-callback", fiberGroup, callback);
         callbackFiber.start();
@@ -142,33 +144,38 @@ public class FiberFuture<T> extends WaitSource {
     /**
      * this method should call in dispatcher thread
      */
-    public void registerCallback(BiConsumer<T, Throwable> callback) {
-        registerCallback(new FiberFrame<>() {
-            private boolean callbackCalled = false;
+    public void registerCallback(FutureCallback<T> callback) {
+        callback.future = this;
+        registerCallback0(callback);
+    }
 
-            @Override
-            public FrameCallResult execute(Void input) {
-                FiberFuture<T> f = FiberFuture.this;
-                return f.await(this::resume);
-            }
+    public static abstract class FutureCallback<T> extends FiberFrame<Void> {
 
-            private FrameCallResult resume(T t) {
-                callbackCalled = true;
-                callback.accept(t, null);
-                return Fiber.frameReturn();
-            }
+        private FiberFuture<T> future;
 
-            @Override
-            protected FrameCallResult handle(Throwable ex) throws Throwable {
-                // maybe callback failed
-                if (!callbackCalled) {
-                    callback.accept(null, ex);
-                } else {
-                    throw ex;
+        @Override
+        public final FrameCallResult execute(Void input) {
+            return Fiber.call(new FiberFrame<>() {
+                @Override
+                public FrameCallResult execute(Void input) {
+                    return future.await(this::afterFutureCompleted);
                 }
-                return Fiber.frameReturn();
-            }
-        });
+                private FrameCallResult afterFutureCompleted(T t) {
+                    return Fiber.frameReturn();
+                }
+                @Override
+                protected FrameCallResult handle(Throwable ex) {
+                    // catch ex
+                    return Fiber.frameReturn();
+                }
+            }, this::resume);
+        }
+
+        private FrameCallResult resume(Void v) {
+            return onCompleted(future.getResult(), future.getEx());
+        }
+
+        protected abstract FrameCallResult onCompleted(T t, Throwable ex);
     }
 
     /**
@@ -176,7 +183,7 @@ public class FiberFuture<T> extends WaitSource {
      */
     public <T2> FiberFuture<T2> convert(Function<T, T2> converter) {
         FiberFuture<T2> newFuture = new FiberFuture<>(fiberGroup);
-        registerCallback(new FiberFrame<>() {
+        registerCallback0(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 FiberFuture<T> f = FiberFuture.this;
@@ -203,12 +210,16 @@ public class FiberFuture<T> extends WaitSource {
      */
     public <T2> FiberFuture<T2> convertWithHandle(BiFunction<T, Throwable, T2> converter) {
         FiberFuture<T2> newFuture = new FiberFuture<>(fiberGroup);
-        registerCallback((t, ex) -> {
-            try {
-                T2 t2 = converter.apply(t, ex);
-                newFuture.complete(t2);
-            } catch (Throwable newEx) {
-                newFuture.completeExceptionally(newEx);
+        registerCallback(new FutureCallback<>() {
+            @Override
+            protected FrameCallResult onCompleted(T t, Throwable ex) {
+                try {
+                    T2 t2 = converter.apply(t, ex);
+                    newFuture.complete(t2);
+                } catch (Throwable newEx) {
+                    newFuture.completeExceptionally(newEx);
+                }
+                return Fiber.frameReturn();
             }
         });
         return newFuture;

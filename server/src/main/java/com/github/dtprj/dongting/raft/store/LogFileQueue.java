@@ -197,14 +197,7 @@ class LogFileQueue extends FileQueue {
 
     public FiberFuture<Void> close() {
         closed = true;
-        logAppender.needAppendCondition.signal();
-        FiberFuture<Void> f;
-        if (logAppender.appendFiber.isStarted()) {
-            f = logAppender.appendFiber.join();
-        } else {
-            f = FiberFuture.completedFuture(groupConfig.getFiberGroup(), null);
-        }
-        return f.convertWithHandle((v, ex) -> {
+        return logAppender.close().convertWithHandle((v, ex) -> {
             if (ex != null) {
                 log.error("close log file queue failed", ex);
             }

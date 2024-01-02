@@ -25,7 +25,7 @@ public class MockExecutors {
     private static final ExecutorService MOCK_IO_EXECUTOR;
 
     static {
-        MOCK_IO_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+        MOCK_IO_EXECUTOR = Executors.newFixedThreadPool(4, r -> {
             Thread t = new Thread(r, "MockIOExecutor");
             t.setDaemon(true);
             return t;

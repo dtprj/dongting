@@ -225,6 +225,18 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         return future;
     }
 
+    public ByteBuffer getIoBuffer() {
+        return ioBuffer;
+    }
+
+    public void setIoBuffer(ByteBuffer ioBuffer) {
+        this.ioBuffer = ioBuffer;
+    }
+
+    public DtFile getDtFile() {
+        return dtFile;
+    }
+
     // this method set to protected for mock error in unit test
     protected void doFlush() throws IOException {
         if (flush) {
