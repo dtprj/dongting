@@ -70,6 +70,7 @@ public class IoMode1 implements CompletionHandler<Integer, IoMode1.WriteTask> {
 
     public void start() throws Exception {
         new Random().nextBytes(DATA);
+        new File("target").mkdir();
         RandomAccessFile raf = new RandomAccessFile(file, "rw");
         raf.setLength(FILE_SIZE);
         raf.getFD().sync();

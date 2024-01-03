@@ -38,7 +38,7 @@ public class SyncTest {
 
     public static void main(String[] args) throws Exception {
         new Random().nextBytes(DATA);
-
+        new File("target").mkdir();
         testAsyncIO(setup("target/test1.txt"));
         testSyncIO(setup("target/test2.txt"));
         testBIO(setup("target/test3.txt"));
