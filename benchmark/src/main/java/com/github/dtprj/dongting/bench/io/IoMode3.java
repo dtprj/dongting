@@ -118,13 +118,13 @@ public class IoMode3 extends IoModeBase implements CompletionHandler<Integer, Wr
         long totalSyncNanos = 0;
         int totalTimes = 0;
         long totalLatencyNanos = 0;
-        for (int flushBeginIndex = 0; flushBeginIndex < COUNT; ) {
+        for (int syncBeginIndex = 0; syncBeginIndex < COUNT; ) {
             lock.lock();
             try {
-                while (writeFinishIndex == 0 || waitWriteFinishQueue.size() > 0) {
+                while (syncBeginIndex == writeFinishIndex || waitWriteFinishQueue.size() > 0) {
                     writeFinish.await();
                 }
-                flushBeginIndex = writeFinishIndex;
+                syncBeginIndex = writeFinishIndex;
                 sync = true;
             } finally {
                 lock.unlock();
@@ -138,11 +138,11 @@ public class IoMode3 extends IoModeBase implements CompletionHandler<Integer, Wr
             lock.lock();
             try {
                 long now = System.nanoTime();
-                syncFinishIndex = flushBeginIndex;
+                syncFinishIndex = syncBeginIndex;
                 syncFinish.signal();
                 while (waitSyncFinishQueue.size() > 0) {
                     WriteTask t = waitSyncFinishQueue.getFirst();
-                    if (t.index <= flushBeginIndex) {
+                    if (t.index <= syncBeginIndex) {
                         waitSyncFinishQueue.removeFirst();
                         totalLatencyNanos += now - t.writeBeginNanos;
                     } else {

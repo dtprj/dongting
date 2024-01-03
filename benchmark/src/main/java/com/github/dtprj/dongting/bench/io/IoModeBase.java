@@ -52,14 +52,14 @@ public abstract class IoModeBase {
             } catch (Exception e) {
                 e.printStackTrace();
             }
-        }).start();
+        }, "writer").start();
         new Thread(() -> {
             try {
                 startSync();
             } catch (Exception e) {
                 e.printStackTrace();
             }
-        }).start();
+        }, "syncer").start();
     }
 
     protected abstract void startWriter() throws Exception;
