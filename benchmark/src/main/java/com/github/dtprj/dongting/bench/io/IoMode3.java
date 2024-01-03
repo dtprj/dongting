@@ -25,12 +25,12 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * write instantly, sync in batch.
+ * don't write and sync concurrently.
  *
  * @author huangli
  */
 @SuppressWarnings({"CallToPrintStackTrace", "SizeReplaceableByIsEmpty"})
-public class IoMode1 extends IoModeBase implements CompletionHandler<Integer, WriteTask> {
+public class IoMode3 extends IoModeBase implements CompletionHandler<Integer, WriteTask> {
 
     private final LinkedList<WriteTask> waitWriteFinishQueue = new LinkedList<>();
     private final LinkedList<WriteTask> waitSyncFinishQueue = new LinkedList<>();
@@ -40,16 +40,17 @@ public class IoMode1 extends IoModeBase implements CompletionHandler<Integer, Wr
     private final Condition writeFinish = lock.newCondition();
     private int writeFinishIndex;
     private int syncFinishIndex;
+    private boolean sync;
 
-    private final AsynchronousFileChannel channel;
+    private AsynchronousFileChannel channel;
 
     private long totalWriteLatencyNanos;
 
     public static void main(String[] args) throws Exception {
-        new IoMode1().start();
+        new IoMode3().start();
     }
 
-    public IoMode1() throws Exception {
+    public IoMode3() throws Exception {
         channel = AsynchronousFileChannel.open(file.toPath(),
                 StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.READ);
     }
@@ -62,7 +63,7 @@ public class IoMode1 extends IoModeBase implements CompletionHandler<Integer, Wr
             WriteTask task = new WriteTask();
             lock.lock();
             try {
-                while (writeBeginIndex - syncFinishIndex >= MAX_PENDING) {
+                while (sync || writeBeginIndex - syncFinishIndex >= MAX_PENDING) {
                     syncFinish.await();
                 }
                 task.writeBeginNanos = System.nanoTime();
@@ -88,19 +89,17 @@ public class IoMode1 extends IoModeBase implements CompletionHandler<Integer, Wr
         lock.lock();
 
         try {
-            boolean notify = false;
             while (waitWriteFinishQueue.size() > 0) {
                 WriteTask t = waitWriteFinishQueue.getFirst();
                 if (t.writeFinish) {
                     waitWriteFinishQueue.removeFirst();
                     writeFinishIndex++;
                     waitSyncFinishQueue.add(t);
-                    notify = true;
                 } else {
                     break;
                 }
             }
-            if (notify) {
+            if (waitWriteFinishQueue.size() == 0) {
                 writeFinish.signal();
             }
         } finally {
@@ -122,10 +121,11 @@ public class IoMode1 extends IoModeBase implements CompletionHandler<Integer, Wr
         for (int flushBeginIndex = 0; flushBeginIndex < COUNT; ) {
             lock.lock();
             try {
-                while (waitSyncFinishQueue.size() == 0) {
+                while (writeFinishIndex == 0 || waitWriteFinishQueue.size() > 0) {
                     writeFinish.await();
                 }
                 flushBeginIndex = writeFinishIndex;
+                sync = true;
             } finally {
                 lock.unlock();
             }
@@ -149,6 +149,7 @@ public class IoMode1 extends IoModeBase implements CompletionHandler<Integer, Wr
                         break;
                     }
                 }
+                sync = false;
             } finally {
                 lock.unlock();
             }
