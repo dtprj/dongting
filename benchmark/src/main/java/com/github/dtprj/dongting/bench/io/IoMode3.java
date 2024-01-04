@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.bench.io;
 
+import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.CompletionHandler;
@@ -38,11 +39,12 @@ public class IoMode3 extends IoModeBase implements CompletionHandler<Integer, Wr
     private final ReentrantLock lock = new ReentrantLock();
     private final Condition syncFinish = lock.newCondition();
     private final Condition writeFinish = lock.newCondition();
-    private int writeFinishIndex;
-    private int syncFinishIndex;
+    private int writeFinishIndex = -1;
+    private int syncFinishIndex = -1;
     private boolean sync;
 
-    private AsynchronousFileChannel channel;
+    private final File file;
+    private final AsynchronousFileChannel channel;
 
     private long totalWriteLatencyNanos;
 
@@ -51,6 +53,7 @@ public class IoMode3 extends IoModeBase implements CompletionHandler<Integer, Wr
     }
 
     public IoMode3() throws Exception {
+        file = createFile("testIO3");
         channel = AsynchronousFileChannel.open(file.toPath(),
                 StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.READ);
     }
@@ -61,13 +64,13 @@ public class IoMode3 extends IoModeBase implements CompletionHandler<Integer, Wr
         for (int writeBeginIndex = 0; writeBeginIndex < COUNT; writeBeginIndex++) {
             ByteBuffer buf = ByteBuffer.wrap(DATA);
             WriteTask task = new WriteTask();
+            task.writeBeginNanos = System.nanoTime();
+            task.index = writeBeginIndex;
             lock.lock();
             try {
                 while (sync || writeBeginIndex - syncFinishIndex >= MAX_PENDING) {
                     syncFinish.await();
                 }
-                task.writeBeginNanos = System.nanoTime();
-                task.index = writeBeginIndex;
                 waitWriteFinishQueue.add(task);
             } finally {
                 lock.unlock();
@@ -118,10 +121,11 @@ public class IoMode3 extends IoModeBase implements CompletionHandler<Integer, Wr
         long totalSyncNanos = 0;
         int totalTimes = 0;
         long totalLatencyNanos = 0;
-        for (int syncBeginIndex = 0; syncBeginIndex < COUNT; ) {
+        while (syncFinishIndex < COUNT - 1) {
+            int syncBeginIndex;
             lock.lock();
             try {
-                while (syncBeginIndex == writeFinishIndex || waitWriteFinishQueue.size() > 0) {
+                while (writeFinishIndex < 0 || waitWriteFinishQueue.size() > 0) {
                     writeFinish.await();
                 }
                 syncBeginIndex = writeFinishIndex;
@@ -154,7 +158,6 @@ public class IoMode3 extends IoModeBase implements CompletionHandler<Integer, Wr
                 lock.unlock();
             }
         }
-        channel.close();
 
         long totalTime = System.nanoTime() - startTime;
         System.out.println("avg sync latency: " + totalLatencyNanos / COUNT / 1000 + " us");
@@ -165,6 +168,8 @@ public class IoMode3 extends IoModeBase implements CompletionHandler<Integer, Wr
         System.out.println("avg sync batch: " + 1.0 * COUNT / totalTimes);
 
         System.out.println("total time: " + totalTime / 1000 / 1000 + " ms");
+
+        channel.close();
         Files.delete(file.toPath());
     }
 }

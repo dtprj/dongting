@@ -33,15 +33,21 @@ public abstract class IoModeBase {
 
     protected long startTime;
 
-    protected final File file = new File("target/test");
-
-    public IoModeBase() throws Exception {
+    public IoModeBase() {
         new Random().nextBytes(DATA);
-        new File("target").mkdir();
-        RandomAccessFile raf = new RandomAccessFile(file, "rw");
+    }
+
+    protected File createFile(String name) throws Exception {
+        File dir = new File("target");
+        if (!dir.exists()) {
+            dir.mkdirs();
+        }
+        File f = new File(dir, name);
+        RandomAccessFile raf = new RandomAccessFile(f, "rw");
         raf.setLength(FILE_SIZE);
         raf.getFD().sync();
         raf.close();
+        return f;
     }
 
     public void start() throws Exception {
@@ -49,20 +55,21 @@ public abstract class IoModeBase {
         new Thread(() -> {
             try {
                 startWriter();
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 e.printStackTrace();
             }
         }, "writer").start();
         new Thread(() -> {
             try {
                 startSync();
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 e.printStackTrace();
             }
         }, "syncer").start();
     }
 
     protected abstract void startWriter() throws Exception;
+
     protected abstract void startSync() throws Exception;
 
 }
