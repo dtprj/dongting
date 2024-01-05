@@ -22,10 +22,11 @@ import java.util.Random;
 /**
  * @author huangli
  */
+@SuppressWarnings("CallToPrintStackTrace")
 public abstract class IoModeBase {
-    protected static final int FILE_SIZE = 300 * 1024 * 1024;
+    protected static final int FILE_SIZE = 100 * 1024 * 1024;
     protected static final int BUFFER_SIZE = 4 * 1024;
-    protected static final int MAX_PENDING = 1000;
+    protected static final int MAX_PENDING = 1024;
 
     protected static final int COUNT = FILE_SIZE / BUFFER_SIZE;
 
@@ -39,8 +40,8 @@ public abstract class IoModeBase {
 
     protected File createFile(String name) throws Exception {
         File dir = new File("target");
-        if (!dir.exists()) {
-            dir.mkdirs();
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw new Exception("create dir failed");
         }
         File f = new File(dir, name);
         RandomAccessFile raf = new RandomAccessFile(f, "rw");
