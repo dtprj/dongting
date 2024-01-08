@@ -139,10 +139,8 @@ public class DefaultRaftLog implements RaftLog {
         // so we can assert the index is in the cache
         long pos = idxFiles.loadLogPosInCache(index);
 
-        if (index < idxFiles.getNextIndex()) {
-            idxFiles.truncateTail(index);
-        }
-        logFiles.logAppender.setNext(index, pos);
+        idxFiles.truncateTail(index);
+        logFiles.truncateTail(index, pos);
     }
 
     @Override
