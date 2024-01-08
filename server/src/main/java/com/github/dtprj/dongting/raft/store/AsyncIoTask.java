@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.fiber.Fiber;
-import com.github.dtprj.dongting.fiber.FiberCancelException;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
@@ -37,7 +36,7 @@ import java.util.function.Supplier;
 public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     private static final DtLog log = DtLogs.getLogger(AsyncIoTask.class);
     private final DtFile dtFile;
-    private final Supplier<Boolean> cancelIndicator;
+    private final Supplier<Boolean> cancelRetryIndicator;
     private final FiberGroup fiberGroup;
     private final long[] retryInterval;
     private final FiberFuture<Void> future;
@@ -63,14 +62,14 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     }
 
     public AsyncIoTask(FiberGroup fiberGroup, DtFile dtFile,
-                       long[] retryInterval, boolean retryForever, Supplier<Boolean> cancelIndicator) {
+                       long[] retryInterval, boolean retryForever, Supplier<Boolean> cancelRetryIndicator) {
         Objects.requireNonNull(fiberGroup);
         Objects.requireNonNull(dtFile);
         this.retryInterval = retryInterval;
         this.fiberGroup = fiberGroup;
         this.dtFile = dtFile;
         this.retryForever = retryForever;
-        this.cancelIndicator = cancelIndicator;
+        this.cancelRetryIndicator = cancelRetryIndicator;
         this.future = fiberGroup.newFuture();
     }
 
@@ -178,7 +177,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
             // if fiber group is stopped, ignore cancelIndicator and retryForever
             return true;
         }
-        if (cancelIndicator != null && cancelIndicator.get()) {
+        if (cancelRetryIndicator != null && cancelRetryIndicator.get()) {
             log.warn("retry canceled by cancelIndicator");
             return true;
         }
@@ -205,10 +204,6 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
             return;
         }
         if (ioBuffer.hasRemaining()) {
-            if (cancelIndicator != null && cancelIndicator.get()) {
-                complete(new FiberCancelException());
-                return;
-            }
             int bytes = ioBuffer.position() - position;
             exec(filePos + bytes);
         } else {
