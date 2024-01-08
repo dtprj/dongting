@@ -88,11 +88,15 @@ public class Fiber extends WaitSource {
         return FrameCallResult.RETURN;
     }
 
-    public static FrameCallResult fatal(Throwable ex) {
-        log.error("encountered fatal error, raft group will shutdown", ex);
+    public static FiberException fatal(Throwable ex) {
         DispatcherThread t = DispatcherThread.currentDispatcherThread();
-        t.currentGroup.requestShutdown();
-        throw new FiberException("encountered fatal error, raft group will shutdown", ex);
+        if (t.currentGroup.isShouldStop()) {
+            return new FiberException("fatal ex", ex);
+        } else {
+            log.error("encountered fatal error, raft group will shutdown", ex);
+            t.currentGroup.requestShutdown();
+            return new FiberException("encountered fatal error, raft group will shutdown", ex);
+        }
     }
 
     public static FrameCallResult frameReturn() {

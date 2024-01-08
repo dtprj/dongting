@@ -17,10 +17,8 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.Encoder;
-import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.fiber.Fiber;
-import com.github.dtprj.dongting.fiber.FiberCancelException;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
@@ -38,7 +36,6 @@ import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.function.Supplier;
@@ -102,7 +99,7 @@ class LogAppender {
         this.needAppendCondition = fiberGroup.newCondition("NeedAppend-" + groupConfig.getGroupId());
         this.writeStopIndicator = logFileQueue::isClosed;
         this.noPendingCondition = fiberGroup.newCondition("NoPending-" + groupConfig.getGroupId());
-        this.fsyncFiber = new Fiber("fsync-" + groupConfig.getGroupId(), fiberGroup, new FsyncFiberFrame());
+        this.fsyncFiber = new Fiber("fsync-" + groupConfig.getGroupId(), fiberGroup, new SyncLoopFrame());
         this.needFsyncCondition = fiberGroup.newCondition("NeedFsync-" + groupConfig.getGroupId());
     }
 
@@ -148,7 +145,7 @@ class LogAppender {
                 if (nextPersistIndex < tailCache.getFirstIndex()) {
                     BugLog.getLog().error("nextPersistIndex {} < tailCache.getFirstIndex() {}",
                             nextPersistIndex, tailCache.getFirstIndex());
-                    return Fiber.fatal(new RaftException("nextPersistIndex<tailCache.getFirstIndex()"));
+                    throw Fiber.fatal(new RaftException("nextPersistIndex<tailCache.getFirstIndex()"));
                 }
                 return Fiber.call(logFileQueue.ensureWritePosReady(nextPersistPos), this::afterPosReady);
             } else {
@@ -165,7 +162,7 @@ class LogAppender {
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
-            return Fiber.fatal(ex);
+            throw Fiber.fatal(ex);
         }
     }
 
@@ -234,16 +231,16 @@ class LogAppender {
         }
 
         ByteBuffer buffer = borrowBuffer(bytesToWrite);
-        buffer = writeItems(items, file, buffer);
+        buffer = encodeItems(items, file, buffer);
 
         if (writeEndHeader) {
             if (buffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
-                buffer = write(file, buffer);
+                buffer = doWrite(file, buffer);
             }
             LogHeader.writeEndHeader(crc32c, buffer);
         }
         if (buffer.position() > 0) {
-            write(file, buffer);
+            doWrite(file, buffer);
         } else {
             if (buffer.capacity() > 0) {
                 BugLog.getLog().error("buffer capacity > 0", buffer.capacity());
@@ -265,7 +262,7 @@ class LogAppender {
         return Fiber.resume(null, appendFiberFrame);
     }
 
-    private ByteBuffer writeItems(ArrayList<LogItem> items, LogFile file, ByteBuffer buffer) {
+    private ByteBuffer encodeItems(ArrayList<LogItem> items, LogFile file, ByteBuffer buffer) {
         long dataPos = file.startPos + writeStartPosInFile;
         for (int count = items.size(), i = 0; i < count; i++) {
             LogItem li = items.get(i);
@@ -275,11 +272,11 @@ class LogAppender {
                 file.firstTimestamp = li.getTimestamp();
             }
             if (buffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
-                buffer = write(file, buffer);
+                buffer = doWrite(file, buffer);
             }
             int len = LogHeader.writeHeader(crc32c, buffer, li);
-            buffer = writeBizHeader(li, buffer, file);
-            buffer = writeBizBody(li, buffer, file);
+            buffer = encodeBizHeader(li, buffer, file);
+            buffer = encodeBizBody(li, buffer, file);
             idxOps.put(li.getIndex(), dataPos);
             dataPos += len;
             lastItem = li;
@@ -287,7 +284,7 @@ class LogAppender {
         return buffer;
     }
 
-    private ByteBuffer writeBizHeader(LogItem li, ByteBuffer buffer, LogFile file) {
+    private ByteBuffer encodeBizHeader(LogItem li, ByteBuffer buffer, LogFile file) {
         if (li.getActualHeaderSize() > 0) {
             crc32c.reset();
             try {
@@ -306,21 +303,21 @@ class LogAppender {
                     if (finish) {
                         break;
                     } else {
-                        buffer = write(file, buffer);
+                        buffer = doWrite(file, buffer);
                     }
                 }
             } finally {
                 encodeContext.setStatus(null);
             }
             if (buffer.remaining() < 4) {
-                buffer = write(file, buffer);
+                buffer = doWrite(file, buffer);
             }
             buffer.putInt((int) crc32c.getValue());
         }
         return buffer;
     }
 
-    private ByteBuffer writeBizBody(LogItem li, ByteBuffer buffer, LogFile file) {
+    private ByteBuffer encodeBizBody(LogItem li, ByteBuffer buffer, LogFile file) {
         if (li.getActualBodySize() > 0) {
             crc32c.reset();
             try {
@@ -339,21 +336,21 @@ class LogAppender {
                     if (finish) {
                         break;
                     } else {
-                        buffer = write(file, buffer);
+                        buffer = doWrite(file, buffer);
                     }
                 }
             } finally {
                 encodeContext.setStatus(null);
             }
             if (buffer.remaining() < 4) {
-                buffer = write(file, buffer);
+                buffer = doWrite(file, buffer);
             }
             buffer.putInt((int) crc32c.getValue());
         }
         return buffer;
     }
 
-    private ByteBuffer write(LogFile file, ByteBuffer buffer) {
+    private ByteBuffer doWrite(LogFile file, ByteBuffer buffer) {
         buffer.flip();
         int bytes = buffer.remaining();
         long[] retry = (logFileQueue.initialized && !logFileQueue.isClosed()) ? groupConfig.getIoRetryInterval() : null;
@@ -389,13 +386,7 @@ class LogAppender {
                 return;
             }
             if (ex != null) {
-                //noinspection StatementWithEmptyBody
-                if (DtUtil.rootCause(ex) instanceof FiberCancelException) {
-                    // no ops
-                } else {
-                    log.error("log append fail", ex);
-                    fiberGroup.requestShutdown();
-                }
+                throw new RaftException("log append fail", ex);
             } else {
                 while (writeTaskQueue.size() > 0) {
                     if (!writeTaskQueue.get(0).getFuture().isDone()) {
@@ -422,7 +413,7 @@ class LogAppender {
         }
     }
 
-    private class FsyncFiberFrame extends FiberFrame<Void> {
+    private class SyncLoopFrame extends FiberFrame<Void> {
         @Override
         public FrameCallResult execute(Void input) {
             if (logFileQueue.isClosed()) {
@@ -431,44 +422,58 @@ class LogAppender {
             if (syncWriteTaskQueueHead == null) {
                 return needFsyncCondition.await(this);
             } else {
-                return fsync().await(this::afterFsync);
+                WriteTask task = syncWriteTaskQueueHead;
+                while (task.nextNeedSyncTask != null) {
+                    if (task.getDtFile() == task.nextNeedSyncTask.getDtFile()) {
+                        task = task.nextNeedSyncTask;
+                    }
+                }
+                task.getDtFile().incUseCount();
+                RetryFrame<Void> f = new RetryFrame<>(new SyncFrame(task),
+                        groupConfig.getIoRetryInterval(), false);
+                WriteTask finalTask = task;
+                return Fiber.call(f, v -> afterSync(finalTask));
             }
         }
 
-        private FiberFuture<Void> fsync() {
-            WriteTask task = syncWriteTaskQueueHead;
-            if (task == null) {
-                return FiberFuture.completedFuture(fiberGroup, null);
-            }
-            while (task.nextNeedSyncTask != null) {
-                if (task.getDtFile() == task.nextNeedSyncTask.getDtFile()) {
-                    task = task.nextNeedSyncTask;
-                }
-            }
-            WriteTask finalTask = task;
+        private FrameCallResult afterSync(WriteTask task) {
+            task.getDtFile().descUseCount();
+            return Fiber.resume(null, this);
+        }
+    }
+
+    private class SyncFrame extends FiberFrame<Void> {
+
+        private final WriteTask task;
+
+        public SyncFrame(WriteTask task) {
+            this.task = task;
+        }
+
+        @Override
+        public FrameCallResult execute(Void input) {
             FiberFuture<Void> f = fiberGroup.newFuture();
             groupConfig.getIoExecutor().submit(() -> {
                 try {
-                    finalTask.getDtFile().getChannel().force(false);
+                    task.getDtFile().getChannel().force(false);
                     f.fireComplete(null);
-                } catch (IOException e) {
-                    // TODO ex handle
-                    e.printStackTrace();
+                } catch (Throwable e) {
+                    f.fireCompleteExceptionally(e);
                 }
             });
-            return f;
+            return f.await(this::afterSync);
         }
 
-        private FrameCallResult afterFsync(Void unused) {
+        private FrameCallResult afterSync(Void unused) {
             WriteTask head = syncWriteTaskQueueHead;
-            if (head != null) {
+            if (head != null && head.lastIndex <= task.lastIndex) {
+                syncWriteTaskQueueHead = head.nextNeedSyncTask;
                 appendCallback.finish(head.lastTerm, head.lastIndex);
                 if (head.lastIndex >= cache.getLastIndex()) {
                     noPendingCondition.signalAll();
                 }
-                syncWriteTaskQueueHead = head.nextNeedSyncTask;
             }
-            return Fiber.resume(null, this);
+            return Fiber.frameReturn();
         }
     }
 

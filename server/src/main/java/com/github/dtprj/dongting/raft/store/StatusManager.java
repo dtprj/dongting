@@ -143,7 +143,7 @@ public class StatusManager {
         protected FrameCallResult handle(Throwable ex) {
             updateDoneCondition.signalAll();
             log.error("update status file error, groupId={}", groupConfig.getGroupId(), ex);
-            return Fiber.fatal(ex);
+            throw Fiber.fatal(ex);
         }
 
         @Override

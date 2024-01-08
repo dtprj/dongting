@@ -266,14 +266,14 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             LogFile logFile = getLogFile(indexToPos(nextPersistIndex));
             if (logFile.deleted) {
                 BugLog.getLog().error("idx file deleted, flush fail: {}", logFile.getFile().getPath());
-                return Fiber.fatal(new RaftException("idx file deleted, flush fail"));
+                throw Fiber.fatal(new RaftException("idx file deleted, flush fail"));
             }
             return Fiber.call(new FlushFrame(logFile), this);
         }
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
-            return Fiber.fatal(ex);
+            throw Fiber.fatal(ex);
         }
     }
 
@@ -288,7 +288,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
         @Override
         public FrameCallResult execute(Void v) {
-            logFile.incUseCount();
             prepareBuffer(logFile);
 
             long startIndex = nextPersistIndex;
@@ -350,7 +349,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
         @Override
         protected FrameCallResult doFinally() {
-            logFile.descUseCount();
             if (buf != null) {
                 groupConfig.getDirectPool().release(buf);
             }
@@ -386,7 +384,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         FiberFrame<Long> loadFrame = new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void v) {
-                lf.incUseCount();
                 long filePos = pos & fileLenMask;
                 AsyncIoTask t = new AsyncIoTask(getFiberGroup(), lf);
                 return t.read(buffer, filePos).await(this::afterLoad);
@@ -395,12 +392,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             private FrameCallResult afterLoad(Void unused) {
                 buffer.flip();
                 setResult(buffer.getLong());
-                return Fiber.frameReturn();
-            }
-
-            @Override
-            protected FrameCallResult doFinally() {
-                lf.descUseCount();
                 return Fiber.frameReturn();
             }
         };
