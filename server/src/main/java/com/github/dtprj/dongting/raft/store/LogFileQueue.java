@@ -33,6 +33,7 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -225,4 +226,12 @@ class LogFileQueue extends FileQueue {
             }
         }
     }
+
+    public FiberFrame<Pair<Integer, Long>> tryFindMatchPos(int suggestTerm, long suggestIndex,
+                                                           Supplier<Boolean> cancelIndicator) {
+        return new MatchPosFinder(queue, idxOps, cancelIndicator,
+                fileLenMask, suggestTerm, suggestIndex, raftStatus.getLastLogIndex());
+    }
+
+
 }

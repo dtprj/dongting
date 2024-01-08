@@ -31,7 +31,6 @@ import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 
 import java.io.File;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 import static com.github.dtprj.dongting.raft.store.IdxFileQueue.KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT;
@@ -149,8 +148,9 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public CompletableFuture<Pair<Integer, Long>> tryFindMatchPos(int suggestTerm, long suggestIndex, Supplier<Boolean> cancelIndicator) {
-        return null;
+    public FiberFrame<Pair<Integer, Long>> tryFindMatchPos(int suggestTerm, long suggestIndex,
+                                                           Supplier<Boolean> cancelIndicator) {
+        return logFiles.tryFindMatchPos(suggestTerm, suggestIndex, cancelIndicator);
     }
 
     @Override

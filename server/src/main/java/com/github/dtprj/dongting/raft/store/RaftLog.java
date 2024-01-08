@@ -52,7 +52,7 @@ public interface RaftLog {
     /**
      * return null if it can't match and will cause install snapshot
      */
-    CompletableFuture<Pair<Integer, Long>> tryFindMatchPos(int suggestTerm, long suggestIndex,
+    FiberFrame<Pair<Integer, Long>> tryFindMatchPos(int suggestTerm, long suggestIndex,
                                                            Supplier<Boolean> cancelIndicator);
 
 

@@ -56,7 +56,7 @@ abstract class FileQueue {
 
     protected final ExecutorService ioExecutor;
     protected final RaftGroupConfig groupConfig;
-    private final RaftStatusImpl raftStatus;
+    protected final RaftStatusImpl raftStatus;
 
     protected final long fileSize;
     protected final long fileLenMask;
