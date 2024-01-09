@@ -54,6 +54,7 @@ public class Dispatcher extends AbstractLifeCircle {
     @SuppressWarnings("FieldMayBeFinal")
     private volatile boolean shouldStop = false;
     private final static VarHandle SHOULD_STOP;
+
     static {
         try {
             MethodHandles.Lookup l = MethodHandles.lookup();
@@ -62,6 +63,7 @@ public class Dispatcher extends AbstractLifeCircle {
             throw new Error(e);
         }
     }
+
     private volatile boolean terminate;
 
     // fatal error will cause fiber exit
@@ -112,22 +114,28 @@ public class Dispatcher extends AbstractLifeCircle {
     }
 
     private void run() {
-        ArrayList<FiberQueueTask> localData = new ArrayList<>(64);
-        while (!isShouldStopPlain() || !groups.isEmpty()) {
-            runImpl(localData);
-            if (isShouldStopPlain() && stopTimeout != null && stopTimeout.isTimeout(ts)) {
-                long millis = stopTimeout.getTimeout(TimeUnit.MILLISECONDS);
-                log.warn("dispatcher stop timeout: {}ms", millis);
-                for(FiberGroup g : groups){
-                    g.fireLogGroupInfo("group not finished in " + millis + "ms");
+        try {
+            ArrayList<FiberQueueTask> localData = new ArrayList<>(64);
+            while (!isShouldStopPlain() || !groups.isEmpty()) {
+                runImpl(localData);
+                if (isShouldStopPlain() && stopTimeout != null && stopTimeout.isTimeout(ts)) {
+                    long millis = stopTimeout.getTimeout(TimeUnit.MILLISECONDS);
+                    log.warn("dispatcher stop timeout: {}ms", millis);
+                    for (FiberGroup g : groups) {
+                        g.fireLogGroupInfo("group not finished in " + millis + "ms");
+                    }
+                    stopTimeout = null;
                 }
-                stopTimeout = null;
             }
+            shareQueue.shutdown();
+            runImpl(localData);
+            terminate = true;
+            log.info("fiber dispatcher exit: {}", thread.getName());
+        } catch (Throwable e) {
+            SHOULD_STOP.setVolatile(this, true);
+            terminate = true;
+            log.info("fiber dispatcher exit exceptionally: {}", thread.getName(), e);
         }
-        shareQueue.shutdown();
-        runImpl(localData);
-        terminate = true;
-        log.info("fiber dispatcher exit: {}", thread.getName());
     }
 
     private void runImpl(ArrayList<FiberQueueTask> localData) {
