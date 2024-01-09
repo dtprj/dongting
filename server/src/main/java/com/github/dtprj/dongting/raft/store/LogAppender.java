@@ -426,6 +426,8 @@ class LogAppender {
                 while (task.nextNeedSyncTask != null) {
                     if (task.getDtFile() == task.nextNeedSyncTask.getDtFile()) {
                         task = task.nextNeedSyncTask;
+                    } else {
+                        break;
                     }
                 }
                 task.getDtFile().incUseCount();
