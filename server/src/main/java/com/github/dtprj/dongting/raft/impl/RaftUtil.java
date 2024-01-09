@@ -18,9 +18,13 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.NioNet;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.server.RaftNode;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.zip.CRC32C;
 
 /**
@@ -46,6 +50,36 @@ public class RaftUtil {
         if (fiberGroup.isShouldStop()) {
             throw new RaftException("raft group stopped");
         }
+    }
+
+    public static List<RaftNode> parseServers(int selfId, String serversStr) {
+        String[] servers = serversStr.split(";");
+        if (servers.length == 0) {
+            throw new RaftException("servers list is empty");
+        }
+        try {
+            List<RaftNode> list = new ArrayList<>();
+            for (String server : servers) {
+                String[] arr = server.split(",");
+                if (arr.length != 2) {
+                    throw new IllegalArgumentException("not 'id,host:port' format:" + server);
+                }
+                int id = Integer.parseInt(arr[0].trim());
+                String hostPortStr = arr[1];
+                list.add(new RaftNode(id, NioNet.parseHostPort(hostPortStr), id == selfId));
+            }
+            return list;
+        } catch (NumberFormatException e) {
+            throw new RaftException("bad servers list: " + serversStr);
+        }
+    }
+
+    public static int getElectQuorum(int groupSize) {
+        return groupSize / 2 + 1;
+    }
+
+    public static int getRwQuorum(int groupSize) {
+        return groupSize >= 4 && groupSize % 2 == 0 ? groupSize / 2 : groupSize / 2 + 1;
     }
 
 }

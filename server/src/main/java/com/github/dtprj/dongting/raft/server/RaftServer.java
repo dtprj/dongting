@@ -1,0 +1,287 @@
+/*
+ * Copyright The Dongting Project
+ *
+ * The Dongting Project licenses this file to you under the Apache License,
+ * version 2.0 (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at:
+ *
+ *   https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
+package com.github.dtprj.dongting.raft.server;
+
+import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.common.AbstractLifeCircle;
+import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.HostPort;
+import com.github.dtprj.dongting.net.NioClient;
+import com.github.dtprj.dongting.net.NioClientConfig;
+import com.github.dtprj.dongting.net.NioConfig;
+import com.github.dtprj.dongting.net.NioServer;
+import com.github.dtprj.dongting.net.NioServerConfig;
+import com.github.dtprj.dongting.raft.impl.ApplyManager;
+import com.github.dtprj.dongting.raft.impl.CommitManager;
+import com.github.dtprj.dongting.raft.impl.EventBus;
+import com.github.dtprj.dongting.raft.impl.GroupComponents;
+import com.github.dtprj.dongting.raft.impl.MemberManager;
+import com.github.dtprj.dongting.raft.impl.NodeManager;
+import com.github.dtprj.dongting.raft.impl.PendingStat;
+import com.github.dtprj.dongting.raft.impl.Raft;
+import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
+import com.github.dtprj.dongting.raft.impl.RaftGroups;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.impl.ReplicateManager;
+import com.github.dtprj.dongting.raft.impl.VoteManager;
+import com.github.dtprj.dongting.raft.sm.StateMachine;
+import com.github.dtprj.dongting.raft.store.RaftLog;
+import com.github.dtprj.dongting.raft.store.StatusManager;
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+/**
+ * @author huangli
+ */
+public class RaftServer extends AbstractLifeCircle {
+    private static final DtLog log = DtLogs.getLogger(RaftServer.class);
+    private final RaftFactory raftFactory;
+
+    private final NioServer replicateNioServer;
+    private final NioClient replicateNioClient;
+    private final NioServer serviceNioServer;
+
+    private final RaftGroups raftGroups = new RaftGroups();
+
+    private final RaftServerConfig serverConfig;
+
+    private final NodeManager nodeManager;
+
+    private final AtomicBoolean change = new AtomicBoolean(false);
+
+    private final PendingStat serverStat = new PendingStat();
+
+    private final CompletableFuture<Void> readyFuture = new CompletableFuture<>();
+
+    public RaftServer(RaftServerConfig serverConfig, List<RaftGroupConfig> groupConfig, RaftFactory raftFactory) {
+        Objects.requireNonNull(serverConfig);
+        Objects.requireNonNull(groupConfig);
+        Objects.requireNonNull(raftFactory);
+        this.serverConfig = serverConfig;
+        this.raftFactory = raftFactory;
+
+        Objects.requireNonNull(serverConfig.getServers());
+        DtUtil.checkPositive(serverConfig.getNodeId(), "id");
+        DtUtil.checkPositive(serverConfig.getReplicatePort(), "replicatePort");
+
+        List<RaftNode> allRaftServers = RaftUtil.parseServers(serverConfig.getNodeId(), serverConfig.getServers());
+        HashSet<Integer> allNodeIds = new HashSet<>();
+        HashSet<HostPort> allNodeHosts = new HashSet<>();
+        for (RaftNode rn : allRaftServers) {
+            if (!allNodeIds.add(rn.getNodeId())) {
+                throw new IllegalArgumentException("duplicate server id: " + rn.getNodeId());
+            }
+            if (!allNodeHosts.add(rn.getHostPort())) {
+                throw new IllegalArgumentException("duplicate server host: " + rn.getHostPort());
+            }
+        }
+        if (!allNodeIds.contains(serverConfig.getNodeId())) {
+            throw new IllegalArgumentException("self id not found in servers list: " + serverConfig.getNodeId());
+        }
+
+        NioClientConfig repClientConfig = new NioClientConfig();
+        repClientConfig.setName("RaftClient");
+        setupNioConfig(repClientConfig);
+        replicateNioClient = new NioClient(repClientConfig);
+
+        createRaftGroups(serverConfig, groupConfig, allNodeIds);
+        nodeManager = new NodeManager(serverConfig, allRaftServers, replicateNioClient, raftGroups);
+        raftGroups.forEach((id, g) -> g.getGroupComponents().getEventBus().register(nodeManager));
+
+        NioServerConfig repServerConfig = new NioServerConfig();
+        repServerConfig.setPort(serverConfig.getReplicatePort());
+        repServerConfig.setName("RaftRepServer");
+        repServerConfig.setBizThreads(0);
+        // use multi io threads
+        setupNioConfig(repServerConfig);
+        replicateNioServer = new NioServer(repServerConfig);
+
+        /* TODO
+        replicateNioServer.register(Commands.NODE_PING, new NodePingProcessor(serverConfig.getNodeId(), nodeManager.getUuid()));
+        replicateNioServer.register(Commands.RAFT_PING, new RaftPingProcessor(this));
+        replicateNioServer.register(Commands.RAFT_APPEND_ENTRIES, new AppendProcessor(this, raftGroups));
+        replicateNioServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(this));
+        replicateNioServer.register(Commands.RAFT_INSTALL_SNAPSHOT, new InstallSnapshotProcessor(this));
+        replicateNioServer.register(Commands.RAFT_LEADER_TRANSFER, new TransferLeaderProcessor(this));
+        replicateNioServer.register(Commands.RAFT_QUERY_STATUS, new QueryStatusProcessor(this));
+        */
+
+        if (serverConfig.getServicePort() > 0) {
+            NioServerConfig serviceServerConfig = new NioServerConfig();
+            serviceServerConfig.setPort(serverConfig.getServicePort());
+            serviceServerConfig.setName("RaftServiceServer");
+            serviceServerConfig.setBizThreads(0);
+            // use multi io threads
+            serviceNioServer = new NioServer(serviceServerConfig);
+            // TODO
+            // serviceNioServer.register(Commands.RAFT_QUERY_LEADER, new QueryLeaderProcessor(this));
+        } else {
+            serviceNioServer = null;
+        }
+    }
+
+    private void setupNioConfig(NioConfig nc) {
+        nc.setFinishPendingImmediatelyWhenChannelClose(true);
+        nc.setMaxOutRequests(0);
+        nc.setMaxInRequests(0);
+        nc.setMaxInBytes(0);
+        nc.setMaxBodySize(Integer.MAX_VALUE);
+        nc.setMaxFrameSize(Integer.MAX_VALUE);
+    }
+
+    private void createRaftGroups(RaftServerConfig serverConfig,
+                                  List<RaftGroupConfig> groupConfig, HashSet<Integer> allNodeIds) {
+        for (RaftGroupConfig rgc : groupConfig) {
+            RaftGroupImpl gc = createRaftGroup(serverConfig, allNodeIds, rgc);
+            if (raftGroups.get(rgc.getGroupId()) != null) {
+                throw new IllegalArgumentException("duplicate group id: " + rgc.getGroupId());
+            }
+            raftGroups.put(rgc.getGroupId(), gc);
+        }
+
+    }
+
+    private RaftGroupImpl createRaftGroup(RaftServerConfig serverConfig,
+                                          Set<Integer> allNodeIds, RaftGroupConfig rgc) {
+        Objects.requireNonNull(rgc.getNodeIdOfMembers());
+
+        EventBus eventBus = new EventBus();
+
+        HashSet<Integer> nodeIdOfMembers = new HashSet<>();
+        parseMemberIds(allNodeIds, nodeIdOfMembers, rgc.getNodeIdOfMembers(), rgc.getGroupId());
+        if (nodeIdOfMembers.isEmpty() && serverConfig.isStaticConfig()) {
+            throw new IllegalArgumentException("no member in group: " + rgc.getGroupId());
+        }
+
+        Set<Integer> nodeIdOfObservers;
+        if (rgc.getNodeIdOfObservers() != null && !rgc.getNodeIdOfObservers().trim().isEmpty()) {
+            nodeIdOfObservers = new HashSet<>();
+            parseMemberIds(allNodeIds, nodeIdOfObservers, rgc.getNodeIdOfObservers(), rgc.getGroupId());
+            for (int id : nodeIdOfMembers) {
+                if (nodeIdOfObservers.contains(id)) {
+                    throw new IllegalArgumentException("member and observer has same node: " + id);
+                }
+            }
+        } else {
+            nodeIdOfObservers = Collections.emptySet();
+        }
+
+        boolean isMember = nodeIdOfMembers.contains(serverConfig.getNodeId());
+        boolean isObserver = nodeIdOfObservers.contains(serverConfig.getNodeId());
+        if (!isMember && !isObserver && serverConfig.isStaticConfig()) {
+            throw new IllegalArgumentException("self id not found in group members/observers list: " + serverConfig.getNodeId());
+        }
+
+        // TODO init fiber dispatcher
+        RaftStatusImpl raftStatus = new RaftStatusImpl(null);
+        raftStatus.setNodeIdOfMembers(nodeIdOfMembers);
+        raftStatus.setNodeIdOfObservers(nodeIdOfObservers);
+        raftStatus.setGroupId(rgc.getGroupId());
+
+        RaftGroupConfig rgcEx = createGroupConfigEx(rgc, raftStatus);
+
+
+        StateMachine stateMachine = raftFactory.createStateMachine(rgcEx);
+        rgcEx.setCodecFactory(stateMachine);
+        StatusManager statusManager = new StatusManager(rgcEx);
+        RaftLog raftLog = raftFactory.createRaftLog(rgcEx, statusManager);
+
+        MemberManager memberManager = new MemberManager(serverConfig, replicateNioClient,
+                raftStatus, eventBus);
+        ApplyManager applyManager = new ApplyManager(serverConfig.getNodeId(), raftLog, stateMachine, raftStatus,
+                eventBus, rgcEx.getHeapPool(), statusManager);
+        CommitManager commitManager = new CommitManager(raftStatus, applyManager);
+        ReplicateManager replicateManager = new ReplicateManager(serverConfig, rgcEx, raftStatus, raftLog,
+                stateMachine, replicateNioClient, commitManager, statusManager);
+
+        Raft raft = new Raft(raftStatus, raftLog, applyManager, replicateManager);
+        VoteManager voteManager = new VoteManager(serverConfig, rgc.getGroupId(), raftStatus, replicateNioClient,
+                raft, statusManager);
+
+        eventBus.register(raft);
+        eventBus.register(voteManager);
+
+        GroupComponents gc = new GroupComponents();
+        gc.setServerConfig(serverConfig);
+        gc.setGroupConfig(rgc);
+        gc.setRaftLog(raftLog);
+        gc.setStateMachine(stateMachine);
+        gc.setRaftStatus(raftStatus);
+        gc.setMemberManager(memberManager);
+        gc.setVoteManager(voteManager);
+        gc.setCommitManager(commitManager);
+        gc.setApplyManager(applyManager);
+        gc.setEventBus(eventBus);
+        gc.setNodeManager(nodeManager);
+        gc.setServerStat(serverStat);
+        gc.setSnapshotManager(raftFactory.createSnapshotManager(rgcEx));
+        gc.setStatusManager(statusManager);
+        return new RaftGroupImpl(gc);
+    }
+
+    private RaftGroupConfig createGroupConfigEx(RaftGroupConfig rgc, RaftStatusImpl raftStatus) {
+        RaftGroupConfig rgcEx = new RaftGroupConfig(rgc.getGroupId(), rgc.getNodeIdOfMembers(),
+                rgc.getNodeIdOfObservers());
+        rgcEx.setDataDir(rgc.getDataDir());
+        rgcEx.setStatusFile(rgc.getStatusFile());
+
+        rgcEx.setTs(raftStatus.getTs());
+        rgcEx.setHeapPool(createHeapPoolFactory(raftStatus.getTs()));
+        rgcEx.setDirectPool(serverConfig.getPoolFactory().apply(raftStatus.getTs(), true));
+        rgcEx.setRaftStatus(raftStatus);
+        rgcEx.setIoExecutor(raftFactory.createIoExecutor());
+
+        return rgcEx;
+    }
+
+    private RefBufferFactory createHeapPoolFactory(Timestamp ts) {
+        return null;
+    }
+
+    private static void parseMemberIds(Set<Integer> allNodeIds, Set<Integer> nodeIdOfMembers, String str, int groupId) {
+        String[] membersStr = str.split(",");
+        for (String idStr : membersStr) {
+            int id = Integer.parseInt(idStr.trim());
+            if (!allNodeIds.contains(id)) {
+                throw new IllegalArgumentException("member id " + id + " not in server list: groupId=" + groupId);
+            }
+            if (!nodeIdOfMembers.add(id)) {
+                throw new IllegalArgumentException("duplicated raft member id " + id + ".  groupId=" + groupId);
+            }
+        }
+    }
+
+    @Override
+    protected void doStart() {
+
+    }
+
+    @Override
+    protected void doStop(DtTime timeout, boolean force) {
+
+    }
+}
