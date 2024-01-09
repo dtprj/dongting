@@ -16,8 +16,9 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
-import com.github.dtprj.dongting.fiber.FiberFuture;
-import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.fiber.Fiber;
+import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -33,12 +34,11 @@ import java.nio.file.OpenOption;
 import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-import static com.github.dtprj.dongting.raft.test.FiberUtil.toJdkFuture;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
  * @author huangli
@@ -83,83 +83,103 @@ public class AsyncIoTaskTest extends BaseFiberTest {
 
     @Test
     public void testRW() throws Exception {
-        ByteBuffer buf = ByteBuffer.allocate(1024);
-        AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
-        FiberFuture<Void> f = t.write(buf, 0);
-        toJdkFuture(f).get(1, TimeUnit.SECONDS);
+        doInFiber(new FiberFrame<>() {
+            ByteBuffer buf = ByteBuffer.allocate(1024);
+            @Override
+            public FrameCallResult execute(Void input) {
+                AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
+                return t.write(buf, 0).await(1000, this::resume1);
+            }
 
-        buf = ByteBuffer.allocate(768);
-        t = new AsyncIoTask(fiberGroup, dtFile);
-        toJdkFuture(t.read(buf, 0)).get(1, TimeUnit.SECONDS);
+            private FrameCallResult resume1(Void unused) {
+                buf = ByteBuffer.allocate(768);
+                AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
+                return t.read(buf, 0).await(1000, this::resume2);
+            }
 
-        buf.clear();
-        try {
-            t = new AsyncIoTask(fiberGroup, dtFile);
-            toJdkFuture(t.read(buf, 512)).get(1, TimeUnit.SECONDS);
-            fail();
-        } catch (Exception e) {
-            assertEquals(RaftException.class, e.getCause().getClass());
-        }
+            private FrameCallResult resume2(Void unused) {
+                buf.clear();
+                AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
+                return t.read(buf, 512).await(1000, this::resume3);
+            }
+
+            private FrameCallResult resume3(Void unused) {
+                throw new AssertionError();
+            }
+
+            @Override
+            protected FrameCallResult handle(Throwable ex) {
+                assertEquals("read end of file", ex.getMessage());
+                return Fiber.frameReturn();
+            }
+        });
+    }
+
+    private void assertReadSuccess(Supplier<ReadFailTask> supplier) throws Exception {
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                ByteBuffer buf = ByteBuffer.allocate(1);
+                ReadFailTask t = supplier.get();
+                return t.read(buf, 0).await(1000, this::justReturn);
+            }
+        });
+    }
+
+    private void assertReadFail(Supplier<ReadFailTask> supplier) throws Exception {
+        doInFiber(new FiberFrame<>() {
+            ReadFailTask t;
+            @Override
+            public FrameCallResult execute(Void input) {
+                ByteBuffer buf = ByteBuffer.allocate(1);
+                t = supplier.get();
+                return t.read(buf, 0).await(1000, this::resume);
+            }
+
+            private FrameCallResult resume(Void unused) {
+                throw new AssertionError();
+            }
+
+            @Override
+            protected FrameCallResult handle(Throwable ex) {
+                assertSame(t.ex, ex);
+                return Fiber.frameReturn();
+            }
+        });
     }
 
     @Test
     public void testReadEx() throws Exception {
+
         ByteBuffer buf = ByteBuffer.allocate(1);
 
-        AsyncIoTask wt = new AsyncIoTask(fiberGroup, dtFile);
-        toJdkFuture(wt.writeAndFlush(buf, 0, false)).get(1, TimeUnit.SECONDS);
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                AsyncIoTask wt = new AsyncIoTask(fiberGroup, dtFile);
+                return wt.writeAndFlush(buf, 0, false).await(1000, this::justReturn);
+            }
+        });
 
         // fail on first read
-        buf.clear();
-        ReadFailTask t = new ReadFailTask(1, new long[]{1}, false, null);
-        toJdkFuture(t.read(buf, 0)).get(1, TimeUnit.SECONDS);
+        assertReadSuccess(() -> new ReadFailTask(1, new long[]{1}, false, null));
 
         // fail twice, so retry failed
-        buf.clear();
-        t = new ReadFailTask(2, new long[]{1}, false, null);
-        try {
-            toJdkFuture(t.read(buf, 0)).get(1, TimeUnit.SECONDS);
-            fail();
-        } catch (Exception e) {
-            assertSame(t.ex, e.getCause());
-        }
+        assertReadFail(() -> new ReadFailTask(2, new long[]{1}, false, null));
 
         // fail twice but retry forever
-        buf.clear();
-        t = new ReadFailTask(2, new long[]{1}, true, () -> false);
-        toJdkFuture(t.read(buf, 0)).get(1, TimeUnit.SECONDS);
+        assertReadSuccess(() -> new ReadFailTask(2, new long[]{1}, true, () -> false));
 
         // fail, cancel indicator return true
-        buf.clear();
-        t = new ReadFailTask(2, new long[]{1}, true, () -> true);
-        try {
-            toJdkFuture(t.read(buf, 0)).get(1, TimeUnit.SECONDS);
-            fail();
-        } catch (Exception e) {
-            assertSame(t.ex, e.getCause());
-        }
+        assertReadFail(()->new ReadFailTask(2, new long[]{1}, true, () -> true));
 
         // fail, cancel indicator return true
-        buf.clear();
         AtomicInteger cancelIndicatorCount = new AtomicInteger();
-        t = new ReadFailTask(2, new long[]{1}, true,
-                () -> cancelIndicatorCount.getAndIncrement() == 1);
-        try {
-            toJdkFuture(t.read(buf, 0)).get(1, TimeUnit.SECONDS);
-            fail();
-        } catch (Exception e) {
-            assertSame(t.ex, e.getCause());
-        }
+        assertReadFail(()->new ReadFailTask(2, new long[]{1}, true,
+                () -> cancelIndicatorCount.getAndIncrement() == 1));
 
         // no retry
-        buf.clear();
-        t = new ReadFailTask(2, null, false, null);
-        try {
-            toJdkFuture(t.read(buf, 0)).get(1, TimeUnit.SECONDS);
-            fail();
-        } catch (Exception e) {
-            assertSame(t.ex, e.getCause());
-        }
+        assertReadFail(() -> new ReadFailTask(2, null, false, null));
     }
 
     private class ReadFailTask extends AsyncIoTask {
@@ -185,11 +205,17 @@ public class AsyncIoTaskTest extends BaseFiberTest {
 
     @Test
     public void testWriteEx() throws Exception {
-        ByteBuffer buf = ByteBuffer.allocate(1);
 
-        // fail on first read
-        FlushFailTask t = new FlushFailTask(1, new long[]{1}, false, () -> false);
-        toJdkFuture(t.writeAndFlush(buf, 0, false)).get(1, TimeUnit.SECONDS);
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                ByteBuffer buf = ByteBuffer.allocate(1);
+                // fail on first write
+                FlushFailTask t = new FlushFailTask(1, new long[]{1}, false, () -> false);
+                return t.writeAndFlush(buf, 0, false).await(1000, this::justReturn);
+            }
+        });
+
     }
 
     private class FlushFailTask extends AsyncIoTask {

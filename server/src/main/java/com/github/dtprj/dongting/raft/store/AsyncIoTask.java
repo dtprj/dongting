@@ -72,6 +72,13 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         this.cancelRetryIndicator = cancelRetryIndicator;
         this.future = fiberGroup.newFuture();
         this.dtFile.incUseCount();
+        future.registerCallback(new FiberFuture.FutureCallback<>() {
+            @Override
+            protected FrameCallResult onCompleted(Void unused, Throwable ex) {
+                dtFile.descUseCount();
+                return Fiber.frameReturn();
+            }
+        });
     }
 
     public FiberFuture<Void> read(ByteBuffer ioBuffer, long filePos) {
@@ -117,7 +124,6 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     }
 
     private void complete(Throwable ex) {
-        this.dtFile.descUseCount();
         if (ex == null) {
             future.fireComplete(null);
         } else {
