@@ -144,7 +144,7 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public LogIterator openIterator(Supplier<Boolean> cancelIndicator) {
-        return null;
+        return new FileLogLoader(idxFiles, logFiles, groupConfig, cancelIndicator);
     }
 
     @Override
@@ -235,7 +235,7 @@ public class DefaultRaftLog implements RaftLog {
                         && firstIndexOfNextFile < idxFiles.persistedIndex;
             });
             // loop
-            return Fiber.call(f, this::execute);
+            return Fiber.call(f, this);
         }
     }
 }

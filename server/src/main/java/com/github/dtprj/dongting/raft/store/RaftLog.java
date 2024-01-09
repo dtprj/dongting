@@ -21,7 +21,6 @@ import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.raft.server.LogItem;
 
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 /**
@@ -88,7 +87,7 @@ public interface RaftLog {
          * @param bytesLimit max bytes of logs to return, 0 means no limit
          * @return return log items, don't return null or empty array
          */
-        CompletableFuture<List<LogItem>> next(long index, int limit, int bytesLimit);
+        FiberFrame<List<LogItem>> next(long index, int limit, int bytesLimit);
     }
 
     interface AppendCallback {
