@@ -26,6 +26,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * @author huangli
@@ -41,6 +42,7 @@ public class FiberGroup {
     @SuppressWarnings("FieldMayBeFinal")
     private volatile boolean shouldStop = false;
     private final static VarHandle SHOULD_STOP;
+
     static {
         try {
             MethodHandles.Lookup l = MethodHandles.lookup();
@@ -234,6 +236,14 @@ public class FiberGroup {
             });
             try {
                 f.get(3, TimeUnit.SECONDS);
+            } catch (TimeoutException e) {
+                log.error("log group info timeout, group={}", name, e);
+                try {
+                    Exception stack = new Exception();
+                    stack.setStackTrace(dispatcher.thread.getStackTrace());
+                    log.error("dispatcher thread stack", stack);
+                } catch (Exception ignored) {
+                }
             } catch (Exception e) {
                 log.error("can't log group info, group={}", name, e);
             }
