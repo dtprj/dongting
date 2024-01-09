@@ -237,5 +237,10 @@ public class DefaultRaftLog implements RaftLog {
             // loop
             return Fiber.call(f, this);
         }
+
+        @Override
+        protected FrameCallResult handle(Throwable ex) throws Throwable {
+            throw Fiber.fatal(ex);
+        }
     }
 }

@@ -68,7 +68,6 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         statusManager = new StatusManager(config);
         statusManager.initStatusFile();
         config.setRaftStatus(raftStatus);
-        config.setIoExecutor(MockExecutors.ioExecutor());
         mockAppendCallback = new LogFileQueueTest.MockAppendCallback();
 
         raftLog = new DefaultRaftLog(config, statusManager, 1);
@@ -143,39 +142,27 @@ public class DefaultRaftLogTest extends BaseFiberTest {
 
         {
             Supplier<Boolean> deleted = fileDeleted(dir, 0);
-            doInFiber(new FiberFrame<>() {
-                @Override
-                public FrameCallResult execute(Void input) {
-                    raftLog.markTruncateByIndex(3, 1000);
-                    return Fiber.frameReturn();
-                }
-            });
+            doInFiber(() -> raftLog.markTruncateByIndex(3, 1000));
             Thread.sleep(2);
             assertFalse(deleted.get());
-            TestUtil.plus1Hour(raftStatus.getTs());
+            plus1Hour();
             TestUtil.waitUtil(deleted);
         }
         {
-            TestUtil.plus1Hour(raftStatus.getTs());
-            doInFiber(new FiberFrame<>() {
-                @Override
-                public FrameCallResult execute(Void input) {
-                    raftLog.markTruncateByTimestamp(raftStatus.getTs().getWallClockMillis(), 0);
-                    return Fiber.frameReturn();
-                }
-            });
+            plus1Hour();
+            doInFiber(() -> raftLog.markTruncateByTimestamp(raftStatus.getTs().getWallClockMillis(), 0));
 
             // can't delete after next persist index and apply index, so only delete to index 4
             Supplier<Boolean> deleted = fileDeleted(dir, 1024);
-            TestUtil.plus1Hour(raftStatus.getTs());
+            plus1Hour();
             TestUtil.waitUtil(deleted);
         }
     }
 
-    private static Supplier<Boolean> fileDeleted(File dir, long startIndex) {
+    private static Supplier<Boolean> fileDeleted(File dir, long startPos) {
         return () -> {
             String[] names = dir.list();
-            String firstFileName = String.format("%020d", startIndex);
+            String firstFileName = String.format("%020d", startPos);
             if (names != null) {
                 for (String n : names) {
                     if (n.equals(firstFileName)) {
@@ -185,5 +172,9 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             }
             return true;
         };
+    }
+
+    private void plus1Hour() throws Exception {
+        doInFiber(() -> TestUtil.plus1Hour(raftStatus.getTs()));
     }
 }

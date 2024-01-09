@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.RunnableEx;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 
@@ -56,7 +57,7 @@ public class BaseFiberTest {
         }
     }
 
-    public void doInFiber(FiberFrame<Void> fiberFrame) throws Exception {
+    protected void doInFiber(FiberFrame<Void> fiberFrame) throws Exception {
         CompletableFuture<Void> f = new CompletableFuture<>();
         fiberGroup.fireFiber("do-in-fiber", new FiberFrame<>() {
             @Override
@@ -65,6 +66,30 @@ public class BaseFiberTest {
             }
 
             private FrameCallResult resume(Void unused) {
+                f.complete(null);
+                return Fiber.frameReturn();
+            }
+
+            @Override
+            protected FrameCallResult handle(Throwable ex) {
+                f.completeExceptionally(ex);
+                return Fiber.frameReturn();
+            }
+        });
+        try {
+            f.get(5, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            fiberGroup.fireLogGroupInfo("doInFiber timeout(5s)");
+            throw e;
+        }
+    }
+
+    protected void doInFiber(RunnableEx<Throwable> callback) throws Exception {
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        fiberGroup.fireFiber("do-in-fiber", new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) throws Throwable {
+                callback.run();
                 f.complete(null);
                 return Fiber.frameReturn();
             }
