@@ -202,7 +202,7 @@ public class RaftServer extends AbstractLifeCircle {
         raftStatus.setNodeIdOfObservers(nodeIdOfObservers);
         raftStatus.setGroupId(rgc.getGroupId());
 
-        RaftGroupConfig rgcEx = createGroupConfigEx(rgc, raftStatus);
+        RaftGroupConfigEx rgcEx = createGroupConfigEx(rgc, raftStatus);
 
 
         StateMachine stateMachine = raftFactory.createStateMachine(rgcEx);
@@ -227,7 +227,7 @@ public class RaftServer extends AbstractLifeCircle {
 
         GroupComponents gc = new GroupComponents();
         gc.setServerConfig(serverConfig);
-        gc.setGroupConfig(rgc);
+        gc.setGroupConfig(rgcEx);
         gc.setRaftLog(raftLog);
         gc.setStateMachine(stateMachine);
         gc.setRaftStatus(raftStatus);
@@ -243,11 +243,14 @@ public class RaftServer extends AbstractLifeCircle {
         return new RaftGroupImpl(gc);
     }
 
-    private RaftGroupConfig createGroupConfigEx(RaftGroupConfig rgc, RaftStatusImpl raftStatus) {
-        RaftGroupConfig rgcEx = new RaftGroupConfig(rgc.getGroupId(), rgc.getNodeIdOfMembers(),
+    private RaftGroupConfigEx createGroupConfigEx(RaftGroupConfig rgc, RaftStatusImpl raftStatus) {
+        RaftGroupConfigEx rgcEx = new RaftGroupConfigEx(rgc.getGroupId(), rgc.getNodeIdOfMembers(),
                 rgc.getNodeIdOfObservers());
         rgcEx.setDataDir(rgc.getDataDir());
         rgcEx.setStatusFile(rgc.getStatusFile());
+        rgcEx.setIoRetryInterval(rgc.getIoRetryInterval());
+        rgcEx.setIoTimeout(rgc.getIoTimeout());
+        rgcEx.setAllocateTimeout(rgc.getAllocateTimeout());
 
         rgcEx.setTs(raftStatus.getTs());
         rgcEx.setHeapPool(createHeapPoolFactory(raftStatus.getTs()));

@@ -26,7 +26,7 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.raft.test.TestUtil;
@@ -45,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 public class DefaultRaftLogTest extends BaseFiberTest {
     private String dataDir;
     private RaftStatusImpl raftStatus;
-    private RaftGroupConfig config;
+    private RaftGroupConfigEx config;
     private StatusManager statusManager;
     private DefaultRaftLog raftLog;
     private LogFileQueueTest.MockAppendCallback mockAppendCallback;
@@ -58,7 +58,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
 
     private void init() throws Exception {
         raftStatus = new RaftStatusImpl(dispatcher.getTs());
-        config = new RaftGroupConfig(1, "1", "1");
+        config = new RaftGroupConfigEx(1, "1", "1");
         config.setFiberGroup(fiberGroup);
         config.setDataDir(dataDir);
         config.setIoExecutor(MockExecutors.ioExecutor());

@@ -28,7 +28,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -60,7 +60,7 @@ class LogFileQueue extends FileQueue {
 
     int maxWriteBufferSize = MAX_WRITE_BUFFER_SIZE;
 
-    public LogFileQueue(File dir, RaftGroupConfig groupConfig, IdxOps idxOps, RaftLog.AppendCallback callback,
+    public LogFileQueue(File dir, RaftGroupConfigEx groupConfig, IdxOps idxOps, RaftLog.AppendCallback callback,
                         long fileSize) {
         super(dir, groupConfig, fileSize);
         this.idxOps = idxOps;

@@ -42,7 +42,7 @@ import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 import com.github.dtprj.dongting.raft.store.ByteBufferEncoder;
@@ -92,7 +92,7 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
         queue = fiberGroup.newChannel();
         raftStatus = new RaftStatusImpl(dispatcher.getTs());
         this.ts = dispatcher.getTs();
-        RaftGroupConfig groupConfig = new RaftGroupConfig(1, "1", "1");
+        RaftGroupConfigEx groupConfig = new RaftGroupConfigEx(1, "1", "1");
         groupConfig.setFiberGroup(fiberGroup);
         groupConfig.setDataDir(DATA_DIR);
         groupConfig.setIoExecutor(MockExecutors.ioExecutor());

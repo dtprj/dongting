@@ -21,7 +21,7 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,7 +43,7 @@ public class FileQueueTest extends BaseFiberTest {
     @BeforeEach
     public void setup() {
         File dir = TestDir.createTestDir(FileQueueTest.class.getSimpleName());
-        RaftGroupConfig c = new RaftGroupConfig(1, "1", "1");
+        RaftGroupConfigEx c = new RaftGroupConfigEx(1, "1", "1");
         c.setIoExecutor(MockExecutors.ioExecutor());
         c.setRaftStatus(new RaftStatusImpl(dispatcher.getTs()));
         c.setFiberGroup(fiberGroup);
@@ -51,7 +51,7 @@ public class FileQueueTest extends BaseFiberTest {
     }
 
     private static class MockFileQueue extends FileQueue {
-        public MockFileQueue(File dir, RaftGroupConfig groupConfig, long fileSize) {
+        public MockFileQueue(File dir, RaftGroupConfigEx groupConfig, long fileSize) {
             super(dir, groupConfig, fileSize);
         }
     }

@@ -33,7 +33,7 @@ import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.nio.ByteBuffer;
@@ -53,7 +53,7 @@ class LogAppender {
     private final IdxOps idxOps;
     private final LogFileQueue logFileQueue;
     private final RaftCodecFactory codecFactory;
-    private final RaftGroupConfig groupConfig;
+    private final RaftGroupConfigEx groupConfig;
     private final CRC32C crc32c = new CRC32C();
     private final EncodeContext encodeContext;
     private final long fileLenMask;
@@ -83,7 +83,7 @@ class LogAppender {
 
     private final FiberCondition noPendingCondition;
 
-    LogAppender(IdxOps idxOps, LogFileQueue logFileQueue, RaftGroupConfig groupConfig,
+    LogAppender(IdxOps idxOps, LogFileQueue logFileQueue, RaftGroupConfigEx groupConfig,
                 RaftLog.AppendCallback appendCallback) {
         this.idxOps = idxOps;
         this.logFileQueue = logFileQueue;

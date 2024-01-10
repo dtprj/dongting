@@ -29,7 +29,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.File;
 import java.io.IOException;
@@ -55,7 +55,7 @@ abstract class FileQueue {
     protected final File dir;
 
     protected final ExecutorService ioExecutor;
-    protected final RaftGroupConfig groupConfig;
+    protected final RaftGroupConfigEx groupConfig;
     protected final RaftStatusImpl raftStatus;
 
     protected final long fileSize;
@@ -70,7 +70,7 @@ abstract class FileQueue {
 
     protected boolean initialized;
 
-    public FileQueue(File dir, RaftGroupConfig groupConfig, long fileSize) {
+    public FileQueue(File dir, RaftGroupConfigEx groupConfig, long fileSize) {
         this.dir = dir;
         this.ioExecutor = groupConfig.getIoExecutor();
         this.groupConfig = groupConfig;

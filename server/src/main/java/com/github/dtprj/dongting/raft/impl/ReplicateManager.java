@@ -19,7 +19,7 @@ import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.NioClient;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
@@ -53,7 +53,7 @@ public class ReplicateManager {
     private long installSnapshotFailTime;
 
 
-    public ReplicateManager(RaftServerConfig config, RaftGroupConfig groupConfig, RaftStatusImpl raftStatus, RaftLog raftLog,
+    public ReplicateManager(RaftServerConfig config, RaftGroupConfigEx groupConfig, RaftStatusImpl raftStatus, RaftLog raftLog,
                             StateMachine stateMachine, NioClient client,
                             CommitManager commitManager, StatusManager statusManager) {
         this.groupId = groupConfig.getGroupId();

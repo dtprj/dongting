@@ -20,7 +20,7 @@ import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import org.junit.jupiter.api.Test;
 
@@ -38,13 +38,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class StatusManagerTest extends BaseFiberTest {
 
     private StatusManager statusManager;
-    private RaftGroupConfig groupConfig;
+    private RaftGroupConfigEx groupConfig;
     private RaftStatusImpl raftStatus;
 
     public void setup() {
         File dir = TestDir.createTestDir(StatusManagerTest.class.getSimpleName());
         raftStatus = new RaftStatusImpl(dispatcher.getTs());
-        groupConfig = new RaftGroupConfig(1, "1", "1");
+        groupConfig = new RaftGroupConfigEx(1, "1", "1");
         groupConfig.setDataDir(dir.getAbsolutePath());
         groupConfig.setStatusFile("status.test");
         groupConfig.setRaftStatus(raftStatus);

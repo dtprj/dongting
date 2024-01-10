@@ -30,7 +30,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -72,7 +72,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     private boolean closed;
 
-    public IdxFileQueue(File dir, StatusManager statusManager, RaftGroupConfig groupConfig,
+    public IdxFileQueue(File dir, StatusManager statusManager, RaftGroupConfigEx groupConfig,
                         int itemsPerFile, int maxCacheItems) {
         super(dir, groupConfig, (long) ITEM_LEN * itemsPerFile);
         if (BitUtil.nextHighestPowerOfTwo(itemsPerFile) != itemsPerFile) {

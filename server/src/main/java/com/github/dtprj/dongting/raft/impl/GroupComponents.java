@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.sm.SnapshotManager;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
@@ -27,7 +27,7 @@ import com.github.dtprj.dongting.raft.store.StatusManager;
  */
 public class GroupComponents {
     private RaftServerConfig serverConfig;
-    private RaftGroupConfig groupConfig;
+    private RaftGroupConfigEx groupConfig;
     private RaftStatusImpl raftStatus;
     private MemberManager memberManager;
     private VoteManager voteManager;
@@ -52,11 +52,11 @@ public class GroupComponents {
         this.serverConfig = serverConfig;
     }
 
-    public RaftGroupConfig getGroupConfig() {
+    public RaftGroupConfigEx getGroupConfig() {
         return groupConfig;
     }
 
-    public void setGroupConfig(RaftGroupConfig groupConfig) {
+    public void setGroupConfig(RaftGroupConfigEx groupConfig) {
         this.groupConfig = groupConfig;
     }
 

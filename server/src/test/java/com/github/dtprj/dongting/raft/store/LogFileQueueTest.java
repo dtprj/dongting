@@ -29,7 +29,7 @@ import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import org.junit.jupiter.api.AfterEach;
@@ -53,7 +53,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class LogFileQueueTest extends BaseFiberTest {
     private LogFileQueue logFileQueue;
     private File dir;
-    private RaftGroupConfig config;
+    private RaftGroupConfigEx config;
     private TailCache tailCache;
 
     private int index;
@@ -119,7 +119,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         RaftStatusImpl raftStatus = new RaftStatusImpl(dispatcher.getTs());
         tailCache = new TailCache();
         raftStatus.setTailCache(tailCache);
-        config = new RaftGroupConfig(1, "1", "1");
+        config = new RaftGroupConfigEx(1, "1", "1");
         config.setIoExecutor(MockExecutors.ioExecutor());
         config.setFiberGroup(fiberGroup);
         config.setTs(raftStatus.getTs());
@@ -166,7 +166,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         }
     }
 
-    static LogItem createItem(RaftGroupConfig config, int term, int prevTerm, long index, int totalSize, int bizHeaderLen) {
+    static LogItem createItem(RaftGroupConfigEx config, int term, int prevTerm, long index, int totalSize, int bizHeaderLen) {
         LogItem item = new LogItem(config.getHeapPool().getPool());
         item.setType(1);
         item.setBizType(2);

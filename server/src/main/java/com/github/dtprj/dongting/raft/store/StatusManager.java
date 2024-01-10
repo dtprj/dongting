@@ -27,7 +27,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftStatus;
 
 import java.io.File;
@@ -43,7 +43,7 @@ public class StatusManager {
     static final String VOTED_FOR_KEY = "votedFor";
     static final String COMMIT_INDEX_KEY = "commitIndex";
 
-    private final RaftGroupConfig groupConfig;
+    private final RaftGroupConfigEx groupConfig;
     private final RaftStatus raftStatus;
     private final StatusFile statusFile;
 
@@ -57,7 +57,7 @@ public class StatusManager {
     final FiberCondition updateDoneCondition;
     final Fiber updateFiber;
 
-    public StatusManager(RaftGroupConfig groupConfig) {
+    public StatusManager(RaftGroupConfigEx groupConfig) {
         this.groupConfig = groupConfig;
         this.raftStatus = groupConfig.getRaftStatus();
         File dir = FileUtil.ensureDir(groupConfig.getDataDir());

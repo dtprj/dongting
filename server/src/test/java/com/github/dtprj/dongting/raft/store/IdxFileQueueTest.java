@@ -23,7 +23,7 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,7 +51,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
 
     private IdxFileQueue createFileQueue() throws Exception {
 
-        RaftGroupConfig c = new RaftGroupConfig(1, "1", "1");
+        RaftGroupConfigEx c = new RaftGroupConfigEx(1, "1", "1");
         c.setIoExecutor(MockExecutors.ioExecutor());
         raftStatus = new RaftStatusImpl(dispatcher.getTs());
         c.setRaftStatus(raftStatus);
@@ -85,7 +85,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
 
     @Test
     public void testConstructor() {
-        RaftGroupConfig c = new RaftGroupConfig(1, "1", "1");
+        RaftGroupConfigEx c = new RaftGroupConfigEx(1, "1", "1");
         assertThrows(IllegalArgumentException.class, () -> new IdxFileQueue(
                 null, null, c, 511, 16));
     }

@@ -27,7 +27,7 @@ import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.nio.ByteBuffer;
 import java.util.LinkedList;
@@ -47,7 +47,7 @@ class FileLogLoader implements RaftLog.LogIterator {
     private final IdxOps idxFiles;
     private final LogFileQueue logFiles;
     private final ByteBufferPool heapPool;
-    private final RaftGroupConfig groupConfig;
+    private final RaftGroupConfigEx groupConfig;
     private final ByteBuffer readBuffer;
     private final TailCache tailCache;
 
@@ -65,12 +65,12 @@ class FileLogLoader implements RaftLog.LogIterator {
     private long bufferEndPos;
     private LogFile logFile;
 
-    FileLogLoader(IdxOps idxFiles, LogFileQueue logFiles, RaftGroupConfig groupConfig,
+    FileLogLoader(IdxOps idxFiles, LogFileQueue logFiles, RaftGroupConfigEx groupConfig,
                   Supplier<Boolean> cancelIndicator) {
         this(idxFiles, logFiles, groupConfig, cancelIndicator, 256 * 1024);
     }
 
-    FileLogLoader(IdxOps idxFiles, LogFileQueue logFiles, RaftGroupConfig groupConfig,
+    FileLogLoader(IdxOps idxFiles, LogFileQueue logFiles, RaftGroupConfigEx groupConfig,
                   Supplier<Boolean> cancelIndicator, int readBufferSize) {
         this.idxFiles = idxFiles;
         this.logFiles = logFiles;

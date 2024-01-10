@@ -28,7 +28,7 @@ import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.TailCache;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.File;
 import java.util.function.Supplier;
@@ -40,7 +40,7 @@ import static com.github.dtprj.dongting.raft.store.IdxFileQueue.KEY_NEXT_POS_AFT
  */
 public class DefaultRaftLog implements RaftLog {
     private static final DtLog log = DtLogs.getLogger(DefaultRaftLog.class);
-    private final RaftGroupConfig groupConfig;
+    private final RaftGroupConfigEx groupConfig;
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
     private final StatusManager statusManager;
@@ -56,7 +56,7 @@ public class DefaultRaftLog implements RaftLog {
 
     private final Fiber deleteFiber;
 
-    DefaultRaftLog(RaftGroupConfig groupConfig, StatusManager statusManager, long deleteIntervalMillis) {
+    DefaultRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager, long deleteIntervalMillis) {
         this.groupConfig = groupConfig;
         this.ts = groupConfig.getTs();
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
@@ -67,7 +67,7 @@ public class DefaultRaftLog implements RaftLog {
                 fiberGroup, new DeleteFiberFrame(deleteIntervalMillis), true);
     }
 
-    public DefaultRaftLog(RaftGroupConfig groupConfig, StatusManager statusManager) {
+    public DefaultRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager) {
         this(groupConfig, statusManager, DEFAULT_DELETE_INTERVAL_MILLIS);
     }
 
