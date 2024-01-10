@@ -539,4 +539,8 @@ public class Dispatcher extends AbstractLifeCircle {
     public ExecutorService getExecutor() {
         return executor;
     }
+
+    public DispatcherThread getThread() {
+        return thread;
+    }
 }

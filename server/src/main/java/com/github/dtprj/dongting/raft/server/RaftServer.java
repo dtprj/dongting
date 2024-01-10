@@ -16,10 +16,12 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
-import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.fiber.Dispatcher;
+import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.HostPort;
@@ -52,6 +54,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -196,13 +199,13 @@ public class RaftServer extends AbstractLifeCircle {
             throw new IllegalArgumentException("self id not found in group members/observers list: " + serverConfig.getNodeId());
         }
 
-        // TODO init fiber dispatcher
-        RaftStatusImpl raftStatus = new RaftStatusImpl(null);
+        FiberGroup fiberGroup = raftFactory.createFiberGroup(rgc);
+        RaftStatusImpl raftStatus = new RaftStatusImpl(fiberGroup.getDispatcher().getTs());
         raftStatus.setNodeIdOfMembers(nodeIdOfMembers);
         raftStatus.setNodeIdOfObservers(nodeIdOfObservers);
         raftStatus.setGroupId(rgc.getGroupId());
 
-        RaftGroupConfigEx rgcEx = createGroupConfigEx(rgc, raftStatus);
+        RaftGroupConfigEx rgcEx = createGroupConfigEx(rgc, raftStatus, fiberGroup);
 
 
         StateMachine stateMachine = raftFactory.createStateMachine(rgcEx);
@@ -243,7 +246,8 @@ public class RaftServer extends AbstractLifeCircle {
         return new RaftGroupImpl(gc);
     }
 
-    private RaftGroupConfigEx createGroupConfigEx(RaftGroupConfig rgc, RaftStatusImpl raftStatus) {
+    private RaftGroupConfigEx createGroupConfigEx(RaftGroupConfig rgc, RaftStatusImpl raftStatus,
+                                                  FiberGroup fiberGroup) {
         RaftGroupConfigEx rgcEx = new RaftGroupConfigEx(rgc.getGroupId(), rgc.getNodeIdOfMembers(),
                 rgc.getNodeIdOfObservers());
         rgcEx.setDataDir(rgc.getDataDir());
@@ -253,16 +257,26 @@ public class RaftServer extends AbstractLifeCircle {
         rgcEx.setAllocateTimeout(rgc.getAllocateTimeout());
 
         rgcEx.setTs(raftStatus.getTs());
-        rgcEx.setHeapPool(createHeapPoolFactory(raftStatus.getTs()));
+        rgcEx.setHeapPool(createHeapPoolFactory(fiberGroup));
         rgcEx.setDirectPool(serverConfig.getPoolFactory().apply(raftStatus.getTs(), true));
         rgcEx.setRaftStatus(raftStatus);
         rgcEx.setIoExecutor(raftFactory.createIoExecutor());
+        rgcEx.setFiberGroup(fiberGroup);
 
         return rgcEx;
     }
 
-    private RefBufferFactory createHeapPoolFactory(Timestamp ts) {
-        return null;
+    private RefBufferFactory createHeapPoolFactory(FiberGroup fiberGroup) {
+        Dispatcher dispatcher = fiberGroup.getDispatcher();
+        ExecutorService executorService = dispatcher.getExecutor();
+
+        TwoLevelPool heapPool = (TwoLevelPool) serverConfig.getPoolFactory().apply(dispatcher.getTs(), false);
+        TwoLevelPool releaseSafePool = heapPool.toReleaseInOtherThreadInstance(dispatcher.getThread(), byteBuffer -> {
+            if (byteBuffer != null) {
+                executorService.execute(() -> heapPool.release(byteBuffer));
+            }
+        });
+        return new RefBufferFactory(releaseSafePool, 800);
     }
 
     private static void parseMemberIds(Set<Integer> allNodeIds, Set<Integer> nodeIdOfMembers, String str, int groupId) {
