@@ -36,6 +36,7 @@ public class FiberGroup {
     private final String name;
     final Dispatcher dispatcher;
     final IndexedQueue<Fiber> readyFibers = new IndexedQueue<>(64);
+    final IndexedQueue<Fiber> readyFibersNextRound = new IndexedQueue<>(16);
     private final LongObjMap<Fiber> normalFibers = new LongObjMap<>(32, 0.6f);
     private final LongObjMap<Fiber> daemonFibers = new LongObjMap<>(32, 0.6f);
 
@@ -169,7 +170,6 @@ public class FiberGroup {
             removed = daemonFibers.remove(f.id) != null;
         } else {
             removed = normalFibers.remove(f.id) != null;
-            updateFinishStatus();
         }
         if (!removed) {
             BugLog.getLog().error("fiber is not in set: {}", f.getFiberName());
@@ -187,10 +187,18 @@ public class FiberGroup {
         }
         if (!f.ready) {
             f.ready = true;
-            if (addFirst) {
-                readyFibers.addFirst(f);
+            if (f.signalInThisRound) {
+                if (addFirst) {
+                    readyFibersNextRound.addFirst(f);
+                } else {
+                    readyFibersNextRound.addLast(f);
+                }
             } else {
-                readyFibers.addLast(f);
+                if (addFirst) {
+                    readyFibers.addFirst(f);
+                } else {
+                    readyFibers.addLast(f);
+                }
             }
             makeGroupReady();
         }
@@ -204,10 +212,10 @@ public class FiberGroup {
         dispatcher.readyGroups.addLast(this);
     }
 
-    private void updateFinishStatus() {
-        if (!finished) {
-            boolean ss = (boolean) SHOULD_STOP.get(this);
-            finished = ss && normalFibers.size() == 0;
+    void updateFinishStatus() {
+        boolean ss = (boolean) SHOULD_STOP.get(this);
+        if (ss && !finished) {
+            finished = normalFibers.size() == 0 && readyFibersNextRound.size() == 0;
         }
     }
 
@@ -254,14 +262,29 @@ public class FiberGroup {
         StringBuilder sb = new StringBuilder(256);
         sb.append(msg).append("\ngroup ").append(name)
                 .append(", ready=").append(readyFibers.size())
+                .append(", readyNext=").append(readyFibersNextRound.size())
                 .append(", normal=").append(normalFibers.size())
                 .append(", daemon=").append(daemonFibers.size())
                 .append("\n")
                 .append("--------------------------------------------------\n")
                 .append("readyFibers:\n");
-        for (int i = 0; i < readyFibers.size(); i++) {
-            Fiber f = readyFibers.get(i);
-            sb.append(f.getFiberName()).append(", currentFrame=").append(f.stackTop).append(", resumePoint=");
+        concatReadyFibers(readyFibers, sb);
+        concatReadyFibers(readyFibersNextRound, sb);
+        sb.append("--------------------------------------------------\n");
+        sb.append("normalFibers:\n");
+        normalFibers.forEach((key, f) -> {
+            concatFiberName(sb, f);
+            sb.append(", waitOn=").append(f.source).append('\n');
+        });
+        sb.append("--------------------------------------------------\n");
+        log.info(sb.toString());
+    }
+
+    private void concatReadyFibers(IndexedQueue<Fiber> q, StringBuilder sb) {
+        for (int i = 0; i < q.size(); i++) {
+            Fiber f = q.get(i);
+            concatFiberName(sb, f);
+            sb.append(", currentFrame=").append(f.stackTop).append(", resumePoint=");
             if (f.stackTop == null) {
                 sb.append("null");
             } else {
@@ -269,13 +292,13 @@ public class FiberGroup {
             }
             sb.append("\n");
         }
-        sb.append("--------------------------------------------------\n");
-        sb.append("normalFibers:\n");
-        normalFibers.forEach((key, f) -> {
-            sb.append(f.getFiberName()).append(", waitOn=").append(f.source).append('\n');
-        });
-        sb.append("--------------------------------------------------\n");
-        log.info(sb.toString());
+    }
+
+    private void concatFiberName(StringBuilder sb, Fiber f) {
+        sb.append(f.getFiberName()).append("(").append(Integer.toHexString(f.hashCode())).append(")");
+        if (f.lastWaitFor != null) {
+            sb.append(", lastWaitFor=").append(f.lastWaitFor);
+        }
     }
 
     public Dispatcher getDispatcher() {

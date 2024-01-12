@@ -124,12 +124,21 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     public FrameCallResult await(FrameCall<T> resumePoint) {
-        return Dispatcher.awaitOn(this, -1, resumePoint);
+        return Dispatcher.awaitOn(this, -1, resumePoint, "waitOnFuture");
+    }
+
+    public FrameCallResult await(String reason, FrameCall<T> resumePoint) {
+        return Dispatcher.awaitOn(this, -1, resumePoint, reason);
     }
 
     public FrameCallResult await(long millis, FrameCall<T> resumePoint) {
         DtUtil.checkPositive(millis, "millis");
-        return Dispatcher.awaitOn(this, millis, resumePoint);
+        return Dispatcher.awaitOn(this, millis, resumePoint, "timeWaitOnFuture");
+    }
+
+    public FrameCallResult await(long millis, String reason, FrameCall<T> resumePoint) {
+        DtUtil.checkPositive(millis, "millis");
+        return Dispatcher.awaitOn(this, millis, resumePoint, reason);
     }
 
     /**

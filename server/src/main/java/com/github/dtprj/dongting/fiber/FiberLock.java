@@ -56,14 +56,21 @@ public class FiberLock extends WaitSource {
     }
 
     public FrameCallResult lock(FrameCall<Void> resumePoint) {
-        Fiber fiber = Dispatcher.getCurrentFiberAndCheck(fiberGroup);
-        return Dispatcher.awaitOn(fiber, this, -1, resumePoint);
+        return Dispatcher.awaitOn(this, -1, resumePoint, "waitLock");
+    }
+
+    public FrameCallResult lock(String reason, FrameCall<Void> resumePoint) {
+        return Dispatcher.awaitOn(this, -1, resumePoint, reason);
     }
 
     public FrameCallResult tryLock(long millis, FrameCall<Boolean> resumePoint) {
         DtUtil.checkPositive(millis, "millis");
-        Fiber fiber = Dispatcher.getCurrentFiberAndCheck(fiberGroup);
-        return Dispatcher.awaitOn(fiber, this, millis, resumePoint);
+        return Dispatcher.awaitOn(this, millis, resumePoint, "timeWaitLock");
+    }
+
+    public FrameCallResult tryLock(long millis,String reason, FrameCall<Boolean> resumePoint) {
+        DtUtil.checkPositive(millis, "millis");
+        return Dispatcher.awaitOn(this, millis, resumePoint, reason);
     }
 
     public boolean tryLock() {

@@ -104,6 +104,7 @@ abstract class WaitSource {
         if (f != null) {
             fiberGroup.dispatcher.tryRemoveFromScheduleQueue(f);
             fiberGroup.tryMakeFiberReady(f, addFirst);
+            f.signalInThisRound = true;
         }
     }
 
@@ -115,6 +116,7 @@ abstract class WaitSource {
         while ((f = popTailWaiter()) != null) {
             fiberGroup.dispatcher.tryRemoveFromScheduleQueue(f);
             fiberGroup.tryMakeFiberReady(f, addFirst);
+            f.signalInThisRound = true;
         }
     }
 

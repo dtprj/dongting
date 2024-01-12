@@ -47,10 +47,16 @@ public class BaseFiberTest {
     @AfterAll
     public static void shutdownDispatcher() throws Exception {
         if (dispatcher.thread.isAlive()) {
-            dispatcher.stop(new DtTime(1000, TimeUnit.MILLISECONDS));
+            dispatcher.doInDispatcherThread(new FiberQueueTask() {
+                @Override
+                protected void run() {
+                    // fix time if it's updated by TimeStamp.updateForUnitTest()
+                    dispatcher.getTs().updateForUnitTest(System.nanoTime(), System.currentTimeMillis());
+                    dispatcher.stop(new DtTime(1000, TimeUnit.MILLISECONDS));
+                }
+            });
             dispatcher.thread.join(1500);
             if (dispatcher.thread.isAlive()) {
-                fiberGroup.fireLogGroupInfo("shutdown dispatcher timeout");
                 fail();
             }
             assertTrue(fiberGroup.finished);

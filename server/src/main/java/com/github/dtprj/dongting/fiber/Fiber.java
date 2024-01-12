@@ -49,6 +49,9 @@ public class Fiber extends WaitSource {
     Object inputObj;
     Throwable inputEx;
 
+    boolean signalInThisRound;
+    String lastWaitFor;
+
     public Fiber(String fiberName, FiberGroup fiberGroup, FiberFrame<Void> entryFrame) {
         this(fiberName, fiberGroup, entryFrame, false);
     }
@@ -72,19 +75,31 @@ public class Fiber extends WaitSource {
     }
 
     public static FrameCallResult sleep(long millis, FrameCall<Void> resumePoint) {
+        return sleep(millis, "sleep", resumePoint);
+    }
+
+    public static FrameCallResult sleep(long millis, String reason, FrameCall<Void> resumePoint) {
         DtUtil.checkPositive(millis, "millis");
-        Dispatcher.sleep(millis, resumePoint);
+        Dispatcher.sleep(millis, resumePoint, reason);
         return FrameCallResult.SUSPEND;
     }
 
     public static FrameCallResult sleepUntilShouldStop(long millis, FrameCall<Void> resumePoint) {
+        return sleepUntilShouldStop(millis, "sleepUntilShouldStop", resumePoint);
+    }
+
+    public static FrameCallResult sleepUntilShouldStop(long millis, String reason, FrameCall<Void> resumePoint) {
         DtUtil.checkPositive(millis, "millis");
-        Dispatcher.sleepUntilShouldStop(millis, resumePoint);
+        Dispatcher.sleepUntilShouldStop(millis, resumePoint, reason);
         return FrameCallResult.SUSPEND;
     }
 
     public static FrameCallResult yield(FrameCall<Void> resumePoint) {
-        Dispatcher.yield(resumePoint);
+        return Fiber.yield("yield", resumePoint);
+    }
+
+    public static FrameCallResult yield(String reason, FrameCall<Void> resumePoint) {
+        Dispatcher.yield(resumePoint, reason);
         return FrameCallResult.RETURN;
     }
 
@@ -149,13 +164,13 @@ public class Fiber extends WaitSource {
 
     public FrameCallResult join(FrameCall<Void> resumePoint) {
         Fiber currentFibber = check();
-        return Dispatcher.awaitOn(currentFibber, this, -1, resumePoint);
+        return Dispatcher.awaitOn(currentFibber, this, -1, resumePoint, "join");
     }
 
     public FrameCallResult join(long millis, FrameCall<Boolean> resumePoint) {
         DtUtil.checkPositive(millis, "millis");
         Fiber currentFibber = check();
-        return Dispatcher.awaitOn(currentFibber, this, millis, resumePoint);
+        return Dispatcher.awaitOn(currentFibber, this, millis, resumePoint, "join");
     }
 
     public FiberFuture<Void> join() {
