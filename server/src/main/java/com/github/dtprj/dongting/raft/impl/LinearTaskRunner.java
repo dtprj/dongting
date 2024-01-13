@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberChannel;
-import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
@@ -57,8 +56,6 @@ public class LinearTaskRunner implements BiConsumer<EventType, Object> {
 
     private FiberChannel<RaftTask> taskChannel;
 
-    private FiberCondition dataArrivedCondition;
-
     public LinearTaskRunner(RaftGroupConfigEx groupConfig, RaftStatusImpl raftStatus, RaftLog raftLog,
                             ApplyManager applyManager, ReplicateManager replicateManager) {
         this.groupConfig = groupConfig;
@@ -76,7 +73,6 @@ public class LinearTaskRunner implements BiConsumer<EventType, Object> {
 
     public void init(FiberChannel<RaftTask> taskChannel) {
         this.taskChannel = taskChannel;
-        this.dataArrivedCondition = groupConfig.getFiberGroup().newCondition("dataArrivedCondition");
         Fiber f = new Fiber("linearTaskRunner", groupConfig.getFiberGroup(), new RunnerFrame(), true);
         f.start();
     }
@@ -182,8 +178,7 @@ public class LinearTaskRunner implements BiConsumer<EventType, Object> {
             return;
         }
 
-        // TODO not finished
-        this.dataArrivedCondition.signalAll();
+        raftStatus.getDataArrivedCondition().signalAll();
     }
 
     public void sendHeartBeat() {

@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.raft.server.RaftNode;
 import com.github.dtprj.dongting.raft.server.RaftStatus;
 
@@ -55,6 +56,7 @@ public class RaftStatusImpl extends RaftStatus {
 
     private List<RaftMember> replicateList;
 
+    private FiberCondition dataArrivedCondition;
     private TailCache tailCache = new TailCache();
     private long firstIndexOfCurrentTerm;
     private CompletableFuture<Void> firstCommitOfApplied; // shared
@@ -390,5 +392,13 @@ public class RaftStatusImpl extends RaftStatus {
 
     public void setStateMachineEpoch(int stateMachineEpoch) {
         this.stateMachineEpoch = stateMachineEpoch;
+    }
+
+    public FiberCondition getDataArrivedCondition() {
+        return dataArrivedCondition;
+    }
+
+    public void setDataArrivedCondition(FiberCondition dataArrivedCondition) {
+        this.dataArrivedCondition = dataArrivedCondition;
     }
 }

@@ -53,6 +53,9 @@ class InitFiberFrame extends FiberFrame<Void> {
 
     @Override
     public FrameCallResult execute(Void input) throws Throwable {
+        gc.getLinearTaskRunner().init(getFiberGroup().newChannel());
+        raftStatus.setDataArrivedCondition(getFiberGroup().newCondition("dataArrived"));
+
         return Fiber.call(gc.getStatusManager().initStatusFile(), this::afterInitStatusFile);
     }
 
@@ -94,8 +97,6 @@ class InitFiberFrame extends FiberFrame<Void> {
         raftStatus.setLastLogTerm(initResultTerm);
         raftStatus.setLastLogIndex(initResultIndex);
         raftStatus.setLastPersistLogIndex(initResultIndex);
-
-        gc.getLinearTaskRunner().init(getFiberGroup().newChannel());
 
         // TODO apply
 

@@ -125,11 +125,6 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public void append() {
-        logFiles.append();
-    }
-
-    @Override
     public void truncateTail(long index) {
         TailCache tailCache = raftStatus.getTailCache();
         tailCache.truncate(index);

@@ -54,6 +54,7 @@ public class LogFileQueueTest extends BaseFiberTest {
     private LogFileQueue logFileQueue;
     private File dir;
     private RaftGroupConfigEx config;
+    private RaftStatusImpl raftStatus;
     private TailCache tailCache;
 
     private int index;
@@ -116,7 +117,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         idxMap.clear();
 
         dir = TestDir.createTestDir(LogFileQueueTest.class.getSimpleName());
-        RaftStatusImpl raftStatus = new RaftStatusImpl(dispatcher.getTs());
+        raftStatus = new RaftStatusImpl(dispatcher.getTs());
         tailCache = new TailCache();
         raftStatus.setTailCache(tailCache);
         config = new RaftGroupConfigEx(1, "1", "1");
@@ -131,6 +132,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) throws Throwable {
+                raftStatus.setDataArrivedCondition(getFiberGroup().newCondition("dataArrived"));
                 logFileQueue.initQueue();
                 FiberFrame<Integer> f = logFileQueue.restore(1, 0, 0);
                 return Fiber.call(f, i -> Fiber.frameReturn());
@@ -210,7 +212,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                logFileQueue.append();
+                raftStatus.getDataArrivedCondition().signalAll();
                 FiberFrame<Void> f = logFileQueue.logAppender.waitWriteFinishOrShouldStopOrClose();
                 return Fiber.call(f, this::justReturn);
             }

@@ -141,6 +141,7 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
         fiberGroup.fireFiber("init", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
+                raftStatus.setDataArrivedCondition(fiberGroup.newCondition("dataArrived"));
                 return Fiber.call(statusManager.initStatusFile(), this::afterStatusManagerInit);
             }
 
@@ -208,7 +209,7 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
                 pending.addLast(reqData);
             }
             list.clear();
-            raftLog.append();
+            raftStatus.getDataArrivedCondition().signalAll();
             return Fiber.resume(null, this);
         }
     }

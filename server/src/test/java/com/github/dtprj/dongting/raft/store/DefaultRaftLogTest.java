@@ -77,6 +77,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) throws Exception {
+                raftStatus.setDataArrivedCondition(getFiberGroup().newCondition("dataArrived"));
                 return Fiber.call(raftLog.init(mockAppendCallback), this::resume);
             }
 
@@ -111,7 +112,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                raftLog.append();
+                raftStatus.getDataArrivedCondition().signalAll();
                 FiberFrame<Void> f = raftLog.logFiles.logAppender.waitWriteFinishOrShouldStopOrClose();
                 return Fiber.call(f, this::justReturn);
             }

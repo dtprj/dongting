@@ -37,11 +37,6 @@ public interface RaftLog {
     FiberFrame<Pair<Integer, Long>> init(AppendCallback appendCallback) throws Exception;
 
     /**
-     * Batch append logs.
-     */
-    void append();
-
-    /**
      * truncate tail to index (include)
      */
     void truncateTail(long index);

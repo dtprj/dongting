@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
+import com.github.dtprj.dongting.fiber.FiberInterruptException;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -68,7 +69,8 @@ class LogAppender {
 
     private final Fiber appendFiber;
     private final AppendFiberFrame appendFiberFrame = new AppendFiberFrame();
-    private final FiberCondition needAppendCondition;
+
+    private FiberCondition dataArrivedCondition;
 
     private final Fiber fsyncFiber;
     private final FiberCondition needFsyncCondition;
@@ -96,7 +98,6 @@ class LogAppender {
         this.cache = raftStatus.getTailCache();
         this.fiberGroup = groupConfig.getFiberGroup();
         this.appendFiber = new Fiber("append-" + groupConfig.getGroupId(), fiberGroup, appendFiberFrame);
-        this.needAppendCondition = fiberGroup.newCondition("NeedAppend-" + groupConfig.getGroupId());
         this.writeStopIndicator = logFileQueue::isClosed;
         this.noPendingCondition = fiberGroup.newCondition("NoPending-" + groupConfig.getGroupId());
         this.fsyncFiber = new Fiber("fsync-" + groupConfig.getGroupId(), fiberGroup, new SyncLoopFrame());
@@ -109,7 +110,7 @@ class LogAppender {
     }
 
     public FiberFuture<Void> close() {
-        needAppendCondition.signal();
+        appendFiber.interrupt();
         needFsyncCondition.signal();
         noPendingCondition.signalAll();
         FiberFuture<Void> f1, f2;
@@ -149,7 +150,7 @@ class LogAppender {
                 }
                 return Fiber.call(logFileQueue.ensureWritePosReady(nextPersistPos), this::afterPosReady);
             } else {
-                return needAppendCondition.await(this);
+                return dataArrivedCondition.await(this);
             }
         }
 
@@ -162,6 +163,9 @@ class LogAppender {
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
+            if (ex instanceof FiberInterruptException) {
+                return Fiber.frameReturn();
+            }
             throw Fiber.fatal(ex);
         }
     }
@@ -179,10 +183,6 @@ class LogAppender {
             super(fiberGroup, dtFile, retryInterval, retryForever, cancelIndicator);
         }
 
-    }
-
-    public void append() {
-        needAppendCondition.signalLater();
     }
 
     private ByteBuffer borrowBuffer(int size) {
@@ -502,6 +502,10 @@ class LogAppender {
     public void setNext(long nextPersistIndex, long nextPersistPos) {
         this.nextPersistIndex = nextPersistIndex;
         this.nextPersistPos = nextPersistPos;
+    }
+
+    public void setDataArrivedCondition(FiberCondition dataArrivedCondition) {
+        this.dataArrivedCondition = dataArrivedCondition;
     }
 
     public FiberFrame<Void> waitWriteFinishOrShouldStopOrClose() {
