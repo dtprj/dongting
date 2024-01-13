@@ -17,12 +17,19 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.codec.DecodeContext;
+import com.github.dtprj.dongting.common.RefCount;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
+import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author huangli
@@ -58,6 +65,30 @@ public class ApplyManager {
         this.decodeContext = new DecodeContext();
         this.decodeContext.setHeapPool(heapPool);
         this.statusManager = statusManager;
+    }
+
+    public void execRead(long index, RaftTask rt) {
+        RaftInput input = rt.getInput();
+        CompletableFuture<RaftOutput> future = rt.getFuture();
+        try {
+            if (input.getDeadline() != null && input.getDeadline().isTimeout(ts)) {
+                future.completeExceptionally(new RaftExecTimeoutException("timeout "
+                        + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms"));
+            }
+            Object r = stateMachine.exec(index, input);
+            future.complete(new RaftOutput(index, r));
+        } catch (Throwable e) {
+            log.error("exec read failed. {}", e);
+            future.completeExceptionally(e);
+        } finally {
+            // for read task, no LogItem generated
+            if (input.getHeader() instanceof RefCount) {
+                ((RefCount) input.getHeader()).release();
+            }
+            if (input.getBody() instanceof RefCount) {
+                ((RefCount) input.getBody()).release();
+            }
+        }
     }
 
 }

@@ -95,6 +95,8 @@ class InitFiberFrame extends FiberFrame<Void> {
         raftStatus.setLastLogIndex(initResultIndex);
         raftStatus.setLastPersistLogIndex(initResultIndex);
 
+        gc.getLinearTaskRunner().init(getFiberGroup().newChannel());
+
         // TODO apply
 
         log.info("raft group init complete, maxTerm={}, maxIndex={}, groupId={}",
