@@ -35,6 +35,8 @@ public class FiberGroup {
     private static final DtLog log = DtLogs.getLogger(FiberGroup.class);
     private final String name;
     final Dispatcher dispatcher;
+    final CompletableFuture<Void> shutdownFuture = new CompletableFuture<>();
+
     final IndexedQueue<Fiber> readyFibers = new IndexedQueue<>(64);
     final IndexedQueue<Fiber> readyFibersNextRound = new IndexedQueue<>(16);
     private final LongObjMap<Fiber> normalFibers = new LongObjMap<>(32, 0.6f);
@@ -216,6 +218,9 @@ public class FiberGroup {
         boolean ss = (boolean) SHOULD_STOP.get(this);
         if (ss && !finished) {
             finished = normalFibers.size() == 0 && readyFibersNextRound.size() == 0;
+            if (finished) {
+                shutdownFuture.complete(null);
+            }
         }
     }
 
@@ -303,5 +308,9 @@ public class FiberGroup {
 
     public Dispatcher getDispatcher() {
         return dispatcher;
+    }
+
+    public CompletableFuture<Void> getShutdownFuture() {
+        return shutdownFuture;
     }
 }
