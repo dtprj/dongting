@@ -213,7 +213,7 @@ public class RaftServer extends AbstractLifeCircle {
         StatusManager statusManager = new StatusManager(rgcEx);
         RaftLog raftLog = raftFactory.createRaftLog(rgcEx, statusManager);
 
-        MemberManager memberManager = new MemberManager(serverConfig, replicateNioClient,
+        MemberManager memberManager = new MemberManager(serverConfig, rgcEx, replicateNioClient,
                 raftStatus, eventBus);
         ApplyManager applyManager = new ApplyManager(serverConfig.getNodeId(), raftLog, stateMachine, raftStatus,
                 eventBus, rgcEx.getHeapPool(), statusManager);
@@ -243,6 +243,7 @@ public class RaftServer extends AbstractLifeCircle {
         gc.setServerStat(serverStat);
         gc.setSnapshotManager(raftFactory.createSnapshotManager(rgcEx));
         gc.setStatusManager(statusManager);
+        gc.setFiberGroup(fiberGroup);
         return new RaftGroupImpl(gc);
     }
 
@@ -300,5 +301,9 @@ public class RaftServer extends AbstractLifeCircle {
     @Override
     protected void doStop(DtTime timeout, boolean force) {
 
+    }
+
+    public RaftGroup getRaftGroup(int groupId) {
+        return raftGroups.get(groupId);
     }
 }

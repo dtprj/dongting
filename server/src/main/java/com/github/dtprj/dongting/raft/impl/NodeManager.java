@@ -182,7 +182,9 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
             currentReadyNodes--;
             nodeEx.setStatus(new NodeStatus(false, oldStatus.getEpoch()));
         }
+        nodeEx.fireStatusChange();
         if (currentReadyNodes >= startReadyQuorum && !startReadyFuture.isDone()) {
+            log.info("nodeManager is ready");
             startReadyFuture.complete(null);
         }
     }

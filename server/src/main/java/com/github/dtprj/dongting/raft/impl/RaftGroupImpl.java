@@ -16,7 +16,9 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.fiber.FiberChannel;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
@@ -34,9 +36,14 @@ public class RaftGroupImpl extends RaftGroup {
     private static final DtLog log = DtLogs.getLogger(RaftGroupImpl.class);
     private final Timestamp readTimestamp = new Timestamp();
     private final GroupComponents gc;
+    private final IntObjMap<FiberChannel<Object>> processorChannels = new IntObjMap<>();
 
     public RaftGroupImpl(GroupComponents gc) {
         this.gc = gc;
+    }
+
+    public IntObjMap<FiberChannel<Object>> getProcessorChannels() {
+        return processorChannels;
     }
 
     @Override

@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.sm.SnapshotManager;
@@ -43,6 +44,8 @@ public class GroupComponents {
 
     private RaftLog raftLog;
     private StateMachine stateMachine;
+
+    private FiberGroup fiberGroup;
 
     public RaftServerConfig getServerConfig() {
         return serverConfig;
@@ -162,5 +165,13 @@ public class GroupComponents {
 
     public void setStateMachine(StateMachine stateMachine) {
         this.stateMachine = stateMachine;
+    }
+
+    public FiberGroup getFiberGroup() {
+        return fiberGroup;
+    }
+
+    public void setFiberGroup(FiberGroup fiberGroup) {
+        this.fiberGroup = fiberGroup;
     }
 }
