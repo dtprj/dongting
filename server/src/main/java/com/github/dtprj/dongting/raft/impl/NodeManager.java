@@ -228,4 +228,12 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
     @Override
     public void accept(EventType eventType, Object o) {
     }
+
+    public UUID getUuid() {
+        return uuid;
+    }
+
+    public IntObjMap<RaftNodeEx> getAllNodesEx() {
+        return allNodesEx;
+    }
 }

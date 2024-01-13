@@ -21,15 +21,18 @@ import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.fiber.Dispatcher;
+import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.NioConfig;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.ApplyManager;
 import com.github.dtprj.dongting.raft.impl.CommitManager;
 import com.github.dtprj.dongting.raft.impl.EventBus;
@@ -44,10 +47,13 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.ReplicateManager;
 import com.github.dtprj.dongting.raft.impl.VoteManager;
+import com.github.dtprj.dongting.raft.rpc.NodePingProcessor;
+import com.github.dtprj.dongting.raft.rpc.RaftPingProcessor;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -55,6 +61,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -123,9 +130,9 @@ public class RaftServer extends AbstractLifeCircle {
         setupNioConfig(repServerConfig);
         replicateNioServer = new NioServer(repServerConfig);
 
-        /* TODO
         replicateNioServer.register(Commands.NODE_PING, new NodePingProcessor(serverConfig.getNodeId(), nodeManager.getUuid()));
         replicateNioServer.register(Commands.RAFT_PING, new RaftPingProcessor(this));
+        /* TODO
         replicateNioServer.register(Commands.RAFT_APPEND_ENTRIES, new AppendProcessor(this, raftGroups));
         replicateNioServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(this));
         replicateNioServer.register(Commands.RAFT_INSTALL_SNAPSHOT, new InstallSnapshotProcessor(this));
@@ -295,7 +302,64 @@ public class RaftServer extends AbstractLifeCircle {
 
     @Override
     protected void doStart() {
+        try {
+            // start all fiber group
+            ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
+            raftGroups.forEach((groupId, g) -> {
+                GroupComponents gc = g.getGroupComponents();
+                gc.getMemberManager().init(nodeManager.getAllNodesEx());
+                CompletableFuture<Void> f = gc.getFiberGroup().getDispatcher().startGroup(gc.getFiberGroup());
+                futures.add(f);
+            });
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get(5, TimeUnit.SECONDS);
 
+            // init raft log and state machine
+            futures.clear();
+            raftGroups.forEach((groupId, g) -> {
+                GroupComponents gc = g.getGroupComponents();
+                InitFiberFrame initFiberFrame = new InitFiberFrame(gc);
+                Fiber initFiber = new Fiber("init-raft-group-" + groupId,
+                        gc.getFiberGroup(), initFiberFrame);
+                gc.getFiberGroup().fireFiber(initFiber);
+                futures.add(initFiberFrame.getPrepareFuture());
+            });
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get();
+
+            // start replicate server and client
+            replicateNioServer.start();
+            replicateNioClient.start();
+            replicateNioClient.waitStart();
+
+            futures.clear();
+
+            nodeManager.start();
+            int electQuorum = RaftUtil.getElectQuorum(nodeManager.getAllNodesEx().size());
+            futures.add(nodeManager.readyFuture(electQuorum));
+
+            raftGroups.forEach((groupId, g) -> {
+                GroupComponents gc = g.getGroupComponents();
+                gc.getFiberGroup().fireFiber(gc.getMemberManager().createRaftPingFiber());
+                CompletableFuture<Void> f = gc.getMemberManager().getStartReadyFuture();
+                futures.add(f);
+            });
+
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).whenComplete((v, ex) -> {
+                if (ex == null) {
+                    try {
+                        serviceNioServer.start();
+                        readyFuture.complete(null);
+                    } catch (Exception serviceNioServerStartEx) {
+                        readyFuture.completeExceptionally(serviceNioServerStartEx);
+                    }
+                } else {
+                    readyFuture.completeExceptionally(ex);
+                }
+            });
+
+        } catch (Exception e) {
+            log.error("start raft server failed", e);
+            throw new RaftException(e);
+        }
     }
 
     @Override

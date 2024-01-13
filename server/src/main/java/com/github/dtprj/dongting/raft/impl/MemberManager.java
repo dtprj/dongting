@@ -144,7 +144,7 @@ public class MemberManager {
         raftStatus.setRwQuorum(RaftUtil.getRwQuorum(raftStatus.getMembers().size()));
     }
 
-    public void startRaftPingFiber() {
+    public Fiber createRaftPingFiber() {
         FiberFrame<Void> fiberFrame = new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -153,8 +153,7 @@ public class MemberManager {
             }
         };
         // daemon fiber
-        Fiber f = new Fiber("raftPing", groupConfig.getFiberGroup(), fiberFrame, true);
-        f.start();
+        return new Fiber("raftPing", groupConfig.getFiberGroup(), fiberFrame, true);
     }
 
     public void ensureRaftMemberStatus() {
@@ -257,4 +256,7 @@ public class MemberManager {
         return count;
     }
 
+    public CompletableFuture<Void> getStartReadyFuture() {
+        return startReadyFuture;
+    }
 }
