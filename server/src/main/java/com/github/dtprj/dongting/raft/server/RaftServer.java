@@ -34,10 +34,10 @@ import com.github.dtprj.dongting.raft.impl.ApplyManager;
 import com.github.dtprj.dongting.raft.impl.CommitManager;
 import com.github.dtprj.dongting.raft.impl.EventBus;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
+import com.github.dtprj.dongting.raft.impl.LinearTaskRunner;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.NodeManager;
 import com.github.dtprj.dongting.raft.impl.PendingStat;
-import com.github.dtprj.dongting.raft.impl.Raft;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
@@ -221,11 +221,11 @@ public class RaftServer extends AbstractLifeCircle {
         ReplicateManager replicateManager = new ReplicateManager(serverConfig, rgcEx, raftStatus, raftLog,
                 stateMachine, replicateNioClient, commitManager, statusManager);
 
-        Raft raft = new Raft(raftStatus, raftLog, applyManager, replicateManager);
+        LinearTaskRunner linearTaskRunner = new LinearTaskRunner(raftStatus, raftLog, applyManager, replicateManager);
         VoteManager voteManager = new VoteManager(serverConfig, rgc.getGroupId(), raftStatus, replicateNioClient,
-                raft, statusManager);
+                linearTaskRunner, statusManager);
 
-        eventBus.register(raft);
+        eventBus.register(linearTaskRunner);
         eventBus.register(voteManager);
 
         GroupComponents gc = new GroupComponents();

@@ -32,7 +32,7 @@ public class GroupComponents {
     private RaftStatusImpl raftStatus;
     private MemberManager memberManager;
     private VoteManager voteManager;
-    private Raft raft;
+    private LinearTaskRunner linearTaskRunner;
     private CommitManager commitManager;
     private ApplyManager applyManager;
     private EventBus eventBus;
@@ -87,12 +87,12 @@ public class GroupComponents {
         this.voteManager = voteManager;
     }
 
-    public Raft getRaft() {
-        return raft;
+    public LinearTaskRunner getLinearTaskRunner() {
+        return linearTaskRunner;
     }
 
-    public void setRaft(Raft raft) {
-        this.raft = raft;
+    public void setLinearTaskRunner(LinearTaskRunner linearTaskRunner) {
+        this.linearTaskRunner = linearTaskRunner;
     }
 
     public CommitManager getCommitManager() {

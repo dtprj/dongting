@@ -16,18 +16,23 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.fiber.FiberChannel;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 
 /**
  * @author huangli
  */
-public class Raft implements BiConsumer<EventType, Object> {
+public class LinearTaskRunner implements BiConsumer<EventType, Object> {
 
-    private static final DtLog log = DtLogs.getLogger(Raft.class);
+    private static final DtLog log = DtLogs.getLogger(LinearTaskRunner.class);
 
     private final ReplicateManager replicateManager;
     private final ApplyManager applyManager;
@@ -37,8 +42,10 @@ public class Raft implements BiConsumer<EventType, Object> {
 
     private final Timestamp ts;
 
-    public Raft(RaftStatusImpl raftStatus, RaftLog raftLog, ApplyManager applyManager,
-                ReplicateManager replicateManager) {
+    private FiberChannel<RaftTask> taskChannel;
+
+    public LinearTaskRunner(RaftStatusImpl raftStatus, RaftLog raftLog, ApplyManager applyManager,
+                            ReplicateManager replicateManager) {
         this.raftStatus = raftStatus;
         this.raftLog = raftLog;
         this.ts = raftStatus.getTs();
@@ -51,8 +58,14 @@ public class Raft implements BiConsumer<EventType, Object> {
     public void accept(EventType eventType, Object o) {
     }
 
+    public void init(FiberChannel<RaftTask> taskChannel) {
+        this.taskChannel = taskChannel;
+    }
 
-
-
-
+    public CompletableFuture<RaftOutput> submitRaftTaskInBizThread(RaftInput input) {
+        CompletableFuture f = new CompletableFuture<>();
+        RaftTask t = new RaftTask(raftStatus.getTs(), LogItem.TYPE_NORMAL, input, f);
+        taskChannel.fireOffer(t);
+        return f;
+    }
 }
