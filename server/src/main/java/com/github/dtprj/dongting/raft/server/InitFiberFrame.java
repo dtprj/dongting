@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
+import com.github.dtprj.dongting.fiber.FiberChannel;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
@@ -24,7 +25,9 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
+import com.github.dtprj.dongting.raft.rpc.RaftGroupProcessor;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -37,11 +40,13 @@ class InitFiberFrame extends FiberFrame<Void> {
     private final GroupComponents gc;
     private final RaftStatusImpl raftStatus;
     private final RaftGroupConfigEx groupConfig;
+    private final List<RaftGroupProcessor<?>> raftGroupProcessors;
 
-    public InitFiberFrame(GroupComponents gc) {
+    public InitFiberFrame(GroupComponents gc, List<RaftGroupProcessor<?>> raftGroupProcessors) {
         this.gc = gc;
         this.raftStatus = gc.getRaftStatus();
         this.groupConfig = gc.getGroupConfig();
+        this.raftGroupProcessors = raftGroupProcessors;
     }
 
     @Override
@@ -53,7 +58,16 @@ class InitFiberFrame extends FiberFrame<Void> {
 
     @Override
     public FrameCallResult execute(Void input) throws Throwable {
+        for(RaftGroupProcessor<?> processor : raftGroupProcessors) {
+            FiberChannel<Object> channel = getFiberGroup().newChannel();
+            FiberFrame<Void> initFrame = processor.createFiberFrame(channel);
+            Fiber f = new Fiber(processor.getClass().getSimpleName(), getFiberGroup(),
+                    initFrame, true);
+            f.start();
+        }
+
         gc.getLinearTaskRunner().init(getFiberGroup().newChannel());
+
         raftStatus.setDataArrivedCondition(getFiberGroup().newCondition("dataArrived"));
 
         return Fiber.call(gc.getStatusManager().initStatusFile(), this::afterInitStatusFile);

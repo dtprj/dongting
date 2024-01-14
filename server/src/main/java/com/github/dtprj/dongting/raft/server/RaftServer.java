@@ -48,6 +48,7 @@ import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.ReplicateManager;
 import com.github.dtprj.dongting.raft.impl.VoteManager;
 import com.github.dtprj.dongting.raft.rpc.NodePingProcessor;
+import com.github.dtprj.dongting.raft.rpc.RaftGroupProcessor;
 import com.github.dtprj.dongting.raft.rpc.RaftPingProcessor;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
@@ -86,6 +87,8 @@ public class RaftServer extends AbstractLifeCircle {
     private final PendingStat serverStat = new PendingStat();
 
     private final CompletableFuture<Void> readyFuture = new CompletableFuture<>();
+
+    private final List<RaftGroupProcessor<?>> raftGroupProcessors = new ArrayList<>();
 
     public RaftServer(RaftServerConfig serverConfig, List<RaftGroupConfig> groupConfig, RaftFactory raftFactory) {
         Objects.requireNonNull(serverConfig);
@@ -131,7 +134,7 @@ public class RaftServer extends AbstractLifeCircle {
         replicateNioServer = new NioServer(repServerConfig);
 
         replicateNioServer.register(Commands.NODE_PING, new NodePingProcessor(serverConfig.getNodeId(), nodeManager.getUuid()));
-        replicateNioServer.register(Commands.RAFT_PING, new RaftPingProcessor(this));
+        addRaftGroupProcessor(replicateNioServer, Commands.RAFT_PING, new RaftPingProcessor(this));
         /* TODO
         replicateNioServer.register(Commands.RAFT_APPEND_ENTRIES, new AppendProcessor(this, raftGroups));
         replicateNioServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(this));
@@ -152,6 +155,11 @@ public class RaftServer extends AbstractLifeCircle {
         } else {
             serviceNioServer = null;
         }
+    }
+
+    private void addRaftGroupProcessor(NioServer nioServer, int command, RaftGroupProcessor<?> processor) {
+        nioServer.register(command, processor);
+        raftGroupProcessors.add(processor);
     }
 
     private void setupNioConfig(NioConfig nc) {
@@ -318,7 +326,7 @@ public class RaftServer extends AbstractLifeCircle {
             futures.clear();
             raftGroups.forEach((groupId, g) -> {
                 GroupComponents gc = g.getGroupComponents();
-                InitFiberFrame initFiberFrame = new InitFiberFrame(gc);
+                InitFiberFrame initFiberFrame = new InitFiberFrame(gc, raftGroupProcessors);
                 Fiber initFiber = new Fiber("init-raft-group-" + groupId,
                         gc.getFiberGroup(), initFiberFrame);
                 gc.getFiberGroup().fireFiber(initFiber);
