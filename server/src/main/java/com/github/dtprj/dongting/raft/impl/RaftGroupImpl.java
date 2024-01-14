@@ -157,4 +157,8 @@ public class RaftGroupImpl extends RaftGroup {
     public GroupComponents getGroupComponents() {
         return gc;
     }
+
+    public FiberGroup getFiberGroup() {
+        return fiberGroup;
+    }
 }

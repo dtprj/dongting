@@ -29,7 +29,6 @@ import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
-import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -45,10 +44,8 @@ public class LinearTaskRunner implements BiConsumer<EventType, Object> {
 
     private static final DtLog log = DtLogs.getLogger(LinearTaskRunner.class);
 
-    private final ReplicateManager replicateManager;
     private final ApplyManager applyManager;
 
-    private final RaftLog raftLog;
     private final RaftGroupConfigEx groupConfig;
     private final RaftStatusImpl raftStatus;
 
@@ -56,15 +53,12 @@ public class LinearTaskRunner implements BiConsumer<EventType, Object> {
 
     private FiberChannel<RaftTask> taskChannel;
 
-    public LinearTaskRunner(RaftGroupConfigEx groupConfig, RaftStatusImpl raftStatus, RaftLog raftLog,
-                            ApplyManager applyManager, ReplicateManager replicateManager) {
+    public LinearTaskRunner(RaftGroupConfigEx groupConfig, RaftStatusImpl raftStatus, ApplyManager applyManager) {
         this.groupConfig = groupConfig;
         this.raftStatus = raftStatus;
-        this.raftLog = raftLog;
         this.ts = raftStatus.getTs();
 
         this.applyManager = applyManager;
-        this.replicateManager = replicateManager;
     }
 
     @Override

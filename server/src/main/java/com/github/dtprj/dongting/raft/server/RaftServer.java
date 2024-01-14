@@ -228,8 +228,7 @@ public class RaftServer extends AbstractLifeCircle {
         ReplicateManager replicateManager = new ReplicateManager(serverConfig, rgcEx, raftStatus, raftLog,
                 stateMachine, replicateNioClient, commitManager, statusManager);
 
-        LinearTaskRunner linearTaskRunner = new LinearTaskRunner(
-                rgcEx, raftStatus, raftLog, applyManager, replicateManager);
+        LinearTaskRunner linearTaskRunner = new LinearTaskRunner(rgcEx, raftStatus, applyManager);
         VoteManager voteManager = new VoteManager(serverConfig, rgc.getGroupId(), raftStatus, replicateNioClient,
                 linearTaskRunner, statusManager);
 
@@ -312,6 +311,7 @@ public class RaftServer extends AbstractLifeCircle {
                 CompletableFuture<Void> f = gc.getFiberGroup().getDispatcher().startGroup(gc.getFiberGroup());
                 futures.add(f);
             });
+            // should complete soon, so we wait here
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get(5, TimeUnit.SECONDS);
 
             // init raft log and state machine
@@ -324,14 +324,29 @@ public class RaftServer extends AbstractLifeCircle {
                 gc.getFiberGroup().fireFiber(initFiber);
                 futures.add(initFiberFrame.getPrepareFuture());
             });
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get();
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).whenComplete((v, ex) -> {
+                if (ex != null) {
+                    readyFuture.completeExceptionally(ex);
+                } else if (status == STATUS_STARTING) {
+                    startServers();
+                } else {
+                    readyFuture.completeExceptionally(new IllegalStateException("server is not starting"));
+                }
+            });
+        } catch (Exception e) {
+            log.error("start raft server failed", e);
+            throw new RaftException(e);
+        }
+    }
 
+    private void startServers() {
+        try {
             // start replicate server and client
             replicateNioServer.start();
             replicateNioClient.start();
             replicateNioClient.waitStart();
 
-            futures.clear();
+            ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
 
             nodeManager.start();
             int electQuorum = RaftUtil.getElectQuorum(nodeManager.getAllNodesEx().size());
@@ -345,7 +360,9 @@ public class RaftServer extends AbstractLifeCircle {
             });
 
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).whenComplete((v, ex) -> {
-                if (ex == null) {
+                if (ex != null) {
+                    readyFuture.completeExceptionally(ex);
+                }  else if (status == STATUS_STARTING) {
                     try {
                         serviceNioServer.start();
                         readyFuture.complete(null);
@@ -353,22 +370,59 @@ public class RaftServer extends AbstractLifeCircle {
                         readyFuture.completeExceptionally(serviceNioServerStartEx);
                     }
                 } else {
-                    readyFuture.completeExceptionally(ex);
+                    readyFuture.completeExceptionally(new IllegalStateException("server is not starting"));
                 }
             });
-
         } catch (Exception e) {
             log.error("start raft server failed", e);
             throw new RaftException(e);
         }
     }
 
+    @SuppressWarnings("unused")
+    public CompletableFuture<Void> getReadyFuture() {
+        return readyFuture;
+    }
+
     @Override
     protected void doStop(DtTime timeout, boolean force) {
+        try {
+            if (serviceNioServer != null) {
+                serviceNioServer.stop(timeout);
+            }
+            ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
+            raftGroups.forEach((groupId, g) -> {
+                g.getFiberGroup().requestShutdown();
+                futures.add(g.getFiberGroup().getShutdownFuture());
+            });
+            nodeManager.stop(timeout);
 
+            try {
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                        .get(timeout.rest(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                DtUtil.restoreInterruptStatus();
+            } catch (Exception e) {
+                throw new RaftException(e);
+            } finally {
+                if (replicateNioServer != null) {
+                    replicateNioServer.stop(timeout);
+                }
+                if (replicateNioClient != null) {
+                    replicateNioClient.stop(timeout);
+                }
+            }
+        } catch (RuntimeException | Error e) {
+            log.error("stop raft server failed", e);
+            throw e;
+        }
     }
 
     public RaftGroup getRaftGroup(int groupId) {
         return raftGroups.get(groupId);
+    }
+
+    public NioServer getServiceNioServer() {
+        return serviceNioServer;
     }
 }
