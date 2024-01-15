@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.buf;
 
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.IndexedQueue;
-import com.github.dtprj.dongting.common.VersionFactory;
 
 import java.nio.ByteBuffer;
 
@@ -26,28 +25,26 @@ import java.nio.ByteBuffer;
  */
 class FixSizeBufferPool {
     private static final int MAGIC_INDEX = 0;
-    private static final int RETURN_TIME_INDEX = 8;
+    private static final int RETURN_TIME_INDEX = 4;
     private final int bufferSize;
     private final int maxCount;
     private final int minCount;
     private final SimpleByteBufferPool p;
     private final boolean direct;
     private final long shareSize;
-    private final long magic;
+    private static final int MAGIC = 0xEA1D9C07;
 
     private final IndexedQueue<ByteBuffer> bufferStack;
-    private static final VersionFactory VF = VersionFactory.getInstance();
 
     long statBorrowCount;
     long statBorrowHitCount;
     long statReleaseCount;
     long statReleaseHitCount;
 
-    public FixSizeBufferPool(SimpleByteBufferPool p, boolean direct, long shareSize, int minCount, int maxCount, int bufferSize, long magic) {
+    public FixSizeBufferPool(SimpleByteBufferPool p, boolean direct, long shareSize, int minCount, int maxCount, int bufferSize) {
         this.p = p;
         this.direct = direct;
         this.shareSize = shareSize;
-        this.magic = magic;
         if (bufferSize < 16) {
             throw new IllegalArgumentException("buffer size too small: " + bufferSize);
         }
@@ -61,10 +58,11 @@ class FixSizeBufferPool {
         statBorrowCount++;
         ByteBuffer buf = bufferStack.removeLast();
         if (buf != null) {
-            long bufMagic = buf.getLong(MAGIC_INDEX);
-            if (bufMagic != magic) {
+            int bufMagic = buf.getInt(MAGIC_INDEX);
+            if (bufMagic != MAGIC) {
                 throw new DtException("A bug may exist where the buffer is written to after release.");
             }
+            buf.putInt(0, 0);
             statBorrowHitCount++;
         }
         return buf;
@@ -75,7 +73,7 @@ class FixSizeBufferPool {
         IndexedQueue<ByteBuffer> bufferStack = this.bufferStack;
         // ByteBuffer.getLong may check limit, so we clear buffer first
         buf.clear();
-        if (buf.getLong(MAGIC_INDEX) == magic) {
+        if (buf.getInt(MAGIC_INDEX) == MAGIC) {
             // shit
             for (int i = 0, stackSize = bufferStack.size(); i < stackSize; i++) {
                 if (bufferStack.get(i) == buf) {
@@ -89,7 +87,7 @@ class FixSizeBufferPool {
             if (newUsedShareSize > shareSize) {
                 // too many buffer in pool
                 if (direct) {
-                    VF.releaseDirectBuffer(buf);
+                    SimpleByteBufferPool.VF.releaseDirectBuffer(buf);
                 }
                 return;
             } else {
@@ -100,7 +98,7 @@ class FixSizeBufferPool {
 
         // return it to pool
         // use the buffer to store return time and magic
-        buf.putLong(MAGIC_INDEX, magic);
+        buf.putInt(MAGIC_INDEX, MAGIC);
         buf.putLong(RETURN_TIME_INDEX, nanos);
 
         bufferStack.addLast(buf);

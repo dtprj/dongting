@@ -339,7 +339,7 @@ public class SimpleByteBufferPoolTest {
         assertThrows(DtException.class, () -> pool.release(buf1));
         ByteBuffer buf2 = pool.borrow(400);
         pool.release(buf2);
-        buf2.putLong(0, buf2.getLong(0) + 1);
+        buf2.putInt(0, buf2.getInt(0) + 1);
         assertThrows(DtException.class, () -> pool.borrow(400));
         ByteBuffer buf3 = pool.borrow(400);
         // buf2 is dropped

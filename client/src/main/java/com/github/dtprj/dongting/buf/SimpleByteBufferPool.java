@@ -15,13 +15,14 @@
  */
 package com.github.dtprj.dongting.buf;
 
+import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.common.VersionFactory;
 
 import java.nio.ByteBuffer;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.Objects;
-import java.util.Random;
 
 /**
  * Simple ByteBuffer pool, not thread safe.
@@ -29,6 +30,7 @@ import java.util.Random;
  * @author huangli
  */
 public class SimpleByteBufferPool extends ByteBufferPool {
+    static final VersionFactory VF = VersionFactory.getInstance();
     public static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0).asReadOnlyBuffer();
     public static final int DEFAULT_THRESHOLD = 128;
 
@@ -118,10 +120,9 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         }
 
         this.pools = new FixSizeBufferPool[bufferTypeCount];
-        Random r = new Random();
         for (int i = 0; i < bufferTypeCount; i++) {
             this.pools[i] = new FixSizeBufferPool(this, direct, config.getShareSize(),
-                    minCount[i], maxCount[i], bufSizes[i], r.nextLong());
+                    minCount[i], maxCount[i], bufSizes[i]);
         }
     }
 
@@ -191,8 +192,14 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     }
 
     private void release0(ByteBuffer buf) {
+        if (buf.isDirect() != direct) {
+            throw new DtException("buffer released to wrong pool");
+        }
         int capacity = buf.capacity();
         if (capacity <= threshold) {
+            if (direct) {
+                VF.releaseDirectBuffer(buf);
+            }
             return;
         }
         int[] bufSizes = this.bufSizes;
@@ -205,6 +212,9 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         }
         if (poolIndex >= poolCount) {
             // buffer too large, release it without pool
+            if (direct) {
+                VF.releaseDirectBuffer(buf);
+            }
             return;
         }
         pools[poolIndex].release(buf, ts.getNanoTime());
