@@ -73,12 +73,12 @@ public class FiberGroup {
     /**
      * can call in any thread
      */
-    public void fireFiber(Fiber fiber) {
+    public boolean fireFiber(Fiber fiber) {
         if (fiber.fiberGroup != this) {
             throw new DtException("fiber not in group");
         }
         // if the dispatcher stopped, no ops
-        dispatcher.doInDispatcherThread(new FiberQueueTask() {
+        return dispatcher.doInDispatcherThread(new FiberQueueTask() {
             @Override
             protected void run() {
                 start(fiber);
@@ -89,16 +89,15 @@ public class FiberGroup {
     /**
      * can call in any thread
      */
-    public Fiber fireFiber(String fiberName, FiberFrame<Void> firstFrame) {
+    public boolean fireFiber(String fiberName, FiberFrame<Void> firstFrame) {
         Fiber fiber = new Fiber(fiberName, this, firstFrame);
         // if the dispatcher stopped, no ops
-        dispatcher.doInDispatcherThread(new FiberQueueTask() {
+        return dispatcher.doInDispatcherThread(new FiberQueueTask() {
             @Override
             protected void run() {
                 start(fiber);
             }
         });
-        return fiber;
     }
 
     /**
@@ -240,13 +239,17 @@ public class FiberGroup {
             logGroupInfo0(msg);
         } else {
             CompletableFuture<Void> f = new CompletableFuture<>();
-            dispatcher.doInDispatcherThread(new FiberQueueTask() {
+            boolean b = dispatcher.doInDispatcherThread(new FiberQueueTask() {
                 @Override
                 protected void run() {
                     logGroupInfo0(msg);
                     f.complete(null);
                 }
             });
+            if (!b) {
+                log.error("dispatcher is shutdown and can't log group info");
+                return;
+            }
             try {
                 f.get(3, TimeUnit.SECONDS);
             } catch (TimeoutException e) {

@@ -16,6 +16,8 @@
 package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.log.BugLog;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.Collection;
 import java.util.List;
@@ -29,6 +31,7 @@ import java.util.concurrent.TimeUnit;
  * @author huangli
  */
 class DispatcherExecutor implements ExecutorService {
+    private static final DtLog log = DtLogs.getLogger(DispatcherExecutor.class);
 
     private final Dispatcher dispatcher;
 
@@ -38,18 +41,29 @@ class DispatcherExecutor implements ExecutorService {
 
     @Override
     public void execute(Runnable command) {
-        dispatcher.doInDispatcherThread(new FiberQueueTask() {
+        boolean b = dispatcher.doInDispatcherThread(new FiberQueueTask() {
             @Override
             protected void run() {
                 command.run();
             }
         });
+        if (!b) {
+            log.info("dispatcher is shutdown, ignore execute task");
+        }
+    }
+
+    private void submit(CompletableFuture<?> future, FiberQueueTask task) {
+        boolean b = dispatcher.doInDispatcherThread(task);
+        if (!b) {
+            log.info("dispatcher is shutdown, ignore submit task");
+            future.completeExceptionally(new FiberException("dispatcher is shutdown"));
+        }
     }
 
     @Override
     public <T> Future<T> submit(Callable<T> task) {
         CompletableFuture<T> future = new CompletableFuture<>();
-        dispatcher.doInDispatcherThread(new FiberQueueTask() {
+        submit(future, new FiberQueueTask() {
             @Override
             protected void run() {
                 try {
@@ -65,7 +79,7 @@ class DispatcherExecutor implements ExecutorService {
     @Override
     public Future<?> submit(Runnable task) {
         CompletableFuture<Void> future = new CompletableFuture<>();
-        dispatcher.doInDispatcherThread(new FiberQueueTask() {
+        submit(future, new FiberQueueTask() {
             @Override
             protected void run() {
                 try {
@@ -82,7 +96,7 @@ class DispatcherExecutor implements ExecutorService {
     @Override
     public <T> Future<T> submit(Runnable task, T result) {
         CompletableFuture<T> future = new CompletableFuture<>();
-        dispatcher.doInDispatcherThread(new FiberQueueTask() {
+        submit(future, new FiberQueueTask() {
             @Override
             protected void run() {
                 try {

@@ -524,11 +524,12 @@ public class Dispatcher extends AbstractLifeCircle {
         }
     }
 
-    void doInDispatcherThread(FiberQueueTask r) {
+    boolean doInDispatcherThread(FiberQueueTask r) {
         if (Thread.currentThread() == thread) {
             r.run();
+            return true;
         } else {
-            shareQueue.offer(r);
+            return shareQueue.offer(r);
         }
     }
 

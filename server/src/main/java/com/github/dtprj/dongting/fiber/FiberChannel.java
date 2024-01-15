@@ -41,8 +41,8 @@ public class FiberChannel<T> {
         this.notEmptyCondition = groupOfConsumer.newCondition("FiberChannelNotEmpty");
     }
 
-    public void fireOffer(T data) {
-        dispatcherOfConsumer.doInDispatcherThread(new FiberQueueTask() {
+    public boolean fireOffer(T data) {
+        return dispatcherOfConsumer.doInDispatcherThread(new FiberQueueTask() {
             @Override
             protected void run() {
                 offer0(data);

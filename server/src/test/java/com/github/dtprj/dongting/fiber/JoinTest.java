@@ -33,7 +33,7 @@ public class JoinTest extends AbstractFiberTest {
 
     private void testJoinImpl(int joinType) throws Exception {
         CompletableFuture<Void> future = new CompletableFuture<>();
-        Fiber f = fiberGroup.fireFiber("f1", new FiberFrame<>() {
+        Fiber f = new Fiber("f1", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return Fiber.sleep(1000, this::justReturn);
@@ -43,6 +43,7 @@ public class JoinTest extends AbstractFiberTest {
                 return Fiber.frameReturn();
             }
         });
+        fiberGroup.fireFiber(f);
         fiberGroup.fireFiber("f2", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
