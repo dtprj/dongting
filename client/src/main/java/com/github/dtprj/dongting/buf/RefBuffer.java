@@ -27,6 +27,7 @@ public class RefBuffer extends RefCount {
 
     private final ByteBuffer buffer;
     private final ByteBufferPool pool;
+    private final boolean direct;
 
     RefBuffer(boolean plain, ByteBufferPool pool, int requestSize, int threshold) {
         super(plain);
@@ -37,26 +38,12 @@ public class RefBuffer extends RefCount {
             this.buffer = pool.borrow(requestSize);
             this.pool = pool;
         }
-    }
-
-    private RefBuffer(ByteBuffer buffer) {
-        super(true);
-        this.buffer = buffer;
-        this.pool = null;
-    }
-
-    public static RefBuffer createUnpooled(int requestSize, boolean direct) {
-        ByteBuffer buffer = direct ? ByteBuffer.allocateDirect(requestSize) : ByteBuffer.allocate(requestSize);
-        return new RefBuffer(buffer);
-    }
-
-    public static RefBuffer wrapUnpooled(ByteBuffer buffer) {
-        return new RefBuffer(buffer);
+        this.direct = buffer.isDirect();
     }
 
     @Override
     public void retain(int increment) {
-        if (pool == null) {
+        if (pool == null && !direct) {
             return;
         }
         super.retain(increment);
@@ -64,7 +51,7 @@ public class RefBuffer extends RefCount {
 
     @Override
     public boolean release(int decrement) {
-        if (pool == null) {
+        if (pool == null && !direct) {
             return false;
         }
         return super.release(decrement);
@@ -72,7 +59,12 @@ public class RefBuffer extends RefCount {
 
     @Override
     protected void doClean() {
-        pool.release(buffer);
+        if (pool != null) {
+            pool.release(buffer);
+        } else {
+            // should be direct
+            SimpleByteBufferPool.VF.releaseDirectBuffer(buffer);
+        }
     }
 
     public ByteBuffer getBuffer() {
