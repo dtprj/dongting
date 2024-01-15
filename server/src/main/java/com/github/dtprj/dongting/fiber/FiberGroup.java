@@ -73,31 +73,26 @@ public class FiberGroup {
     /**
      * can call in any thread
      */
-    public boolean fireFiber(Fiber fiber) {
+    public void fireFiber(Fiber fiber) {
         if (fiber.fiberGroup != this) {
             throw new DtException("fiber not in group");
         }
-        // if the dispatcher stopped, no ops
-        return dispatcher.doInDispatcherThread(new FiberQueueTask() {
+        boolean b = dispatcher.doInDispatcherThread(new FiberQueueTask() {
             @Override
             protected void run() {
                 start(fiber);
             }
         });
+        if (!b) {
+            log.info("dispatcher is shutdown, ignore fireFiber");
+        }
     }
 
     /**
      * can call in any thread
      */
-    public boolean fireFiber(String fiberName, FiberFrame<Void> firstFrame) {
-        Fiber fiber = new Fiber(fiberName, this, firstFrame);
-        // if the dispatcher stopped, no ops
-        return dispatcher.doInDispatcherThread(new FiberQueueTask() {
-            @Override
-            protected void run() {
-                start(fiber);
-            }
-        });
+    public void fireFiber(String fiberName, FiberFrame<Void> firstFrame) {
+        fireFiber(new Fiber(fiberName, this, firstFrame));
     }
 
     /**
@@ -150,6 +145,10 @@ public class FiberGroup {
     }
 
     void start(Fiber f) {
+        if (f.fiberGroup.finished) {
+            log.warn("group finished, ignore fiber start: {}", f.getFiberName());
+            return;
+        }
         if (f.started) {
             BugLog.getLog().error("fiber already started: {}", f.getFiberName());
             return;

@@ -16,6 +16,8 @@
 package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -24,6 +26,8 @@ import java.util.function.Function;
  * @author huangli
  */
 public class FiberFuture<T> extends WaitSource {
+
+    private static final DtLog log = DtLogs.getLogger(FiberFuture.class);
 
     private boolean done;
 
@@ -88,26 +92,36 @@ public class FiberFuture<T> extends WaitSource {
         complete0(null, ex);
     }
 
-    public boolean fireComplete(T r) {
-        return fireComplete0(r, null);
+    public void fireComplete(T r) {
+        fireComplete0(r, null);
     }
 
-    public boolean fireCompleteExceptionally(Throwable ex) {
-        return fireComplete0(null, ex);
+    public void fireCompleteExceptionally(Throwable ex) {
+        fireComplete0(null, ex);
     }
 
-    private boolean fireComplete0(T r, Throwable ex) {
+    private void fireComplete0(T r, Throwable ex) {
         if (Thread.currentThread() == fiberGroup.dispatcher.thread) {
-            complete0(r, ex);
-            return true;
+            completeOutOfGroup(r, ex);
         } else {
-            return fiberGroup.dispatcher.doInDispatcherThread(new FiberQueueTask() {
+            boolean b = fiberGroup.dispatcher.doInDispatcherThread(new FiberQueueTask() {
                 @Override
                 protected void run() {
-                    complete0(r, ex);
+                    completeOutOfGroup(r, ex);
                 }
             });
+            if (!b) {
+                log.info("dispatcher is shutdown, ignore fireComplete");
+            }
         }
+    }
+
+    private void completeOutOfGroup(T r, Throwable ex){
+        if (fiberGroup.finished) {
+            log.info("group {} is finished, ignore future complete", fiberGroup.getName());
+            return;
+        }
+        complete0(r, ex);
     }
 
     private void complete0(T result, Throwable ex) {

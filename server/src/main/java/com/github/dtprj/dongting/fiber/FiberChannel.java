@@ -16,6 +16,8 @@
 package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.common.IndexedQueue;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.Collection;
 
@@ -25,6 +27,7 @@ import java.util.Collection;
  * @author huangli
  */
 public class FiberChannel<T> {
+    private static final DtLog log = DtLogs.getLogger(FiberChannel.class);
     private final FiberGroup groupOfConsumer;
     private final Dispatcher dispatcherOfConsumer;
     private final IndexedQueue<T> queue;
@@ -41,13 +44,20 @@ public class FiberChannel<T> {
         this.notEmptyCondition = groupOfConsumer.newCondition("FiberChannelNotEmpty");
     }
 
-    public boolean fireOffer(T data) {
-        return dispatcherOfConsumer.doInDispatcherThread(new FiberQueueTask() {
+    public void fireOffer(T data) {
+        boolean b = dispatcherOfConsumer.doInDispatcherThread(new FiberQueueTask() {
             @Override
             protected void run() {
-                offer0(data);
+                if (groupOfConsumer.finished) {
+                    log.info("group {} is finished, ignore task", groupOfConsumer.getName());
+                } else {
+                    offer0(data);
+                }
             }
         });
+        if (!b) {
+            log.info("dispatcher is shutdown, ignore fireOffer task");
+        }
     }
 
     public void offer(T data) {
