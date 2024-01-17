@@ -77,8 +77,10 @@ class IoQueue {
                 }
             } else {
                 peer.addToWaitConnectList(wo);
-                CompletableFuture<Void> f = new CompletableFuture<>();
-                worker.doConnect(f, peer, new DtTime(10, TimeUnit.SECONDS));
+                if (peer.getStatus() == PeerStatus.not_connect) {
+                    CompletableFuture<Void> f = new CompletableFuture<>();
+                    worker.doConnect(f, peer, new DtTime(10, TimeUnit.SECONDS));
+                }
             }
         } else {
             DtChannel dtc = wo.getDtc();

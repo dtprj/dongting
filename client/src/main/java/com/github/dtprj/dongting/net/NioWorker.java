@@ -418,6 +418,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     f.completeExceptionally(ex);
                 }
             });
+            return;
         }
         SocketChannel sc = null;
         try {
