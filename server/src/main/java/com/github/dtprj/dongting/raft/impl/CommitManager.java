@@ -41,4 +41,8 @@ public class CommitManager implements RaftLog.AppendCallback {
         boolean writeResp(long index);
     }
 
+    public void tryCommit(long recentMatchIndex) {
+        // TODO not finish
+    }
+
 }

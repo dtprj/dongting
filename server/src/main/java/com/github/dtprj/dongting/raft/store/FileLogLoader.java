@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.impl.RaftCancelException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -210,7 +211,7 @@ class FileLogLoader implements RaftLog.LogIterator {
 
         private FrameCallResult resumeAfterLoad(Void v) {
             if (cancelIndicator != null && cancelIndicator.get()) {
-                throw new RaftException("canceled");
+                throw new RaftCancelException("canceled");
             } else {
                 readBuffer.flip();
                 // loop

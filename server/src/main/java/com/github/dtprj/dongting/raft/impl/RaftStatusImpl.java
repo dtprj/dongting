@@ -16,8 +16,10 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.IndexedQueue;
+import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.FiberCondition;
+import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.server.RaftNode;
 import com.github.dtprj.dongting.raft.server.RaftStatus;
 
@@ -82,6 +84,9 @@ public class RaftStatusImpl extends RaftStatus {
     private final IndexedQueue<Runnable> waitWriteFinishedQueue = new IndexedQueue<>(16);
     private final IndexedQueue<Runnable> waitAppendQueue = new IndexedQueue<>(16);
 
+    private FiberGroup fiberGroup;
+    private final IntObjMap<FiberCondition> replicateConditions = new IntObjMap<>();
+
     public RaftStatusImpl(Timestamp ts) {
         this.ts = ts;
         lastElectTime = ts.getNanoTime();
@@ -100,6 +105,15 @@ public class RaftStatusImpl extends RaftStatus {
             this.shareStatusUpdated = false;
             this.shareStatus = ss;
         }
+    }
+
+    public FiberCondition getReplicateCondition(int nodeId) {
+        FiberCondition repCondition = replicateConditions.get(nodeId);
+        if (repCondition == null) {
+            repCondition = new FiberCondition("rep-" + nodeId, fiberGroup);
+            replicateConditions.put(nodeId, repCondition);
+        }
+        return repCondition;
     }
 
     public RaftNode getCurrentLeaderNode() {
@@ -400,5 +414,13 @@ public class RaftStatusImpl extends RaftStatus {
 
     public void setDataArrivedCondition(FiberCondition dataArrivedCondition) {
         this.dataArrivedCondition = dataArrivedCondition;
+    }
+
+    public FiberGroup getFiberGroup() {
+        return fiberGroup;
+    }
+
+    public void setFiberGroup(FiberGroup fiberGroup) {
+        this.fiberGroup = fiberGroup;
     }
 }

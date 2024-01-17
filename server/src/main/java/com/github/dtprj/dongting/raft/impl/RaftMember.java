@@ -15,10 +15,11 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.fiber.FiberCondition;
+import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.time.Duration;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * @author huangli
@@ -27,14 +28,11 @@ public class RaftMember {
     private final RaftNodeEx node;
     private boolean ready;
     private boolean pinging;
-    private boolean multiAppend;
 
     private int nodeEpoch;
 
     // may check whether epoch change in io thread, so mark it volatile
     private volatile int replicateEpoch;
-
-    private PendingStat pendingStat;
 
     private long lastConfirmReqNanos;
     private long lastFailNanos = System.nanoTime() - Duration.ofSeconds(30).toNanos();
@@ -46,8 +44,10 @@ public class RaftMember {
     private long nextIndex;
     private long matchIndex;
 
-    private CompletableFuture<?> replicateFuture;
+    private FiberFuture<?> replicateFuture;
     private RaftLog.LogIterator replicateIterator;
+
+    private FiberCondition replicateCondition;
 
     public RaftMember(RaftNodeEx node) {
         this.node = node;
@@ -92,14 +92,6 @@ public class RaftMember {
         this.matchIndex = matchIndex;
     }
 
-    public boolean isMultiAppend() {
-        return multiAppend;
-    }
-
-    public void setMultiAppend(boolean multiAppend) {
-        this.multiAppend = multiAppend;
-    }
-
     public boolean isPinging() {
         return pinging;
     }
@@ -128,14 +120,6 @@ public class RaftMember {
         this.snapshotInfo = snapshotInfo;
     }
 
-    public PendingStat getPendingStat() {
-        return pendingStat;
-    }
-
-    public void setPendingStat(PendingStat pendingStat) {
-        this.pendingStat = pendingStat;
-    }
-
     public int getNodeEpoch() {
         return nodeEpoch;
     }
@@ -144,11 +128,11 @@ public class RaftMember {
         this.nodeEpoch = nodeEpoch;
     }
 
-    public CompletableFuture<?> getReplicateFuture() {
+    public FiberFuture<?> getReplicateFuture() {
         return replicateFuture;
     }
 
-    public void setReplicateFuture(CompletableFuture<?> replicateFuture) {
+    public void setReplicateFuture(FiberFuture<?> replicateFuture) {
         this.replicateFuture = replicateFuture;
     }
 
@@ -170,5 +154,13 @@ public class RaftMember {
 
     public void setLastFailNanos(long lastFailNanos) {
         this.lastFailNanos = lastFailNanos;
+    }
+
+    public FiberCondition getReplicateCondition() {
+        return replicateCondition;
+    }
+
+    public void setReplicateCondition(FiberCondition replicateCondition) {
+        this.replicateCondition = replicateCondition;
     }
 }

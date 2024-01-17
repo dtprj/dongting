@@ -22,9 +22,11 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
+import com.github.dtprj.dongting.raft.impl.ReplicateManager;
 import com.github.dtprj.dongting.raft.rpc.RaftGroupProcessor;
 
 import java.util.List;
@@ -41,12 +43,15 @@ class InitFiberFrame extends FiberFrame<Void> {
     private final RaftStatusImpl raftStatus;
     private final RaftGroupConfigEx groupConfig;
     private final List<RaftGroupProcessor<?>> raftGroupProcessors;
+    private final NioClient replicateClient;
 
-    public InitFiberFrame(GroupComponents gc, List<RaftGroupProcessor<?>> raftGroupProcessors) {
+    public InitFiberFrame(GroupComponents gc, List<RaftGroupProcessor<?>> raftGroupProcessors,
+                          NioClient replicateClient) {
         this.gc = gc;
         this.raftStatus = gc.getRaftStatus();
         this.groupConfig = gc.getGroupConfig();
         this.raftGroupProcessors = raftGroupProcessors;
+        this.replicateClient = replicateClient;
     }
 
     @Override
@@ -58,6 +63,10 @@ class InitFiberFrame extends FiberFrame<Void> {
 
     @Override
     public FrameCallResult execute(Void input) throws Throwable {
+        // TODO
+        ReplicateManager replicateManager = new ReplicateManager(gc, replicateClient);
+        raftStatus.setFiberGroup(getFiberGroup());
+
         for(RaftGroupProcessor<?> processor : raftGroupProcessors) {
             FiberChannel<Object> channel = getFiberGroup().newChannel();
             FiberFrame<Void> initFrame = processor.createFiberFrame(channel);

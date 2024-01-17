@@ -45,7 +45,6 @@ import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.impl.ReplicateManager;
 import com.github.dtprj.dongting.raft.impl.VoteManager;
 import com.github.dtprj.dongting.raft.rpc.NodePingProcessor;
 import com.github.dtprj.dongting.raft.rpc.RaftGroupProcessor;
@@ -233,8 +232,6 @@ public class RaftServer extends AbstractLifeCircle {
         ApplyManager applyManager = new ApplyManager(serverConfig.getNodeId(), raftLog, stateMachine, raftStatus,
                 eventBus, rgcEx.getHeapPool(), statusManager);
         CommitManager commitManager = new CommitManager(raftStatus, applyManager);
-        ReplicateManager replicateManager = new ReplicateManager(serverConfig, rgcEx, raftStatus, raftLog,
-                stateMachine, replicateNioClient, commitManager, statusManager);
 
         LinearTaskRunner linearTaskRunner = new LinearTaskRunner(rgcEx, raftStatus, applyManager);
         VoteManager voteManager = new VoteManager(serverConfig, rgc.getGroupId(), raftStatus, replicateNioClient,
@@ -326,7 +323,7 @@ public class RaftServer extends AbstractLifeCircle {
             futures.clear();
             raftGroups.forEach((groupId, g) -> {
                 GroupComponents gc = g.getGroupComponents();
-                InitFiberFrame initFiberFrame = new InitFiberFrame(gc, raftGroupProcessors);
+                InitFiberFrame initFiberFrame = new InitFiberFrame(gc, raftGroupProcessors, replicateNioClient);
                 Fiber initFiber = new Fiber("init-raft-group-" + groupId,
                         gc.getFiberGroup(), initFiberFrame);
                 gc.getFiberGroup().fireFiber(initFiber);
