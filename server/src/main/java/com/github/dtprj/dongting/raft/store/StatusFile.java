@@ -127,7 +127,7 @@ public class StatusFile implements AutoCloseable {
         };
     }
 
-    public FiberFuture<Void> update(boolean flush) {
+    public FiberFuture<Void> update(boolean sync) {
         try {
             bos.reset();
             this.properties.store(bos, null);
@@ -147,7 +147,7 @@ public class StatusFile implements AutoCloseable {
 
             // retry in status manager
             AsyncIoTask task = new AsyncIoTask(fiberGroup, dtFile);
-            if (flush) {
+            if (sync) {
                 return task.writeAndFlush(buf, 0, false);
             } else {
                 return task.write(buf, 0);

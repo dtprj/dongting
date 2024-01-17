@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
+import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.fiber.PostFiberFrame;
 import com.github.dtprj.dongting.log.DtLog;
@@ -49,7 +50,7 @@ public class StatusManager {
 
     private boolean closed;
 
-    private long lastNeedFlushVersion;
+    private long lastNeedSyncVersion;
     private long requestUpdateVersion;
     private long finishedUpdateVersion;
 
@@ -99,7 +100,7 @@ public class StatusManager {
 
     private class UpdateFiberFrame extends FiberFrame<Void> {
         private long version;
-        private boolean flush;
+        private boolean sync;
 
         @Override
         public FrameCallResult execute(Void input) {
@@ -121,8 +122,8 @@ public class StatusManager {
                 public FrameCallResult execute(Void input) {
                     copyWriteData();
                     version = requestUpdateVersion;
-                    flush = lastNeedFlushVersion > finishedUpdateVersion;
-                    FiberFuture<Void> f = statusFile.update(flush);
+                    sync = lastNeedSyncVersion > finishedUpdateVersion;
+                    FiberFuture<Void> f = statusFile.update(sync);
                     return f.await(groupConfig.getIoTimeout(), this::justReturn);
                 }
             };
@@ -161,9 +162,22 @@ public class StatusManager {
         }
     }
 
-    public void persistAsync() {
+    public void persistAsync(boolean sync) {
         requestUpdateVersion++;
+        if (sync) {
+            lastNeedSyncVersion = requestUpdateVersion;
+        }
         needUpdateCondition.signal();
+    }
+
+    public FrameCallResult waitSync(FrameCall<Void> resumePoint) {
+        if (closed) {
+            throw new RaftException("status manager is closed");
+        }
+        if (finishedUpdateVersion >= lastNeedSyncVersion) {
+            return Fiber.resume(null, resumePoint);
+        }
+        return updateDoneCondition.await(1000, v -> waitSync(resumePoint));
     }
 
     public FiberFrame<Void> persistSync() {
@@ -175,7 +189,7 @@ public class StatusManager {
             @Override
             public FrameCallResult execute(Void unused) {
                 requestUpdateVersion++;
-                lastNeedFlushVersion = requestUpdateVersion;
+                lastNeedSyncVersion = requestUpdateVersion;
                 reqVersion = requestUpdateVersion;
                 return execute0();
             }

@@ -105,7 +105,7 @@ public class StatusManagerTest extends BaseFiberTest {
                     raftStatus.setVotedFor(200 + i);
                     raftStatus.setCurrentTerm(300 + i);
                     statusManager.getProperties().setProperty("k1", "v1" + i);
-                    statusManager.persistAsync();
+                    statusManager.persistAsync(false);
                 }
                 return statusManager.updateDoneCondition.await(this::justReturn);
             }
@@ -127,7 +127,7 @@ public class StatusManagerTest extends BaseFiberTest {
             }
             private FrameCallResult afterInit(Void unused) {
                 initData();
-                statusManager.persistAsync();
+                statusManager.persistAsync(false);
 
                 raftStatus.setCommitIndex(100000);
                 return Fiber.call(statusManager.persistSync(), this::justReturn);
