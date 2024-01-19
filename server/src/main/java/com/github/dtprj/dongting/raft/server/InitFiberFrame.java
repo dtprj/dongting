@@ -26,7 +26,6 @@ import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
-import com.github.dtprj.dongting.raft.impl.ReplicateManager;
 import com.github.dtprj.dongting.raft.rpc.RaftGroupProcessor;
 
 import java.util.List;
@@ -64,7 +63,6 @@ class InitFiberFrame extends FiberFrame<Void> {
     @Override
     public FrameCallResult execute(Void input) throws Throwable {
         // TODO
-        ReplicateManager replicateManager = new ReplicateManager(gc, replicateClient);
         raftStatus.setFiberGroup(getFiberGroup());
 
         for(RaftGroupProcessor<?> processor : raftGroupProcessors) {

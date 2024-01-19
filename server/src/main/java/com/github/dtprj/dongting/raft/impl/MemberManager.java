@@ -53,18 +53,20 @@ public class MemberManager {
     private final NioClient client;
 
     private final EventBus eventBus;
+    private final ReplicateManager replicateManager;
 
     private final CompletableFuture<Void> startReadyFuture;
     private final int startReadyQuorum;
 
     public MemberManager(RaftServerConfig serverConfig, RaftGroupConfigEx groupConfig, NioClient client,
-                         RaftStatusImpl raftStatus, EventBus eventBus) {
+                         RaftStatusImpl raftStatus, EventBus eventBus, ReplicateManager replicateManager) {
         this.serverConfig = serverConfig;
         this.groupConfig = groupConfig;
         this.client = client;
         this.raftStatus = raftStatus;
         this.groupId = raftStatus.getGroupId();
         this.eventBus = eventBus;
+        this.replicateManager = replicateManager;
         if (raftStatus.getMembers().size() == 0) {
             this.startReadyFuture = CompletableFuture.completedFuture(null);
             this.startReadyQuorum = 0;
@@ -149,6 +151,7 @@ public class MemberManager {
             @Override
             public FrameCallResult execute(Void input) {
                 ensureRaftMemberStatus();
+                replicateManager.tryStartReplicateFibers();
                 return Fiber.sleep(1000, this);
             }
         };
@@ -239,9 +242,6 @@ public class MemberManager {
                 log.info("member manager is ready: groupId={}", groupId);
                 startReadyFuture.complete(null);
             }
-        }
-        if (ready == member.isReady()) {
-            return;
         }
         member.setReady(ready);
     }

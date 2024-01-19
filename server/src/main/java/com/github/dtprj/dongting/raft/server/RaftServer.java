@@ -45,6 +45,7 @@ import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.impl.ReplicateManager;
 import com.github.dtprj.dongting.raft.impl.VoteManager;
 import com.github.dtprj.dongting.raft.rpc.NodePingProcessor;
 import com.github.dtprj.dongting.raft.rpc.RaftGroupProcessor;
@@ -227,11 +228,16 @@ public class RaftServer extends AbstractLifeCircle {
         StatusManager statusManager = new StatusManager(rgcEx);
         RaftLog raftLog = raftFactory.createRaftLog(rgcEx, statusManager);
 
-        MemberManager memberManager = new MemberManager(serverConfig, rgcEx, replicateNioClient,
-                raftStatus, eventBus);
+
+
         ApplyManager applyManager = new ApplyManager(serverConfig.getNodeId(), raftLog, stateMachine, raftStatus,
                 eventBus, rgcEx.getHeapPool(), statusManager);
         CommitManager commitManager = new CommitManager(raftStatus, applyManager);
+        ReplicateManager replicateManager = new ReplicateManager(replicateNioClient, serverConfig, rgcEx,
+                commitManager, raftLog, stateMachine, statusManager);
+        MemberManager memberManager = new MemberManager(serverConfig, rgcEx, replicateNioClient,
+                raftStatus, eventBus, replicateManager);
+
 
         LinearTaskRunner linearTaskRunner = new LinearTaskRunner(rgcEx, raftStatus, applyManager);
         VoteManager voteManager = new VoteManager(serverConfig, rgc.getGroupId(), raftStatus, replicateNioClient,

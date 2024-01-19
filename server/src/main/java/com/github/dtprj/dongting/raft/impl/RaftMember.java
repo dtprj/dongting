@@ -15,11 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.raft.store.RaftLog;
-
-import java.time.Duration;
 
 /**
  * @author huangli
@@ -31,11 +28,7 @@ public class RaftMember {
 
     private int nodeEpoch;
 
-    // may check whether epoch change in io thread, so mark it volatile
-    private volatile int replicateEpoch;
-
     private long lastConfirmReqNanos;
-    private long lastFailNanos = System.nanoTime() - Duration.ofSeconds(30).toNanos();
 
     private boolean installSnapshot;
     private SnapshotInfo snapshotInfo;
@@ -47,17 +40,8 @@ public class RaftMember {
     private FiberFuture<?> replicateFuture;
     private RaftLog.LogIterator replicateIterator;
 
-    private FiberCondition replicateCondition;
-
     public RaftMember(RaftNodeEx node) {
         this.node = node;
-    }
-
-    public void incrReplicateEpoch(int reqEpoch) {
-        if (reqEpoch == replicateEpoch) {
-            //noinspection NonAtomicOperationOnVolatileField
-            replicateEpoch++;
-        }
     }
 
     public void setLastConfirmReqNanos(long lastConfirmReqNanos) {
@@ -136,9 +120,6 @@ public class RaftMember {
         this.replicateFuture = replicateFuture;
     }
 
-    public int getReplicateEpoch() {
-        return replicateEpoch;
-    }
 
     public RaftLog.LogIterator getReplicateIterator() {
         return replicateIterator;
@@ -148,19 +129,4 @@ public class RaftMember {
         this.replicateIterator = replicateIterator;
     }
 
-    public long getLastFailNanos() {
-        return lastFailNanos;
-    }
-
-    public void setLastFailNanos(long lastFailNanos) {
-        this.lastFailNanos = lastFailNanos;
-    }
-
-    public FiberCondition getReplicateCondition() {
-        return replicateCondition;
-    }
-
-    public void setReplicateCondition(FiberCondition replicateCondition) {
-        this.replicateCondition = replicateCondition;
-    }
 }

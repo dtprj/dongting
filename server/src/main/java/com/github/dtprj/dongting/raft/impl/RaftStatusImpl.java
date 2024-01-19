@@ -85,7 +85,7 @@ public class RaftStatusImpl extends RaftStatus {
     private final IndexedQueue<Runnable> waitAppendQueue = new IndexedQueue<>(16);
 
     private FiberGroup fiberGroup;
-    private final IntObjMap<FiberCondition> replicateConditions = new IntObjMap<>();
+    private final IntObjMap<ReplicateStatus> replicateConditions = new IntObjMap<>();
 
     public RaftStatusImpl(Timestamp ts) {
         this.ts = ts;
@@ -107,13 +107,14 @@ public class RaftStatusImpl extends RaftStatus {
         }
     }
 
-    public FiberCondition getReplicateCondition(int nodeId) {
-        FiberCondition repCondition = replicateConditions.get(nodeId);
-        if (repCondition == null) {
-            repCondition = new FiberCondition("rep-" + nodeId, fiberGroup);
-            replicateConditions.put(nodeId, repCondition);
+    public ReplicateStatus getReplicateStatus(int nodeId) {
+        ReplicateStatus rs = replicateConditions.get(nodeId);
+        if (rs == null) {
+            FiberCondition fc = new FiberCondition("rep-" + nodeId, fiberGroup);
+            rs = new ReplicateStatus(fc);
+            replicateConditions.put(nodeId, rs);
         }
-        return repCondition;
+        return rs;
     }
 
     public RaftNode getCurrentLeaderNode() {

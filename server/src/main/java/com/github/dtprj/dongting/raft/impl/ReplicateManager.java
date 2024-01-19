@@ -39,7 +39,6 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -51,47 +50,54 @@ import java.util.concurrent.TimeUnit;
 public class ReplicateManager {
     private static final DtLog log = DtLogs.getLogger(ReplicateManager.class);
 
-    private static final long FAIL_TIMEOUT = Duration.ofSeconds(1).toNanos();
-
     final int groupId;
-    private final RaftGroupConfigEx groupConfig;
-    private final GroupComponents gc;
     private final RaftStatusImpl raftStatus;
-    private final RaftServerConfig config;
-    private final StateMachine stateMachine;
-    private final NioClient client;
+    final RaftGroupConfigEx groupConfig;
+    final RaftServerConfig serverConfig;
+    final RaftLog raftLog;
+    final StateMachine stateMachine;
+    final NioClient client;
     private final CommitManager commitManager;
     private final Timestamp ts;
 
     private final StatusManager statusManager;
 
-    private long installSnapshotFailTime;
-
-    public ReplicateManager(GroupComponents gc, NioClient client) {
-        this.groupConfig = gc.getGroupConfig();
-        this.gc = gc;
+    public ReplicateManager(NioClient client, RaftServerConfig serverConfig, RaftGroupConfigEx groupConfig,
+                            CommitManager commitManager, RaftLog raftLog, StateMachine stateMachine,
+                            StatusManager statusManager) {
+        this.groupConfig = groupConfig;
         this.groupId = groupConfig.getGroupId();
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
-        this.config = gc.getServerConfig();
-        this.stateMachine = gc.getStateMachine();
+        this.serverConfig = serverConfig;
+        this.raftLog = raftLog;
+        this.stateMachine = stateMachine;
         this.client = client;
-        this.commitManager = gc.getCommitManager();
+        this.commitManager = commitManager;
         this.ts = raftStatus.getTs();
 
-        this.statusManager = gc.getStatusManager();
+        this.statusManager = statusManager;
 
-        this.installSnapshotFailTime = ts.getNanoTime() - TimeUnit.SECONDS.toNanos(10);
     }
 
-    public void startReplicateFibers() {
+    public void tryStartReplicateFibers() {
+        if (raftStatus.getRole() != RaftRole.leader) {
+            return;
+        }
         for (RaftMember m : raftStatus.getReplicateList()) {
             if (m.getNode().isSelf()) {
                 continue;
             }
-            RepFrame ff = new RepFrame(gc, client, this, m.getReplicateEpoch(), m, 0);
-            Fiber f = new Fiber("replicate-" + m.getNode().getNodeId() + "-" + m.getReplicateEpoch(),
-                    groupConfig.getFiberGroup(), ff, true);
-            f.start();
+            if (!m.isReady()) {
+                continue;
+            }
+            ReplicateStatus rs = raftStatus.getReplicateStatus(m.getNode().getNodeId());
+            if (rs.getReplicateFiber() == null || rs.getReplicateFiber().isFinished()) {
+                RepFrame ff = new RepFrame(this, rs.getEpoch(), m, 0);
+                Fiber f = new Fiber("replicate-" + m.getNode().getNodeId() + "-" + rs.getEpoch(),
+                        groupConfig.getFiberGroup(), ff, true);
+                f.start();
+                rs.setReplicateFiber(f);
+            }
         }
     }
 
@@ -110,9 +116,8 @@ public class ReplicateManager {
         } else {
             repFrame.closeIterator();
             RaftMember member = repFrame.getMember();
-            member.incrReplicateEpoch(repFrame.getEpoch());
-            member.setLastFailNanos(raftStatus.getTs().getNanoTime());
-            member.getReplicateCondition().signalAll();
+            repFrame.incrementEpoch();
+            repFrame.getRepCondition().signalAll();
 
             String msg = "append fail. remoteId={}, groupId={}, localTerm={}, reqTerm={}, prevLogIndex={}";
             log.error(msg, member.getNode().getNodeId(), groupId, raftStatus.getCurrentTerm(),
@@ -144,7 +149,7 @@ public class ReplicateManager {
                 repFrame.setMultiAppend(true);
                 commitManager.tryCommit(expectNewMatchIndex);
                 if (raftStatus.getLastLogIndex() >= member.getNextIndex()) {
-                    raftStatus.getReplicateCondition(member.getNode().getNodeId()).signalAll();
+                    repFrame.getRepCondition().signalAll();
                 }
             } else {
                 BugLog.getLog().error("append miss order. old matchIndex={}, append prevLogIndex={}," +
@@ -155,14 +160,13 @@ public class ReplicateManager {
             }
         } else {
             repFrame.closeIterator();
-            member.incrReplicateEpoch(repFrame.getEpoch());
+            repFrame.incrementEpoch();
             int appendCode = body.getAppendCode();
             if (appendCode == AppendProcessor.CODE_LOG_NOT_MATCH) {
                 updateLease(member, reqNanos, raftStatus);
                 // TODO processLogNotMatch(member, prevLogIndex, prevLogTerm, body, raftStatus);
             } else if (appendCode == AppendProcessor.CODE_SERVER_ERROR) {
                 updateLease(member, reqNanos, raftStatus);
-                member.setLastFailNanos(ts.getNanoTime());
                 log.error("append fail because of remote error. groupId={}, prevLogIndex={}, msg={}",
                         groupId, prevLogIndex, rf.getMsg());
             } else if (appendCode == AppendProcessor.CODE_INSTALL_SNAPSHOT) {
@@ -171,7 +175,6 @@ public class ReplicateManager {
                 updateLease(member, reqNanos, raftStatus);
                 // TODO beginInstallSnapshot(member);
             } else {
-                member.setLastFailNanos(ts.getNanoTime());
                 BugLog.getLog().error("append fail. appendCode={}, old matchIndex={}, append prevLogIndex={}, " +
                                 "expectNewMatchIndex={}, remoteId={}, groupId={}, localTerm={}, reqTerm={}, remoteTerm={}",
                         AppendProcessor.getCodeStr(appendCode), member.getMatchIndex(), prevLogIndex, expectNewMatchIndex,
@@ -212,11 +215,12 @@ class RepFrame extends FiberFrame<Void> {
     private final StateMachine stateMachine;
 
     private final int epoch;
+    private final FiberCondition repCondition;
+    private final ReplicateStatus replicateStatus;
     private final int term;
 
     private final RaftMember member;
     private final long initDelayMillis;
-    private final FiberCondition repCondition;
 
     private final RaftStatusImpl raftStatus;
 
@@ -233,13 +237,12 @@ class RepFrame extends FiberFrame<Void> {
     private static final PbNoCopyDecoder<AppendRespCallback> APPEND_RESP_DECODER =
             new PbNoCopyDecoder<>(c -> new AppendRespCallback());
 
-    public RepFrame(GroupComponents gc, NioClient client, ReplicateManager replicateManager,
-                    int epoch, RaftMember member, long initDelayMillis) {
-        this.config = gc.getServerConfig();
-        this.groupConfig = gc.getGroupConfig();
-        this.raftLog = gc.getRaftLog();
-        this.stateMachine = gc.getStateMachine();
-        this.client = client;
+    public RepFrame(ReplicateManager replicateManager, int epoch, RaftMember member, long initDelayMillis) {
+        this.config = replicateManager.serverConfig;
+        this.groupConfig = replicateManager.groupConfig;
+        this.raftLog = replicateManager.raftLog;
+        this.stateMachine = replicateManager.stateMachine;
+        this.client = replicateManager.client;
         this.replicateManager = replicateManager;
         this.epoch = epoch;
         this.member = member;
@@ -248,7 +251,8 @@ class RepFrame extends FiberFrame<Void> {
 
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
         this.term = raftStatus.getCurrentTerm();
-        this.repCondition = raftStatus.getReplicateCondition(member.getNode().getNodeId());
+        this.replicateStatus = raftStatus.getReplicateStatus(member.getNode().getNodeId());
+        this.repCondition = replicateStatus.getFinishCondition();
 
         this.maxReplicateItems = config.getMaxReplicateItems();
         this.maxReplicateBytes = config.getMaxReplicateBytes();
@@ -261,7 +265,6 @@ class RepFrame extends FiberFrame<Void> {
             log.info("ReplicateManager load raft log cancelled");
         } else {
             log.error("load raft log failed", ex);
-            member.setLastFailNanos(raftStatus.getTs().getNanoTime());
             if (raftStatus.getRole() == RaftRole.leader) {
                 // if log is deleted, the next load will never success, so we need to reset nextIndex.
                 // however, the exception may be caused by other reasons
@@ -285,16 +288,26 @@ class RepFrame extends FiberFrame<Void> {
     }
 
     private boolean shouldStopReplicate() {
-        if (epochChange()) {
-            log.debug("epoch changed, stop replicate fiber. member={}, group={}, newEpoch={}, oldEpoch={}",
-                    member.getNode().getNodeId(), groupId, member.getReplicateEpoch(), epoch);
+        if (raftStatus.getRole() != RaftRole.leader) {
+            log.info("not leader, stop replicate fiber. group={}", groupId);
             return true;
         }
-        return member.isReady();
+        RaftNodeEx node = member.getNode();
+        if (epochChange()) {
+            log.info("epoch changed, stop replicate fiber. group={}, node={}, newEpoch={}, oldEpoch={}",
+                    groupId, node.getNodeId(), replicateStatus.getEpoch(), epoch);
+            return true;
+        }
+        if (!node.getStatus().isReady()) {
+            incrementEpoch();
+            log.info("node not ready, stop replicate fiber. group={}, node={}", groupId, node.getNodeId());
+            return true;
+        }
+        return false;
     }
 
     public boolean epochChange() {
-        return member.getReplicateEpoch() != epoch;
+        return replicateStatus.getEpoch() != epoch;
     }
 
     private FrameCallResult replicate(Void unused) {
@@ -422,7 +435,7 @@ class RepFrame extends FiberFrame<Void> {
         pendingBytes += bytes;
 
         long finalBytes = bytes;
-        f.whenCompleteAsync((rf, ex) -> replicateManager.afterAppendRpc(rf, ex,this, prevLogIndex,
+        f.whenCompleteAsync((rf, ex) -> replicateManager.afterAppendRpc(rf, ex, this, prevLogIndex,
                         firstItem.getPrevLogTerm(), reqNanos, items.size(), finalBytes),
                 getFiberGroup().getDispatcher().getExecutor());
     }
@@ -457,15 +470,15 @@ class RepFrame extends FiberFrame<Void> {
         return term;
     }
 
-    public int getEpoch() {
-        return epoch;
-    }
-
     public FiberCondition getRepCondition() {
         return repCondition;
     }
 
     public void setMultiAppend(boolean multiAppend) {
         this.multiAppend = multiAppend;
+    }
+
+    public void incrementEpoch() {
+        replicateStatus.incrementEpoch(epoch);
     }
 }
