@@ -79,9 +79,9 @@ public class MemberManager {
     public void init(IntObjMap<RaftNodeEx> allNodes) {
         for (int nodeId : raftStatus.getNodeIdOfMembers()) {
             RaftNodeEx node = allNodes.get(nodeId);
-            RaftMember m = new RaftMember(node);
+            RaftMember m = new RaftMember(node, groupConfig.getFiberGroup().newCondition("rep-" + nodeId));
             if (node.isSelf()) {
-                initSelf(node, m, RaftRole.follower);
+                initSelf(m, RaftRole.follower);
             }
             raftStatus.getMembers().add(m);
         }
@@ -89,9 +89,9 @@ public class MemberManager {
             List<RaftMember> observers = new ArrayList<>();
             for (int nodeId : raftStatus.getNodeIdOfObservers()) {
                 RaftNodeEx node = allNodes.get(nodeId);
-                RaftMember m = new RaftMember(node);
+                RaftMember m = new RaftMember(node, groupConfig.getFiberGroup().newCondition("rep-" + nodeId));
                 if (node.isSelf()) {
-                    initSelf(node, m, RaftRole.observer);
+                    initSelf(m, RaftRole.observer);
                 }
                 observers.add(m);
             }
@@ -108,9 +108,8 @@ public class MemberManager {
         }
     }
 
-    private void initSelf(RaftNodeEx node, RaftMember m, RaftRole role) {
+    private void initSelf(RaftMember m, RaftRole role) {
         m.setReady(true);
-        m.setNodeEpoch(node.getStatus().getEpoch());
         raftStatus.setSelf(m);
         raftStatus.setRole(role);
     }
@@ -212,6 +211,7 @@ public class MemberManager {
                     log.info("raft ping success, id={}, remote={}", callback.nodeId, raftNodeEx.getHostPort());
                     setReady(member, true);
                     member.setNodeEpoch(nodeEpochWhenStartPing);
+                    replicateManager.tryStartReplicateFibers();
                 } else {
                     log.warn("raft ping success but current node status not match. "
                                     + "id={}, remoteHost={}, nodeReady={}, nodeEpoch={}, pingEpoch={}",

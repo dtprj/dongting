@@ -154,12 +154,11 @@ public class RaftUtil {
             member.setMatchIndex(0);
             member.setNextIndex(0);
             member.setLastConfirmReqNanos(raftStatus.getTs().getNanoTime() - Duration.ofDays(1).toNanos());
-            member.setInstallSnapshot(false);
 
-            ReplicateStatus rs = raftStatus.getReplicateStatus(member.getNode().getNodeId());
-            rs.incrementEpoch(rs.getEpoch());
+            member.setInstallSnapshot(false);
+            member.incrementReplicateEpoch(member.getReplicateEpoch());
             // wake up replicate fiber if it is waiting on this condition
-            rs.getFinishCondition().signalAll();
+            member.getFinishCondition().signalAll();
 
             if (member.getSnapshotInfo() != null) {
                 try {

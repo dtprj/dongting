@@ -15,33 +15,40 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.fiber.FiberFuture;
-import com.github.dtprj.dongting.raft.store.RaftLog;
+import com.github.dtprj.dongting.fiber.Fiber;
+import com.github.dtprj.dongting.fiber.FiberCondition;
 
 /**
  * @author huangli
  */
 public class RaftMember {
     private final RaftNodeEx node;
+    private final FiberCondition finishCondition;
     private boolean ready;
     private boolean pinging;
 
-    private int nodeEpoch;
-
     private long lastConfirmReqNanos;
 
-    private boolean installSnapshot;
     private SnapshotInfo snapshotInfo;
 
     // in raft paper: volatile state on leaders
     private long nextIndex;
     private long matchIndex;
 
-    private FiberFuture<?> replicateFuture;
-    private RaftLog.LogIterator replicateIterator;
+    private int replicateEpoch;
+    private int nodeEpoch;
+    private Fiber replicateFiber;
+    private boolean installSnapshot;
 
-    public RaftMember(RaftNodeEx node) {
+    public RaftMember(RaftNodeEx node, FiberCondition finishCondition) {
         this.node = node;
+        this.finishCondition = finishCondition;
+    }
+
+    public void incrementReplicateEpoch(int oldEpoch) {
+        if (replicateEpoch == oldEpoch) {
+            replicateEpoch++;
+        }
     }
 
     public void setLastConfirmReqNanos(long lastConfirmReqNanos) {
@@ -88,14 +95,6 @@ public class RaftMember {
         return lastConfirmReqNanos;
     }
 
-    public boolean isInstallSnapshot() {
-        return installSnapshot;
-    }
-
-    public void setInstallSnapshot(boolean installSnapshot) {
-        this.installSnapshot = installSnapshot;
-    }
-
     public SnapshotInfo getSnapshotInfo() {
         return snapshotInfo;
     }
@@ -104,29 +103,37 @@ public class RaftMember {
         this.snapshotInfo = snapshotInfo;
     }
 
+
+    public int getReplicateEpoch() {
+        return replicateEpoch;
+    }
+
+    public FiberCondition getFinishCondition() {
+        return finishCondition;
+    }
+
+    public Fiber getReplicateFiber() {
+        return replicateFiber;
+    }
+
+    public void setReplicateFiber(Fiber replicateFiber) {
+        this.replicateFiber = replicateFiber;
+    }
+
+    public boolean isInstallSnapshot() {
+        return installSnapshot;
+    }
+
+    public void setInstallSnapshot(boolean installSnapshot) {
+        this.installSnapshot = installSnapshot;
+    }
+
     public int getNodeEpoch() {
         return nodeEpoch;
     }
 
     public void setNodeEpoch(int nodeEpoch) {
         this.nodeEpoch = nodeEpoch;
-    }
-
-    public FiberFuture<?> getReplicateFuture() {
-        return replicateFuture;
-    }
-
-    public void setReplicateFuture(FiberFuture<?> replicateFuture) {
-        this.replicateFuture = replicateFuture;
-    }
-
-
-    public RaftLog.LogIterator getReplicateIterator() {
-        return replicateIterator;
-    }
-
-    public void setReplicateIterator(RaftLog.LogIterator replicateIterator) {
-        this.replicateIterator = replicateIterator;
     }
 
 }
