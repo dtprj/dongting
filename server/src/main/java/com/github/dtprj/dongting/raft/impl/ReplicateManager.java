@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
-import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -63,7 +62,6 @@ public class ReplicateManager {
     final StateMachine stateMachine;
     final NioClient client;
     private final CommitManager commitManager;
-    private final Timestamp ts;
 
     private final StatusManager statusManager;
 
@@ -78,7 +76,6 @@ public class ReplicateManager {
         this.stateMachine = stateMachine;
         this.client = client;
         this.commitManager = commitManager;
-        this.ts = raftStatus.getTs();
 
         this.statusManager = statusManager;
     }

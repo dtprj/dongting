@@ -91,4 +91,7 @@ public class ApplyManager {
         }
     }
 
+    public void apply(RaftStatusImpl raftStatus) {
+    }
+
 }
