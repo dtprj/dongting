@@ -16,10 +16,10 @@
 package com.github.dtprj.dongting.raft.sm;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -48,7 +48,7 @@ public abstract class Snapshot implements AutoCloseable {
     }
 
 
-    public abstract CompletableFuture<RefBuffer> readNext();
+    public abstract FiberFrame<RefBuffer> readNext();
 
     @Override
     public void close() {

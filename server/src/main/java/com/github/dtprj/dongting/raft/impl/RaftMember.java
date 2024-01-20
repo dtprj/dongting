@@ -29,8 +29,6 @@ public class RaftMember {
 
     private long lastConfirmReqNanos;
 
-    private SnapshotInfo snapshotInfo;
-
     // in raft paper: volatile state on leaders
     private long nextIndex;
     private long matchIndex;
@@ -94,15 +92,6 @@ public class RaftMember {
     public long getLastConfirmReqNanos() {
         return lastConfirmReqNanos;
     }
-
-    public SnapshotInfo getSnapshotInfo() {
-        return snapshotInfo;
-    }
-
-    public void setSnapshotInfo(SnapshotInfo snapshotInfo) {
-        this.snapshotInfo = snapshotInfo;
-    }
-
 
     public int getReplicateEpoch() {
         return replicateEpoch;

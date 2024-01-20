@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -33,9 +34,12 @@ import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.AppendReqWriteFrame;
 import com.github.dtprj.dongting.raft.rpc.AppendRespCallback;
+import com.github.dtprj.dongting.raft.rpc.InstallSnapshotReq;
+import com.github.dtprj.dongting.raft.rpc.InstallSnapshotResp;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
+import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
@@ -93,7 +97,7 @@ public class ReplicateManager {
             if (m.getReplicateFiber() == null || m.getReplicateFiber().isFinished()) {
                 Fiber f;
                 if (m.isInstallSnapshot()) {
-                    InstallFrame ff = new InstallFrame();
+                    InstallFrame ff = new InstallFrame(this, m);
                     f = new Fiber("install-" + m.getNode().getNodeId() + "-" + m.getReplicateEpoch(),
                             groupConfig.getFiberGroup(), ff, true);
                 } else {
@@ -107,11 +111,10 @@ public class ReplicateManager {
         }
     }
 
-    public void afterAppendRpc(ReadFrame<AppendRespCallback> rf, Throwable ex, RepFrame repFrame,
-                               long prevLogIndex, int prevLogTerm, long reqNanos, int itemCount, long bytes) {
+    void afterAppendRpc(ReadFrame<AppendRespCallback> rf, Throwable ex, RepFrame repFrame,
+                        long prevLogIndex, int prevLogTerm, long reqNanos, int itemCount, long bytes) {
         if (repFrame.epochChange()) {
             log.info("receive outdated append result, replicateEpoch not match. ignore.");
-            repFrame.closeIterator();
             return;
         }
 
@@ -120,7 +123,6 @@ public class ReplicateManager {
         if (ex == null) {
             processAppendResult(repFrame, rf, prevLogIndex, prevLogTerm, reqNanos, itemCount);
         } else {
-            repFrame.closeIterator();
             RaftMember member = repFrame.getMember();
             repFrame.incrementEpoch();
             repFrame.getRepCondition().signalAll();
@@ -138,7 +140,6 @@ public class ReplicateManager {
         RaftStatusImpl raftStatus = this.raftStatus;
         int remoteTerm = body.getTerm();
         if (checkTermFailed(remoteTerm)) {
-            repFrame.closeIterator();
             return;
         }
         RaftMember member = repFrame.getMember();
@@ -163,6 +164,7 @@ public class ReplicateManager {
                         member.getMatchIndex(), prevLogIndex, expectNewMatchIndex, member.getNode().getNodeId(),
                         groupId, raftStatus.getCurrentTerm(), repFrame.getTerm(), body.getTerm());
                 repFrame.closeIterator();
+                repFrame.incrementEpoch();
             }
         } else {
             repFrame.closeIterator();
@@ -226,6 +228,46 @@ public class ReplicateManager {
         RaftUtil.updateLease(raftStatus);
     }
 
+    void afterInstallRpc(ReadFrame<InstallSnapshotResp> rf, Throwable ex,
+                         InstallFrame installFrame, long reqOffset,
+                         int reqBytes, boolean reqDone, long reqLastIncludedIndex) {
+        try {
+            if (installFrame.epochChange()) {
+                log.info("epoch not match, ignore install snapshot response.");
+                return;
+            }
+            RaftMember member = installFrame.getMember();
+            installFrame.pendingBytes -= reqBytes;
+            if (ex != null) {
+                log.error("install snapshot fail, group={},remoteId={}", groupId, member.getNode().getNodeId(), ex);
+                installFrame.incrementEpoch();
+                return;
+            }
+            InstallSnapshotResp respBody = rf.getBody();
+            if (!respBody.success) {
+                log.error("install snapshot fail. remoteNode={}, groupId={}",
+                        member.getNode().getNodeId(), groupId);
+                installFrame.incrementEpoch();
+                return;
+            }
+            if (checkTermFailed(respBody.term)) {
+                return;
+            }
+            log.info("transfer snapshot data to member. nodeId={}, groupId={}, offset={}", member.getNode().getNodeId(), groupId, reqOffset);
+            if (reqDone) {
+                log.info("install snapshot for member finished success. nodeId={}, groupId={}",
+                        member.getNode().getNodeId(), groupId);
+                installFrame.incrementEpoch();
+                installFrame.setInstallFinish(true);
+                member.setInstallSnapshot(false);
+                member.setMatchIndex(reqLastIncludedIndex);
+                member.setNextIndex(reqLastIncludedIndex + 1);
+            }
+        } finally {
+            installFrame.getRepCondition().signalAll();
+        }
+    }
+
 }
 
 abstract class AbstractRepFrame extends FiberFrame<Void> {
@@ -280,6 +322,14 @@ abstract class AbstractRepFrame extends FiberFrame<Void> {
     public void incrementEpoch() {
         member.incrementReplicateEpoch(replicateEpoch);
     }
+
+    public RaftMember getMember() {
+        return member;
+    }
+
+    public FiberCondition getRepCondition() {
+        return repCondition;
+    }
 }
 
 class RepFrame extends AbstractRepFrame {
@@ -331,6 +381,11 @@ class RepFrame extends AbstractRepFrame {
                 member.setNextIndex(raftStatus.getLastLogIndex() + 1);
             }
         }
+        return Fiber.frameReturn();
+    }
+
+    @Override
+    protected FrameCallResult doFinally() {
         closeIterator();
         return Fiber.frameReturn();
     }
@@ -393,7 +448,7 @@ class RepFrame extends AbstractRepFrame {
             return Fiber.resume(null, this);
         } else {
             if (replicateIterator == null) {
-                replicateIterator = raftLog.openIterator(() -> epochChange());
+                replicateIterator = raftLog.openIterator(this::epochChange);
             }
             FiberFrame<List<LogItem>> nextFrame = replicateIterator.next(nextIndex, Math.min(limit, 1024),
                     serverConfig.getSingleReplicateLimit());
@@ -403,7 +458,6 @@ class RepFrame extends AbstractRepFrame {
 
     private FrameCallResult resumeAfterLogLoad(List<LogItem> items) {
         if (shouldStopReplicate()) {
-            closeIterator();
             return Fiber.frameReturn();
         }
         if (items == null || items.isEmpty()) {
@@ -483,16 +537,8 @@ class RepFrame extends AbstractRepFrame {
         }
     }
 
-    public RaftMember getMember() {
-        return member;
-    }
-
     public int getTerm() {
         return term;
-    }
-
-    public FiberCondition getRepCondition() {
-        return repCondition;
     }
 
     public void setMultiAppend(boolean multiAppend) {
@@ -523,7 +569,7 @@ class FindMatchPosFrame extends AbstractRepFrame {
 
     @Override
     protected FrameCallResult handle(Throwable ex) throws Throwable {
-        log.error("nextIndexToReplicate fail", ex);
+        log.error("tryFindMatchPos fail", ex);
         return Fiber.frameReturn();
     }
 
@@ -551,10 +597,127 @@ class FindMatchPosFrame extends AbstractRepFrame {
     }
 }
 
-class InstallFrame extends FiberFrame<Void> {
+class InstallFrame extends AbstractRepFrame {
+    private static final DtLog log = DtLogs.getLogger(InstallFrame.class);
+
+    private final RaftLog raftLog;
+    private final StateMachine stateMachine;
+    private final RaftServerConfig serverConfig;
+    private final NioClient client;
+    private final ReplicateManager replicateManager;
+    private final long restBytes;
+    private boolean installFinish;
+    private SnapshotInfo si;
+    long pendingBytes;
+
+    private static final PbNoCopyDecoder<InstallSnapshotResp> INSTALL_SNAPSHOT_RESP_DECODER =
+            new PbNoCopyDecoder<>(c -> new InstallSnapshotResp.Callback());
+
+    public InstallFrame(ReplicateManager replicateManager, RaftMember member) {
+        super(replicateManager, member);
+        this.stateMachine = replicateManager.stateMachine;
+        this.raftLog = replicateManager.raftLog;
+        this.serverConfig = replicateManager.serverConfig;
+        this.client = replicateManager.client;
+        this.replicateManager = replicateManager;
+        this.restBytes = (long) (serverConfig.getMaxReplicateBytes() * 0.1);
+    }
+
+    @Override
+    protected FrameCallResult handle(Throwable ex) throws Throwable {
+        log.error("install snapshot error: group={}, remoteId={}", groupId, member.getNode().getNodeId(), ex);
+        return Fiber.frameReturn();
+    }
+
+    @Override
+    protected FrameCallResult doFinally() {
+        if (si != null) {
+            si.snapshot.close();
+        }
+        return Fiber.frameReturn();
+    }
 
     @Override
     public FrameCallResult execute(Void input) throws Throwable {
-        return null;
+        return Fiber.call(stateMachine.takeSnapshot(raftStatus.getCurrentTerm()), this::afterTakeSnapshot);
+    }
+
+    private FrameCallResult afterTakeSnapshot(Snapshot snapshot) {
+        if (shouldStopReplicate()) {
+            return Fiber.frameReturn();
+        }
+        if (snapshot == null) {
+            log.error("open recent snapshot fail, return null");
+            return Fiber.frameReturn();
+        }
+        FiberFrame<Long> f = raftLog.loadNextItemPos(snapshot.getLastIncludedIndex());
+        return Fiber.call(f, result -> afterLoadNextItemPos(result, snapshot));
+    }
+
+    private FrameCallResult afterLoadNextItemPos(Long nextPos, Snapshot snapshot) {
+        if (shouldStopReplicate()) {
+            return Fiber.frameReturn();
+        }
+        log.info("begin install snapshot for member: nodeId={}, groupId={}",
+                member.getNode().getNodeId(), groupId);
+        this.si = new SnapshotInfo(snapshot, nextPos);
+        return installSnapshot();
+    }
+
+    private FrameCallResult installSnapshot() {
+        if (shouldStopReplicate()) {
+            return Fiber.frameReturn();
+        }
+        if (installFinish) {
+            return Fiber.frameReturn();
+        }
+        if (si.readFinished || serverConfig.getMaxReplicateBytes() - pendingBytes <= restBytes) {
+            // wait rpc finish
+            return repCondition.await(1000, this);
+        }
+        FiberFrame<RefBuffer> ff = si.snapshot.readNext();
+        return Fiber.call(ff, this::afterSnapshotRead);
+    }
+
+    private FrameCallResult afterSnapshotRead(RefBuffer rb) {
+        if (shouldStopReplicate()) {
+            rb.release();
+            return Fiber.frameReturn();
+        }
+        // rb release in InstallReqWriteFrame.doClean()
+        sendInstallSnapshotReq(member, si, rb);
+        return installSnapshot();
+    }
+
+    private void sendInstallSnapshotReq(RaftMember member, SnapshotInfo si, RefBuffer data) {
+        InstallSnapshotReq req = new InstallSnapshotReq();
+        req.groupId = groupId;
+        req.term = raftStatus.getCurrentTerm();
+        req.leaderId = serverConfig.getNodeId();
+        req.lastIncludedIndex = si.snapshot.getLastIncludedIndex();
+        req.lastIncludedTerm = si.snapshot.getLastIncludedTerm();
+        req.offset = si.offset;
+        req.nextWritePos = si.nextWritePos;
+        req.data = data;
+        req.done = data == null || data.getBuffer() == null || !data.getBuffer().hasRemaining();
+
+        if (req.done) {
+            si.readFinished = true;
+        }
+
+        InstallSnapshotReq.InstallReqWriteFrame wf = new InstallSnapshotReq.InstallReqWriteFrame(req);
+        wf.setCommand(Commands.RAFT_INSTALL_SNAPSHOT);
+        DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
+        CompletableFuture<ReadFrame<InstallSnapshotResp>> future = client.sendRequest(
+                member.getNode().getPeer(), wf, INSTALL_SNAPSHOT_RESP_DECODER, timeout);
+        int bytes = data == null ? 0 : data.getBuffer().remaining();
+        si.offset += bytes;
+        future.whenCompleteAsync((rf, ex) -> replicateManager.afterInstallRpc(
+                        rf, ex, this, req.offset, bytes, req.done, req.lastIncludedIndex),
+                getFiberGroup().getDispatcher().getExecutor());
+    }
+
+    public void setInstallFinish(boolean installFinish) {
+        this.installFinish = installFinish;
     }
 }

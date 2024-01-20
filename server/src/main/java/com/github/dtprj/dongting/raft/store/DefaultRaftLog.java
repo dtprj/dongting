@@ -172,8 +172,8 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public long syncLoadNextItemPos(long index) throws Exception {
-        return 0;
+    public FiberFrame<Long> loadNextItemPos(long index) {
+        return null;
     }
 
     @Override

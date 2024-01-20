@@ -68,7 +68,7 @@ public interface RaftLog {
 
     void finishInstall(long nextLogIndex, long nextLogPos) throws Exception;
 
-    long syncLoadNextItemPos(long index) throws Exception;
+    FiberFrame<Long> loadNextItemPos(long index);
 
     FiberFuture<Void> close();
 
