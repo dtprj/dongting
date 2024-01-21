@@ -231,4 +231,13 @@ public class RaftUtil {
         }
         return arr[quorum];
     }
+
+    public static ByteBuffer copy(ByteBuffer src) {
+        ByteBuffer dest = ByteBuffer.allocate(src.remaining());
+        int pos = src.position();
+        dest.put(src);
+        dest.flip();
+        src.position(pos);
+        return dest;
+    }
 }
