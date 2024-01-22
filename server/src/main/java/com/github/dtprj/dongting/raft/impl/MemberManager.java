@@ -76,6 +76,9 @@ public class MemberManager {
         }
     }
 
+    /**
+     * invoke by RaftServer init thread or schedule thread
+     */
     public void init(IntObjMap<RaftNodeEx> allNodes) {
         for (int nodeId : raftStatus.getNodeIdOfMembers()) {
             RaftNodeEx node = allNodes.get(nodeId);

@@ -65,8 +65,6 @@ class InitFiberFrame extends FiberFrame<Void> {
         raftStatus.setFiberGroup(getFiberGroup());
         raftStatus.setDataArrivedCondition(getFiberGroup().newCondition("dataArrived"));
 
-        gc.getMemberManager().init(gc.getNodeManager().getAllNodesEx());
-
         for(RaftGroupProcessor<?> processor : raftGroupProcessors) {
             FiberChannel<Object> channel = getFiberGroup().newChannel();
             FiberFrame<Void> initFrame = processor.createFiberFrame(channel);

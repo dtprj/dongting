@@ -318,6 +318,7 @@ public class RaftServer extends AbstractLifeCircle {
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
             raftGroups.forEach((groupId, g) -> {
                 GroupComponents gc = g.getGroupComponents();
+                gc.getMemberManager().init(gc.getNodeManager().getAllNodesEx());
                 CompletableFuture<Void> f = gc.getFiberGroup().getDispatcher().startGroup(gc.getFiberGroup());
                 futures.add(f);
             });
@@ -359,8 +360,7 @@ public class RaftServer extends AbstractLifeCircle {
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
 
             nodeManager.start();
-            int electQuorum = RaftUtil.getElectQuorum(nodeManager.getAllNodesEx().size());
-            futures.add(nodeManager.readyFuture(electQuorum));
+            futures.add(nodeManager.readyFuture());
 
             raftGroups.forEach((groupId, g) -> {
                 GroupComponents gc = g.getGroupComponents();

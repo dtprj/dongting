@@ -41,20 +41,6 @@ public class RaftNodeEx extends RaftNode {
         this.peer = peer;
     }
 
-    public synchronized void addStatusListener(Runnable listener) {
-        listeners.add(listener);
-    }
-
-    public synchronized void removeStatusListener(Runnable listener) {
-        listeners.remove(listener);
-    }
-
-    public void fireStatusChange() {
-        for (Runnable listener : listeners) {
-            listener.run();
-        }
-    }
-
     public int getUseCount() {
         return useCount;
     }

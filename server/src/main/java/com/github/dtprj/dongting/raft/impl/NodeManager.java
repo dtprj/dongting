@@ -49,8 +49,10 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
     private final RaftServerConfig config;
     private final RaftGroups raftGroups;
 
+    // update by RaftServer init thread and schedule thread
+    private final IntObjMap<RaftNodeEx> allNodesEx;
+
     private List<RaftNode> allRaftNodesOnlyForInit;
-    private IntObjMap<RaftNodeEx> allNodesEx;
 
     private ScheduledFuture<?> scheduledFuture;
 
@@ -62,11 +64,12 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
     public NodeManager(RaftServerConfig config, List<RaftNode> allRaftNodes, NioClient client,
                        RaftGroups raftGroups) {
         this.selfNodeId = config.getNodeId();
-        this.allRaftNodesOnlyForInit = allRaftNodes;
         this.client = client;
         this.config = config;
         this.raftGroups = raftGroups;
         this.startReadyQuorum = RaftUtil.getElectQuorum(allRaftNodes.size());
+
+        this.allNodesEx = new IntObjMap<>(allRaftNodes.size() * 2, 0.75f);
     }
 
     public CompletableFuture<RaftNodeEx> addToNioClient(RaftNode node) {
@@ -94,7 +97,6 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
             futures.add(addToNioClient(n));
         }
         allRaftNodesOnlyForInit = null;
-        allNodesEx = new IntObjMap<>(futures.size() * 2, 0.75f);
 
         for (CompletableFuture<RaftNodeEx> f : futures) {
             RaftNodeEx node = f.join();
@@ -182,7 +184,6 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
             currentReadyNodes--;
             nodeEx.setStatus(new NodeStatus(false, oldStatus.getEpoch()));
         }
-        nodeEx.fireStatusChange();
         if (currentReadyNodes >= startReadyQuorum && !startReadyFuture.isDone()) {
             log.info("nodeManager is ready");
             startReadyFuture.complete(null);
@@ -221,7 +222,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         }
     }
 
-    public CompletableFuture<Void> readyFuture(int targetReadyCount) {
+    public CompletableFuture<Void> readyFuture() {
         return startReadyFuture;
     }
 
