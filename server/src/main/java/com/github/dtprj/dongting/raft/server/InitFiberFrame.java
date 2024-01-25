@@ -117,11 +117,10 @@ class InitFiberFrame extends FiberFrame<Void> {
         raftStatus.setLastLogIndex(initResultIndex);
         raftStatus.setLastPersistLogIndex(initResultIndex);
 
-        // TODO apply
-
-        log.info("raft group init complete, maxTerm={}, maxIndex={}, groupId={}",
+        log.info("raft group log init complete, maxTerm={}, maxIndex={}, groupId={}",
                 initResult.getLeft(), initResult.getRight(), groupConfig.getGroupId());
-        prepareFuture.complete(null);
+
+        gc.getApplyManager().init(getFiberGroup(), prepareFuture);
         return Fiber.frameReturn();
     }
 

@@ -29,6 +29,7 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -38,6 +39,7 @@ import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -62,6 +64,10 @@ public class ApplyManager {
 
     private FiberCondition condition;
 
+    private long initCommitIndex;
+    private boolean initFutureDone = false;
+    private CompletableFuture<Void> initFuture;
+
     public ApplyManager(int selfNodeId, RaftLog raftLog, StateMachine stateMachine,
                         RaftStatusImpl raftStatus, EventBus eventBus,
                         RefBufferFactory heapPool, StatusManager statusManager) {
@@ -76,8 +82,10 @@ public class ApplyManager {
         this.statusManager = statusManager;
     }
 
-    public void init(FiberGroup fiberGroup) {
-        condition = fiberGroup.newCondition("needApply");
+    public void init(FiberGroup fiberGroup, CompletableFuture<Void> initFuture) {
+        this.condition = fiberGroup.newCondition("needApply");
+        this.initFuture = initFuture;
+        this.initCommitIndex = raftStatus.getCommitIndex();
         startApplyFiber(fiberGroup);
     }
 
@@ -110,6 +118,95 @@ public class ApplyManager {
         }
     }
 
+    private boolean execChain(long index, RaftTask rt) {
+        switch (rt.getType()) {
+            case LogItem.TYPE_NORMAL:
+                execWrite(index, rt);
+                return false;
+            case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
+                // TODO doPrepare(index, rt);
+                return true;
+            case LogItem.TYPE_DROP_CONFIG_CHANGE:
+                // TODO doAbort();
+                // TODO postConfigChange(index, rt);
+                return true;
+            case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
+                // TODO doCommit();
+                // TODO postConfigChange(index, rt);
+                return true;
+            default:
+                // heartbeat etc.
+                return false;
+        }
+    }
+
+    private void execWrite(long index, RaftTask rt) {
+        RaftInput input = rt.getInput();
+        CompletableFuture<RaftOutput> future = rt.getFuture();
+        try {
+            Object r = stateMachine.exec(index, input);
+            future.complete(new RaftOutput(index, r));
+        } catch (Throwable ex) {
+            Fiber.fatal(new RaftException("exec write failed.", ex));
+            future.completeExceptionally(ex);
+        } finally {
+            RaftStatusImpl raftStatus = this.raftStatus;
+            if (raftStatus.getFirstCommitOfApplied() != null && index >= raftStatus.getFirstIndexOfCurrentTerm()) {
+                raftStatus.getFirstCommitOfApplied().complete(null);
+                raftStatus.setFirstCommitOfApplied(null);
+            }
+        }
+    }
+
+    private void execReaders(long index, RaftTask rt) {
+        RaftTask nextReader = rt.getNextReader();
+        while (nextReader != null) {
+            execRead(index, nextReader);
+            nextReader = nextReader.getNextReader();
+        }
+    }
+
+    @SuppressWarnings("rawtypes")
+    private RaftTask buildRaftTask(LogItem item) {
+        try {
+            ByteBuffer headerRbb = item.getHeaderBuffer();
+            if (headerRbb != null) {
+                if (item.getType() == LogItem.TYPE_NORMAL) {
+                    Decoder decoder = stateMachine.createHeaderDecoder(item.getBizType());
+                    Object o = decoder.decode(decodeContext, headerRbb, headerRbb.remaining(), 0);
+                    item.setHeader(o);
+                } else {
+                    item.setHeader(RaftUtil.copy(headerRbb));
+                }
+            }
+            ByteBuffer bodyRbb = item.getBodyBuffer();
+            if (bodyRbb != null) {
+                if (item.getType() == LogItem.TYPE_NORMAL) {
+                    Decoder decoder = stateMachine.createBodyDecoder(item.getBizType());
+                    Object o = decoder.decode(decodeContext, bodyRbb, bodyRbb.remaining(), 0);
+                    item.setBody(o);
+                } else {
+                    item.setBody(RaftUtil.copy(bodyRbb));
+                }
+            }
+            RaftInput input = new RaftInput(item.getBizType(), item.getHeader(), item.getBody(),
+                    null, item.getActualBodySize());
+            RaftTask result = new RaftTask(ts, item.getType(), input, null);
+            result.setItem(item);
+            RaftTask reader = raftStatus.getTailCache().get(item.getIndex());
+            if (reader != null) {
+                if (reader.getInput().isReadOnly()) {
+                    result.setNextReader(reader);
+                } else {
+                    BugLog.getLog().error("not read only");
+                }
+            }
+            return result;
+        } finally {
+            decodeContext.reset();
+        }
+    }
+
     public void apply() {
         condition.signal();
     }
@@ -117,6 +214,9 @@ public class ApplyManager {
     private class ApplyFrame extends FiberFrame<Void> {
 
         private RaftLog.LogIterator logIterator;
+
+        private int taskIndex;
+        private final ArrayList<RaftTask> taskList = new ArrayList<>();
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
@@ -132,6 +232,7 @@ public class ApplyManager {
             long appliedIndex = raftStatus.getLastApplied();
             long diff = raftStatus.getCommitIndex() - appliedIndex;
             TailCache tailCache = raftStatus.getTailCache();
+            taskList.clear();
             while (diff > 0) {
                 long index = appliedIndex + 1;
                 RaftTask rt = tailCache.get(index);
@@ -145,35 +246,69 @@ public class ApplyManager {
                     return Fiber.call(ff, items -> afterLoad(items, stateMachineEpoch));
                 } else {
                     closeIterator();
-                    execChain(index, rt);
+                    rt.getItem().retain();
+                    taskList.add(rt);
                     appliedIndex++;
                     diff--;
                 }
             }
-            return Fiber.frameReturn();
+            taskIndex = -1;
+            return exec(null);
         }
 
         private FrameCallResult afterLoad(List<LogItem> items, int stateMachineEpoch) {
-            try {
-                if (stateMachineEpoch != raftStatus.getStateMachineEpoch()) {
-                    log.warn("stateMachineEpoch changed, ignore load result");
-                    return Fiber.frameReturn();
-                }
-                if (items == null || items.isEmpty()) {
-                    log.error("load log failed, items is null");
-                    return Fiber.frameReturn();
-                }
-                int readCount = items.size();
-                //noinspection ForLoopReplaceableByForEach
-                for (int i = 0; i < readCount; i++) {
-                    LogItem item = items.get(i);
-                    RaftTask rt = buildRaftTask(item);
-                    execChain(item.getIndex(), rt);
-                }
-                return Fiber.frameReturn();
-            } finally {
+            if (stateMachineEpoch != raftStatus.getStateMachineEpoch()) {
+                log.warn("stateMachineEpoch changed, ignore load result");
                 RaftUtil.release(items);
+                return Fiber.frameReturn();
             }
+            if (items == null || items.isEmpty()) {
+                log.error("load log failed, items is null");
+                return Fiber.frameReturn();
+            }
+            //noinspection ForLoopReplaceableByForEach
+            for (int i = 0, readCount = items.size(); i < readCount; i++) {
+                LogItem item = items.get(i);
+                RaftTask rt = buildRaftTask(item);
+                taskList.add(rt);
+            }
+            taskIndex = -1;
+            return exec(null);
+        }
+
+        private FrameCallResult exec(Void v) {
+            if (taskIndex == -1) {
+                taskIndex=0;
+            }
+            if (taskIndex >= taskList.size()) {
+                // loop execute
+                return Fiber.resume(null, this);
+            }
+            RaftTask rt = taskList.get(taskIndex);
+            long logIndex = rt.getItem().getIndex();
+            boolean configChange = execChain(logIndex, rt);
+            if (configChange) {
+                statusManager.persistSync();
+                return statusManager.waitSync(unusedVoid -> this.afterExec(logIndex, rt));
+            } else {
+                return this.afterExec(logIndex, rt);
+            }
+        }
+
+        private FrameCallResult afterExec(long index, RaftTask rt) {
+            raftStatus.setLastApplied(index);
+            execReaders(index, rt);
+
+            // release reader memory
+            rt.setNextReader(null);
+
+            if (!initFutureDone && index >= initCommitIndex) {
+                initFutureDone = true;
+                initFuture.complete(null);
+            }
+
+            // resume loop
+            return Fiber.resume(null, this::exec);
         }
 
         public void closeIterator() {
@@ -181,51 +316,6 @@ public class ApplyManager {
                 DtUtil.close(logIterator);
                 logIterator = null;
             }
-        }
-
-        @SuppressWarnings("rawtypes")
-        private RaftTask buildRaftTask(LogItem item) {
-            try {
-                ByteBuffer headerRbb = item.getHeaderBuffer();
-                if (headerRbb != null) {
-                    if (item.getType() == LogItem.TYPE_NORMAL) {
-                        Decoder decoder = stateMachine.createHeaderDecoder(item.getBizType());
-                        Object o = decoder.decode(decodeContext, headerRbb, headerRbb.remaining(), 0);
-                        item.setHeader(o);
-                    } else {
-                        item.setHeader(RaftUtil.copy(headerRbb));
-                    }
-                }
-                ByteBuffer bodyRbb = item.getBodyBuffer();
-                if (bodyRbb != null) {
-                    if (item.getType() == LogItem.TYPE_NORMAL) {
-                        Decoder decoder = stateMachine.createBodyDecoder(item.getBizType());
-                        Object o = decoder.decode(decodeContext, bodyRbb, bodyRbb.remaining(), 0);
-                        item.setBody(o);
-                    } else {
-                        item.setBody(RaftUtil.copy(bodyRbb));
-                    }
-                }
-                RaftInput input = new RaftInput(item.getBizType(), item.getHeader(), item.getBody(),
-                        null, item.getActualBodySize());
-                RaftTask result = new RaftTask(ts, item.getType(), input, null);
-                result.setItem(item);
-                RaftTask reader = raftStatus.getTailCache().get(item.getIndex());
-                if (reader != null) {
-                    if (reader.getInput().isReadOnly()) {
-                        result.setNextReader(reader);
-                    } else {
-                        BugLog.getLog().error("not read only");
-                    }
-                }
-                return result;
-            } finally {
-                decodeContext.reset();
-            }
-        }
-
-        private void execChain(long index, RaftTask rt) {
-            // TODO
         }
     }
 

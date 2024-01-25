@@ -74,7 +74,7 @@ public class CommitManager implements RaftLog.AppendCallback {
                 long newCommitIndex = Math.min(lastPersistIndex, raftStatus.getLeaderCommit());
                 if (newCommitIndex > raftStatus.getCommitIndex()) {
                     raftStatus.setCommitIndex(newCommitIndex);
-                    applyManager.apply(raftStatus);
+                    applyManager.apply();
                 }
             }
         }
@@ -91,7 +91,7 @@ public class CommitManager implements RaftLog.AppendCallback {
             return;
         }
         raftStatus.setCommitIndex(recentMatchIndex);
-        applyManager.apply(raftStatus);
+        applyManager.apply();
     }
 
     private static boolean needCommit(long recentMatchIndex, RaftStatusImpl raftStatus) {
