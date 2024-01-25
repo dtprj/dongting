@@ -32,10 +32,12 @@ import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 
 /**
@@ -60,6 +62,8 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
 
     private final CompletableFuture<Void> startReadyFuture = new CompletableFuture<>();
     private final int startReadyQuorum;
+
+    private final ReentrantLock nodeChangeLock = new ReentrantLock();
 
     public NodeManager(RaftServerConfig config, List<RaftNode> allRaftNodes, NioClient client,
                        RaftGroups raftGroups) {
@@ -215,6 +219,30 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         }
     }
 
+    public void checkLeaderPrepare(RaftGroupImpl raftGroup, Set<Integer> memberIds, Set<Integer> observerIds) {
+        nodeChangeLock.lock();
+        try {
+            int groupId = raftGroup.getGroupId();
+            checkNodeIdSet(groupId, memberIds);
+            checkNodeIdSet(groupId, observerIds);
+        } finally {
+            nodeChangeLock.unlock();
+        }
+    }
+
+    private List<RaftNodeEx> checkNodeIdSet(int groupId, Set<Integer> nodeIds) {
+        List<RaftNodeEx> memberNodes = new ArrayList<>(nodeIds.size());
+        for (Integer nodeId : nodeIds) {
+            if (allNodesEx.get(nodeId) == null) {
+                log.error("node not exist: nodeId={}, groupId={}", nodeId, groupId);
+                throw new RaftException("node not exist: " + nodeId);
+            } else {
+                memberNodes.add(allNodesEx.get(nodeId));
+            }
+        }
+        return memberNodes;
+    }
+
     public CompletableFuture<Void> readyFuture() {
         return startReadyFuture;
     }
@@ -229,5 +257,9 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
 
     public IntObjMap<RaftNodeEx> getAllNodesEx() {
         return allNodesEx;
+    }
+
+    public ReentrantLock getNodeChangeLock() {
+        return nodeChangeLock;
     }
 }

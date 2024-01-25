@@ -28,10 +28,16 @@ import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.raft.rpc.RaftPingFrameCallback;
 import com.github.dtprj.dongting.raft.rpc.RaftPingProcessor;
 import com.github.dtprj.dongting.raft.rpc.RaftPingWriteFrame;
+import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -257,6 +263,66 @@ public class MemberManager {
             }
         }
         return count;
+    }
+
+    public void leaderPrepareJointConsensus(Set<Integer> newMemberNodes, Set<Integer> newObserverNodes,
+                                            CompletableFuture<Long> f) {
+        leaderConfigChange(LogItem.TYPE_PREPARE_CONFIG_CHANGE, getInputData(newMemberNodes, newObserverNodes))
+                .whenComplete((output, ex) -> {
+                    if (ex != null) {
+                        f.completeExceptionally(ex);
+                    } else {
+                        f.complete(output.getLogIndex());
+                    }
+                });
+    }
+
+    private ByteBuffer getInputData(Set<Integer> newMemberNodes, Set<Integer> newObserverNodes) {
+        StringBuilder sb = new StringBuilder(64);
+        appendSet(sb, raftStatus.getNodeIdOfMembers());
+        appendSet(sb, raftStatus.getNodeIdOfObservers());
+        appendSet(sb, newMemberNodes);
+        appendSet(sb, newObserverNodes);
+        sb.deleteCharAt(sb.length() - 1);
+        return ByteBuffer.wrap(sb.toString().getBytes());
+    }
+
+    private void appendSet(StringBuilder sb, Set<Integer> set) {
+        if (set.size() > 0) {
+            for (int nodeId : set) {
+                sb.append(nodeId).append(',');
+            }
+            sb.deleteCharAt(sb.length() - 1);
+        }
+        sb.append(';');
+    }
+
+    private CompletableFuture<RaftOutput> leaderConfigChange(int type, ByteBuffer data) {
+        if (raftStatus.getRole() != RaftRole.leader) {
+            String stageStr;
+            switch (type) {
+                case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
+                    stageStr = "prepare";
+                    break;
+                case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
+                    stageStr = "commit";
+                    break;
+                case LogItem.TYPE_DROP_CONFIG_CHANGE:
+                    stageStr = "abort";
+                    break;
+                default:
+                    throw new IllegalArgumentException(String.valueOf(type));
+            }
+            log.error("leader config change {}, not leader, role={}, groupId={}",
+                    stageStr, raftStatus.getRole(), groupId);
+            return CompletableFuture.failedFuture(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
+        }
+        CompletableFuture<RaftOutput> outputFuture = new CompletableFuture<>();
+        RaftInput input = new RaftInput(0, null, data, null, 0);
+        RaftTask rt = new RaftTask(raftStatus.getTs(), type, input, outputFuture);
+        eventBus.fire(EventType.raftExec, Collections.singletonList(rt));
+
+        return outputFuture;
     }
 
     public CompletableFuture<Void> getStartReadyFuture() {

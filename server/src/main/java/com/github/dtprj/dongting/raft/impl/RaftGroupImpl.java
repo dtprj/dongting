@@ -139,9 +139,33 @@ public class RaftGroupImpl extends RaftGroup {
         return null;
     }
 
+    private void checkStatus() {
+        CompletableFuture<Void> f = gc.getMemberManager().getStartReadyFuture();
+        if (!f.isDone() || f.isCompletedExceptionally()) {
+            throw new RaftException("not initialized");
+        }
+        if (raftStatus.getFiberGroup().isShouldStop()) {
+            throw new RaftException("raft group is not running");
+        }
+    }
+
     @Override
     public CompletableFuture<Long> leaderPrepareJointConsensus(Set<Integer> members, Set<Integer> observers) {
-        return null;
+        Objects.requireNonNull(members);
+        Objects.requireNonNull(observers);
+        checkStatus();
+        for (int nodeId : members) {
+            if (observers.contains(nodeId)) {
+                log.error("node is both member and observer: nodeId={}, groupId={}", nodeId, groupId);
+                throw new RaftException("node is both member and observer: " + nodeId);
+            }
+        }
+        gc.getNodeManager().checkLeaderPrepare(this, members, observers);
+        CompletableFuture<Long> f = new CompletableFuture<>();
+        MemberManager memberManager = gc.getMemberManager();
+        gc.getFiberGroup().getDispatcher().getExecutor().execute(
+                () -> memberManager.leaderPrepareJointConsensus(members, observers, f));
+        return f;
     }
 
     @Override

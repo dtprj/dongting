@@ -63,6 +63,9 @@ public class LinearTaskRunner implements BiConsumer<EventType, Object> {
 
     @Override
     public void accept(EventType eventType, Object o) {
+        if (eventType == EventType.raftExec) {
+            raftExec((List<RaftTask>) o);
+        }
     }
 
     public void init(FiberChannel<RaftTask> taskChannel) {
@@ -105,7 +108,7 @@ public class LinearTaskRunner implements BiConsumer<EventType, Object> {
     }
 
     @SuppressWarnings("ForLoopReplaceableByForEach")
-    public void raftExec(List<RaftTask> inputs) {
+    private void raftExec(List<RaftTask> inputs) {
         RaftStatusImpl raftStatus = this.raftStatus;
         if (raftStatus.getRole() != RaftRole.leader) {
             for (RaftTask t : inputs) {

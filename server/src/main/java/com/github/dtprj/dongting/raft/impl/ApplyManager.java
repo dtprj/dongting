@@ -118,10 +118,10 @@ public class ApplyManager {
         }
     }
 
-    private boolean execChain(long index, RaftTask rt) {
+    private boolean execWriteTask(long index, RaftTask rt) {
         switch (rt.getType()) {
             case LogItem.TYPE_NORMAL:
-                execWrite(index, rt);
+                execNormalWrite(index, rt);
                 return false;
             case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
                 // TODO doPrepare(index, rt);
@@ -140,21 +140,15 @@ public class ApplyManager {
         }
     }
 
-    private void execWrite(long index, RaftTask rt) {
+    private void execNormalWrite(long index, RaftTask rt) {
         RaftInput input = rt.getInput();
         CompletableFuture<RaftOutput> future = rt.getFuture();
         try {
             Object r = stateMachine.exec(index, input);
             future.complete(new RaftOutput(index, r));
         } catch (Throwable ex) {
-            Fiber.fatal(new RaftException("exec write failed.", ex));
             future.completeExceptionally(ex);
-        } finally {
-            RaftStatusImpl raftStatus = this.raftStatus;
-            if (raftStatus.getFirstCommitOfApplied() != null && index >= raftStatus.getFirstIndexOfCurrentTerm()) {
-                raftStatus.getFirstCommitOfApplied().complete(null);
-                raftStatus.setFirstCommitOfApplied(null);
-            }
+            throw Fiber.fatal(new RaftException("exec write failed.", ex));
         }
     }
 
@@ -252,7 +246,7 @@ public class ApplyManager {
                     diff--;
                 }
             }
-            taskIndex = -1;
+            taskIndex = 0;
             return exec(null);
         }
 
@@ -272,21 +266,18 @@ public class ApplyManager {
                 RaftTask rt = buildRaftTask(item);
                 taskList.add(rt);
             }
-            taskIndex = -1;
+            taskIndex = 0;
             return exec(null);
         }
 
         private FrameCallResult exec(Void v) {
-            if (taskIndex == -1) {
-                taskIndex=0;
-            }
             if (taskIndex >= taskList.size()) {
                 // loop execute
                 return Fiber.resume(null, this);
             }
             RaftTask rt = taskList.get(taskIndex);
             long logIndex = rt.getItem().getIndex();
-            boolean configChange = execChain(logIndex, rt);
+            boolean configChange = execWriteTask(logIndex, rt);
             if (configChange) {
                 statusManager.persistSync();
                 return statusManager.waitSync(unusedVoid -> this.afterExec(logIndex, rt));
@@ -296,7 +287,15 @@ public class ApplyManager {
         }
 
         private FrameCallResult afterExec(long index, RaftTask rt) {
+            RaftStatusImpl raftStatus = ApplyManager.this.raftStatus;
+
             raftStatus.setLastApplied(index);
+
+            if (raftStatus.getFirstCommitOfApplied() != null && index >= raftStatus.getFirstIndexOfCurrentTerm()) {
+                raftStatus.getFirstCommitOfApplied().complete(null);
+                raftStatus.setFirstCommitOfApplied(null);
+            }
+
             execReaders(index, rt);
 
             // release reader memory
