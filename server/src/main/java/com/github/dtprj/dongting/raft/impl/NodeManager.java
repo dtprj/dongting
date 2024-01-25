@@ -79,7 +79,6 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
 
     @Override
     protected void doStart() {
-        initNodes();
         this.scheduledFuture = RaftUtil.SCHEDULED_SERVICE.scheduleWithFixedDelay(
                 this::tryNodePingAll, 0, 2, TimeUnit.SECONDS);
     }
@@ -91,7 +90,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         }
     }
 
-    private void initNodes() {
+    public void initNodes() {
         ArrayList<CompletableFuture<RaftNodeEx>> futures = new ArrayList<>();
         for (RaftNode n : allRaftNodesOnlyForInit) {
             futures.add(addToNioClient(n));
@@ -118,12 +117,6 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
             for (int nodeId : raftStatus.getNodeIdOfObservers()) {
                 RaftNodeEx nodeEx = allNodesEx.get(nodeId);
                 nodeEx.setUseCount(nodeEx.getUseCount() + 1);
-            }
-        });
-
-        allNodesEx.forEach((nodeId, nodeEx) -> {
-            if (!nodeEx.isSelf()) {
-                nodePing(nodeEx);
             }
         });
     }

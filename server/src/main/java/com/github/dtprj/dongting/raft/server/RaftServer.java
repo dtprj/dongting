@@ -314,18 +314,27 @@ public class RaftServer extends AbstractLifeCircle {
     @Override
     protected void doStart() {
         try {
+            // start replicate server and client
+            replicateNioServer.start();
+            replicateNioClient.start();
+            replicateNioClient.waitStart();
+
+            // sync but should complete soon
+            nodeManager.initNodes();
+
             // start all fiber group
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
             raftGroups.forEach((groupId, g) -> {
                 GroupComponents gc = g.getGroupComponents();
-                gc.getMemberManager().init(gc.getNodeManager().getAllNodesEx());
+                // nodeManager.getAllNodesEx() is not thread safe
+                gc.getMemberManager().init(nodeManager.getAllNodesEx());
                 CompletableFuture<Void> f = gc.getFiberGroup().getDispatcher().startGroup(gc.getFiberGroup());
                 futures.add(f);
             });
             // should complete soon, so we wait here
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get(5, TimeUnit.SECONDS);
 
-            // init raft log and state machine
+            // init raft log and state machine, async in raft thread
             futures.clear();
             raftGroups.forEach((groupId, g) -> {
                 GroupComponents gc = g.getGroupComponents();
@@ -352,13 +361,7 @@ public class RaftServer extends AbstractLifeCircle {
 
     private void startServers() {
         try {
-            // start replicate server and client
-            replicateNioServer.start();
-            replicateNioClient.start();
-            replicateNioClient.waitStart();
-
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
-
             nodeManager.start();
             futures.add(nodeManager.readyFuture());
 
