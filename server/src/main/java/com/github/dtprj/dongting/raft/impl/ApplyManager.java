@@ -131,13 +131,14 @@ public class ApplyManager {
                     doAbort();
                     return true;
                 case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
-                    // TODO doCommit();
+                    doCommit();
                     return true;
                 default:
                     // heartbeat etc.
                     return false;
             }
         } catch (Throwable ex) {
+            configChanging = false;
             if (rt.getFuture() != null) {
                 rt.getFuture().completeExceptionally(ex);
             }
@@ -216,6 +217,19 @@ public class ApplyManager {
     private void doAbort() {
         try {
             eventBus.fire(EventType.abortConfChange, null);
+        } finally {
+            configChanging = false;
+        }
+    }
+
+    private void doCommit() {
+        try {
+            if (!configChanging) {
+                log.warn("no prepared config change, ignore commit, groupId={}", raftStatus.getGroupId());
+                return;
+            }
+
+            eventBus.fire(EventType.commitConfChange, null);
         } finally {
             configChanging = false;
         }

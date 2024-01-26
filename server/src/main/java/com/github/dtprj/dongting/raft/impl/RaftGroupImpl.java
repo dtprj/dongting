@@ -163,9 +163,8 @@ public class RaftGroupImpl extends RaftGroup {
         }
         gc.getNodeManager().checkLeaderPrepare(this, members, observers);
         CompletableFuture<Long> f = new CompletableFuture<>();
-        MemberManager memberManager = gc.getMemberManager();
         ExecutorService executor = gc.getFiberGroup().getDispatcher().getExecutor();
-        executor.execute(() -> memberManager.leaderPrepareJointConsensus(members, observers, f));
+        executor.execute(() -> gc.getMemberManager().leaderPrepareJointConsensus(members, observers, f));
         return f;
     }
 
@@ -173,15 +172,18 @@ public class RaftGroupImpl extends RaftGroup {
     public CompletableFuture<Void> leaderAbortJointConsensus() {
         checkStatus();
         CompletableFuture<Void> f = new CompletableFuture<>();
-        MemberManager memberManager = gc.getMemberManager();
         ExecutorService executor = gc.getFiberGroup().getDispatcher().getExecutor();
-        executor.execute(() -> memberManager.leaderAbortJointConsensus(f));
+        executor.execute(() -> gc.getMemberManager().leaderAbortJointConsensus(f));
         return f;
     }
 
     @Override
     public CompletableFuture<Void> leaderCommitJointConsensus(long prepareIndex) {
-        return null;
+        checkStatus();
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        ExecutorService executor = gc.getFiberGroup().getDispatcher().getExecutor();
+        executor.execute(() -> gc.getMemberManager().leaderCommitJointConsensus(f, prepareIndex));
+        return f;
     }
 
     public GroupComponents getGroupComponents() {

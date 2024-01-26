@@ -267,6 +267,15 @@ public class NodeManager extends AbstractLifeCircle {
         }
     }
 
+    public void doCommit(HashSet<Integer> ids) {
+        nodeChangeLock.lock();
+        try {
+            processUseCount(ids, -1);
+        } finally {
+            nodeChangeLock.unlock();
+        }
+    }
+
     private void processUseCount(Collection<Integer> nodeIds, int delta) {
         for (int nodeId : nodeIds) {
             RaftNodeEx nodeEx = allNodesEx.get(nodeId);
