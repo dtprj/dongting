@@ -121,9 +121,9 @@ public class RaftServer extends AbstractLifeCircle {
         setupNioConfig(repClientConfig);
         replicateNioClient = new NioClient(repClientConfig);
 
+        nodeManager = new NodeManager(serverConfig, allRaftServers, replicateNioClient);
+
         createRaftGroups(serverConfig, groupConfig, allNodeIds);
-        nodeManager = new NodeManager(serverConfig, allRaftServers, replicateNioClient, raftGroups);
-        raftGroups.forEach((id, g) -> g.getGroupComponents().getEventBus().register(nodeManager));
 
         NioServerConfig repServerConfig = new NioServerConfig();
         repServerConfig.setPort(serverConfig.getReplicatePort());
@@ -236,7 +236,7 @@ public class RaftServer extends AbstractLifeCircle {
         ReplicateManager replicateManager = new ReplicateManager(replicateNioClient, serverConfig, rgcEx,
                 commitManager, raftLog, stateMachine, statusManager);
         MemberManager memberManager = new MemberManager(serverConfig, rgcEx, replicateNioClient,
-                raftStatus, eventBus, replicateManager);
+                raftStatus, eventBus, replicateManager, nodeManager);
 
 
         LinearTaskRunner linearTaskRunner = new LinearTaskRunner(rgcEx, raftStatus, applyManager);
@@ -320,7 +320,7 @@ public class RaftServer extends AbstractLifeCircle {
             replicateNioClient.waitStart();
 
             // sync but should complete soon
-            nodeManager.initNodes();
+            nodeManager.initNodes(raftGroups);
 
             // start all fiber group
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();

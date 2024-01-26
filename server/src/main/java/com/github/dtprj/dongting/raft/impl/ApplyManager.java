@@ -119,37 +119,38 @@ public class ApplyManager {
     }
 
     private boolean execWriteTask(long index, RaftTask rt) {
-        switch (rt.getType()) {
-            case LogItem.TYPE_NORMAL:
-                execNormalWrite(index, rt);
-                return false;
-            case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
-                // TODO doPrepare(index, rt);
-                return true;
-            case LogItem.TYPE_DROP_CONFIG_CHANGE:
-                // TODO doAbort();
-                // TODO postConfigChange(index, rt);
-                return true;
-            case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
-                // TODO doCommit();
-                // TODO postConfigChange(index, rt);
-                return true;
-            default:
-                // heartbeat etc.
-                return false;
+        try {
+            switch (rt.getType()) {
+                case LogItem.TYPE_NORMAL:
+                    execNormalWrite(index, rt);
+                    return false;
+                case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
+                    doPrepare(rt);
+                    return true;
+                case LogItem.TYPE_DROP_CONFIG_CHANGE:
+                    // TODO doAbort();
+                    // TODO postConfigChange(index, rt);
+                    return true;
+                case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
+                    // TODO doCommit();
+                    // TODO postConfigChange(index, rt);
+                    return true;
+                default:
+                    // heartbeat etc.
+                    return false;
+            }
+        } catch (Throwable ex) {
+            if (rt.getFuture() != null) {
+                rt.getFuture().completeExceptionally(ex);
+            }
+            throw Fiber.fatal(new RaftException("exec write failed.", ex));
         }
     }
 
     private void execNormalWrite(long index, RaftTask rt) {
         RaftInput input = rt.getInput();
-        CompletableFuture<RaftOutput> future = rt.getFuture();
-        try {
-            Object r = stateMachine.exec(index, input);
-            future.complete(new RaftOutput(index, r));
-        } catch (Throwable ex) {
-            future.completeExceptionally(ex);
-            throw Fiber.fatal(new RaftException("exec write failed.", ex));
-        }
+        Object r = stateMachine.exec(index, input);
+        rt.getFuture().complete(new RaftOutput(index, r));
     }
 
     private void execReaders(long index, RaftTask rt) {
@@ -203,6 +204,22 @@ public class ApplyManager {
 
     public void apply() {
         condition.signal();
+    }
+
+    private void doPrepare(RaftTask rt) {
+        configChanging = true;
+
+        ByteBuffer logData = (ByteBuffer) rt.getInput().getBody();
+        byte[] data = new byte[logData.remaining()];
+        logData.get(data);
+        eventBus.fire(EventType.prepareConfChange, data);
+    }
+
+    private void postConfigChange(long index, RaftTask rt) {
+        raftStatus.setLastConfigChangeIndex(index);
+        if (rt.getFuture() != null) {
+            rt.getFuture().complete(new RaftOutput(index, null));
+        }
     }
 
     private class ApplyFrame extends FiberFrame<Void> {
@@ -280,13 +297,13 @@ public class ApplyManager {
             boolean configChange = execWriteTask(logIndex, rt);
             if (configChange) {
                 statusManager.persistSync();
-                return statusManager.waitSync(unusedVoid -> this.afterExec(logIndex, rt));
+                return statusManager.waitSync(unusedVoid -> this.afterExec(true, logIndex, rt));
             } else {
-                return this.afterExec(logIndex, rt);
+                return this.afterExec(false, logIndex, rt);
             }
         }
 
-        private FrameCallResult afterExec(long index, RaftTask rt) {
+        private FrameCallResult afterExec(boolean configChange, long index, RaftTask rt) {
             RaftStatusImpl raftStatus = ApplyManager.this.raftStatus;
 
             raftStatus.setLastApplied(index);
@@ -294,6 +311,10 @@ public class ApplyManager {
             if (raftStatus.getFirstCommitOfApplied() != null && index >= raftStatus.getFirstIndexOfCurrentTerm()) {
                 raftStatus.getFirstCommitOfApplied().complete(null);
                 raftStatus.setFirstCommitOfApplied(null);
+            }
+
+            if (configChange) {
+                postConfigChange(index, rt);
             }
 
             execReaders(index, rt);

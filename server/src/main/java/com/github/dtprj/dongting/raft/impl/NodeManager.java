@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IntObjMap;
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.NioClient;
@@ -31,6 +32,7 @@ import com.github.dtprj.dongting.raft.server.RaftNode;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -38,18 +40,16 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.BiConsumer;
 
 /**
  * @author huangli
  */
-public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventType, Object> {
+public class NodeManager extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(NodeManager.class);
     private final UUID uuid = UUID.randomUUID();
     private final int selfNodeId;
     private final NioClient client;
     private final RaftServerConfig config;
-    private final RaftGroups raftGroups;
 
     // update by RaftServer init thread and schedule thread
     private final IntObjMap<RaftNodeEx> allNodesEx;
@@ -65,12 +65,10 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
 
     private final ReentrantLock nodeChangeLock = new ReentrantLock();
 
-    public NodeManager(RaftServerConfig config, List<RaftNode> allRaftNodes, NioClient client,
-                       RaftGroups raftGroups) {
+    public NodeManager(RaftServerConfig config, List<RaftNode> allRaftNodes, NioClient client) {
         this.selfNodeId = config.getNodeId();
         this.client = client;
         this.config = config;
-        this.raftGroups = raftGroups;
         this.startReadyQuorum = RaftUtil.getElectQuorum(allRaftNodes.size());
 
         this.allNodesEx = new IntObjMap<>(allRaftNodes.size() * 2, 0.75f);
@@ -94,7 +92,7 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         }
     }
 
-    public void initNodes() {
+    public void initNodes(RaftGroups raftGroups) {
         ArrayList<CompletableFuture<RaftNodeEx>> futures = new ArrayList<>();
         for (RaftNode n : allRaftNodesOnlyForInit) {
             futures.add(addToNioClient(n));
@@ -223,18 +221,18 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         nodeChangeLock.lock();
         try {
             int groupId = raftGroup.getGroupId();
-            checkNodeIdSet(groupId, memberIds);
-            checkNodeIdSet(groupId, observerIds);
+            checkNodeIdSet(memberIds);
+            checkNodeIdSet(observerIds);
         } finally {
             nodeChangeLock.unlock();
         }
     }
 
-    private List<RaftNodeEx> checkNodeIdSet(int groupId, Set<Integer> nodeIds) {
+    private List<RaftNodeEx> checkNodeIdSet(Set<Integer> nodeIds) {
         List<RaftNodeEx> memberNodes = new ArrayList<>(nodeIds.size());
         for (Integer nodeId : nodeIds) {
             if (allNodesEx.get(nodeId) == null) {
-                log.error("node not exist: nodeId={}, groupId={}", nodeId, groupId);
+                log.error("node not exist: nodeId={}", nodeId);
                 throw new RaftException("node not exist: " + nodeId);
             } else {
                 memberNodes.add(allNodesEx.get(nodeId));
@@ -243,12 +241,35 @@ public class NodeManager extends AbstractLifeCircle implements BiConsumer<EventT
         return memberNodes;
     }
 
-    public CompletableFuture<Void> readyFuture() {
-        return startReadyFuture;
+    public Pair<List<RaftNodeEx>, List<RaftNodeEx>> doPrepare(Set<Integer> oldPrepareMembers, Set<Integer> oldPrepareObservers,
+                                                              Set<Integer> newMembers, Set<Integer> newObservers) {
+        nodeChangeLock.lock();
+        try {
+            List<RaftNodeEx> newMemberNodes = checkNodeIdSet(newMembers);
+            List<RaftNodeEx> newObserverNodes = checkNodeIdSet(newObservers);
+            processUseCount(oldPrepareMembers, -1);
+            processUseCount(oldPrepareObservers, -1);
+            processUseCount(newMembers, 1);
+            processUseCount(newObservers, 1);
+            return new Pair<>(newMemberNodes, newObserverNodes);
+        } finally {
+            nodeChangeLock.unlock();
+        }
     }
 
-    @Override
-    public void accept(EventType eventType, Object o) {
+    private void processUseCount(Collection<Integer> nodeIds, int delta) {
+        for (int nodeId : nodeIds) {
+            RaftNodeEx nodeEx = allNodesEx.get(nodeId);
+            if (nodeEx != null) {
+                nodeEx.setUseCount(nodeEx.getUseCount() + delta);
+            } else {
+                log.error("node not exist: nodeId={}", nodeId);
+            }
+        }
+    }
+
+    public CompletableFuture<Void> readyFuture() {
+        return startReadyFuture;
     }
 
     public UUID getUuid() {

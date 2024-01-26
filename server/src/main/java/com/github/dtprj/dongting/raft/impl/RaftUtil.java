@@ -240,4 +240,13 @@ public class RaftUtil {
         src.position(pos);
         return dest;
     }
+
+    public static void changeToFollower(RaftStatusImpl raftStatus, int leaderId) {
+        log.info("change to follower. term={}, oldRole={}", raftStatus.getCurrentTerm(), raftStatus.getRole());
+        resetStatus(raftStatus);
+        if (leaderId > 0) {
+            updateLeader(raftStatus, leaderId);
+        }
+        raftStatus.setRole(RaftRole.follower);
+    }
 }

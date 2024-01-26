@@ -17,8 +17,10 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IntObjMap;
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -43,6 +45,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
@@ -50,7 +53,7 @@ import static java.util.Collections.emptySet;
 /**
  * @author huangli
  */
-public class MemberManager {
+public class MemberManager implements BiConsumer<EventType, Object> {
     private static final DtLog log = DtLogs.getLogger(MemberManager.class);
     private final RaftServerConfig serverConfig;
     private final RaftStatusImpl raftStatus;
@@ -60,12 +63,14 @@ public class MemberManager {
 
     private final EventBus eventBus;
     private final ReplicateManager replicateManager;
+    private final NodeManager nodeManager;
 
     private final CompletableFuture<Void> startReadyFuture;
     private final int startReadyQuorum;
 
     public MemberManager(RaftServerConfig serverConfig, RaftGroupConfigEx groupConfig, NioClient client,
-                         RaftStatusImpl raftStatus, EventBus eventBus, ReplicateManager replicateManager) {
+                         RaftStatusImpl raftStatus, EventBus eventBus, ReplicateManager replicateManager,
+                         NodeManager nodeManager) {
         this.serverConfig = serverConfig;
         this.groupConfig = groupConfig;
         this.client = client;
@@ -73,6 +78,7 @@ public class MemberManager {
         this.groupId = raftStatus.getGroupId();
         this.eventBus = eventBus;
         this.replicateManager = replicateManager;
+        this.nodeManager = nodeManager;
         if (raftStatus.getMembers().size() == 0) {
             this.startReadyFuture = CompletableFuture.completedFuture(null);
             this.startReadyQuorum = 0;
@@ -88,7 +94,7 @@ public class MemberManager {
     public void init(IntObjMap<RaftNodeEx> allNodes) {
         for (int nodeId : raftStatus.getNodeIdOfMembers()) {
             RaftNodeEx node = allNodes.get(nodeId);
-            RaftMember m = new RaftMember(node, groupConfig.getFiberGroup().newCondition("rep-" + nodeId));
+            RaftMember m = new RaftMember(node, groupConfig.getFiberGroup());
             if (node.isSelf()) {
                 initSelf(m, RaftRole.follower);
             }
@@ -98,7 +104,7 @@ public class MemberManager {
             List<RaftMember> observers = new ArrayList<>();
             for (int nodeId : raftStatus.getNodeIdOfObservers()) {
                 RaftNodeEx node = allNodes.get(nodeId);
-                RaftMember m = new RaftMember(node, groupConfig.getFiberGroup().newCondition("rep-" + nodeId));
+                RaftMember m = new RaftMember(node, groupConfig.getFiberGroup());
                 if (node.isSelf()) {
                     initSelf(m, RaftRole.observer);
                 }
@@ -323,6 +329,95 @@ public class MemberManager {
         eventBus.fire(EventType.raftExec, Collections.singletonList(rt));
 
         return outputFuture;
+    }
+
+    @Override
+    public void accept(EventType eventType, Object o) {
+        switch (eventType) {
+            case prepareConfChange:
+                doPrepare((byte[]) o);
+                break;
+            default:
+        }
+    }
+
+    private void doPrepare(byte[] data) {
+        String dataStr = new String(data);
+        String[] fields = dataStr.split(";");
+        Set<Integer> oldMemberIds = parseSet(fields[0]);
+        Set<Integer> oldObserverIds = parseSet(fields[1]);
+        Set<Integer> newMemberIds = parseSet(fields[2]);
+        Set<Integer> newObserverIds = parseSet(fields[3]);
+        if (!oldMemberIds.equals(raftStatus.getNodeIdOfMembers())) {
+            log.error("oldMemberIds not match, oldMemberIds={}, currentMembers={}, groupId={}",
+                    oldMemberIds, raftStatus.getNodeIdOfMembers(), raftStatus.getGroupId());
+        }
+        if (!oldObserverIds.equals(raftStatus.getNodeIdOfObservers())) {
+            log.error("oldObserverIds not match, oldObserverIds={}, currentObservers={}, groupId={}",
+                    oldObserverIds, raftStatus.getNodeIdOfObservers(), raftStatus.getGroupId());
+        }
+
+        Pair<List<RaftNodeEx>, List<RaftNodeEx>> pair = nodeManager.doPrepare(oldMemberIds, oldObserverIds,
+                newMemberIds, newObserverIds);
+        List<RaftNodeEx> newMemberNodes = pair.getLeft();
+        List<RaftNodeEx> newObserverNodes = pair.getRight();
+
+        IntObjMap<RaftMember> currentNodes = new IntObjMap<>();
+        for (RaftMember m : raftStatus.getMembers()) {
+            currentNodes.put(m.getNode().getNodeId(), m);
+        }
+        for (RaftMember m : raftStatus.getObservers()) {
+            currentNodes.put(m.getNode().getNodeId(), m);
+        }
+
+        List<RaftMember> newMembers = new ArrayList<>();
+        List<RaftMember> newObservers = new ArrayList<>();
+        for (RaftNodeEx node : newMemberNodes) {
+            RaftMember m = currentNodes.get(node.getNodeId());
+            if (m == null) {
+                m = new RaftMember(node, FiberGroup.currentGroup());
+                if (node.getNodeId() == serverConfig.getNodeId()) {
+                    initSelf(m, RaftRole.follower);
+                }
+            } else {
+                if (node.getNodeId() == serverConfig.getNodeId() && raftStatus.getRole() == RaftRole.observer) {
+                    if (raftStatus.getCurrentLeader() == null) {
+                        RaftUtil.changeToFollower(raftStatus, -1);
+                    } else {
+                        RaftUtil.changeToFollower(raftStatus, raftStatus.getCurrentLeader().getNode().getNodeId());
+                    }
+                }
+            }
+            newMembers.add(m);
+        }
+        for (RaftNodeEx node : newObserverNodes) {
+            RaftMember m = currentNodes.get(node.getNodeId());
+            if (m == null) {
+                m = new RaftMember(node, FiberGroup.currentGroup());
+                if (node.getNodeId() == serverConfig.getNodeId()) {
+                    initSelf(m, RaftRole.observer);
+                }
+            }
+            newObservers.add(m);
+        }
+        raftStatus.setPreparedMembers(newMembers);
+        raftStatus.setPreparedObservers(newObservers);
+
+        computeDuplicatedData(raftStatus);
+
+        eventBus.fire(EventType.cancelVote, null);
+    }
+
+    public Set<Integer> parseSet(String s) {
+        if (s.isEmpty()) {
+            return emptySet();
+        }
+        String[] fields = s.split(",");
+        Set<Integer> set = new HashSet<>();
+        for (String f : fields) {
+            set.add(Integer.parseInt(f));
+        }
+        return set;
     }
 
     public CompletableFuture<Void> getStartReadyFuture() {

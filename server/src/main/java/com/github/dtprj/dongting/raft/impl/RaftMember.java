@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
+import com.github.dtprj.dongting.fiber.FiberGroup;
 
 /**
  * @author huangli
@@ -38,9 +39,9 @@ public class RaftMember {
     private Fiber replicateFiber;
     private boolean installSnapshot;
 
-    public RaftMember(RaftNodeEx node, FiberCondition finishCondition) {
+    public RaftMember(RaftNodeEx node, FiberGroup fg) {
         this.node = node;
-        this.finishCondition = finishCondition;
+        this.finishCondition = fg.newCondition("rep-" + node.getNodeId());
     }
 
     public void incrementReplicateEpoch(int oldEpoch) {
