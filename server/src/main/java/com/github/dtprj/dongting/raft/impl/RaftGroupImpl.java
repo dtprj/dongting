@@ -33,6 +33,7 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 
 /**
  * @author huangli
@@ -163,14 +164,19 @@ public class RaftGroupImpl extends RaftGroup {
         gc.getNodeManager().checkLeaderPrepare(this, members, observers);
         CompletableFuture<Long> f = new CompletableFuture<>();
         MemberManager memberManager = gc.getMemberManager();
-        gc.getFiberGroup().getDispatcher().getExecutor().execute(
-                () -> memberManager.leaderPrepareJointConsensus(members, observers, f));
+        ExecutorService executor = gc.getFiberGroup().getDispatcher().getExecutor();
+        executor.execute(() -> memberManager.leaderPrepareJointConsensus(members, observers, f));
         return f;
     }
 
     @Override
     public CompletableFuture<Void> leaderAbortJointConsensus() {
-        return null;
+        checkStatus();
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        MemberManager memberManager = gc.getMemberManager();
+        ExecutorService executor = gc.getFiberGroup().getDispatcher().getExecutor();
+        executor.execute(() -> memberManager.leaderAbortJointConsensus(f));
+        return f;
     }
 
     @Override

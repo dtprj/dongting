@@ -33,6 +33,7 @@ import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -252,6 +253,15 @@ public class NodeManager extends AbstractLifeCircle {
             processUseCount(newMembers, 1);
             processUseCount(newObservers, 1);
             return new Pair<>(newMemberNodes, newObserverNodes);
+        } finally {
+            nodeChangeLock.unlock();
+        }
+    }
+
+    public void doAbort(HashSet<Integer> ids) {
+        nodeChangeLock.lock();
+        try {
+            processUseCount(ids, -1);
         } finally {
             nodeChangeLock.unlock();
         }

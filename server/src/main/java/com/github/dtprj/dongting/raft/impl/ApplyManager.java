@@ -128,12 +128,10 @@ public class ApplyManager {
                     doPrepare(rt);
                     return true;
                 case LogItem.TYPE_DROP_CONFIG_CHANGE:
-                    // TODO doAbort();
-                    // TODO postConfigChange(index, rt);
+                    doAbort();
                     return true;
                 case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
                     // TODO doCommit();
-                    // TODO postConfigChange(index, rt);
                     return true;
                 default:
                     // heartbeat etc.
@@ -213,6 +211,14 @@ public class ApplyManager {
         byte[] data = new byte[logData.remaining()];
         logData.get(data);
         eventBus.fire(EventType.prepareConfChange, data);
+    }
+
+    private void doAbort() {
+        try {
+            eventBus.fire(EventType.abortConfChange, null);
+        } finally {
+            configChanging = false;
+        }
     }
 
     private void postConfigChange(long index, RaftTask rt) {

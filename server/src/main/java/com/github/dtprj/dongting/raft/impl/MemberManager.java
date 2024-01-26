@@ -283,6 +283,16 @@ public class MemberManager implements BiConsumer<EventType, Object> {
                 });
     }
 
+    public void leaderAbortJointConsensus(CompletableFuture<Void> f) {
+        leaderConfigChange(LogItem.TYPE_DROP_CONFIG_CHANGE, null).whenComplete((output, ex) -> {
+            if (ex != null) {
+                f.completeExceptionally(ex);
+            } else {
+                f.complete(null);
+            }
+        });
+    }
+
     private ByteBuffer getInputData(Set<Integer> newMemberNodes, Set<Integer> newObserverNodes) {
         StringBuilder sb = new StringBuilder(64);
         appendSet(sb, raftStatus.getNodeIdOfMembers());
@@ -336,6 +346,9 @@ public class MemberManager implements BiConsumer<EventType, Object> {
         switch (eventType) {
             case prepareConfChange:
                 doPrepare((byte[]) o);
+                break;
+            case abortConfChange:
+                doAbort();
                 break;
             default:
         }
@@ -418,6 +431,27 @@ public class MemberManager implements BiConsumer<EventType, Object> {
             set.add(Integer.parseInt(f));
         }
         return set;
+    }
+
+    public void doAbort() {
+        HashSet<Integer> ids = new HashSet<>(raftStatus.getNodeIdOfPreparedMembers());
+        for (RaftMember m : raftStatus.getPreparedObservers()) {
+            ids.add(m.getNode().getNodeId());
+        }
+        if (ids.isEmpty()) {
+            return;
+        }
+
+        raftStatus.setPreparedMembers(emptyList());
+        raftStatus.setPreparedObservers(emptyList());
+        MemberManager.computeDuplicatedData(raftStatus);
+
+        if (!raftStatus.getNodeIdOfMembers().contains(serverConfig.getNodeId())) {
+            if (raftStatus.getRole() != RaftRole.observer) {
+                RaftUtil.changeToObserver(raftStatus, -1);
+            }
+        }
+        nodeManager.doAbort(ids);
     }
 
     public CompletableFuture<Void> getStartReadyFuture() {
