@@ -17,14 +17,10 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
-import com.github.dtprj.dongting.fiber.Fiber;
-import com.github.dtprj.dongting.fiber.FrameCallResult;
-import com.github.dtprj.dongting.net.ChannelContext;
+import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadFrame;
-import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
-import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 
 /**
@@ -44,15 +40,14 @@ public class RaftPingProcessor extends RaftGroupProcessor<RaftPingFrameCallback>
     }
 
     @Override
-    protected FrameCallResult doProcess(ReadFrame<RaftPingFrameCallback> reqFrame, ChannelContext channelContext,
-                                        ReqContext reqContext, RaftGroupImpl rg) {
-        GroupComponents gc = rg.getGroupComponents();
+    protected FiberFrame<Void> doProcess(ReqInfo<RaftPingFrameCallback> reqInfo) {
+        GroupComponents gc = reqInfo.getRaftGroup().getGroupComponents();
         RaftPingWriteFrame resp = new RaftPingWriteFrame(gc.getServerConfig().getNodeId(),
                 gc.getGroupConfig().getGroupId(), gc.getRaftStatus().getNodeIdOfMembers(),
                 gc.getRaftStatus().getNodeIdOfObservers());
         resp.setRespCode(CmdCodes.SUCCESS);
-        channelContext.getRespWriter().writeRespInBizThreads(reqFrame, resp, reqContext.getTimeout());
-        return Fiber.frameReturn();
+        writeResp(reqInfo, resp);
+        return FiberFrame.voidCompletedFrame();
     }
 
     @Override

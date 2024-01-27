@@ -17,13 +17,9 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
-import com.github.dtprj.dongting.fiber.Fiber;
-import com.github.dtprj.dongting.fiber.FrameCallResult;
-import com.github.dtprj.dongting.net.ChannelContext;
+import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadFrame;
-import com.github.dtprj.dongting.net.ReqContext;
-import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 
@@ -47,11 +43,10 @@ public class QueryStatusProcessor extends RaftGroupProcessor<Integer> {
     }
 
     @Override
-    protected FrameCallResult doProcess(ReadFrame<Integer> frame, ChannelContext channelContext,
-                                        ReqContext reqContext, RaftGroupImpl rg) {
-        RaftStatusImpl raftStatus = rg.getGroupComponents().getRaftStatus();
+    protected FiberFrame<Void> doProcess(ReqInfo<Integer> reqInfo) {
+        RaftStatusImpl raftStatus = reqInfo.getRaftGroup().getGroupComponents().getRaftStatus();
         QueryStatusResp resp = new QueryStatusResp();
-        resp.groupId = rg.getGroupId();
+        resp.groupId = reqInfo.getRaftGroup().getGroupId();
         resp.leaderId = raftStatus.getCurrentLeader() == null ? 0 : raftStatus.getCurrentLeader().getNode().getNodeId();
         resp.term = raftStatus.getCurrentTerm();
         resp.commitIndex = raftStatus.getCommitIndex();
@@ -60,7 +55,7 @@ public class QueryStatusProcessor extends RaftGroupProcessor<Integer> {
 
         QueryStatusResp.QueryStatusRespWriteFrame wf = new QueryStatusResp.QueryStatusRespWriteFrame(resp);
         wf.setRespCode(CmdCodes.SUCCESS);
-        channelContext.getRespWriter().writeRespInBizThreads(frame, wf, reqContext.getTimeout());
-        return Fiber.frameReturn();
+        writeResp(reqInfo, wf);
+        return FiberFrame.voidCompletedFrame();
     }
 }

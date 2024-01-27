@@ -15,8 +15,10 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberChannel;
 import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -51,28 +53,90 @@ public abstract class RaftGroupProcessor<T> extends ReqProcessor<T> {
 
     protected abstract int getGroupId(ReadFrame<T> frame);
 
-    public FiberFrame<Void> createFiberFrame(FiberChannel<Object> channel) {
-        return new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                return channel.take(this::resume);
-            }
+    protected abstract FiberFrame<Void> doProcess(ReqInfo<T> reqInfo);
 
-            private FrameCallResult resume(Object o) {
-                ReqInfo reqInfo = (ReqInfo) o;
-                return doProcess(reqInfo.reqFrame, reqInfo.channelContext, reqInfo.reqContext, reqInfo.raftGroup);
-            }
-        };
+    protected void writeResp(ReqInfo<T> reqInfo, WriteFrame respFrame) {
+        reqInfo.channelContext.getRespWriter().writeRespInBizThreads(
+                reqInfo.reqFrame, respFrame, reqInfo.reqContext.getTimeout());
     }
 
-    protected abstract FrameCallResult doProcess(ReadFrame<T> reqFrame, ChannelContext channelContext,
-                                                 ReqContext reqContext, RaftGroupImpl raftGroup);
+    public void startProcessFiber(FiberChannel<ReqInfo<T>> channel) {
+        FiberFrame<Void> ff = new ProcessorFiberFrame(channel);
+        Fiber f = new Fiber(getClass().getSimpleName(), FiberGroup.currentGroup(), ff, true);
+        f.start();
+    }
 
-    private static class ReqInfo {
-        ReadFrame reqFrame;
-        ChannelContext channelContext;
-        ReqContext reqContext;
-        RaftGroupImpl raftGroup;
+    private class ProcessorFiberFrame extends FiberFrame<Void> {
+
+        private final FiberChannel<ReqInfo<T>> channel;
+        private ReqInfo<T> current;
+
+        ProcessorFiberFrame(FiberChannel<ReqInfo<T>> channel) {
+            this.channel = channel;
+        }
+
+        @Override
+        public FrameCallResult execute(Void input) {
+            current = null;
+            return channel.take(this::resume);
+        }
+
+        private FrameCallResult resume(ReqInfo<T> o) {
+            current = o;
+            return Fiber.call(doProcess(o), this);
+        }
+
+        @Override
+        protected FrameCallResult handle(Throwable ex) {
+            if (current != null) {
+                EmptyBodyRespFrame wf = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
+                wf.setMsg(ex.toString());
+                current.getChannelContext().getRespWriter().writeRespInBizThreads(
+                        current.getReqFrame(), wf, current.getReqContext().getTimeout());
+            }
+            if (!isGroupShouldStopPlain()) {
+                log.warn("uncaught exception in {}, restart processor fiber: {}",
+                        getClass().getSimpleName(), ex.toString());
+                startProcessFiber(channel);
+            }
+            return Fiber.frameReturn();
+        }
+    }
+
+    protected ReqInfo<T> createReqInfo(ReadFrame<T> reqFrame, ChannelContext channelContext,
+                                 ReqContext reqContext, RaftGroupImpl raftGroup) {
+        return new ReqInfo<>(reqFrame, channelContext, reqContext, raftGroup);
+    }
+
+    public static class ReqInfo<T> {
+        private final ReadFrame<T> reqFrame;
+        private final ChannelContext channelContext;
+        private final ReqContext reqContext;
+        private final RaftGroupImpl raftGroup;
+
+        protected ReqInfo(ReadFrame<T> reqFrame, ChannelContext channelContext,
+                          ReqContext reqContext, RaftGroupImpl raftGroup) {
+            this.reqFrame = reqFrame;
+            this.channelContext = channelContext;
+            this.reqContext = reqContext;
+            this.raftGroup = raftGroup;
+        }
+
+        public ReadFrame<T> getReqFrame() {
+            return reqFrame;
+        }
+
+        public ChannelContext getChannelContext() {
+            return channelContext;
+        }
+
+        public ReqContext getReqContext() {
+            return reqContext;
+        }
+
+        public RaftGroupImpl getRaftGroup() {
+            return raftGroup;
+        }
     }
 
     /**
@@ -105,11 +169,7 @@ public abstract class RaftGroupProcessor<T> extends ReqProcessor<T> {
             return wf;
         } else {
             FiberChannel<Object> c = g.getProcessorChannels().get(typeId);
-            ReqInfo reqInfo = new ReqInfo();
-            reqInfo.reqFrame = frame;
-            reqInfo.channelContext = channelContext;
-            reqInfo.reqContext = reqContext;
-            reqInfo.raftGroup = g;
+            ReqInfo<?> reqInfo = createReqInfo(frame, channelContext, reqContext, g);
             c.fireOffer(reqInfo);
             return null;
         }

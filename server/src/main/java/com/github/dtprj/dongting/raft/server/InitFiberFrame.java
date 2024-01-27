@@ -66,11 +66,10 @@ class InitFiberFrame extends FiberFrame<Void> {
         raftStatus.setDataArrivedCondition(getFiberGroup().newCondition("dataArrived"));
 
         for(RaftGroupProcessor<?> processor : raftGroupProcessors) {
-            FiberChannel<Object> channel = getFiberGroup().newChannel();
-            FiberFrame<Void> initFrame = processor.createFiberFrame(channel);
-            Fiber f = new Fiber(processor.getClass().getSimpleName(), getFiberGroup(),
-                    initFrame, true);
-            f.start();
+            @SuppressWarnings("rawtypes")
+            FiberChannel channel = getFiberGroup().newChannel();
+            //noinspection unchecked
+            processor.startProcessFiber(channel);
         }
 
         gc.getLinearTaskRunner().init(getFiberGroup().newChannel());
