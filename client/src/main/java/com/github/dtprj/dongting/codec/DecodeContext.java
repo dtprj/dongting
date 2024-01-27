@@ -33,7 +33,8 @@ public class DecodeContext {
     public DecodeContext() {
     }
 
-    public PbParser createOrResetPbParser(PbCallback<?> callback, int len) {
+    // only use by PbNoCopyDecoder
+    PbParser createOrResetPbParser(PbCallback<?> callback, int len) {
         PbParser p = this.pbParser;
         if (p == null) {
             p = PbParser.singleParser(callback, len);
@@ -52,7 +53,8 @@ public class DecodeContext {
         status = null;
     }
 
-    public PbParser getPbParser() {
+    // only use by PbNoCopyDecoder
+    PbParser getPbParser() {
         return pbParser;
     }
 
