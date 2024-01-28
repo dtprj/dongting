@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberChannel;
 import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -62,8 +63,9 @@ class InitFiberFrame extends FiberFrame<Void> {
 
     @Override
     public FrameCallResult execute(Void input) throws Throwable {
-        raftStatus.setFiberGroup(getFiberGroup());
-        raftStatus.setDataArrivedCondition(getFiberGroup().newCondition("dataArrived"));
+        FiberGroup fg = getFiberGroup();
+        raftStatus.setFiberGroup(fg);
+        raftStatus.setDataArrivedCondition(fg.newCondition("dataArrived"));
 
         for(RaftGroupProcessor<?> processor : raftGroupProcessors) {
             @SuppressWarnings("rawtypes")
@@ -72,7 +74,7 @@ class InitFiberFrame extends FiberFrame<Void> {
             processor.startProcessFiber(channel);
         }
 
-        gc.getLinearTaskRunner().init(getFiberGroup().newChannel());
+        gc.getLinearTaskRunner().init(fg.newChannel());
 
         return Fiber.call(gc.getStatusManager().initStatusFile(), this::afterInitStatusFile);
     }

@@ -131,7 +131,7 @@ public class CommitManager implements RaftLog.AppendCallback {
     }
 
     public interface AppendRespWriter {
-        boolean writeResp(long index);
+        boolean writeResp(long lastPersistIndex);
     }
 
 }

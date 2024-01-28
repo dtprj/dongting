@@ -568,6 +568,19 @@ public class MemberManager implements BiConsumer<EventType, Object> {
         nodeManager.doCommit(ids);
     }
 
+    public boolean checkLeader(int nodeId) {
+        RaftMember leader = raftStatus.getCurrentLeader();
+        if (leader != null && leader.getNode().getNodeId() == nodeId) {
+            return true;
+        }
+        return validCandidate(raftStatus, nodeId);
+    }
+
+    public static boolean validCandidate(RaftStatusImpl raftStatus, int nodeId) {
+        return raftStatus.getNodeIdOfMembers().contains(nodeId)
+                || raftStatus.getNodeIdOfPreparedMembers().contains(nodeId);
+    }
+
     public CompletableFuture<Void> getStartReadyFuture() {
         return startReadyFuture;
     }

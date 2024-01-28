@@ -258,4 +258,13 @@ public class RaftUtil {
         }
         raftStatus.setRole(RaftRole.observer);
     }
+
+    public static boolean writeNotFinished(RaftStatusImpl raftStatus) {
+        if (raftStatus.getLastPersistLogIndex() != raftStatus.getLastLogIndex()) {
+            log.info("write not finished, lastPersistLogIndex={}, lastLogIndex={}",
+                    raftStatus.getLastPersistLogIndex(), raftStatus.getLastLogIndex());
+            return true;
+        }
+        return false;
+    }
 }

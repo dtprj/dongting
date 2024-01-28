@@ -79,9 +79,7 @@ public class RaftStatusImpl extends RaftStatus {
 
     private boolean holdRequest;
 
-    private boolean waitAppend;
     private final IndexedQueue<Runnable> waitWriteFinishedQueue = new IndexedQueue<>(16);
-    private final IndexedQueue<Runnable> waitAppendQueue = new IndexedQueue<>(16);
 
     private FiberGroup fiberGroup;
 
@@ -355,18 +353,6 @@ public class RaftStatusImpl extends RaftStatus {
 
     public void setLastConfigChangeIndex(long lastConfigChangeIndex) {
         this.lastConfigChangeIndex = lastConfigChangeIndex;
-    }
-
-    public boolean isWaitAppend() {
-        return waitAppend;
-    }
-
-    public void setWaitAppend(boolean waitAppend) {
-        this.waitAppend = waitAppend;
-    }
-
-    public IndexedQueue<Runnable> getWaitAppendQueue() {
-        return waitAppendQueue;
     }
 
     public IndexedQueue<Runnable> getWaitWriteFinishedQueue() {
