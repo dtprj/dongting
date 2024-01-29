@@ -167,14 +167,14 @@ public class ReplicateManager {
             repFrame.closeIterator();
             repFrame.incrementEpoch();
             int appendCode = body.getAppendCode();
-            if (appendCode == AppendProcessor.CODE_LOG_NOT_MATCH) {
+            if (appendCode == AppendProcessor.APPEND_LOG_NOT_MATCH) {
                 updateLease(member, reqNanos, raftStatus);
                 processLogNotMatch(repFrame, prevLogIndex, prevLogTerm, body, raftStatus);
-            } else if (appendCode == AppendProcessor.CODE_SERVER_ERROR) {
+            } else if (appendCode == AppendProcessor.APPEND_SERVER_ERROR) {
                 updateLease(member, reqNanos, raftStatus);
                 log.error("append fail because of remote error. groupId={}, prevLogIndex={}, msg={}",
                         groupId, prevLogIndex, rf.getMsg());
-            } else if (appendCode == AppendProcessor.CODE_INSTALL_SNAPSHOT) {
+            } else if (appendCode == AppendProcessor.APPEND_INSTALL_SNAPSHOT) {
                 log.warn("append fail because of member is install snapshot. groupId={}, remoteId={}",
                         groupId, member.getNode().getNodeId());
                 updateLease(member, reqNanos, raftStatus);
@@ -182,7 +182,7 @@ public class ReplicateManager {
             } else {
                 BugLog.getLog().error("append fail. appendCode={}, old matchIndex={}, append prevLogIndex={}, " +
                                 "expectNewMatchIndex={}, remoteId={}, groupId={}, localTerm={}, reqTerm={}, remoteTerm={}",
-                        AppendProcessor.getCodeStr(appendCode), member.getMatchIndex(), prevLogIndex, expectNewMatchIndex,
+                        AppendProcessor.getAppendResultStr(appendCode), member.getMatchIndex(), prevLogIndex, expectNewMatchIndex,
                         member.getNode().getNodeId(), groupId, raftStatus.getCurrentTerm(), repFrame.getTerm(), body.getTerm());
             }
         }

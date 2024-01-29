@@ -47,6 +47,14 @@ import java.util.function.Supplier;
  */
 public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
 
+    public static final int APPEND_SUCCESS = 0;
+    public static final int APPEND_LOG_NOT_MATCH = 1;
+    public static final int APPEND_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT = 2;
+    public static final int APPEND_REQ_ERROR = 3;
+    public static final int APPEND_INSTALL_SNAPSHOT = 4;
+    public static final int APPEND_NOT_MEMBER_IN_GROUP = 5;
+    public static final int APPEND_SERVER_ERROR = 6;
+
     private final PbNoCopyDecoder<AppendReqCallback> decoder;
 
     public AppendProcessor(RaftServer raftServer, RaftGroups raftGroups) {
@@ -68,6 +76,27 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
     protected FiberFrame<Void> doProcess(ReqInfo<AppendReqCallback> reqInfo) {
         return new AppendFiberFrame(reqInfo, this);
     }
+
+    public static String getAppendResultStr(int code) {
+        switch (code) {
+            case APPEND_SUCCESS:
+                return "CODE_SUCCESS";
+            case APPEND_LOG_NOT_MATCH:
+                return "CODE_LOG_NOT_MATCH";
+            case APPEND_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT:
+                return "CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT";
+            case APPEND_REQ_ERROR:
+                return "CODE_REQ_ERROR";
+            case APPEND_INSTALL_SNAPSHOT:
+                return "CODE_INSTALL_SNAPSHOT";
+            case APPEND_NOT_MEMBER_IN_GROUP:
+                return "CODE_NOT_MEMBER_IN_GROUP";
+            case APPEND_SERVER_ERROR:
+                return "CODE_SERVER_ERROR";
+            default:
+                return "CODE_UNKNOWN_" + code;
+        }
+    }
 }
 
 class AppendFiberFrame extends FiberFrame<Void> {
@@ -76,14 +105,6 @@ class AppendFiberFrame extends FiberFrame<Void> {
 
     private final AppendProcessor processor;
 
-    public static final int CODE_SUCCESS = 0;
-    public static final int CODE_LOG_NOT_MATCH = 1;
-    public static final int CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT = 2;
-    public static final int CODE_REQ_ERROR = 3;
-    public static final int CODE_INSTALL_SNAPSHOT = 4;
-    public static final int CODE_NOT_MEMBER_IN_GROUP = 5;
-    public static final int CODE_SERVER_ERROR = 6;
-
     private final RaftGroupProcessor.ReqInfo<AppendReqCallback> reqInfo;
 
     public AppendFiberFrame(RaftGroupProcessor.ReqInfo<AppendReqCallback> reqInfo, AppendProcessor processor) {
@@ -91,31 +112,10 @@ class AppendFiberFrame extends FiberFrame<Void> {
         this.processor = processor;
     }
 
-    public static String getCodeStr(int code) {
-        switch (code) {
-            case CODE_SUCCESS:
-                return "CODE_SUCCESS";
-            case CODE_LOG_NOT_MATCH:
-                return "CODE_LOG_NOT_MATCH";
-            case CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT:
-                return "CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT";
-            case CODE_REQ_ERROR:
-                return "CODE_REQ_ERROR";
-            case CODE_INSTALL_SNAPSHOT:
-                return "CODE_INSTALL_SNAPSHOT";
-            case CODE_NOT_MEMBER_IN_GROUP:
-                return "CODE_NOT_MEMBER_IN_GROUP";
-            case CODE_SERVER_ERROR:
-                return "CODE_SERVER_ERROR";
-            default:
-                return "CODE_UNKNOWN_" + code;
-        }
-    }
-
     @Override
     protected FrameCallResult handle(Throwable ex) {
         log.error("find replicate pos error", ex);
-        writeAppendResp(reqInfo, CODE_SERVER_ERROR);
+        writeAppendResp(reqInfo, AppendProcessor.APPEND_SERVER_ERROR);
         return Fiber.frameReturn();
     }
 
@@ -142,7 +142,7 @@ class AppendFiberFrame extends FiberFrame<Void> {
                     req.clean();
                     log.error("leader receive raft append request. term={}, remote={}, groupId={}",
                             remoteTerm, reqInfo.getChannelContext().getRemoteAddr(), raftStatus.getGroupId());
-                    writeAppendResp(reqInfo, CODE_REQ_ERROR);
+                    writeAppendResp(reqInfo, AppendProcessor.APPEND_REQ_ERROR);
                     return Fiber.frameReturn();
                 }
             } else if (remoteTerm > localTerm) {
@@ -152,13 +152,13 @@ class AppendFiberFrame extends FiberFrame<Void> {
             } else {
                 log.debug("receive append request with a smaller term, ignore, remoteTerm={}, localTerm={}, groupId={}",
                         remoteTerm, localTerm, raftStatus.getGroupId());
-                writeAppendResp(reqInfo, CODE_REQ_ERROR);
+                writeAppendResp(reqInfo, AppendProcessor.APPEND_REQ_ERROR);
                 return Fiber.frameReturn();
             }
         } else {
             log.warn("receive append request from a non-member, ignore, remoteId={}, groupId={}, remote={}",
                     req.getLeaderId(), req.getGroupId(), reqInfo.getChannelContext().getRemoteAddr());
-            writeAppendResp(reqInfo, CODE_NOT_MEMBER_IN_GROUP);
+            writeAppendResp(reqInfo, AppendProcessor.APPEND_NOT_MEMBER_IN_GROUP);
             return Fiber.frameReturn();
         }
     }
@@ -172,7 +172,7 @@ class AppendFiberFrame extends FiberFrame<Void> {
         }
         gc.getVoteManager().cancelVote();
         if (raftStatus.isInstallSnapshot()) {
-            writeAppendResp(reqInfo, CODE_INSTALL_SNAPSHOT);
+            writeAppendResp(reqInfo, AppendProcessor.APPEND_INSTALL_SNAPSHOT);
             return Fiber.frameReturn();
         }
         if (req.getPrevLogIndex() != raftStatus.getLastLogIndex() || req.getPrevLogTerm() != raftStatus.getLastLogTerm()) {
@@ -194,13 +194,13 @@ class AppendFiberFrame extends FiberFrame<Void> {
         if (req.getPrevLogIndex() < raftStatus.getCommitIndex()) {
             BugLog.getLog().error("leader append request prevLogIndex less than local commit index. leaderId={}, prevLogIndex={}, commitIndex={}, groupId={}",
                     req.getLeaderId(), req.getPrevLogIndex(), raftStatus.getCommitIndex(), raftStatus.getGroupId());
-            writeAppendResp(reqInfo, CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT);
+            writeAppendResp(reqInfo, AppendProcessor.APPEND_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT);
             return Fiber.frameReturn();
         }
         ArrayList<LogItem> logs = req.getLogs();
         if (logs == null || logs.isEmpty()) {
             log.error("bad request: no logs");
-            writeAppendResp(reqInfo, CODE_REQ_ERROR);
+            writeAppendResp(reqInfo, AppendProcessor.APPEND_REQ_ERROR);
             return Fiber.frameReturn();
         }
 
@@ -212,7 +212,7 @@ class AppendFiberFrame extends FiberFrame<Void> {
             if (++index != li.getIndex()) {
                 log.error("bad request: log index not match. index={}, expectIndex={}, leaderId={}, groupId={}",
                         li.getIndex(), index, req.getLeaderId(), raftStatus.getGroupId());
-                writeAppendResp(reqInfo, CODE_REQ_ERROR);
+                writeAppendResp(reqInfo, AppendProcessor.APPEND_REQ_ERROR);
                 return Fiber.frameReturn();
             }
             RaftInput raftInput = new RaftInput(li.getBizType(), li.getHeader(), li.getBody(), null, li.getActualBodySize());
@@ -228,7 +228,7 @@ class AppendFiberFrame extends FiberFrame<Void> {
                 gc.getCommitManager().registerRespWriter(lastPersistIndex -> {
                     if (raftStatus.getCurrentTerm() == term) {
                         if (lastPersistIndex >= itemIndex) {
-                            writeAppendResp(reqInfo, CODE_SUCCESS);
+                            writeAppendResp(reqInfo, AppendProcessor.APPEND_SUCCESS);
                             return true;
                         } else {
                             return false;
@@ -259,7 +259,7 @@ class AppendFiberFrame extends FiberFrame<Void> {
         if (oldTerm != raftStatus.getCurrentTerm()) {
             log.info("term changed when find replicate pos, ignore result. oldTerm={}, newTerm={}, groupId={}",
                     oldTerm, raftStatus.getCurrentTerm(), raftStatus.getGroupId());
-            writeAppendResp(reqInfo, CODE_REQ_ERROR);
+            writeAppendResp(reqInfo, AppendProcessor.APPEND_REQ_ERROR);
             return Fiber.frameReturn();
         }
         if (reqInfo.getReqContext().getTimeout().isTimeout(raftStatus.getTs())) {
@@ -269,7 +269,7 @@ class AppendFiberFrame extends FiberFrame<Void> {
         AppendReqCallback req = reqInfo.getReqFrame().getBody();
         if (pos == null) {
             log.info("follower has no suggest index, will install snapshot. groupId={}", raftStatus.getGroupId());
-            writeAppendResp(reqInfo, CODE_LOG_NOT_MATCH);
+            writeAppendResp(reqInfo, AppendProcessor.APPEND_LOG_NOT_MATCH);
             return Fiber.frameReturn();
         } else if (pos.getLeft() == req.getPrevLogTerm() && pos.getRight() == req.getPrevLogIndex()) {
             log.info("local log truncate to prevLogIndex={}, prevLogTerm={}, groupId={}",
@@ -282,7 +282,7 @@ class AppendFiberFrame extends FiberFrame<Void> {
             }
         } else {
             log.info("follower suggest term={}, index={}, groupId={}", pos.getLeft(), pos.getRight(), raftStatus.getGroupId());
-            writeAppendResp(reqInfo, CODE_LOG_NOT_MATCH, pos.getLeft(), pos.getRight());
+            writeAppendResp(reqInfo, AppendProcessor.APPEND_LOG_NOT_MATCH, pos.getLeft(), pos.getRight());
             return Fiber.frameReturn();
         }
     }
@@ -305,7 +305,7 @@ class AppendFiberFrame extends FiberFrame<Void> {
     private void writeAppendResp(RaftGroupProcessor.ReqInfo<AppendReqCallback> reqInfo, int code, int suggestTerm, long suggestIndex) {
         AppendRespWriteFrame resp = new AppendRespWriteFrame();
         resp.setTerm(reqInfo.getRaftGroup().getGroupComponents().getRaftStatus().getCurrentTerm());
-        if (code == CODE_SUCCESS) {
+        if (code == AppendProcessor.APPEND_SUCCESS) {
             resp.setSuccess(true);
         } else {
             resp.setSuccess(false);
