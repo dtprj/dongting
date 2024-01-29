@@ -31,10 +31,9 @@ import java.util.function.Supplier;
 public interface RaftLog {
 
     /**
-     * @param appendCallback callback when append complete
      * @return term and index of persisted last item
      */
-    FiberFrame<Pair<Integer, Long>> init(AppendCallback appendCallback) throws Exception;
+    FiberFrame<Pair<Integer, Long>> init() throws Exception;
 
     /**
      * truncate tail to index (include)
@@ -83,9 +82,5 @@ public interface RaftLog {
          * @return return log items, don't return null or empty array
          */
         FiberFrame<List<LogItem>> next(long index, int limit, int bytesLimit);
-    }
-
-    interface AppendCallback {
-        void finish(int lastPersistTerm, long lastPersistIndex);
     }
 }

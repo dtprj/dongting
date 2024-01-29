@@ -39,6 +39,7 @@ import com.github.dtprj.dongting.net.RefBufWriteFrame;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
+import com.github.dtprj.dongting.raft.impl.InitFiberFrame;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.server.LogItem;
@@ -74,8 +75,6 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
     private final Dispatcher dispatcher;
     private final FiberGroup fiberGroup;
     private final IndexedQueue<ReqData> pending = new IndexedQueue<>(16 * 1024);
-
-    private final Callback callback = new Callback();
 
     static class ReqData {
         ReadFrame<RefBuffer> frame;
@@ -141,12 +140,12 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
         fiberGroup.fireFiber("init", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                raftStatus.setDataArrivedCondition(fiberGroup.newCondition("dataArrived"));
+                InitFiberFrame.initRaftStatus(raftStatus, fiberGroup);
                 return Fiber.call(statusManager.initStatusFile(), this::afterStatusManagerInit);
             }
 
             private FrameCallResult afterStatusManagerInit(Void unused) throws Exception {
-                return Fiber.call(raftLog.init(callback), this::afterRaftLogInit);
+                return Fiber.call(raftLog.init(), this::afterRaftLogInit);
             }
 
             private FrameCallResult afterRaftLogInit(Pair<Integer, Long> p) {
@@ -157,6 +156,8 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
         });
         Fiber storeFiber = new Fiber("store-fiber", fiberGroup, new StoreFiberFrame(), true);
         fiberGroup.fireFiber(storeFiber);
+        Fiber postStoreFiber = new Fiber("post-store-fiber", fiberGroup, new PostStoreFrame(), true);
+        fiberGroup.fireFiber(postStoreFiber);
         initFuture.join();
     }
 
@@ -214,28 +215,19 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
         }
     }
 
-    private class Callback implements RaftLog.AppendCallback {
-        private long finishCount;
-        private long finishItems;
-        private long lastIdx;
+    private class PostStoreFrame extends FiberFrame<Void> {
 
         @Override
-        public void finish(int lastPersistTerm, long lastPersistIndex) {
-            if (lastIdx == 0) {
-                lastIdx = lastPersistIndex;
-            } else {
-                finishCount++;
-                finishItems += lastPersistIndex - lastIdx;
-                lastIdx = lastPersistIndex;
-            }
+        public FrameCallResult execute(Void input) {
 
-            raftStatus.setCommitIndex(lastPersistIndex);
-            raftStatus.setLastApplied(lastPersistIndex);
-            raftStatus.setLastLogIndex(lastPersistIndex);
+            long lastIndex = raftStatus.getLastSyncLogIndex();
+            raftStatus.setCommitIndex(lastIndex);
+            raftStatus.setLastApplied(lastIndex);
+            raftStatus.setLastLogIndex(lastIndex);
 
             while (pending.size() > 0) {
                 ReqData rd = pending.get(0);
-                if (rd.raftLogIndex <= lastPersistIndex) {
+                if (rd.raftLogIndex <= lastIndex) {
                     RefBufWriteFrame resp = new RefBufWriteFrame(rd.frame.getBody());
                     resp.setRespCode(CmdCodes.SUCCESS);
                     rd.channelContext.getRespWriter().writeRespInBizThreads(rd.frame, resp, rd.reqContext.getTimeout());
@@ -244,6 +236,7 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
                     break;
                 }
             }
+            return raftStatus.getLogSyncFinishCondition().await(1000, this);
         }
     }
 
@@ -257,7 +250,6 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
             }
         });
         dispatcher.stop(new DtTime(1, TimeUnit.SECONDS));
-        System.out.printf("avg write batch: %.2f\n", 1.0f * callback.finishItems / callback.finishCount);
     }
 
 }

@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.raft.impl.InitFiberFrame;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.server.LogItem;
@@ -48,7 +49,6 @@ public class DefaultRaftLogTest extends BaseFiberTest {
     private RaftGroupConfigEx config;
     private StatusManager statusManager;
     private DefaultRaftLog raftLog;
-    private LogFileQueueTest.MockAppendCallback mockAppendCallback;
 
     @BeforeEach
     public void setup() throws Exception {
@@ -68,7 +68,6 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         statusManager = new StatusManager(config);
         statusManager.initStatusFile();
         config.setRaftStatus(raftStatus);
-        mockAppendCallback = new LogFileQueueTest.MockAppendCallback();
 
         raftLog = new DefaultRaftLog(config, statusManager, 1);
         raftLog.idxItemsPerFile = 8;
@@ -77,8 +76,8 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) throws Exception {
-                raftStatus.setDataArrivedCondition(getFiberGroup().newCondition("dataArrived"));
-                return Fiber.call(raftLog.init(mockAppendCallback), this::resume);
+                InitFiberFrame.initRaftStatus(raftStatus, fiberGroup);
+                return Fiber.call(raftLog.init(), this::resume);
             }
 
             private FrameCallResult resume(Pair<Integer, Long> integerLongPair) {

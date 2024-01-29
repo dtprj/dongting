@@ -73,7 +73,10 @@ public class RaftStatusImpl extends RaftStatus {
 
     private long lastLogIndex;
     private int lastLogTerm;
-    private long lastPersistLogIndex;
+    private long lastSyncLogIndex;
+    private int lastSyncLogTerm;
+    private long lastWriteLogIndex;
+    private int lastWriteLogTerm;
 
     private long leaderCommit;
 
@@ -82,6 +85,9 @@ public class RaftStatusImpl extends RaftStatus {
     private final IndexedQueue<Runnable> waitWriteFinishedQueue = new IndexedQueue<>(16);
 
     private FiberGroup fiberGroup;
+
+    private FiberCondition logSyncFinishCondition;
+    private FiberCondition logWriteFinishCondition;
 
     public RaftStatusImpl(Timestamp ts) {
         this.ts = ts;
@@ -359,12 +365,12 @@ public class RaftStatusImpl extends RaftStatus {
         return waitWriteFinishedQueue;
     }
 
-    public long getLastPersistLogIndex() {
-        return lastPersistLogIndex;
+    public long getLastSyncLogIndex() {
+        return lastSyncLogIndex;
     }
 
-    public void setLastPersistLogIndex(long lastPersistLogIndex) {
-        this.lastPersistLogIndex = lastPersistLogIndex;
+    public void setLastSyncLogIndex(long lastSyncLogIndex) {
+        this.lastSyncLogIndex = lastSyncLogIndex;
     }
 
     public long getLeaderCommit() {
@@ -397,5 +403,45 @@ public class RaftStatusImpl extends RaftStatus {
 
     public void setFiberGroup(FiberGroup fiberGroup) {
         this.fiberGroup = fiberGroup;
+    }
+
+    public int getLastSyncLogTerm() {
+        return lastSyncLogTerm;
+    }
+
+    public void setLastSyncLogTerm(int lastSyncLogTerm) {
+        this.lastSyncLogTerm = lastSyncLogTerm;
+    }
+
+    public FiberCondition getLogWriteFinishCondition() {
+        return logWriteFinishCondition;
+    }
+
+    public void setLogWriteFinishCondition(FiberCondition logWriteFinishCondition) {
+        this.logWriteFinishCondition = logWriteFinishCondition;
+    }
+
+    public FiberCondition getLogSyncFinishCondition() {
+        return logSyncFinishCondition;
+    }
+
+    public void setLogSyncFinishCondition(FiberCondition logSyncFinishCondition) {
+        this.logSyncFinishCondition = logSyncFinishCondition;
+    }
+
+    public long getLastWriteLogIndex() {
+        return lastWriteLogIndex;
+    }
+
+    public void setLastWriteLogIndex(long lastWriteLogIndex) {
+        this.lastWriteLogIndex = lastWriteLogIndex;
+    }
+
+    public int getLastWriteLogTerm() {
+        return lastWriteLogTerm;
+    }
+
+    public void setLastWriteLogTerm(int lastWriteLogTerm) {
+        this.lastWriteLogTerm = lastWriteLogTerm;
     }
 }

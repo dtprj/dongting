@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -123,7 +124,7 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
         return new AppendFiberFrame((AppendContext) reqInfo);
     }
 
-    class AppendContext extends RaftGroupProcessor.ReqInfo<AppendReqCallback> {
+    static class AppendContext extends RaftGroupProcessor.ReqInfo<AppendReqCallback> {
         final GroupComponents gc;
         int suggestTerm;
         long suggestIndex;
@@ -298,10 +299,9 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
                         req.getPrevLogIndex(), req.getPrevLogTerm(), raftStatus.getGroupId());
                 long truncateIndex = req.getPrevLogIndex() + 1;
                 if (RaftUtil.writeNotFinished(raftStatus)) {
-                    return waitWriteFinish(raftStatus);
+                    return waitWriteFinish(raftStatus, v -> truncateAndAppend(truncateIndex));
                 } else {
-                    ctx.gc.getRaftLog().truncateTail(truncateIndex);
-                    return doAppend(ctx);
+                    return truncateAndAppend(truncateIndex);
                 }
             } else {
                 log.info("follower suggest term={}, index={}, groupId={}", pos.getLeft(), pos.getRight(), raftStatus.getGroupId());
@@ -311,9 +311,18 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
             }
         }
 
-        private FrameCallResult waitWriteFinish(RaftStatusImpl raftStatus) {
-            // TODO not finish
-            return null;
+        private FrameCallResult truncateAndAppend(long truncateIndex) {
+            ctx.gc.getRaftLog().truncateTail(truncateIndex);
+            return doAppend(ctx);
+        }
+
+        private FrameCallResult waitWriteFinish(RaftStatusImpl raftStatus, FrameCall<Void> resumePoint) {
+            if (RaftUtil.writeNotFinished(raftStatus)) {
+                return raftStatus.getLogSyncFinishCondition().await(
+                        1000, v -> waitWriteFinish(raftStatus, resumePoint));
+            } else {
+                return Fiber.resume(null, resumePoint);
+            }
         }
 
     }// end of AppendFiberFrame

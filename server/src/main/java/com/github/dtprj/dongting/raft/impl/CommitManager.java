@@ -17,15 +17,18 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.fiber.Fiber;
+import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FiberGroup;
+import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.util.List;
 
 /**
  * @author huangli
  */
-public class CommitManager implements RaftLog.AppendCallback {
+public class CommitManager {
 
     private final RaftStatusImpl raftStatus;
     private final ApplyManager applyManager;
@@ -36,7 +39,34 @@ public class CommitManager implements RaftLog.AppendCallback {
         this.applyManager = applyManager;
     }
 
-    @Override
+    public void startCommitFiber() {
+        Fiber fiber = new Fiber("commit" + raftStatus.getGroupId(), FiberGroup.currentGroup(),
+                new CommitFiberFrame(), true);
+        fiber.start();
+    }
+
+    private class CommitFiberFrame extends FiberFrame<Void> {
+
+        @Override
+        protected FrameCallResult handle(Throwable ex) {
+            BugLog.getLog().error("commit fiber error", ex);
+            if (!isGroupShouldStopPlain()) {
+                startCommitFiber();
+            }
+            return Fiber.frameReturn();
+        }
+
+        @Override
+        public FrameCallResult execute(Void input) {
+            RaftStatusImpl raftStatus = CommitManager.this.raftStatus;
+            long idx = raftStatus.getLastSyncLogIndex();
+            if (idx > raftStatus.getCommitIndex()) {
+                CommitManager.this.finish(raftStatus.getLastSyncLogTerm(), idx);
+            }
+            return raftStatus.getLogSyncFinishCondition().await(1000, this);
+        }
+    }
+
     public void finish(int lastPersistTerm, long lastPersistIndex) {
         RaftStatusImpl raftStatus = this.raftStatus;
         if (lastPersistIndex > raftStatus.getLastLogIndex()) {
@@ -47,7 +77,7 @@ public class CommitManager implements RaftLog.AppendCallback {
             throw Fiber.fatal(new RaftException("lastPersistTerm > lastLogTerm. lastPersistTerm="
                     + lastPersistTerm + ", lastLogTerm=" + raftStatus.getLastLogTerm()));
         }
-        raftStatus.setLastPersistLogIndex(lastPersistIndex);
+        raftStatus.setLastSyncLogIndex(lastPersistIndex);
         if (raftStatus.getRole() == RaftRole.leader) {
             RaftMember self = raftStatus.getSelf();
             if (self != null) {

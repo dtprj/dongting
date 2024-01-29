@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.server;
+package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -25,9 +25,8 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.impl.GroupComponents;
-import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.rpc.RaftGroupProcessor;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -35,7 +34,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * @author huangli
  */
-class InitFiberFrame extends FiberFrame<Void> {
+public class InitFiberFrame extends FiberFrame<Void> {
     private static final DtLog log = DtLogs.getLogger(InitFiberFrame.class);
 
     private final CompletableFuture<Void> prepareFuture = new CompletableFuture<>();
@@ -64,8 +63,7 @@ class InitFiberFrame extends FiberFrame<Void> {
     @Override
     public FrameCallResult execute(Void input) throws Throwable {
         FiberGroup fg = getFiberGroup();
-        raftStatus.setFiberGroup(fg);
-        raftStatus.setDataArrivedCondition(fg.newCondition("dataArrived"));
+        initRaftStatus(raftStatus, fg);
 
         for(RaftGroupProcessor<?> processor : raftGroupProcessors) {
             @SuppressWarnings("rawtypes")
@@ -77,6 +75,13 @@ class InitFiberFrame extends FiberFrame<Void> {
         gc.getLinearTaskRunner().init(fg.newChannel());
 
         return Fiber.call(gc.getStatusManager().initStatusFile(), this::afterInitStatusFile);
+    }
+
+    public static void initRaftStatus(RaftStatusImpl raftStatus, FiberGroup fg) {
+        raftStatus.setFiberGroup(fg);
+        raftStatus.setDataArrivedCondition(fg.newCondition("dataArrived"));
+        raftStatus.setLogSyncFinishCondition(fg.newCondition("logSyncFinish"));
+        raftStatus.setLogWriteFinishCondition(fg.newCondition("logWriteFinish"));
     }
 
     private FrameCallResult afterInitStatusFile(Void unused) throws Exception {
@@ -94,7 +99,7 @@ class InitFiberFrame extends FiberFrame<Void> {
             raftStatus.setCommitIndex(snapshotIndex);
         }
 
-        return Fiber.call(gc.getRaftLog().init(gc.getCommitManager()),
+        return Fiber.call(gc.getRaftLog().init(),
                 initResult -> afterRaftLogInit(initResult, snapshotTerm, snapshotIndex));
     }
 
@@ -116,11 +121,12 @@ class InitFiberFrame extends FiberFrame<Void> {
 
         raftStatus.setLastLogTerm(initResultTerm);
         raftStatus.setLastLogIndex(initResultIndex);
-        raftStatus.setLastPersistLogIndex(initResultIndex);
+        raftStatus.setLastSyncLogIndex(initResultIndex);
 
         log.info("raft group log init complete, maxTerm={}, maxIndex={}, groupId={}",
                 initResult.getLeft(), initResult.getRight(), groupConfig.getGroupId());
 
+        gc.getCommitManager().startCommitFiber();
         gc.getApplyManager().init(getFiberGroup(), prepareFuture);
         return Fiber.frameReturn();
     }

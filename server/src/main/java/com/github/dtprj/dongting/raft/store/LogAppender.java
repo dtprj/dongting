@@ -58,7 +58,6 @@ class LogAppender {
     private final CRC32C crc32c = new CRC32C();
     private final EncodeContext encodeContext;
     private final long fileLenMask;
-    private final RaftLog.AppendCallback appendCallback;
     private final FiberGroup fiberGroup;
 
     long nextPersistIndex = -1;
@@ -85,16 +84,16 @@ class LogAppender {
 
     private final FiberCondition noPendingCondition;
 
-    LogAppender(IdxOps idxOps, LogFileQueue logFileQueue, RaftGroupConfigEx groupConfig,
-                RaftLog.AppendCallback appendCallback) {
+    private final RaftStatusImpl raftStatus;
+
+    LogAppender(IdxOps idxOps, LogFileQueue logFileQueue, RaftGroupConfigEx groupConfig) {
         this.idxOps = idxOps;
         this.logFileQueue = logFileQueue;
         this.codecFactory = groupConfig.getCodecFactory();
         this.encodeContext = new EncodeContext(groupConfig.getHeapPool());
         this.fileLenMask = logFileQueue.fileLength() - 1;
         this.groupConfig = groupConfig;
-        this.appendCallback = appendCallback;
-        RaftStatusImpl raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
+        this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
         this.cache = raftStatus.getTailCache();
         this.fiberGroup = groupConfig.getFiberGroup();
         this.appendFiber = new Fiber("append-" + groupConfig.getGroupId(), fiberGroup, appendFiberFrame);
@@ -470,7 +469,9 @@ class LogAppender {
             WriteTask head = syncWriteTaskQueueHead;
             if (head != null && head.lastIndex <= task.lastIndex) {
                 syncWriteTaskQueueHead = head.nextNeedSyncTask;
-                appendCallback.finish(head.lastTerm, head.lastIndex);
+                raftStatus.setLastSyncLogIndex(head.lastIndex);
+                raftStatus.setLastSyncLogTerm(head.lastTerm);
+                raftStatus.getLogSyncFinishCondition().signalAll();
                 if (head.lastIndex >= cache.getLastIndex()) {
                     noPendingCondition.signalAll();
                 }

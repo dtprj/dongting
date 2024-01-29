@@ -60,8 +60,7 @@ class LogFileQueue extends FileQueue {
 
     int maxWriteBufferSize = MAX_WRITE_BUFFER_SIZE;
 
-    public LogFileQueue(File dir, RaftGroupConfigEx groupConfig, IdxOps idxOps, RaftLog.AppendCallback callback,
-                        long fileSize) {
+    public LogFileQueue(File dir, RaftGroupConfigEx groupConfig, IdxOps idxOps, long fileSize) {
         super(dir, groupConfig, fileSize);
         this.idxOps = idxOps;
         this.ts = groupConfig.getTs();
@@ -69,7 +68,7 @@ class LogFileQueue extends FileQueue {
         this.heapPool = groupConfig.getHeapPool();
         this.directPool = groupConfig.getDirectPool();
 
-        this.logAppender = new LogAppender(idxOps, this, groupConfig, callback);
+        this.logAppender = new LogAppender(idxOps, this, groupConfig);
     }
 
     @Override

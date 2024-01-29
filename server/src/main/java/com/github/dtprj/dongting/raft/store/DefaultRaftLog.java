@@ -72,7 +72,7 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public FiberFrame<Pair<Integer, Long>> init(AppendCallback appendCallback) throws Exception {
+    public FiberFrame<Pair<Integer, Long>> init() throws Exception {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) throws Exception {
@@ -81,7 +81,7 @@ public class DefaultRaftLog implements RaftLog {
                 idxFiles = new IdxFileQueue(FileUtil.ensureDir(dataDir, "idx"),
                         statusManager, groupConfig, idxItemsPerFile, idxMaxCacheItems);
                 logFiles = new LogFileQueue(FileUtil.ensureDir(dataDir, "log"),
-                        groupConfig, idxFiles, appendCallback, logFileSize);
+                        groupConfig, idxFiles, logFileSize);
                 logFiles.initQueue();
                 RaftUtil.checkStop(fiberGroup);
                 return Fiber.call(idxFiles.initRestorePos(), this::afterIdxFileQueueInit);
