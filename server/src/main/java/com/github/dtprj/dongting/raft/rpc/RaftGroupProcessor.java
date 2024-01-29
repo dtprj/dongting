@@ -55,7 +55,7 @@ public abstract class RaftGroupProcessor<T> extends ReqProcessor<T> {
 
     protected abstract FiberFrame<Void> doProcess(ReqInfo<T> reqInfo);
 
-    protected void writeResp(ReqInfo<T> reqInfo, WriteFrame respFrame) {
+    protected void writeResp(ReqInfo<?> reqInfo, WriteFrame respFrame) {
         reqInfo.channelContext.getRespWriter().writeRespInBizThreads(
                 reqInfo.reqFrame, respFrame, reqInfo.reqContext.getTimeout());
     }
