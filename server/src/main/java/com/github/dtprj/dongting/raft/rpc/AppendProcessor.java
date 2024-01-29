@@ -25,13 +25,10 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.net.ChannelContext;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadFrame;
-import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.LinearTaskRunner;
-import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
@@ -97,9 +94,9 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
         return decoder;
     }
 
-    private FrameCallResult writeResp(AppendContext ctx, int code) {
+    private void writeAppendResp(ReqInfo<AppendReqCallback> ctx, int code, int suggestTerm, long suggestIndex) {
         AppendRespWriteFrame resp = new AppendRespWriteFrame();
-        resp.setTerm(ctx.gc.getRaftStatus().getCurrentTerm());
+        resp.setTerm(ctx.getRaftGroup().getGroupComponents().getRaftStatus().getCurrentTerm());
         if (code == CODE_SUCCESS) {
             resp.setSuccess(true);
         } else {
@@ -107,54 +104,39 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
             resp.setAppendCode(code);
         }
         resp.setRespCode(CmdCodes.SUCCESS);
-        resp.setSuggestTerm(ctx.suggestTerm);
-        resp.setSuggestIndex(ctx.suggestIndex);
+        resp.setSuggestTerm(suggestTerm);
+        resp.setSuggestIndex(suggestIndex);
         writeResp(ctx, resp);
-        return Fiber.frameReturn();
     }
 
-
-    @Override
-    protected ReqInfo<AppendReqCallback> createReqInfo(ReadFrame<AppendReqCallback> reqFrame, ChannelContext channelContext, ReqContext reqContext, RaftGroupImpl raftGroup) {
-        return new AppendContext(reqFrame, channelContext, reqContext, raftGroup);
+    private void writeAppendResp(ReqInfo<AppendReqCallback> ctx, int code) {
+        writeAppendResp(ctx, code, 0, 0);
     }
 
     @Override
     protected FiberFrame<Void> doProcess(ReqInfo<AppendReqCallback> reqInfo) {
-        return new AppendFiberFrame((AppendContext) reqInfo);
-    }
-
-    static class AppendContext extends RaftGroupProcessor.ReqInfo<AppendReqCallback> {
-        final GroupComponents gc;
-        int suggestTerm;
-        long suggestIndex;
-
-        AppendContext(ReadFrame<AppendReqCallback> reqFrame, ChannelContext channelContext,
-                      ReqContext reqContext, RaftGroupImpl raftGroup) {
-            super(reqFrame, channelContext, reqContext, raftGroup);
-            this.gc = raftGroup.getGroupComponents();
-        }
+        return new AppendFiberFrame(reqInfo);
     }
 
     class AppendFiberFrame extends FiberFrame<Void> {
 
-        private final AppendContext ctx;
+        private final ReqInfo<AppendReqCallback> ctx;
 
-        public AppendFiberFrame(AppendContext ctx) {
+        public AppendFiberFrame(ReqInfo<AppendReqCallback> ctx) {
             this.ctx = ctx;
         }
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
             log.error("find replicate pos error", ex);
-            writeResp(ctx, CODE_SERVER_ERROR);
+            writeAppendResp(ctx, CODE_SERVER_ERROR);
             return Fiber.frameReturn();
         }
 
         @Override
         public FrameCallResult execute(Void input) {
             AppendReqCallback req = ctx.getReqFrame().getBody();
-            GroupComponents gc = ctx.gc;
+            GroupComponents gc = ctx.getRaftGroup().getGroupComponents();
             RaftStatusImpl raftStatus = gc.getRaftStatus();
             if (gc.getMemberManager().checkLeader(req.getLeaderId())) {
                 int remoteTerm = req.getTerm();
@@ -163,38 +145,40 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
                     if (raftStatus.getRole() == RaftRole.follower) {
                         RaftUtil.resetElectTimer(raftStatus);
                         RaftUtil.updateLeader(raftStatus, req.getLeaderId());
-                        return append(ctx);
+                        return append(ctx, gc);
                     } else if (raftStatus.getRole() == RaftRole.observer) {
                         RaftUtil.updateLeader(raftStatus, req.getLeaderId());
-                        return append(ctx);
+                        return append(ctx, gc);
                     } else if (raftStatus.getRole() == RaftRole.candidate) {
                         RaftUtil.changeToFollower(raftStatus, req.getLeaderId());
-                        return append(ctx);
+                        return append(ctx, gc);
                     } else {
                         req.clean();
                         log.error("leader receive raft append request. term={}, remote={}, groupId={}",
                                 remoteTerm, ctx.getChannelContext().getRemoteAddr(), raftStatus.getGroupId());
-                        return writeResp(ctx, CODE_REQ_ERROR);
+                        writeAppendResp(ctx, CODE_REQ_ERROR);
+                        return Fiber.frameReturn();
                     }
                 } else if (remoteTerm > localTerm) {
                     RaftUtil.incrTerm(remoteTerm, raftStatus, req.getLeaderId());
                     gc.getStatusManager().persistSync();
-                    return append(ctx);
+                    return append(ctx, gc);
                 } else {
                     log.debug("receive append request with a smaller term, ignore, remoteTerm={}, localTerm={}, groupId={}",
                             remoteTerm, localTerm, raftStatus.getGroupId());
-                    return writeResp(ctx, CODE_REQ_ERROR);
+                    writeAppendResp(ctx, CODE_REQ_ERROR);
+                    return Fiber.frameReturn();
                 }
             } else {
                 log.warn("receive append request from a non-member, ignore, remoteId={}, groupId={}, remote={}",
                         req.getLeaderId(), req.getGroupId(), ctx.getChannelContext().getRemoteAddr());
-                return writeResp(ctx, CODE_NOT_MEMBER_IN_GROUP);
+                writeAppendResp(ctx, CODE_NOT_MEMBER_IN_GROUP);
+                return Fiber.frameReturn();
             }
         }
 
-        private FrameCallResult append(AppendContext ctx) {
+        private FrameCallResult append(ReqInfo<AppendReqCallback> ctx, GroupComponents gc) {
             AppendReqCallback req = ctx.getReqFrame().getBody();
-            GroupComponents gc = ctx.gc;
             RaftStatusImpl raftStatus = gc.getRaftStatus();
             if (ctx.getReqContext().getTimeout().isTimeout(raftStatus.getTs())) {
                 // not generate response
@@ -202,7 +186,8 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
             }
             gc.getVoteManager().cancelVote();
             if (raftStatus.isInstallSnapshot()) {
-                return writeResp(ctx, CODE_INSTALL_SNAPSHOT);
+                writeAppendResp(ctx, CODE_INSTALL_SNAPSHOT);
+                return Fiber.frameReturn();
             }
             if (req.getPrevLogIndex() != raftStatus.getLastLogIndex() || req.getPrevLogTerm() != raftStatus.getLastLogTerm()) {
                 log.info("log not match. prevLogIndex={}, localLastLogIndex={}, prevLogTerm={}, localLastLogTerm={}, leaderId={}, groupId={}",
@@ -214,22 +199,23 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
                         req.getPrevLogTerm(), req.getPrevLogIndex(), cancelIndicator);
                 return Fiber.call(replicatePosFrame, pos -> resumeWhenFindReplicatePosFinish(pos, currentTerm));
             }
-            return doAppend(ctx);
+            return doAppend(ctx, gc);
         }
 
-        private FrameCallResult doAppend(AppendContext ctx) {
+        private FrameCallResult doAppend(ReqInfo<AppendReqCallback> ctx, GroupComponents gc) {
             AppendReqCallback req = ctx.getReqFrame().getBody();
-            GroupComponents gc = ctx.gc;
             RaftStatusImpl raftStatus = gc.getRaftStatus();
             if (req.getPrevLogIndex() < raftStatus.getCommitIndex()) {
                 BugLog.getLog().error("leader append request prevLogIndex less than local commit index. leaderId={}, prevLogIndex={}, commitIndex={}, groupId={}",
                         req.getLeaderId(), req.getPrevLogIndex(), raftStatus.getCommitIndex(), raftStatus.getGroupId());
-                return writeResp(ctx, CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT);
+                writeAppendResp(ctx, CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT);
+                return Fiber.frameReturn();
             }
             ArrayList<LogItem> logs = req.getLogs();
             if (logs == null || logs.isEmpty()) {
                 log.error("bad request: no logs");
-                return writeResp(ctx, CODE_REQ_ERROR);
+                writeAppendResp(ctx, CODE_REQ_ERROR);
+                return Fiber.frameReturn();
             }
 
             long index = LinearTaskRunner.lastIndex(raftStatus);
@@ -240,7 +226,8 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
                 if (++index != li.getIndex()) {
                     log.error("bad request: log index not match. index={}, expectIndex={}, leaderId={}, groupId={}",
                             li.getIndex(), index, req.getLeaderId(), raftStatus.getGroupId());
-                    return writeResp(ctx, CODE_REQ_ERROR);
+                    writeAppendResp(ctx, CODE_REQ_ERROR);
+                    return Fiber.frameReturn();
                 }
                 RaftInput raftInput = new RaftInput(li.getBizType(), li.getHeader(), li.getBody(), null, li.getActualBodySize());
                 RaftTask task = new RaftTask(raftStatus.getTs(), li.getType(), raftInput, null);
@@ -251,10 +238,11 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
                     raftStatus.setLastLogTerm(li.getTerm());
                     int term = raftStatus.getCurrentTerm();
                     long itemIndex = li.getIndex();
+                    // register write response callback
                     gc.getCommitManager().registerRespWriter(lastPersistIndex -> {
                         if (raftStatus.getCurrentTerm() == term) {
                             if (lastPersistIndex >= itemIndex) {
-                                writeResp(ctx, CODE_SUCCESS);
+                                writeAppendResp(ctx, CODE_SUCCESS);
                                 return true;
                             } else {
                                 return false;
@@ -275,16 +263,18 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
                 raftStatus.setLeaderCommit(req.getLeaderCommit());
             }
 
-            // success response write in callback
+            // success response write in CommitManager fiber
             return Fiber.frameReturn();
         }
 
         private FrameCallResult resumeWhenFindReplicatePosFinish(Pair<Integer, Long> pos, int oldTerm) {
-            RaftStatusImpl raftStatus = ctx.gc.getRaftStatus();
+            GroupComponents gc = ctx.getRaftGroup().getGroupComponents();
+            RaftStatusImpl raftStatus = gc.getRaftStatus();
             if (oldTerm != raftStatus.getCurrentTerm()) {
                 log.info("term changed when find replicate pos, ignore result. oldTerm={}, newTerm={}, groupId={}",
                         oldTerm, raftStatus.getCurrentTerm(), raftStatus.getGroupId());
-                return writeResp(ctx, CODE_REQ_ERROR);
+                writeAppendResp(ctx, CODE_REQ_ERROR);
+                return Fiber.frameReturn();
             }
             if (ctx.getReqContext().getTimeout().isTimeout(raftStatus.getTs())) {
                 // not generate response
@@ -293,7 +283,8 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
             AppendReqCallback req = ctx.getReqFrame().getBody();
             if (pos == null) {
                 log.info("follower has no suggest index, will install snapshot. groupId={}", raftStatus.getGroupId());
-                return writeResp(ctx, CODE_LOG_NOT_MATCH);
+                writeAppendResp(ctx, CODE_LOG_NOT_MATCH);
+                return Fiber.frameReturn();
             } else if (pos.getLeft() == req.getPrevLogTerm() && pos.getRight() == req.getPrevLogIndex()) {
                 log.info("local log truncate to prevLogIndex={}, prevLogTerm={}, groupId={}",
                         req.getPrevLogIndex(), req.getPrevLogTerm(), raftStatus.getGroupId());
@@ -305,15 +296,15 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
                 }
             } else {
                 log.info("follower suggest term={}, index={}, groupId={}", pos.getLeft(), pos.getRight(), raftStatus.getGroupId());
-                ctx.suggestTerm = pos.getLeft();
-                ctx.suggestIndex = pos.getRight();
-                return writeResp(ctx, CODE_LOG_NOT_MATCH);
+                writeAppendResp(ctx, CODE_LOG_NOT_MATCH, pos.getLeft(), pos.getRight());
+                return Fiber.frameReturn();
             }
         }
 
         private FrameCallResult truncateAndAppend(long truncateIndex) {
-            ctx.gc.getRaftLog().truncateTail(truncateIndex);
-            return doAppend(ctx);
+            GroupComponents gc = ctx.getRaftGroup().getGroupComponents();
+            gc.getRaftLog().truncateTail(truncateIndex);
+            return doAppend(ctx, gc);
         }
 
         private FrameCallResult waitWriteFinish(RaftStatusImpl raftStatus, FrameCall<Void> resumePoint) {

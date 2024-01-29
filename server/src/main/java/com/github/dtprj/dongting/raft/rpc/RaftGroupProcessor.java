@@ -103,11 +103,6 @@ public abstract class RaftGroupProcessor<T> extends ReqProcessor<T> {
         }
     }
 
-    protected ReqInfo<T> createReqInfo(ReadFrame<T> reqFrame, ChannelContext channelContext,
-                                 ReqContext reqContext, RaftGroupImpl raftGroup) {
-        return new ReqInfo<>(reqFrame, channelContext, reqContext, raftGroup);
-    }
-
     public static class ReqInfo<T> {
         private final ReadFrame<T> reqFrame;
         private final ChannelContext channelContext;
@@ -169,7 +164,7 @@ public abstract class RaftGroupProcessor<T> extends ReqProcessor<T> {
             return wf;
         } else {
             FiberChannel<Object> c = g.getProcessorChannels().get(typeId);
-            ReqInfo<?> reqInfo = createReqInfo(frame, channelContext, reqContext, g);
+            ReqInfo<?> reqInfo = new ReqInfo<>(frame, channelContext, reqContext, g);
             c.fireOffer(reqInfo);
             return null;
         }
