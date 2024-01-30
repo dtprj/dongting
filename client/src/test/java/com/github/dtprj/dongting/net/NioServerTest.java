@@ -44,10 +44,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static com.github.dtprj.dongting.common.Tick.tick;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -102,7 +99,7 @@ public class NioServerTest {
             }
 
             @Override
-            public Decoder createDecoder() {
+            public Decoder createDecoder(int command) {
                 return new IoFullPackByteBufferDecoder();
             }
         });
@@ -394,7 +391,7 @@ public class NioServerTest {
             }
 
             @Override
-            public Decoder<Object> createDecoder() {
+            public Decoder<Object> createDecoder(int command) {
                 return new CopyDecoder<>() {
                     @Override
                     public Object decode(ByteBuffer buffer) {
@@ -435,7 +432,7 @@ public class NioServerTest {
             }
 
             @Override
-            public Decoder createDecoder() {
+            public Decoder createDecoder(int command) {
                 return RefBufferDecoder.INSTANCE;
             }
         }, null);
@@ -446,7 +443,7 @@ public class NioServerTest {
             }
 
             @Override
-            public Decoder createDecoder() {
+            public Decoder createDecoder(int command) {
                 return RefBufferDecoder.INSTANCE;
             }
         });
@@ -457,7 +454,7 @@ public class NioServerTest {
             }
 
             @Override
-            public Decoder createDecoder() {
+            public Decoder createDecoder(int command) {
                 return RefBufferDecoder.INSTANCE;
             }
         }, null);
@@ -468,7 +465,7 @@ public class NioServerTest {
             }
 
             @Override
-            public Decoder createDecoder() {
+            public Decoder createDecoder(int command) {
                 return RefBufferDecoder.INSTANCE;
             }
         });
@@ -542,7 +539,7 @@ public class NioServerTest {
             }
 
             @Override
-            public Decoder createDecoder() {
+            public Decoder createDecoder(int command) {
                 return RefBufferDecoder.INSTANCE;
             }
         });

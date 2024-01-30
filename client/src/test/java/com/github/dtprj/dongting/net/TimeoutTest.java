@@ -32,9 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.github.dtprj.dongting.common.Tick.tick;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -162,7 +160,7 @@ public class TimeoutTest {
             }
 
             @Override
-            public Decoder<ByteBuffer> createDecoder() {
+            public Decoder<ByteBuffer> createDecoder(int command) {
                 return new IoFullPackByteBufferDecoder() {
                     @Override
                     public ByteBuffer decode(ByteBuffer buffer) {

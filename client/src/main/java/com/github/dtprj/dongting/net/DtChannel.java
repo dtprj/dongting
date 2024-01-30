@@ -312,7 +312,7 @@ class DtChannel extends PbCallback<Object> {
                 this.processorForRequest = processorForRequest;
             }
             if (initDecoder && currentDecoder == null) {
-                currentDecoder = processorForRequest.createDecoder();
+                currentDecoder = processorForRequest.createDecoder(frame.getCommand());
             }
         }
         return true;

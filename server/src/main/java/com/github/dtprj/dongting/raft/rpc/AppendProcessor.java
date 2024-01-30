@@ -68,7 +68,7 @@ public class AppendProcessor extends RaftGroupProcessor<AppendReqCallback> {
     }
 
     @Override
-    public Decoder<AppendReqCallback> createDecoder() {
+    public Decoder<AppendReqCallback> createDecoder(int command) {
         return decoder;
     }
 

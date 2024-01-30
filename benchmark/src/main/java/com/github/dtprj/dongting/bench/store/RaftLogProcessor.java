@@ -172,7 +172,7 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
     }
 
     @Override
-    public Decoder<RefBuffer> createDecoder() {
+    public Decoder<RefBuffer> createDecoder(int command) {
         return RefBufferDecoder.INSTANCE;
     }
 

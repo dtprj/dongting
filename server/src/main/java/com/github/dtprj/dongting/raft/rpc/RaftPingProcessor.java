@@ -51,7 +51,7 @@ public class RaftPingProcessor extends RaftGroupProcessor<RaftPingFrameCallback>
     }
 
     @Override
-    public Decoder<RaftPingFrameCallback> createDecoder() {
+    public Decoder<RaftPingFrameCallback> createDecoder(int command) {
         return DECODER;
     }
 }

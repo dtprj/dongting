@@ -231,7 +231,7 @@ public class NioServer extends NioNet implements Runnable {
         }
 
         @Override
-        public Decoder<RefBuffer> createDecoder() {
+        public Decoder<RefBuffer> createDecoder(int command) {
             return DECODER;
         }
 

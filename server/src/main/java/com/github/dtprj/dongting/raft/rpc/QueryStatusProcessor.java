@@ -33,7 +33,7 @@ public class QueryStatusProcessor extends RaftGroupProcessor<Integer> {
     }
 
     @Override
-    public Decoder<Integer> createDecoder() {
+    public Decoder<Integer> createDecoder(int command) {
         return PbNoCopyDecoder.SIMPLE_INT_DECODER;
     }
 
