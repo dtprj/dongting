@@ -31,7 +31,6 @@ import java.util.concurrent.CompletableFuture;
 public class RaftStatusImpl extends RaftStatus {
 
     private volatile ShareStatus shareStatus;
-    private volatile boolean error;
 
     private boolean installSnapshot;
     private int stateMachineEpoch;
@@ -139,14 +138,6 @@ public class RaftStatusImpl extends RaftStatus {
     }
 
     //------------------------- simple getters and setters--------------------------------
-
-    public boolean isError() {
-        return error;
-    }
-
-    public void setError(boolean errorState) {
-        this.error = errorState;
-    }
 
     public RaftRole getRole() {
         return role;

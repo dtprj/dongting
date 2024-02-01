@@ -80,10 +80,6 @@ public class RaftGroupImpl extends RaftGroup {
     @SuppressWarnings({"rawtypes", "unchecked"})
     public CompletableFuture<RaftOutput> submitLinearTask(RaftInput input) {
         Objects.requireNonNull(input);
-        RaftStatusImpl raftStatus = this.raftStatus;
-        if (raftStatus.isError()) {
-            return CompletableFuture.failedFuture(new RaftException("raft status is error"));
-        }
         if (fiberGroup.isShouldStop()) {
             return CompletableFuture.failedFuture(new RaftException("raft group thread is stop"));
         }

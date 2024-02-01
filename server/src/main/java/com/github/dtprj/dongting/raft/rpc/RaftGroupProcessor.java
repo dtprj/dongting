@@ -158,10 +158,6 @@ public abstract class RaftGroupProcessor<T> extends ReqProcessor<T> {
             EmptyBodyRespFrame wf = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
             wf.setMsg("raft group is stopped: " + groupId);
             return wf;
-        } else if (gc.getRaftStatus().isError()) {
-            EmptyBodyRespFrame wf = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
-            wf.setMsg("raft group is in error state: " + g.getGroupId());
-            return wf;
         } else {
             FiberChannel<Object> c = g.getProcessorChannels().get(typeId);
             ReqInfo<?> reqInfo = new ReqInfo<>(frame, channelContext, reqContext, g);
