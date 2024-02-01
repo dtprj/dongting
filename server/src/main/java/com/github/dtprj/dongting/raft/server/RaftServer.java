@@ -243,7 +243,7 @@ public class RaftServer extends AbstractLifeCircle {
                 raftStatus, eventBus, replicateManager, nodeManager);
 
 
-        LinearTaskRunner linearTaskRunner = new LinearTaskRunner(rgcEx, raftStatus, applyManager);
+        LinearTaskRunner linearTaskRunner = new LinearTaskRunner(serverConfig, rgcEx, raftStatus, applyManager);
         VoteManager voteManager = new VoteManager(serverConfig, rgc.getGroupId(), raftStatus, replicateNioClient,
                 linearTaskRunner, statusManager);
 

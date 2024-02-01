@@ -67,7 +67,6 @@ public class RaftStatusImpl extends RaftStatus {
     private long[] leaseComputeArray = new long[0];
 
     private long lastElectTime;
-    private long heartbeatTime;
 
     private long lastLogIndex;
     private int lastLogTerm;
@@ -86,7 +85,6 @@ public class RaftStatusImpl extends RaftStatus {
     public RaftStatusImpl(Timestamp ts) {
         this.ts = ts;
         lastElectTime = ts.getNanoTime();
-        heartbeatTime = ts.getNanoTime();
     }
 
     public void copyShareStatus() {
@@ -157,14 +155,6 @@ public class RaftStatusImpl extends RaftStatus {
 
     public void setRwQuorum(int rwQuorum) {
         this.rwQuorum = rwQuorum;
-    }
-
-    public long getHeartbeatTime() {
-        return heartbeatTime;
-    }
-
-    public void setHeartbeatTime(long heartbeatTime) {
-        this.heartbeatTime = heartbeatTime;
     }
 
     public long getLastElectTime() {

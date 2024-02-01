@@ -29,6 +29,7 @@ import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
+import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -46,6 +47,7 @@ public class LinearTaskRunner implements BiConsumer<EventType, Object> {
 
     private final ApplyManager applyManager;
 
+    private final RaftServerConfig serverConfig;
     private final RaftGroupConfigEx groupConfig;
     private final RaftStatusImpl raftStatus;
 
@@ -53,7 +55,9 @@ public class LinearTaskRunner implements BiConsumer<EventType, Object> {
 
     private FiberChannel<RaftTask> taskChannel;
 
-    public LinearTaskRunner(RaftGroupConfigEx groupConfig, RaftStatusImpl raftStatus, ApplyManager applyManager) {
+    public LinearTaskRunner(RaftServerConfig serverConfig, RaftGroupConfigEx groupConfig,
+                            RaftStatusImpl raftStatus, ApplyManager applyManager) {
+        this.serverConfig = serverConfig;
         this.groupConfig = groupConfig;
         this.raftStatus = raftStatus;
         this.ts = raftStatus.getTs();
@@ -78,13 +82,23 @@ public class LinearTaskRunner implements BiConsumer<EventType, Object> {
         private final ArrayList<RaftTask> list = new ArrayList<>();
 
         @Override
+        protected FrameCallResult handle(Throwable ex) {
+            log.error("error in linear task runner", ex);
+            throw Fiber.fatal(ex);
+        }
+
+        @Override
         public FrameCallResult execute(Void input) {
-            return taskChannel.takeAll(list, this::afterTakeAll);
+            return taskChannel.takeAll(serverConfig.getHeartbeatInterval(), list, this::afterTakeAll);
         }
 
         private FrameCallResult afterTakeAll(Void unused) {
-            raftExec(list);
-            list.clear();
+            if (list.size() > 0) {
+                raftExec(list);
+                list.clear();
+            } else {
+                sendHeartBeat();
+            }
             // loop
             return Fiber.resume(null, this);
         }

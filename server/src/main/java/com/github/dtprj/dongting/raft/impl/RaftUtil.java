@@ -139,7 +139,6 @@ public class RaftUtil {
         raftStatus.setFirstIndexOfCurrentTerm(0);
         raftStatus.setFirstCommitOfApplied(new CompletableFuture<>());
         RaftUtil.resetElectTimer(raftStatus);
-        raftStatus.setHeartbeatTime(raftStatus.getLastElectTime());
         raftStatus.setLeaseStartNanos(0);
         raftStatus.setCurrentLeader(null);
         raftStatus.setLeaderCommit(0);
