@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.concurrent.TimeUnit;
 
@@ -28,10 +29,19 @@ import java.util.concurrent.TimeUnit;
 public class TailCache {
     private static final DtLog log = DtLogs.getLogger(TailCache.class);
     private static final long TIMEOUT = TimeUnit.SECONDS.toNanos(10);
+    private final RaftServerConfig serverConfig;
+    private final RaftStatusImpl raftStatus;
     private long firstIndex = -1;
     private int pending;
     private long pendingBytes;
     private final IndexedQueue<RaftTask> cache = new IndexedQueue<>(1024);
+
+    private int putCount;
+
+    public TailCache(RaftServerConfig serverConfig, RaftStatusImpl raftStatus) {
+        this.serverConfig = serverConfig;
+        this.raftStatus = raftStatus;
+    }
 
     public RaftTask get(long index) {
         if (firstIndex < 0 || index < firstIndex || index >= nextWriteIndex()) {
@@ -59,6 +69,9 @@ public class TailCache {
         cache.addLast(value);
         pending++;
         pendingBytes += value.getInput().getFlowControlSize();
+        if((putCount++ & 0x0F) == 0) { // call cleanPending 1/16
+            cleanPending();
+        }
     }
 
     /**
@@ -119,7 +132,13 @@ public class TailCache {
         }
     }
 
-    public void cleanPending(RaftStatusImpl raftStatus, int maxPending, long maxPendingBytes) {
+    public void cleanAll() {
+        while (firstIndex >= 0) {
+            remove(firstIndex);
+        }
+    }
+
+    private void cleanPending() {
         if (firstIndex <= 0) {
             return;
         }
@@ -135,7 +154,7 @@ public class TailCache {
             if (t.getCreateTimeNanos() - timeBound >= 0) {
                 break;
             }
-            if (pending <= maxPending && pendingBytes <= maxPendingBytes) {
+            if (pending <= serverConfig.getMaxPendingWrites() && pendingBytes <= serverConfig.getMaxPendingWrites()) {
                 break;
             }
             remove(index);

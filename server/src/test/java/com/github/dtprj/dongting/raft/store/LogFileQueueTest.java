@@ -32,6 +32,7 @@ import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
+import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -103,7 +104,7 @@ public class LogFileQueueTest extends BaseFiberTest {
 
         dir = TestDir.createTestDir(LogFileQueueTest.class.getSimpleName());
         raftStatus = new RaftStatusImpl(dispatcher.getTs());
-        tailCache = new TailCache();
+        tailCache = new TailCache(new RaftServerConfig(), raftStatus);
         raftStatus.setTailCache(tailCache);
         config = new RaftGroupConfigEx(1, "1", "1");
         config.setIoExecutor(MockExecutors.ioExecutor());

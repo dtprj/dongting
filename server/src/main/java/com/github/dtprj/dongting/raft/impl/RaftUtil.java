@@ -105,11 +105,13 @@ public class RaftUtil {
 
     public static void incrTerm(int remoteTerm, RaftStatusImpl raftStatus, int newLeaderId) {
         RaftRole oldRole = raftStatus.getRole();
+        if (newLeaderId > 0) {
+            updateLeader(raftStatus, newLeaderId);
+        }
         if (oldRole != RaftRole.observer) {
             log.info("update term from {} to {}, change to follower, oldRole={}",
                     raftStatus.getCurrentTerm(), remoteTerm, raftStatus.getRole());
             TailCache oldPending = raftStatus.getTailCache();
-            resetStatus(raftStatus);
             raftStatus.setRole(RaftRole.follower);
             if (oldRole == RaftRole.leader) {
                 oldPending.forEach((idx, task) -> {
@@ -127,11 +129,8 @@ public class RaftUtil {
             }
         } else {
             log.info("update term from {} to {}", raftStatus.getCurrentTerm(), remoteTerm);
-            resetStatus(raftStatus);
         }
-        if (newLeaderId > 0) {
-            updateLeader(raftStatus, newLeaderId);
-        }
+        resetStatus(raftStatus);
         raftStatus.setCurrentTerm(remoteTerm);
         raftStatus.setVotedFor(0);
     }
@@ -142,10 +141,11 @@ public class RaftUtil {
         RaftUtil.resetElectTimer(raftStatus);
         raftStatus.setHeartbeatTime(raftStatus.getLastElectTime());
         raftStatus.setLeaseStartNanos(0);
-        raftStatus.setTailCache(new TailCache());
         raftStatus.setCurrentLeader(null);
         raftStatus.setHoldRequest(false);
         raftStatus.setLeaderCommit(0);
+
+        raftStatus.getTailCache().cleanAll();
 
         // wake up replicate fiber if it is waiting on this condition
         raftStatus.getDataArrivedCondition().signalAll();

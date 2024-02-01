@@ -23,7 +23,9 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
+import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,6 +56,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
         RaftGroupConfigEx c = new RaftGroupConfigEx(1, "1", "1");
         c.setIoExecutor(MockExecutors.ioExecutor());
         raftStatus = new RaftStatusImpl(dispatcher.getTs());
+        raftStatus.setTailCache(new TailCache(new RaftServerConfig(), raftStatus));
         c.setRaftStatus(raftStatus);
         c.setTs(raftStatus.getTs());
         c.setFiberGroup(fiberGroup);

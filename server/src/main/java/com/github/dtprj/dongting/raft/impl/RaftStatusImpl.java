@@ -58,7 +58,7 @@ public class RaftStatusImpl extends RaftStatus {
     private List<RaftMember> replicateList;
 
     private FiberCondition dataArrivedCondition;
-    private TailCache tailCache = new TailCache();
+    private TailCache tailCache;
     private long firstIndexOfCurrentTerm;
     private CompletableFuture<Void> firstCommitOfApplied; // shared
 

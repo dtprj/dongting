@@ -47,6 +47,7 @@ import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.ReplicateManager;
+import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.impl.VoteManager;
 import com.github.dtprj.dongting.raft.rpc.NodePingProcessor;
 import com.github.dtprj.dongting.raft.rpc.QueryStatusProcessor;
@@ -218,6 +219,7 @@ public class RaftServer extends AbstractLifeCircle {
 
         FiberGroup fiberGroup = raftFactory.createFiberGroup(rgc);
         RaftStatusImpl raftStatus = new RaftStatusImpl(fiberGroup.getDispatcher().getTs());
+        raftStatus.setTailCache(new TailCache(serverConfig, raftStatus));
         raftStatus.setNodeIdOfMembers(nodeIdOfMembers);
         raftStatus.setNodeIdOfObservers(nodeIdOfObservers);
         raftStatus.setGroupId(rgc.getGroupId());
