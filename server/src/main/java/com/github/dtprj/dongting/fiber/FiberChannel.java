@@ -73,16 +73,28 @@ public class FiberChannel<T> {
     }
 
     public FrameCallResult take(FrameCall<T> resumePoint) {
+        return take(-1, resumePoint);
+    }
+
+    public FrameCallResult take(long millis, FrameCall<T> resumePoint) {
         groupOfConsumer.checkGroup();
         T data = queue.removeFirst();
         if (data != null) {
             return Fiber.resume(data, resumePoint);
         } else {
-            return notEmptyCondition.await(noUseVoid -> take(resumePoint));
+            if (millis > 0) {
+                return notEmptyCondition.await(millis, noUseVoid -> take(resumePoint));
+            } else {
+                return notEmptyCondition.await(noUseVoid -> take(resumePoint));
+            }
         }
     }
 
     public FrameCallResult takeAll(Collection<T> c, FrameCall<Void> resumePoint) {
+        return takeAll(-1, c, resumePoint);
+    }
+
+    public FrameCallResult takeAll(long millis, Collection<T> c, FrameCall<Void> resumePoint) {
         groupOfConsumer.checkGroup();
         if (queue.size() > 0) {
             T data;
@@ -91,7 +103,11 @@ public class FiberChannel<T> {
             }
             return Fiber.resume(null, resumePoint);
         } else {
-            return notEmptyCondition.await(noUseVoid -> takeAll(c, resumePoint));
+            if (millis > 0) {
+                return notEmptyCondition.await(millis, noUseVoid -> takeAll(c, resumePoint));
+            } else {
+                return notEmptyCondition.await(noUseVoid -> takeAll(c, resumePoint));
+            }
         }
     }
 }
