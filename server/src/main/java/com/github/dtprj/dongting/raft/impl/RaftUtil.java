@@ -142,7 +142,6 @@ public class RaftUtil {
         raftStatus.setHeartbeatTime(raftStatus.getLastElectTime());
         raftStatus.setLeaseStartNanos(0);
         raftStatus.setCurrentLeader(null);
-        raftStatus.setHoldRequest(false);
         raftStatus.setLeaderCommit(0);
 
         raftStatus.getTailCache().cleanAll();

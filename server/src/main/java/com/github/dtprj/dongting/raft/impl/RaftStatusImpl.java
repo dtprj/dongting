@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberGroup;
@@ -79,10 +78,6 @@ public class RaftStatusImpl extends RaftStatus {
     private int lastWriteLogTerm;
 
     private long leaderCommit;
-
-    private boolean holdRequest;
-
-    private final IndexedQueue<Runnable> waitWriteFinishedQueue = new IndexedQueue<>(16);
 
     private FiberGroup fiberGroup;
 
@@ -317,14 +312,6 @@ public class RaftStatusImpl extends RaftStatus {
         return leaseStartNanos;
     }
 
-    public boolean isHoldRequest() {
-        return holdRequest;
-    }
-
-    public void setHoldRequest(boolean holdRequest) {
-        this.holdRequest = holdRequest;
-    }
-
     public RaftMember getSelf() {
         return self;
     }
@@ -359,10 +346,6 @@ public class RaftStatusImpl extends RaftStatus {
 
     public void setLastConfigChangeIndex(long lastConfigChangeIndex) {
         this.lastConfigChangeIndex = lastConfigChangeIndex;
-    }
-
-    public IndexedQueue<Runnable> getWaitWriteFinishedQueue() {
-        return waitWriteFinishedQueue;
     }
 
     public long getLastSyncLogIndex() {
