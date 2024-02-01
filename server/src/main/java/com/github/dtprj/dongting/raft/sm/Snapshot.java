@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.raft.sm;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -48,7 +48,7 @@ public abstract class Snapshot implements AutoCloseable {
     }
 
 
-    public abstract FiberFrame<RefBuffer> readNext();
+    public abstract FiberFuture<RefBuffer> readNext();
 
     @Override
     public void close() {

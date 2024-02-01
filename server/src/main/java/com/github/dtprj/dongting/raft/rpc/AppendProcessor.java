@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
@@ -362,6 +363,13 @@ class InstallFiberFrame extends FiberFrame<Void> {
     }
 
     @Override
+    protected FrameCallResult handle(Throwable ex) throws Throwable {
+        log.error("install snapshot error", ex);
+        writeInstallResp(reqInfo, false, ex.toString());
+        return Fiber.frameReturn();
+    }
+
+    @Override
     protected FrameCallResult doFinally() {
         InstallSnapshotReq req = reqInfo.getReqFrame().getBody();
         if (req.data != null) {
@@ -414,38 +422,41 @@ class InstallFiberFrame extends FiberFrame<Void> {
         }
     }
 
-    private FrameCallResult installSnapshot(RaftStatusImpl raftStatus, GroupComponents gc, InstallSnapshotReq req) {
+    private FrameCallResult installSnapshot(RaftStatusImpl raftStatus, GroupComponents gc,
+                                            InstallSnapshotReq req) throws Exception {
         if (RaftUtil.writeNotFinished(raftStatus)) {
             return processor.waitWriteFinish(raftStatus, v -> installSnapshot(raftStatus, gc, req));
         }
         StateMachine stateMachine = gc.getStateMachine();
         boolean start = req.offset == 0;
         boolean finish = req.done;
-        try {
-            if (start) {
-                raftStatus.setInstallSnapshot(true);
-                raftStatus.setStateMachineEpoch(raftStatus.getStateMachineEpoch() + 1);
-                gc.getRaftLog().beginInstall();
-            }
-            stateMachine.installSnapshot(req.lastIncludedIndex, req.lastIncludedTerm, req.offset, finish, req.data);
-            raftStatus.setLastLogTerm(req.lastIncludedTerm);
-            raftStatus.setLastLogIndex(req.lastIncludedIndex);
-            raftStatus.setLastSyncLogTerm(req.lastIncludedTerm);
-            raftStatus.setLastSyncLogIndex(req.lastIncludedIndex);
-            raftStatus.setLastWriteLogTerm(req.lastIncludedTerm);
-            raftStatus.setLastWriteLogIndex(req.lastIncludedIndex);
-
-            if (finish) {
-                gc.getRaftLog().finishInstall(req.lastIncludedIndex + 1, req.nextWritePos);
-                raftStatus.setInstallSnapshot(false);
-                raftStatus.setLastApplied(req.lastIncludedIndex);
-                raftStatus.setCommitIndex(req.lastIncludedIndex);
-            }
-            writeInstallResp(reqInfo, true, null);
-        } catch (Exception e) {
-            log.error("install snapshot error", e);
-            writeInstallResp(reqInfo, false, e.toString());
+        if (start) {
+            raftStatus.setInstallSnapshot(true);
+            raftStatus.setStateMachineEpoch(raftStatus.getStateMachineEpoch() + 1);
+            gc.getRaftLog().beginInstall();
         }
+        FiberFuture<Void> f = stateMachine.installSnapshot(req.lastIncludedIndex,
+                req.lastIncludedTerm, req.offset, finish, req.data);
+        // TODO optimise performance, fiber blocked, so can't process block concurrently
+        return f.await(v -> afterInstallBlock(req, finish, raftStatus, gc));
+    }
+
+    private FrameCallResult afterInstallBlock(InstallSnapshotReq req, boolean finish, RaftStatusImpl raftStatus,
+                                              GroupComponents gc) throws Exception {
+        raftStatus.setLastLogTerm(req.lastIncludedTerm);
+        raftStatus.setLastLogIndex(req.lastIncludedIndex);
+        raftStatus.setLastSyncLogTerm(req.lastIncludedTerm);
+        raftStatus.setLastSyncLogIndex(req.lastIncludedIndex);
+        raftStatus.setLastWriteLogTerm(req.lastIncludedTerm);
+        raftStatus.setLastWriteLogIndex(req.lastIncludedIndex);
+
+        if (finish) {
+            gc.getRaftLog().finishInstall(req.lastIncludedIndex + 1, req.nextWritePos);
+            raftStatus.setInstallSnapshot(false);
+            raftStatus.setLastApplied(req.lastIncludedIndex);
+            raftStatus.setCommitIndex(req.lastIncludedIndex);
+        }
+        writeInstallResp(reqInfo, true, null);
         return Fiber.frameReturn();
     }
 

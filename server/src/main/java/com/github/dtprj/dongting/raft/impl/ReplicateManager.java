@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -678,10 +679,11 @@ class InstallFrame extends AbstractRepFrame {
         }
         if (readFinish || serverConfig.getMaxReplicateBytes() - pendingBytes <= restBytesThreshold) {
             // wait rpc finish
-            return repCondition.await(1000, this);
+            return repCondition.await(1000, v -> installSnapshot());
         }
-        FiberFrame<RefBuffer> ff = snapshot.readNext();
-        return Fiber.call(ff, this::afterSnapshotRead);
+        FiberFuture<RefBuffer> ff = snapshot.readNext();
+        // TODO optimise performance, fiber blocked here
+        return ff.await(this::afterSnapshotRead);
     }
 
     private FrameCallResult afterSnapshotRead(RefBuffer rb) {
