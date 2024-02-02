@@ -232,5 +232,36 @@ class LogFileQueue extends FileQueue {
                 fileLenMask, suggestTerm, suggestIndex, raftStatus.getLastLogIndex());
     }
 
+    public FiberFrame<LogHeader> loadHeader(long pos) {
+        LogFile f = getLogFile(pos);
+        ByteBuffer buf = directPool.borrow(LogHeader.ITEM_HEADER_SIZE);
+        return new FiberFrame<>() {
+
+            @Override
+            protected FrameCallResult doFinally() {
+                directPool.release(buf);
+                return super.doFinally();
+            }
+
+            @Override
+            public FrameCallResult execute(Void input) {
+                long filePos = filePos(pos);
+                AsyncIoTask task = new AsyncIoTask(fiberGroup, f);
+                FiberFuture<Void> future = task.read(buf, filePos);
+                return future.await(this::afterLoadHeader);
+            }
+
+            private FrameCallResult afterLoadHeader(Void unused) {
+                buf.flip();
+                LogHeader header = new LogHeader();
+                header.read(buf);
+                if (!header.crcMatch()) {
+                    throw new RaftException("header crc not match");
+                }
+                setResult(header);
+                return Fiber.frameReturn();
+            }
+        };
+    }
 
 }

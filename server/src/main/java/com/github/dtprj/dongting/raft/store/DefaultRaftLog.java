@@ -173,7 +173,22 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public FiberFrame<Long> loadNextItemPos(long index) {
-        return null;
+        return new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                return idxFiles.loadLogPos(index, this::afterLoadPos);
+            }
+
+            private FrameCallResult afterLoadPos(Long pos) {
+                return Fiber.call(logFiles.loadHeader(pos), h -> afterLoadHeader(h, pos));
+            }
+
+            private FrameCallResult afterLoadHeader(LogHeader header, long pos) {
+                long nextPos = pos + header.totalLen;
+                setResult(nextPos);
+                return Fiber.frameReturn();
+            }
+        };
     }
 
     @Override
