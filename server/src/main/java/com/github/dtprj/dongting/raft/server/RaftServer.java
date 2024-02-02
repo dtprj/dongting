@@ -49,10 +49,12 @@ import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.ReplicateManager;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.impl.VoteManager;
+import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.NodePingProcessor;
 import com.github.dtprj.dongting.raft.rpc.QueryStatusProcessor;
 import com.github.dtprj.dongting.raft.rpc.RaftGroupProcessor;
 import com.github.dtprj.dongting.raft.rpc.RaftPingProcessor;
+import com.github.dtprj.dongting.raft.rpc.VoteProcessor;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
@@ -138,10 +140,11 @@ public class RaftServer extends AbstractLifeCircle {
 
         replicateNioServer.register(Commands.NODE_PING, new NodePingProcessor(serverConfig.getNodeId(), nodeManager.getUuid()));
         addRaftGroupProcessor(replicateNioServer, Commands.RAFT_PING, new RaftPingProcessor(this));
+        AppendProcessor appendProcessor = new AppendProcessor(this, raftGroups);
+        addRaftGroupProcessor(replicateNioServer, Commands.RAFT_APPEND_ENTRIES, appendProcessor);
+        addRaftGroupProcessor(replicateNioServer, Commands.RAFT_INSTALL_SNAPSHOT, appendProcessor);
+        addRaftGroupProcessor(replicateNioServer, Commands.RAFT_REQUEST_VOTE, new VoteProcessor(this));
         /* TODO
-        replicateNioServer.register(Commands.RAFT_APPEND_ENTRIES, new AppendProcessor(this, raftGroups));
-        replicateNioServer.register(Commands.RAFT_REQUEST_VOTE, new VoteProcessor(this));
-        replicateNioServer.register(Commands.RAFT_INSTALL_SNAPSHOT, new InstallSnapshotProcessor(this));
         replicateNioServer.register(Commands.RAFT_LEADER_TRANSFER, new TransferLeaderProcessor(this));
         */
         addRaftGroupProcessor(replicateNioServer, Commands.RAFT_QUERY_STATUS, new QueryStatusProcessor(this));
@@ -244,7 +247,7 @@ public class RaftServer extends AbstractLifeCircle {
 
 
         LinearTaskRunner linearTaskRunner = new LinearTaskRunner(serverConfig, rgcEx, raftStatus, applyManager);
-        VoteManager voteManager = new VoteManager(serverConfig, rgc.getGroupId(), raftStatus, replicateNioClient,
+        VoteManager voteManager = new VoteManager(serverConfig, rgcEx, raftStatus, replicateNioClient,
                 linearTaskRunner, statusManager);
 
         eventBus.register(linearTaskRunner);

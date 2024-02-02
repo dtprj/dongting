@@ -15,7 +15,10 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberGroup;
+import com.github.dtprj.dongting.fiber.FrameCall;
+import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.NioNet;
@@ -27,7 +30,10 @@ import com.github.dtprj.dongting.raft.server.RaftNode;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -257,6 +263,16 @@ public class RaftUtil {
         raftStatus.setRole(RaftRole.observer);
     }
 
+    public static void changeToLeader(RaftStatusImpl raftStatus) {
+        log.info("change to leader. term={}", raftStatus.getCurrentTerm());
+        resetStatus(raftStatus);
+        raftStatus.setRole(RaftRole.leader);
+        raftStatus.setFirstIndexOfCurrentTerm(raftStatus.getLastLogIndex() + 1);
+        for (RaftMember node : raftStatus.getReplicateList()) {
+            node.setNextIndex(raftStatus.getLastLogIndex() + 1);
+        }
+    }
+
     public static boolean writeNotFinished(RaftStatusImpl raftStatus) {
         if (raftStatus.getLastSyncLogIndex() != raftStatus.getLastLogIndex()) {
             log.info("write not finished, lastPersistLogIndex={}, lastLogIndex={}",
@@ -264,5 +280,21 @@ public class RaftUtil {
             return true;
         }
         return false;
+    }
+
+    public static <T> Set<T> union(Collection<T> c1, Collection<T> c2) {
+        HashSet<T> set = new HashSet<>();
+        set.addAll(c1);
+        set.addAll(c2);
+        return set;
+    }
+
+    public static FrameCallResult waitWriteFinish(RaftStatusImpl raftStatus, FrameCall<Void> resumePoint) {
+        if (writeNotFinished(raftStatus)) {
+            return raftStatus.getLogSyncFinishCondition().await(
+                    1000, v -> waitWriteFinish(raftStatus, resumePoint));
+        } else {
+            return Fiber.resume(null, resumePoint);
+        }
     }
 }

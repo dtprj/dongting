@@ -127,6 +127,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
                 initResult.getLeft(), initResult.getRight(), groupConfig.getGroupId());
 
         gc.getCommitManager().startCommitFiber();
+        gc.getVoteManager().startFiber();
         gc.getApplyManager().init(getFiberGroup(), prepareFuture);
         return Fiber.frameReturn();
     }

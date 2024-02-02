@@ -55,15 +55,21 @@ public abstract class RaftGroupProcessor<T> extends ReqProcessor<T> {
 
     protected abstract FiberFrame<Void> doProcess(ReqInfo<T> reqInfo);
 
+    private boolean fiberStart;
+
     protected void writeResp(ReqInfo<?> reqInfo, WriteFrame respFrame) {
         reqInfo.channelContext.getRespWriter().writeRespInBizThreads(
                 reqInfo.reqFrame, respFrame, reqInfo.reqContext.getTimeout());
     }
 
     public void startProcessFiber(FiberChannel<ReqInfo<T>> channel) {
+        if (fiberStart) {
+            return;
+        }
         FiberFrame<Void> ff = new ProcessorFiberFrame(channel);
         Fiber f = new Fiber(getClass().getSimpleName(), FiberGroup.currentGroup(), ff, true);
         f.start();
+        fiberStart = true;
     }
 
     private class ProcessorFiberFrame extends FiberFrame<Void> {

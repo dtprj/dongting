@@ -21,7 +21,6 @@ import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
-import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -118,15 +117,6 @@ public class AppendProcessor extends RaftGroupProcessor<Object> {
                 return "CODE_SERVER_ERROR";
             default:
                 return "CODE_UNKNOWN_" + code;
-        }
-    }
-
-    FrameCallResult waitWriteFinish(RaftStatusImpl raftStatus, FrameCall<Void> resumePoint) {
-        if (RaftUtil.writeNotFinished(raftStatus)) {
-            return raftStatus.getLogSyncFinishCondition().await(
-                    1000, v -> waitWriteFinish(raftStatus, resumePoint));
-        } else {
-            return Fiber.resume(null, resumePoint);
         }
     }
 }
@@ -314,7 +304,7 @@ class AppendFiberFrame extends FiberFrame<Void> {
                     req.getPrevLogIndex(), req.getPrevLogTerm(), raftStatus.getGroupId());
             long truncateIndex = req.getPrevLogIndex() + 1;
             if (RaftUtil.writeNotFinished(raftStatus)) {
-                return processor.waitWriteFinish(raftStatus, v -> truncateAndAppend(truncateIndex));
+                return RaftUtil.waitWriteFinish(raftStatus, v -> truncateAndAppend(truncateIndex));
             } else {
                 return truncateAndAppend(truncateIndex);
             }
@@ -425,7 +415,7 @@ class InstallFiberFrame extends FiberFrame<Void> {
     private FrameCallResult installSnapshot(RaftStatusImpl raftStatus, GroupComponents gc,
                                             InstallSnapshotReq req) throws Exception {
         if (RaftUtil.writeNotFinished(raftStatus)) {
-            return processor.waitWriteFinish(raftStatus, v -> installSnapshot(raftStatus, gc, req));
+            return RaftUtil.waitWriteFinish(raftStatus, v -> installSnapshot(raftStatus, gc, req));
         }
         StateMachine stateMachine = gc.getStateMachine();
         boolean start = req.offset == 0;
