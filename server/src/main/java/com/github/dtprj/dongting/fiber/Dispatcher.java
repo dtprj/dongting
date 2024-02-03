@@ -188,6 +188,7 @@ public class Dispatcher extends AbstractLifeCircle {
                 }
                 f.source = null;
             }
+            f.cleanSchedule();
             f.fiberGroup.tryMakeFiberReady(f, true);
         }
     }
@@ -233,8 +234,6 @@ public class Dispatcher extends AbstractLifeCircle {
                     fiber.source.prepare(fiber, currentFrame);
                     fiber.source = null;
                 }
-                fiber.scheduleTimeoutMillis = 0;
-                fiber.scheduleNanoTime = 0;
                 execFrame(fiber, currentFrame);
                 if (fatalError != null) {
                     break;
@@ -242,6 +241,7 @@ public class Dispatcher extends AbstractLifeCircle {
                 if (!fiber.ready) {
                     if (fiber.source == null && fiber.scheduleTimeoutMillis == 0) {
                         // yield
+                        fiber.cleanSchedule();
                         fiber.ready = true;
                         fiber.fiberGroup.readyFibersNextRound.addLast(fiber);
                     }
@@ -466,6 +466,7 @@ public class Dispatcher extends AbstractLifeCircle {
 
     void tryRemoveFromScheduleQueue(Fiber f) {
         if (f.scheduleTimeoutMillis > 0) {
+            f.cleanSchedule();
             scheduleQueue.remove(f);
         }
     }

@@ -49,6 +49,7 @@ public class FiberLock extends WaitSource {
         }
         if (fiber.scheduleTimeoutMillis >= 0) {
             inputObj = owner == fiber ? Boolean.TRUE : Boolean.FALSE;
+            fiber.cleanSchedule();
         } else {
             inputObj = null;
         }
@@ -68,7 +69,7 @@ public class FiberLock extends WaitSource {
         return Dispatcher.awaitOn(this, millis, resumePoint, "timeWaitLock");
     }
 
-    public FrameCallResult tryLock(long millis,String reason, FrameCall<Boolean> resumePoint) {
+    public FrameCallResult tryLock(long millis, String reason, FrameCall<Boolean> resumePoint) {
         DtUtil.checkPositive(millis, "millis");
         return Dispatcher.awaitOn(this, millis, resumePoint, reason);
     }

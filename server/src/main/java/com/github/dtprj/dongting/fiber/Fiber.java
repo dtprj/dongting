@@ -155,6 +155,7 @@ public class Fiber extends WaitSource {
     protected void prepare(Fiber currentFiber, FiberFrame<?> currentFrame) {
         Object inputObj;
         if (currentFiber.scheduleTimeoutMillis >= 0) {
+            cleanSchedule();
             inputObj = finished ? Boolean.TRUE : Boolean.FALSE;
         } else {
             inputObj = null;
@@ -227,6 +228,11 @@ public class Fiber extends WaitSource {
     public boolean isFinished() {
         fiberGroup.checkGroup();
         return finished;
+    }
+
+    void cleanSchedule() {
+        scheduleTimeoutMillis = 0;
+        scheduleNanoTime = 0;
     }
 
     public String getFiberName() {
