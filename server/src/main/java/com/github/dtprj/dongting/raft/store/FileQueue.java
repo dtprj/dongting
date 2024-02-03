@@ -272,50 +272,65 @@ abstract class FileQueue {
         }
     }
 
+    private class DeleteFrame extends DoInLockFrame<Void> {
+
+        private final LogFile logFile;
+
+        public DeleteFrame(FiberLock lock, LogFile logFile) {
+            super(lock);
+            this.logFile = logFile;
+        }
+
+        @Override
+        public FrameCallResult afterGetLock() {
+            FiberFuture<Void> deleteFuture = groupConfig.getFiberGroup().newFuture();
+            try {
+                ioExecutor.execute(() -> {
+                    try {
+                        log.debug("close log file: {}", logFile.getFile().getPath());
+                        DtUtil.close(logFile.getChannel());
+                        log.info("delete log file: {}", logFile.getFile().getPath());
+                        Files.delete(logFile.getFile().toPath());
+
+                        deleteFuture.fireComplete(null);
+                    } catch (Throwable e) {
+                        log.error("delete file fail: ", logFile.getFile().getPath(), e);
+                        deleteFuture.fireCompleteExceptionally(e);
+                    }
+                });
+            } catch (Throwable e) {
+                log.error("submit delete task fail: ", e);
+                deleteFuture.completeExceptionally(e);
+            }
+            return deleteFuture.await(this::doAfterDelete);
+        }
+
+        private FrameCallResult doAfterDelete(Void unused) {
+            if (queue.size() > 1) {
+                queue.removeFirst();
+            }
+            if (queue.size() > 1) {
+                queueStartPosition = queue.get(0).startPos;
+            } else {
+                queueStartPosition = 0;
+                queueEndPosition = 0;
+            }
+            FileQueue.this.afterDelete();
+            return Fiber.frameReturn();
+        }
+    }
+
     protected FiberFrame<Void> delete(LogFile logFile) {
         return new FiberFrame<>() {
             @Override
-            public FrameCallResult execute(Void v) throws Throwable {
+            public FrameCallResult execute(Void input) {
                 return logFile.awaitNotUse(this::afterNotUse);
             }
 
             private FrameCallResult afterNotUse(Void unused) {
-                FiberFuture<Void> deleteFuture = groupConfig.getFiberGroup().newFuture();
                 // mark deleted first, so that other fibers will not use this file
                 logFile.deleted = true;
-                try {
-                    ioExecutor.execute(() -> {
-                        try {
-                            log.debug("close log file: {}", logFile.getFile().getPath());
-                            DtUtil.close(logFile.getChannel());
-                            log.info("delete log file: {}", logFile.getFile().getPath());
-                            Files.delete(logFile.getFile().toPath());
-
-                            deleteFuture.fireComplete(null);
-                        } catch (Throwable e) {
-                            log.error("delete file fail: ", logFile.getFile().getPath(), e);
-                            deleteFuture.fireCompleteExceptionally(e);
-                        }
-                    });
-                } catch (Throwable e) {
-                    log.error("submit delete task fail: ", e);
-                    deleteFuture.completeExceptionally(e);
-                }
-                return deleteFuture.await(this::doAfterDelete);
-            }
-
-            private FrameCallResult doAfterDelete(Void unused) {
-                if (queue.size() > 1) {
-                    queue.removeFirst();
-                }
-                if (queue.size() > 1) {
-                    queueStartPosition = queue.get(0).startPos;
-                } else {
-                    queueStartPosition = 0;
-                    queueEndPosition = 0;
-                }
-                FileQueue.this.afterDelete();
-                return Fiber.frameReturn();
+                return Fiber.call(new DeleteFrame(fileOpsLock, logFile), this::justReturn);
             }
         };
     }
@@ -323,7 +338,7 @@ abstract class FileQueue {
     protected void afterDelete() {
     }
 
-    public FiberFrame<Void> delete(Predicate<LogFile> shouldDelete) {
+    public FiberFrame<Void> deleteByPredicate(Predicate<LogFile> shouldDelete) {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -349,5 +364,10 @@ abstract class FileQueue {
 
     public void setInitialized(boolean initialized) {
         this.initialized = initialized;
+    }
+
+    public FrameCallResult deleteAll() {
+        //TODO
+        return null;
     }
 }

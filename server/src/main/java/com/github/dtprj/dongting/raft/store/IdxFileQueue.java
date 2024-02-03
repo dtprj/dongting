@@ -264,7 +264,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
         private FrameCallResult afterPosReady(Void v) {
             LogFile logFile = getLogFile(indexToPos(nextPersistIndex));
-            if (logFile.deleted) {
+            if (logFile.shouldDelete(ts)) {
                 BugLog.getLog().error("idx file deleted, flush fail: {}", logFile.getFile().getPath());
                 throw Fiber.fatal(new RaftException("idx file deleted, flush fail"));
             }
@@ -378,7 +378,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         long pos = indexToPos(itemIndex);
         ByteBuffer buffer = ByteBuffer.allocate(8);
         LogFile lf = getLogFile(pos);
-        if (lf.deleted) {
+        if (lf.shouldDelete(ts)) {
             throw new RaftException("file mark deleted: " + lf.getFile().getPath());
         }
         FiberFrame<Long> loadFrame = new FiberFrame<>() {

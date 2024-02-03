@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 
 import java.io.File;
@@ -39,5 +40,9 @@ class LogFile extends DtFile {
         super(file, channel, fiberGroup);
         this.startPos = startPos;
         this.endPos = endPos;
+    }
+
+    public boolean shouldDelete(Timestamp ts) {
+        return deleted || (deleteTimestamp > 0 && ts.getWallClockMillis() > deleteTimestamp);
     }
 }

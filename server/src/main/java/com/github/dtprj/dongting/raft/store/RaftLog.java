@@ -63,9 +63,9 @@ public interface RaftLog {
      */
     void markTruncateByTimestamp(long timestampBound, long delayMillis);
 
-    void beginInstall() throws Exception;
+    FiberFrame<Void> beginInstall() throws Exception;
 
-    void finishInstall(long nextLogIndex, long nextLogPos) throws Exception;
+    FiberFrame<Void> finishInstall(long nextLogIndex, long nextLogPos) throws Exception;
 
     FiberFrame<Long> loadNextItemPos(long index);
 

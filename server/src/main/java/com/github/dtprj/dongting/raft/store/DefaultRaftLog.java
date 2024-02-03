@@ -33,6 +33,7 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import java.io.File;
 import java.util.function.Supplier;
 
+import static com.github.dtprj.dongting.raft.store.IdxFileQueue.KEY_INSTALL_SNAPSHOT;
 import static com.github.dtprj.dongting.raft.store.IdxFileQueue.KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT;
 
 /**
@@ -162,13 +163,26 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public void beginInstall() throws Exception {
+    public FiberFrame<Void> beginInstall() {
+        return new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                statusManager.getProperties().setProperty(KEY_INSTALL_SNAPSHOT, "true");
+                statusManager.persistAsync(true);
+                return statusManager.waitSync(this::afterPersist);
+            }
 
+            private FrameCallResult afterPersist(Void unused) {
+                logFiles.deleteAll();
+                // TODO idxFiles.beginInstall();
+                return null;
+            }
+        };
     }
 
     @Override
-    public void finishInstall(long nextLogIndex, long nextLogPos) throws Exception {
-
+    public FiberFrame<Void> finishInstall(long nextLogIndex, long nextLogPos) {
+        return null;
     }
 
     @Override
@@ -221,7 +235,7 @@ public class DefaultRaftLog implements RaftLog {
             }
             long taskStartTimestamp = ts.getWallClockMillis();
             // ex handled by delete method
-            FiberFrame<Void> f = logFiles.delete(logFile -> {
+            FiberFrame<Void> f = logFiles.deleteByPredicate(logFile -> {
                 if (isGroupShouldStopPlain()) {
                     return false;
                 }
@@ -236,7 +250,7 @@ public class DefaultRaftLog implements RaftLog {
                 return Fiber.frameReturn();
             }
             // ex handled by delete method
-            FiberFrame<Void> f = idxFiles.delete(logFile -> {
+            FiberFrame<Void> f = idxFiles.deleteByPredicate(logFile -> {
                 if (isGroupShouldStopPlain()) {
                     return false;
                 }

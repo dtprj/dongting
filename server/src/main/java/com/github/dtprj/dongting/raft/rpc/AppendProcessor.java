@@ -355,8 +355,7 @@ class InstallFiberFrame extends FiberFrame<Void> {
     @Override
     protected FrameCallResult handle(Throwable ex) throws Throwable {
         log.error("install snapshot error", ex);
-        writeInstallResp(reqInfo, false, ex.toString());
-        return Fiber.frameReturn();
+        return writeInstallResp(reqInfo, false, ex.toString());
     }
 
     @Override
@@ -391,8 +390,7 @@ class InstallFiberFrame extends FiberFrame<Void> {
                 } else {
                     BugLog.getLog().error("leader receive raft install snapshot request. term={}, remote={}",
                             remoteTerm, reqInfo.getChannelContext().getRemoteAddr());
-                    writeInstallResp(reqInfo, false, "leader receive raft install snapshot request");
-                    return Fiber.frameReturn();
+                    return writeInstallResp(reqInfo, false, "leader receive raft install snapshot request");
                 }
             } else if (remoteTerm > localTerm) {
                 gc.getVoteManager().cancelVote();
@@ -401,14 +399,12 @@ class InstallFiberFrame extends FiberFrame<Void> {
                 return gc.getStatusManager().waitSync(v -> installSnapshot(raftStatus, gc, req));
             } else {
                 log.info("receive raft install snapshot request with a smaller term, ignore, remoteTerm={}, localTerm={}", remoteTerm, localTerm);
-                writeInstallResp(reqInfo, false, "small term");
-                return Fiber.frameReturn();
+                return writeInstallResp(reqInfo, false, "small term");
             }
         } else {
             log.warn("receive raft install snapshot request from a non-member, ignore. remoteId={}, group={}, remote={}",
                     req.leaderId, req.groupId, reqInfo.getChannelContext().getRemoteAddr());
-            writeInstallResp(reqInfo, false, "not member");
-            return Fiber.frameReturn();
+            return writeInstallResp(reqInfo, false, "not member");
         }
     }
 
@@ -423,11 +419,17 @@ class InstallFiberFrame extends FiberFrame<Void> {
         if (start) {
             raftStatus.setInstallSnapshot(true);
             raftStatus.setStateMachineEpoch(raftStatus.getStateMachineEpoch() + 1);
-            gc.getRaftLog().beginInstall();
+            return Fiber.call(gc.getRaftLog().beginInstall(),
+                    v -> doInstall(raftStatus, gc, req, stateMachine, finish));
         }
+        return doInstall(raftStatus, gc, req, stateMachine, finish);
+    }
+
+    private FrameCallResult doInstall(RaftStatusImpl raftStatus, GroupComponents gc,
+                                      InstallSnapshotReq req, StateMachine stateMachine, boolean finish) {
         FiberFuture<Void> f = stateMachine.installSnapshot(req.lastIncludedIndex,
                 req.lastIncludedTerm, req.offset, finish, req.data);
-        // TODO optimise performance, fiber blocked, so can't process block concurrently
+        // fiber blocked, so can't process block concurrently
         return f.await(v -> afterInstallBlock(req, finish, raftStatus, gc));
     }
 
@@ -441,16 +443,18 @@ class InstallFiberFrame extends FiberFrame<Void> {
         raftStatus.setLastWriteLogIndex(req.lastIncludedIndex);
 
         if (finish) {
-            gc.getRaftLog().finishInstall(req.lastIncludedIndex + 1, req.nextWritePos);
             raftStatus.setInstallSnapshot(false);
             raftStatus.setLastApplied(req.lastIncludedIndex);
             raftStatus.setCommitIndex(req.lastIncludedIndex);
+            FiberFrame<Void> finishFrame = gc.getRaftLog().finishInstall(
+                    req.lastIncludedIndex + 1, req.nextWritePos);
+            return Fiber.call(finishFrame, v -> writeInstallResp(reqInfo, true, null));
+        } else {
+            return writeInstallResp(reqInfo, true, null);
         }
-        writeInstallResp(reqInfo, true, null);
-        return Fiber.frameReturn();
     }
 
-    private void writeInstallResp(RaftGroupProcessor.ReqInfo<InstallSnapshotReq> reqInfo, boolean success, String msg) {
+    private FrameCallResult writeInstallResp(RaftGroupProcessor.ReqInfo<InstallSnapshotReq> reqInfo, boolean success, String msg) {
         InstallSnapshotResp resp = new InstallSnapshotResp();
         InstallSnapshotResp.InstallRespWriteFrame wf = new InstallSnapshotResp.InstallRespWriteFrame(resp);
         resp.term = reqInfo.getRaftGroup().getGroupComponents().getRaftStatus().getCurrentTerm();
@@ -458,6 +462,7 @@ class InstallFiberFrame extends FiberFrame<Void> {
         wf.setRespCode(CmdCodes.SUCCESS);
         wf.setMsg(msg);
         processor.writeResp(reqInfo, wf);
+        return Fiber.frameReturn();
     }
 }
 

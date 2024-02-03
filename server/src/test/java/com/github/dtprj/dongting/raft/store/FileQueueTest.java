@@ -161,7 +161,7 @@ public class FileQueueTest extends BaseFiberTest {
                     String n = lf.getFile().getName();
                     return n.endsWith("0000") || n.endsWith("1024");
                 };
-                return Fiber.call(fileQueue.delete(p), this::resume2);
+                return Fiber.call(fileQueue.deleteByPredicate(p), this::resume2);
             }
 
             private FrameCallResult resume2(Void unused) {

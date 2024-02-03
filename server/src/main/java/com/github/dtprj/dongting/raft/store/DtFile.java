@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCall;
@@ -50,9 +51,9 @@ public class DtFile {
         }
     }
 
-    public FrameCallResult awaitNotUse(FrameCall<Void> resumePoint) throws Throwable {
+    public FrameCallResult awaitNotUse(FrameCall<Void> resumePoint) {
         if (use == 0) {
-            return resumePoint.execute(null);
+            return Fiber.resume(null, resumePoint);
         } else {
             // loop to this method and recheck use count
             return getNotUseCondition().await(v -> awaitNotUse(resumePoint));

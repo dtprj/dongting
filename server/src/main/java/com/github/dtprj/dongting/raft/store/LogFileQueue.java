@@ -234,6 +234,9 @@ class LogFileQueue extends FileQueue {
 
     public FiberFrame<LogHeader> loadHeader(long pos) {
         LogFile f = getLogFile(pos);
+        if (f.shouldDelete(ts)) {
+            throw new RaftException("file mark deleted: " + f.getFile());
+        }
         ByteBuffer buf = directPool.borrow(LogHeader.ITEM_HEADER_SIZE);
         return new FiberFrame<>() {
 
