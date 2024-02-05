@@ -20,7 +20,7 @@ import com.github.dtprj.dongting.common.DtUtil;
 /**
  * @author huangli
  */
-public class FiberLock extends WaitSource {
+public class FiberLock extends Lock {
     Fiber owner;
     int heldCount;
     private final FiberReadLock readLock;
@@ -62,10 +62,12 @@ public class FiberLock extends WaitSource {
         return readLock;
     }
 
+    @Override
     public FrameCallResult lock(FrameCall<Void> resumePoint) {
         return lock("waitLock", resumePoint);
     }
 
+    @Override
     public FrameCallResult lock(String reason, FrameCall<Void> resumePoint) {
         Fiber fiber = Dispatcher.getCurrentFiberAndCheck(fiberGroup);
         if (shouldWait(fiber)) {
@@ -76,10 +78,12 @@ public class FiberLock extends WaitSource {
         }
     }
 
+    @Override
     public FrameCallResult tryLock(long millis, FrameCall<Boolean> resumePoint) {
         return tryLock(millis, "timeWaitLock", resumePoint);
     }
 
+    @Override
     public FrameCallResult tryLock(long millis, String reason, FrameCall<Boolean> resumePoint) {
         DtUtil.checkPositive(millis, "millis");
         Fiber fiber = Dispatcher.getCurrentFiberAndCheck(fiberGroup);
@@ -91,6 +95,7 @@ public class FiberLock extends WaitSource {
         }
     }
 
+    @Override
     public boolean tryLock() {
         Fiber fiber = Dispatcher.getCurrentFiberAndCheck(fiberGroup);
         if (shouldWait(fiber)) {
@@ -105,6 +110,7 @@ public class FiberLock extends WaitSource {
         return owner == Dispatcher.getCurrentFiberAndCheck(fiberGroup);
     }
 
+    @Override
     public void unlock() {
         Fiber fiber = Dispatcher.getCurrentFiberAndCheck(fiberGroup);
         if (fiber == owner) {
