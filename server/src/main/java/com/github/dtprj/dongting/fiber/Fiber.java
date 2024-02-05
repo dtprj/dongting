@@ -70,7 +70,12 @@ public class Fiber extends WaitSource {
     }
 
     public static <O> FrameCallResult resume(O input, FrameCall<O> resumePoint) {
-        Dispatcher.resume(input, resumePoint);
+        Dispatcher.resume(input, null, resumePoint);
+        return FrameCallResult.RETURN;
+    }
+
+    static FrameCallResult resumeEx(Throwable ex) {
+        Dispatcher.resume(null, ex, null);
         return FrameCallResult.RETURN;
     }
 
@@ -142,40 +147,41 @@ public class Fiber extends WaitSource {
     }
 
     @Override
-    protected boolean shouldWait(Fiber currentFiber) {
-        return !finished;
-    }
-
-    @Override
     protected boolean throwWhenTimeout() {
         return false;
     }
 
     @Override
-    protected void prepare(Fiber currentFiber, FiberFrame<?> currentFrame) {
-        Object inputObj;
-        if (currentFiber.scheduleTimeoutMillis >= 0) {
-            cleanSchedule();
-            inputObj = finished ? Boolean.TRUE : Boolean.FALSE;
+    protected void prepare(Fiber waitFiber, boolean timeout) {
+        if (waitFiber.scheduleTimeoutMillis > 0) {
+            waitFiber.inputObj = timeout ? Boolean.FALSE : Boolean.TRUE;
         } else {
-            inputObj = null;
+            waitFiber.inputObj = null;
         }
-        currentFiber.inputObj = inputObj;
     }
 
     public FrameCallResult join(FrameCall<Void> resumePoint) {
-        Fiber currentFibber = check();
-        return Dispatcher.awaitOn(currentFibber, this, -1, resumePoint, "join");
+        Fiber currentFiber = check();
+        if (finished) {
+            return Fiber.resume(null, resumePoint);
+        }
+        return Dispatcher.awaitOn(currentFiber, this, -1, resumePoint, "join");
     }
 
     public FrameCallResult join(long millis, FrameCall<Boolean> resumePoint) {
         DtUtil.checkPositive(millis, "millis");
-        Fiber currentFibber = check();
-        return Dispatcher.awaitOn(currentFibber, this, millis, resumePoint, "join");
+        Fiber currentFiber = check();
+        if (finished) {
+            return Fiber.resume(Boolean.TRUE, resumePoint);
+        }
+        return Dispatcher.awaitOn(currentFiber, this, millis, resumePoint, "join");
     }
 
     public FiberFuture<Void> join() {
         check();
+        if (finished) {
+            return FiberFuture.completedFuture(fiberGroup, null);
+        }
         Fiber waitSource = this;
         FiberFuture<Void> fu = fiberGroup.newFuture();
         FiberFrame<Void> entryFrame = new FiberFrame<>() {
@@ -189,7 +195,7 @@ public class Fiber extends WaitSource {
                 return Fiber.frameReturn();
             }
         };
-        Fiber f = new Fiber("wait-finish", fiberGroup, entryFrame) {
+        Fiber f = new Fiber("wait-finish", fiberGroup, entryFrame, true) {
             private String toStr;
 
             @Override

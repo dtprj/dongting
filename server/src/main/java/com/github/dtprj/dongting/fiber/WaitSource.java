@@ -27,11 +27,10 @@ abstract class WaitSource {
         this.fiberGroup = group;
     }
 
-    protected abstract boolean shouldWait(Fiber currentFiber);
-
     protected abstract boolean throwWhenTimeout();
 
-    protected abstract void prepare(Fiber fiber, FiberFrame<?> fiberFrame);
+    protected void prepare(Fiber waitFiber, boolean timeout){
+    }
 
 
     void addWaiter(Fiber f) {
@@ -102,10 +101,19 @@ abstract class WaitSource {
         }
         Fiber f = popHeadWaiter();
         if (f != null) {
-            fiberGroup.dispatcher.tryRemoveFromScheduleQueue(f);
-            fiberGroup.tryMakeFiberReady(f, addFirst);
-            f.signalInThisRound = true;
+            signalFiber(f, addFirst);
         }
+    }
+
+    private void signalFiber(Fiber f, boolean addFirst) {
+        if (f.scheduleTimeoutMillis > 0) {
+            fiberGroup.dispatcher.removeFromScheduleQueue(f);
+        }
+        prepare(f, false);
+        f.source = null;
+        f.cleanSchedule();
+        fiberGroup.tryMakeFiberReady(f, addFirst);
+        f.signalInThisRound = true;
     }
 
     void signalAll0(boolean addFirst) {
@@ -114,9 +122,7 @@ abstract class WaitSource {
         }
         Fiber f;
         while ((f = popTailWaiter()) != null) {
-            fiberGroup.dispatcher.tryRemoveFromScheduleQueue(f);
-            fiberGroup.tryMakeFiberReady(f, addFirst);
-            f.signalInThisRound = true;
+            signalFiber(f, addFirst);
         }
     }
 

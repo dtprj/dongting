@@ -20,18 +20,18 @@ import com.github.dtprj.dongting.common.DtUtil;
 /**
  * @author huangli
  */
-public class FiberLock extends WaitSource {
-    Fiber owner;
-    int heldCount;
-    private final FiberReadLock readLock;
+public class FiberReadLock extends WaitSource {
 
-    FiberLock(FiberGroup fiberGroup) {
-        super(fiberGroup);
-        this.readLock = new FiberReadLock(fiberGroup, this);
+    int heldCount;
+    private final FiberLock writeLock;
+
+    public FiberReadLock(FiberGroup group, FiberLock writeLock) {
+        super(group);
+        this.writeLock = writeLock;
     }
 
     private boolean shouldWait(Fiber currentFiber) {
-        return owner != null && currentFiber != owner || readLock.heldCount > 0;
+        return writeLock.owner != null && writeLock.owner != currentFiber;
     }
 
     @Override
@@ -46,20 +46,7 @@ public class FiberLock extends WaitSource {
         } else {
             fiber.inputObj = null;
         }
-        updateOwnerAndHeldCount(fiber);
-    }
-
-    private void updateOwnerAndHeldCount(Fiber fiber) {
-        if (owner == null) {
-            owner = fiber;
-            heldCount = 1;
-        } else if (fiber == owner) {
-            heldCount++;
-        }
-    }
-
-    public FiberReadLock readLock() {
-        return readLock;
+        heldCount++;
     }
 
     public FrameCallResult lock(FrameCall<Void> resumePoint) {
@@ -71,7 +58,7 @@ public class FiberLock extends WaitSource {
         if (shouldWait(fiber)) {
             return Dispatcher.awaitOn(fiber, this, -1, resumePoint, reason);
         } else {
-            updateOwnerAndHeldCount(fiber);
+            heldCount++;
             return Fiber.resume(null, resumePoint);
         }
     }
@@ -86,7 +73,7 @@ public class FiberLock extends WaitSource {
         if (shouldWait(fiber)) {
             return Dispatcher.awaitOn(fiber, this, millis, resumePoint, reason);
         } else {
-            updateOwnerAndHeldCount(fiber);
+            heldCount++;
             return Fiber.resume(Boolean.TRUE, resumePoint);
         }
     }
@@ -96,29 +83,19 @@ public class FiberLock extends WaitSource {
         if (shouldWait(fiber)) {
             return false;
         } else {
-            updateOwnerAndHeldCount(fiber);
+            heldCount++;
             return true;
         }
     }
 
-    public boolean isHeldByCurrentFiber() {
-        return owner == Dispatcher.getCurrentFiberAndCheck(fiberGroup);
-    }
-
     public void unlock() {
-        Fiber fiber = Dispatcher.getCurrentFiberAndCheck(fiberGroup);
-        if (fiber == owner) {
-            heldCount--;
-            if (heldCount <= 0) {
-                owner = null;
-                if (firstWaiter != null) {
-                    signal0(true);
-                } else if (readLock.firstWaiter != null) {
-                    readLock.signalAll0(true);
-                }
+        Dispatcher.getCurrentFiberAndCheck(fiberGroup);
+        // check fiber held this read lock?
+        heldCount--;
+        if (heldCount <= 0) {
+            if (writeLock.firstWaiter != null) {
+                writeLock.signal0(true);
             }
-        } else {
-            throw new FiberException("not owner");
         }
     }
 }

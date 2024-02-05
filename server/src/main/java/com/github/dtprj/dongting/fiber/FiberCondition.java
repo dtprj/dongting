@@ -35,17 +35,8 @@ public class FiberCondition extends WaitSource {
     }
 
     @Override
-    protected boolean shouldWait(Fiber currentFiber) {
-        return true;
-    }
-
-    @Override
     protected boolean throwWhenTimeout() {
         return false;
-    }
-
-    @Override
-    protected void prepare(Fiber fiber, FiberFrame<?> fiberFrame) {
     }
 
     public void signal() {

@@ -26,9 +26,18 @@ import java.util.concurrent.TimeUnit;
  */
 public class JoinTest extends AbstractFiberTest {
     @Test
-    public void testJoin() throws Exception{
+    public void testJoin1() throws Exception {
         testJoinImpl(1);
+    }
+
+    @Test
+    public void testJoin2() throws Exception {
         testJoinImpl(2);
+    }
+
+    @Test
+    public void testJoin3() throws Exception {
+        testJoinImpl(3);
     }
 
     private void testJoinImpl(int joinType) throws Exception {
@@ -38,6 +47,7 @@ public class JoinTest extends AbstractFiberTest {
             public FrameCallResult execute(Void input) {
                 return Fiber.sleep(1000, this::justReturn);
             }
+
             @Override
             protected FrameCallResult handle(Throwable ex) {
                 return Fiber.frameReturn();
@@ -50,16 +60,20 @@ public class JoinTest extends AbstractFiberTest {
                 f.interrupt();
                 if (joinType == 1) {
                     return f.join(this::resume);
-                } else {
+                } else if (joinType == 2) {
                     return f.join(1000, this::resume2);
+                } else {
+                    FiberFuture<Void> joinFuture = f.join();
+                    return joinFuture.await(this::resume);
                 }
-
             }
+
             private FrameCallResult resume(Void unused) {
                 Assertions.assertTrue(f.finished);
                 future.complete(null);
                 return Fiber.frameReturn();
             }
+
             private FrameCallResult resume2(Boolean ok) {
                 Assertions.assertTrue(ok);
                 Assertions.assertTrue(f.finished);
@@ -67,6 +81,6 @@ public class JoinTest extends AbstractFiberTest {
                 return Fiber.frameReturn();
             }
         });
-        future.get(1 , TimeUnit.SECONDS);
+        future.get(1, TimeUnit.SECONDS);
     }
 }

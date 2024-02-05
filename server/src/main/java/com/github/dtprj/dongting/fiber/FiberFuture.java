@@ -39,20 +39,15 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     @Override
-    protected boolean shouldWait(Fiber currentFiber) {
-        return !done;
-    }
-
-    @Override
     protected boolean throwWhenTimeout() {
         return true;
     }
 
     @Override
-    protected void prepare(Fiber currentFiber, FiberFrame<?> currentFrame) {
+    protected void prepare(Fiber currentFiber, boolean timeout) {
         if (execEx != null) {
             currentFiber.inputEx = execEx;
-            currentFrame.resumePoint = null;
+            currentFiber.stackTop.resumePoint = null;
         } else {
             currentFiber.inputObj = execResult;
         }
@@ -139,20 +134,33 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     public FrameCallResult await(FrameCall<T> resumePoint) {
-        return Dispatcher.awaitOn(this, -1, resumePoint, "waitOnFuture");
+        return await("waitOnFuture", resumePoint);
     }
 
     public FrameCallResult await(String reason, FrameCall<T> resumePoint) {
+        if (done) {
+            if (execEx == null) {
+                return Fiber.resume(execResult, resumePoint);
+            } else {
+                return Fiber.resumeEx(execEx);
+            }
+        }
         return Dispatcher.awaitOn(this, -1, resumePoint, reason);
     }
 
     public FrameCallResult await(long millis, FrameCall<T> resumePoint) {
-        DtUtil.checkPositive(millis, "millis");
-        return Dispatcher.awaitOn(this, millis, resumePoint, "timeWaitOnFuture");
+        return await(millis, "timeWaitOnFuture", resumePoint);
     }
 
     public FrameCallResult await(long millis, String reason, FrameCall<T> resumePoint) {
         DtUtil.checkPositive(millis, "millis");
+        if (done) {
+            if (execEx == null) {
+                return Fiber.resume(execResult, resumePoint);
+            } else {
+                return Fiber.resumeEx(execEx);
+            }
+        }
         return Dispatcher.awaitOn(this, millis, resumePoint, reason);
     }
 
