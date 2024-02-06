@@ -418,16 +418,17 @@ public class Dispatcher extends AbstractLifeCircle {
 
     static Fiber getCurrentFiberAndCheck(FiberGroup expectGroup) {
         DispatcherThread dispatcherThread = DispatcherThread.currentDispatcherThread();
-        if (expectGroup != null && dispatcherThread.currentGroup != expectGroup) {
-            throw new FiberException("current fiber group not match");
-        }
-        Fiber fiber = dispatcherThread.currentGroup.currentFiber;
+        FiberGroup dispatcherGroup = dispatcherThread.currentGroup;
+        Fiber fiber = dispatcherGroup.currentFiber;
         if (fiber == null) {
-            throwFatalError(dispatcherThread.currentGroup, "usage fatal error: current fiber is null");
+            throwFatalError(dispatcherGroup, "usage fatal error: current fiber is null");
+        }
+        if (expectGroup != null && dispatcherGroup != expectGroup) {
+            throw new FiberException("current fiber group not match");
         }
         //noinspection DataFlowIssue
         if (!fiber.ready) {
-            throwFatalError(dispatcherThread.currentGroup, "usage fatal error: current fiber not ready state");
+            throwFatalError(dispatcherGroup, "usage fatal error: current fiber not ready state");
         }
         return fiber;
     }
