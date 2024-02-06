@@ -19,59 +19,85 @@ import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author huangli
  */
 public class LockTest extends AbstractFiberTest {
+
     @Test
-    public void testTryLock() throws Exception {
+    public void testTryLock1() throws Exception {
+        FiberLock lock1 = fiberGroup.newLock();
+        FiberLock lock2 = fiberGroup.newLock();
+        testTryLock(new Lock[]{lock1, lock2}, new boolean[]{true, true});
+    }
+
+    @Test
+    public void testTryLock2() throws Exception {
         FiberLock lock = fiberGroup.newLock();
-        AtomicInteger lockCount = new AtomicInteger();
-        fiberGroup.fireFiber("f1", new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                if (lock.tryLock()) {
-                    lockCount.incrementAndGet();
+        testTryLock(new Lock[]{lock, lock}, new boolean[]{true, false});
+    }
+
+    @Test
+    public void testTryLock3() throws Exception {
+        FiberLock lock = fiberGroup.newLock();
+        FiberReadLock readLock = lock.readLock();
+        testTryLock(new Lock[]{lock, readLock}, new boolean[]{true, false});
+    }
+
+    @Test
+    public void testTryLock4() throws Exception {
+        FiberLock lock = fiberGroup.newLock();
+        FiberReadLock readLock = lock.readLock();
+        testTryLock(new Lock[]{readLock, lock}, new boolean[]{true, false});
+    }
+
+    @Test
+    public void testTryLock5() throws Exception {
+        FiberLock lock = fiberGroup.newLock();
+        FiberReadLock readLock = lock.readLock();
+        testTryLock(new Lock[]{readLock, readLock, lock}, new boolean[]{true, true, false});
+    }
+
+    private void testTryLock(Lock[] locks, boolean[] expectResults) throws Exception {
+        Boolean[] locked = new Boolean[locks.length];
+        for (int i = 0; i < locks.length; i++) {
+            int index = i;
+            fiberGroup.fireFiber("f" + i, new FiberFrame<>() {
+                @Override
+                public FrameCallResult execute(Void input) {
+                    if (locks[index].tryLock()) {
+                        // test re-entry
+                        locked[index] = locks[index].tryLock();
+                    } else {
+                        locked[index] = false;
+                    }
+                    return Fiber.frameReturn();
                 }
-                return Fiber.frameReturn();
-            }
-        });
-        fiberGroup.fireFiber("f2", new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                if (lock.tryLock()) {
-                    lockCount.incrementAndGet();
-                }
-                return Fiber.frameReturn();
-            }
-        });
+            });
+        }
         super.shutdownDispatcher();
-        Assertions.assertEquals(1, lockCount.get());
+        for (int i = 0; i < expectResults.length; i++) {
+            Assertions.assertEquals(expectResults[i], locked[i]);
+        }
     }
 
     private static class TestLockFrame extends FiberFrame<Void> {
-        private final FiberLock lock;
-        private final AtomicInteger lockCount;
-        private final FiberFuture<Void> future;
-        private final CountDownLatch beforeLockLatch;
+        private final Lock lock;
+        private volatile int lockCount;
         private final int lockType;
+        private FiberFuture<Void> future;
+        private Fiber ownerFiber;
 
-        public TestLockFrame(FiberLock lock, AtomicInteger lockCount, FiberFuture<Void> future,
-                             CountDownLatch beforeLockLatch, int lockType) {
+        public TestLockFrame(Lock lock, int lockType) {
             this.lock = lock;
-            this.lockCount = lockCount;
-            this.future = future;
-            this.beforeLockLatch = beforeLockLatch;
             this.lockType = lockType;
         }
 
         @Override
         public FrameCallResult execute(Void input) {
-            beforeLockLatch.countDown();
             if (lockType == 1) {
                 return lock.lock(v -> resume(true));
             } else {
@@ -80,44 +106,137 @@ public class LockTest extends AbstractFiberTest {
         }
 
         private FrameCallResult resume(Boolean locked) {
-            if (locked) {
-                lockCount.incrementAndGet();
-                Assertions.assertTrue(lock.isHeldByCurrentFiber());
+            Assertions.assertTrue(locked);
+            if (lock instanceof FiberLock) {
+                FiberLock l = (FiberLock) lock;
+                Assertions.assertTrue(l.isHeldByCurrentFiber());
             }
+            lockCount++;
+            if (lockCount == 1) {
+                // test re-entry
+                return Fiber.resume(null, this);
+            }
+            future = getFiberGroup().newFuture();
+            ownerFiber = getFiber();
             return future.await(this::resume2);
         }
 
         private FrameCallResult resume2(Void unused) {
             lock.unlock();
+            lock.unlock();
             return Fiber.frameReturn();
+        }
+
+        // not call in fiber group thread
+        public void signalReleaseLockAndJoin() {
+            CompletableFuture<Void> f = new CompletableFuture<>();
+            getFiberGroup().fireFiber("signal-release", new FiberFrame<>() {
+                @Override
+                public FrameCallResult execute(Void input) {
+                    future.complete(null);
+                    return ownerFiber.join(this:: afterJoin);
+                }
+                private FrameCallResult afterJoin(Void unused) {
+                    f.complete(null);
+                    return Fiber.frameReturn();
+                }
+            });
+            f.join();
         }
     }
 
-    private void testLockImpl(int lockType) throws Exception {
+    @Test
+    public void testLock1() {
         FiberLock lock = fiberGroup.newLock();
-        AtomicInteger lockCount = new AtomicInteger();
-        CountDownLatch beforeLockLatch = new CountDownLatch(2);
-        FiberFuture<Void> future = fiberGroup.newFuture();
-        fiberGroup.fireFiber("f1", new TestLockFrame(lock, lockCount, future, beforeLockLatch, lockType));
-        fiberGroup.fireFiber("f2", new TestLockFrame(lock, lockCount, future, beforeLockLatch, lockType));
-        Assertions.assertTrue(beforeLockLatch.await(1, TimeUnit.SECONDS));
-        fiberGroup.fireFiber("f3", new FiberFrame<>() {
+        for (int lockType = 1; lockType <= 2; lockType++) {
+            TestLockFrame f1 = new TestLockFrame(lock, lockType);
+            TestLockFrame f2 = new TestLockFrame(lock, lockType);
+            fiberGroup.fireFiber("f1", f1);
+            fiberGroup.fireFiber("f2", f2);
+            TestUtil.waitUtil(() -> f1.lockCount == 2);
+            Assertions.assertEquals(0, f2.lockCount);
+            f1.signalReleaseLockAndJoin();
+            TestUtil.waitUtil(() -> f2.lockCount == 2);
+            f2.signalReleaseLockAndJoin();
+        }
+    }
+
+    @Test
+    public void testLock2() {
+        FiberLock lock = fiberGroup.newLock();
+        FiberReadLock readLock = lock.readLock();
+        for (int lockType = 1; lockType <= 2; lockType++) {
+            TestLockFrame f1 = new TestLockFrame(lock, lockType);
+            TestLockFrame f2 = new TestLockFrame(readLock, lockType);
+            fiberGroup.fireFiber("f1", f1);
+            fiberGroup.fireFiber("f2", f2);
+            TestUtil.waitUtil(() -> f1.lockCount == 2);
+            Assertions.assertEquals(0, f2.lockCount);
+            f1.signalReleaseLockAndJoin();
+            TestUtil.waitUtil(() -> f2.lockCount == 2);
+            f2.signalReleaseLockAndJoin();
+        }
+    }
+
+    @Test
+    public void testLock3() {
+        FiberLock lock = fiberGroup.newLock();
+        FiberReadLock readLock = lock.readLock();
+        for (int lockType = 1; lockType <= 2; lockType++) {
+            TestLockFrame f1 = new TestLockFrame(readLock, lockType);
+            TestLockFrame f2 = new TestLockFrame(lock, lockType);
+            fiberGroup.fireFiber("f1", f1);
+            fiberGroup.fireFiber("f2", f2);
+            TestUtil.waitUtil(() -> f1.lockCount == 2);
+            Assertions.assertEquals(0, f2.lockCount);
+            f1.signalReleaseLockAndJoin();
+            TestUtil.waitUtil(() -> f2.lockCount == 2);
+            f2.signalReleaseLockAndJoin();
+        }
+    }
+
+    @Test
+    public void testLock4() {
+        FiberLock lock = fiberGroup.newLock();
+        FiberReadLock readLock = lock.readLock();
+        for (int lockType = 1; lockType <= 2; lockType++) {
+            TestLockFrame f1 = new TestLockFrame(readLock, lockType);
+            TestLockFrame f2 = new TestLockFrame(readLock, lockType);
+            TestLockFrame f3 = new TestLockFrame(lock, lockType);
+            fiberGroup.fireFiber("f1", f1);
+            fiberGroup.fireFiber("f2", f2);
+            fiberGroup.fireFiber("f3", f3);
+            TestUtil.waitUtil(() -> f1.lockCount == 2);
+            TestUtil.waitUtil(() -> f2.lockCount == 2);
+            Assertions.assertEquals(0, f3.lockCount);
+            f1.signalReleaseLockAndJoin();
+            f2.signalReleaseLockAndJoin();
+            TestUtil.waitUtil(() -> f3.lockCount == 2);
+            f3.signalReleaseLockAndJoin();
+        }
+    }
+
+    @Test
+    public void testTimeTryLockFail() {
+        FiberLock lock = fiberGroup.newLock();
+        fiberGroup.fireFiber("f1", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                future.complete(null);
+                lock.tryLock();
                 return Fiber.frameReturn();
             }
         });
-        TestUtil.waitUtil(() -> lockCount.get() == 2);
-    }
-
-    @Test
-    public void testLock1() throws Exception {
-        testLockImpl(1);
-    }
-
-    @Test
-    public void testLock2() throws Exception {
-        testLockImpl(2);
+        AtomicReference<Boolean> locked = new AtomicReference<>();
+        fiberGroup.fireFiber("f2" , new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                return lock.tryLock(1, this::resume);
+            }
+            private FrameCallResult resume(Boolean result) {
+                locked.set(result);
+                return Fiber.frameReturn();
+            }
+        });
+        TestUtil.waitUtil(() -> locked.get() != null && locked.get() == false);
     }
 }
