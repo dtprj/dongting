@@ -182,10 +182,6 @@ public class Dispatcher extends AbstractLifeCircle {
             }
             if (f.source != null) {
                 f.source.removeWaiter(f);
-                if (f.source.throwWhenTimeout()) {
-                    f.inputEx = new FiberTimeoutException("wait " + f.source + " timeout:" + f.scheduleTimeoutMillis + "ms");
-                    f.stackTop.resumePoint = null;
-                }
                 f.source.prepare(f, true);
                 f.source = null;
             }

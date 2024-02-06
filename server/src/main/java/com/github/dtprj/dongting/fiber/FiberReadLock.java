@@ -35,11 +35,6 @@ public class FiberReadLock extends Lock {
     }
 
     @Override
-    protected boolean throwWhenTimeout() {
-        return false;
-    }
-
-    @Override
     protected void prepare(Fiber fiber, boolean timeout) {
         if (fiber.scheduleTimeoutMillis > 0) {
             fiber.inputObj = timeout ? Boolean.FALSE : Boolean.TRUE;

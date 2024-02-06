@@ -27,8 +27,6 @@ abstract class WaitSource {
         this.fiberGroup = group;
     }
 
-    protected abstract boolean throwWhenTimeout();
-
     protected void prepare(Fiber waitFiber, boolean timeout){
     }
 

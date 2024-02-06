@@ -34,11 +34,6 @@ public class FiberCondition extends WaitSource {
         return "Condition:" + name + "@" + hashCode();
     }
 
-    @Override
-    protected boolean throwWhenTimeout() {
-        return false;
-    }
-
     public void signal() {
         Dispatcher.getCurrentFiberAndCheck(fiberGroup);
         signal0(true);

@@ -39,17 +39,18 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     @Override
-    protected boolean throwWhenTimeout() {
-        return true;
-    }
-
-    @Override
     protected void prepare(Fiber currentFiber, boolean timeout) {
-        if (execEx != null) {
-            currentFiber.inputEx = execEx;
+        if (timeout) {
+            currentFiber.inputEx = new FiberTimeoutException("wait "
+                    + currentFiber.source + " timeout:" + currentFiber.scheduleTimeoutMillis + "ms");
             currentFiber.stackTop.resumePoint = null;
         } else {
-            currentFiber.inputObj = execResult;
+            if (execEx != null) {
+                currentFiber.inputEx = execEx;
+                currentFiber.stackTop.resumePoint = null;
+            } else {
+                currentFiber.inputObj = execResult;
+            }
         }
     }
 

@@ -147,11 +147,6 @@ public class Fiber extends WaitSource {
     }
 
     @Override
-    protected boolean throwWhenTimeout() {
-        return false;
-    }
-
-    @Override
     protected void prepare(Fiber waitFiber, boolean timeout) {
         if (waitFiber.scheduleTimeoutMillis > 0) {
             waitFiber.inputObj = timeout ? Boolean.FALSE : Boolean.TRUE;
