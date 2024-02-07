@@ -184,7 +184,7 @@ class LogFileQueue extends FileQueue {
                         logFile.getFile().getName(), result, timestampBound, nextFile.firstTimestamp, boundIndex, nextFile.firstIndex);
             }
             if (result) {
-                if (logFile.deleteTimestamp == 0) {
+                if (!logFile.shouldDelete()) {
                     logFile.deleteTimestamp = deleteTimestamp;
                 } else {
                     logFile.deleteTimestamp = Math.min(deleteTimestamp, logFile.deleteTimestamp);
@@ -234,8 +234,8 @@ class LogFileQueue extends FileQueue {
 
     public FiberFrame<LogHeader> loadHeader(long pos) {
         LogFile f = getLogFile(pos);
-        if (f.shouldDelete(ts)) {
-            throw new RaftException("file mark deleted: " + f.getFile());
+        if (f.isDeleted()) {
+            throw new RaftException("file deleted: " + f.getFile());
         }
         ByteBuffer buf = directPool.borrow(LogHeader.ITEM_HEADER_SIZE);
         return new FiberFrame<>() {

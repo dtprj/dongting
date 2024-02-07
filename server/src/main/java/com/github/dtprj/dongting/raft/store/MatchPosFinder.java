@@ -89,7 +89,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
         while (left <= right) {
             int mid = (left + right + 1) >>> 1;
             LogFile logFile = queue.get(mid);
-            if (logFile.deleteTimestamp > 0) {
+            if (logFile.shouldDelete()) {
                 left = mid + 1;
                 continue;
             }

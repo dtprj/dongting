@@ -256,14 +256,14 @@ public class DefaultRaftLog implements RaftLog {
                 }
                 long firstIndexOfNextFile = idxFiles.posToIndex(logFile.endPos);
                 return firstIndexOfNextFile < logFiles.getFirstIndex()
-                        && firstIndexOfNextFile < idxFiles.persistedIndex;
+                        && firstIndexOfNextFile < idxFiles.getNextPersistIndex() - 1;
             });
             // loop
             return Fiber.call(f, this);
         }
 
         @Override
-        protected FrameCallResult handle(Throwable ex) throws Throwable {
+        protected FrameCallResult handle(Throwable ex) {
             throw Fiber.fatal(ex);
         }
     }

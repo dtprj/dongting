@@ -59,7 +59,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private final RaftStatusImpl raftStatus;
 
     private long nextPersistIndex;
-    long persistedIndex;
     private long nextIndex;
     private long firstIndex;
 
@@ -258,13 +257,15 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             }
 
             lastFlushNanos = ts.getNanoTime();
-
             return Fiber.call(ensureWritePosReady(indexToPos(nextPersistIndex)), this::afterPosReady);
         }
 
         private FrameCallResult afterPosReady(Void v) {
+            if (!shouldFlush()) {
+                return needFlushCondition.await(this);
+            }
             LogFile logFile = getLogFile(indexToPos(nextPersistIndex));
-            if (logFile.shouldDelete(ts)) {
+            if (logFile.shouldDelete()) {
                 BugLog.getLog().error("idx file deleted, flush fail: {}", logFile.getFile().getPath());
                 throw Fiber.fatal(new RaftException("idx file deleted, flush fail"));
             }
@@ -312,7 +313,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
         private FrameCallResult afterWrite(long nextPersistIndexAfterWrite) {
             nextPersistIndex = nextPersistIndexAfterWrite;
-            persistedIndex = nextPersistIndex - 1;
+            long persistedIndex = nextPersistIndex - 1;
             removeHead();
 
             statusManager.getProperties().setProperty(KEY_PERSIST_IDX_INDEX, String.valueOf(persistedIndex));
@@ -378,8 +379,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         long pos = indexToPos(itemIndex);
         ByteBuffer buffer = ByteBuffer.allocate(8);
         LogFile lf = getLogFile(pos);
-        if (lf.shouldDelete(ts)) {
-            throw new RaftException("file mark deleted: " + lf.getFile().getPath());
+        if (lf.isDeleted()) {
+            throw new RaftException("file deleted: " + lf.getFile().getPath());
         }
         FiberFrame<Long> loadFrame = new FiberFrame<>() {
             @Override
