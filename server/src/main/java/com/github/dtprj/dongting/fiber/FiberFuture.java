@@ -283,7 +283,7 @@ public class FiberFuture<T> extends WaitSource {
                 return Fiber.frameReturn();
             }
         });
-        g.start(f);
+        g.start(f, false);
         return newFuture;
      }
 

@@ -80,7 +80,7 @@ public class FiberGroup {
         boolean b = dispatcher.doInDispatcherThread(new FiberQueueTask() {
             @Override
             protected void run() {
-                start(fiber);
+                start(fiber, false);
             }
         });
         if (!b) {
@@ -144,7 +144,7 @@ public class FiberGroup {
         }
     }
 
-    void start(Fiber f) {
+    void start(Fiber f, boolean addFirst) {
         if (f.fiberGroup.finished) {
             log.warn("group finished, ignore fiber start: {}", f.getFiberName());
             return;

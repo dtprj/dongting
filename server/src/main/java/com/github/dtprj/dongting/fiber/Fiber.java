@@ -201,7 +201,7 @@ public class Fiber extends WaitSource {
                 return toStr;
             }
         };
-        fiberGroup.start(f);
+        fiberGroup.start(f, false);
         return fu;
     }
 
@@ -218,7 +218,12 @@ public class Fiber extends WaitSource {
 
     public void start() {
         fiberGroup.checkGroup();
-        fiberGroup.start(Fiber.this);
+        fiberGroup.start(Fiber.this, false);
+    }
+
+    public void startNow() {
+        fiberGroup.checkGroup();
+        fiberGroup.start(Fiber.this, true);
     }
 
     public boolean isStarted() {

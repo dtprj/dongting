@@ -202,10 +202,10 @@ public class Dispatcher extends AbstractLifeCircle {
                     readyQueue.addLast(f);
                 }
             }
-            int size = readyQueue.size();
-            for (int i = 0; i < size; i++) {
-                Fiber fiber = readyQueue.removeFirst();
+            Fiber fiber = readyQueue.removeFirst();
+            while (fiber != null) {
                 execFiber(g, fiber);
+                fiber = readyQueue.removeFirst();
             }
 
             g.updateFinishStatus();
