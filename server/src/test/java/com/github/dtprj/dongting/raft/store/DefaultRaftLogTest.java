@@ -115,8 +115,15 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 raftStatus.getDataArrivedCondition().signalAll();
-                FiberFrame<Void> f = raftLog.logFiles.logAppender.waitWriteFinishOrShouldStopOrClose();
-                return Fiber.call(f, this::justReturn);
+                return waitWriteFinish(null);
+            }
+
+            private FrameCallResult waitWriteFinish(Void v) {
+                if (raftLog.logFiles.logAppender.writeNotFinish()) {
+                    return raftStatus.getLogSyncFinishCondition().await(1000, this::waitWriteFinish);
+                } else {
+                    return Fiber.frameReturn();
+                }
             }
         });
     }

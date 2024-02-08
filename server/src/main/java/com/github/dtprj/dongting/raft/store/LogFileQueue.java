@@ -151,7 +151,6 @@ class LogFileQueue extends FileQueue {
 
     private void initLogAppender(long nextPersistIndex, long nextPersistPos) {
         logAppender.setNext(nextPersistIndex, nextPersistPos);
-        logAppender.setDataArrivedCondition(raftStatus.getDataArrivedCondition());
         logAppender.startFiber();
     }
 

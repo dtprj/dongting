@@ -71,14 +71,10 @@ class LogAppender {
     private final Fiber appendFiber;
     private final AppendFiberFrame appendFiberFrame = new AppendFiberFrame();
 
-    private FiberCondition dataArrivedCondition;
-
     private final Fiber fsyncFiber;
     private final FiberCondition needFsyncCondition;
 
     private final Supplier<Boolean> writeStopIndicator;
-
-    private final FiberCondition noPendingCondition;
 
     private final RaftStatusImpl raftStatus;
 
@@ -94,7 +90,6 @@ class LogAppender {
         this.fiberGroup = groupConfig.getFiberGroup();
         this.appendFiber = new Fiber("append-" + groupConfig.getGroupId(), fiberGroup, appendFiberFrame);
         this.writeStopIndicator = logFileQueue::isClosed;
-        this.noPendingCondition = fiberGroup.newCondition("NoPending-" + groupConfig.getGroupId());
         this.fsyncFiber = new Fiber("fsync-" + groupConfig.getGroupId(), fiberGroup, new SyncLoopFrame());
         this.needFsyncCondition = fiberGroup.newCondition("NeedFsync-" + groupConfig.getGroupId());
     }
@@ -107,7 +102,7 @@ class LogAppender {
     public FiberFuture<Void> close() {
         appendFiber.interrupt();
         needFsyncCondition.signal();
-        noPendingCondition.signalAll();
+        raftStatus.getLogSyncFinishCondition().signalAll();
         FiberFuture<Void> f1, f2;
         if (appendFiber.isStarted()) {
             f1 = appendFiber.join();
@@ -159,7 +154,7 @@ class LogAppender {
                 }
                 return Fiber.call(logFileQueue.ensureWritePosReady(nextPersistPos), this::afterPosReady);
             } else {
-                return dataArrivedCondition.await(this);
+                return raftStatus.getDataArrivedCondition().await(this);
             }
         }
 
@@ -482,9 +477,6 @@ class LogAppender {
                 raftStatus.setLastSyncLogIndex(head.lastIndex);
                 raftStatus.setLastSyncLogTerm(head.lastTerm);
                 raftStatus.getLogSyncFinishCondition().signalAll();
-                if (head.lastIndex >= cache.getLastIndex()) {
-                    noPendingCondition.signalAll();
-                }
             }
             return Fiber.frameReturn();
         }
@@ -515,25 +507,10 @@ class LogAppender {
         this.nextPersistPos = nextPersistPos;
     }
 
-    public void setDataArrivedCondition(FiberCondition dataArrivedCondition) {
-        this.dataArrivedCondition = dataArrivedCondition;
-    }
-
-    public FiberFrame<Void> waitWriteFinishOrShouldStopOrClose() {
-        return new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                if (isGroupShouldStopPlain() || logFileQueue.isClosed()) {
-                    return Fiber.frameReturn();
-                }
-                if (nextPersistIndex <= cache.getLastIndex() || writeTaskQueue.size() > 0
-                        || syncWriteTaskQueueHead != null) {
-                    return noPendingCondition.await(1000, this);
-                } else {
-                    return Fiber.frameReturn();
-                }
-            }
-        };
+    public boolean writeNotFinish() {
+        return nextPersistIndex <= cache.getLastIndex()
+                || writeTaskQueue.size() > 0
+                || syncWriteTaskQueueHead != null;
     }
 
 }
