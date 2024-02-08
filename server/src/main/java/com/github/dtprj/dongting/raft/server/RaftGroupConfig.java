@@ -25,8 +25,6 @@ public class RaftGroupConfig {
     private String dataDir = "./data";
     private String statusFile = "raft.status";
     private long[] ioRetryInterval = new long[]{100, 1000, 3000, 5000, 10000, 20000};
-    private long ioTimeout = 15_000;
-    private long allocateTimeout = 120_000;
 
     public RaftGroupConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         this.groupId = groupId;
@@ -70,19 +68,4 @@ public class RaftGroupConfig {
         this.ioRetryInterval = ioRetryInterval;
     }
 
-    public long getIoTimeout() {
-        return ioTimeout;
-    }
-
-    public void setIoTimeout(long ioTimeout) {
-        this.ioTimeout = ioTimeout;
-    }
-
-    public long getAllocateTimeout() {
-        return allocateTimeout;
-    }
-
-    public void setAllocateTimeout(long allocateTimeout) {
-        this.allocateTimeout = allocateTimeout;
-    }
 }

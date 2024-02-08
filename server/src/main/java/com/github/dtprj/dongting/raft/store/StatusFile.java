@@ -74,7 +74,7 @@ public class StatusFile implements AutoCloseable {
         return properties;
     }
 
-    public FiberFrame<Void> init(long ioTimeout) {
+    public FiberFrame<Void> init() {
         return new FiberFrame<>() {
             // don't use data since the init method may be timeout
             private final byte[] initData = new byte[FILE_LENGTH];
@@ -98,7 +98,7 @@ public class StatusFile implements AutoCloseable {
                 ByteBuffer buf = ByteBuffer.wrap(initData);
                 AsyncIoTask task = new AsyncIoTask(fiberGroup, dtFile);
                 FiberFuture<Void> f = task.read(buf, 0);
-                return f.await(ioTimeout, this::resumeAfterRead);
+                return f.await(this::resumeAfterRead);
             }
 
             private FrameCallResult resumeAfterRead(Void input) throws Exception {

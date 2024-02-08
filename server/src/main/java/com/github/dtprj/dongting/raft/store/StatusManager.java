@@ -71,7 +71,7 @@ public class StatusManager {
     }
 
     public FiberFrame<Void> initStatusFile() {
-        FiberFrame<Void> subFrame = statusFile.init(groupConfig.getIoTimeout());
+        FiberFrame<Void> subFrame = statusFile.init();
         return new PostFiberFrame<>(subFrame) {
             @Override
             protected FrameCallResult postProcess(Void result) {
@@ -124,7 +124,7 @@ public class StatusManager {
                     version = requestUpdateVersion;
                     sync = lastNeedSyncVersion > finishedUpdateVersion;
                     FiberFuture<Void> f = statusFile.update(sync);
-                    return f.await(groupConfig.getIoTimeout(), this::justReturn);
+                    return f.await(this::justReturn);
                 }
             };
             RetryFrame<Void> retryFrame = new RetryFrame<>(updateFrame,

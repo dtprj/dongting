@@ -46,7 +46,7 @@ public class StatusFileTest extends BaseFiberTest {
         fiberGroup.fireFiber("f", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                return Fiber.call(statusFile.init(1000), this::afterInit);
+                return Fiber.call(statusFile.init(), this::afterInit);
             }
 
             private FrameCallResult afterInit(Void unused) {
@@ -82,7 +82,7 @@ public class StatusFileTest extends BaseFiberTest {
             fiberGroup.fireFiber("f", new FiberFrame<>() {
                 @Override
                 public FrameCallResult execute(Void input) {
-                    return Fiber.call(statusFile.init(1000), this::afterInit);
+                    return Fiber.call(statusFile.init(), this::afterInit);
                 }
 
                 private FrameCallResult afterInit(Void unused) {
@@ -111,7 +111,7 @@ public class StatusFileTest extends BaseFiberTest {
             fiberGroup.fireFiber("f", new FiberFrame<>() {
                 @Override
                 public FrameCallResult execute(Void input) {
-                    return Fiber.call(statusFile.init(1000), this::afterInit);
+                    return Fiber.call(statusFile.init(), this::afterInit);
                 }
                 private FrameCallResult afterInit(Void unused) {
                     assertEquals("100", statusFile.getProperties().getProperty("1"));
@@ -159,7 +159,7 @@ public class StatusFileTest extends BaseFiberTest {
         fiberGroup.fireFiber("f", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                return Fiber.call(statusFile.init(1000), this::justReturn);
+                return Fiber.call(statusFile.init(), this::justReturn);
             }
             @Override
             protected FrameCallResult handle(Throwable ex) {
@@ -187,7 +187,7 @@ public class StatusFileTest extends BaseFiberTest {
         fiberGroup.fireFiber("f", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                return Fiber.call(statusFile.init(1000), this::justReturn);
+                return Fiber.call(statusFile.init(), this::justReturn);
             }
             @Override
             protected FrameCallResult handle(Throwable ex) {

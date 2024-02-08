@@ -279,8 +279,6 @@ public class RaftServer extends AbstractLifeCircle {
         rgcEx.setDataDir(rgc.getDataDir());
         rgcEx.setStatusFile(rgc.getStatusFile());
         rgcEx.setIoRetryInterval(rgc.getIoRetryInterval());
-        rgcEx.setIoTimeout(rgc.getIoTimeout());
-        rgcEx.setAllocateTimeout(rgc.getAllocateTimeout());
 
         rgcEx.setTs(raftStatus.getTs());
         rgcEx.setHeapPool(createHeapPoolFactory(fiberGroup));
