@@ -91,7 +91,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         return write(ioBuffer, filePos, false, false);
     }
 
-    public FiberFuture<Void> writeAndFlush(ByteBuffer ioBuffer, long filePos, boolean flushMeta) {
+    public FiberFuture<Void> writeAndSync(ByteBuffer ioBuffer, long filePos, boolean flushMeta) {
         return write(ioBuffer, filePos, true, flushMeta);
     }
 
