@@ -61,6 +61,7 @@ class LogAppender {
     private final long fileLenMask;
     private final FiberGroup fiberGroup;
 
+    // update before write operation issued
     long nextPersistIndex = -1;
     long nextPersistPos = -1;
 
@@ -74,12 +75,6 @@ class LogAppender {
 
     private final Fiber fsyncFiber;
     private final FiberCondition needFsyncCondition;
-
-    // 4 temp status fields, should reset in writeData()
-    private final ArrayList<LogItem> items = new ArrayList<>(32);
-    private LogItem lastItem;
-    private long writeStartPosInFile;
-    private int bytesToWrite;
 
     private final Supplier<Boolean> writeStopIndicator;
 
@@ -129,6 +124,20 @@ class LogAppender {
 
     private class AppendFiberFrame extends FiberFrame<Void> {
 
+        // 4 temp status fields, should reset in writeData()
+        private final ArrayList<LogItem> items = new ArrayList<>(32);
+        private LogItem lastItem;
+        private long writeStartPosInFile;
+        private int bytesToWrite;
+
+        @Override
+        protected FrameCallResult handle(Throwable ex) {
+            if (ex instanceof FiberInterruptException) {
+                return Fiber.frameReturn();
+            }
+            throw Fiber.fatal(ex);
+        }
+
         @Override
         public FrameCallResult execute(Void input) {
             if (logFileQueue.isClosed()) {
@@ -161,12 +170,190 @@ class LogAppender {
             return writeData();
         }
 
-        @Override
-        protected FrameCallResult handle(Throwable ex) {
-            if (ex instanceof FiberInterruptException) {
-                return Fiber.frameReturn();
+        private FrameCallResult writeData() {
+            // reset 4 status fields
+            writeStartPosInFile = nextPersistPos & fileLenMask;
+            bytesToWrite = 0;
+            ArrayList<LogItem> items = this.items;
+            items.clear();
+            lastItem = null;
+
+            long calculatedItemIndex = -1;
+            LogFile file = logFileQueue.getLogFile(nextPersistPos);
+            boolean writeEndHeader = false;
+            boolean rollNextFile = false;
+            for (long lastIndex = cache.getLastIndex(), fileRestBytes = file.endPos - nextPersistPos;
+                 nextPersistIndex <= lastIndex; ) {
+                RaftTask rt = cache.get(nextPersistIndex);
+                LogItem li = rt.getItem();
+                calculatedItemIndex = initItemSize(li, calculatedItemIndex);
+                int len = LogHeader.computeTotalLen(0, li.getActualHeaderSize(),
+                        li.getActualBodySize());
+                if (len <= fileRestBytes) {
+                    items.add(li);
+                    bytesToWrite += len;
+                    fileRestBytes -= len;
+                    nextPersistIndex++;
+                    nextPersistPos += len;
+                } else {
+                    rollNextFile = true;
+                    // file rest bytes not enough
+                    if (fileRestBytes >= LogHeader.ITEM_HEADER_SIZE) {
+                        writeEndHeader = true;
+                        bytesToWrite += LogHeader.ITEM_HEADER_SIZE;
+                    }
+                    break;
+                }
             }
-            throw Fiber.fatal(ex);
+
+            ByteBuffer buffer = borrowBuffer(bytesToWrite);
+            buffer = encodeItems(items, file, buffer);
+
+            if (writeEndHeader) {
+                if (buffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
+                    buffer = doWrite(file, buffer);
+                }
+                LogHeader.writeEndHeader(crc32c, buffer);
+            }
+            if (buffer.position() > 0) {
+                doWrite(file, buffer);
+            } else {
+                if (buffer.capacity() > 0) {
+                    BugLog.getLog().error("buffer capacity > 0", buffer.capacity());
+                }
+            }
+
+            items.clear();
+            if (nextPersistPos == file.endPos) {
+                log.info("current file {} has no enough space, nextPersistPos is {}, next file start pos is {}",
+                        file.getFile().getName(), nextPersistPos, nextPersistPos);
+            } else if (rollNextFile) {
+                // prepare to write new file
+                long next = logFileQueue.nextFilePos(nextPersistPos);
+                log.info("current file {} has no enough space, nextPersistPos is {}, next file start pos is {}",
+                        file.getFile().getName(), nextPersistPos, next);
+                nextPersistPos = next;
+            }
+            // continue loop
+            return Fiber.resume(null, appendFiberFrame);
+        }
+
+        private ByteBuffer encodeItems(ArrayList<LogItem> items, LogFile file, ByteBuffer buffer) {
+            long dataPos = file.startPos + writeStartPosInFile;
+            for (int count = items.size(), i = 0; i < count; i++) {
+                LogItem li = items.get(i);
+                if (file.firstIndex == 0) {
+                    file.firstIndex = li.getIndex();
+                    file.firstTerm = li.getTerm();
+                    file.firstTimestamp = li.getTimestamp();
+                }
+                if (buffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
+                    buffer = doWrite(file, buffer);
+                }
+                int len = LogHeader.writeHeader(crc32c, buffer, li);
+                buffer = encodeBizHeader(li, buffer, file);
+                buffer = encodeBizBody(li, buffer, file);
+                idxOps.put(li.getIndex(), dataPos);
+                dataPos += len;
+                lastItem = li;
+            }
+            return buffer;
+        }
+
+        private ByteBuffer encodeBizHeader(LogItem li, ByteBuffer buffer, LogFile file) {
+            if (li.getActualHeaderSize() > 0) {
+                crc32c.reset();
+                try {
+                    while (true) {
+                        int startPos = buffer.position();
+                        boolean finish;
+                        if (li.getHeaderBuffer() != null) {
+                            finish = ByteBufferEncoder.INSTANCE.encode(encodeContext, buffer, li.getHeaderBuffer());
+                        } else {
+                            //noinspection rawtypes
+                            Encoder encoder = codecFactory.createHeaderEncoder(li.getBizType());
+                            //noinspection unchecked
+                            finish = encoder.encode(encodeContext, buffer, li.getHeader());
+                        }
+                        RaftUtil.updateCrc(crc32c, buffer, startPos, buffer.position() - startPos);
+                        if (finish) {
+                            break;
+                        } else {
+                            buffer = doWrite(file, buffer);
+                        }
+                    }
+                } finally {
+                    encodeContext.setStatus(null);
+                }
+                if (buffer.remaining() < 4) {
+                    buffer = doWrite(file, buffer);
+                }
+                buffer.putInt((int) crc32c.getValue());
+            }
+            return buffer;
+        }
+
+        private ByteBuffer encodeBizBody(LogItem li, ByteBuffer buffer, LogFile file) {
+            if (li.getActualBodySize() > 0) {
+                crc32c.reset();
+                try {
+                    while (true) {
+                        int startPos = buffer.position();
+                        boolean finish;
+                        if (li.getBodyBuffer() != null) {
+                            finish = ByteBufferEncoder.INSTANCE.encode(encodeContext, buffer, li.getBodyBuffer());
+                        } else {
+                            //noinspection rawtypes
+                            Encoder encoder = codecFactory.createBodyEncoder(li.getBizType());
+                            //noinspection unchecked
+                            finish = encoder.encode(encodeContext, buffer, li.getBody());
+                        }
+                        RaftUtil.updateCrc(crc32c, buffer, startPos, buffer.position() - startPos);
+                        if (finish) {
+                            break;
+                        } else {
+                            buffer = doWrite(file, buffer);
+                        }
+                    }
+                } finally {
+                    encodeContext.setStatus(null);
+                }
+                if (buffer.remaining() < 4) {
+                    buffer = doWrite(file, buffer);
+                }
+                buffer.putInt((int) crc32c.getValue());
+            }
+            return buffer;
+        }
+
+        private ByteBuffer doWrite(LogFile file, ByteBuffer buffer) {
+            buffer.flip();
+            int bytes = buffer.remaining();
+            long[] retry = (logFileQueue.initialized && !logFileQueue.isClosed()) ? groupConfig.getIoRetryInterval() : null;
+            WriteTask task = new WriteTask(fiberGroup, file, retry, true, writeStopIndicator);
+            if (lastItem != null) {
+                task.lastTerm = lastItem.getTerm();
+                task.lastIndex = lastItem.getIndex();
+            }
+
+            // no sync
+            task.write(buffer, writeStartPosInFile);
+
+            writeTaskQueue.addLast(task);
+
+            task.getFuture().registerCallback(new FiberFuture.FutureCallback<>() {
+                @Override
+                protected FrameCallResult onCompleted(Void unused, Throwable ex) {
+                    processWriteResult(task, ex);
+                    return Fiber.frameReturn();
+                }
+            });
+
+            writeStartPosInFile += bytes;
+            bytesToWrite -= bytes;
+            lastItem = null;
+
+            return borrowBuffer(bytesToWrite);
         }
     }
 
@@ -192,192 +379,6 @@ class LogAppender {
             size = Math.min(size, logFileQueue.maxWriteBufferSize);
             return groupConfig.getDirectPool().borrow(size);
         }
-    }
-
-    private FrameCallResult writeData() {
-        // reset 4 status fields
-        writeStartPosInFile = nextPersistPos & fileLenMask;
-        bytesToWrite = 0;
-        ArrayList<LogItem> items = this.items;
-        items.clear();
-        lastItem = null;
-
-        long calculatedItemIndex = -1;
-        LogFile file = logFileQueue.getLogFile(nextPersistPos);
-        boolean writeEndHeader = false;
-        boolean rollNextFile = false;
-        for (long lastIndex = cache.getLastIndex(), fileRestBytes = file.endPos - nextPersistPos;
-             this.nextPersistIndex <= lastIndex; ) {
-            RaftTask rt = cache.get(nextPersistIndex);
-            LogItem li = rt.getItem();
-            calculatedItemIndex = initItemSize(li, calculatedItemIndex);
-            int len = LogHeader.computeTotalLen(0, li.getActualHeaderSize(),
-                    li.getActualBodySize());
-            if (len <= fileRestBytes) {
-                items.add(li);
-                bytesToWrite += len;
-                fileRestBytes -= len;
-                nextPersistIndex++;
-                nextPersistPos += len;
-            } else {
-                rollNextFile = true;
-                // file rest bytes not enough
-                if (fileRestBytes >= LogHeader.ITEM_HEADER_SIZE) {
-                    writeEndHeader = true;
-                    bytesToWrite += LogHeader.ITEM_HEADER_SIZE;
-                }
-                break;
-            }
-        }
-
-        ByteBuffer buffer = borrowBuffer(bytesToWrite);
-        buffer = encodeItems(items, file, buffer);
-
-        if (writeEndHeader) {
-            if (buffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
-                buffer = doWrite(file, buffer);
-            }
-            LogHeader.writeEndHeader(crc32c, buffer);
-        }
-        if (buffer.position() > 0) {
-            doWrite(file, buffer);
-        } else {
-            if (buffer.capacity() > 0) {
-                BugLog.getLog().error("buffer capacity > 0", buffer.capacity());
-            }
-        }
-
-        items.clear();
-        if (nextPersistPos == file.endPos) {
-            log.info("current file {} has no enough space, nextPersistPos is {}, next file start pos is {}",
-                    file.getFile().getName(), nextPersistPos, nextPersistPos);
-        } else if (rollNextFile) {
-            // prepare to write new file
-            long next = logFileQueue.nextFilePos(nextPersistPos);
-            log.info("current file {} has no enough space, nextPersistPos is {}, next file start pos is {}",
-                    file.getFile().getName(), nextPersistPos, next);
-            nextPersistPos = next;
-        }
-        // continue loop
-        return Fiber.resume(null, appendFiberFrame);
-    }
-
-    private ByteBuffer encodeItems(ArrayList<LogItem> items, LogFile file, ByteBuffer buffer) {
-        long dataPos = file.startPos + writeStartPosInFile;
-        for (int count = items.size(), i = 0; i < count; i++) {
-            LogItem li = items.get(i);
-            if (file.firstIndex == 0) {
-                file.firstIndex = li.getIndex();
-                file.firstTerm = li.getTerm();
-                file.firstTimestamp = li.getTimestamp();
-            }
-            if (buffer.remaining() < LogHeader.ITEM_HEADER_SIZE) {
-                buffer = doWrite(file, buffer);
-            }
-            int len = LogHeader.writeHeader(crc32c, buffer, li);
-            buffer = encodeBizHeader(li, buffer, file);
-            buffer = encodeBizBody(li, buffer, file);
-            idxOps.put(li.getIndex(), dataPos);
-            dataPos += len;
-            lastItem = li;
-        }
-        return buffer;
-    }
-
-    private ByteBuffer encodeBizHeader(LogItem li, ByteBuffer buffer, LogFile file) {
-        if (li.getActualHeaderSize() > 0) {
-            crc32c.reset();
-            try {
-                while (true) {
-                    int startPos = buffer.position();
-                    boolean finish;
-                    if (li.getHeaderBuffer() != null) {
-                        finish = ByteBufferEncoder.INSTANCE.encode(encodeContext, buffer, li.getHeaderBuffer());
-                    } else {
-                        //noinspection rawtypes
-                        Encoder encoder = codecFactory.createHeaderEncoder(li.getBizType());
-                        //noinspection unchecked
-                        finish = encoder.encode(encodeContext, buffer, li.getHeader());
-                    }
-                    RaftUtil.updateCrc(crc32c, buffer, startPos, buffer.position() - startPos);
-                    if (finish) {
-                        break;
-                    } else {
-                        buffer = doWrite(file, buffer);
-                    }
-                }
-            } finally {
-                encodeContext.setStatus(null);
-            }
-            if (buffer.remaining() < 4) {
-                buffer = doWrite(file, buffer);
-            }
-            buffer.putInt((int) crc32c.getValue());
-        }
-        return buffer;
-    }
-
-    private ByteBuffer encodeBizBody(LogItem li, ByteBuffer buffer, LogFile file) {
-        if (li.getActualBodySize() > 0) {
-            crc32c.reset();
-            try {
-                while (true) {
-                    int startPos = buffer.position();
-                    boolean finish;
-                    if (li.getBodyBuffer() != null) {
-                        finish = ByteBufferEncoder.INSTANCE.encode(encodeContext, buffer, li.getBodyBuffer());
-                    } else {
-                        //noinspection rawtypes
-                        Encoder encoder = codecFactory.createBodyEncoder(li.getBizType());
-                        //noinspection unchecked
-                        finish = encoder.encode(encodeContext, buffer, li.getBody());
-                    }
-                    RaftUtil.updateCrc(crc32c, buffer, startPos, buffer.position() - startPos);
-                    if (finish) {
-                        break;
-                    } else {
-                        buffer = doWrite(file, buffer);
-                    }
-                }
-            } finally {
-                encodeContext.setStatus(null);
-            }
-            if (buffer.remaining() < 4) {
-                buffer = doWrite(file, buffer);
-            }
-            buffer.putInt((int) crc32c.getValue());
-        }
-        return buffer;
-    }
-
-    private ByteBuffer doWrite(LogFile file, ByteBuffer buffer) {
-        buffer.flip();
-        int bytes = buffer.remaining();
-        long[] retry = (logFileQueue.initialized && !logFileQueue.isClosed()) ? groupConfig.getIoRetryInterval() : null;
-        WriteTask task = new WriteTask(fiberGroup, file, retry, true, writeStopIndicator);
-        if (lastItem != null) {
-            task.lastTerm = lastItem.getTerm();
-            task.lastIndex = lastItem.getIndex();
-        }
-
-        // no sync
-        task.write(buffer, writeStartPosInFile);
-
-        writeTaskQueue.addLast(task);
-
-        task.getFuture().registerCallback(new FiberFuture.FutureCallback<>() {
-            @Override
-            protected FrameCallResult onCompleted(Void unused, Throwable ex) {
-                processWriteResult(task, ex);
-                return Fiber.frameReturn();
-            }
-        });
-
-        writeStartPosInFile += bytes;
-        bytesToWrite -= bytes;
-        lastItem = null;
-
-        return borrowBuffer(bytesToWrite);
     }
 
     private void processWriteResult(WriteTask wt, Throwable ex) {
@@ -436,7 +437,7 @@ class LogAppender {
     }
 
     private class LockThenSyncFrame extends DoInLockFrame<Void> {
-        private WriteTask task;
+        private final WriteTask task;
 
         public LockThenSyncFrame(WriteTask task) {
             // use read lock, no block read operations
