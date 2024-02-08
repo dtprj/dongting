@@ -129,7 +129,7 @@ class LogFileQueue extends FileQueue {
                     if (firstValidPos > first.startPos && firstValidPos < first.endPos && first.firstIndex == 0) {
                         // after install snapshot, the firstValidPos is too large in file, so this file has no items
                         queue.removeFirst();
-                        delete(first);
+                        return Fiber.call(delete(first), v -> this.finish());
                     }
                 }
 
