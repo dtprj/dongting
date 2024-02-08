@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.fiber.DoInLockFrame;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
@@ -56,8 +57,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         this(fiberGroup, dtFile, null, false, null);
     }
 
-    public AsyncIoTask(FiberGroup fiberGroup, DtFile dtFile,
-                       long[] retryInterval, boolean retryForever) {
+    public AsyncIoTask(FiberGroup fiberGroup, DtFile dtFile, long[] retryInterval, boolean retryForever) {
         this(fiberGroup, dtFile, retryInterval, retryForever, null);
     }
 
@@ -75,7 +75,8 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
 
     public FiberFuture<Void> read(ByteBuffer ioBuffer, long filePos) {
         if (this.ioBuffer != null) {
-            throw new RaftException("io task can't reused");
+            future.completeExceptionally(new RaftException("io task can't reused"));
+            return future;
         }
         this.ioBuffer = ioBuffer;
         this.filePos = filePos;
@@ -85,6 +86,15 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         this.flushMeta = false;
         exec(filePos);
         return future;
+    }
+
+    public FiberFrame<Void> lockRead(ByteBuffer ioBuffer, long filePos) {
+        return new DoInLockFrame<>(dtFile.getLock().readLock()) {
+            @Override
+            protected FrameCallResult afterGetLock() {
+                return read(ioBuffer, filePos).await(this::justReturn);
+            }
+        };
     }
 
     public FiberFuture<Void> write(ByteBuffer ioBuffer, long filePos) {
@@ -97,7 +107,8 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
 
     private FiberFuture<Void> write(ByteBuffer ioBuffer, long filePos, boolean sync, boolean syncMeta) {
         if (this.ioBuffer != null) {
-            throw new RaftException("io task can't reused");
+            future.completeExceptionally(new RaftException("io task can't reused"));
+            return future;
         }
         this.ioBuffer = ioBuffer;
         this.filePos = filePos;
@@ -107,6 +118,28 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         this.flushMeta = syncMeta;
         exec(filePos);
         return future;
+    }
+
+    public FiberFrame<Void> lockWrite(ByteBuffer ioBuffer, long filePos) {
+        // use read lock, so not block read operation.
+        // because we never read file block that is being written.
+        return new DoInLockFrame<>(dtFile.getLock().readLock()) {
+            @Override
+            protected FrameCallResult afterGetLock() {
+                return write(ioBuffer, filePos, false, false).await(this::justReturn);
+            }
+        };
+    }
+
+    public FiberFrame<Void> lockWriteAndSync(ByteBuffer ioBuffer, long filePos, boolean flushMeta) {
+        // use read lock, so not block read operation.
+        // because we never read file block that is being written.
+        return new DoInLockFrame<>(dtFile.getLock().readLock()) {
+            @Override
+            protected FrameCallResult afterGetLock() {
+                return write(ioBuffer, filePos, true, flushMeta).await(this::justReturn);
+            }
+        };
     }
 
     private void complete(Throwable ex) {

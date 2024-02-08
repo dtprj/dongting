@@ -307,8 +307,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             AsyncIoTask currentWriteTask = new AsyncIoTask(getFiberGroup(), logFile,
                     groupConfig.getIoRetryInterval(), true);
             long filePos = indexToPos(startIndex) & fileLenMask;
-            FiberFuture<Void> f = currentWriteTask.writeAndSync(buf, filePos, false);
-            return f.await(notUsedVoid -> afterWrite(nextPersistIndexAfterWrite));
+            FiberFrame<Void> f = currentWriteTask.lockWriteAndSync(buf, filePos, false);
+            return Fiber.call(f, notUsedVoid -> afterWrite(nextPersistIndexAfterWrite));
         }
 
         private FrameCallResult afterWrite(long nextPersistIndexAfterWrite) {
@@ -387,7 +387,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             public FrameCallResult execute(Void v) {
                 long filePos = pos & fileLenMask;
                 AsyncIoTask t = new AsyncIoTask(getFiberGroup(), lf);
-                return t.read(buffer, filePos).await(this::afterLoad);
+                return Fiber.call(t.lockRead(buffer, filePos), this::afterLoad);
             }
 
             private FrameCallResult afterLoad(Void unused) {
