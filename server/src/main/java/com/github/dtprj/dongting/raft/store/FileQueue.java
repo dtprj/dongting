@@ -66,7 +66,7 @@ abstract class FileQueue {
     protected long queueEndPosition;
 
     private FiberFuture<Void> allocateFuture;
-    private final FiberLock fileOpsLock;
+    private final FiberLock allocateLock;
 
     protected boolean initialized;
 
@@ -81,7 +81,7 @@ abstract class FileQueue {
         this.fileLenShiftBits = BitUtil.zeroCountOfBinary(fileSize);
 
         FiberGroup g = groupConfig.getFiberGroup();
-        this.fileOpsLock = g.newLock();
+        this.allocateLock = g.newLock();
     }
 
     protected ExecutorService getChannelExecutor() {
@@ -216,7 +216,7 @@ abstract class FileQueue {
         private LogFile logFile;
 
         public AllocateFrame() {
-            super(fileOpsLock);
+            super(allocateLock);
         }
 
         @Override
@@ -272,17 +272,16 @@ abstract class FileQueue {
         }
     }
 
-    private class DeleteFrame extends DoInLockFrame<Void> {
+    private class DeleteFrame extends FiberFrame<Void> {
 
         private final LogFile logFile;
 
-        public DeleteFrame(FiberLock lock, LogFile logFile) {
-            super(lock);
+        public DeleteFrame(LogFile logFile) {
             this.logFile = logFile;
         }
 
         @Override
-        public FrameCallResult afterGetLock() {
+        public FrameCallResult execute(Void input) {
             FiberFuture<Void> deleteFuture = groupConfig.getFiberGroup().newFuture();
             try {
                 ioExecutor.execute(() -> {
@@ -321,16 +320,12 @@ abstract class FileQueue {
     }
 
     protected FiberFrame<Void> delete(LogFile logFile) {
-        return new FiberFrame<>() {
+        return new DoInLockFrame<>(logFile.getLock()) {
             @Override
-            public FrameCallResult execute(Void input) {
-                return logFile.awaitNotUse(this::afterNotUse);
-            }
-
-            private FrameCallResult afterNotUse(Void unused) {
+            protected FrameCallResult afterGetLock() {
                 // mark deleted first, so that other fibers will not use this file
                 logFile.deleted = true;
-                return Fiber.call(new DeleteFrame(fileOpsLock, logFile), this::justReturn);
+                return Fiber.call(new DeleteFrame(logFile), this::justReturn);
             }
         };
     }

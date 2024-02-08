@@ -15,11 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.fiber.Fiber;
-import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberGroup;
-import com.github.dtprj.dongting.fiber.FrameCall;
-import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.fiber.FiberLock;
 
 import java.io.File;
 import java.nio.channels.AsynchronousFileChannel;
@@ -29,43 +26,22 @@ import java.nio.channels.AsynchronousFileChannel;
  */
 public class DtFile {
     private final File file;
-    private final FiberCondition notUseCondition;
     private final AsynchronousFileChannel channel;
 
-    private int use;
+    private FiberLock lock;
 
     DtFile(File file, AsynchronousFileChannel channel, FiberGroup fiberGroup) {
         this.file = file;
         this.channel = channel;
-        this.notUseCondition = fiberGroup.newCondition("FileNotUse-" + file.getName());
-    }
-
-    public void incUseCount(){
-        use++;
-    }
-
-    public void descUseCount() {
-        use--;
-        if (use == 0) {
-            getNotUseCondition().signalAll();
-        }
-    }
-
-    public FrameCallResult awaitNotUse(FrameCall<Void> resumePoint) {
-        if (use == 0) {
-            return Fiber.resume(null, resumePoint);
-        } else {
-            // loop to this method and recheck use count
-            return getNotUseCondition().await(v -> awaitNotUse(resumePoint));
-        }
+        this.lock = fiberGroup.newLock();
     }
 
     public File getFile() {
         return file;
     }
 
-    public FiberCondition getNotUseCondition() {
-        return notUseCondition;
+    public FiberLock getLock() {
+        return lock;
     }
 
     public AsynchronousFileChannel getChannel() {

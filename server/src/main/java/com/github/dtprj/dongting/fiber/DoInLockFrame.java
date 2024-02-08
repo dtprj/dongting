@@ -19,10 +19,10 @@ package com.github.dtprj.dongting.fiber;
  * @author huangli
  */
 public abstract class DoInLockFrame<O> extends FiberFrame<O> {
-    private final FiberLock lock;
+    private final Lock lock;
     private boolean locked;
 
-    public DoInLockFrame(FiberLock lock) {
+    public DoInLockFrame(Lock lock) {
         this.lock = lock;
     }
 

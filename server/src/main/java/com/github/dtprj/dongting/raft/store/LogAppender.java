@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.common.IndexedQueue;
+import com.github.dtprj.dongting.fiber.DoInLockFrame;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -359,7 +360,7 @@ class LogAppender {
             task.lastIndex = lastItem.getIndex();
         }
 
-        // no flush
+        // no sync
         task.write(buffer, writeStartPosInFile);
 
         writeTaskQueue.addLast(task);
@@ -429,17 +430,25 @@ class LogAppender {
                         break;
                     }
                 }
-                task.getDtFile().incUseCount();
-                RetryFrame<Void> f = new RetryFrame<>(new SyncFrame(task),
-                        groupConfig.getIoRetryInterval(), false);
-                WriteTask finalTask = task;
-                return Fiber.call(f, v -> afterSync(finalTask));
+                return Fiber.call(new LockThenSyncFrame(task), this);
             }
         }
+    }
 
-        private FrameCallResult afterSync(WriteTask task) {
-            task.getDtFile().descUseCount();
-            return Fiber.resume(null, this);
+    private class LockThenSyncFrame extends DoInLockFrame<Void> {
+        private WriteTask task;
+
+        public LockThenSyncFrame(WriteTask task) {
+            // use read lock, no block read operations
+            super(task.getDtFile().getLock().readLock());
+            this.task = task;
+        }
+
+        @Override
+        protected FrameCallResult afterGetLock() {
+            RetryFrame<Void> rf = new RetryFrame<>(new SyncFrame(task),
+                    groupConfig.getIoRetryInterval(), false);
+            return Fiber.call(rf, this::justReturn);
         }
     }
 

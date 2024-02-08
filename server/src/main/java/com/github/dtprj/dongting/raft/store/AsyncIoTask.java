@@ -61,8 +61,8 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         this(fiberGroup, dtFile, retryInterval, retryForever, null);
     }
 
-    public AsyncIoTask(FiberGroup fiberGroup, DtFile dtFile,
-                       long[] retryInterval, boolean retryForever, Supplier<Boolean> cancelRetryIndicator) {
+    public AsyncIoTask(FiberGroup fiberGroup, DtFile dtFile, long[] retryInterval, boolean retryForever,
+                       Supplier<Boolean> cancelRetryIndicator) {
         Objects.requireNonNull(fiberGroup);
         Objects.requireNonNull(dtFile);
         this.retryInterval = retryInterval;
@@ -71,14 +71,6 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         this.retryForever = retryForever;
         this.cancelRetryIndicator = cancelRetryIndicator;
         this.future = fiberGroup.newFuture();
-        this.dtFile.incUseCount();
-        future.registerCallback(new FiberFuture.FutureCallback<>() {
-            @Override
-            protected FrameCallResult onCompleted(Void unused, Throwable ex) {
-                dtFile.descUseCount();
-                return Fiber.frameReturn();
-            }
-        });
     }
 
     public FiberFuture<Void> read(ByteBuffer ioBuffer, long filePos) {
@@ -96,20 +88,14 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     }
 
     public FiberFuture<Void> write(ByteBuffer ioBuffer, long filePos) {
-        if (this.ioBuffer != null) {
-            throw new RaftException("io task can't reused");
-        }
-        this.ioBuffer = ioBuffer;
-        this.filePos = filePos;
-        this.position = ioBuffer.position();
-        this.write = true;
-        this.flush = false;
-        this.flushMeta = false;
-        exec(filePos);
-        return future;
+        return write(ioBuffer, filePos, false, false);
     }
 
     public FiberFuture<Void> writeAndFlush(ByteBuffer ioBuffer, long filePos, boolean flushMeta) {
+        return write(ioBuffer, filePos, true, flushMeta);
+    }
+
+    private FiberFuture<Void> write(ByteBuffer ioBuffer, long filePos, boolean sync, boolean syncMeta) {
         if (this.ioBuffer != null) {
             throw new RaftException("io task can't reused");
         }
@@ -117,8 +103,8 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         this.filePos = filePos;
         this.position = ioBuffer.position();
         this.write = true;
-        this.flush = true;
-        this.flushMeta = flushMeta;
+        this.flush = sync;
+        this.flushMeta = syncMeta;
         exec(filePos);
         return future;
     }
