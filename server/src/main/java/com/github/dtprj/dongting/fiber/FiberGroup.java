@@ -46,6 +46,8 @@ public class FiberGroup {
     private volatile boolean shouldStop = false;
     private final static VarHandle SHOULD_STOP;
 
+    final FiberChannel<Runnable> sysChannel;
+
     static {
         try {
             MethodHandles.Lookup l = MethodHandles.lookup();
@@ -67,6 +69,7 @@ public class FiberGroup {
     public FiberGroup(String name, Dispatcher dispatcher) {
         this.name = name;
         this.dispatcher = dispatcher;
+        this.sysChannel = new FiberChannel<>(this);
         this.shouldStopCondition = newCondition(name + "-shouldStop");
     }
 
@@ -144,6 +147,12 @@ public class FiberGroup {
         }
     }
 
+    void startCallbackRunnerFiber() {
+        CallbackFiberFrame frame = new CallbackFiberFrame(sysChannel);
+        Fiber f = new Fiber("callback-runner", this, frame, true);
+        start(f, false);
+    }
+
     void start(Fiber f, boolean addFirst) {
         if (f.fiberGroup.finished) {
             log.warn("group finished, ignore fiber start: {}", f.getFiberName());
@@ -161,7 +170,7 @@ public class FiberGroup {
         } else {
             normalFibers.put(id, f);
         }
-        tryMakeFiberReady(f, false);
+        tryMakeFiberReady(f, addFirst);
     }
 
     void removeFiber(Fiber f) {
@@ -315,4 +324,30 @@ public class FiberGroup {
     public CompletableFuture<Void> getShutdownFuture() {
         return shutdownFuture;
     }
+
 }
+
+class CallbackFiberFrame extends FiberFrame<Void> {
+    private static final DtLog log = DtLogs.getLogger(CallbackFiberFrame.class);
+
+    private final FiberChannel<Runnable> channel;
+
+    public CallbackFiberFrame(FiberChannel<Runnable> channel) {
+        this.channel = channel;
+    }
+
+    @Override
+    public FrameCallResult execute(Void input) {
+        return channel.take(this::afterTake);
+    }
+
+    private FrameCallResult afterTake(Runnable r) {
+        try {
+            r.run();
+        } catch (Throwable e) {
+            log.error("callback error", e);
+        }
+        return Fiber.resume(null, this);
+    }
+}
+

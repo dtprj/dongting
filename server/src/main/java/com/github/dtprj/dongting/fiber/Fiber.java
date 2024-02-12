@@ -221,11 +221,6 @@ public class Fiber extends WaitSource {
         fiberGroup.start(Fiber.this, false);
     }
 
-    public void startNow() {
-        fiberGroup.checkGroup();
-        fiberGroup.start(Fiber.this, true);
-    }
-
     public boolean isStarted() {
         fiberGroup.checkGroup();
         return started;

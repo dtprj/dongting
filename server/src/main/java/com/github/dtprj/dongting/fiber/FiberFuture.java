@@ -19,6 +19,8 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
+import java.util.LinkedList;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -33,6 +35,8 @@ public class FiberFuture<T> extends WaitSource {
 
     T execResult;
     Throwable execEx;
+
+    private LinkedList<Callback<T>> callbacks;
 
     FiberFuture(FiberGroup group) {
         super(group);
@@ -97,27 +101,35 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     private void fireComplete0(T r, Throwable ex) {
-        if (Thread.currentThread() == fiberGroup.dispatcher.thread) {
-            completeOutOfGroup(r, ex);
+        DispatcherThread dispatcherThread = fiberGroup.dispatcher.thread;
+        if (Thread.currentThread() == dispatcherThread) {
+            if (fiberGroup.finished) {
+                log.info("group is stopped, ignore fireComplete");
+                return;
+            }
+            if (dispatcherThread.currentGroup == fiberGroup) {
+                complete0(r, ex);
+            } else {
+                fiberGroup.sysChannel.offer0(() -> {
+                    if (fiberGroup.finished) {
+                        log.info("group is stopped, ignore fireComplete");
+                        return;
+                    }
+                    complete0(r, ex);
+                });
+            }
         } else {
-            boolean b = fiberGroup.dispatcher.doInDispatcherThread(new FiberQueueTask() {
-                @Override
-                protected void run() {
-                    completeOutOfGroup(r, ex);
+            boolean b = fiberGroup.sysChannel.fireOffer(() -> {
+                if (fiberGroup.finished) {
+                    log.info("group is stopped, ignore fireComplete");
+                    return;
                 }
+                complete0(r, ex);
             });
             if (!b) {
                 log.info("dispatcher is shutdown, ignore fireComplete");
             }
         }
-    }
-
-    private void completeOutOfGroup(T r, Throwable ex){
-        if (fiberGroup.finished) {
-            log.info("group {} is finished, ignore future complete", fiberGroup.getName());
-            return;
-        }
-        complete0(r, ex);
     }
 
     private void complete0(T result, Throwable ex) {
@@ -131,7 +143,41 @@ public class FiberFuture<T> extends WaitSource {
         }
         this.done = true;
         // if group finished, no ops
+        if (fiberGroup.finished) {
+            return;
+        }
+        tryRunCallbacks();
         signalAll0(true);
+    }
+
+    private void tryRunCallbacks() {
+        if (callbacks == null) {
+            return;
+        }
+        for (Callback<T> c : callbacks) {
+            if (c.frameCallback != null) {
+                startCallbackFiber(c.frameCallback);
+            } else {
+                runSimpleCallback(c.simpleCallback);
+            }
+        }
+    }
+
+    private void runSimpleCallback(BiConsumer<T, Throwable> simpleCallback) {
+        try {
+            if (execEx == null) {
+                simpleCallback.accept(execResult, null);
+            } else {
+                simpleCallback.accept(null, execEx);
+            }
+        } catch (Throwable e) {
+            log.error("callback error", e);
+        }
+    }
+
+    private void startCallbackFiber(FiberFrame<Void> ff) {
+        Fiber f = new Fiber("future-callback", fiberGroup, ff);
+        fiberGroup.start(f, true);
     }
 
     public FrameCallResult await(FrameCall<T> resumePoint) {
@@ -168,18 +214,45 @@ public class FiberFuture<T> extends WaitSource {
     /**
      * this method should call in dispatcher thread
      */
-    private void registerCallback0(FiberFrame<Void> callback) {
-        fiberGroup.checkGroup();
-        Fiber callbackFiber = new Fiber("future-callback", fiberGroup, callback);
-        callbackFiber.start();
+    public void registerCallback(FutureCallback<T> callback) {
+        callback.future = this;
+        registerCallback0(callback);
     }
 
     /**
      * this method should call in dispatcher thread
      */
-    public void registerCallback(FutureCallback<T> callback) {
-        callback.future = this;
-        registerCallback0(callback);
+    private void registerCallback0(FiberFrame<Void> callback) {
+        fiberGroup.checkGroup();
+        if (done) {
+            startCallbackFiber(callback);
+        } else {
+            if (callbacks == null) {
+                callbacks = new LinkedList<>();
+            }
+            Callback<T> c = new Callback<>();
+            c.frameCallback = callback;
+            callbacks.add(c);
+        }
+    }
+
+    public void registerCallback(BiConsumer<T, Throwable> callback) {
+        fiberGroup.checkGroup();
+        if (done) {
+            runSimpleCallback(callback);
+        } else {
+            if (callbacks == null) {
+                callbacks = new LinkedList<>();
+            }
+            Callback<T> c = new Callback<>();
+            c.simpleCallback = callback;
+            callbacks.add(c);
+        }
+    }
+
+    private static class Callback<T> {
+        FiberFrame<Void> frameCallback;
+        BiConsumer<T, Throwable> simpleCallback;
     }
 
     public static abstract class FutureCallback<T> extends FiberFrame<Void> {
@@ -188,23 +261,6 @@ public class FiberFuture<T> extends WaitSource {
 
         @Override
         public final FrameCallResult execute(Void input) {
-            return Fiber.call(new FiberFrame<>() {
-                @Override
-                public FrameCallResult execute(Void input) {
-                    return future.await(this::afterFutureCompleted);
-                }
-                private FrameCallResult afterFutureCompleted(T t) {
-                    return Fiber.frameReturn();
-                }
-                @Override
-                protected FrameCallResult handle(Throwable ex) {
-                    // catch ex
-                    return Fiber.frameReturn();
-                }
-            }, this::resume);
-        }
-
-        private FrameCallResult resume(Void v) {
             return onCompleted(future.getResult(), future.getEx());
         }
 
@@ -216,23 +272,11 @@ public class FiberFuture<T> extends WaitSource {
      */
     public <T2> FiberFuture<T2> convert(Function<T, T2> converter) {
         FiberFuture<T2> newFuture = new FiberFuture<>(fiberGroup);
-        registerCallback0(new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                FiberFuture<T> f = FiberFuture.this;
-                return f.await(this::resume);
-            }
-
-            private FrameCallResult resume(T t) {
-                newFuture.complete(converter.apply(t));
-                return Fiber.frameReturn();
-            }
-
-            @Override
-            protected FrameCallResult handle(Throwable ex) {
-                // if the ex is thrown by converter, completeExceptionally with the ex is ok
-                newFuture.completeExceptionally(ex);
-                return Fiber.frameReturn();
+        registerCallback((r, ex) -> {
+            if (ex != null) {
+                newFuture.complete0(null, ex);
+            } else {
+                newFuture.complete0(converter.apply(r), null);
             }
         });
         return newFuture;
@@ -243,16 +287,12 @@ public class FiberFuture<T> extends WaitSource {
      */
     public <T2> FiberFuture<T2> convertWithHandle(BiFunction<T, Throwable, T2> converter) {
         FiberFuture<T2> newFuture = new FiberFuture<>(fiberGroup);
-        registerCallback(new FutureCallback<>() {
-            @Override
-            protected FrameCallResult onCompleted(T t, Throwable ex) {
-                try {
-                    T2 t2 = converter.apply(t, ex);
-                    newFuture.complete(t2);
-                } catch (Throwable newEx) {
-                    newFuture.completeExceptionally(newEx);
-                }
-                return Fiber.frameReturn();
+        registerCallback((r, ex) -> {
+            try {
+                T2 t2 = converter.apply(r, ex);
+                newFuture.complete(t2);
+            } catch (Throwable newEx) {
+                newFuture.completeExceptionally(newEx);
             }
         });
         return newFuture;
@@ -263,6 +303,7 @@ public class FiberFuture<T> extends WaitSource {
         FiberFuture<Void> newFuture = g.newFuture();
         Fiber f = new Fiber("wait-all-future", g, new FiberFrame<Void>() {
             private int i;
+
             @Override
             public FrameCallResult execute(Void input) {
                 return loop(null);
@@ -285,7 +326,7 @@ public class FiberFuture<T> extends WaitSource {
         });
         g.start(f, false);
         return newFuture;
-     }
+    }
 
     public static <T> FiberFuture<T> failedFuture(FiberGroup group, Throwable ex) {
         FiberFuture<T> f = new FiberFuture<>(group);

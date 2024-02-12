@@ -86,6 +86,7 @@ public class Dispatcher extends AbstractLifeCircle {
                     future.completeExceptionally(new FiberException("dispatcher should stop"));
                 } else {
                     groups.add(fiberGroup);
+                    fiberGroup.startCallbackRunnerFiber();
                     future.complete(null);
                 }
             }

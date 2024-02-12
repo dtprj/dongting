@@ -365,17 +365,13 @@ class LogAppender {
 
             writeTaskQueue.addLast(task);
 
-            // use tryLock and not block, try lock will success immediately since we lock the file in afterPosReady()
+            // tryLock() will success immediately since we lock the file in afterPosReady()
             file.getLock().readLock().tryLock();
-            task.getFuture().registerCallback(new FiberFuture.FutureCallback<>() {
-                @Override
-                protected FrameCallResult onCompleted(Void unused, Throwable ex) {
-                    //release lock in processWriteResult() since we should unlock in same fiber
-                    groupConfig.getDirectPool().release(task.getIoBuffer());
-                    // TODO here wake up all fibers
-                    raftStatus.getDataArrivedCondition().signalAll();
-                    return Fiber.frameReturn();
-                }
+            task.getFuture().registerCallback((r, ex) -> {
+                //release lock in processWriteResult() since we should unlock in same fiber
+                groupConfig.getDirectPool().release(task.getIoBuffer());
+                // TODO here wake up all fibers
+                raftStatus.getDataArrivedCondition().signalAll();
             });
 
             writeStartPosInFile += bytes;
