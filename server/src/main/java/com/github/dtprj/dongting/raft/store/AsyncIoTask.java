@@ -142,7 +142,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         };
     }
 
-    private void complete(Throwable ex) {
+    protected void fireComplete(Throwable ex) {
         if (ex == null) {
             future.fireComplete(null);
         } else {
@@ -152,11 +152,11 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
 
     private void retry(Throwable ioEx) {
         if (retryInterval == null || retryInterval.length == 0) {
-            complete(ioEx);
+            fireComplete(ioEx);
             return;
         }
         if (shouldCancelRetry()) {
-            complete(ioEx);
+            fireComplete(ioEx);
             return;
         }
         long sleepTime;
@@ -165,7 +165,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
                 sleepTime = retryInterval[retryInterval.length - 1];
                 retryCount++;
             } else {
-                complete(ioEx);
+                fireComplete(ioEx);
                 return;
             }
         } else {
@@ -181,7 +181,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
 
             private FrameCallResult resume(Void v) {
                 if (shouldCancelRetry()) {
-                    complete(ioEx);
+                    fireComplete(ioEx);
                     return Fiber.frameReturn();
                 }
                 ioBuffer.position(position);
@@ -192,7 +192,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
             @Override
             protected FrameCallResult handle(Throwable ex) {
                 log.error("unexpected retry error", ex);
-                complete(ex);
+                fireComplete(ex);
                 return Fiber.frameReturn();
             }
         });
@@ -220,14 +220,14 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
                 dtFile.getChannel().read(ioBuffer, pos, null, this);
             }
         } catch (Throwable e) {
-            complete(e);
+            fireComplete(e);
         }
     }
 
     @Override
     public void completed(Integer result, Void v) {
         if (result < 0) {
-            complete(new RaftException("read end of file"));
+            fireComplete(new RaftException("read end of file"));
             return;
         }
         if (ioBuffer.hasRemaining()) {
@@ -236,7 +236,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         } else {
             try {
                 doFlush();
-                complete(null);
+                fireComplete(null);
             } catch (Throwable e) {
                 retry(e);
             }
@@ -249,10 +249,6 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
 
     public ByteBuffer getIoBuffer() {
         return ioBuffer;
-    }
-
-    public void setIoBuffer(ByteBuffer ioBuffer) {
-        this.ioBuffer = ioBuffer;
     }
 
     public DtFile getDtFile() {

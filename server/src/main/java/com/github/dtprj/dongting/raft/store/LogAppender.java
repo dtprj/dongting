@@ -69,7 +69,6 @@ class LogAppender {
     private WriteTask syncWriteTaskQueueHead;
 
     private final Fiber appendFiber;
-    private final AppendFiberFrame appendFiberFrame = new AppendFiberFrame();
 
     private final Fiber fsyncFiber;
     private final FiberCondition needFsyncCondition;
@@ -88,6 +87,7 @@ class LogAppender {
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
         this.cache = raftStatus.getTailCache();
         this.fiberGroup = groupConfig.getFiberGroup();
+        AppendFiberFrame appendFiberFrame = new AppendFiberFrame();
         this.appendFiber = new Fiber("append-" + groupConfig.getGroupId(), fiberGroup, appendFiberFrame);
         this.writeStopIndicator = logFileQueue::isClosed;
         this.fsyncFiber = new Fiber("fsync-" + groupConfig.getGroupId(), fiberGroup, new SyncLoopFrame());
@@ -138,12 +138,7 @@ class LogAppender {
             if (logFileQueue.isClosed()) {
                 return Fiber.frameReturn();
             }
-            if (idxOps.needWaitFlush()) {
-                return Fiber.call(idxOps.waitFlush(), this);
-            }
-            if (logFileQueue.isClosed()) {
-                return Fiber.frameReturn();
-            }
+            processWriteResult();
             TailCache tailCache = LogAppender.this.cache;
             long nextPersistIndex = LogAppender.this.nextPersistIndex;
             if (tailCache.size() > 0 && tailCache.getLastIndex() >= nextPersistIndex) {
@@ -151,6 +146,12 @@ class LogAppender {
                     BugLog.getLog().error("nextPersistIndex {} < tailCache.getFirstIndex() {}",
                             nextPersistIndex, tailCache.getFirstIndex());
                     throw Fiber.fatal(new RaftException("nextPersistIndex<tailCache.getFirstIndex()"));
+                }
+                if (idxOps.needWaitFlush()) {
+                    return Fiber.call(idxOps.waitFlush(), this);
+                }
+                if (logFileQueue.isClosed()) {
+                    return Fiber.frameReturn();
                 }
                 return Fiber.call(logFileQueue.ensureWritePosReady(nextPersistPos), this::afterPosReady);
             } else {
@@ -162,10 +163,18 @@ class LogAppender {
             if (logFileQueue.isClosed()) {
                 return Fiber.frameReturn();
             }
-            return writeData();
+            LogFile lf = logFileQueue.getLogFile(nextPersistPos);
+            if (lf.isDeleted()) {
+                BugLog.getLog().error("file is deleted or mark deleted: {}", lf.getFile().getPath());
+                throw new RaftException("file is deleted or mark deleted: " + lf.getFile().getPath());
+            }
+            // use read lock, so not block read operation.
+            // because we never read file block that is being written.
+            // unlock in encodeAndWriteItems()
+            return lf.getLock().readLock().lock(v -> encodeAndWriteItems(lf));
         }
 
-        private FrameCallResult writeData() {
+        private FrameCallResult encodeAndWriteItems(LogFile file) {
             // reset 4 status fields
             writeStartPosInFile = nextPersistPos & fileLenMask;
             bytesToWrite = 0;
@@ -174,7 +183,6 @@ class LogAppender {
             lastItem = null;
 
             long calculatedItemIndex = -1;
-            LogFile file = logFileQueue.getLogFile(nextPersistPos);
             boolean writeEndHeader = false;
             boolean rollNextFile = false;
             for (long lastIndex = cache.getLastIndex(), fileRestBytes = file.endPos - nextPersistPos;
@@ -229,8 +237,29 @@ class LogAppender {
                         file.getFile().getName(), nextPersistPos, next);
                 nextPersistPos = next;
             }
+            file.getLock().readLock().unlock();
             // continue loop
-            return Fiber.resume(null, appendFiberFrame);
+            return Fiber.resume(null, this);
+        }
+
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        private long initItemSize(LogItem item, long calculatedItemIndex) {
+            if (calculatedItemIndex >= item.getIndex()) {
+                return calculatedItemIndex;
+            }
+            if (item.getHeaderBuffer() != null) {
+                item.setActualHeaderSize(item.getHeaderBuffer().remaining());
+            } else if (item.getHeader() != null) {
+                Encoder encoder = codecFactory.createHeaderEncoder(item.getBizType());
+                item.setActualHeaderSize(encoder.actualSize(item.getHeader()));
+            }
+            if (item.getBodyBuffer() != null) {
+                item.setActualBodySize(item.getBodyBuffer().remaining());
+            } else if (item.getBody() != null) {
+                Encoder encoder = codecFactory.createBodyEncoder(item.getBizType());
+                item.setActualBodySize(encoder.actualSize(item.getBody()));
+            }
+            return item.getIndex();
         }
 
         private ByteBuffer encodeItems(ArrayList<LogItem> items, LogFile file, ByteBuffer buffer) {
@@ -336,10 +365,15 @@ class LogAppender {
 
             writeTaskQueue.addLast(task);
 
+            // use tryLock and not block, try lock will success immediately since we lock the file in afterPosReady()
+            file.getLock().readLock().tryLock();
             task.getFuture().registerCallback(new FiberFuture.FutureCallback<>() {
                 @Override
                 protected FrameCallResult onCompleted(Void unused, Throwable ex) {
-                    processWriteResult(task, ex);
+                    //release lock in processWriteResult() since we should unlock in same fiber
+                    groupConfig.getDirectPool().release(task.getIoBuffer());
+                    // TODO here wake up all fibers
+                    raftStatus.getDataArrivedCondition().signalAll();
                     return Fiber.frameReturn();
                 }
             });
@@ -349,6 +383,41 @@ class LogAppender {
             lastItem = null;
 
             return borrowBuffer(bytesToWrite);
+        }
+
+        private ByteBuffer borrowBuffer(int size) {
+            if (size == 0) {
+                return EMPTY_BUFFER;
+            } else {
+                size = Math.min(size, logFileQueue.maxWriteBufferSize);
+                return groupConfig.getDirectPool().borrow(size);
+            }
+        }
+
+        private void processWriteResult() {
+            boolean needSync = false;
+            while (writeTaskQueue.size() > 0) {
+                if (!writeTaskQueue.get(0).getFuture().isDone()) {
+                    break;
+                }
+
+                WriteTask wt = writeTaskQueue.removeFirst();
+                wt.getDtFile().getLock().readLock().unlock();
+                if (wt.getFuture().getEx() != null) {
+                    throw Fiber.fatal(new RaftException("write error", wt.getFuture().getEx()));
+                }
+                if (wt.lastTerm > 0) {
+                    needSync = true;
+                    if (syncWriteTaskQueueHead == null) {
+                        syncWriteTaskQueueHead = wt;
+                    } else {
+                        syncWriteTaskQueueHead.nextNeedSyncTask = wt;
+                    }
+                }
+            }
+            if (needSync) {
+                needFsyncCondition.signalLater();
+            }
         }
     }
 
@@ -363,49 +432,6 @@ class LogAppender {
         public WriteTask(FiberGroup fiberGroup, DtFile dtFile,
                          long[] retryInterval, boolean retryForever, Supplier<Boolean> cancelIndicator) {
             super(fiberGroup, dtFile, retryInterval, retryForever, cancelIndicator);
-        }
-
-    }
-
-    private ByteBuffer borrowBuffer(int size) {
-        if (size == 0) {
-            return EMPTY_BUFFER;
-        } else {
-            size = Math.min(size, logFileQueue.maxWriteBufferSize);
-            return groupConfig.getDirectPool().borrow(size);
-        }
-    }
-
-    private void processWriteResult(WriteTask wt, Throwable ex) {
-        try {
-            if (logFileQueue.isClosed()) {
-                return;
-            }
-            if (ex != null) {
-                throw new RaftException("log append fail", ex);
-            } else {
-                while (writeTaskQueue.size() > 0) {
-                    if (!writeTaskQueue.get(0).getFuture().isDone()) {
-                        break;
-                    }
-                    WriteTask t = writeTaskQueue.removeFirst();
-                    if (t.lastTerm > 0) {
-                        if (syncWriteTaskQueueHead == null) {
-                            syncWriteTaskQueueHead = t;
-                        } else {
-                            syncWriteTaskQueueHead.nextNeedSyncTask = t;
-                        }
-                    }
-                }
-                if (syncWriteTaskQueueHead != null) {
-                    needFsyncCondition.signalLater();
-                }
-            }
-        } finally {
-            if (wt.getIoBuffer() != null) {
-                groupConfig.getDirectPool().release(wt.getIoBuffer());
-                wt.setIoBuffer(null);
-            }
         }
     }
 
@@ -480,26 +506,6 @@ class LogAppender {
             }
             return Fiber.frameReturn();
         }
-    }
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private long initItemSize(LogItem item, long calculatedItemIndex) {
-        if (calculatedItemIndex >= item.getIndex()) {
-            return calculatedItemIndex;
-        }
-        if (item.getHeaderBuffer() != null) {
-            item.setActualHeaderSize(item.getHeaderBuffer().remaining());
-        } else if (item.getHeader() != null) {
-            Encoder encoder = codecFactory.createHeaderEncoder(item.getBizType());
-            item.setActualHeaderSize(encoder.actualSize(item.getHeader()));
-        }
-        if (item.getBodyBuffer() != null) {
-            item.setActualBodySize(item.getBodyBuffer().remaining());
-        } else if (item.getBody() != null) {
-            Encoder encoder = codecFactory.createBodyEncoder(item.getBizType());
-            item.setActualBodySize(encoder.actualSize(item.getBody()));
-        }
-        return item.getIndex();
     }
 
     public void setNext(long nextPersistIndex, long nextPersistPos) {
