@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -65,11 +66,13 @@ public class FiberGroup {
     Fiber currentFiber;
 
     final FiberCondition shouldStopCondition;
+    private final GroupExecutor executor;
 
     public FiberGroup(String name, Dispatcher dispatcher) {
         this.name = name;
         this.dispatcher = dispatcher;
         this.sysChannel = new FiberChannel<>(this);
+        this.executor = new GroupExecutor(this);
         this.shouldStopCondition = newCondition(name + "-shouldStop");
     }
 
@@ -325,6 +328,9 @@ public class FiberGroup {
         return shutdownFuture;
     }
 
+    public ExecutorService getExecutor() {
+        return executor;
+    }
 }
 
 class CallbackFiberFrame extends FiberFrame<Void> {

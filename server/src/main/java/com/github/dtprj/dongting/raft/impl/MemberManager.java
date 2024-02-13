@@ -209,7 +209,7 @@ public class MemberManager implements BiConsumer<EventType, Object> {
                 raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers());
         client.sendRequest(raftNodeEx.getPeer(), f, RaftPingProcessor.DECODER, timeout)
                 .whenCompleteAsync((rf, ex) -> processPingResult(raftNodeEx, member, rf, ex, nodeEpochWhenStartPing),
-                        groupConfig.getFiberGroup().getDispatcher().getExecutor());
+                        groupConfig.getFiberGroup().getExecutor());
     }
 
     private void processPingResult(RaftNodeEx raftNodeEx, RaftMember member,

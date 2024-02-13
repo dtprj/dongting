@@ -73,7 +73,7 @@ class LogFileQueue extends FileQueue {
 
     @Override
     protected ExecutorService getChannelExecutor() {
-        return fiberGroup.getDispatcher().getExecutor();
+        return fiberGroup.getExecutor();
     }
 
     public long fileLength() {

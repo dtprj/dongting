@@ -510,7 +510,7 @@ class RepFrame extends AbstractRepFrame {
         long finalBytes = bytes;
         f.whenCompleteAsync((rf, ex) -> replicateManager.afterAppendRpc(rf, ex, this, prevLogIndex,
                         firstItem.getPrevLogTerm(), reqNanos, items.size(), finalBytes),
-                getFiberGroup().getDispatcher().getExecutor());
+                getFiberGroup().getExecutor());
     }
 
     private static void retain(List<LogItem> items) {
@@ -721,7 +721,7 @@ class InstallFrame extends AbstractRepFrame {
         snapshotOffset += bytes;
         future.whenCompleteAsync((rf, ex) -> replicateManager.afterInstallRpc(
                         rf, ex, this, req.offset, bytes, req.done, req.lastIncludedIndex),
-                getFiberGroup().getDispatcher().getExecutor());
+                getFiberGroup().getExecutor());
     }
 
     public void setInstallFinish(boolean installFinish) {

@@ -182,7 +182,7 @@ public class VoteManager implements BiConsumer<EventType, Object> {
         log.info("send {} request. remoteNode={}, groupId={}, term={}, lastLogIndex={}, lastLogTerm={}",
                 preVote ? "pre-vote" : "vote", member.getNode().getNodeId(), groupId,
                 currentTerm, req.getLastLogIndex(), req.getLastLogTerm());
-        ExecutorService executor = groupConfig.getFiberGroup().getDispatcher().getExecutor();
+        ExecutorService executor = groupConfig.getFiberGroup().getExecutor();
         if (preVote) {
             f.whenCompleteAsync((rf, ex) -> processPreVoteResp(rf, ex, member, req, voteIdOfRequest), executor);
         } else {

@@ -30,30 +30,25 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-class DispatcherExecutor implements ExecutorService {
-    private static final DtLog log = DtLogs.getLogger(DispatcherExecutor.class);
+class GroupExecutor implements ExecutorService {
+    private static final DtLog log = DtLogs.getLogger(GroupExecutor.class);
 
-    private final Dispatcher dispatcher;
+    private final FiberGroup group;
 
-    public DispatcherExecutor(Dispatcher dispatcher) {
-        this.dispatcher = dispatcher;
+    public GroupExecutor(FiberGroup group) {
+        this.group = group;
     }
 
     @Override
     public void execute(Runnable command) {
-        boolean b = dispatcher.doInDispatcherThread(new FiberQueueTask() {
-            @Override
-            protected void run() {
-                command.run();
-            }
-        });
+        boolean b = group.sysChannel.fireOffer(command);
         if (!b) {
             log.info("dispatcher is shutdown, ignore execute task");
         }
     }
 
-    private void submit(CompletableFuture<?> future, FiberQueueTask task) {
-        boolean b = dispatcher.doInDispatcherThread(task);
+    private void submit(CompletableFuture<?> future, Runnable task) {
+        boolean b = group.sysChannel.fireOffer(task);
         if (!b) {
             log.info("dispatcher is shutdown, ignore submit task");
             future.completeExceptionally(new FiberException("dispatcher is shutdown"));
@@ -63,14 +58,11 @@ class DispatcherExecutor implements ExecutorService {
     @Override
     public <T> Future<T> submit(Callable<T> task) {
         CompletableFuture<T> future = new CompletableFuture<>();
-        submit(future, new FiberQueueTask() {
-            @Override
-            protected void run() {
-                try {
-                    future.complete(task.call());
-                } catch (Throwable e) {
-                    future.completeExceptionally(e);
-                }
+        submit(future, () -> {
+            try {
+                future.complete(task.call());
+            } catch (Throwable e) {
+                future.completeExceptionally(e);
             }
         });
         return future;
@@ -79,15 +71,12 @@ class DispatcherExecutor implements ExecutorService {
     @Override
     public Future<?> submit(Runnable task) {
         CompletableFuture<Void> future = new CompletableFuture<>();
-        submit(future, new FiberQueueTask() {
-            @Override
-            protected void run() {
-                try {
-                    task.run();
-                    future.complete(null);
-                } catch (Throwable e) {
-                    future.completeExceptionally(e);
-                }
+        submit(future, () -> {
+            try {
+                task.run();
+                future.complete(null);
+            } catch (Throwable e) {
+                future.completeExceptionally(e);
             }
         });
         return future;
@@ -96,15 +85,12 @@ class DispatcherExecutor implements ExecutorService {
     @Override
     public <T> Future<T> submit(Runnable task, T result) {
         CompletableFuture<T> future = new CompletableFuture<>();
-        submit(future, new FiberQueueTask() {
-            @Override
-            protected void run() {
-                try {
-                    task.run();
-                    future.complete(result);
-                } catch (Throwable e) {
-                    future.completeExceptionally(e);
-                }
+        submit(future, () -> {
+            try {
+                task.run();
+                future.complete(result);
+            } catch (Throwable e) {
+                future.completeExceptionally(e);
             }
         });
         return future;
@@ -112,12 +98,12 @@ class DispatcherExecutor implements ExecutorService {
 
     @Override
     public boolean isShutdown() {
-        return dispatcher.isShouldStopVolatile();
+        return group.isShouldStop();
     }
 
     @Override
     public boolean isTerminated() {
-        return dispatcher.isTerminate();
+        return group.finished;
     }
 
     private UnsupportedOperationException ex() {

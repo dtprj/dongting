@@ -28,7 +28,6 @@ import java.lang.invoke.VarHandle;
 import java.util.ArrayList;
 import java.util.PriorityQueue;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -64,14 +63,10 @@ public class Dispatcher extends AbstractLifeCircle {
         }
     }
 
-    private volatile boolean terminate;
-
     // fatal error will cause fiber exit
     private Throwable fatalError;
 
     private DtTime stopTimeout;
-
-    private final DispatcherExecutor executor = new DispatcherExecutor(this);
 
     public Dispatcher(String name) {
         thread = new DispatcherThread(this::run, name);
@@ -130,11 +125,9 @@ public class Dispatcher extends AbstractLifeCircle {
             }
             shareQueue.shutdown();
             runImpl(localData);
-            terminate = true;
             log.info("fiber dispatcher exit: {}", thread.getName());
         } catch (Throwable e) {
             SHOULD_STOP.setVolatile(this, true);
-            terminate = true;
             log.info("fiber dispatcher exit exceptionally: {}", thread.getName(), e);
         }
     }
@@ -537,18 +530,6 @@ public class Dispatcher extends AbstractLifeCircle {
 
     private boolean isShouldStopPlain() {
         return (boolean) SHOULD_STOP.get(this);
-    }
-
-    boolean isShouldStopVolatile() {
-        return (boolean) SHOULD_STOP.getVolatile(this);
-    }
-
-    boolean isTerminate() {
-        return terminate;
-    }
-
-    public ExecutorService getExecutor() {
-        return executor;
     }
 
     public Thread getThread() {

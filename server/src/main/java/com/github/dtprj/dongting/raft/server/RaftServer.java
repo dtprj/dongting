@@ -291,8 +291,8 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     private RefBufferFactory createHeapPoolFactory(FiberGroup fiberGroup) {
+        ExecutorService executorService = fiberGroup.getExecutor();
         Dispatcher dispatcher = fiberGroup.getDispatcher();
-        ExecutorService executorService = dispatcher.getExecutor();
 
         TwoLevelPool heapPool = (TwoLevelPool) serverConfig.getPoolFactory().apply(dispatcher.getTs(), false);
         TwoLevelPool releaseSafePool = heapPool.toReleaseInOtherThreadInstance(dispatcher.getThread(), byteBuffer -> {
