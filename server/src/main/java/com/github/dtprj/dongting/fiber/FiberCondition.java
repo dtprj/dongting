@@ -44,6 +44,11 @@ public class FiberCondition extends WaitSource {
         signal0(false);
     }
 
+    public void signal(Fiber targetFiber) {
+        Dispatcher.getCurrentFiberAndCheck(fiberGroup);
+        signal0(targetFiber, true);
+    }
+
     public void signalAll() {
         Dispatcher.getCurrentFiberAndCheck(fiberGroup);
         signalAll0(true);

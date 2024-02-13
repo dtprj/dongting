@@ -370,8 +370,7 @@ class LogAppender {
             task.getFuture().registerCallback((r, ex) -> {
                 //release lock in processWriteResult() since we should unlock in same fiber
                 groupConfig.getDirectPool().release(task.getIoBuffer());
-                // TODO here wake up all fibers
-                raftStatus.getDataArrivedCondition().signalAll();
+                raftStatus.getDataArrivedCondition().signal(appendFiber);
             });
 
             writeStartPosInFile += bytes;

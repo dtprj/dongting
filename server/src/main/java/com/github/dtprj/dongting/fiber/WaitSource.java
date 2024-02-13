@@ -91,6 +91,17 @@ abstract class WaitSource {
         return result;
     }
 
+    void signal0(Fiber f, boolean addFirst) {
+        if (fiberGroup.finished) {
+            return;
+        }
+        if (f.source != this) {
+            return;
+        }
+        removeWaiter(f);
+        signalFiber(f, addFirst);
+    }
+
     void signal0(boolean addFirst) {
         if (fiberGroup.finished) {
             return;
