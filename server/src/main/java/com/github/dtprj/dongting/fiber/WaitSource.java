@@ -42,19 +42,17 @@ abstract class WaitSource {
     }
 
     void removeWaiter(Fiber f) {
-        if (f == firstWaiter && f == lastWaiter) {
-            firstWaiter = null;
-            lastWaiter = null;
-        } else if (f == firstWaiter) {
-            firstWaiter = f.nextWaiter;
-            if (firstWaiter != null) {
+        if (f == firstWaiter) {
+            if (f == lastWaiter) {
+                firstWaiter = null;
+                lastWaiter = null;
+            } else {
+                firstWaiter = f.nextWaiter;
                 firstWaiter.previousWaiter = null;
             }
         } else if (f == lastWaiter) {
             lastWaiter = f.previousWaiter;
-            if (lastWaiter != null) {
-                lastWaiter.nextWaiter = null;
-            }
+            lastWaiter.nextWaiter = null;
         } else {
             f.previousWaiter.nextWaiter = f.nextWaiter;
             f.nextWaiter.previousWaiter = f.previousWaiter;
