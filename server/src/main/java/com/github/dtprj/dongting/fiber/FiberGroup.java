@@ -150,9 +150,9 @@ public class FiberGroup {
         }
     }
 
-    void startCallbackRunnerFiber() {
-        CallbackFiberFrame frame = new CallbackFiberFrame(sysChannel);
-        Fiber f = new Fiber("callback-runner", this, frame, true);
+    void startGroupRunnerFiber() {
+        GroupRunnerFiberFrame frame = new GroupRunnerFiberFrame(sysChannel);
+        Fiber f = new Fiber("group-runner", this, frame, true);
         start(f, false);
     }
 
@@ -333,12 +333,12 @@ public class FiberGroup {
     }
 }
 
-class CallbackFiberFrame extends FiberFrame<Void> {
-    private static final DtLog log = DtLogs.getLogger(CallbackFiberFrame.class);
+class GroupRunnerFiberFrame extends FiberFrame<Void> {
+    private static final DtLog log = DtLogs.getLogger(GroupRunnerFiberFrame.class);
 
     private final FiberChannel<Runnable> channel;
 
-    public CallbackFiberFrame(FiberChannel<Runnable> channel) {
+    public GroupRunnerFiberFrame(FiberChannel<Runnable> channel) {
         this.channel = channel;
     }
 
