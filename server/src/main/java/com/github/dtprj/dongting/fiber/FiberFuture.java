@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
-import java.util.LinkedList;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -36,7 +35,7 @@ public class FiberFuture<T> extends WaitSource {
     T execResult;
     Throwable execEx;
 
-    private LinkedList<Callback<T>> callbacks;
+    private Callback<T> callbackHead;
 
     FiberFuture(FiberGroup group) {
         super(group);
@@ -151,15 +150,17 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     private void tryRunCallbacks() {
-        if (callbacks == null) {
+        if (callbackHead == null) {
             return;
         }
-        for (Callback<T> c : callbacks) {
+        Callback<T> c = callbackHead;
+        while (c != null) {
             if (c.frameCallback != null) {
                 startCallbackFiber(c.frameCallback);
             } else {
                 runSimpleCallback(c.simpleCallback);
             }
+            c = c.next;
         }
     }
 
@@ -227,12 +228,19 @@ public class FiberFuture<T> extends WaitSource {
         if (done) {
             startCallbackFiber(callback);
         } else {
-            if (callbacks == null) {
-                callbacks = new LinkedList<>();
-            }
             Callback<T> c = new Callback<>();
             c.frameCallback = callback;
-            callbacks.add(c);
+            addCallback(c);
+        }
+    }
+
+    private void addCallback(Callback<T> c) {
+        if (callbackHead == null) {
+            callbackHead = c;
+            c.tail = c;
+        } else {
+            callbackHead.tail.next = c;
+            callbackHead.tail = c;
         }
     }
 
@@ -241,18 +249,17 @@ public class FiberFuture<T> extends WaitSource {
         if (done) {
             runSimpleCallback(callback);
         } else {
-            if (callbacks == null) {
-                callbacks = new LinkedList<>();
-            }
             Callback<T> c = new Callback<>();
             c.simpleCallback = callback;
-            callbacks.add(c);
+            addCallback(c);
         }
     }
 
     private static class Callback<T> {
         FiberFrame<Void> frameCallback;
         BiConsumer<T, Throwable> simpleCallback;
+        Callback<T> next;
+        Callback<T> tail;
     }
 
     public static abstract class FutureCallback<T> extends FiberFrame<Void> {
