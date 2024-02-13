@@ -22,8 +22,6 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -33,14 +31,12 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import java.io.File;
 import java.util.function.Supplier;
 
-import static com.github.dtprj.dongting.raft.store.IdxFileQueue.KEY_INSTALL_SNAPSHOT;
-import static com.github.dtprj.dongting.raft.store.IdxFileQueue.KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT;
+import static com.github.dtprj.dongting.raft.store.IdxFileQueue.*;
 
 /**
  * @author huangli
  */
 public class DefaultRaftLog implements RaftLog {
-    private static final DtLog log = DtLogs.getLogger(DefaultRaftLog.class);
     private final RaftGroupConfigEx groupConfig;
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
@@ -173,16 +169,13 @@ public class DefaultRaftLog implements RaftLog {
             }
 
             private FrameCallResult afterPersist(Void unused) {
-                logFiles.deleteAll();
-                // TODO idxFiles.beginInstall();
-                return null;
+                return Fiber.call(logFiles.beginInstall(), this::afterLogBeginInstall);
+            }
+
+            private FrameCallResult afterLogBeginInstall(Void unused) {
+                return Fiber.call(idxFiles.beginInstall(), this::justReturn);
             }
         };
-    }
-
-    @Override
-    public FiberFrame<Void> finishInstall(long nextLogIndex, long nextLogPos) {
-        return null;
     }
 
     @Override
@@ -201,6 +194,24 @@ public class DefaultRaftLog implements RaftLog {
                 long nextPos = pos + header.totalLen;
                 setResult(nextPos);
                 return Fiber.frameReturn();
+            }
+        };
+    }
+
+    @Override
+    public FiberFrame<Void> finishInstall(long nextLogIndex, long nextLogPos) {
+        logFiles.finishInstall(nextLogIndex, nextLogPos);
+        return new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                return Fiber.call(idxFiles.finishInstall(nextLogIndex), this::afterIdxFinishInstall);
+            }
+
+            private FrameCallResult afterIdxFinishInstall(Void unused) {
+                statusManager.getProperties().remove(KEY_INSTALL_SNAPSHOT);
+                statusManager.getProperties().setProperty(KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, String.valueOf(nextLogIndex));
+                statusManager.getProperties().setProperty(KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT, String.valueOf(nextLogPos));
+                return Fiber.call(statusManager.persistSync(), this::justReturn);
             }
         };
     }
@@ -239,6 +250,10 @@ public class DefaultRaftLog implements RaftLog {
                 if (isGroupShouldStopPlain()) {
                     return false;
                 }
+                if (logFiles.queue.size() <= 1) {
+                    // not delete the last file
+                    return false;
+                }
                 long deleteTimestamp = logFile.deleteTimestamp;
                 return deleteTimestamp > 0 && deleteTimestamp < taskStartTimestamp;
             });
@@ -252,6 +267,10 @@ public class DefaultRaftLog implements RaftLog {
             // ex handled by delete method
             FiberFrame<Void> f = idxFiles.deleteByPredicate(logFile -> {
                 if (isGroupShouldStopPlain()) {
+                    return false;
+                }
+                if (idxFiles.queue.size() <= 1) {
+                    // not delete the last file
                     return false;
                 }
                 long firstIndexOfNextFile = idxFiles.posToIndex(logFile.endPos);

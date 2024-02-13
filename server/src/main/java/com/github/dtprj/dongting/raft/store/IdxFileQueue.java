@@ -445,4 +445,20 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         });
     }
 
+    public FiberFrame<Void> beginInstall() {
+        while (cache.size() > 0) {
+            cache.remove();
+        }
+        return super.beginInstall();
+    }
+
+    public FiberFrame<Void> finishInstall(long nextLogIndex) {
+        long newFileStartPos = startPosOfFile(indexToPos(nextLogIndex));
+        queueStartPosition = newFileStartPos;
+        queueEndPosition = newFileStartPos;
+        firstIndex = nextLogIndex;
+        nextIndex = nextLogIndex;
+        nextPersistIndex = nextLogIndex;
+        return ensureWritePosReady(nextLogIndex);
+    }
 }

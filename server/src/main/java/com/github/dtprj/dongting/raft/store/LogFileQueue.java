@@ -265,4 +265,11 @@ class LogFileQueue extends FileQueue {
         };
     }
 
+    public void finishInstall(long nextLogIndex, long nextLogPos) {
+        long start = startPosOfFile(nextLogPos);
+        queueStartPosition = start;
+        queueEndPosition = start;
+        logAppender.setNext(nextLogIndex, nextLogPos);
+    }
+
 }

@@ -66,7 +66,7 @@ abstract class FileQueue {
     protected long queueEndPosition;
 
     private FiberFuture<Void> allocateFuture;
-    private final FiberLock allocateLock;
+    protected final FiberLock allocateLock;
 
     protected boolean initialized;
 
@@ -208,12 +208,9 @@ abstract class FileQueue {
 
     private class AllocateFrame extends DoInLockFrame<Void> {
         private long fileStartPos;
-        private String fileName;
 
         private File file;
         private AsynchronousFileChannel channel;
-
-        private LogFile logFile;
 
         public AllocateFrame() {
             super(allocateLock);
@@ -221,8 +218,11 @@ abstract class FileQueue {
 
         @Override
         protected FrameCallResult afterGetLock() {
+            if (raftStatus.isInstallSnapshot()) {
+                return Fiber.frameReturn();
+            }
             fileStartPos = queueEndPosition;
-            fileName = String.format("%020d", fileStartPos);
+            String fileName = String.format("%020d", fileStartPos);
             file = new File(dir, fileName);
             FiberFuture<Void> createFileFuture = getFiberGroup().newFuture();
             ioExecutor.execute(() -> {
@@ -250,7 +250,7 @@ abstract class FileQueue {
         }
 
         private FrameCallResult afterCreateFile(Void v) {
-            logFile = new LogFile(fileStartPos, fileStartPos + getFileSize(), channel,
+            LogFile logFile = new LogFile(fileStartPos, fileStartPos + getFileSize(), channel,
                     file, getFiberGroup());
             queue.addLast(logFile);
             queueEndPosition = logFile.endPos;
@@ -337,7 +337,7 @@ abstract class FileQueue {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                if (queue.size() > 1) {
+                if (queue.size() > 0) {
                     LogFile first = queue.get(0);
                     if (shouldDelete.test(first)) {
                         return Fiber.call(delete(first), this);
@@ -361,9 +361,17 @@ abstract class FileQueue {
         this.initialized = initialized;
     }
 
-    public FrameCallResult deleteAll() {
-        //TODO
-        return null;
+    public FiberFrame<Void> beginInstall() {
+        return new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                return allocateLock.lock(this::afterGetAllocLock);
+            }
+
+            private FrameCallResult afterGetAllocLock(Void unused) {
+                return Fiber.call(deleteByPredicate(logFile -> true), this::justReturn);
+            }
+        };
     }
 
 }
