@@ -29,10 +29,12 @@ import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.PbIntWriteFrame;
 import com.github.dtprj.dongting.net.PeerStatus;
 import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.rpc.QueryStatusResp;
 import com.github.dtprj.dongting.raft.rpc.RaftPingFrameCallback;
 import com.github.dtprj.dongting.raft.rpc.RaftPingProcessor;
 import com.github.dtprj.dongting.raft.rpc.RaftPingWriteFrame;
+import com.github.dtprj.dongting.raft.rpc.TransferLeaderReq;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -83,7 +85,7 @@ public class MemberManager implements BiConsumer<EventType, Object> {
         this.eventBus = eventBus;
         this.replicateManager = replicateManager;
         this.nodeManager = nodeManager;
-        if (raftStatus.getMembers().size() == 0) {
+        if (raftStatus.getMembers().isEmpty()) {
             this.startReadyFuture = CompletableFuture.completedFuture(null);
             this.startReadyQuorum = 0;
         } else {
@@ -104,7 +106,7 @@ public class MemberManager implements BiConsumer<EventType, Object> {
             }
             raftStatus.getMembers().add(m);
         }
-        if (raftStatus.getNodeIdOfObservers().size() > 0) {
+        if (!raftStatus.getNodeIdOfObservers().isEmpty()) {
             List<RaftMember> observers = new ArrayList<>();
             for (int nodeId : raftStatus.getNodeIdOfObservers()) {
                 RaftNodeEx node = allNodes.get(nodeId);
@@ -154,11 +156,11 @@ public class MemberManager implements BiConsumer<EventType, Object> {
         for (RaftMember m : raftStatus.getPreparedObservers()) {
             jointObserverIds.add(m.getNode().getNodeId());
         }
-        raftStatus.setReplicateList(replicateList.size() == 0 ? emptyList() : replicateList);
-        raftStatus.setNodeIdOfMembers(memberIds.size() == 0 ? emptySet() : memberIds);
-        raftStatus.setNodeIdOfObservers(observerIds.size() == 0 ? emptySet() : observerIds);
-        raftStatus.setNodeIdOfPreparedMembers(jointMemberIds.size() == 0 ? emptySet() : jointMemberIds);
-        raftStatus.setNodeIdOfPreparedObservers(jointObserverIds.size() == 0 ? emptySet() : jointObserverIds);
+        raftStatus.setReplicateList(replicateList.isEmpty() ? emptyList() : replicateList);
+        raftStatus.setNodeIdOfMembers(memberIds.isEmpty() ? emptySet() : memberIds);
+        raftStatus.setNodeIdOfObservers(observerIds.isEmpty() ? emptySet() : observerIds);
+        raftStatus.setNodeIdOfPreparedMembers(jointMemberIds.isEmpty() ? emptySet() : jointMemberIds);
+        raftStatus.setNodeIdOfPreparedObservers(jointObserverIds.isEmpty() ? emptySet() : jointObserverIds);
 
         raftStatus.setElectQuorum(RaftUtil.getElectQuorum(raftStatus.getMembers().size()));
         raftStatus.setRwQuorum(RaftUtil.getRwQuorum(raftStatus.getMembers().size()));
@@ -395,7 +397,7 @@ public class MemberManager implements BiConsumer<EventType, Object> {
     }
 
     private void appendSet(StringBuilder sb, Set<Integer> set) {
-        if (set.size() > 0) {
+        if (!set.isEmpty()) {
             for (int nodeId : set) {
                 sb.append(nodeId).append(',');
             }
@@ -579,6 +581,100 @@ public class MemberManager implements BiConsumer<EventType, Object> {
     public static boolean validCandidate(RaftStatusImpl raftStatus, int nodeId) {
         return raftStatus.getNodeIdOfMembers().contains(nodeId)
                 || raftStatus.getNodeIdOfPreparedMembers().contains(nodeId);
+    }
+
+    public void transferLeadership(int nodeId, CompletableFuture<Void> f, DtTime deadline) {
+        groupConfig.getFiberGroup().fireFiber("transfer-leader",
+                new TranferLeaderFiberFrame(nodeId, f, deadline));
+    }
+
+    private class TranferLeaderFiberFrame extends FiberFrame<Void> {
+
+        private final int nodeId;
+        private final CompletableFuture<Void> f;
+        private final DtTime deadline;
+
+        TranferLeaderFiberFrame(int nodeId, CompletableFuture<Void> f, DtTime deadline){
+            this.nodeId = nodeId;
+            this.f = f;
+            this.deadline = deadline;
+        }
+
+        @Override
+        public FrameCallResult execute(Void input) {
+            if (raftStatus.getTransferLeaderCondition() != null) {
+                f.completeExceptionally(new RaftException("transfer leader in progress"));
+                return Fiber.frameReturn();
+            }
+            raftStatus.setTransferLeaderCondition(groupConfig.getFiberGroup().newCondition("transferLeader"));
+            return checkBeforeTransferLeader(null);
+        }
+
+        private FrameCallResult checkBeforeTransferLeader(Void v) {
+            if (raftStatus.getRole() != RaftRole.leader) {
+                f.completeExceptionally(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
+                RaftUtil.clearTransferLeaderCondition(raftStatus);
+                return Fiber.frameReturn();
+            }
+            RaftMember newLeader = null;
+            for (RaftMember m : raftStatus.getMembers()) {
+                if (m.getNode().getNodeId() == nodeId) {
+                    newLeader = m;
+                    break;
+                }
+            }
+            if (newLeader == null) {
+                for (RaftMember m : raftStatus.getPreparedMembers()) {
+                    if (m.getNode().getNodeId() == nodeId) {
+                        newLeader = m;
+                        break;
+                    }
+                }
+            }
+            if (newLeader == null) {
+                f.completeExceptionally(new RaftException("nodeId not found: " + nodeId));
+                RaftUtil.clearTransferLeaderCondition(raftStatus);
+                return Fiber.frameReturn();
+            }
+
+            if (deadline.isTimeout()) {
+                f.completeExceptionally(new RaftException("transfer leader timeout"));
+                RaftUtil.clearTransferLeaderCondition(raftStatus);
+                return Fiber.frameReturn();
+            }
+            if (f.isCancelled()) {
+                RaftUtil.clearTransferLeaderCondition(raftStatus);
+                return Fiber.frameReturn();
+            }
+
+            boolean lastLogCommit = raftStatus.getCommitIndex() == raftStatus.getLastLogIndex();
+            boolean newLeaderHasLastLog = newLeader.getMatchIndex() == raftStatus.getLastLogIndex();
+
+            if (newLeader.isReady() && lastLogCommit && newLeaderHasLastLog) {
+                RaftUtil.clearTransferLeaderCondition(raftStatus);
+                RaftUtil.changeToFollower(raftStatus, newLeader.getNode().getNodeId());
+                TransferLeaderReq req = new TransferLeaderReq();
+                req.term = raftStatus.getCurrentTerm();
+                req.logIndex = raftStatus.getLastLogIndex();
+                req.oldLeaderId = serverConfig.getNodeId();
+                req.groupId = groupId;
+                TransferLeaderReq.TransferLeaderReqWriteFrame frame = new TransferLeaderReq.TransferLeaderReqWriteFrame(req);
+                client.sendRequest(newLeader.getNode().getPeer(), frame,
+                                null, new DtTime(5, TimeUnit.SECONDS))
+                        .whenComplete((rf, ex) -> {
+                            if (ex != null) {
+                                log.error("transfer leader failed, groupId={}", groupId, ex);
+                                f.completeExceptionally(ex);
+                            } else {
+                                log.info("transfer leader success, groupId={}", groupId);
+                                f.complete(null);
+                            }
+                        });
+                return Fiber.frameReturn();
+            } else {
+                return Fiber.sleep(1, this::checkBeforeTransferLeader);
+            }
+        }
     }
 
     public CompletableFuture<Void> getStartReadyFuture() {

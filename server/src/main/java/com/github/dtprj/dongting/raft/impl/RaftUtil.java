@@ -155,6 +155,8 @@ public class RaftUtil {
         // wake up replicate fiber if it is waiting on this condition
         raftStatus.getDataArrivedCondition().signalAll();
 
+        clearTransferLeaderCondition(raftStatus);
+
         for (RaftMember member : raftStatus.getReplicateList()) {
             member.setMatchIndex(0);
             member.setNextIndex(0);
@@ -164,6 +166,13 @@ public class RaftUtil {
             member.incrementReplicateEpoch(member.getReplicateEpoch());
             // wake up replicate fiber if it is waiting on this condition
             member.getFinishCondition().signalAll();
+        }
+    }
+
+    public static void clearTransferLeaderCondition(RaftStatusImpl raftStatus) {
+        if (raftStatus.getTransferLeaderCondition() != null) {
+            raftStatus.getTransferLeaderCondition().signalAll();
+            raftStatus.setTransferLeaderCondition(null);
         }
     }
 

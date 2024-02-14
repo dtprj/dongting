@@ -93,6 +93,13 @@ public class LinearTaskRunner implements BiConsumer<EventType, Object> {
         }
 
         private FrameCallResult afterTakeAll(Void unused) {
+            if (raftStatus.getTransferLeaderCondition() != null) {
+                for (RaftTask t : list) {
+                    taskChannel.offer(t);
+                }
+                list.clear();
+                raftStatus.getTransferLeaderCondition().await(this);
+            }
             if (list.size() > 0) {
                 raftExec(list);
                 list.clear();

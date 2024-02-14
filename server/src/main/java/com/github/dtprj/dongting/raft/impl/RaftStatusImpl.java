@@ -81,6 +81,7 @@ public class RaftStatusImpl extends RaftStatus {
 
     private FiberCondition logSyncFinishCondition;
     private FiberCondition logWriteFinishCondition;
+    private FiberCondition transferLeaderCondition;
 
     public RaftStatusImpl(Timestamp ts) {
         this.ts = ts;
@@ -407,5 +408,13 @@ public class RaftStatusImpl extends RaftStatus {
 
     public void setLastWriteLogTerm(int lastWriteLogTerm) {
         this.lastWriteLogTerm = lastWriteLogTerm;
+    }
+
+    public FiberCondition getTransferLeaderCondition() {
+        return transferLeaderCondition;
+    }
+
+    public void setTransferLeaderCondition(FiberCondition transferLeaderCondition) {
+        this.transferLeaderCondition = transferLeaderCondition;
     }
 }

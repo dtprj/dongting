@@ -36,6 +36,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author huangli
@@ -163,7 +164,11 @@ public class RaftGroupImpl extends RaftGroup {
 
     @Override
     public CompletableFuture<Void> transferLeadership(int nodeId, long timeoutMillis) {
-        return null;
+        checkStatus();
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        DtTime deadline = new DtTime(timeoutMillis, TimeUnit.MILLISECONDS);
+        gc.getMemberManager().transferLeadership(nodeId, f, deadline);
+        return f;
     }
 
     private void checkStatus() {
