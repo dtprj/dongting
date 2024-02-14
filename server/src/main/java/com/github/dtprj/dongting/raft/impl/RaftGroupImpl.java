@@ -24,6 +24,8 @@ import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.server.NotLeaderException;
+import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
@@ -40,7 +42,7 @@ import java.util.concurrent.ExecutorService;
  */
 public class RaftGroupImpl extends RaftGroup {
     private static final DtLog log = DtLogs.getLogger(RaftGroupImpl.class);
-    private int groupId;
+    private final int groupId;
     private final RaftStatusImpl raftStatus;
     private final RaftServerConfig serverConfig;
     private final PendingStat serverStat;
@@ -113,17 +115,45 @@ public class RaftGroupImpl extends RaftGroup {
 
     @Override
     public CompletableFuture<Long> getLogIndexForRead(DtTime deadline) {
-        return null;
+        if (fiberGroup.isShouldStop()) {
+            return CompletableFuture.failedFuture(new RaftException("raft group thread is stop"));
+        }
+        RaftStatusImpl raftStatus = this.raftStatus;
+        ShareStatus ss = raftStatus.getShareStatus();
+        // NOTICE : timestamp is not thread safe
+        readTimestamp.refresh(1);
+        if (ss.role != RaftRole.leader) {
+            return CompletableFuture.failedFuture(new NotLeaderException(
+                    ss.currentLeader == null ? null : ss.currentLeader.getNode()));
+        }
+        long t = readTimestamp.getNanoTime();
+        if (ss.leaseEndNanos - t < 0) {
+            return CompletableFuture.failedFuture(new NotLeaderException(null));
+        }
+        if (ss.firstCommitOfApplied == null) {
+            return CompletableFuture.completedFuture(ss.lastApplied);
+        }
+
+        // wait fist commit of applied
+        return ss.firstCommitOfApplied.thenCompose(v -> {
+            if (deadline.isTimeout()) {
+                return CompletableFuture.failedFuture(new RaftExecTimeoutException());
+            }
+            // ss should re-read
+            return getLogIndexForRead(deadline);
+        });
     }
 
     @Override
     public void markTruncateByIndex(long index, long delayMillis) {
-
+        ExecutorService executor = gc.getFiberGroup().getExecutor();
+        executor.execute(() -> gc.getRaftLog().markTruncateByIndex(index, delayMillis));
     }
 
     @Override
     public void markTruncateByTimestamp(long timestampMillis, long delayMillis) {
-
+        ExecutorService executor = gc.getFiberGroup().getExecutor();
+        executor.execute(() -> gc.getRaftLog().markTruncateByTimestamp(timestampMillis, delayMillis));
     }
 
     @Override
