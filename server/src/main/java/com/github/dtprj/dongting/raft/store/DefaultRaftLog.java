@@ -88,15 +88,20 @@ public class DefaultRaftLog implements RaftLog {
                 RaftUtil.checkStop(fiberGroup);
                 if (p == null) {
                     raftStatus.setInstallSnapshot(true);
-                    setResult(new Pair<>(0, 0L));
-                    return Fiber.frameReturn();
+                    return Fiber.call(beginInstall(), this::afterBeginInstall);
+                } else {
+                    long restoreIndex = p.getLeft();
+                    long restoreIndexPos = p.getRight();
+                    long firstValidPos = Long.parseLong(statusManager.getProperties()
+                            .getProperty(KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT, "0"));
+                    return Fiber.call(logFiles.restore(restoreIndex, restoreIndexPos, firstValidPos),
+                            this::afterLogRestore);
                 }
-                long restoreIndex = p.getLeft();
-                long restoreIndexPos = p.getRight();
-                long firstValidPos = Long.parseLong(statusManager.getProperties()
-                        .getProperty(KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT, "0"));
-                return Fiber.call(logFiles.restore(restoreIndex, restoreIndexPos, firstValidPos),
-                        this::afterLogRestore);
+            }
+
+            private FrameCallResult afterBeginInstall(Void unused) {
+                setResult(new Pair<>(0, 0L));
+                return Fiber.frameReturn();
             }
 
             private FrameCallResult afterLogRestore(int lastTerm) {
