@@ -139,6 +139,7 @@ public class RaftUtil {
         resetStatus(raftStatus);
         raftStatus.setCurrentTerm(remoteTerm);
         raftStatus.setVotedFor(0);
+        raftStatus.copyShareStatus();
     }
 
     public static void resetStatus(RaftStatusImpl raftStatus) {
@@ -252,6 +253,7 @@ public class RaftUtil {
             updateLeader(raftStatus, leaderId);
         }
         raftStatus.setRole(RaftRole.follower);
+        raftStatus.copyShareStatus();
     }
 
     public static void changeToObserver(RaftStatusImpl raftStatus, int leaderId) {
@@ -261,6 +263,7 @@ public class RaftUtil {
             updateLeader(raftStatus, leaderId);
         }
         raftStatus.setRole(RaftRole.observer);
+        raftStatus.copyShareStatus();
     }
 
     public static void changeToLeader(RaftStatusImpl raftStatus) {
@@ -271,6 +274,7 @@ public class RaftUtil {
         for (RaftMember node : raftStatus.getReplicateList()) {
             node.setNextIndex(raftStatus.getLastLogIndex() + 1);
         }
+        // not call raftStatus.copyShareStatus(), invoke in VoteManager.processVoteResp()
     }
 
     public static boolean writeNotFinished(RaftStatusImpl raftStatus) {

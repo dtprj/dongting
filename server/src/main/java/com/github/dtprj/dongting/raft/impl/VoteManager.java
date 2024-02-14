@@ -287,6 +287,7 @@ public class VoteManager implements BiConsumer<EventType, Object> {
 
         raftStatus.setCurrentTerm(raftStatus.getCurrentTerm() + 1);
         raftStatus.setVotedFor(config.getNodeId());
+        raftStatus.copyShareStatus();
 
         statusManager.persistSync();
 
@@ -346,6 +347,7 @@ public class VoteManager implements BiConsumer<EventType, Object> {
                         log.info("vote success, change to leader. groupId={}, term={}", groupId, raftStatus.getCurrentTerm());
                         RaftUtil.changeToLeader(raftStatus);
                         RaftUtil.updateLease(raftStatus);
+                        raftStatus.copyShareStatus();
                         cancelVote();
                         linearTaskRunner.sendHeartBeat();
                     }

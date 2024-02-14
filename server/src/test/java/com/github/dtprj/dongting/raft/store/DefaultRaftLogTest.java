@@ -60,7 +60,8 @@ public class DefaultRaftLogTest extends BaseFiberTest {
 
     private void init() throws Exception {
         raftStatus = new RaftStatusImpl(dispatcher.getTs());
-        raftStatus.setTailCache(new TailCache(new RaftServerConfig(), raftStatus));
+        RaftServerConfig serverConfig = new RaftServerConfig();
+        raftStatus.setTailCache(new TailCache(serverConfig, raftStatus));
         config = new RaftGroupConfigEx(1, "1", "1");
         config.setFiberGroup(fiberGroup);
         config.setDataDir(dataDir);
@@ -79,7 +80,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) throws Exception {
-                InitFiberFrame.initRaftStatus(raftStatus, fiberGroup);
+                InitFiberFrame.initRaftStatus(raftStatus, fiberGroup, serverConfig);
                 return Fiber.call(raftLog.init(), this::resume);
             }
 

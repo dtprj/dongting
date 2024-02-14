@@ -65,8 +65,8 @@ public class ApplyManager {
     private FiberCondition condition;
 
     private long initCommitIndex;
-    private boolean initFutureDone = false;
-    private CompletableFuture<Void> initFuture;
+    private boolean initCallbackRun = false;
+    private Runnable initCallback;
 
     public ApplyManager(int selfNodeId, RaftLog raftLog, StateMachine stateMachine,
                         RaftStatusImpl raftStatus, EventBus eventBus,
@@ -82,9 +82,9 @@ public class ApplyManager {
         this.statusManager = statusManager;
     }
 
-    public void init(FiberGroup fiberGroup, CompletableFuture<Void> initFuture) {
+    public void init(FiberGroup fiberGroup, Runnable initCallback) {
         this.condition = fiberGroup.newCondition("needApply");
-        this.initFuture = initFuture;
+        this.initCallback = initCallback;
         this.initCommitIndex = raftStatus.getCommitIndex();
         startApplyFiber(fiberGroup);
     }
@@ -337,15 +337,16 @@ public class ApplyManager {
                 postConfigChange(index, rt);
             }
 
+            if (!initCallbackRun && index >= initCommitIndex) {
+                initCallbackRun = true;
+                initCallback.run();
+            }
+            raftStatus.copyShareStatus();
+
             execReaders(index, rt);
 
             // release reader memory
             rt.setNextReader(null);
-
-            if (!initFutureDone && index >= initCommitIndex) {
-                initFutureDone = true;
-                initFuture.complete(null);
-            }
 
             // resume loop
             return Fiber.resume(null, this::exec);

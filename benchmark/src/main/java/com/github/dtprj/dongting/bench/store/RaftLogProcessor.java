@@ -92,7 +92,8 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
         dispatcher.startGroup(fiberGroup).join();
         queue = fiberGroup.newChannel();
         raftStatus = new RaftStatusImpl(dispatcher.getTs());
-        raftStatus.setTailCache(new TailCache(new RaftServerConfig(), raftStatus));
+        RaftServerConfig serverConfig = new RaftServerConfig();
+        raftStatus.setTailCache(new TailCache(serverConfig, raftStatus));
         this.ts = dispatcher.getTs();
         RaftGroupConfigEx groupConfig = new RaftGroupConfigEx(1, "1", "1");
         groupConfig.setFiberGroup(fiberGroup);
@@ -143,7 +144,7 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
         fiberGroup.fireFiber("init", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                InitFiberFrame.initRaftStatus(raftStatus, fiberGroup);
+                InitFiberFrame.initRaftStatus(raftStatus, fiberGroup, serverConfig);
                 return Fiber.call(statusManager.initStatusFile(), this::afterStatusManagerInit);
             }
 

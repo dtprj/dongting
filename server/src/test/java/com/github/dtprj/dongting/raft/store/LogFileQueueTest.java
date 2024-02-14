@@ -104,7 +104,8 @@ public class LogFileQueueTest extends BaseFiberTest {
 
         dir = TestDir.createTestDir(LogFileQueueTest.class.getSimpleName());
         raftStatus = new RaftStatusImpl(dispatcher.getTs());
-        tailCache = new TailCache(new RaftServerConfig(), raftStatus);
+        RaftServerConfig serverConfig = new RaftServerConfig();
+        tailCache = new TailCache(serverConfig, raftStatus);
         raftStatus.setTailCache(tailCache);
         config = new RaftGroupConfigEx(1, "1", "1");
         config.setIoExecutor(MockExecutors.ioExecutor());
@@ -118,7 +119,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) throws Throwable {
-                InitFiberFrame.initRaftStatus(raftStatus, fiberGroup);
+                InitFiberFrame.initRaftStatus(raftStatus, fiberGroup, serverConfig);
                 logFileQueue.initQueue();
                 FiberFrame<Integer> f = logFileQueue.restore(1, 0, 0);
                 return Fiber.call(f, i -> Fiber.frameReturn());

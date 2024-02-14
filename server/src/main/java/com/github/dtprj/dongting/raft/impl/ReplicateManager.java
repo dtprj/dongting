@@ -224,6 +224,7 @@ public class ReplicateManager {
     private void updateLease(RaftMember member, long reqNanos, RaftStatusImpl raftStatus) {
         member.setLastConfirmReqNanos(reqNanos);
         RaftUtil.updateLease(raftStatus);
+        // not call raftStatus.copyShareStatus(), invoke after apply
     }
 
     void afterInstallRpc(ReadFrame<InstallSnapshotResp> rf, Throwable ex,

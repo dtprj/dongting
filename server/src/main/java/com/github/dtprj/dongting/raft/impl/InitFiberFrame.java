@@ -27,7 +27,9 @@ import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.rpc.RaftGroupProcessor;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -63,7 +65,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
     @Override
     public FrameCallResult execute(Void input) throws Throwable {
         FiberGroup fg = getFiberGroup();
-        initRaftStatus(raftStatus, fg);
+        initRaftStatus(raftStatus, fg, gc.getServerConfig());
 
         for(RaftGroupProcessor<?> processor : raftGroupProcessors) {
             @SuppressWarnings("rawtypes")
@@ -77,7 +79,8 @@ public class InitFiberFrame extends FiberFrame<Void> {
         return Fiber.call(gc.getStatusManager().initStatusFile(), this::afterInitStatusFile);
     }
 
-    public static void initRaftStatus(RaftStatusImpl raftStatus, FiberGroup fg) {
+    public static void initRaftStatus(RaftStatusImpl raftStatus, FiberGroup fg, RaftServerConfig serverConfig) {
+        raftStatus.setElectTimeoutNanos(Duration.ofMillis(serverConfig.getElectTimeout()).toNanos());
         raftStatus.setFiberGroup(fg);
         raftStatus.setDataArrivedCondition(fg.newCondition("dataArrived"));
         raftStatus.setLogSyncFinishCondition(fg.newCondition("logSyncFinish"));
@@ -128,7 +131,10 @@ public class InitFiberFrame extends FiberFrame<Void> {
 
         gc.getCommitManager().startCommitFiber();
         gc.getVoteManager().startFiber();
-        gc.getApplyManager().init(getFiberGroup(), prepareFuture);
+        gc.getApplyManager().init(getFiberGroup(), () -> {
+            raftStatus.copyShareStatus();
+            prepareFuture.complete(null);
+        });
         return Fiber.frameReturn();
     }
 

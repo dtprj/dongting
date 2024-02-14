@@ -89,6 +89,7 @@ public class CommitManager {
             // for single node mode
             if (raftStatus.getRwQuorum() == 1) {
                 RaftUtil.updateLease(raftStatus);
+                // not call raftStatus.copyShareStatus(), invoke after apply
             }
             tryCommit(lastPersistIndex);
         } else {

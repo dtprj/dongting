@@ -143,6 +143,7 @@ class AppendFiberFrame extends FiberFrame<Void> {
 
     @Override
     protected FrameCallResult doFinally() {
+        reqInfo.getRaftGroup().getGroupComponents().getRaftStatus().copyShareStatus();
         AppendReqCallback req = reqInfo.getReqFrame().getBody();
         RaftUtil.release(req.getLogs());
         return Fiber.frameReturn();
@@ -361,6 +362,7 @@ class InstallFiberFrame extends FiberFrame<Void> {
     @Override
     protected FrameCallResult doFinally() {
         InstallSnapshotReq req = reqInfo.getReqFrame().getBody();
+        reqInfo.getRaftGroup().getGroupComponents().getRaftStatus().copyShareStatus();
         if (req.data != null) {
             req.data.release();
         }
@@ -445,6 +447,7 @@ class InstallFiberFrame extends FiberFrame<Void> {
         if (finish) {
             raftStatus.setInstallSnapshot(false);
             raftStatus.setLastApplied(req.lastIncludedIndex);
+            // call raftStatus.copyShareStatus() in doFinally()
             raftStatus.setCommitIndex(req.lastIncludedIndex);
             FiberFrame<Void> finishFrame = gc.getRaftLog().finishInstall(
                     req.lastIncludedIndex + 1, req.nextWritePos);
