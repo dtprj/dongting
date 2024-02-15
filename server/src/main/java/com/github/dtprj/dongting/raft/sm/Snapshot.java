@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * @author huangli
  */
-public abstract class Snapshot implements AutoCloseable {
+public abstract class Snapshot {
     private static final DtLog log = DtLogs.getLogger(Snapshot.class);
     private static final AtomicLong NEXT_ID = new AtomicLong();
     private final long id = NEXT_ID.incrementAndGet();
@@ -50,7 +50,6 @@ public abstract class Snapshot implements AutoCloseable {
 
     public abstract FiberFuture<RefBuffer> readNext();
 
-    @Override
     public void close() {
         if (!closed.compareAndSet(false, true)) {
             log.warn("snapshot iterator already closed");

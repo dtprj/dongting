@@ -33,7 +33,7 @@ public interface RaftLog {
     /**
      * @return term and index of persisted last item
      */
-    FiberFrame<Pair<Integer, Long>> init() throws Exception;
+    FiberFrame<Pair<Integer, Long>> init();
 
     /**
      * truncate tail to index (include)

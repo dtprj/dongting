@@ -69,7 +69,7 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public FiberFrame<Pair<Integer, Long>> init() throws Exception {
+    public FiberFrame<Pair<Integer, Long>> init() {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) throws Exception {

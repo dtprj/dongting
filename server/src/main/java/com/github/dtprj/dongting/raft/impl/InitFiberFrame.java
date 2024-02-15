@@ -15,10 +15,12 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberChannel;
 import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
@@ -28,6 +30,9 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.rpc.RaftGroupProcessor;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
+import com.github.dtprj.dongting.raft.sm.Snapshot;
+import com.github.dtprj.dongting.raft.sm.SnapshotManager;
+import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.time.Duration;
 import java.util.List;
@@ -67,7 +72,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
         FiberGroup fg = getFiberGroup();
         initRaftStatus(raftStatus, fg, gc.getServerConfig());
 
-        for(RaftGroupProcessor<?> processor : raftGroupProcessors) {
+        for (RaftGroupProcessor<?> processor : raftGroupProcessors) {
             @SuppressWarnings("rawtypes")
             FiberChannel channel = getFiberGroup().newChannel();
             //noinspection unchecked
@@ -87,8 +92,11 @@ public class InitFiberFrame extends FiberFrame<Void> {
         raftStatus.setLogWriteFinishCondition(fg.newCondition("logWriteFinish"));
     }
 
-    private FrameCallResult afterInitStatusFile(Void unused) throws Exception {
-        Pair<Integer, Long> snapshotResult = recoverStateMachine();
+    private FrameCallResult afterInitStatusFile(Void unused) {
+        return Fiber.call(new RecoverStateMachineFiberFrame(gc), this::afterRecoverStateMachine);
+    }
+
+    private FrameCallResult afterRecoverStateMachine(Pair<Integer, Long> snapshotResult) {
         if (isGroupShouldStopPlain()) {
             prepareFuture.completeExceptionally(new RaftException("group should stop"));
             return Fiber.frameReturn();
@@ -140,12 +148,82 @@ public class InitFiberFrame extends FiberFrame<Void> {
         return Fiber.frameReturn();
     }
 
-    private Pair<Integer, Long> recoverStateMachine() throws Exception {
-        // TODO recover state machine
-        return null;
-    }
-
     public CompletableFuture<Void> getPrepareFuture() {
         return prepareFuture;
+    }
+}
+
+class RecoverStateMachineFiberFrame extends FiberFrame<Pair<Integer, Long>> {
+
+    private final SnapshotManager snapshotManager;
+    private final StateMachine stateMachine;
+
+    private Snapshot snapshot;
+    private long offset;
+    private RefBuffer rb;
+
+    public RecoverStateMachineFiberFrame(GroupComponents gc) {
+        this.snapshotManager = gc.getSnapshotManager();
+        this.stateMachine = gc.getStateMachine();
+    }
+
+    @Override
+    protected FrameCallResult doFinally() {
+        if (rb != null) {
+            rb.release();
+        }
+        if (snapshot != null) {
+            snapshot.close();
+        }
+        return Fiber.frameReturn();
+    }
+
+    @Override
+    public FrameCallResult execute(Void input) throws Throwable {
+        if (snapshotManager == null) {
+            setResult(null);
+            return Fiber.frameReturn();
+        }
+        return Fiber.call(snapshotManager.init(), this::afterSnapshotInit);
+    }
+
+    private FrameCallResult afterSnapshotInit(Snapshot snapshot) {
+        if (snapshot == null) {
+            setResult(null);
+            return Fiber.frameReturn();
+        }
+        this.snapshot = snapshot;
+
+        return read(null);
+    }
+
+    private FrameCallResult read(Void v) {
+        RaftUtil.checkStop(getFiberGroup());
+        if (rb != null) {
+            rb.release();
+        }
+        FiberFuture<RefBuffer> f = snapshot.readNext();
+        return f.await(this::afterRead);
+    }
+
+    private FrameCallResult afterRead(RefBuffer rb) {
+        this.rb = rb;
+        RaftUtil.checkStop(getFiberGroup());
+        long count = rb == null ? 0 : rb.getBuffer() == null ? 0 : rb.getBuffer().remaining();
+        if (count == 0) {
+            FiberFuture<Void> fu = stateMachine.installSnapshot(snapshot.getLastIncludedIndex(),
+                    snapshot.getLastIncludedTerm(), offset, true, rb);
+            return fu.await(this::finish);
+        } else {
+            FiberFuture<Void> fu = stateMachine.installSnapshot(snapshot.getLastIncludedIndex(),
+                    snapshot.getLastIncludedTerm(), offset, false, rb);
+            offset += count;
+            return fu.await(this::read);
+        }
+    }
+
+    private FrameCallResult finish(Void v) {
+        setResult(new Pair<>(snapshot.getLastIncludedTerm(), snapshot.getLastIncludedIndex()));
+        return Fiber.frameReturn();
     }
 }
