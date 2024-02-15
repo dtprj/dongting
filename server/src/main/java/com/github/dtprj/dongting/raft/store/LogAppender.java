@@ -87,8 +87,8 @@ class LogAppender {
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
         this.cache = raftStatus.getTailCache();
         this.fiberGroup = groupConfig.getFiberGroup();
-        AppendFiberFrame appendFiberFrame = new AppendFiberFrame();
-        this.appendFiber = new Fiber("append-" + groupConfig.getGroupId(), fiberGroup, appendFiberFrame);
+        WriteFiberFrame writeFiberFrame = new WriteFiberFrame();
+        this.appendFiber = new Fiber("append-" + groupConfig.getGroupId(), fiberGroup, writeFiberFrame);
         this.writeStopIndicator = logFileQueue::isClosed;
         this.fsyncFiber = new Fiber("fsync-" + groupConfig.getGroupId(), fiberGroup, new SyncLoopFrame());
         this.needFsyncCondition = fiberGroup.newCondition("NeedFsync-" + groupConfig.getGroupId());
@@ -117,7 +117,7 @@ class LogAppender {
         return FiberFuture.allOf(f1, f2);
     }
 
-    private class AppendFiberFrame extends FiberFrame<Void> {
+    private class WriteFiberFrame extends FiberFrame<Void> {
 
         // 4 temp status fields, should reset in writeData()
         private final ArrayList<LogItem> items = new ArrayList<>(32);
