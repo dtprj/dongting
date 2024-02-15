@@ -133,6 +133,7 @@ public class MemberManager implements BiConsumer<EventType, Object> {
         m.setReady(true);
         raftStatus.setSelf(m);
         raftStatus.setRole(role);
+        raftStatus.copyShareStatus();
     }
 
     static void computeDuplicatedData(RaftStatusImpl raftStatus) {
