@@ -61,23 +61,18 @@ public class CommitManager {
             RaftStatusImpl raftStatus = CommitManager.this.raftStatus;
             long idx = raftStatus.getLastSyncLogIndex();
             if (idx > raftStatus.getCommitIndex()) {
-                CommitManager.this.finish(raftStatus.getLastSyncLogTerm(), idx);
+                CommitManager.this.finish(idx);
             }
             return raftStatus.getLogSyncFinishCondition().await(1000, this);
         }
     }
 
-    public void finish(int lastPersistTerm, long lastPersistIndex) {
+    public void finish(long lastPersistIndex) {
         RaftStatusImpl raftStatus = this.raftStatus;
         if (lastPersistIndex > raftStatus.getLastLogIndex()) {
             throw Fiber.fatal(new RaftException("lastPersistIndex > lastLogIndex. lastPersistIndex="
                     + lastPersistIndex + ", lastLogIndex=" + raftStatus.getLastLogIndex()));
         }
-        if (lastPersistTerm > raftStatus.getLastLogTerm()) {
-            throw Fiber.fatal(new RaftException("lastPersistTerm > lastLogTerm. lastPersistTerm="
-                    + lastPersistTerm + ", lastLogTerm=" + raftStatus.getLastLogTerm()));
-        }
-        raftStatus.setLastSyncLogIndex(lastPersistIndex);
         if (raftStatus.getRole() == RaftRole.leader) {
             RaftMember self = raftStatus.getSelf();
             if (self != null) {

@@ -390,7 +390,7 @@ class LogAppender {
         }
 
         private void processWriteResult() {
-            boolean needSync = false;
+            boolean needSignal = false;
             while (writeTaskQueue.size() > 0) {
                 if (!writeTaskQueue.get(0).getFuture().isDone()) {
                     break;
@@ -402,7 +402,8 @@ class LogAppender {
                     throw Fiber.fatal(new RaftException("write error", wt.getFuture().getEx()));
                 }
                 if (wt.lastTerm > 0) {
-                    needSync = true;
+                    raftStatus.setLastWriteLogIndex(wt.lastIndex);
+                    needSignal = true;
                     if (syncWriteTaskQueueHead == null) {
                         syncWriteTaskQueueHead = wt;
                     } else {
@@ -410,7 +411,8 @@ class LogAppender {
                     }
                 }
             }
-            if (needSync) {
+            if (needSignal) {
+                raftStatus.getLogWriteFinishCondition().signalAll();
                 needFsyncCondition.signalLater();
             }
         }
@@ -496,7 +498,6 @@ class LogAppender {
             if (head != null && head.lastIndex <= task.lastIndex) {
                 syncWriteTaskQueueHead = head.nextNeedSyncTask;
                 raftStatus.setLastSyncLogIndex(head.lastIndex);
-                raftStatus.setLastSyncLogTerm(head.lastTerm);
                 raftStatus.getLogSyncFinishCondition().signalAll();
             }
             return Fiber.frameReturn();

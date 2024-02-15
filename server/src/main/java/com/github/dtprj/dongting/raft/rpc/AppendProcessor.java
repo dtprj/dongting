@@ -303,11 +303,11 @@ class AppendFiberFrame extends FiberFrame<Void> {
         } else if (pos.getLeft() == req.getPrevLogTerm() && pos.getRight() == req.getPrevLogIndex()) {
             log.info("local log truncate to prevLogIndex={}, prevLogTerm={}, groupId={}",
                     req.getPrevLogIndex(), req.getPrevLogTerm(), raftStatus.getGroupId());
-            long truncateIndex = req.getPrevLogIndex() + 1;
             if (RaftUtil.writeNotFinished(raftStatus)) {
-                return RaftUtil.waitWriteFinish(raftStatus, v -> truncateAndAppend(truncateIndex));
+                return RaftUtil.waitWriteFinish(raftStatus,
+                        v -> truncateAndAppend(req.getPrevLogIndex(), req.getPrevLogTerm()));
             } else {
-                return truncateAndAppend(truncateIndex);
+                return truncateAndAppend(req.getPrevLogIndex(), req.getPrevLogTerm());
             }
         } else {
             log.info("follower suggest term={}, index={}, groupId={}", pos.getLeft(), pos.getRight(), raftStatus.getGroupId());
@@ -316,9 +316,17 @@ class AppendFiberFrame extends FiberFrame<Void> {
         }
     }
 
-    private FrameCallResult truncateAndAppend(long truncateIndex) {
+    private FrameCallResult truncateAndAppend(long matchIndex, int matchTerm) {
+        long truncateIndex = matchIndex + 1;
         GroupComponents gc = reqInfo.getRaftGroup().getGroupComponents();
         gc.getRaftLog().truncateTail(truncateIndex);
+
+        RaftStatusImpl raftStatus = gc.getRaftStatus();
+        raftStatus.setLastWriteLogIndex(matchIndex);
+        raftStatus.setLastSyncLogIndex(matchIndex);
+        raftStatus.setLastLogIndex(matchIndex);
+        raftStatus.setLastLogTerm(matchTerm);
+
         return doAppend(reqInfo, gc);
     }
 
@@ -438,11 +446,10 @@ class InstallFiberFrame extends FiberFrame<Void> {
     private FrameCallResult afterInstallBlock(InstallSnapshotReq req, boolean finish, RaftStatusImpl raftStatus,
                                               GroupComponents gc) throws Exception {
         raftStatus.setLastLogTerm(req.lastIncludedTerm);
+
         raftStatus.setLastLogIndex(req.lastIncludedIndex);
-        raftStatus.setLastSyncLogTerm(req.lastIncludedTerm);
-        raftStatus.setLastSyncLogIndex(req.lastIncludedIndex);
-        raftStatus.setLastWriteLogTerm(req.lastIncludedTerm);
         raftStatus.setLastWriteLogIndex(req.lastIncludedIndex);
+        raftStatus.setLastSyncLogIndex(req.lastIncludedIndex);
 
         if (finish) {
             raftStatus.setInstallSnapshot(false);

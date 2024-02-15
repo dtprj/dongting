@@ -71,9 +71,7 @@ public class RaftStatusImpl extends RaftStatus {
     private long lastLogIndex;
     private int lastLogTerm;
     private long lastSyncLogIndex;
-    private int lastSyncLogTerm;
     private long lastWriteLogIndex;
-    private int lastWriteLogTerm;
 
     private long leaderCommit;
 
@@ -370,14 +368,6 @@ public class RaftStatusImpl extends RaftStatus {
         this.fiberGroup = fiberGroup;
     }
 
-    public int getLastSyncLogTerm() {
-        return lastSyncLogTerm;
-    }
-
-    public void setLastSyncLogTerm(int lastSyncLogTerm) {
-        this.lastSyncLogTerm = lastSyncLogTerm;
-    }
-
     public FiberCondition getLogWriteFinishCondition() {
         return logWriteFinishCondition;
     }
@@ -400,14 +390,6 @@ public class RaftStatusImpl extends RaftStatus {
 
     public void setLastWriteLogIndex(long lastWriteLogIndex) {
         this.lastWriteLogIndex = lastWriteLogIndex;
-    }
-
-    public int getLastWriteLogTerm() {
-        return lastWriteLogTerm;
-    }
-
-    public void setLastWriteLogTerm(int lastWriteLogTerm) {
-        this.lastWriteLogTerm = lastWriteLogTerm;
     }
 
     public FiberCondition getTransferLeaderCondition() {

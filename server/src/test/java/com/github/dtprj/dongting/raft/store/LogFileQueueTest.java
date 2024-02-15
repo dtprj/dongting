@@ -213,7 +213,6 @@ public class LogFileQueueTest extends BaseFiberTest {
         });
 
         assertEquals(items[items.length - 1].getIndex(), raftStatus.getLastSyncLogIndex());
-        assertEquals(items[items.length - 1].getTerm(), raftStatus.getLastSyncLogTerm());
 
         if (!check) {
             return;
