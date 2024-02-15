@@ -466,8 +466,8 @@ public class MemberManager implements BiConsumer<EventType, Object> {
                     oldObserverIds, raftStatus.getNodeIdOfObservers(), raftStatus.getGroupId());
         }
 
-        Pair<List<RaftNodeEx>, List<RaftNodeEx>> pair = nodeManager.doPrepare(oldMemberIds, oldObserverIds,
-                newMemberIds, newObserverIds);
+        Pair<List<RaftNodeEx>, List<RaftNodeEx>> pair = nodeManager.doPrepare(raftStatus.getNodeIdOfPreparedMembers(),
+                raftStatus.getNodeIdOfPreparedObservers(), newMemberIds, newObserverIds);
         List<RaftNodeEx> newMemberNodes = pair.getLeft();
         List<RaftNodeEx> newObserverNodes = pair.getRight();
 
