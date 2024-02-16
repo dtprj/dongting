@@ -169,9 +169,7 @@ class RecoverStateMachineFiberFrame extends FiberFrame<Pair<Integer, Long>> {
 
     @Override
     protected FrameCallResult doFinally() {
-        if (rb != null) {
-            rb.release();
-        }
+        releaseReadBuffer();
         if (snapshot != null) {
             snapshot.close();
         }
@@ -179,7 +177,7 @@ class RecoverStateMachineFiberFrame extends FiberFrame<Pair<Integer, Long>> {
     }
 
     @Override
-    public FrameCallResult execute(Void input) throws Throwable {
+    public FrameCallResult execute(Void input) {
         if (snapshotManager == null) {
             setResult(null);
             return Fiber.frameReturn();
@@ -199,9 +197,7 @@ class RecoverStateMachineFiberFrame extends FiberFrame<Pair<Integer, Long>> {
 
     private FrameCallResult read(Void v) {
         RaftUtil.checkStop(getFiberGroup());
-        if (rb != null) {
-            rb.release();
-        }
+        releaseReadBuffer();
         FiberFuture<RefBuffer> f = snapshot.readNext();
         return f.await(this::afterRead);
     }
@@ -225,5 +221,12 @@ class RecoverStateMachineFiberFrame extends FiberFrame<Pair<Integer, Long>> {
     private FrameCallResult finish(Void v) {
         setResult(new Pair<>(snapshot.getLastIncludedTerm(), snapshot.getLastIncludedIndex()));
         return Fiber.frameReturn();
+    }
+
+    private void releaseReadBuffer() {
+        if (rb != null) {
+            rb.release();
+            rb = null;
+        }
     }
 }

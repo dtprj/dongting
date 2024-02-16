@@ -17,16 +17,14 @@ package com.github.dtprj.dongting.raft.sm;
 
 import com.github.dtprj.dongting.fiber.FiberFrame;
 
-import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Supplier;
 
 /**
  * @author huangli
  */
 public interface SnapshotManager {
 
-    FiberFrame<Snapshot> init() throws IOException;
+    FiberFrame<Snapshot> init();
 
-    CompletableFuture<Long> saveSnapshot(StateMachine stateMachine, Supplier<Boolean> stopIndicator);
+    void saveSnapshot(StateMachine stateMachine, CompletableFuture<Long> result);
 }

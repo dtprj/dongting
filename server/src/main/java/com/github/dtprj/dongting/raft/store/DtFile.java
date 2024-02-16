@@ -28,9 +28,9 @@ public class DtFile {
     private final File file;
     private final AsynchronousFileChannel channel;
 
-    private FiberLock lock;
+    private final FiberLock lock;
 
-    DtFile(File file, AsynchronousFileChannel channel, FiberGroup fiberGroup) {
+    public DtFile(File file, AsynchronousFileChannel channel, FiberGroup fiberGroup) {
         this.file = file;
         this.channel = channel;
         this.lock = fiberGroup.newLock();
