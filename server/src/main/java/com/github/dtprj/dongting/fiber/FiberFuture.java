@@ -215,15 +215,7 @@ public class FiberFuture<T> extends WaitSource {
     /**
      * this method should call in dispatcher thread
      */
-    public void registerCallback(FutureCallback<T> callback) {
-        callback.future = this;
-        registerCallback0(callback);
-    }
-
-    /**
-     * this method should call in dispatcher thread
-     */
-    private void registerCallback0(FiberFrame<Void> callback) {
+    public void registerCallback(FiberFrame<Void> callback) {
         fiberGroup.checkGroup();
         if (done) {
             startCallbackFiber(callback);
@@ -232,6 +224,22 @@ public class FiberFuture<T> extends WaitSource {
             c.frameCallback = callback;
             addCallback(c);
         }
+    }
+
+    public abstract static class FutureCallback<T, O> extends FiberFrame<O> {
+
+        private final FiberFuture<T> future;
+
+        public FutureCallback(FiberFuture<T> future) {
+            this.future = future;
+        }
+
+        @Override
+        public final FrameCallResult execute(Void input) {
+            return onCompleted(future.execResult, future.execEx);
+        }
+
+        protected abstract FrameCallResult onCompleted(T t, Throwable ex);
     }
 
     private void addCallback(Callback<T> c) {
@@ -262,20 +270,36 @@ public class FiberFuture<T> extends WaitSource {
         Callback<T> tail;
     }
 
-    public static abstract class FutureCallback<T> extends FiberFrame<Void> {
+    /**
+     * this method should call in dispatcher thread.
+     * NOTICE: if the future is complete exceptionally, the converter will still be called.
+     */
+    public <T2> FiberFuture<T2> convert(FiberFrame<T2> converter) {
+        FiberFuture<T2> newFuture = new FiberFuture<>(fiberGroup);
+        registerCallback(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                return Fiber.call(converter, this::afterConvert);
+            }
 
-        private FiberFuture<T> future;
+            private FrameCallResult afterConvert(T2 t2) {
+                newFuture.complete(t2);
+                return Fiber.frameReturn();
+            }
 
-        @Override
-        public final FrameCallResult execute(Void input) {
-            return onCompleted(future.getResult(), future.getEx());
-        }
-
-        protected abstract FrameCallResult onCompleted(T t, Throwable ex);
+            @Override
+            protected FrameCallResult handle(Throwable ex) {
+                newFuture.completeExceptionally(ex);
+                return Fiber.frameReturn();
+            }
+        });
+        return newFuture;
     }
 
     /**
-     * this method should call in dispatcher thread
+     * this method should call in dispatcher thread.
+     * NOTICE: if the future is complete exceptionally, the converter WILL NOT be called,
+     * and the new future will be complete exceptionally with the same exception.
      */
     public <T2> FiberFuture<T2> convert(Function<T, T2> converter) {
         FiberFuture<T2> newFuture = new FiberFuture<>(fiberGroup);
