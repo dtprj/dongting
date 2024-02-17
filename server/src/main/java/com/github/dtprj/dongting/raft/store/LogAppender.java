@@ -471,29 +471,17 @@ class LogAppender {
         }
     }
 
-    private class SyncFrame extends FiberFrame<Void> {
+    private class SyncFrame extends ForceFrame {
 
         private final WriteTask task;
 
         public SyncFrame(WriteTask task) {
+            super(task.getDtFile().getChannel(), groupConfig.getIoExecutor(), false);
             this.task = task;
         }
 
         @Override
-        public FrameCallResult execute(Void input) {
-            FiberFuture<Void> f = fiberGroup.newFuture();
-            groupConfig.getIoExecutor().submit(() -> {
-                try {
-                    task.getDtFile().getChannel().force(false);
-                    f.fireComplete(null);
-                } catch (Throwable e) {
-                    f.fireCompleteExceptionally(e);
-                }
-            });
-            return f.await(this::afterSync);
-        }
-
-        private FrameCallResult afterSync(Void unused) {
+        protected FrameCallResult afterForce(Void unused) {
             WriteTask head = syncWriteTaskQueueHead;
             if (head != null && head.lastIndex <= task.lastIndex) {
                 syncWriteTaskQueueHead = head.nextNeedSyncTask;
