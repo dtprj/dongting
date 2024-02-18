@@ -215,7 +215,7 @@ public class FiberFuture<T> extends WaitSource {
     /**
      * this method should call in dispatcher thread
      */
-    public void registerCallback(FiberFrame<Void> callback) {
+    public void registerCallback(FutureCallback<T> callback) {
         fiberGroup.checkGroup();
         if (done) {
             startCallbackFiber(callback);
@@ -226,7 +226,7 @@ public class FiberFuture<T> extends WaitSource {
         }
     }
 
-    public abstract static class FutureCallback<T, O> extends FiberFrame<O> {
+    public abstract static class FutureCallback<T> extends FiberFrame<Void> {
 
         private final FiberFuture<T> future;
 
@@ -235,11 +235,15 @@ public class FiberFuture<T> extends WaitSource {
         }
 
         @Override
-        public final FrameCallResult execute(Void input) {
-            return onCompleted(future.execResult, future.execEx);
+        public final FrameCallResult execute(Void input) throws Throwable {
+            if (future.execEx != null) {
+                throw future.execEx;
+            } else {
+                return afterCompleteSuccessfully(future.execResult);
+            }
         }
 
-        protected abstract FrameCallResult onCompleted(T t, Throwable ex);
+        protected abstract FrameCallResult afterCompleteSuccessfully(T t);
     }
 
     private void addCallback(Callback<T> c) {
@@ -268,32 +272,6 @@ public class FiberFuture<T> extends WaitSource {
         BiConsumer<T, Throwable> simpleCallback;
         Callback<T> next;
         Callback<T> tail;
-    }
-
-    /**
-     * this method should call in dispatcher thread.
-     * NOTICE: if the future is complete exceptionally, the converter will still be called.
-     */
-    public <T2> FiberFuture<T2> convert(FiberFrame<T2> converter) {
-        FiberFuture<T2> newFuture = new FiberFuture<>(fiberGroup);
-        registerCallback(new FiberFrame<>() {
-            @Override
-            public FrameCallResult execute(Void input) {
-                return Fiber.call(converter, this::afterConvert);
-            }
-
-            private FrameCallResult afterConvert(T2 t2) {
-                newFuture.complete(t2);
-                return Fiber.frameReturn();
-            }
-
-            @Override
-            protected FrameCallResult handle(Throwable ex) {
-                newFuture.completeExceptionally(ex);
-                return Fiber.frameReturn();
-            }
-        });
-        return newFuture;
     }
 
     /**

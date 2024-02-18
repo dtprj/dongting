@@ -281,8 +281,13 @@ public class FutureTest extends AbstractFiberTest {
                 latch.countDown();
                 f.registerCallback(new FiberFuture.FutureCallback<>(f) {
                     @Override
-                    protected FrameCallResult onCompleted(Integer value, Throwable ex) {
+                    protected FrameCallResult afterCompleteSuccessfully(Integer value) {
                         futureResult.set(value);
+                        return Fiber.frameReturn();
+                    }
+
+                    @Override
+                    protected FrameCallResult handle(Throwable ex) {
                         futureEx.set(ex);
                         return Fiber.frameReturn();
                     }
@@ -309,8 +314,13 @@ public class FutureTest extends AbstractFiberTest {
             public FrameCallResult execute(Void input) {
                 f.registerCallback(new FiberFuture.FutureCallback<>(f) {
                     @Override
-                    protected FrameCallResult onCompleted(Integer value, Throwable ex) {
+                    protected FrameCallResult afterCompleteSuccessfully(Integer value) {
                         futureResult.set(value);
+                        return Fiber.frameReturn();
+                    }
+
+                    @Override
+                    protected FrameCallResult handle(Throwable ex) {
                         futureEx.set(ex);
                         return Fiber.frameReturn();
                     }
@@ -335,8 +345,13 @@ public class FutureTest extends AbstractFiberTest {
                 latch.countDown();
                 f.registerCallback(new FiberFuture.FutureCallback<>(f) {
                     @Override
-                    protected FrameCallResult onCompleted(Integer value, Throwable ex) {
+                    protected FrameCallResult afterCompleteSuccessfully(Integer value) {
                         futureResult.set(value);
+                        return Fiber.frameReturn();
+                    }
+
+                    @Override
+                    protected FrameCallResult handle(Throwable ex) {
                         futureEx.set(ex);
                         return Fiber.frameReturn();
                     }
@@ -366,8 +381,13 @@ public class FutureTest extends AbstractFiberTest {
             public FrameCallResult execute(Void input) {
                 f.registerCallback(new FiberFuture.FutureCallback<>(f) {
                     @Override
-                    protected FrameCallResult onCompleted(Integer value, Throwable ex) {
+                    protected FrameCallResult afterCompleteSuccessfully(Integer value) {
                         futureResult.set(value);
+                        return Fiber.frameReturn();
+                    }
+
+                    @Override
+                    protected FrameCallResult handle(Throwable ex) {
                         futureEx.set(ex);
                         return Fiber.frameReturn();
                     }
