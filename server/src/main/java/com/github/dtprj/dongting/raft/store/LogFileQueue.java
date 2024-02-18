@@ -32,7 +32,6 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.File;
 import java.nio.ByteBuffer;
-import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 
 /**
@@ -69,11 +68,6 @@ class LogFileQueue extends FileQueue {
         this.directPool = groupConfig.getDirectPool();
 
         this.logAppender = new LogAppender(idxOps, this, groupConfig);
-    }
-
-    @Override
-    protected ExecutorService getChannelExecutor() {
-        return fiberGroup.getExecutor();
     }
 
     public long fileLength() {

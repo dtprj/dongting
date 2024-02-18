@@ -86,7 +86,7 @@ public class StatusFile implements AutoCloseable {
                 options.add(StandardOpenOption.CREATE);
                 options.add(StandardOpenOption.READ);
                 options.add(StandardOpenOption.WRITE);
-                AsynchronousFileChannel channel = AsynchronousFileChannel.open(file.toPath(), options, ioExecutor);
+                AsynchronousFileChannel channel = AsynchronousFileChannel.open(file.toPath(), options, getFiberGroup().getExecutor());
                 dtFile = new DtFile(file, channel, fiberGroup);
                 lock = channel.tryLock();
                 if (!needLoad) {

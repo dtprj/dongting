@@ -59,7 +59,7 @@ public class FileSnapshot extends Snapshot {
 
         HashSet<StandardOpenOption> options = new HashSet<>();
         options.add(StandardOpenOption.READ);
-        AsynchronousFileChannel channel = AsynchronousFileChannel.open(dataFile.toPath(), options, ioExecutor);
+        AsynchronousFileChannel channel = AsynchronousFileChannel.open(dataFile.toPath(), options, fiberGroup.getExecutor());
 
         this.dtFile = new DtFile(dataFile, channel, groupConfig.getFiberGroup());
     }

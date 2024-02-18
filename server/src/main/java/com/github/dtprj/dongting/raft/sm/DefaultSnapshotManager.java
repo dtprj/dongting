@@ -231,7 +231,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             HashSet<StandardOpenOption> options = new HashSet<>();
             options.add(StandardOpenOption.CREATE_NEW);
             options.add(StandardOpenOption.WRITE);
-            AsynchronousFileChannel channel = AsynchronousFileChannel.open(dataFile.toPath(), options, ioExecutor);
+            AsynchronousFileChannel channel = AsynchronousFileChannel.open(dataFile.toPath(), options, getFiberGroup().getExecutor());
             this.newDataFile = new DtFile(dataFile, channel, groupConfig.getFiberGroup());
 
             return read();

@@ -68,7 +68,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         s.add(StandardOpenOption.CREATE);
         s.add(StandardOpenOption.WRITE);
         s.add(StandardOpenOption.READ);
-        AsynchronousFileChannel channel = AsynchronousFileChannel.open(file.toPath(), s, MockExecutors.ioExecutor());
+        AsynchronousFileChannel channel = AsynchronousFileChannel.open(file.toPath(), s, fiberGroup.getExecutor());
         dtFile = new DtFile(file, channel, fiberGroup);
     }
 
