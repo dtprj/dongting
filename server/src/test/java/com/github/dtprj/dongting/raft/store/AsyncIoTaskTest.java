@@ -85,6 +85,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
     public void testRW() throws Exception {
         doInFiber(new FiberFrame<>() {
             ByteBuffer buf = ByteBuffer.allocate(1024);
+
             @Override
             public FrameCallResult execute(Void input) {
                 AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
@@ -129,6 +130,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
     private void assertReadFail(Supplier<ReadFailTask> supplier) throws Exception {
         doInFiber(new FiberFrame<>() {
             ReadFailTask t;
+
             @Override
             public FrameCallResult execute(Void input) {
                 ByteBuffer buf = ByteBuffer.allocate(1);
@@ -157,7 +159,8 @@ public class AsyncIoTaskTest extends BaseFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 AsyncIoTask wt = new AsyncIoTask(fiberGroup, dtFile);
-                return wt.writeAndSync(buf, 0, false).await(1000, this::justReturn);
+                return wt.writeAndSync(buf, 0, MockExecutors.ioExecutor(), false)
+                        .await(1000, this::justReturn);
             }
         });
 
@@ -171,11 +174,11 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         assertReadSuccess(() -> new ReadFailTask(2, new long[]{1}, true, () -> false));
 
         // fail, cancel indicator return true
-        assertReadFail(()->new ReadFailTask(2, new long[]{1}, true, () -> true));
+        assertReadFail(() -> new ReadFailTask(2, new long[]{1}, true, () -> true));
 
         // fail, cancel indicator return true
         AtomicInteger cancelIndicatorCount = new AtomicInteger();
-        assertReadFail(()->new ReadFailTask(2, new long[]{1}, true,
+        assertReadFail(() -> new ReadFailTask(2, new long[]{1}, true,
                 () -> cancelIndicatorCount.getAndIncrement() == 1));
 
         // no retry
@@ -212,7 +215,8 @@ public class AsyncIoTaskTest extends BaseFiberTest {
                 ByteBuffer buf = ByteBuffer.allocate(1);
                 // fail on first write
                 FlushFailTask t = new FlushFailTask(1, new long[]{1}, false, () -> false);
-                return t.writeAndSync(buf, 0, false).await(1000, this::justReturn);
+                return t.writeAndSync(buf, 0, MockExecutors.ioExecutor(), false)
+                        .await(1000, this::justReturn);
             }
         });
 

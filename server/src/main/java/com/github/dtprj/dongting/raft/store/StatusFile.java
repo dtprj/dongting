@@ -148,7 +148,7 @@ public class StatusFile implements AutoCloseable {
             // retry in status manager
             AsyncIoTask task = new AsyncIoTask(fiberGroup, dtFile);
             if (sync) {
-                return task.writeAndSync(buf, 0, false);
+                return task.writeAndSync(buf, 0, ioExecutor, false);
             } else {
                 return task.write(buf, 0);
             }

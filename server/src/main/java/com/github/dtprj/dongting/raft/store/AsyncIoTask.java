@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.CompletionHandler;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
 /**
@@ -48,8 +49,8 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     private long filePos;
     boolean write;
     private int position;
-    private boolean flush;
     private boolean flushMeta;
+    private Executor ioExecutor;
 
     private int retryCount = 0;
 
@@ -81,9 +82,6 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         this.ioBuffer = ioBuffer;
         this.filePos = filePos;
         this.position = ioBuffer.position();
-        this.write = false;
-        this.flush = false;
-        this.flushMeta = false;
         exec(filePos);
         return future;
     }
@@ -98,14 +96,14 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     }
 
     public FiberFuture<Void> write(ByteBuffer ioBuffer, long filePos) {
-        return write(ioBuffer, filePos, false, false);
+        return write(ioBuffer, filePos, null, false);
     }
 
-    public FiberFuture<Void> writeAndSync(ByteBuffer ioBuffer, long filePos, boolean flushMeta) {
-        return write(ioBuffer, filePos, true, flushMeta);
+    public FiberFuture<Void> writeAndSync(ByteBuffer ioBuffer, long filePos, Executor ioExecutor, boolean flushMeta) {
+        return write(ioBuffer, filePos, ioExecutor, flushMeta);
     }
 
-    private FiberFuture<Void> write(ByteBuffer ioBuffer, long filePos, boolean sync, boolean syncMeta) {
+    private FiberFuture<Void> write(ByteBuffer ioBuffer, long filePos, Executor ioExecutor, boolean syncMeta) {
         if (this.ioBuffer != null) {
             future.completeExceptionally(new RaftException("io task can't reused"));
             return future;
@@ -114,7 +112,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         this.filePos = filePos;
         this.position = ioBuffer.position();
         this.write = true;
-        this.flush = sync;
+        this.ioExecutor = ioExecutor;
         this.flushMeta = syncMeta;
         exec(filePos);
         return future;
@@ -126,18 +124,18 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         return new DoInLockFrame<>(dtFile.getLock().readLock()) {
             @Override
             protected FrameCallResult afterGetLock() {
-                return write(ioBuffer, filePos, false, false).await(this::justReturn);
+                return write(ioBuffer, filePos, null, false).await(this::justReturn);
             }
         };
     }
 
-    public FiberFrame<Void> lockWriteAndSync(ByteBuffer ioBuffer, long filePos, boolean flushMeta) {
+    public FiberFrame<Void> lockWriteAndSync(ByteBuffer ioBuffer, long filePos, Executor ioExecutor, boolean flushMeta) {
         // use read lock, so not block read operation.
         // because we never read file block that is being written.
         return new DoInLockFrame<>(dtFile.getLock().readLock()) {
             @Override
             protected FrameCallResult afterGetLock() {
-                return write(ioBuffer, filePos, true, flushMeta).await(this::justReturn);
+                return write(ioBuffer, filePos, ioExecutor, flushMeta).await(this::justReturn);
             }
         };
     }
@@ -233,13 +231,22 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         if (ioBuffer.hasRemaining()) {
             int bytes = ioBuffer.position() - position;
             exec(filePos + bytes);
-        } else {
+        } else if (ioExecutor != null) {
             try {
-                doFlush();
-                fireComplete(null);
+                ioExecutor.execute(() -> {
+                    try {
+                        doFlush();
+                        fireComplete(null);
+                    } catch (Throwable e) {
+                        // retry should run in fiber dispatcher thread
+                        fiberGroup.getExecutor().submit(() -> retry(e));
+                    }
+                });
             } catch (Throwable e) {
                 retry(e);
             }
+        } else {
+            fireComplete(null);
         }
     }
 
@@ -257,9 +264,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
 
     // this method set to protected for mock error in unit test
     protected void doFlush() throws IOException {
-        if (flush) {
-            dtFile.getChannel().force(flushMeta);
-        }
+        dtFile.getChannel().force(flushMeta);
     }
 
     @Override
