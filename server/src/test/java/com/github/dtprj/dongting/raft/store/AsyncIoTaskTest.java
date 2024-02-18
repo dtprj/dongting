@@ -159,7 +159,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
             @Override
             public FrameCallResult execute(Void input) {
                 AsyncIoTask wt = new AsyncIoTask(fiberGroup, dtFile);
-                return wt.writeAndSync(buf, 0, MockExecutors.ioExecutor(), false)
+                return wt.writeAndForce(buf, 0, MockExecutors.ioExecutor(), false)
                         .await(1000, this::justReturn);
             }
         });
@@ -215,7 +215,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
                 ByteBuffer buf = ByteBuffer.allocate(1);
                 // fail on first write
                 FlushFailTask t = new FlushFailTask(1, new long[]{1}, false, () -> false);
-                return t.writeAndSync(buf, 0, MockExecutors.ioExecutor(), false)
+                return t.writeAndForce(buf, 0, MockExecutors.ioExecutor(), false)
                         .await(1000, this::justReturn);
             }
         });

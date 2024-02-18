@@ -99,7 +99,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         return write(ioBuffer, filePos, null, false);
     }
 
-    public FiberFuture<Void> writeAndSync(ByteBuffer ioBuffer, long filePos, Executor ioExecutor, boolean flushMeta) {
+    public FiberFuture<Void> writeAndForce(ByteBuffer ioBuffer, long filePos, Executor ioExecutor, boolean flushMeta) {
         return write(ioBuffer, filePos, ioExecutor, flushMeta);
     }
 
@@ -129,7 +129,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         };
     }
 
-    public FiberFrame<Void> lockWriteAndSync(ByteBuffer ioBuffer, long filePos, Executor ioExecutor, boolean flushMeta) {
+    public FiberFrame<Void> lockWriteAndForce(ByteBuffer ioBuffer, long filePos, Executor ioExecutor, boolean flushMeta) {
         // use read lock, so not block read operation.
         // because we never read file block that is being written.
         return new DoInLockFrame<>(dtFile.getLock().readLock()) {
