@@ -115,38 +115,17 @@ public class ApplyManager {
         }
     }
 
-    private boolean execWriteTask(long index, RaftTask rt) {
+    private void execNormalWrite(long index, RaftTask rt) {
         try {
-            switch (rt.getType()) {
-                case LogItem.TYPE_NORMAL:
-                    execNormalWrite(index, rt);
-                    return false;
-                case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
-                    doPrepare(rt);
-                    return true;
-                case LogItem.TYPE_DROP_CONFIG_CHANGE:
-                    doAbort();
-                    return true;
-                case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
-                    doCommit();
-                    return true;
-                default:
-                    // heartbeat etc.
-                    return false;
-            }
+            RaftInput input = rt.getInput();
+            Object r = stateMachine.exec(index, input);
+            rt.getFuture().complete(new RaftOutput(index, r));
         } catch (Throwable ex) {
-            configChanging = false;
             if (rt.getFuture() != null) {
                 rt.getFuture().completeExceptionally(ex);
             }
             throw Fiber.fatal(new RaftException("exec write failed.", ex));
         }
-    }
-
-    private void execNormalWrite(long index, RaftTask rt) {
-        RaftInput input = rt.getInput();
-        Object r = stateMachine.exec(index, input);
-        rt.getFuture().complete(new RaftOutput(index, r));
     }
 
     private void execReaders(long index, RaftTask rt) {
@@ -311,13 +290,17 @@ public class ApplyManager {
             }
             RaftTask rt = taskList.get(taskIndex);
             long logIndex = rt.getItem().getIndex();
-            boolean configChange = execWriteTask(logIndex, rt);
-            if (configChange) {
-                StatusManager statusManager = gc.getStatusManager();
-                statusManager.persistSync();
-                return statusManager.waitSync(unusedVoid -> this.afterExec(true, logIndex, rt));
-            } else {
-                return this.afterExec(false, logIndex, rt);
+            switch (rt.getType()) {
+                case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
+                case LogItem.TYPE_DROP_CONFIG_CHANGE:
+                case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
+                    return Fiber.call(new ConfigChangeFrame(rt), unused -> afterExec(true, logIndex, rt));
+                case LogItem.TYPE_NORMAL:
+                    execNormalWrite(logIndex, rt);
+                    // not break here
+                case LogItem.TYPE_HEARTBEAT:
+                default:
+                    return this.afterExec(false, logIndex, rt);
             }
         }
 
@@ -358,4 +341,42 @@ public class ApplyManager {
         }
     }
 
+    private class ConfigChangeFrame extends FiberFrame<Void> {
+
+        private final RaftTask rt;
+
+        private ConfigChangeFrame(RaftTask rt) {
+            this.rt = rt;
+        }
+
+        @Override
+        protected FrameCallResult handle(Throwable ex) {
+            if (rt.getFuture() != null) {
+                rt.getFuture().completeExceptionally(ex);
+            }
+            throw Fiber.fatal(new RaftException("exec write failed.", ex));
+        }
+
+        @Override
+        public FrameCallResult execute(Void input) {
+            StatusManager statusManager = gc.getStatusManager();
+            statusManager.persistAsync(true);
+            return statusManager.waitSync(this::afterPersist);
+        }
+
+        private FrameCallResult afterPersist(Void unused) {
+            switch (rt.getType()) {
+                case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
+                    doPrepare(rt);
+                    break;
+                case LogItem.TYPE_DROP_CONFIG_CHANGE:
+                    doAbort();
+                    break;
+                case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
+                    doCommit();
+                    break;
+            }
+            return Fiber.frameReturn();
+        }
+    }
 }
