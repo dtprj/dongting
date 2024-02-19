@@ -41,12 +41,11 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
 
 /**
  * @author huangli
  */
-public class VoteManager implements BiConsumer<EventType, Object> {
+public class VoteManager {
 
     private static final DtLog log = DtLogs.getLogger(VoteManager.class);
 
@@ -80,13 +79,6 @@ public class VoteManager implements BiConsumer<EventType, Object> {
     public void postInit() {
         this.linearTaskRunner = gc.getLinearTaskRunner();
         this.statusManager = gc.getStatusManager();
-    }
-
-    @Override
-    public void accept(EventType eventType, Object o) {
-        if (eventType == EventType.cancelVote) {
-            cancelVote();
-        }
     }
 
     public void startFiber() {

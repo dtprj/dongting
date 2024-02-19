@@ -35,7 +35,6 @@ import com.github.dtprj.dongting.net.NioServerConfig;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.ApplyManager;
 import com.github.dtprj.dongting.raft.impl.CommitManager;
-import com.github.dtprj.dongting.raft.impl.EventBus;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.InitFiberFrame;
 import com.github.dtprj.dongting.raft.impl.LinearTaskRunner;
@@ -194,7 +193,6 @@ public class RaftServer extends AbstractLifeCircle {
         Objects.requireNonNull(rgc.getNodeIdOfMembers());
 
         GroupComponents gc = new GroupComponents();
-        EventBus eventBus = new EventBus();
 
         HashSet<Integer> nodeIdOfMembers = new HashSet<>();
         parseMemberIds(allNodeIds, nodeIdOfMembers, rgc.getNodeIdOfMembers(), rgc.getGroupId());
@@ -247,9 +245,6 @@ public class RaftServer extends AbstractLifeCircle {
         LinearTaskRunner linearTaskRunner = new LinearTaskRunner(gc);
         VoteManager voteManager = new VoteManager(replicateNioClient, gc);
 
-        eventBus.register(linearTaskRunner);
-        eventBus.register(voteManager);
-
         gc.setRaftLog(raftLog);
         gc.setStateMachine(stateMachine);
         gc.setMemberManager(memberManager);
@@ -257,7 +252,6 @@ public class RaftServer extends AbstractLifeCircle {
         gc.setVoteManager(voteManager);
         gc.setCommitManager(commitManager);
         gc.setApplyManager(applyManager);
-        gc.setEventBus(eventBus);
         gc.setNodeManager(nodeManager);
         gc.setServerStat(serverStat);
         gc.setSnapshotManager(raftFactory.createSnapshotManager(rgcEx));

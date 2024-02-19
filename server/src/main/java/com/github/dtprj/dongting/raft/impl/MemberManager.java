@@ -51,7 +51,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
@@ -59,7 +58,7 @@ import static java.util.Collections.emptySet;
 /**
  * @author huangli
  */
-public class MemberManager implements BiConsumer<EventType, Object> {
+public class MemberManager {
     private static final DtLog log = DtLogs.getLogger(MemberManager.class);
     private final GroupComponents gc;
     private final NioClient client;
@@ -69,7 +68,6 @@ public class MemberManager implements BiConsumer<EventType, Object> {
     private final int groupId;
     private final RaftGroupConfigEx groupConfig;
 
-    private final EventBus eventBus;
     private ReplicateManager replicateManager;
     private NodeManager nodeManager;
 
@@ -83,7 +81,6 @@ public class MemberManager implements BiConsumer<EventType, Object> {
         this.groupConfig = gc.getGroupConfig();
         this.raftStatus = gc.getRaftStatus();
         this.groupId = raftStatus.getGroupId();
-        this.eventBus = gc.getEventBus();
 
         // TODO fix this
         if (raftStatus.getMembers().isEmpty()) {
@@ -436,28 +433,13 @@ public class MemberManager implements BiConsumer<EventType, Object> {
         CompletableFuture<RaftOutput> outputFuture = new CompletableFuture<>();
         RaftInput input = new RaftInput(0, null, data, null, 0);
         RaftTask rt = new RaftTask(raftStatus.getTs(), type, input, outputFuture);
-        eventBus.fire(EventType.raftExec, Collections.singletonList(rt));
+
+        gc.getLinearTaskRunner().raftExec(Collections.singletonList(rt));
 
         return outputFuture;
     }
 
-    @Override
-    public void accept(EventType eventType, Object o) {
-        switch (eventType) {
-            case prepareConfChange:
-                doPrepare((byte[]) o);
-                break;
-            case abortConfChange:
-                doAbort();
-                break;
-            case commitConfChange:
-                doCommit();
-                break;
-            default:
-        }
-    }
-
-    private void doPrepare(byte[] data) {
+    public void doPrepare(byte[] data) {
         String dataStr = new String(data);
         String[] fields = dataStr.split(";");
         Set<Integer> oldMemberIds = parseSet(fields[0]);
@@ -521,7 +503,7 @@ public class MemberManager implements BiConsumer<EventType, Object> {
 
         computeDuplicatedData(raftStatus);
 
-        eventBus.fire(EventType.cancelVote, null);
+        gc.getVoteManager().cancelVote();
     }
 
     public Set<Integer> parseSet(String s) {
@@ -536,7 +518,7 @@ public class MemberManager implements BiConsumer<EventType, Object> {
         return set;
     }
 
-    private void doAbort() {
+    public void doAbort() {
         HashSet<Integer> ids = new HashSet<>(raftStatus.getNodeIdOfPreparedMembers());
         for (RaftMember m : raftStatus.getPreparedObservers()) {
             ids.add(m.getNode().getNodeId());
@@ -557,7 +539,7 @@ public class MemberManager implements BiConsumer<EventType, Object> {
         nodeManager.doAbort(ids);
     }
 
-    private void doCommit() {
+    public void doCommit() {
         HashSet<Integer> ids = new HashSet<>(raftStatus.getNodeIdOfMembers());
         ids.addAll(raftStatus.getNodeIdOfObservers());
 

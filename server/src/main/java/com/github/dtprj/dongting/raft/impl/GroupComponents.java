@@ -35,7 +35,6 @@ public class GroupComponents {
     private LinearTaskRunner linearTaskRunner;
     private CommitManager commitManager;
     private ApplyManager applyManager;
-    private EventBus eventBus;
     private SnapshotManager snapshotManager;
     private StatusManager statusManager;
     private ReplicateManager replicateManager;
@@ -110,14 +109,6 @@ public class GroupComponents {
 
     public void setApplyManager(ApplyManager applyManager) {
         this.applyManager = applyManager;
-    }
-
-    public EventBus getEventBus() {
-        return eventBus;
-    }
-
-    public void setEventBus(EventBus eventBus) {
-        this.eventBus = eventBus;
     }
 
     public SnapshotManager getSnapshotManager() {

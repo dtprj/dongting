@@ -51,7 +51,6 @@ public class ApplyManager {
 
     private final GroupComponents gc;
     private final Timestamp ts;
-    private final EventBus eventBus;
     private final RaftStatusImpl raftStatus;
 
     private RaftLog raftLog;
@@ -70,7 +69,6 @@ public class ApplyManager {
     public ApplyManager(GroupComponents gc) {
         this.ts = gc.getRaftStatus().getTs();
         this.raftStatus = gc.getRaftStatus();
-        this.eventBus = gc.getEventBus();
         this.gc = gc;
         this.decodeContext = new DecodeContext();
         this.decodeContext.setHeapPool(gc.getGroupConfig().getHeapPool());
@@ -210,12 +208,12 @@ public class ApplyManager {
         ByteBuffer logData = (ByteBuffer) rt.getInput().getBody();
         byte[] data = new byte[logData.remaining()];
         logData.get(data);
-        eventBus.fire(EventType.prepareConfChange, data);
+        gc.getMemberManager().doPrepare(data);
     }
 
     private void doAbort() {
         try {
-            eventBus.fire(EventType.abortConfChange, null);
+            gc.getMemberManager().doAbort();
         } finally {
             configChanging = false;
         }
@@ -228,7 +226,7 @@ public class ApplyManager {
                 return;
             }
 
-            eventBus.fire(EventType.commitConfChange, null);
+            gc.getMemberManager().doCommit();
         } finally {
             configChanging = false;
         }

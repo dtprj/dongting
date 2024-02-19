@@ -36,12 +36,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
 
 /**
  * @author huangli
  */
-public class LinearTaskRunner implements BiConsumer<EventType, Object> {
+public class LinearTaskRunner {
 
     private static final DtLog log = DtLogs.getLogger(LinearTaskRunner.class);
 
@@ -67,13 +66,6 @@ public class LinearTaskRunner implements BiConsumer<EventType, Object> {
 
     public void postInit() {
         this.applyManager = gc.getApplyManager();
-    }
-
-    @Override
-    public void accept(EventType eventType, Object o) {
-        if (eventType == EventType.raftExec) {
-            raftExec((List<RaftTask>) o);
-        }
     }
 
     public void init(FiberChannel<RaftTask> taskChannel) {
@@ -133,7 +125,7 @@ public class LinearTaskRunner implements BiConsumer<EventType, Object> {
     }
 
     @SuppressWarnings("ForLoopReplaceableByForEach")
-    private void raftExec(List<RaftTask> inputs) {
+    public void raftExec(List<RaftTask> inputs) {
         RaftStatusImpl raftStatus = this.raftStatus;
         if (raftStatus.getRole() != RaftRole.leader) {
             for (RaftTask t : inputs) {
