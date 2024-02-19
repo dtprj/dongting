@@ -82,12 +82,11 @@ public class MemberManager {
         this.raftStatus = gc.getRaftStatus();
         this.groupId = raftStatus.getGroupId();
 
-        // TODO fix this
-        if (raftStatus.getMembers().isEmpty()) {
+        if (raftStatus.getNodeIdOfMembers().isEmpty()) {
             this.startReadyFuture = CompletableFuture.completedFuture(null);
             this.startReadyQuorum = 0;
         } else {
-            this.startReadyQuorum = RaftUtil.getElectQuorum(raftStatus.getMembers().size());
+            this.startReadyQuorum = RaftUtil.getElectQuorum(raftStatus.getNodeIdOfMembers().size());
             this.startReadyFuture = new CompletableFuture<>();
         }
     }
@@ -101,6 +100,7 @@ public class MemberManager {
      * invoke by RaftServer init thread or schedule thread
      */
     public void init(IntObjMap<RaftNodeEx> allNodes) {
+        raftStatus.setMembers(new ArrayList<>());
         for (int nodeId : raftStatus.getNodeIdOfMembers()) {
             RaftNodeEx node = allNodes.get(nodeId);
             RaftMember m = new RaftMember(node, groupConfig.getFiberGroup());
