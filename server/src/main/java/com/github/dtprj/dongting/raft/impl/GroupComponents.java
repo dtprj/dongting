@@ -38,6 +38,7 @@ public class GroupComponents {
     private EventBus eventBus;
     private SnapshotManager snapshotManager;
     private StatusManager statusManager;
+    private ReplicateManager replicateManager;
 
     private NodeManager nodeManager;
     private PendingStat serverStat;
@@ -173,5 +174,13 @@ public class GroupComponents {
 
     public void setFiberGroup(FiberGroup fiberGroup) {
         this.fiberGroup = fiberGroup;
+    }
+
+    public ReplicateManager getReplicateManager() {
+        return replicateManager;
+    }
+
+    public void setReplicateManager(ReplicateManager replicateManager) {
+        this.replicateManager = replicateManager;
     }
 }

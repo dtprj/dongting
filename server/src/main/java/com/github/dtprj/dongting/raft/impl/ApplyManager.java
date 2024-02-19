@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -50,13 +49,13 @@ import java.util.concurrent.TimeUnit;
 public class ApplyManager {
     private static final DtLog log = DtLogs.getLogger(ApplyManager.class);
 
-    private final int selfNodeId;
-    private final RaftLog raftLog;
-    private final StateMachine stateMachine;
+    private final GroupComponents gc;
     private final Timestamp ts;
     private final EventBus eventBus;
     private final RaftStatusImpl raftStatus;
-    private final StatusManager statusManager;
+
+    private RaftLog raftLog;
+    private StateMachine stateMachine;
 
     private final DecodeContext decodeContext;
 
@@ -68,18 +67,18 @@ public class ApplyManager {
     private boolean initCallbackRun = false;
     private Runnable initCallback;
 
-    public ApplyManager(int selfNodeId, RaftLog raftLog, StateMachine stateMachine,
-                        RaftStatusImpl raftStatus, EventBus eventBus,
-                        RefBufferFactory heapPool, StatusManager statusManager) {
-        this.selfNodeId = selfNodeId;
-        this.raftLog = raftLog;
-        this.stateMachine = stateMachine;
-        this.ts = raftStatus.getTs();
-        this.raftStatus = raftStatus;
-        this.eventBus = eventBus;
+    public ApplyManager(GroupComponents gc) {
+        this.ts = gc.getRaftStatus().getTs();
+        this.raftStatus = gc.getRaftStatus();
+        this.eventBus = gc.getEventBus();
+        this.gc = gc;
         this.decodeContext = new DecodeContext();
-        this.decodeContext.setHeapPool(heapPool);
-        this.statusManager = statusManager;
+        this.decodeContext.setHeapPool(gc.getGroupConfig().getHeapPool());
+    }
+
+    public void postInit() {
+        this.raftLog = gc.getRaftLog();
+        this.stateMachine = gc.getStateMachine();
     }
 
     public void init(FiberGroup fiberGroup, Runnable initCallback) {
@@ -316,6 +315,7 @@ public class ApplyManager {
             long logIndex = rt.getItem().getIndex();
             boolean configChange = execWriteTask(logIndex, rt);
             if (configChange) {
+                StatusManager statusManager = gc.getStatusManager();
                 statusManager.persistSync();
                 return statusManager.waitSync(unusedVoid -> this.afterExec(true, logIndex, rt));
             } else {

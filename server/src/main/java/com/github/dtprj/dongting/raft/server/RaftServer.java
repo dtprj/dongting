@@ -193,6 +193,7 @@ public class RaftServer extends AbstractLifeCircle {
                                           Set<Integer> allNodeIds, RaftGroupConfig rgc) {
         Objects.requireNonNull(rgc.getNodeIdOfMembers());
 
+        GroupComponents gc = new GroupComponents();
         EventBus eventBus = new EventBus();
 
         HashSet<Integer> nodeIdOfMembers = new HashSet<>();
@@ -229,36 +230,30 @@ public class RaftServer extends AbstractLifeCircle {
 
         RaftGroupConfigEx rgcEx = createGroupConfigEx(rgc, raftStatus, fiberGroup);
 
+        gc.setServerConfig(serverConfig);
+        gc.setGroupConfig(rgcEx);
+        gc.setRaftStatus(raftStatus);
+        gc.setFiberGroup(fiberGroup);
 
         StateMachine stateMachine = raftFactory.createStateMachine(rgcEx);
         rgcEx.setCodecFactory(stateMachine);
         StatusManager statusManager = new StatusManager(rgcEx);
         RaftLog raftLog = raftFactory.createRaftLog(rgcEx, statusManager);
 
-
-        ApplyManager applyManager = new ApplyManager(serverConfig.getNodeId(), raftLog, stateMachine, raftStatus,
-                eventBus, rgcEx.getHeapPool(), statusManager);
-        CommitManager commitManager = new CommitManager(raftStatus, applyManager);
-        ReplicateManager replicateManager = new ReplicateManager(replicateNioClient, serverConfig, rgcEx,
-                commitManager, raftLog, stateMachine, statusManager);
-        MemberManager memberManager = new MemberManager(serverConfig, rgcEx, replicateNioClient,
-                raftStatus, eventBus, replicateManager, nodeManager);
-
-
-        LinearTaskRunner linearTaskRunner = new LinearTaskRunner(serverConfig, rgcEx, raftStatus, applyManager);
-        VoteManager voteManager = new VoteManager(serverConfig, rgcEx, raftStatus, replicateNioClient,
-                linearTaskRunner, statusManager);
+        ApplyManager applyManager = new ApplyManager(gc);
+        CommitManager commitManager = new CommitManager(gc);
+        ReplicateManager replicateManager = new ReplicateManager(replicateNioClient, gc);
+        MemberManager memberManager = new MemberManager(replicateNioClient, gc);
+        LinearTaskRunner linearTaskRunner = new LinearTaskRunner(gc);
+        VoteManager voteManager = new VoteManager(replicateNioClient, gc);
 
         eventBus.register(linearTaskRunner);
         eventBus.register(voteManager);
 
-        GroupComponents gc = new GroupComponents();
-        gc.setServerConfig(serverConfig);
-        gc.setGroupConfig(rgcEx);
         gc.setRaftLog(raftLog);
         gc.setStateMachine(stateMachine);
-        gc.setRaftStatus(raftStatus);
         gc.setMemberManager(memberManager);
+        gc.setReplicateManager(replicateManager);
         gc.setVoteManager(voteManager);
         gc.setCommitManager(commitManager);
         gc.setApplyManager(applyManager);
@@ -267,7 +262,14 @@ public class RaftServer extends AbstractLifeCircle {
         gc.setServerStat(serverStat);
         gc.setSnapshotManager(raftFactory.createSnapshotManager(rgcEx));
         gc.setStatusManager(statusManager);
-        gc.setFiberGroup(fiberGroup);
+
+        applyManager.postInit();
+        commitManager.postInit();
+        replicateManager.postInit();
+        memberManager.postInit();
+        linearTaskRunner.postInit();
+        voteManager.postInit();
+
         return new RaftGroupImpl(gc);
     }
 

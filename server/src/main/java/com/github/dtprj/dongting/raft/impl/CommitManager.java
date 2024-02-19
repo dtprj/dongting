@@ -30,13 +30,18 @@ import java.util.List;
  */
 public class CommitManager {
 
+    private final GroupComponents gc;
     private final RaftStatusImpl raftStatus;
-    private final ApplyManager applyManager;
+    private ApplyManager applyManager;
     private final IndexedQueue<AppendRespWriter> respQueue = new IndexedQueue<>(128);
 
-    public CommitManager(RaftStatusImpl raftStatus, ApplyManager applyManager) {
-        this.raftStatus = raftStatus;
-        this.applyManager = applyManager;
+    public CommitManager(GroupComponents gc) {
+        this.gc = gc;
+        this.raftStatus = gc.getRaftStatus();
+    }
+
+    public void postInit() {
+        this.applyManager = gc.getApplyManager();
     }
 
     public void startCommitFiber() {

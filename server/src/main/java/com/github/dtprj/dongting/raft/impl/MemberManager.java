@@ -61,30 +61,31 @@ import static java.util.Collections.emptySet;
  */
 public class MemberManager implements BiConsumer<EventType, Object> {
     private static final DtLog log = DtLogs.getLogger(MemberManager.class);
+    private final GroupComponents gc;
+    private final NioClient client;
+
     private final RaftServerConfig serverConfig;
     private final RaftStatusImpl raftStatus;
     private final int groupId;
     private final RaftGroupConfigEx groupConfig;
-    private final NioClient client;
 
     private final EventBus eventBus;
-    private final ReplicateManager replicateManager;
-    private final NodeManager nodeManager;
+    private ReplicateManager replicateManager;
+    private NodeManager nodeManager;
 
     private final CompletableFuture<Void> startReadyFuture;
     private final int startReadyQuorum;
 
-    public MemberManager(RaftServerConfig serverConfig, RaftGroupConfigEx groupConfig, NioClient client,
-                         RaftStatusImpl raftStatus, EventBus eventBus, ReplicateManager replicateManager,
-                         NodeManager nodeManager) {
-        this.serverConfig = serverConfig;
-        this.groupConfig = groupConfig;
+    public MemberManager(NioClient client, GroupComponents gc) {
         this.client = client;
-        this.raftStatus = raftStatus;
+        this.gc = gc;
+        this.serverConfig = gc.getServerConfig();
+        this.groupConfig = gc.getGroupConfig();
+        this.raftStatus = gc.getRaftStatus();
         this.groupId = raftStatus.getGroupId();
-        this.eventBus = eventBus;
-        this.replicateManager = replicateManager;
-        this.nodeManager = nodeManager;
+        this.eventBus = gc.getEventBus();
+
+        // TODO fix this
         if (raftStatus.getMembers().isEmpty()) {
             this.startReadyFuture = CompletableFuture.completedFuture(null);
             this.startReadyQuorum = 0;
@@ -92,6 +93,11 @@ public class MemberManager implements BiConsumer<EventType, Object> {
             this.startReadyQuorum = RaftUtil.getElectQuorum(raftStatus.getMembers().size());
             this.startReadyFuture = new CompletableFuture<>();
         }
+    }
+
+    public void postInit() {
+        this.replicateManager = gc.getReplicateManager();
+        this.nodeManager = gc.getNodeManager();
     }
 
     /**

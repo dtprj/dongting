@@ -55,30 +55,32 @@ import java.util.concurrent.TimeUnit;
 public class ReplicateManager {
     private static final DtLog log = DtLogs.getLogger(ReplicateManager.class);
 
+    final NioClient client;
+    private final GroupComponents gc;
     final int groupId;
     private final RaftStatusImpl raftStatus;
     final RaftGroupConfigEx groupConfig;
     final RaftServerConfig serverConfig;
-    final RaftLog raftLog;
-    final StateMachine stateMachine;
-    final NioClient client;
-    private final CommitManager commitManager;
 
-    private final StatusManager statusManager;
+    RaftLog raftLog;
+    StateMachine stateMachine;
+    private CommitManager commitManager;
+    private StatusManager statusManager;
 
-    public ReplicateManager(NioClient client, RaftServerConfig serverConfig, RaftGroupConfigEx groupConfig,
-                            CommitManager commitManager, RaftLog raftLog, StateMachine stateMachine,
-                            StatusManager statusManager) {
-        this.groupConfig = groupConfig;
-        this.groupId = groupConfig.getGroupId();
-        this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
-        this.serverConfig = serverConfig;
-        this.raftLog = raftLog;
-        this.stateMachine = stateMachine;
+    public ReplicateManager(NioClient client, GroupComponents gc) {
         this.client = client;
-        this.commitManager = commitManager;
+        this.gc = gc;
+        this.groupConfig = gc.getGroupConfig();
+        this.groupId = groupConfig.getGroupId();
+        this.raftStatus = gc.getRaftStatus();
+        this.serverConfig = gc.getServerConfig();
+    }
 
-        this.statusManager = statusManager;
+    public void postInit() {
+        this.raftLog = gc.getRaftLog();
+        this.stateMachine = gc.getStateMachine();
+        this.commitManager = gc.getCommitManager();
+        this.statusManager = gc.getStatusManager();
     }
 
     public void tryStartReplicateFibers() {

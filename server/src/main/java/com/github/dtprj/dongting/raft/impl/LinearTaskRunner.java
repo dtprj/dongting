@@ -45,7 +45,9 @@ public class LinearTaskRunner implements BiConsumer<EventType, Object> {
 
     private static final DtLog log = DtLogs.getLogger(LinearTaskRunner.class);
 
-    private final ApplyManager applyManager;
+    private final GroupComponents gc;
+
+    private ApplyManager applyManager;
 
     private final RaftServerConfig serverConfig;
     private final RaftGroupConfigEx groupConfig;
@@ -55,14 +57,16 @@ public class LinearTaskRunner implements BiConsumer<EventType, Object> {
 
     private FiberChannel<RaftTask> taskChannel;
 
-    public LinearTaskRunner(RaftServerConfig serverConfig, RaftGroupConfigEx groupConfig,
-                            RaftStatusImpl raftStatus, ApplyManager applyManager) {
-        this.serverConfig = serverConfig;
-        this.groupConfig = groupConfig;
-        this.raftStatus = raftStatus;
+    public LinearTaskRunner(GroupComponents gc) {
+        this.gc = gc;
+        this.serverConfig = gc.getServerConfig();
+        this.groupConfig = gc.getGroupConfig();
+        this.raftStatus = gc.getRaftStatus();
         this.ts = raftStatus.getTs();
+    }
 
-        this.applyManager = applyManager;
+    public void postInit() {
+        this.applyManager = gc.getApplyManager();
     }
 
     @Override

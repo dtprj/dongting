@@ -49,13 +49,17 @@ import java.util.function.BiConsumer;
 public class VoteManager implements BiConsumer<EventType, Object> {
 
     private static final DtLog log = DtLogs.getLogger(VoteManager.class);
+
+    private final GroupComponents gc;
+
     private final RaftGroupConfigEx groupConfig;
-    private final LinearTaskRunner linearTaskRunner;
     private final NioClient client;
     private final RaftStatusImpl raftStatus;
     private final RaftServerConfig config;
     private final int groupId;
-    private final StatusManager statusManager;
+
+    private LinearTaskRunner linearTaskRunner;
+    private StatusManager statusManager;
 
     private boolean voting;
     private HashSet<Integer> votes;
@@ -64,15 +68,18 @@ public class VoteManager implements BiConsumer<EventType, Object> {
 
     private static final Decoder<VoteResp> RESP_DECODER = new PbNoCopyDecoder<>(c -> new VoteResp.Callback());
 
-    public VoteManager(RaftServerConfig serverConfig, RaftGroupConfigEx groupConfig, RaftStatusImpl raftStatus,
-                       NioClient client, LinearTaskRunner linearTaskRunner, StatusManager statusManager) {
-        this.groupConfig = groupConfig;
-        this.linearTaskRunner = linearTaskRunner;
+    public VoteManager(NioClient client, GroupComponents gc) {
+        this.gc = gc;
         this.client = client;
-        this.raftStatus = raftStatus;
-        this.config = serverConfig;
+        this.groupConfig = gc.getGroupConfig();
+        this.raftStatus = gc.getRaftStatus();
+        this.config = gc.getServerConfig();
         this.groupId = groupConfig.getGroupId();
-        this.statusManager = statusManager;
+    }
+
+    public void postInit() {
+        this.linearTaskRunner = gc.getLinearTaskRunner();
+        this.statusManager = gc.getStatusManager();
     }
 
     @Override
