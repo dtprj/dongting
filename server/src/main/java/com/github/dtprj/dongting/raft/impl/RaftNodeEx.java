@@ -19,8 +19,6 @@ import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.Peer;
 import com.github.dtprj.dongting.raft.server.RaftNode;
 
-import java.util.LinkedList;
-
 /**
  * @author huangli
  */
@@ -33,8 +31,6 @@ public class RaftNodeEx extends RaftNode {
     private volatile NodeStatus status = new NodeStatus(false, 0);
 
     private int useCount;
-
-    private LinkedList<Runnable> listeners = new LinkedList<>();
 
     public RaftNodeEx(int id, HostPort hostPort, boolean self, Peer peer) {
         super(id, hostPort, self);
