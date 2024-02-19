@@ -128,7 +128,8 @@ public class RaftServer extends AbstractLifeCircle {
         setupNioConfig(repClientConfig);
         replicateNioClient = new NioClient(repClientConfig);
 
-        nodeManager = new NodeManager(serverConfig, allRaftServers, replicateNioClient);
+        nodeManager = new NodeManager(serverConfig, allRaftServers, replicateNioClient,
+                RaftUtil.getElectQuorum(allRaftServers.size()));
 
         createRaftGroups(serverConfig, groupConfig, allNodeIds);
 
@@ -233,7 +234,6 @@ public class RaftServer extends AbstractLifeCircle {
         rgcEx.setCodecFactory(stateMachine);
         StatusManager statusManager = new StatusManager(rgcEx);
         RaftLog raftLog = raftFactory.createRaftLog(rgcEx, statusManager);
-
 
 
         ApplyManager applyManager = new ApplyManager(serverConfig.getNodeId(), raftLog, stateMachine, raftStatus,
@@ -365,10 +365,25 @@ public class RaftServer extends AbstractLifeCircle {
 
     private void startServers() {
         try {
-            ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
             nodeManager.start();
-            futures.add(nodeManager.readyFuture());
+            nodeManager.readyFuture().whenComplete((v, ex) -> {
+                if (ex != null) {
+                    readyFuture.completeExceptionally(ex);
+                } else if (status == STATUS_STARTING) {
+                    startGroups();
+                } else {
+                    readyFuture.completeExceptionally(new IllegalStateException("server is not starting"));
+                }
+            });
+        } catch (Exception e) {
+            log.error("start node manager failed", e);
+            throw new RaftException(e);
+        }
+    }
 
+    private void startGroups() {
+        try {
+            ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
             raftGroups.forEach((groupId, g) -> {
                 GroupComponents gc = g.getGroupComponents();
                 gc.getFiberGroup().fireFiber(gc.getMemberManager().createRaftPingFiber());
@@ -379,7 +394,7 @@ public class RaftServer extends AbstractLifeCircle {
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).whenComplete((v, ex) -> {
                 if (ex != null) {
                     readyFuture.completeExceptionally(ex);
-                }  else if (status == STATUS_STARTING) {
+                } else if (status == STATUS_STARTING) {
                     try {
                         serviceNioServer.start();
                         readyFuture.complete(null);
@@ -391,7 +406,7 @@ public class RaftServer extends AbstractLifeCircle {
                 }
             });
         } catch (Exception e) {
-            log.error("start raft server failed", e);
+            log.error("start raft groups failed", e);
             throw new RaftException(e);
         }
     }

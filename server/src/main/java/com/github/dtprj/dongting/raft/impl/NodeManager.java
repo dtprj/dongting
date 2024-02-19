@@ -66,11 +66,11 @@ public class NodeManager extends AbstractLifeCircle {
 
     private final ReentrantLock nodeChangeLock = new ReentrantLock();
 
-    public NodeManager(RaftServerConfig config, List<RaftNode> allRaftNodes, NioClient client) {
+    public NodeManager(RaftServerConfig config, List<RaftNode> allRaftNodes, NioClient client, int startReadyQuorum) {
         this.selfNodeId = config.getNodeId();
         this.client = client;
         this.config = config;
-        this.startReadyQuorum = RaftUtil.getElectQuorum(allRaftNodes.size());
+        this.startReadyQuorum = startReadyQuorum;
 
         this.allNodesEx = new IntObjMap<>(allRaftNodes.size() * 2, 0.75f);
     }
