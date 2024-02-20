@@ -417,7 +417,13 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     @Override
     protected void afterDelete() {
-        firstIndex = posToIndex(queueStartPosition);
+        if (queue.size() > 0) {
+            firstIndex = posToIndex(queueStartPosition);
+        } else {
+            firstIndex = 0;
+            nextIndex = 0;
+            nextPersistIndex = 0;
+        }
     }
 
     public long getNextIndex() {
