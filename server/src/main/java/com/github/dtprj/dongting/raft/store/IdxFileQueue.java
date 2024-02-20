@@ -318,7 +318,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
             statusManager.getProperties().setProperty(KEY_PERSIST_IDX_INDEX, String.valueOf(persistedIndex));
             if (closed) {
-                return Fiber.call(statusManager.persistSync(), this::afterStatusPersist);
+                statusManager.persistAsync(true);
+                return statusManager.waitSync(this::afterStatusPersist);
             } else {
                 statusManager.persistAsync(false);
                 return afterStatusPersist(null);

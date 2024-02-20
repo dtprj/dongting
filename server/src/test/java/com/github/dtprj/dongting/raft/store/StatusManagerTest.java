@@ -64,7 +64,7 @@ public class StatusManagerTest extends BaseFiberTest {
         assertEquals(raftStatus.getCommitIndex() + "", p.getProperty(StatusManager.COMMIT_INDEX_KEY));
         assertEquals(raftStatus.getVotedFor() + "", p.getProperty(StatusManager.VOTED_FOR_KEY));
         assertEquals(raftStatus.getCurrentTerm() + "", p.getProperty(StatusManager.CURRENT_TERM_KEY));
-        assertEquals(statusManager.getProperties().getProperty("k1"), p.get("k1"));
+        statusManager.getProperties().forEach((k, v) -> assertEquals(v, p.get(k)));
     }
 
     @Test
@@ -77,7 +77,8 @@ public class StatusManagerTest extends BaseFiberTest {
             }
             private FrameCallResult afterInit(Void unused) {
                 initData();
-                return Fiber.call(statusManager.persistSync(), this::justReturn);
+                statusManager.persistAsync(true);
+                return statusManager.waitSync(this::justReturn);
             }
             @Override
             protected FrameCallResult doFinally() {
@@ -110,13 +111,14 @@ public class StatusManagerTest extends BaseFiberTest {
                     statusManager.getProperties().setProperty("k1", "v1" + i);
                     statusManager.persistAsync(false);
                 }
-                return statusManager.updateDoneCondition.await(this::justReturn);
+                return statusManager.waitSync(this::justReturn);
             }
             @Override
             protected FrameCallResult doFinally() {
                 return statusManager.close().await(this::justReturn);
             }
         });
+        check();
     }
 
     @Test
@@ -133,7 +135,8 @@ public class StatusManagerTest extends BaseFiberTest {
                 statusManager.persistAsync(false);
 
                 raftStatus.setCommitIndex(100000);
-                return Fiber.call(statusManager.persistSync(), this::justReturn);
+                statusManager.persistAsync(true);
+                return statusManager.waitSync(this::justReturn);
             }
             @Override
             protected FrameCallResult doFinally() {

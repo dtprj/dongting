@@ -216,7 +216,8 @@ public class DefaultRaftLog implements RaftLog {
                 statusManager.getProperties().remove(KEY_INSTALL_SNAPSHOT);
                 statusManager.getProperties().setProperty(KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, String.valueOf(nextLogIndex));
                 statusManager.getProperties().setProperty(KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT, String.valueOf(nextLogPos));
-                return Fiber.call(statusManager.persistSync(), this::justReturn);
+                statusManager.persistAsync(true);
+                return statusManager.waitSync(this::justReturn);
             }
         };
     }

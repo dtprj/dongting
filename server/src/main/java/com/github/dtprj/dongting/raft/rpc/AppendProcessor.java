@@ -176,8 +176,8 @@ class AppendFiberFrame extends FiberFrame<Void> {
                 }
             } else if (remoteTerm > localTerm) {
                 RaftUtil.incrTerm(remoteTerm, raftStatus, req.getLeaderId());
-                gc.getStatusManager().persistSync();
-                return append(reqInfo, gc);
+                gc.getStatusManager().persistAsync(true);
+                return gc.getStatusManager().waitSync(v -> append(reqInfo, gc));
             } else {
                 log.debug("receive append request with a smaller term, ignore, remoteTerm={}, localTerm={}, groupId={}",
                         remoteTerm, localTerm, raftStatus.getGroupId());

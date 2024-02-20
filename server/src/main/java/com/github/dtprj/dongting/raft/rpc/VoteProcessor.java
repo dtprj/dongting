@@ -24,9 +24,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadFrame;
-import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
-import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftServer;
@@ -57,83 +55,100 @@ public class VoteProcessor extends RaftGroupProcessor<VoteReq> {
     private class VoteFiberFrame extends FiberFrame<Void> {
 
         private final ReqInfo<VoteReq> reqInfo;
+        private final VoteReq voteReq;
+        private final VoteResp resp = new VoteResp();
+        private final RaftStatusImpl raftStatus;
+        private final int localTerm;
 
         private VoteFiberFrame(ReqInfo<VoteReq> reqInfo) {
             this.reqInfo = reqInfo;
+            this.raftStatus = reqInfo.getRaftGroup().getGroupComponents().getRaftStatus();
+            this.localTerm = raftStatus.getCurrentTerm();
+            this.voteReq = reqInfo.getReqFrame().getBody();
         }
 
         @Override
         public FrameCallResult execute(Void input) {
-            ReadFrame<VoteReq> rf = reqInfo.getReqFrame();
-            RaftGroupImpl rg = reqInfo.getRaftGroup();
-            VoteReq voteReq = rf.getBody();
-            VoteResp resp = new VoteResp();
-            GroupComponents gc = rg.getGroupComponents();
-            RaftStatusImpl raftStatus = gc.getRaftStatus();
             if (MemberManager.validCandidate(raftStatus, voteReq.getCandidateId())) {
-                int localTerm = raftStatus.getCurrentTerm();
                 if (voteReq.isPreVote()) {
-                    processPreVote(raftStatus, voteReq, resp, localTerm);
+                    processPreVote();
+                    log.info("receive pre-vote request. granted={}. reqTerm={}, localTerm={}",
+                            resp.isVoteGranted(), voteReq.getTerm(), localTerm);
                 } else {
                     RaftUtil.resetElectTimer(raftStatus);
                     if (RaftUtil.writeNotFinished(raftStatus)) {
                         return RaftUtil.waitWriteFinish(raftStatus, this);
                     }
-                    processVote(raftStatus, voteReq, resp, localTerm, gc.getStatusManager());
+                    return processVote();
                 }
-                log.info("receive {} request. granted={}. reqTerm={}, localTerm={}",
-                        voteReq.isPreVote() ? "pre-vote" : "vote", resp.isVoteGranted(), voteReq.getTerm(), localTerm);
             } else {
                 resp.setVoteGranted(false);
                 log.warn("receive vote request from unknown member. remoteId={}, group={}, remote={}",
                         voteReq.getCandidateId(), voteReq.getGroupId(), reqInfo.getChannelContext().getRemoteAddr());
             }
+            return writeVoteResp();
+        }
 
+        private FrameCallResult writeVoteResp() {
             resp.setTerm(raftStatus.getCurrentTerm());
             VoteResp.VoteRespWriteFrame wf = new VoteResp.VoteRespWriteFrame(resp);
             wf.setRespCode(CmdCodes.SUCCESS);
             writeResp(reqInfo, wf);
             return Fiber.frameReturn();
         }
-    }
 
-    private void processPreVote(RaftStatusImpl raftStatus, VoteReq voteReq, VoteResp resp, int localTerm) {
-        if (shouldGrant(raftStatus, voteReq, localTerm)) {
-            resp.setVoteGranted(true);
-        }
-    }
-
-    private void processVote(RaftStatusImpl raftStatus, VoteReq voteReq, VoteResp resp,
-                             int localTerm, StatusManager statusManager) {
-        boolean needPersist = false;
-        if (voteReq.getTerm() > localTerm) {
-            RaftUtil.incrTerm(voteReq.getTerm(), raftStatus, -1);
-            needPersist = true;
+        private void processPreVote() {
+            if (shouldGrant(raftStatus, voteReq, localTerm)) {
+                resp.setVoteGranted(true);
+            }
         }
 
-        if (shouldGrant(raftStatus, voteReq, localTerm)) {
-            raftStatus.setVotedFor(voteReq.getCandidateId());
-            resp.setVoteGranted(true);
-            needPersist = true;
-        }
-        if (needPersist) {
-            statusManager.persistSync();
-        }
-    }
+        private FrameCallResult processVote() {
+            boolean needPersist = false;
+            if (voteReq.getTerm() > localTerm) {
+                RaftUtil.incrTerm(voteReq.getTerm(), raftStatus, -1);
+                needPersist = true;
+            }
 
-    private boolean shouldGrant(RaftStatusImpl raftStatus, VoteReq voteReq, int localTerm) {
-        if (voteReq.getTerm() < localTerm) {
-            return false;
-        } else {
-            if (raftStatus.getVotedFor() == 0 || raftStatus.getVotedFor() == voteReq.getCandidateId()) {
-                if (voteReq.getLastLogTerm() > raftStatus.getLastLogTerm()) {
-                    return true;
-                } else {
-                    return voteReq.getLastLogTerm() == raftStatus.getLastLogTerm()
-                            && voteReq.getLastLogIndex() >= raftStatus.getLastLogIndex();
-                }
+            if (shouldGrant(raftStatus, voteReq, localTerm)) {
+                raftStatus.setVotedFor(voteReq.getCandidateId());
+                resp.setVoteGranted(true);
+                needPersist = true;
+            }
+            if (needPersist) {
+                StatusManager statusManager = reqInfo.getRaftGroup().getGroupComponents().getStatusManager();
+                statusManager.persistAsync(true);
+                return statusManager.waitSync(this::postProcessVote);
             } else {
+                return postProcessVote(null);
+            }
+        }
+
+        private FrameCallResult postProcessVote(Void unused) {
+            if (localTerm != raftStatus.getCurrentTerm()) {
+                log.warn("localTerm changed, ignore vote response. localTerm={}, currentTerm={}",
+                        localTerm, raftStatus.getCurrentTerm());
+                return Fiber.frameReturn();
+            }
+            log.info("receive vote request. granted={}. reqTerm={}, localTerm={}",
+                    resp.isVoteGranted(), voteReq.getTerm(), localTerm);
+            return writeVoteResp();
+        }
+
+        private boolean shouldGrant(RaftStatusImpl raftStatus, VoteReq voteReq, int localTerm) {
+            if (voteReq.getTerm() < localTerm) {
                 return false;
+            } else {
+                if (raftStatus.getVotedFor() == 0 || raftStatus.getVotedFor() == voteReq.getCandidateId()) {
+                    if (voteReq.getLastLogTerm() > raftStatus.getLastLogTerm()) {
+                        return true;
+                    } else {
+                        return voteReq.getLastLogTerm() == raftStatus.getLastLogTerm()
+                                && voteReq.getLastLogIndex() >= raftStatus.getLastLogIndex();
+                    }
+                } else {
+                    return false;
+                }
             }
         }
     }

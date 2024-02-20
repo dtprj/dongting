@@ -55,8 +55,8 @@ public class StatusManager {
     private long finishedUpdateVersion;
 
     private final FiberCondition needUpdateCondition;
-    final FiberCondition updateDoneCondition;
-    final Fiber updateFiber;
+    private final FiberCondition updateDoneCondition;
+    private final Fiber updateFiber;
 
     public StatusManager(RaftGroupConfigEx groupConfig) {
         this.groupConfig = groupConfig;
@@ -171,44 +171,17 @@ public class StatusManager {
     }
 
     public FrameCallResult waitSync(FrameCall<Void> resumePoint) {
-        if (closed) {
-            throw new RaftException("status manager is closed");
-        }
-        if (finishedUpdateVersion >= lastNeedSyncVersion) {
-            return Fiber.resume(null, resumePoint);
-        }
-        return updateDoneCondition.await(1000, v -> waitSync(resumePoint));
+        return waitSync(requestUpdateVersion, resumePoint);
     }
 
-    public FiberFrame<Void> persistSync() {
+    private FrameCallResult waitSync(long version, FrameCall<Void> resumePoint) {
         if (closed) {
             throw new RaftException("status manager is closed");
         }
-        return new FiberFrame<>() {
-            private long reqVersion;
-            @Override
-            public FrameCallResult execute(Void unused) {
-                requestUpdateVersion++;
-                lastNeedSyncVersion = requestUpdateVersion;
-                reqVersion = requestUpdateVersion;
-                return execute0();
-            }
-
-            private FrameCallResult execute0() {
-                if (updateFiber.isFinished()) {
-                    throw new RaftException("update fiber is finished");
-                }
-                needUpdateCondition.signal();
-                return updateDoneCondition.await(this::resume);
-            }
-
-            private FrameCallResult resume(Void unused) {
-                if (finishedUpdateVersion >= reqVersion) {
-                    return Fiber.frameReturn();
-                }
-                return execute0();
-            }
-        };
+        if (finishedUpdateVersion >= version) {
+            return Fiber.resume(null, resumePoint);
+        }
+        return updateDoneCondition.await(1000, v -> waitSync(version, resumePoint));
     }
 
     public Properties getProperties() {

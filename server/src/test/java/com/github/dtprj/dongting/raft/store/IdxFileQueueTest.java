@@ -353,7 +353,8 @@ public class IdxFileQueueTest extends BaseFiberTest {
             private FrameCallResult afterDelete(Void unused) {
                 assertEquals(idxFileQueue.indexToPos(8), idxFileQueue.queueStartPosition);
                 statusManager.getProperties().setProperty(IdxFileQueue.KEY_PERSIST_IDX_INDEX, "2");
-                return Fiber.call(statusManager.persistSync(), this::afterPersist);
+                statusManager.persistAsync(false);
+                return statusManager.waitSync(this::afterPersist);
             }
 
             private FrameCallResult afterPersist(Void unused) {
