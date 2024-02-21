@@ -181,31 +181,31 @@ public class ApplyManager {
         condition.signal();
     }
 
-    private void doPrepare(RaftTask rt) {
+    private FrameCallResult doPrepare(RaftTask rt) {
         configChanging = true;
 
         ByteBuffer logData = (ByteBuffer) rt.getInput().getBody();
         byte[] data = new byte[logData.remaining()];
         logData.get(data);
-        gc.getMemberManager().doPrepare(data);
+        return gc.getMemberManager().doPrepare1(data);
     }
 
-    private void doAbort() {
+    private FrameCallResult doAbort() {
         try {
-            gc.getMemberManager().doAbort();
+            return gc.getMemberManager().doAbort();
         } finally {
             configChanging = false;
         }
     }
 
-    private void doCommit() {
+    private FrameCallResult doCommit() {
         try {
             if (!configChanging) {
                 log.warn("no prepared config change, ignore commit, groupId={}", raftStatus.getGroupId());
-                return;
+                return Fiber.frameReturn();
             }
 
-            gc.getMemberManager().doCommit();
+            return gc.getMemberManager().doCommit();
         } finally {
             configChanging = false;
         }
@@ -367,16 +367,14 @@ public class ApplyManager {
         private FrameCallResult afterPersist(Void unused) {
             switch (rt.getType()) {
                 case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
-                    doPrepare(rt);
-                    break;
+                    return doPrepare(rt);
                 case LogItem.TYPE_DROP_CONFIG_CHANGE:
-                    doAbort();
-                    break;
+                    return doAbort();
                 case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
-                    doCommit();
-                    break;
+                    return doCommit();
+                default:
+                    throw Fiber.fatal(new RaftException("unknown config change type"));
             }
-            return Fiber.frameReturn();
         }
     }
 }

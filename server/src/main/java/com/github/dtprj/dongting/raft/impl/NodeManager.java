@@ -19,6 +19,8 @@ import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.Pair;
+import com.github.dtprj.dongting.fiber.FiberFuture;
+import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.NioClient;
@@ -41,6 +43,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -218,10 +221,9 @@ public class NodeManager extends AbstractLifeCircle {
         }
     }
 
-    public void checkLeaderPrepare(RaftGroupImpl raftGroup, Set<Integer> memberIds, Set<Integer> observerIds) {
+    public void checkLeaderPrepare(Set<Integer> memberIds, Set<Integer> observerIds) {
         nodeChangeLock.lock();
         try {
-            int groupId = raftGroup.getGroupId();
             checkNodeIdSet(memberIds);
             checkNodeIdSet(observerIds);
         } finally {
@@ -242,10 +244,23 @@ public class NodeManager extends AbstractLifeCircle {
         return memberNodes;
     }
 
-    public Pair<List<RaftNodeEx>, List<RaftNodeEx>> doPrepare(Set<Integer> oldPrepareMembers, Set<Integer> oldPrepareObservers,
-                                                              Set<Integer> newMembers, Set<Integer> newObservers) {
-        nodeChangeLock.lock();
-        try {
+    private <T> FiberFuture<T> runInScheduleThread(Supplier<T> supplier) {
+        FiberFuture<T> f = FiberGroup.currentGroup().newFuture();
+        RaftUtil.SCHEDULED_SERVICE.execute(() -> {
+            try {
+                f.complete(supplier.get());
+            } catch (Throwable e) {
+                f.completeExceptionally(e);
+            }
+        });
+        return f;
+    }
+
+    public FiberFuture<Pair<List<RaftNodeEx>, List<RaftNodeEx>>> doPrepare(Set<Integer> oldPrepareMembers,
+                                                                           Set<Integer> oldPrepareObservers,
+                                                                           Set<Integer> newMembers,
+                                                                           Set<Integer> newObservers) {
+        return runInScheduleThread(() -> {
             List<RaftNodeEx> newMemberNodes = checkNodeIdSet(newMembers);
             List<RaftNodeEx> newObserverNodes = checkNodeIdSet(newObservers);
             processUseCount(oldPrepareMembers, -1);
@@ -253,27 +268,22 @@ public class NodeManager extends AbstractLifeCircle {
             processUseCount(newMembers, 1);
             processUseCount(newObservers, 1);
             return new Pair<>(newMemberNodes, newObserverNodes);
-        } finally {
-            nodeChangeLock.unlock();
-        }
+        });
     }
 
-    public void doAbort(HashSet<Integer> ids) {
-        nodeChangeLock.lock();
-        try {
+    public FiberFuture<Void> doAbort(HashSet<Integer> ids) {
+
+        return runInScheduleThread(() -> {
             processUseCount(ids, -1);
-        } finally {
-            nodeChangeLock.unlock();
-        }
+            return null;
+        });
     }
 
-    public void doCommit(HashSet<Integer> ids) {
-        nodeChangeLock.lock();
-        try {
+    public FiberFuture<Void> doCommit(HashSet<Integer> ids) {
+        return runInScheduleThread(() -> {
             processUseCount(ids, -1);
-        } finally {
-            nodeChangeLock.unlock();
-        }
+            return null;
+        });
     }
 
     private void processUseCount(Collection<Integer> nodeIds, int delta) {

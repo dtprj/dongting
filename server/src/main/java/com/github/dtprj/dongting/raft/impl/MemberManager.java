@@ -439,7 +439,7 @@ public class MemberManager {
         return outputFuture;
     }
 
-    public void doPrepare(byte[] data) {
+    public FrameCallResult doPrepare1(byte[] data) {
         String dataStr = new String(data);
         String[] fields = dataStr.split(";");
         Set<Integer> oldMemberIds = parseSet(fields[0]);
@@ -455,8 +455,12 @@ public class MemberManager {
                     oldObserverIds, raftStatus.getNodeIdOfObservers(), raftStatus.getGroupId());
         }
 
-        Pair<List<RaftNodeEx>, List<RaftNodeEx>> pair = nodeManager.doPrepare(raftStatus.getNodeIdOfPreparedMembers(),
-                raftStatus.getNodeIdOfPreparedObservers(), newMemberIds, newObserverIds);
+        return nodeManager.doPrepare(raftStatus.getNodeIdOfPreparedMembers(),
+                        raftStatus.getNodeIdOfPreparedObservers(), newMemberIds, newObserverIds)
+                .await(this::doPrepare2);
+    }
+
+    private FrameCallResult doPrepare2(Pair<List<RaftNodeEx>, List<RaftNodeEx>> pair) {
         List<RaftNodeEx> newMemberNodes = pair.getLeft();
         List<RaftNodeEx> newObserverNodes = pair.getRight();
 
@@ -504,6 +508,7 @@ public class MemberManager {
         computeDuplicatedData(raftStatus);
 
         gc.getVoteManager().cancelVote();
+        return Fiber.frameReturn();
     }
 
     public Set<Integer> parseSet(String s) {
@@ -518,13 +523,13 @@ public class MemberManager {
         return set;
     }
 
-    public void doAbort() {
+    public FrameCallResult doAbort() {
         HashSet<Integer> ids = new HashSet<>(raftStatus.getNodeIdOfPreparedMembers());
         for (RaftMember m : raftStatus.getPreparedObservers()) {
             ids.add(m.getNode().getNodeId());
         }
         if (ids.isEmpty()) {
-            return;
+            return Fiber.frameReturn();
         }
 
         raftStatus.setPreparedMembers(emptyList());
@@ -536,10 +541,10 @@ public class MemberManager {
                 RaftUtil.changeToObserver(raftStatus, -1);
             }
         }
-        nodeManager.doAbort(ids);
+        return nodeManager.doAbort(ids).await(v -> Fiber.frameReturn());
     }
 
-    public void doCommit() {
+    public FrameCallResult doCommit() {
         HashSet<Integer> ids = new HashSet<>(raftStatus.getNodeIdOfMembers());
         ids.addAll(raftStatus.getNodeIdOfObservers());
 
@@ -556,7 +561,7 @@ public class MemberManager {
             }
         }
 
-        nodeManager.doCommit(ids);
+        return nodeManager.doCommit(ids).await(v -> Fiber.frameReturn());
     }
 
     public boolean checkLeader(int nodeId) {

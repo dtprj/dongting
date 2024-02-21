@@ -196,7 +196,7 @@ public class RaftGroupImpl extends RaftGroup {
                 throw new RaftException("node is both member and observer: " + nodeId);
             }
         }
-        gc.getNodeManager().checkLeaderPrepare(this, members, observers);
+        gc.getNodeManager().checkLeaderPrepare(members, observers);
         CompletableFuture<Long> f = new CompletableFuture<>();
         ExecutorService executor = gc.getFiberGroup().getExecutor();
         executor.execute(() -> gc.getMemberManager().leaderPrepareJointConsensus(members, observers, f));
