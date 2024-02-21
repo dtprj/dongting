@@ -480,7 +480,23 @@ public class RaftServer extends AbstractLifeCircle {
         DtTime timeout = new DtTime(timeoutMillis, TimeUnit.MILLISECONDS);
         doChange(timeout, () -> {
             try {
-                nodeManager.addNode(node).get(timeoutMillis, TimeUnit.MILLISECONDS);
+                nodeManager.addNode(node).get(timeout.rest(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+            } catch (Exception e) {
+                throw new RaftException(e);
+            }
+        });
+    }
+
+    /**
+     * ADMIN API. This method is idempotent and may block. If the node is node in node list, complete normally immediately.
+     * If the reference count of the node is not 0, the future complete exceptionally.
+     */
+    @SuppressWarnings("unused")
+    public void removeNode(int nodeId, long timeoutMillis) {
+        DtTime timeout = new DtTime(timeoutMillis, TimeUnit.MILLISECONDS);
+        doChange(timeout, () -> {
+            try {
+                nodeManager.removeNode(nodeId).get(timeout.rest(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
             } catch (Exception e) {
                 throw new RaftException(e);
             }

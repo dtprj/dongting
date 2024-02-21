@@ -327,6 +327,28 @@ public class NodeManager extends AbstractLifeCircle {
         return f;
     }
 
+    public CompletableFuture<Void> removeNode(int nodeId) {
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        RaftUtil.SCHEDULED_SERVICE.execute(() -> {
+            try {
+                RaftNodeEx existNode = allNodesEx.get(nodeId);
+                if (existNode == null) {
+                    f.complete(null);
+                } else {
+                    if (existNode.getUseCount() == 0) {
+                        client.removePeer(existNode.getPeer()).thenRun(() -> f.complete(null));
+                    } else {
+                        f.completeExceptionally(new RaftException("node is using, current ref count: " + existNode.getUseCount()));
+                    }
+                }
+            } catch (Exception unexpected) {
+                log.error("", unexpected);
+                f.completeExceptionally(unexpected);
+            }
+        });
+        return f;
+    }
+
     public CompletableFuture<Void> readyFuture() {
         return startReadyFuture;
     }
