@@ -69,7 +69,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author huangli
@@ -88,7 +88,7 @@ public class RaftServer extends AbstractLifeCircle {
 
     private final NodeManager nodeManager;
 
-    private final AtomicBoolean change = new AtomicBoolean(false);
+    private final ReentrantLock changeLock = new ReentrantLock();
 
     private final PendingStat serverStat = new PendingStat();
 
@@ -444,6 +444,47 @@ public class RaftServer extends AbstractLifeCircle {
             log.error("stop raft server failed", e);
             throw e;
         }
+    }
+
+    private void checkStatus() {
+        if (status != STATUS_RUNNING) {
+            throw new RaftException("raft server is not running");
+        }
+    }
+
+    private void doChange(DtTime timeout, Runnable runnable) {
+        checkStatus();
+        boolean lock = false;
+        try {
+            long timeoutMillis = timeout.rest(TimeUnit.MILLISECONDS);
+            lock = changeLock.tryLock(timeoutMillis, TimeUnit.MILLISECONDS);
+            if (!lock) {
+                throw new RaftException("failed to acquire change lock in " + timeoutMillis + "ms");
+            }
+            runnable.run();
+        } catch (InterruptedException e) {
+            throw new RaftException(e);
+        } finally {
+            if(lock){
+                changeLock.unlock();
+            }
+        }
+    }
+
+    /**
+     * ADMIN API. This method is idempotent and may block. When complete the new node is connected.
+     * If the node is already in node list and connected, the future complete normally immediately.
+     */
+    @SuppressWarnings("unused")
+    public void addNode(RaftNode node, long timeoutMillis) {
+        DtTime timeout = new DtTime(timeoutMillis, TimeUnit.MILLISECONDS);
+        doChange(timeout, () -> {
+            try {
+                nodeManager.addNode(node).get(timeoutMillis, TimeUnit.MILLISECONDS);
+            } catch (Exception e) {
+                throw new RaftException(e);
+            }
+        });
     }
 
     public RaftGroup getRaftGroup(int groupId) {
