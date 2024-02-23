@@ -43,7 +43,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -68,8 +67,6 @@ public class NodeManager extends AbstractLifeCircle {
 
     private final CompletableFuture<Void> startReadyFuture = new CompletableFuture<>();
     private final int startReadyQuorum;
-
-    private final ReentrantLock nodeChangeLock = new ReentrantLock();
 
     public NodeManager(RaftServerConfig config, List<RaftNode> allRaftNodes, NioClient client, int startReadyQuorum) {
         this.selfNodeId = config.getNodeId();
@@ -226,14 +223,12 @@ public class NodeManager extends AbstractLifeCircle {
         }
     }
 
-    public void checkLeaderPrepare(Set<Integer> memberIds, Set<Integer> observerIds) {
-        nodeChangeLock.lock();
-        try {
+    public FiberFuture<Void> checkLeaderPrepare(Set<Integer> memberIds, Set<Integer> observerIds) {
+        return runInScheduleThread(()-> {
             checkNodeIdSet(memberIds);
             checkNodeIdSet(observerIds);
-        } finally {
-            nodeChangeLock.unlock();
-        }
+            return null;
+        });
     }
 
     private List<RaftNodeEx> checkNodeIdSet(Set<Integer> nodeIds) {
@@ -369,9 +364,5 @@ public class NodeManager extends AbstractLifeCircle {
             ids.add(nodeId);
         });
         return ids;
-    }
-
-    public ReentrantLock getNodeChangeLock() {
-        return nodeChangeLock;
     }
 }

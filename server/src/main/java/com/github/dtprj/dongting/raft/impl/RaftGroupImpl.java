@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.common.FlowControlException;
 import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.FiberChannel;
+import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -197,10 +198,9 @@ public class RaftGroupImpl extends RaftGroup {
                 throw new RaftException("node is both member and observer: " + nodeId);
             }
         }
-        gc.getNodeManager().checkLeaderPrepare(members, observers);
         CompletableFuture<Long> f = new CompletableFuture<>();
-        ExecutorService executor = gc.getFiberGroup().getExecutor();
-        executor.execute(() -> gc.getMemberManager().leaderPrepareJointConsensus(members, observers, f));
+        FiberFrame<Void> ff = gc.getMemberManager().leaderPrepareJointConsensus(members, observers, f);
+        gc.getFiberGroup().fireFiber("leaderPrepareJointConsensus", ff);
         return f;
     }
 
@@ -208,8 +208,8 @@ public class RaftGroupImpl extends RaftGroup {
     public CompletableFuture<Void> leaderAbortJointConsensus() {
         checkStatus();
         CompletableFuture<Void> f = new CompletableFuture<>();
-        ExecutorService executor = gc.getFiberGroup().getExecutor();
-        executor.execute(() -> gc.getMemberManager().leaderAbortJointConsensus(f));
+        FiberFrame<Void> ff = gc.getMemberManager().leaderAbortJointConsensus(f);
+        gc.getFiberGroup().fireFiber("leaderAbortJointConsensus", ff);
         return f;
     }
 
@@ -217,8 +217,8 @@ public class RaftGroupImpl extends RaftGroup {
     public CompletableFuture<Void> leaderCommitJointConsensus(long prepareIndex) {
         checkStatus();
         CompletableFuture<Void> f = new CompletableFuture<>();
-        ExecutorService executor = gc.getFiberGroup().getExecutor();
-        executor.execute(() -> gc.getMemberManager().leaderCommitJointConsensus(f, prepareIndex));
+        FiberFrame<Void> ff = gc.getMemberManager().leaderCommitJointConsensus(f, prepareIndex);
+        gc.getFiberGroup().fireFiber("leaderCommitJointConsensus", ff);
         return f;
     }
 

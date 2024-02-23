@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
@@ -281,48 +282,94 @@ public class MemberManager {
         return count;
     }
 
-    public void leaderPrepareJointConsensus(Set<Integer> newMemberNodes, Set<Integer> newObserverNodes,
-                                            CompletableFuture<Long> f) {
-        leaderConfigChange(LogItem.TYPE_PREPARE_CONFIG_CHANGE, getInputData(newMemberNodes, newObserverNodes))
-                .whenComplete((output, ex) -> {
+    public FiberFrame<Void> leaderPrepareJointConsensus(Set<Integer> newMemberNodes, Set<Integer> newObserverNodes,
+                                                        CompletableFuture<Long> f) {
+        return new FiberFrame<>() {
+            @Override
+            protected FrameCallResult handle(Throwable ex) {
+                log.error("leader prepare joint consensus error", ex);
+                f.completeExceptionally(ex);
+                return Fiber.frameReturn();
+            }
+
+            @Override
+            public FrameCallResult execute(Void input) {
+                FiberFuture<Void> f = nodeManager.checkLeaderPrepare(newMemberNodes, newObserverNodes);
+                return f.await(this::afterCheck);
+            }
+
+            private FrameCallResult afterCheck(Void unused) {
+                leaderConfigChange(LogItem.TYPE_PREPARE_CONFIG_CHANGE, getInputData(newMemberNodes, newObserverNodes))
+                        .whenComplete((output, ex) -> {
+                            if (ex != null) {
+                                f.completeExceptionally(ex);
+                            } else {
+                                f.complete(output.getLogIndex());
+                            }
+                        });
+                return Fiber.frameReturn();
+            }
+        };
+    }
+
+    public FiberFrame<Void> leaderAbortJointConsensus(CompletableFuture<Void> f) {
+        return new FiberFrame<>() {
+            @Override
+            protected FrameCallResult handle(Throwable ex) {
+                log.error("leader abort joint consensus error", ex);
+                f.completeExceptionally(ex);
+                return Fiber.frameReturn();
+            }
+
+            @Override
+            public FrameCallResult execute(Void input) {
+                leaderConfigChange(LogItem.TYPE_DROP_CONFIG_CHANGE, null).whenComplete((output, ex) -> {
                     if (ex != null) {
                         f.completeExceptionally(ex);
                     } else {
-                        f.complete(output.getLogIndex());
+                        f.complete(null);
                     }
                 });
-    }
-
-    public void leaderAbortJointConsensus(CompletableFuture<Void> f) {
-        leaderConfigChange(LogItem.TYPE_DROP_CONFIG_CHANGE, null).whenComplete((output, ex) -> {
-            if (ex != null) {
-                f.completeExceptionally(ex);
-            } else {
-                f.complete(null);
+                return Fiber.frameReturn();
             }
-        });
+        };
     }
 
-    public void leaderCommitJointConsensus(CompletableFuture<Void> finalFuture, long prepareIndex) {
-        final HashMap<Integer, CompletableFuture<Boolean>> resultMap = new HashMap<>();
-
-        for (RaftMember m : raftStatus.getMembers()) {
-            queryPrepareStatus(prepareIndex, resultMap, m);
-        }
-        for (RaftMember m : raftStatus.getPreparedMembers()) {
-            if (resultMap.containsKey(m.getNode().getNodeId())) {
-                continue;
+    public FiberFrame<Void> leaderCommitJointConsensus(CompletableFuture<Void> finalFuture, long prepareIndex) {
+        return new FiberFrame<>() {
+            @Override
+            protected FrameCallResult handle(Throwable ex) {
+                log.error("leader commit joint consensus error", ex);
+                finalFuture.completeExceptionally(ex);
+                return Fiber.frameReturn();
             }
-            queryPrepareStatus(prepareIndex, resultMap, m);
-        }
 
-        List<CompletableFuture<Boolean>> list = new ArrayList<>(resultMap.values());
-        for (CompletableFuture<Boolean> resultFuture : list) {
-            resultFuture.thenRun(() -> checkPrepareStatus(resultMap, prepareIndex, finalFuture));
-        }
+            @Override
+            public FrameCallResult execute(Void input) {
+                final HashMap<Integer, CompletableFuture<Boolean>> resultMap = new HashMap<>();
+
+                for (RaftMember m : raftStatus.getMembers()) {
+                    queryPrepareStatus(prepareIndex, resultMap, m);
+                }
+                for (RaftMember m : raftStatus.getPreparedMembers()) {
+                    if (resultMap.containsKey(m.getNode().getNodeId())) {
+                        continue;
+                    }
+                    queryPrepareStatus(prepareIndex, resultMap, m);
+                }
+
+                List<CompletableFuture<Boolean>> list = new ArrayList<>(resultMap.values());
+                for (CompletableFuture<Boolean> resultFuture : list) {
+                    resultFuture.thenRunAsync(() -> checkPrepareStatus(resultMap, prepareIndex, finalFuture),
+                            groupConfig.getFiberGroup().getExecutor());
+                }
+                return Fiber.frameReturn();
+            }
+        };
     }
 
-    private void queryPrepareStatus(long prepareIndex, HashMap<Integer, CompletableFuture<Boolean>> resultMap, RaftMember m) {
+    private void queryPrepareStatus(long prepareIndex, HashMap<Integer, CompletableFuture<Boolean>> resultMap,
+                                    RaftMember m) {
         RaftNodeEx n = m.getNode();
         if (n.isSelf()) {
             log.info("self prepare status, groupId={}, lastApplied={}, prepareIndex={}",
@@ -351,42 +398,51 @@ public class MemberManager {
 
     private void checkPrepareStatus(HashMap<Integer, CompletableFuture<Boolean>> resultMap, long prepareIndex,
                                     CompletableFuture<Void> finalFuture) {
-        if (resultMap.isEmpty()) {
-            // prevent duplicate change
-            return;
-        }
-        if (prepareIndex != raftStatus.getLastConfigChangeIndex()) {
-            return;
-        }
-        int memberReadyCount = 0;
-        for (RaftMember m : raftStatus.getMembers()) {
-            CompletableFuture<Boolean> queryResult = resultMap.get(m.getNode().getNodeId());
-            if (queryResult != null && queryResult.getNow(false)) {
-                memberReadyCount++;
+        try {
+            if (resultMap.isEmpty()) {
+                // prevent duplicate change
+                return;
             }
-        }
-        int preparedMemberReadyCount = 0;
-        for (RaftMember m : raftStatus.getPreparedMembers()) {
-            CompletableFuture<Boolean> queryResult = resultMap.get(m.getNode().getNodeId());
-            if (queryResult != null && queryResult.getNow(false)) {
-                preparedMemberReadyCount++;
+            if (prepareIndex != raftStatus.getLastConfigChangeIndex()) {
+                log.error("prepareIndex not match. prepareIndex={}, lastConfigChangeIndex={}",
+                        prepareIndex, raftStatus.getLastConfigChangeIndex());
+                finalFuture.completeExceptionally(new RaftException("prepareIndex not match. prepareIndex="
+                        + prepareIndex + ", lastConfigChangeIndex=" + raftStatus.getLastConfigChangeIndex()));
+                return;
             }
-        }
-        if (memberReadyCount >= raftStatus.getElectQuorum()
-                && preparedMemberReadyCount >= RaftUtil.getElectQuorum(raftStatus.getPreparedMembers().size())) {
-            log.info("members prepare status check success, groupId={}, memberReadyCount={}, preparedMemberReadyCount={}",
-                    groupId, memberReadyCount, preparedMemberReadyCount);
-
-            // prevent duplicate change
-            resultMap.clear();
-
-            leaderConfigChange(LogItem.TYPE_COMMIT_CONFIG_CHANGE, null).whenComplete((output, ex) -> {
-                if (ex != null) {
-                    finalFuture.completeExceptionally(ex);
-                } else {
-                    finalFuture.complete(null);
+            int memberReadyCount = 0;
+            for (RaftMember m : raftStatus.getMembers()) {
+                CompletableFuture<Boolean> queryResult = resultMap.get(m.getNode().getNodeId());
+                if (queryResult != null && queryResult.getNow(false)) {
+                    memberReadyCount++;
                 }
-            });
+            }
+            int preparedMemberReadyCount = 0;
+            for (RaftMember m : raftStatus.getPreparedMembers()) {
+                CompletableFuture<Boolean> queryResult = resultMap.get(m.getNode().getNodeId());
+                if (queryResult != null && queryResult.getNow(false)) {
+                    preparedMemberReadyCount++;
+                }
+            }
+            if (memberReadyCount >= raftStatus.getElectQuorum()
+                    && preparedMemberReadyCount >= RaftUtil.getElectQuorum(raftStatus.getPreparedMembers().size())) {
+                log.info("members prepare status check success, groupId={}, memberReadyCount={}, preparedMemberReadyCount={}",
+                        groupId, memberReadyCount, preparedMemberReadyCount);
+
+                // prevent duplicate change
+                resultMap.clear();
+
+                leaderConfigChange(LogItem.TYPE_COMMIT_CONFIG_CHANGE, null).whenComplete((output, ex) -> {
+                    if (ex != null) {
+                        finalFuture.completeExceptionally(ex);
+                    } else {
+                        finalFuture.complete(null);
+                    }
+                });
+            }
+        } catch (Throwable e) {
+            log.error("check prepare status error", e);
+            finalFuture.completeExceptionally(e);
         }
     }
 
@@ -588,7 +644,7 @@ public class MemberManager {
         private final CompletableFuture<Void> f;
         private final DtTime deadline;
 
-        TranferLeaderFiberFrame(int nodeId, CompletableFuture<Void> f, DtTime deadline){
+        TranferLeaderFiberFrame(int nodeId, CompletableFuture<Void> f, DtTime deadline) {
             this.nodeId = nodeId;
             this.f = f;
             this.deadline = deadline;
