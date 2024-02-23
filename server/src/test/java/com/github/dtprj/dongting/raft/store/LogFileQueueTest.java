@@ -205,7 +205,7 @@ public class LogFileQueueTest extends BaseFiberTest {
 
             private FrameCallResult waitWriteFinish(Void v) {
                 if (logFileQueue.logAppender.writeNotFinish()) {
-                    return raftStatus.getLogSyncFinishCondition().await(1000, this::waitWriteFinish);
+                    return raftStatus.getLogForceFinishCondition().await(1000, this::waitWriteFinish);
                 } else {
                     return Fiber.frameReturn();
                 }

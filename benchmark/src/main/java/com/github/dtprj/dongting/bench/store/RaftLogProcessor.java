@@ -240,7 +240,7 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
                     break;
                 }
             }
-            return raftStatus.getLogSyncFinishCondition().await(1000, this);
+            return raftStatus.getLogForceFinishCondition().await(1000, this);
         }
     }
 

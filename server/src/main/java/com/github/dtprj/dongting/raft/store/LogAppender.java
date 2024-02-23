@@ -102,7 +102,7 @@ class LogAppender {
     public FiberFuture<Void> close() {
         appendFiber.interrupt();
         needFsyncCondition.signal();
-        raftStatus.getLogSyncFinishCondition().signalAll();
+        raftStatus.getLogForceFinishCondition().signalAll();
         FiberFuture<Void> f1, f2;
         if (appendFiber.isStarted()) {
             f1 = appendFiber.join();
@@ -486,7 +486,7 @@ class LogAppender {
             if (head != null && head.lastIndex <= task.lastIndex) {
                 syncWriteTaskQueueHead = head.nextNeedSyncTask;
                 raftStatus.setLastForceLogIndex(head.lastIndex);
-                raftStatus.getLogSyncFinishCondition().signalAll();
+                raftStatus.getLogForceFinishCondition().signalAll();
             }
             return Fiber.frameReturn();
         }

@@ -77,7 +77,7 @@ public class RaftStatusImpl extends RaftStatus {
 
     private FiberGroup fiberGroup;
 
-    private FiberCondition logSyncFinishCondition;
+    private FiberCondition logForceFinishCondition;
     private FiberCondition logWriteFinishCondition;
     private FiberCondition transferLeaderCondition;
 
@@ -379,12 +379,12 @@ public class RaftStatusImpl extends RaftStatus {
         this.logWriteFinishCondition = logWriteFinishCondition;
     }
 
-    public FiberCondition getLogSyncFinishCondition() {
-        return logSyncFinishCondition;
+    public FiberCondition getLogForceFinishCondition() {
+        return logForceFinishCondition;
     }
 
-    public void setLogSyncFinishCondition(FiberCondition logSyncFinishCondition) {
-        this.logSyncFinishCondition = logSyncFinishCondition;
+    public void setLogForceFinishCondition(FiberCondition logForceFinishCondition) {
+        this.logForceFinishCondition = logForceFinishCondition;
     }
 
     public long getLastWriteLogIndex() {

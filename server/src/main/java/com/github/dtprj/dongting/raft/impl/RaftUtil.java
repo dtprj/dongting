@@ -304,7 +304,7 @@ public class RaftUtil {
 
     public static FrameCallResult waitWriteFinish(RaftStatusImpl raftStatus, FrameCall<Void> resumePoint) {
         if (writeNotFinished(raftStatus)) {
-            return raftStatus.getLogSyncFinishCondition().await(
+            return raftStatus.getLogForceFinishCondition().await(
                     1000, v -> waitWriteFinish(raftStatus, resumePoint));
         } else {
             return Fiber.resume(null, resumePoint);

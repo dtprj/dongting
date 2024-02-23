@@ -84,7 +84,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
         raftStatus.setElectTimeoutNanos(Duration.ofMillis(serverConfig.getElectTimeout()).toNanos());
         raftStatus.setFiberGroup(fg);
         raftStatus.setDataArrivedCondition(fg.newCondition("dataArrived"));
-        raftStatus.setLogSyncFinishCondition(fg.newCondition("logSyncFinish"));
+        raftStatus.setLogForceFinishCondition(fg.newCondition("logSyncFinish"));
         raftStatus.setLogWriteFinishCondition(fg.newCondition("logWriteFinish"));
     }
 

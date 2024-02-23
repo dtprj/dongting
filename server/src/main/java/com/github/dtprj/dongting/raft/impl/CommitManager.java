@@ -68,7 +68,7 @@ public class CommitManager {
             if (idx > raftStatus.getCommitIndex()) {
                 CommitManager.this.finish(idx);
             }
-            return raftStatus.getLogSyncFinishCondition().await(1000, this);
+            return raftStatus.getLogForceFinishCondition().await(1000, this);
         }
     }
 
