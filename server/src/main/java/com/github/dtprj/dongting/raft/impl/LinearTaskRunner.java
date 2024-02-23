@@ -96,7 +96,7 @@ public class LinearTaskRunner {
                 list.clear();
                 raftStatus.getTransferLeaderCondition().await(this);
             }
-            if (list.size() > 0) {
+            if (!list.isEmpty()) {
                 raftExec(list);
                 list.clear();
             } else {
@@ -108,7 +108,7 @@ public class LinearTaskRunner {
     }
 
     public CompletableFuture<RaftOutput> submitRaftTaskInBizThread(RaftInput input) {
-        CompletableFuture f = new CompletableFuture<>();
+        CompletableFuture<RaftOutput> f = new CompletableFuture<>();
         RaftTask t = new RaftTask(raftStatus.getTs(), LogItem.TYPE_NORMAL, input, f);
         taskChannel.fireOffer(t);
         return f;
