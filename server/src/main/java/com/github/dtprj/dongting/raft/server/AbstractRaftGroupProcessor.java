@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.rpc;
+package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -26,7 +26,6 @@ import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
-import com.github.dtprj.dongting.raft.server.RaftServer;
 
 /**
  * @author huangli

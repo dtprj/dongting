@@ -26,6 +26,7 @@ import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.raft.impl.RaftMember;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftServer;
+import com.github.dtprj.dongting.raft.server.ReqInfo;
 
 /**
  * @author huangli

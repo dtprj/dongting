@@ -28,6 +28,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.LinearTaskRunner;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
@@ -38,6 +39,7 @@ import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftServer;
+import com.github.dtprj.dongting.raft.server.ReqInfo;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.util.ArrayList;
@@ -117,6 +119,11 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
             default:
                 return "CODE_UNKNOWN_" + code;
         }
+    }
+
+    @Override
+    public void writeResp(ReqInfo<?> reqInfo, WriteFrame respFrame) {
+        super.writeResp(reqInfo, respFrame);
     }
 }
 
