@@ -26,7 +26,7 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.rpc.RaftGroupProcessor;
+import com.github.dtprj.dongting.raft.rpc.RaftSequenceProcessor;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
@@ -47,13 +47,13 @@ public class InitFiberFrame extends FiberFrame<Void> {
     private final GroupComponents gc;
     private final RaftStatusImpl raftStatus;
     private final RaftGroupConfigEx groupConfig;
-    private final List<RaftGroupProcessor<?>> raftGroupProcessors;
+    private final List<RaftSequenceProcessor<?>> raftSequenceProcessors;
 
-    public InitFiberFrame(GroupComponents gc, List<RaftGroupProcessor<?>> raftGroupProcessors) {
+    public InitFiberFrame(GroupComponents gc, List<RaftSequenceProcessor<?>> raftSequenceProcessors) {
         this.gc = gc;
         this.raftStatus = gc.getRaftStatus();
         this.groupConfig = gc.getGroupConfig();
-        this.raftGroupProcessors = raftGroupProcessors;
+        this.raftSequenceProcessors = raftSequenceProcessors;
     }
 
     @Override
@@ -68,7 +68,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
         FiberGroup fg = getFiberGroup();
         initRaftStatus(raftStatus, fg, gc.getServerConfig());
 
-        for (RaftGroupProcessor<?> processor : raftGroupProcessors) {
+        for (RaftSequenceProcessor<?> processor : raftSequenceProcessors) {
             @SuppressWarnings("rawtypes")
             FiberChannel channel = getFiberGroup().newChannel();
             //noinspection unchecked

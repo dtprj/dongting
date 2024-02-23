@@ -51,8 +51,8 @@ import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.NodePingProcessor;
 import com.github.dtprj.dongting.raft.rpc.QueryLeaderProcessor;
 import com.github.dtprj.dongting.raft.rpc.QueryStatusProcessor;
-import com.github.dtprj.dongting.raft.rpc.RaftGroupProcessor;
 import com.github.dtprj.dongting.raft.rpc.RaftPingProcessor;
+import com.github.dtprj.dongting.raft.rpc.RaftSequenceProcessor;
 import com.github.dtprj.dongting.raft.rpc.TransferLeaderProcessor;
 import com.github.dtprj.dongting.raft.rpc.VoteProcessor;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
@@ -95,7 +95,7 @@ public class RaftServer extends AbstractLifeCircle {
 
     private final CompletableFuture<Void> readyFuture = new CompletableFuture<>();
 
-    private final List<RaftGroupProcessor<?>> raftGroupProcessors = new ArrayList<>();
+    private final List<RaftSequenceProcessor<?>> raftSequenceProcessors = new ArrayList<>();
 
     public RaftServer(RaftServerConfig serverConfig, List<RaftGroupConfig> groupConfig, RaftFactory raftFactory) {
         Objects.requireNonNull(serverConfig);
@@ -163,9 +163,9 @@ public class RaftServer extends AbstractLifeCircle {
         }
     }
 
-    private void addRaftGroupProcessor(NioServer nioServer, int command, RaftGroupProcessor<?> processor) {
+    private void addRaftGroupProcessor(NioServer nioServer, int command, RaftSequenceProcessor<?> processor) {
         nioServer.register(command, processor);
-        raftGroupProcessors.add(processor);
+        raftSequenceProcessors.add(processor);
     }
 
     private void setupNioConfig(NioConfig nc) {
@@ -358,7 +358,7 @@ public class RaftServer extends AbstractLifeCircle {
 
     private void initRaftGroup(RaftGroupImpl g) {
         GroupComponents gc = g.getGroupComponents();
-        InitFiberFrame initFiberFrame = new InitFiberFrame(gc, raftGroupProcessors);
+        InitFiberFrame initFiberFrame = new InitFiberFrame(gc, raftSequenceProcessors);
         Fiber initFiber = new Fiber("init-raft-group-" + g.getGroupId(),
                 gc.getFiberGroup(), initFiberFrame);
         gc.getFiberGroup().fireFiber(initFiber);

@@ -33,7 +33,7 @@ import com.github.dtprj.dongting.raft.store.StatusManager;
 /**
  * @author huangli
  */
-public class VoteProcessor extends RaftGroupProcessor<VoteReq> {
+public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
     private static final DtLog log = DtLogs.getLogger(VoteProcessor.class);
 
     private static final PbNoCopyDecoder<VoteReq> decoder = new PbNoCopyDecoder<>(c -> new VoteReq.Callback());
@@ -48,7 +48,7 @@ public class VoteProcessor extends RaftGroupProcessor<VoteReq> {
     }
 
     @Override
-    protected FiberFrame<Void> doProcess(ReqInfo<VoteReq> reqInfo) {
+    protected FiberFrame<Void> processInFiberGroup(ReqInfo<VoteReq> reqInfo) {
         return new VoteFiberFrame(reqInfo);
     }
 

@@ -33,7 +33,7 @@ import com.github.dtprj.dongting.raft.server.RaftServer;
 /**
  * @author huangli
  */
-public class TransferLeaderProcessor extends RaftGroupProcessor<TransferLeaderReq> {
+public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeaderReq> {
 
     private static final DtLog log = DtLogs.getLogger(TransferLeaderProcessor.class);
 
@@ -49,7 +49,7 @@ public class TransferLeaderProcessor extends RaftGroupProcessor<TransferLeaderRe
     }
 
     @Override
-    protected FiberFrame<Void> doProcess(ReqInfo<TransferLeaderReq> reqInfo) {
+    protected FiberFrame<Void> processInFiberGroup(ReqInfo<TransferLeaderReq> reqInfo) {
         ReadFrame<TransferLeaderReq> frame = reqInfo.getReqFrame();
         TransferLeaderReq req = frame.getBody();
         GroupComponents gc = reqInfo.getRaftGroup().getGroupComponents();

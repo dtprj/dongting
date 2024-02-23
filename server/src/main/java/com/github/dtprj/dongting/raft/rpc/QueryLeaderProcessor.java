@@ -30,7 +30,7 @@ import com.github.dtprj.dongting.raft.server.RaftServer;
 /**
  * @author huangli
  */
-public class QueryLeaderProcessor extends RaftGroupProcessor<Integer> {
+public class QueryLeaderProcessor extends RaftSequenceProcessor<Integer> {
 
     public QueryLeaderProcessor(RaftServer raftServer) {
         super(raftServer);
@@ -47,7 +47,7 @@ public class QueryLeaderProcessor extends RaftGroupProcessor<Integer> {
     }
 
     @Override
-    protected FiberFrame<Void> doProcess(ReqInfo<Integer> reqInfo) {
+    protected FiberFrame<Void> processInFiberGroup(ReqInfo<Integer> reqInfo) {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
