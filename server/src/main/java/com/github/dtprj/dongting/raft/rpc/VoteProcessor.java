@@ -28,7 +28,6 @@ import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftServer;
-import com.github.dtprj.dongting.raft.server.ReqInfo;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
 /**
@@ -49,19 +48,19 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
     }
 
     @Override
-    protected FiberFrame<Void> processInFiberGroup(ReqInfo<VoteReq> reqInfo) {
+    protected FiberFrame<Void> processInFiberGroup(ReqInfoEx<VoteReq> reqInfo) {
         return new VoteFiberFrame(reqInfo);
     }
 
     private class VoteFiberFrame extends FiberFrame<Void> {
 
-        private final ReqInfo<VoteReq> reqInfo;
+        private final ReqInfoEx<VoteReq> reqInfo;
         private final VoteReq voteReq;
         private final VoteResp resp = new VoteResp();
         private final RaftStatusImpl raftStatus;
         private final int localTerm;
 
-        private VoteFiberFrame(ReqInfo<VoteReq> reqInfo) {
+        private VoteFiberFrame(ReqInfoEx<VoteReq> reqInfo) {
             this.reqInfo = reqInfo;
             this.raftStatus = reqInfo.getRaftGroup().getGroupComponents().getRaftStatus();
             this.localTerm = raftStatus.getCurrentTerm();

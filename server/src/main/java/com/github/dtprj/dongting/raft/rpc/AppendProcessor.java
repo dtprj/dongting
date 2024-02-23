@@ -92,7 +92,7 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     @Override
-    protected FiberFrame<Void> processInFiberGroup(ReqInfo reqInfo) {
+    protected FiberFrame<Void> processInFiberGroup(ReqInfoEx reqInfo) {
         if (reqInfo.getReqFrame().getCommand() == Commands.RAFT_APPEND_ENTRIES) {
             return new AppendFiberFrame(reqInfo, this);
         } else {
@@ -133,9 +133,9 @@ class AppendFiberFrame extends FiberFrame<Void> {
 
     private final AppendProcessor processor;
 
-    private final ReqInfo<AppendReqCallback> reqInfo;
+    private final ReqInfoEx<AppendReqCallback> reqInfo;
 
-    public AppendFiberFrame(ReqInfo<AppendReqCallback> reqInfo, AppendProcessor processor) {
+    public AppendFiberFrame(ReqInfoEx<AppendReqCallback> reqInfo, AppendProcessor processor) {
         this.reqInfo = reqInfo;
         this.processor = processor;
     }
@@ -198,7 +198,7 @@ class AppendFiberFrame extends FiberFrame<Void> {
         }
     }
 
-    private FrameCallResult append(ReqInfo<AppendReqCallback> reqInfo, GroupComponents gc) {
+    private FrameCallResult append(ReqInfoEx<AppendReqCallback> reqInfo, GroupComponents gc) {
         AppendReqCallback req = reqInfo.getReqFrame().getBody();
         RaftStatusImpl raftStatus = gc.getRaftStatus();
         if (reqInfo.getReqContext().getTimeout().isTimeout(raftStatus.getTs())) {
@@ -223,7 +223,7 @@ class AppendFiberFrame extends FiberFrame<Void> {
         return doAppend(reqInfo, gc);
     }
 
-    private FrameCallResult doAppend(ReqInfo<AppendReqCallback> reqInfo, GroupComponents gc) {
+    private FrameCallResult doAppend(ReqInfoEx<AppendReqCallback> reqInfo, GroupComponents gc) {
         AppendReqCallback req = reqInfo.getReqFrame().getBody();
         RaftStatusImpl raftStatus = gc.getRaftStatus();
         if (req.getPrevLogIndex() < raftStatus.getCommitIndex()) {
@@ -336,7 +336,7 @@ class AppendFiberFrame extends FiberFrame<Void> {
         return doAppend(reqInfo, gc);
     }
 
-    private void writeAppendResp(ReqInfo<AppendReqCallback> reqInfo, int code, int suggestTerm, long suggestIndex) {
+    private void writeAppendResp(ReqInfoEx<AppendReqCallback> reqInfo, int code, int suggestTerm, long suggestIndex) {
         AppendRespWriteFrame resp = new AppendRespWriteFrame();
         resp.setTerm(reqInfo.getRaftGroup().getGroupComponents().getRaftStatus().getCurrentTerm());
         if (code == AppendProcessor.APPEND_SUCCESS) {
@@ -351,7 +351,7 @@ class AppendFiberFrame extends FiberFrame<Void> {
         processor.writeResp(reqInfo, resp);
     }
 
-    private void writeAppendResp(ReqInfo<AppendReqCallback> reqInfo, int code) {
+    private void writeAppendResp(ReqInfoEx<AppendReqCallback> reqInfo, int code) {
         writeAppendResp(reqInfo, code, 0, 0);
     }
 
@@ -359,10 +359,10 @@ class AppendFiberFrame extends FiberFrame<Void> {
 
 class InstallFiberFrame extends FiberFrame<Void> {
     private static final DtLog log = DtLogs.getLogger(InstallFiberFrame.class);
-    private final ReqInfo<InstallSnapshotReq> reqInfo;
+    private final ReqInfoEx<InstallSnapshotReq> reqInfo;
     private final AppendProcessor processor;
 
-    public InstallFiberFrame(ReqInfo<InstallSnapshotReq> reqInfo, AppendProcessor processor) {
+    public InstallFiberFrame(ReqInfoEx<InstallSnapshotReq> reqInfo, AppendProcessor processor) {
         this.reqInfo = reqInfo;
         this.processor = processor;
     }
@@ -470,7 +470,7 @@ class InstallFiberFrame extends FiberFrame<Void> {
         }
     }
 
-    private FrameCallResult writeInstallResp(ReqInfo<InstallSnapshotReq> reqInfo, boolean success, String msg) {
+    private FrameCallResult writeInstallResp(ReqInfoEx<InstallSnapshotReq> reqInfo, boolean success, String msg) {
         InstallSnapshotResp resp = new InstallSnapshotResp();
         InstallSnapshotResp.InstallRespWriteFrame wf = new InstallSnapshotResp.InstallRespWriteFrame(resp);
         resp.term = reqInfo.getRaftGroup().getGroupComponents().getRaftStatus().getCurrentTerm();

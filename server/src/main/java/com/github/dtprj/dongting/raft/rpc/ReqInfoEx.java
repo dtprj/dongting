@@ -13,42 +13,28 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.server;
+package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.net.ChannelContext;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
+import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
+import com.github.dtprj.dongting.raft.server.ReqInfo;
 
 /**
  * @author huangli
  */
-public class ReqInfo<T> {
-    private final ReadFrame<T> reqFrame;
-    private final ChannelContext channelContext;
-    private final ReqContext reqContext;
-    private final RaftGroup raftGroup;
+public class ReqInfoEx<T> extends ReqInfo<T> {
+    private final RaftGroupImpl raftGroup;
 
-    protected ReqInfo(ReadFrame<T> reqFrame, ChannelContext channelContext,
-                      ReqContext reqContext, RaftGroup raftGroup) {
-        this.reqFrame = reqFrame;
-        this.channelContext = channelContext;
-        this.reqContext = reqContext;
+    public ReqInfoEx(ReadFrame<T> reqFrame, ChannelContext channelContext,
+                     ReqContext reqContext, RaftGroupImpl raftGroup) {
+        super(reqFrame, channelContext, reqContext, raftGroup);
         this.raftGroup = raftGroup;
     }
 
-    public ReadFrame<T> getReqFrame() {
-        return reqFrame;
-    }
-
-    public ChannelContext getChannelContext() {
-        return channelContext;
-    }
-
-    public ReqContext getReqContext() {
-        return reqContext;
-    }
-
-    public RaftGroup getRaftGroup() {
+    @Override
+    public RaftGroupImpl getRaftGroup() {
         return raftGroup;
     }
 }

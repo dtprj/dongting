@@ -26,6 +26,7 @@ import com.github.dtprj.dongting.net.ReqProcessor;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
+import com.github.dtprj.dongting.raft.rpc.ReqInfoEx;
 
 /**
  * @author huangli
@@ -71,7 +72,7 @@ public abstract class AbstractRaftGroupProcessor<T> extends ReqProcessor<T> {
             wf.setMsg("raft group is stopped: " + groupId);
             return wf;
         } else {
-            ReqInfo<T> reqInfo = new ReqInfo<>(frame, channelContext, reqContext, g);
+            ReqInfoEx<T> reqInfo = new ReqInfoEx<>(frame, channelContext, reqContext, g);
             return doProcess(reqInfo);
         }
     }

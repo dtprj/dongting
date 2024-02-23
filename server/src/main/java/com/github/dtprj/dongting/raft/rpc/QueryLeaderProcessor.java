@@ -26,7 +26,6 @@ import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.raft.impl.RaftMember;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftServer;
-import com.github.dtprj.dongting.raft.server.ReqInfo;
 
 /**
  * @author huangli
@@ -48,7 +47,7 @@ public class QueryLeaderProcessor extends RaftSequenceProcessor<Integer> {
     }
 
     @Override
-    protected FiberFrame<Void> processInFiberGroup(ReqInfo<Integer> reqInfo) {
+    protected FiberFrame<Void> processInFiberGroup(ReqInfoEx<Integer> reqInfo) {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {

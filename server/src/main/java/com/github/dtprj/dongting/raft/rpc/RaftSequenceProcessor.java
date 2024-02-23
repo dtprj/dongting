@@ -47,10 +47,10 @@ public abstract class RaftSequenceProcessor<T> extends AbstractRaftGroupProcesso
         super(raftServer);
     }
 
-    protected abstract FiberFrame<Void> processInFiberGroup(ReqInfo<T> reqInfo);
+    protected abstract FiberFrame<Void> processInFiberGroup(ReqInfoEx<T> reqInfo);
 
 
-    public void startProcessFiber(FiberChannel<ReqInfo<T>> channel) {
+    public void startProcessFiber(FiberChannel<ReqInfoEx<T>> channel) {
         if (fiberStart) {
             return;
         }
@@ -62,10 +62,10 @@ public abstract class RaftSequenceProcessor<T> extends AbstractRaftGroupProcesso
 
     private class ProcessorFiberFrame extends FiberFrame<Void> {
 
-        private final FiberChannel<ReqInfo<T>> channel;
+        private final FiberChannel<ReqInfoEx<T>> channel;
         private ReqInfo<T> current;
 
-        ProcessorFiberFrame(FiberChannel<ReqInfo<T>> channel) {
+        ProcessorFiberFrame(FiberChannel<ReqInfoEx<T>> channel) {
             this.channel = channel;
         }
 
@@ -75,7 +75,7 @@ public abstract class RaftSequenceProcessor<T> extends AbstractRaftGroupProcesso
             return channel.take(this::resume);
         }
 
-        private FrameCallResult resume(ReqInfo<T> o) {
+        private FrameCallResult resume(ReqInfoEx<T> o) {
             current = o;
             return Fiber.call(processInFiberGroup(o), this);
         }
@@ -99,7 +99,8 @@ public abstract class RaftSequenceProcessor<T> extends AbstractRaftGroupProcesso
 
     @Override
     protected final WriteFrame doProcess(ReqInfo<T> reqInfo) {
-        FiberChannel<Object> c = reqInfo.getRaftGroup().getProcessorChannels().get(typeId);
+        ReqInfoEx<T> rix = (ReqInfoEx<T>) reqInfo;
+        FiberChannel<Object> c = rix.getRaftGroup().getProcessorChannels().get(typeId);
         c.fireOffer(reqInfo);
         return null;
     }

@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.server.RaftServer;
-import com.github.dtprj.dongting.raft.server.ReqInfo;
 
 /**
  * @author huangli
@@ -41,7 +40,7 @@ public class RaftPingProcessor extends RaftSequenceProcessor<RaftPingFrameCallba
     }
 
     @Override
-    protected FiberFrame<Void> processInFiberGroup(ReqInfo<RaftPingFrameCallback> reqInfo) {
+    protected FiberFrame<Void> processInFiberGroup(ReqInfoEx<RaftPingFrameCallback> reqInfo) {
         GroupComponents gc = reqInfo.getRaftGroup().getGroupComponents();
         RaftPingWriteFrame resp = new RaftPingWriteFrame(gc.getServerConfig().getNodeId(),
                 gc.getGroupConfig().getGroupId(), gc.getRaftStatus().getNodeIdOfMembers(),
