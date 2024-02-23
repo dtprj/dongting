@@ -64,7 +64,7 @@ public class CommitManager {
         @Override
         public FrameCallResult execute(Void input) {
             RaftStatusImpl raftStatus = CommitManager.this.raftStatus;
-            long idx = raftStatus.getLastSyncLogIndex();
+            long idx = raftStatus.getLastForceLogIndex();
             if (idx > raftStatus.getCommitIndex()) {
                 CommitManager.this.finish(idx);
             }

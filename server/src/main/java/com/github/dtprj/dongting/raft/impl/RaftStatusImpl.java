@@ -70,7 +70,7 @@ public class RaftStatusImpl extends RaftStatus {
 
     private long lastLogIndex;
     private int lastLogTerm;
-    private long lastSyncLogIndex;
+    private long lastForceLogIndex;
     private long lastWriteLogIndex;
 
     private long leaderCommit;
@@ -331,12 +331,12 @@ public class RaftStatusImpl extends RaftStatus {
         this.lastConfigChangeIndex = lastConfigChangeIndex;
     }
 
-    public long getLastSyncLogIndex() {
-        return lastSyncLogIndex;
+    public long getLastForceLogIndex() {
+        return lastForceLogIndex;
     }
 
-    public void setLastSyncLogIndex(long lastSyncLogIndex) {
-        this.lastSyncLogIndex = lastSyncLogIndex;
+    public void setLastForceLogIndex(long lastForceLogIndex) {
+        this.lastForceLogIndex = lastForceLogIndex;
     }
 
     public long getLeaderCommit() {

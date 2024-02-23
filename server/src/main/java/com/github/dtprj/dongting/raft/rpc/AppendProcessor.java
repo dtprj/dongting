@@ -322,7 +322,7 @@ class AppendFiberFrame extends FiberFrame<Void> {
 
         RaftStatusImpl raftStatus = gc.getRaftStatus();
         raftStatus.setLastWriteLogIndex(matchIndex);
-        raftStatus.setLastSyncLogIndex(matchIndex);
+        raftStatus.setLastForceLogIndex(matchIndex);
         raftStatus.setLastLogIndex(matchIndex);
         raftStatus.setLastLogTerm(matchTerm);
 
@@ -448,7 +448,7 @@ class InstallFiberFrame extends FiberFrame<Void> {
 
         raftStatus.setLastLogIndex(req.lastIncludedIndex);
         raftStatus.setLastWriteLogIndex(req.lastIncludedIndex);
-        raftStatus.setLastSyncLogIndex(req.lastIncludedIndex);
+        raftStatus.setLastForceLogIndex(req.lastIncludedIndex);
 
         if (finish) {
             raftStatus.setInstallSnapshot(false);

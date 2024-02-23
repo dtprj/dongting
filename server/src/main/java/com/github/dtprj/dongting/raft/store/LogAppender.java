@@ -485,7 +485,7 @@ class LogAppender {
             WriteTask head = syncWriteTaskQueueHead;
             if (head != null && head.lastIndex <= task.lastIndex) {
                 syncWriteTaskQueueHead = head.nextNeedSyncTask;
-                raftStatus.setLastSyncLogIndex(head.lastIndex);
+                raftStatus.setLastForceLogIndex(head.lastIndex);
                 raftStatus.getLogSyncFinishCondition().signalAll();
             }
             return Fiber.frameReturn();

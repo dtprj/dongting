@@ -130,7 +130,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
 
         raftStatus.setLastLogIndex(initResultIndex);
         raftStatus.setLastWriteLogIndex(initResultIndex);
-        raftStatus.setLastSyncLogIndex(initResultIndex);
+        raftStatus.setLastForceLogIndex(initResultIndex);
 
         log.info("raft group log init complete, maxTerm={}, maxIndex={}, groupId={}",
                 initResult.getLeft(), initResult.getRight(), groupConfig.getGroupId());

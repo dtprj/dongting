@@ -287,9 +287,9 @@ public class RaftUtil {
     }
 
     public static boolean writeNotFinished(RaftStatusImpl raftStatus) {
-        if (raftStatus.getLastSyncLogIndex() != raftStatus.getLastLogIndex()) {
+        if (raftStatus.getLastForceLogIndex() != raftStatus.getLastLogIndex()) {
             log.info("write not finished, lastPersistLogIndex={}, lastLogIndex={}",
-                    raftStatus.getLastSyncLogIndex(), raftStatus.getLastLogIndex());
+                    raftStatus.getLastForceLogIndex(), raftStatus.getLastLogIndex());
             return true;
         }
         return false;

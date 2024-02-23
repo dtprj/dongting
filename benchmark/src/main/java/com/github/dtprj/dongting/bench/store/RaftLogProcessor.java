@@ -224,7 +224,7 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
         @Override
         public FrameCallResult execute(Void input) {
 
-            long lastIndex = raftStatus.getLastSyncLogIndex();
+            long lastIndex = raftStatus.getLastForceLogIndex();
             raftStatus.setCommitIndex(lastIndex);
             raftStatus.setLastApplied(lastIndex);
             raftStatus.setLastLogIndex(lastIndex);
