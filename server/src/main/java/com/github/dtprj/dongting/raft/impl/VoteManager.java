@@ -350,7 +350,7 @@ public class VoteManager {
             raftStatus.copyShareStatus();
 
             statusManager.persistAsync(true);
-            return statusManager.waitSync(v -> afterStartVotePersist(voter));
+            return statusManager.waitForce(v -> afterStartVotePersist(voter));
         }
 
         private FrameCallResult afterStartVotePersist(Set<RaftMember> voter) {

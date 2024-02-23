@@ -78,7 +78,7 @@ public class StatusManagerTest extends BaseFiberTest {
             private FrameCallResult afterInit(Void unused) {
                 initData();
                 statusManager.persistAsync(true);
-                return statusManager.waitSync(this::justReturn);
+                return statusManager.waitForce(this::justReturn);
             }
             @Override
             protected FrameCallResult doFinally() {
@@ -111,7 +111,7 @@ public class StatusManagerTest extends BaseFiberTest {
                     statusManager.getProperties().setProperty("k1", "v1" + i);
                     statusManager.persistAsync(false);
                 }
-                return statusManager.waitSync(this::justReturn);
+                return statusManager.waitForce(this::justReturn);
             }
             @Override
             protected FrameCallResult doFinally() {
@@ -136,7 +136,7 @@ public class StatusManagerTest extends BaseFiberTest {
 
                 raftStatus.setCommitIndex(100000);
                 statusManager.persistAsync(true);
-                return statusManager.waitSync(this::justReturn);
+                return statusManager.waitForce(this::justReturn);
             }
             @Override
             protected FrameCallResult doFinally() {

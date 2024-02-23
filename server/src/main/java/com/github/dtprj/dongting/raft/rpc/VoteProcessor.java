@@ -118,7 +118,7 @@ public class VoteProcessor extends RaftGroupProcessor<VoteReq> {
             if (needPersist) {
                 StatusManager statusManager = reqInfo.getRaftGroup().getGroupComponents().getStatusManager();
                 statusManager.persistAsync(true);
-                return statusManager.waitSync(this::postProcessVote);
+                return statusManager.waitForce(this::postProcessVote);
             } else {
                 return postProcessVote(null);
             }

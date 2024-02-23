@@ -176,7 +176,7 @@ class AppendFiberFrame extends FiberFrame<Void> {
             } else if (remoteTerm > localTerm) {
                 RaftUtil.incrTerm(remoteTerm, raftStatus, req.getLeaderId());
                 gc.getStatusManager().persistAsync(true);
-                return gc.getStatusManager().waitSync(v -> append(reqInfo, gc));
+                return gc.getStatusManager().waitForce(v -> append(reqInfo, gc));
             } else {
                 log.debug("receive append request with a smaller term, ignore, remoteTerm={}, localTerm={}, groupId={}",
                         remoteTerm, localTerm, raftStatus.getGroupId());
@@ -405,7 +405,7 @@ class InstallFiberFrame extends FiberFrame<Void> {
                 gc.getVoteManager().cancelVote();
                 RaftUtil.incrTerm(remoteTerm, raftStatus, req.leaderId);
                 gc.getStatusManager().persistAsync(true);
-                return gc.getStatusManager().waitSync(v -> installSnapshot(raftStatus, gc, req));
+                return gc.getStatusManager().waitForce(v -> installSnapshot(raftStatus, gc, req));
             } else {
                 log.info("receive raft install snapshot request with a smaller term, ignore, remoteTerm={}, localTerm={}", remoteTerm, localTerm);
                 return writeInstallResp(reqInfo, false, "small term");

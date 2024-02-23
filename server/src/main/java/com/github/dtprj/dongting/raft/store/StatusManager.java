@@ -50,7 +50,7 @@ public class StatusManager {
 
     private boolean closed;
 
-    private long lastNeedSyncVersion;
+    private long lastNeedForceVersion;
     private long requestUpdateVersion;
     private long finishedUpdateVersion;
 
@@ -100,7 +100,7 @@ public class StatusManager {
 
     private class UpdateFiberFrame extends FiberFrame<Void> {
         private long version;
-        private boolean sync;
+        private boolean force;
 
         @Override
         public FrameCallResult execute(Void input) {
@@ -122,8 +122,8 @@ public class StatusManager {
                 public FrameCallResult execute(Void input) {
                     copyWriteData();
                     version = requestUpdateVersion;
-                    sync = lastNeedSyncVersion > finishedUpdateVersion;
-                    FiberFuture<Void> f = statusFile.update(sync);
+                    force = lastNeedForceVersion > finishedUpdateVersion;
+                    FiberFuture<Void> f = statusFile.update(force);
                     return f.await(this::justReturn);
                 }
             };
@@ -165,23 +165,23 @@ public class StatusManager {
     public void persistAsync(boolean sync) {
         requestUpdateVersion++;
         if (sync) {
-            lastNeedSyncVersion = requestUpdateVersion;
+            lastNeedForceVersion = requestUpdateVersion;
         }
         needUpdateCondition.signal();
     }
 
-    public FrameCallResult waitSync(FrameCall<Void> resumePoint) {
-        return waitSync(requestUpdateVersion, resumePoint);
+    public FrameCallResult waitForce(FrameCall<Void> resumePoint) {
+        return waitForce(requestUpdateVersion, resumePoint);
     }
 
-    private FrameCallResult waitSync(long version, FrameCall<Void> resumePoint) {
+    private FrameCallResult waitForce(long version, FrameCall<Void> resumePoint) {
         if (closed) {
             throw new RaftException("status manager is closed");
         }
         if (finishedUpdateVersion >= version) {
             return Fiber.resume(null, resumePoint);
         }
-        return updateDoneCondition.await(1000, v -> waitSync(version, resumePoint));
+        return updateDoneCondition.await(1000, v -> waitForce(version, resumePoint));
     }
 
     public Properties getProperties() {
