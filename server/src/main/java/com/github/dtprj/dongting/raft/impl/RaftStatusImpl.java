@@ -81,6 +81,9 @@ public class RaftStatusImpl extends RaftStatus {
     private FiberCondition logWriteFinishCondition;
     private FiberCondition transferLeaderCondition;
 
+    private final CompletableFuture<Void> initFuture = new CompletableFuture<>();
+    private final CompletableFuture<Void> startFuture = new CompletableFuture<>();
+
     public RaftStatusImpl(Timestamp ts) {
         this.ts = ts;
         lastElectTime = ts.getNanoTime();
@@ -398,5 +401,13 @@ public class RaftStatusImpl extends RaftStatus {
 
     public void setTransferLeaderCondition(FiberCondition transferLeaderCondition) {
         this.transferLeaderCondition = transferLeaderCondition;
+    }
+
+    public CompletableFuture<Void> getInitFuture() {
+        return initFuture;
+    }
+
+    public CompletableFuture<Void> getStartFuture() {
+        return startFuture;
     }
 }

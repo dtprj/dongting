@@ -21,8 +21,8 @@ import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
-import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.nio.ByteBuffer;
@@ -43,7 +43,7 @@ import java.util.ArrayList;
 public class AppendReqCallback extends PbCallback<AppendReqCallback> {
 
     private final DecodeContext context;
-    private final RaftGroups raftGroups;
+    private final RaftServer raftServer;
     private int groupId;
     private int term;
     private int leaderId;
@@ -52,9 +52,9 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
     private final ArrayList<LogItem> logs = new ArrayList<>();
     private long leaderCommit;
 
-    public AppendReqCallback(DecodeContext context, RaftGroups raftGroups) {
+    public AppendReqCallback(DecodeContext context, RaftServer raftServer) {
         this.context = context;
-        this.raftGroups = raftGroups;
+        this.raftServer = raftServer;
     }
 
     @Override
@@ -93,7 +93,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
     public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
         boolean end = buf.remaining() >= len - currentPos;
         if (index == 7) {
-            RaftGroupImpl group = raftGroups.get(groupId);
+            RaftGroupImpl group = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
             if (group == null) {
                 // group id should encode before entries
                 throw new PbException("can't find raft group: " + groupId);

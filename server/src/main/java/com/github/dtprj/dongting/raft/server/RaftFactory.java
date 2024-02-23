@@ -6,6 +6,7 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 
 public interface RaftFactory {
@@ -19,5 +20,7 @@ public interface RaftFactory {
 
     FiberGroup createFiberGroup(RaftGroupConfig groupConfig);
 
-    void afterRaftGroupShutdown(RaftGroupConfig groupConfig);
+    CompletableFuture<Void> startFiberGroup(FiberGroup group);
+
+    void requestGroupShutdown(FiberGroup group);
 }

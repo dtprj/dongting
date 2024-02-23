@@ -30,7 +30,6 @@ import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.LinearTaskRunner;
-import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
@@ -62,9 +61,9 @@ public class AppendProcessor extends RaftGroupProcessor<Object> {
     private static final Decoder<InstallSnapshotReq> INSTALL_SNAPSHOT_DECODER = new PbNoCopyDecoder<>(
             c -> new InstallSnapshotReq.Callback(c.getHeapPool()));
 
-    public AppendProcessor(RaftServer raftServer, RaftGroups raftGroups) {
+    public AppendProcessor(RaftServer raftServer) {
         super(raftServer);
-        this.appendDecoder = new PbNoCopyDecoder<>(decodeContext -> new AppendReqCallback(decodeContext, raftGroups));
+        this.appendDecoder = new PbNoCopyDecoder<>(decodeContext -> new AppendReqCallback(decodeContext, raftServer));
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

@@ -53,6 +53,7 @@ public class RaftGroupImpl extends RaftGroup {
     private final Timestamp readTimestamp = new Timestamp();
     private final GroupComponents gc;
     private final IntObjMap<FiberChannel<Object>> processorChannels = new IntObjMap<>();
+    private boolean requestShutdown;
 
     public RaftGroupImpl(GroupComponents gc) {
         this.gc = gc;
@@ -227,5 +228,13 @@ public class RaftGroupImpl extends RaftGroup {
 
     public FiberGroup getFiberGroup() {
         return fiberGroup;
+    }
+
+    public boolean isRequestShutdown() {
+        return requestShutdown;
+    }
+
+    public void setRequestShutdown(boolean requestShutdown) {
+        this.requestShutdown = requestShutdown;
     }
 }

@@ -42,7 +42,6 @@ import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.NodeManager;
 import com.github.dtprj.dongting.raft.impl.PendingStat;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
-import com.github.dtprj.dongting.raft.impl.RaftGroups;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.ReplicateManager;
@@ -67,9 +66,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -82,7 +83,7 @@ public class RaftServer extends AbstractLifeCircle {
     private final NioClient replicateNioClient;
     private final NioServer serviceNioServer;
 
-    private final RaftGroups raftGroups = new RaftGroups();
+    private final ConcurrentHashMap<Integer, RaftGroupImpl> raftGroups = new ConcurrentHashMap<>();
 
     private final RaftServerConfig serverConfig;
 
@@ -142,7 +143,7 @@ public class RaftServer extends AbstractLifeCircle {
 
         replicateNioServer.register(Commands.NODE_PING, new NodePingProcessor(serverConfig.getNodeId(), nodeManager.getUuid()));
         addRaftGroupProcessor(replicateNioServer, Commands.RAFT_PING, new RaftPingProcessor(this));
-        AppendProcessor appendProcessor = new AppendProcessor(this, raftGroups);
+        AppendProcessor appendProcessor = new AppendProcessor(this);
         addRaftGroupProcessor(replicateNioServer, Commands.RAFT_APPEND_ENTRIES, appendProcessor);
         addRaftGroupProcessor(replicateNioServer, Commands.RAFT_INSTALL_SNAPSHOT, appendProcessor);
         addRaftGroupProcessor(replicateNioServer, Commands.RAFT_REQUEST_VOTE, new VoteProcessor(this));
@@ -328,7 +329,7 @@ public class RaftServer extends AbstractLifeCircle {
                 GroupComponents gc = g.getGroupComponents();
                 // nodeManager.getAllNodesEx() is not thread safe
                 gc.getMemberManager().init(nodeManager.getAllNodesEx());
-                CompletableFuture<Void> f = gc.getFiberGroup().getDispatcher().startGroup(gc.getFiberGroup());
+                CompletableFuture<Void> f = raftFactory.startFiberGroup(gc.getFiberGroup());
                 futures.add(f);
             });
             // should complete soon, so we wait here
@@ -337,12 +338,8 @@ public class RaftServer extends AbstractLifeCircle {
             // init raft log and state machine, async in raft thread
             futures.clear();
             raftGroups.forEach((groupId, g) -> {
-                GroupComponents gc = g.getGroupComponents();
-                InitFiberFrame initFiberFrame = new InitFiberFrame(gc, raftGroupProcessors, replicateNioClient);
-                Fiber initFiber = new Fiber("init-raft-group-" + groupId,
-                        gc.getFiberGroup(), initFiberFrame);
-                gc.getFiberGroup().fireFiber(initFiber);
-                futures.add(initFiberFrame.getPrepareFuture());
+                initRaftGroup(g);
+                futures.add(g.getGroupComponents().getRaftStatus().getInitFuture());
             });
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).whenComplete((v, ex) -> {
                 if (ex != null) {
@@ -357,6 +354,21 @@ public class RaftServer extends AbstractLifeCircle {
             log.error("start raft server failed", e);
             throw new RaftException(e);
         }
+    }
+
+    private void initRaftGroup(RaftGroupImpl g) {
+        GroupComponents gc = g.getGroupComponents();
+        InitFiberFrame initFiberFrame = new InitFiberFrame(gc, raftGroupProcessors);
+        Fiber initFiber = new Fiber("init-raft-group-" + g.getGroupId(),
+                gc.getFiberGroup(), initFiberFrame);
+        gc.getFiberGroup().fireFiber(initFiber);
+        initFiberFrame.getPrepareFuture().whenComplete((v, ex) -> {
+            if (ex != null) {
+                gc.getRaftStatus().getInitFuture().completeExceptionally(ex);
+            } else {
+                gc.getRaftStatus().getInitFuture().complete(null);
+            }
+        });
     }
 
     private void startServers() {
@@ -381,10 +393,8 @@ public class RaftServer extends AbstractLifeCircle {
         try {
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
             raftGroups.forEach((groupId, g) -> {
-                GroupComponents gc = g.getGroupComponents();
-                gc.getFiberGroup().fireFiber(gc.getMemberManager().createRaftPingFiber());
-                CompletableFuture<Void> f = gc.getMemberManager().getStartReadyFuture();
-                futures.add(f);
+                startRaftGroup(g);
+                futures.add(g.getGroupComponents().getRaftStatus().getStartFuture());
             });
 
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).whenComplete((v, ex) -> {
@@ -407,6 +417,18 @@ public class RaftServer extends AbstractLifeCircle {
         }
     }
 
+    private void startRaftGroup(RaftGroupImpl g) {
+        GroupComponents gc = g.getGroupComponents();
+        gc.getFiberGroup().fireFiber(gc.getMemberManager().createRaftPingFiber());
+        gc.getMemberManager().getStartReadyFuture().whenComplete((v, ex) -> {
+            if (ex != null) {
+                gc.getRaftStatus().getStartFuture().completeExceptionally(ex);
+            } else {
+                gc.getRaftStatus().getStartFuture().complete(null);
+            }
+        });
+    }
+
     @SuppressWarnings("unused")
     public CompletableFuture<Void> getReadyFuture() {
         return readyFuture;
@@ -420,7 +442,8 @@ public class RaftServer extends AbstractLifeCircle {
             }
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
             raftGroups.forEach((groupId, g) -> {
-                g.getFiberGroup().requestShutdown();
+                g.setRequestShutdown(true);
+                raftFactory.requestGroupShutdown(g.getFiberGroup());
                 futures.add(g.getFiberGroup().getShutdownFuture());
             });
             nodeManager.stop(timeout);
@@ -452,20 +475,19 @@ public class RaftServer extends AbstractLifeCircle {
         }
     }
 
-    private void doChange(DtTime timeout, Runnable runnable) {
+    private <T> T doChange(long acquireLockTimeoutMillis, Supplier<T> supplier) {
         checkStatus();
         boolean lock = false;
         try {
-            long timeoutMillis = timeout.rest(TimeUnit.MILLISECONDS);
-            lock = changeLock.tryLock(timeoutMillis, TimeUnit.MILLISECONDS);
+            lock = changeLock.tryLock(acquireLockTimeoutMillis, TimeUnit.MILLISECONDS);
             if (!lock) {
-                throw new RaftException("failed to acquire change lock in " + timeoutMillis + "ms");
+                throw new RaftException("failed to acquire change lock in " + acquireLockTimeoutMillis + "ms");
             }
-            runnable.run();
+            return supplier.get();
         } catch (InterruptedException e) {
             throw new RaftException(e);
         } finally {
-            if(lock){
+            if (lock) {
                 changeLock.unlock();
             }
         }
@@ -476,11 +498,11 @@ public class RaftServer extends AbstractLifeCircle {
      * If the node is already in node list and connected, the future complete normally immediately.
      */
     @SuppressWarnings("unused")
-    public void addNode(RaftNode node, long timeoutMillis) {
-        DtTime timeout = new DtTime(timeoutMillis, TimeUnit.MILLISECONDS);
-        doChange(timeout, () -> {
+    public void addNode(RaftNode node, long acquireLockTimeoutMillis) {
+        doChange(acquireLockTimeoutMillis, () -> {
             try {
-                nodeManager.addNode(node).get(timeout.rest(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+                nodeManager.addNode(node).get();
+                return null;
             } catch (Exception e) {
                 throw new RaftException(e);
             }
@@ -492,13 +514,80 @@ public class RaftServer extends AbstractLifeCircle {
      * If the reference count of the node is not 0, the future complete exceptionally.
      */
     @SuppressWarnings("unused")
-    public void removeNode(int nodeId, long timeoutMillis) {
-        DtTime timeout = new DtTime(timeoutMillis, TimeUnit.MILLISECONDS);
-        doChange(timeout, () -> {
+    public void removeNode(int nodeId, long acquireLockTimeoutMillis) {
+        doChange(acquireLockTimeoutMillis, () -> {
             try {
-                nodeManager.removeNode(nodeId).get(timeout.rest(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+                nodeManager.removeNode(nodeId).get();
+                return null;
             } catch (Exception e) {
                 throw new RaftException(e);
+            }
+        });
+    }
+
+    /**
+     * ADMIN API. This method is NOT idempotent.
+     * <p>
+     * This method may block (before return future).
+     * After get the CompletableFuture, user should wait on the future to ensure raft group is initialized.
+     */
+    @SuppressWarnings("unused")
+    public CompletableFuture<Void> addGroup(RaftGroupConfig groupConfig, long acquireLockTimeoutMillis) {
+        return doChange(acquireLockTimeoutMillis, () -> {
+            try {
+                if (raftGroups.get(groupConfig.getGroupId()) != null) {
+                    return CompletableFuture.failedFuture(new RaftException(
+                            "group already exist: " + groupConfig.getGroupId()));
+                }
+                CompletableFuture<RaftGroupImpl> f = new CompletableFuture<>();
+                RaftUtil.SCHEDULED_SERVICE.execute(() -> {
+                    try {
+                        RaftGroupImpl g = createRaftGroup(serverConfig, nodeManager.getAllNodeIds(), groupConfig);
+                        g.getGroupComponents().getMemberManager().init(nodeManager.getAllNodesEx());
+                        f.complete(g);
+                    } catch (Exception e) {
+                        f.completeExceptionally(e);
+                    }
+                });
+
+                RaftGroupImpl g = f.get();
+                GroupComponents gc = g.getGroupComponents();
+
+                raftFactory.startFiberGroup(gc.getFiberGroup()).get();
+
+                raftGroups.put(groupConfig.getGroupId(), g);
+                initRaftGroup(g);
+                RaftStatusImpl raftStatus = g.getGroupComponents().getRaftStatus();
+                return raftStatus.getInitFuture().thenCompose(v -> {
+                    startRaftGroup(g);
+                    return raftStatus.getStartFuture();
+                });
+            } catch (Exception e) {
+                return CompletableFuture.failedFuture(e);
+            }
+        });
+    }
+
+    /**
+     * ADMIN API. This method is idempotent.
+     */
+    @SuppressWarnings("unused")
+    public CompletableFuture<Void> removeGroup(int groupId, long acquireLockTimeoutMillis) {
+        return doChange(acquireLockTimeoutMillis, () -> {
+            try {
+                RaftGroupImpl g = raftGroups.get(groupId);
+                if (g == null) {
+                    log.warn("removeGroup failed: group not exist, groupId={}", groupId);
+                    return CompletableFuture.failedFuture(new RaftException("group not exist: " + groupId));
+                }
+                if (g.isRequestShutdown()) {
+                    return g.getFiberGroup().getShutdownFuture();
+                }
+                g.setRequestShutdown(true);
+                g.getFiberGroup().requestShutdown();
+                return g.getFiberGroup().getShutdownFuture().thenRun(() -> raftGroups.remove(groupId));
+            } catch (Exception e) {
+                return CompletableFuture.failedFuture(e);
             }
         });
     }

@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
@@ -97,7 +98,7 @@ public class NodeManager extends AbstractLifeCircle {
         }
     }
 
-    public void initNodes(RaftGroups raftGroups) {
+    public void initNodes(ConcurrentHashMap<Integer, RaftGroupImpl> raftGroups) {
         ArrayList<CompletableFuture<RaftNodeEx>> futures = new ArrayList<>();
         for (RaftNode n : allRaftNodesOnlyForInit) {
             futures.add(addToNioClient(n));
@@ -359,6 +360,15 @@ public class NodeManager extends AbstractLifeCircle {
 
     public IntObjMap<RaftNodeEx> getAllNodesEx() {
         return allNodesEx;
+    }
+
+    // create new set since this method invoke occasionally
+    public Set<Integer> getAllNodeIds() {
+        HashSet<Integer> ids = new HashSet<>();
+        allNodesEx.forEach((nodeId, nodeEx) -> {
+            ids.add(nodeId);
+        });
+        return ids;
     }
 
     public ReentrantLock getNodeChangeLock() {
