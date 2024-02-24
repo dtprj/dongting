@@ -36,8 +36,6 @@ public class RaftTask {
 
     private RaftTask nextReader;
 
-    private long index;
-
     public RaftTask(Timestamp ts, int type, RaftInput input,
                     CompletableFuture<RaftOutput> future) {
         this.createTimeNanos = ts.getNanoTime();
@@ -76,13 +74,5 @@ public class RaftTask {
 
     public int getType() {
         return type;
-    }
-
-    public long getIndex() {
-        return index;
-    }
-
-    public void setIndex(long index) {
-        this.index = index;
     }
 }

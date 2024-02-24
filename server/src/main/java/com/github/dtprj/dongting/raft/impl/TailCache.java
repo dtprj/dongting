@@ -58,7 +58,6 @@ public class TailCache {
     }
 
     public void put(long index, RaftTask value) {
-        value.setIndex(index);
         if (cache.size() == 0) {
             firstIndex = index;
         } else {
