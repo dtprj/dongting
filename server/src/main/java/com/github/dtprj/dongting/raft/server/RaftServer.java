@@ -584,7 +584,7 @@ public class RaftServer extends AbstractLifeCircle {
                     return g.getFiberGroup().getShutdownFuture();
                 }
                 g.setRequestShutdown(true);
-                g.getFiberGroup().requestShutdown();
+                raftFactory.requestGroupShutdown(g.getFiberGroup());
                 return g.getFiberGroup().getShutdownFuture().thenRun(() -> raftGroups.remove(groupId));
             } catch (Exception e) {
                 return CompletableFuture.failedFuture(e);

@@ -12,11 +12,11 @@ import java.util.concurrent.ExecutorService;
 public interface RaftFactory {
     ExecutorService createIoExecutor();
 
-    StateMachine createStateMachine(RaftGroupConfig groupConfig);
+    StateMachine createStateMachine(RaftGroupConfigEx groupConfig);
 
-    RaftLog createRaftLog(RaftGroupConfig groupConfig, StatusManager statusManager);
+    RaftLog createRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager);
 
-    SnapshotManager createSnapshotManager(RaftGroupConfig groupConfig);
+    SnapshotManager createSnapshotManager(RaftGroupConfigEx groupConfig);
 
     FiberGroup createFiberGroup(RaftGroupConfig groupConfig);
 
