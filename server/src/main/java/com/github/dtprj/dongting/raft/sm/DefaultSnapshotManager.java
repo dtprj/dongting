@@ -31,6 +31,7 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftStatus;
 import com.github.dtprj.dongting.raft.store.AsyncIoTask;
 import com.github.dtprj.dongting.raft.store.DtFile;
+import com.github.dtprj.dongting.raft.store.ForceFrame;
 import com.github.dtprj.dongting.raft.store.StatusFile;
 
 import java.io.File;
@@ -266,7 +267,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             return writeFuture.await(resumePoint);
         }
 
-        private FrameCallResult whenReadFinish(RefBuffer rb) throws Exception {
+        private FrameCallResult whenReadFinish(RefBuffer rb) {
             this.readBuffer = rb;
             if (checkCancel()) {
                 return Fiber.frameReturn();
@@ -280,7 +281,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
                 headerBuffer.putInt((int) crc32c.getValue());
                 return write(headerBuffer, this::whenHeaderWriteFinish);
             } else {
-                return writeIdxFile();
+                return finishDataFile();
             }
         }
 
@@ -299,16 +300,19 @@ public class DefaultSnapshotManager implements SnapshotManager {
             return read();
         }
 
-        private FrameCallResult writeIdxFile() throws Exception {
+        private FrameCallResult finishDataFile() {
             if (checkCancel()) {
                 return Fiber.frameReturn();
             }
-            //TODO block here
-            newDataFile.getChannel().force(true);
+            ForceFrame ff = new ForceFrame(newDataFile.getChannel(), ioExecutor, true);
+            return Fiber.call(ff, this::writeIdxFile);
+        }
+
+        private FrameCallResult writeIdxFile(Void v) {
+            if (checkCancel()) {
+                return Fiber.frameReturn();
+            }
             log.info("snapshot data file write success: {}", newDataFile.getFile().getPath());
-            if (checkCancel()) {
-                return Fiber.frameReturn();
-            }
 
             statusFile = new StatusFile(newIdxFile, ioExecutor, getFiberGroup());
             statusFile.init();
