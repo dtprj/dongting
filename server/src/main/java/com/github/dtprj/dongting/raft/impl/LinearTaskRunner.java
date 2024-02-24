@@ -161,11 +161,8 @@ public class LinearTaskRunner {
                 item.setPrevLogTerm(oldTerm);
                 item.setTimestamp(ts.getWallClockMillis());
 
-                Object header = input.getHeader();
-                item.setHeader(header);
-
-                Object body = input.getBody();
-                item.setBody(body);
+                item.setHeader(input.getHeader());
+                item.setBody(input.getBody());
 
                 rt.setItem(item);
 
