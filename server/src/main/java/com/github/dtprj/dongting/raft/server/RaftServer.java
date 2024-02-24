@@ -453,6 +453,7 @@ public class RaftServer extends AbstractLifeCircle {
                         .get(timeout.rest(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
                 DtUtil.restoreInterruptStatus();
+                throw new RaftException(e);
             } catch (Exception e) {
                 throw new RaftException(e);
             } finally {
@@ -485,6 +486,7 @@ public class RaftServer extends AbstractLifeCircle {
             }
             return supplier.get();
         } catch (InterruptedException e) {
+            DtUtil.restoreInterruptStatus();
             throw new RaftException(e);
         } finally {
             if (lock) {
@@ -503,6 +505,9 @@ public class RaftServer extends AbstractLifeCircle {
             try {
                 nodeManager.addNode(node).get();
                 return null;
+            } catch (InterruptedException e) {
+                DtUtil.restoreInterruptStatus();
+                throw new RaftException(e);
             } catch (Exception e) {
                 throw new RaftException(e);
             }
@@ -519,6 +524,9 @@ public class RaftServer extends AbstractLifeCircle {
             try {
                 nodeManager.removeNode(nodeId).get();
                 return null;
+            } catch (InterruptedException e) {
+                DtUtil.restoreInterruptStatus();
+                throw new RaftException(e);
             } catch (Exception e) {
                 throw new RaftException(e);
             }
@@ -562,6 +570,9 @@ public class RaftServer extends AbstractLifeCircle {
                     startRaftGroup(g);
                     return raftStatus.getStartFuture();
                 });
+            } catch (InterruptedException e) {
+                DtUtil.restoreInterruptStatus();
+                return CompletableFuture.failedFuture(e);
             } catch (Exception e) {
                 return CompletableFuture.failedFuture(e);
             }
