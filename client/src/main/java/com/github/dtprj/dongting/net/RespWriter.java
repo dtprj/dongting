@@ -46,7 +46,7 @@ public class RespWriter {
     }
 
     // invoke by other threads
-    public void writeRespInBizThreads(ReadFrame req, WriteFrame resp, DtTime timeout) {
+    public void writeRespInBizThreads(ReadFrame<?> req, WriteFrame resp, DtTime timeout) {
         resp.setSeq(req.getSeq());
         resp.setCommand(req.getCommand());
         writeRespInBizThreads(resp, timeout);
