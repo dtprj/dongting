@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.buf;
 
-import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.RefCount;
 
 import java.nio.ByteBuffer;
@@ -25,7 +24,7 @@ import java.nio.ByteBuffer;
  */
 public class RefBuffer extends RefCount {
 
-    private final ByteBuffer buffer;
+    private ByteBuffer buffer;
     private final ByteBufferPool pool;
     private final boolean direct;
 
@@ -65,12 +64,10 @@ public class RefBuffer extends RefCount {
             // should be direct
             SimpleByteBufferPool.VF.releaseDirectBuffer(buffer);
         }
+        this.buffer = null;
     }
 
     public ByteBuffer getBuffer() {
-        if (DtUtil.DEBUG && isReleased()) {
-            throw new IllegalStateException("buffer is released");
-        }
         return buffer;
     }
 }
