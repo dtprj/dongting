@@ -49,18 +49,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.github.dtprj.dongting.common.Tick.tick;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -748,20 +741,20 @@ public class NioClientTest {
         wf.setCommand(Commands.CMD_PING);
 
         AtomicInteger lastFinishIndex = new AtomicInteger(-1);
-        AtomicBoolean fail = new AtomicBoolean();
+        AtomicReference<Throwable> fail = new AtomicReference<>();
         int loop = 40;
         //noinspection rawtypes
-        CompletableFuture[] allFutures = new CompletableFuture[40];
+        CompletableFuture[] allFutures = new CompletableFuture[loop];
         for (int i = 0; i < loop; i++) {
             CompletableFuture<?> f = client.sendRequest(wf, RefBufferDecoder.INSTANCE,
-                    new DtTime(1000, TimeUnit.MILLISECONDS));
+                    new DtTime(100, TimeUnit.SECONDS));
             int index = i;
             allFutures[i] = f.handle((v, e) -> {
                 if (e == null) {
-                    fail.set(true);
+                    fail.compareAndSet(null, e);
                 }
                 if (lastFinishIndex.get() >= index) {
-                    fail.set(true);
+                    fail.compareAndSet(null, new Exception("fail order " + index + "," + lastFinishIndex.get()));
                 } else {
                     lastFinishIndex.set(index);
                 }
@@ -772,7 +765,7 @@ public class NioClientTest {
         client.stop(new DtTime(1, TimeUnit.NANOSECONDS));
         DtUtil.close(server);
         CompletableFuture.allOf(allFutures).get();
-        assertFalse(fail.get());
+        assertNull(fail.get());
     }
 
     @Test
