@@ -167,11 +167,9 @@ class IoChannelQueue {
                         long key = BitUtil.toLong(dtc.getChannelIndexInWorker(), f.getSeq());
                         WriteData old = workerStatus.getPendingRequests().put(key, wd);
                         if (old != null) {
-                            // TODO change this behavior
                             String errMsg = "dup seq: old=" + old.getData() + ", new=" + f;
                             log.error(errMsg);
-                            fail(wd, () -> new NetException(errMsg));
-                            workerStatus.getPendingRequests().put(key, old);
+                            fail(old, () -> new NetException(errMsg));
                         }
                     }
                     encodeContext.setStatus(null);

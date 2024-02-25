@@ -31,6 +31,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * @author huangli
@@ -118,13 +119,14 @@ public class NioServerClientTest {
             Thread.sleep(10);// wait dispatch thread
             dtc.seq = dtc.seq - 1;
             CompletableFuture<ReadFrame<RefBuffer>> f2 = client.sendRequest(wf2, RefBufferDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS));
-            ReadFrame<RefBuffer> rf1 = f1.get(1, TimeUnit.SECONDS);
-            Assertions.assertEquals(CmdCodes.SUCCESS, rf1.getRespCode());
+            ReadFrame<RefBuffer> rf2 = f2.get(1, TimeUnit.SECONDS);
+            Assertions.assertEquals(CmdCodes.SUCCESS, rf2.getRespCode());
 
             try {
-                f2.get(1, TimeUnit.SECONDS);
+                f1.get(1, TimeUnit.SECONDS);
             } catch (ExecutionException e) {
                 assertEquals(NetException.class, e.getCause().getClass());
+                assertTrue(e.getMessage().contains("dup seq"));
             }
 
         } finally {
