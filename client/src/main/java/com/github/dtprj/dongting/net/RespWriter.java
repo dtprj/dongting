@@ -22,12 +22,12 @@ import com.github.dtprj.dongting.common.DtTime;
  */
 public class RespWriter {
 
-    private final IoQueue ioQueue;
+    private final IoWorkerQueue ioWorkerQueue;
     private final Runnable wakeupRunnable;
     private final DtChannel dtc;
 
-    RespWriter(IoQueue ioQueue, Runnable wakeupRunnable, DtChannel dtc) {
-        this.ioQueue = ioQueue;
+    RespWriter(IoWorkerQueue ioWorkerQueue, Runnable wakeupRunnable, DtChannel dtc) {
+        this.ioWorkerQueue = ioWorkerQueue;
         this.wakeupRunnable = wakeupRunnable;
         this.dtc = dtc;
     }
@@ -41,7 +41,7 @@ public class RespWriter {
         }
         resp.setFrameType(FrameType.TYPE_RESP);
         WriteData data = new WriteData(dtc, resp, timeout);
-        ioQueue.writeFromBizThread(data);
+        ioWorkerQueue.writeFromBizThread(data);
         wakeupRunnable.run();
     }
 

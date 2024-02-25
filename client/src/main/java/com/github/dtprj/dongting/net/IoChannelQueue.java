@@ -32,8 +32,8 @@ import java.util.function.Supplier;
 /**
  * @author huangli
  */
-class IoSubQueue {
-    private static final DtLog log = DtLogs.getLogger(IoSubQueue.class);
+class IoChannelQueue {
+    private static final DtLog log = DtLogs.getLogger(IoChannelQueue.class);
 
     private static final int MAX_BUFFER_SIZE = 512 * 1024;
     private final NioConfig config;
@@ -52,7 +52,7 @@ class IoSubQueue {
     private WriteData lastWriteData;
     private final EncodeContext encodeContext;
 
-    public IoSubQueue(NioConfig config, WorkerStatus workerStatus, DtChannel dtc, RefBufferFactory heapPool) {
+    public IoChannelQueue(NioConfig config, WorkerStatus workerStatus, DtChannel dtc, RefBufferFactory heapPool) {
         this.config = config;
         this.directPool = workerStatus.getDirectPool();
         this.workerStatus = workerStatus;

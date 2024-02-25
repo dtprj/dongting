@@ -70,7 +70,7 @@ class DtChannel extends PbCallback<Object> {
 
     private boolean running = true;
 
-    private final IoSubQueue subQueue;
+    private final IoChannelQueue subQueue;
 
     private boolean closed;
 
@@ -98,13 +98,13 @@ class DtChannel extends PbCallback<Object> {
         this.decodeContext = new DecodeContext();
         decodeContext.setHeapPool(refBufferFactory);
 
-        this.subQueue = new IoSubQueue(nioConfig, workerStatus, this, refBufferFactory);
+        this.subQueue = new IoChannelQueue(nioConfig, workerStatus, this, refBufferFactory);
     }
 
-    private static ByteBufferPool createReleaseSafePool(TwoLevelPool heapPool, IoQueue ioQueue) {
+    private static ByteBufferPool createReleaseSafePool(TwoLevelPool heapPool, IoWorkerQueue ioWorkerQueue) {
         Consumer<ByteBuffer> callback = (buf) -> {
             try {
-                ioQueue.scheduleFromBizThread(() -> heapPool.release(buf));
+                ioWorkerQueue.scheduleFromBizThread(() -> heapPool.release(buf));
             } catch (NetException e) {
                 log.warn("schedule ReleaseBufferTask fail: {}", e.toString());
             }
@@ -421,7 +421,7 @@ class DtChannel extends PbCallback<Object> {
         return channelIndexInWorker;
     }
 
-    public IoSubQueue getSubQueue() {
+    public IoChannelQueue getSubQueue() {
         return subQueue;
     }
 

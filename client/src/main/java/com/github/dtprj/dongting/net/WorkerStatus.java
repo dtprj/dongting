@@ -23,7 +23,7 @@ import com.github.dtprj.dongting.common.Timestamp;
  * @author huangli
  */
 class WorkerStatus {
-    private IoQueue ioQueue;
+    private IoWorkerQueue ioWorkerQueue;
     private Runnable wakeupRunnable;
     private LongObjMap<WriteData> pendingRequests;
     private ByteBufferPool directPool;
@@ -34,12 +34,12 @@ class WorkerStatus {
     public WorkerStatus() {
     }
 
-    public IoQueue getIoQueue() {
-        return ioQueue;
+    public IoWorkerQueue getIoQueue() {
+        return ioWorkerQueue;
     }
 
-    public void setIoQueue(IoQueue ioQueue) {
-        this.ioQueue = ioQueue;
+    public void setIoQueue(IoWorkerQueue ioWorkerQueue) {
+        this.ioWorkerQueue = ioWorkerQueue;
     }
 
     public Runnable getWakeupRunnable() {

@@ -27,13 +27,13 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-class IoQueue {
-    private static final DtLog log = DtLogs.getLogger(IoQueue.class);
+class IoWorkerQueue {
+    private static final DtLog log = DtLogs.getLogger(IoWorkerQueue.class);
     private final MpscLinkedQueue<Object> queue = MpscLinkedQueue.newInstance();
     private final NioWorker worker;
     private int invokeIndex;
 
-    public IoQueue(NioWorker worker) {
+    public IoWorkerQueue(NioWorker worker) {
         this.worker = worker;
     }
 

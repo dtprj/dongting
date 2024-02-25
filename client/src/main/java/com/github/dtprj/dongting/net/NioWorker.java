@@ -72,7 +72,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private int channelIndex;
     private final ArrayList<DtChannel> channelsList;
     private final IntObjMap<DtChannel> channels;
-    private final IoQueue ioQueue;
+    private final IoWorkerQueue ioWorkerQueue;
 
     private final Timestamp timestamp = new Timestamp();
 
@@ -100,7 +100,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.readBufferTimeoutNanos = config.getReadBufferTimeout() * 1000 * 1000;
 
         this.channels = new IntObjMap<>();
-        this.ioQueue = new IoQueue(this);
+        this.ioWorkerQueue = new IoWorkerQueue(this);
         if (client == null) {
             this.channelsList = null;
         } else {
@@ -111,7 +111,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.heapPool = config.getPoolFactory().apply(timestamp, false);
 
         workerStatus = new WorkerStatus();
-        workerStatus.setIoQueue(ioQueue);
+        workerStatus.setIoQueue(ioWorkerQueue);
         workerStatus.setPendingRequests(pendingOutgoingRequests);
         workerStatus.setWakeupRunnable(this::wakeup);
         workerStatus.setDirectPool(directPool);
@@ -141,8 +141,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             }
         }
         try {
-            ioQueue.close();
-            ioQueue.dispatchActions();
+            ioWorkerQueue.close();
+            ioWorkerQueue.dispatchActions();
             selector.close();
 
             finishPendingReq();
@@ -208,7 +208,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             return;
         }
         roundTime.refresh(1);
-        ioQueue.dispatchActions();
+        ioWorkerQueue.dispatchActions();
         Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
         while (iterator.hasNext()) {
             SelectionKey key = iterator.next();
@@ -217,7 +217,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
         cleanReadBuffer(roundTime);
         if (status == STATUS_PREPARE_STOP) {
-            ioQueue.dispatchActions();
+            ioWorkerQueue.dispatchActions();
             if (workerStatus.getFramesToWrite() == 0 && pendingOutgoingRequests.size() == 0) {
                 prepareStopFuture.complete(null);
             }
@@ -277,7 +277,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             }
             stage = "process socket write";
             if (key.isWritable()) {
-                IoSubQueue subQueue = dtc.getSubQueue();
+                IoChannelQueue subQueue = dtc.getSubQueue();
                 ByteBuffer buf = subQueue.getWriteBuffer(roundTime);
                 if (buf != null) {
                     subQueue.setWriting(true);
@@ -479,7 +479,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     public void doInIoThread(Runnable runnable, CompletableFuture<?> future) {
         try {
-            ioQueue.scheduleFromBizThread(runnable);
+            ioWorkerQueue.scheduleFromBizThread(runnable);
             wakeup();
         } catch (NetException e) {
             if (future != null) {
@@ -636,7 +636,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         Objects.requireNonNull(future);
 
         WriteData data = new WriteData(peer, frame, timeout, future, decoder);
-        this.ioQueue.writeFromBizThread(data);
+        this.ioWorkerQueue.writeFromBizThread(data);
         wakeup();
     }
 
