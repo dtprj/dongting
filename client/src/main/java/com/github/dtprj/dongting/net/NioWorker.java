@@ -593,7 +593,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                             t.getTimeout(TimeUnit.MILLISECONDS), wd.getData().getSeq(),
                             wd.getDtc());
                     if (wd.getFuture() != null) {
-                        String msg = "timeout: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
+                        String msg = "request is timeout: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
                         wd.getFuture().completeExceptionally(new NetTimeoutException(msg));
                     }
                 }

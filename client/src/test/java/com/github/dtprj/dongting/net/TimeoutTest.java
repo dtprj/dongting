@@ -137,12 +137,12 @@ public class TimeoutTest {
         CountDownLatch latch = new CountDownLatch(1);
         setup(() -> registerDelayPingProcessor(latch));
         try {
-            CompletableFuture<?> f = send(new DtTime(tick(10), TimeUnit.MILLISECONDS));
+            CompletableFuture<?> f = send(new DtTime(tick(20), TimeUnit.MILLISECONDS));
             f.get(5, TimeUnit.SECONDS);
             fail();
         } catch (ExecutionException e) {
             assertEquals(NetTimeoutException.class, e.getCause().getClass());
-            assertTrue(e.getCause().getMessage().contains("timeout: "), e.getCause().getMessage());
+            assertTrue(e.getCause().getMessage().contains("request is timeout: "), e.getCause().getMessage());
         }
         // wait server process finished
         latch.countDown();
