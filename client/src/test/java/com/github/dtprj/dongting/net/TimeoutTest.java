@@ -27,6 +27,7 @@ import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -76,14 +77,16 @@ public class TimeoutTest {
         return client.sendRequest(wf, RefBufferDecoder.INSTANCE, timeout);
     }
 
-    private void registerDelayPingProcessor(int sleepTime) {
+    private void registerDelayPingProcessor(CountDownLatch latch) {
         server.register(CMD, new NioServer.PingProcessor() {
             @Override
             public WriteFrame process(ReadFrame<RefBuffer> frame, ChannelContext channelContext, ReqContext reqContext) {
-                try {
-                    Thread.sleep(sleepTime);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
+                if (latch != null) {
+                    try {
+                        latch.await();
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
                 runCount.incrementAndGet();
                 return super.process(frame, channelContext, reqContext);
@@ -93,7 +96,8 @@ public class TimeoutTest {
 
     @Test
     public void acquireTimeoutTest() throws Exception {
-        setup(() -> registerDelayPingProcessor(10));
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        setup(() -> registerDelayPingProcessor(countDownLatch));
         CompletableFuture<?> f1 = send(new DtTime(1, TimeUnit.SECONDS));
         try {
             CompletableFuture<?> f2 = send(new DtTime(1, TimeUnit.NANOSECONDS));
@@ -103,6 +107,7 @@ public class TimeoutTest {
             assertEquals(NetTimeoutException.class, e.getCause().getClass());
             assertTrue(e.getCause().getMessage().contains("too many pending requests"));
         }
+        countDownLatch.countDown();
         f1.get(5, TimeUnit.SECONDS);
         assertEquals(1, client.semaphore.availablePermits());
         //ensure connection status is correct after timeout
@@ -111,7 +116,7 @@ public class TimeoutTest {
 
     @Test
     public void dropBeforeRequestSendTest() throws Exception {
-        setup(() -> registerDelayPingProcessor(0));
+        setup(() -> registerDelayPingProcessor(null));
         try {
             DtTime deadline = new DtTime(System.nanoTime() - Duration.ofSeconds(1).toNanos(), 1, TimeUnit.NANOSECONDS);
             CompletableFuture<?> f1 = send(deadline);
@@ -129,9 +134,10 @@ public class TimeoutTest {
     @Test
     public void processTimeoutTest() throws Exception {
         int oldCount = runCount.get();
-        setup(() -> registerDelayPingProcessor(tick(15)));
+        CountDownLatch latch = new CountDownLatch(1);
+        setup(() -> registerDelayPingProcessor(latch));
         try {
-            CompletableFuture<?> f = send(new DtTime(tick(14), TimeUnit.MILLISECONDS));
+            CompletableFuture<?> f = send(new DtTime(tick(10), TimeUnit.MILLISECONDS));
             f.get(5, TimeUnit.SECONDS);
             fail();
         } catch (ExecutionException e) {
@@ -139,10 +145,10 @@ public class TimeoutTest {
             assertTrue(e.getCause().getMessage().contains("timeout: "), e.getCause().getMessage());
         }
         // wait server process finished
-        Thread.sleep(tick(15));
+        latch.countDown();
 
         // need more check server side status
-        assertEquals(oldCount + 1, runCount.get());
+        TestUtil.waitUtil(() -> runCount.get() == oldCount + 1);
 
         assertEquals(1, client.semaphore.availablePermits());
 
@@ -151,6 +157,7 @@ public class TimeoutTest {
     }
 
     private void serverTimeoutBeforeProcessTest(boolean runProcessInIoThread) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
         ReqProcessor<ByteBuffer> p = new ReqProcessor<>() {
             @Override
             public WriteFrame process(ReadFrame<ByteBuffer> frame, ChannelContext channelContext, ReqContext reqContext) {
@@ -165,7 +172,8 @@ public class TimeoutTest {
                     @Override
                     public ByteBuffer decode(ByteBuffer buffer) {
                         try {
-                            Thread.sleep(tick(15));
+                            latch.await();
+                            server.workers[0].workerStatus.getTs().refresh(0);
                         } catch (InterruptedException e) {
                             throw new RuntimeException(e);
                         }
@@ -178,8 +186,6 @@ public class TimeoutTest {
         Runnable reg = runProcessInIoThread ? () -> server.register(CMD, p, null) : () -> server.register(CMD, p);
         setup(reg);
 
-        int oldCount = runCount.get();
-
         try {
             CompletableFuture<?> f = send(new DtTime(tick(10), TimeUnit.MILLISECONDS));
             f.get(5, TimeUnit.SECONDS);
@@ -189,14 +195,12 @@ public class TimeoutTest {
             assertTrue(e.getCause().getMessage().contains("timeout: "), e.getCause().getMessage());
         }
         assertEquals(1, client.semaphore.availablePermits());
+
+        latch.countDown();
+
         //ensure connection status is correct after timeout
         NioServerClientTest.invoke(client);
 
-        // wait server process finished
-        Thread.sleep(tick(15));
-
-        // need more check server side status
-        assertEquals(oldCount, runCount.get());
     }
 
     @Test

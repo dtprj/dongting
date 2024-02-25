@@ -82,7 +82,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private final ByteBufferPool directPool;
     private final ByteBufferPool heapPool;
 
-    private final WorkerStatus workerStatus;
+    final WorkerStatus workerStatus;
 
     private ByteBuffer readBuffer;
     private long readBufferUseTime;

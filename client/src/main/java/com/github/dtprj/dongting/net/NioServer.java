@@ -49,7 +49,7 @@ public class NioServer extends NioNet implements Runnable {
     private Selector selector;
     private volatile boolean stop;
     private final Thread acceptThread;
-    private final NioWorker[] workers;
+    final NioWorker[] workers;
 
     private static final PingProcessor PING_PROCESSOR = new PingProcessor();
 
