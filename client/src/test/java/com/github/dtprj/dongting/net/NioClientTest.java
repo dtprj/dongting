@@ -740,7 +740,7 @@ public class NioClientTest {
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.wrap(bs));
         wf.setCommand(Commands.CMD_PING);
 
-        AtomicInteger lastFinishIndex = new AtomicInteger(-1);
+        AtomicInteger expectFinishIndex = new AtomicInteger(0);
         AtomicReference<Throwable> fail = new AtomicReference<>();
         int loop = 40;
         //noinspection rawtypes
@@ -753,10 +753,9 @@ public class NioClientTest {
                 if (e == null) {
                     fail.compareAndSet(null, e);
                 }
-                if (lastFinishIndex.get() >= index) {
-                    fail.compareAndSet(null, new Exception("fail order " + index + "," + lastFinishIndex.get()));
-                } else {
-                    lastFinishIndex.set(index);
+                int expectIndex = expectFinishIndex.getAndIncrement();
+                if (expectIndex != index) {
+                    fail.compareAndSet(null, new Exception("fail order " + index + "," + expectIndex));
                 }
                 return null;
             });
