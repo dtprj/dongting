@@ -61,7 +61,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author huangli
  */
-public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
+public class BenchRaftLogProcessor extends ReqProcessor<RefBuffer> {
 
     public static final int COMMAND = 10001;
     private static final String DATA_DIR = "target/raftlog";
@@ -85,7 +85,7 @@ public class RaftLogProcessor extends ReqProcessor<RefBuffer> {
         long raftLogIndex;
     }
 
-    public RaftLogProcessor() {
+    public BenchRaftLogProcessor() {
         dispatcher = new Dispatcher("RaftLogDispatcher");
         dispatcher.start();
         fiberGroup = new FiberGroup("bench test group", dispatcher);

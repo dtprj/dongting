@@ -133,11 +133,11 @@ public class RpcBenchmark extends BenchBase {
     }
 
     private static RpcBenchmark createRaftLogBenchmark(int threadCount, long testTime, long warmupTime) {
-        return new RpcBenchmark(threadCount, testTime, warmupTime, RaftLogProcessor.COMMAND) {
-            private final RaftLogProcessor processor = new RaftLogProcessor();
+        return new RpcBenchmark(threadCount, testTime, warmupTime, BenchRaftLogProcessor.COMMAND) {
+            private final BenchRaftLogProcessor processor = new BenchRaftLogProcessor();
             @Override
             protected void registerProcessor(NioServer server) {
-                server.register(RaftLogProcessor.COMMAND, processor, null);
+                server.register(BenchRaftLogProcessor.COMMAND, processor, null);
             }
 
             @Override
