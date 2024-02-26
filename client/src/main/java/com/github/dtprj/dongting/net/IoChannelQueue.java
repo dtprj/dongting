@@ -115,11 +115,11 @@ class IoChannelQueue {
 
         if (lastWriteData != null) {
             workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() - 1);
-            fail(lastWriteData, () -> new NetException("channel closed"));
+            fail(lastWriteData, () -> new NetException("channel closed, cancel request still in IoChannelQueue. 1"));
         }
         WriteData wd;
         while ((wd = subQueue.pollFirst()) != null) {
-            fail(wd, () -> new NetException("channel closed"));
+            fail(wd, () -> new NetException("channel closed, cancel request still in IoChannelQueue. 2"));
             workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() - 1);
         }
     }

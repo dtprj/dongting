@@ -691,7 +691,7 @@ public class NioClientTest {
             } catch (ExecutionException e) {
                 assertEquals(NetException.class, e.getCause().getClass());
                 String msg = e.getCause().getMessage();
-                assertTrue(msg.contains("channel closed") || msg.equals("client closed"), msg);
+                assertEquals("client closed", msg);
             }
         } finally {
             TestUtil.stop(client);

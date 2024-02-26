@@ -549,7 +549,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 // sort to keep fail order
                 tempSortList.sort(this::compare);
                 for (Pair<Long, WriteData> p : tempSortList) {
-                    p.getRight().getFuture().completeExceptionally(new NetException("channel closed"));
+                    p.getRight().getFuture().completeExceptionally(new NetException(
+                            "channel closed, cancel pending request in NioWorker"));
                 }
             } finally {
                 tempSortList.clear();

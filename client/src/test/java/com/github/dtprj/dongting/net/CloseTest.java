@@ -29,9 +29,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -115,7 +113,7 @@ public class CloseTest {
             f.get(10, TimeUnit.SECONDS);
             fail();
         } catch (ExecutionException e) {
-            assertTrue(e.getMessage().contains("channel closed"));
+            assertTrue(e.getMessage().contains("channel closed, cancel pending request in NioWorker"), e.getMessage());
         } catch (Exception e) {
             fail();
         }
