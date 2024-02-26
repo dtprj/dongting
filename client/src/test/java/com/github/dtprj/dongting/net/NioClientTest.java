@@ -732,6 +732,7 @@ public class NioClientTest {
         c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
         c.setCleanInterval(0);
         c.setSelectTimeout(1);
+        c.setFinishPendingImmediatelyWhenChannelClose(true);
         NioClient client = new NioClient(c);
         client.start();
         client.waitStart();
@@ -759,7 +760,6 @@ public class NioClientTest {
                 if (expectIndex != index) {
                     fail.compareAndSet(null, new Exception("fail order " + index + "," + expectIndex
                             + ", msg=" + e.getMessage()));
-                    log.error("fail order " + index + "," + expectIndex, e);
                 }
                 return null;
             });
