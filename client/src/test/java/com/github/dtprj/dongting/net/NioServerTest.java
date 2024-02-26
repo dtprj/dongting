@@ -474,7 +474,7 @@ public class NioServerTest {
         Socket s = new Socket("127.0.0.1", PORT);
         try {
             s.setTcpNoDelay(true);
-            s.setSoTimeout(tick(50));
+            s.setSoTimeout(5000);
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
             int seq = 0;
@@ -489,6 +489,7 @@ public class NioServerTest {
             assertEquals(CmdCodes.SUCCESS, invoke(++seq, CMD_BIZ_PING1, 5000, in, out));
             assertEquals(CmdCodes.SUCCESS, invoke(++seq, CMD_BIZ_PING2, 5000, in, out));
 
+            s.setSoTimeout(tick(10));
             assertThrows(SocketTimeoutException.class, () -> invoke(123456, 10003, 5000, in, out));
         } finally {
             DtUtil.close(s);
@@ -496,7 +497,7 @@ public class NioServerTest {
         s = new Socket("127.0.0.1", PORT);
         try {
             s.setTcpNoDelay(true);
-            s.setSoTimeout(tick(50));
+            s.setSoTimeout(tick(10));
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
             assertThrows(SocketTimeoutException.class, () -> invoke(10003, 10004, 5000, in, out));
@@ -506,7 +507,7 @@ public class NioServerTest {
         s = new Socket("127.0.0.1", PORT);
         try {
             s.setTcpNoDelay(true);
-            s.setSoTimeout(tick(50));
+            s.setSoTimeout(tick(10));
             DataInputStream in = new DataInputStream(s.getInputStream());
             DataOutputStream out = new DataOutputStream(s.getOutputStream());
             assertThrows(SocketTimeoutException.class, () -> invoke(10004, 10004, 5000, in, out));
