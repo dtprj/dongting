@@ -755,7 +755,8 @@ public class NioClientTest {
                 }
                 int expectIndex = expectFinishIndex.getAndIncrement();
                 if (expectIndex != index) {
-                    fail.compareAndSet(null, new Exception("fail order " + index + "," + expectIndex));
+                    fail.compareAndSet(null, new Exception("fail order " + index + "," + expectIndex
+                            + ", msg=" + e.getMessage()));
                 }
                 return null;
             });
