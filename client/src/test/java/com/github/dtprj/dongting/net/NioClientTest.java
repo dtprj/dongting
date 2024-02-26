@@ -752,6 +752,7 @@ public class NioClientTest {
             allFutures[i] = f.handle((v, e) -> {
                 if (e == null) {
                     fail.compareAndSet(null, e);
+                    return null;
                 }
                 int expectIndex = expectFinishIndex.getAndIncrement();
                 if (expectIndex != index) {
