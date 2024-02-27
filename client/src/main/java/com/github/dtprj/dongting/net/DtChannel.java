@@ -136,11 +136,7 @@ class DtChannel extends PbCallback<Object> {
     @Override
     public void end(boolean success) {
         super.end(success);
-        if (currentDecoder != null) {
-            currentDecoder.finish(decodeContext);
-            currentDecoder = null;
-        }
-        decodeContext.reset();
+        resetDecode();
         if (!success) {
             return;
         }
@@ -207,41 +203,48 @@ class DtChannel extends PbCallback<Object> {
         if (this.readBody) {
             throw new PbException("body has read");
         }
-        switch (index) {
-            case Frame.IDX_MSG: {
-                if (currentPos == 0 && currentDecoder != null) {
-                    throw new IllegalStateException("currentDecoder is not null");
+        if (currentPos == 0 && currentDecoder != null) {
+            throw new IllegalStateException("currentDecoder is not null");
+        }
+        boolean end = buf.remaining() >= fieldLen - currentPos;
+        try {
+            switch (index) {
+                case Frame.IDX_MSG: {
+                    currentDecoder = StrFiledDecoder.INSTANCE;
+                    String msg = StrFiledDecoder.INSTANCE.decode(decodeContext, buf, fieldLen, currentPos);
+                    this.frame.setMsg(msg);
+                    return true;
                 }
-                currentDecoder = StrFiledDecoder.INSTANCE;
-                boolean end = buf.remaining() >= fieldLen - currentPos;
-                String msg = StrFiledDecoder.INSTANCE.decode(decodeContext, buf, fieldLen, currentPos);
-                this.frame.setMsg(msg);
-                if (end) {
-                    currentDecoder.finish(decodeContext);
-                    currentDecoder = null;
+                case Frame.IDX_EXTRA: {
+                    byte[] extra = ByteArrayDecoder.INSTANCE.decode(decodeContext, buf, fieldLen, currentPos);
+                    this.frame.setExtra(extra);
+                    return true;
                 }
-                return true;
+                case Frame.IDX_BODY: {
+                    return readBody(buf, fieldLen, currentPos, end);
+                }
+                default:
+                    return true;
             }
-            case Frame.IDX_EXTRA: {
-                // ByteArrayDecoder no need call finish
-                byte[] extra = ByteArrayDecoder.INSTANCE.decode(decodeContext, buf, fieldLen, currentPos);
-                this.frame.setExtra(extra);
-                return true;
-            }
-            case Frame.IDX_BODY: {
-                return readBody(buf, fieldLen, currentPos);
+        } finally {
+            if (end) {
+                resetDecode();
             }
         }
-        return true;
     }
 
-    private boolean readBody(ByteBuffer buf, int fieldLen, int currentPos) {
+    private void resetDecode() {
+        decodeContext.reset();
+        if (currentDecoder != null) {
+            currentDecoder.finish(decodeContext);
+            currentDecoder = null;
+        }
+    }
+
+    private boolean readBody(ByteBuffer buf, int fieldLen, int currentPos, boolean end) {
         ReadFrame frame = this.frame;
         if (frame.getCommand() <= 0) {
             throw new NetException("command invalid :" + frame.getCommand());
-        }
-        if (currentPos == 0 && currentDecoder != null) {
-            throw new IllegalStateException("currentDecoder is not null");
         }
         // the body field should encode as last field
         if (!initRelatedDataForFrame(true)) {
@@ -252,19 +255,15 @@ class DtChannel extends PbCallback<Object> {
         }
 
         try {
-            boolean end = buf.remaining() >= fieldLen - currentPos;
             Object o = currentDecoder.decode(decodeContext, buf, fieldLen, currentPos);
             if (end) {
                 frame.setBody(o);
                 // so if the body is not last field, exception throws
                 readBody = true;
-                decodeContext.reset();
-                currentDecoder.finish(decodeContext);
-                currentDecoder = null;
             }
             return true;
         } catch (Throwable e) {
-            decodeContext.reset();
+            resetDecode();
             processIoDecodeFail(e);
             return false;
         }
