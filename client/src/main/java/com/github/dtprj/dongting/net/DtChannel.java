@@ -182,6 +182,9 @@ class DtChannel extends PbCallback<Object> {
 
     @Override
     public boolean readFix32(int index, int value) {
+        if (this.readBody) {
+            throw new PbException("body has read");
+        }
         if (index == Frame.IDX_SEQ) {
             frame.setSeq(value);
         }
@@ -190,6 +193,9 @@ class DtChannel extends PbCallback<Object> {
 
     @Override
     public boolean readFix64(int index, long value) {
+        if (this.readBody) {
+            throw new PbException("body has read");
+        }
         if (index == Frame.IDX_TIMOUT) {
             frame.setTimeout(value);
         }
