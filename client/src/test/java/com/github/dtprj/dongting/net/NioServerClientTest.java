@@ -58,7 +58,8 @@ public class NioServerClientTest {
 
     static void invoke(NioClient client) throws Exception {
         Random r = new Random();
-        ByteBuffer buf = ByteBuffer.allocate(r.nextInt(3000));
+        int len = (r.nextInt(10) == 0) ? 0 : r.nextInt(3000);
+        ByteBuffer buf = ByteBuffer.allocate(len);
         r.nextBytes(buf.array());
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame(buf);
         wf.setCommand(Commands.CMD_PING);
@@ -69,8 +70,10 @@ public class NioServerClientTest {
         assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
         RefBuffer rc = rf.getBody();
-        assertEquals(buf, rc.getBuffer());
-        rc.release();
+        if (rc != null) {
+            assertEquals(buf, rc.getBuffer());
+            rc.release();
+        }
     }
 
     @Test
