@@ -29,6 +29,7 @@ import com.github.dtprj.dongting.common.MockRuntimeException;
 import com.github.dtprj.dongting.common.TestUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -60,6 +61,10 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class NioClientTest {
     private static final DtLog log = DtLogs.getLogger(NioClientTest.class);
+
+    private BioServer server1;
+    private BioServer server2;
+    private NioClient client;
 
     private static class BioServer implements AutoCloseable {
         private final ServerSocket ss;
@@ -167,61 +172,49 @@ public class NioClientTest {
         }
     }
 
+    @AfterEach
+    public void afterTest() {
+        TestUtil.stop(client);
+        DtUtil.close(server1, server2);
+        client = null;
+        server1 = null;
+        server2 = null;
+    }
+
     @Test
     public void simpleSyncTest() throws Exception {
-        BioServer server = null;
-        NioClient client = null;
-        try {
-            server = new BioServer(9000);
-            NioClientConfig c = new NioClientConfig();
-            c.setReadBufferSize(2048);
-            c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
-            client = new NioClient(c);
-            client.start();
-            client.waitStart();
-            sendSync(5000, client, tick(1000));
-        } finally {
-            TestUtil.stop(client);
-            DtUtil.close(server);
-        }
+        server1 = new BioServer(9000);
+        NioClientConfig c = new NioClientConfig();
+        c.setReadBufferSize(2048);
+        c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+        client = new NioClient(c);
+        client.start();
+        client.waitStart();
+        sendSync(5000, client, tick(1000));
     }
 
     @Test
     public void simpleAsyncTest() throws Exception {
-        BioServer server = null;
-        NioClient client = null;
-        try {
-            server = new BioServer(9000);
-            NioClientConfig c = new NioClientConfig();
-            c.setReadBufferSize(2048);
-            c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
-            client = new NioClient(c);
-            client.start();
-            client.waitStart();
-            asyncTest(client, tick(1000), 1, 6000);
-        } finally {
-            TestUtil.stop(client);
-            DtUtil.close(server);
-        }
+        server1 = new BioServer(9000);
+        NioClientConfig c = new NioClientConfig();
+        c.setReadBufferSize(2048);
+        c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+        client = new NioClient(c);
+        client.start();
+        client.waitStart();
+        asyncTest(client, tick(1000), 1, 6000);
     }
 
     @Test
     public void generalTest() throws Exception {
-        BioServer server = null;
-        NioClient client = null;
-        try {
-            server = new BioServer(9000);
-            NioClientConfig c = new NioClientConfig();
-            c.setReadBufferSize(2048);
-            c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
-            client = new NioClient(c);
-            client.start();
-            client.waitStart();
-            generalTest(client, tick(100));
-        } finally {
-            TestUtil.stop(client);
-            DtUtil.close(server);
-        }
+        server1 = new BioServer(9000);
+        NioClientConfig c = new NioClientConfig();
+        c.setReadBufferSize(2048);
+        c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+        client = new NioClient(c);
+        client.start();
+        client.waitStart();
+        generalTest(client, tick(100));
     }
 
     private static void generalTest(NioClient client, long timeMillis) throws Exception {
@@ -253,23 +246,15 @@ public class NioClientTest {
 
     @Test
     public void multiServerTest() throws Exception {
-        BioServer server1 = null;
-        BioServer server2 = null;
-        NioClient client = null;
-        try {
-            server1 = new BioServer(9000);
-            server2 = new BioServer(9001);
-            NioClientConfig c = new NioClientConfig();
-            c.setReadBufferSize(2048);
-            c.setHostPorts(Arrays.asList(new HostPort("127.0.0.1", 9000), new HostPort("127.0.0.1", 9001)));
-            client = new NioClient(c);
-            client.start();
-            client.waitStart();
-            generalTest(client, tick(100));
-        } finally {
-            TestUtil.stop(client);
-            DtUtil.close(server1, server2);
-        }
+        server1 = new BioServer(9000);
+        server2 = new BioServer(9001);
+        NioClientConfig c = new NioClientConfig();
+        c.setReadBufferSize(2048);
+        c.setHostPorts(Arrays.asList(new HostPort("127.0.0.1", 9000), new HostPort("127.0.0.1", 9001)));
+        client = new NioClient(c);
+        client.start();
+        client.waitStart();
+        generalTest(client, tick(100));
     }
 
     private static void sendSync(int maxBodySize, NioClient client, long timeoutMillis) throws Exception {
@@ -357,310 +342,268 @@ public class NioClientTest {
         NioClientConfig c = new NioClientConfig();
         c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 23245)));
         c.setWaitStartTimeout(tick(10));
-        NioClient client = new NioClient(c);
+        client = new NioClient(c);
         client.start();
         Assertions.assertThrows(NetException.class, client::waitStart);
-        TestUtil.stop(client);
     }
 
     @Test
     public void reconnectTest1() throws Exception {
-        BioServer server1 = null;
-        BioServer server2 = null;
         NioClientConfig c = new NioClientConfig();
         c.setWaitStartTimeout(tick(100));
         HostPort hp1 = new HostPort("127.0.0.1", 9000);
         HostPort hp2 = new HostPort("127.0.0.1", 9001);
         c.setHostPorts(Arrays.asList(hp1, hp2));
-        NioClient client = new NioClient(c);
-        try {
-            server1 = new BioServer(9000);
-            server2 = new BioServer(9001);
+        client = new NioClient(c);
 
-            client.start();
-            client.waitStart();
-            for (int i = 0; i < 10; i++) {
-                sendSync(5000, client, tick(500));
-            }
-            server1.close();
-            int success = 0;
-            for (int i = 0; i < 10; i++) {
-                try {
-                    sendSync(5000, client, tick(100));
-                    success++;
-                } catch (Exception e) {
-                    // ignore
-                }
-            }
-            assertTrue(success >= 9);
+        server1 = new BioServer(9000);
+        server2 = new BioServer(9001);
 
-            Peer p1 = null;
-            Peer p2 = null;
-            for (Peer peer : client.getPeers()) {
-                if (hp1.equals(peer.getEndPoint())) {
-                    assertNull(peer.getDtChannel());
-                    p1 = peer;
-                } else {
-                    assertNotNull(peer.getDtChannel());
-                    p2 = peer;
-                }
-            }
-
+        client.start();
+        client.waitStart();
+        for (int i = 0; i < 10; i++) {
+            sendSync(5000, client, tick(500));
+        }
+        DtUtil.close(server1);
+        int success = 0;
+        for (int i = 0; i < 10; i++) {
             try {
-                sendSyncByPeer(5000, client, p1, tick(500));
-            } catch (ExecutionException e) {
-                assertEquals(NetException.class, e.getCause().getClass());
-            }
-            sendSyncByPeer(5000, client, p2, tick(500));
-
-            try {
-                client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get(tick(20), TimeUnit.MILLISECONDS);
-                fail();
-            } catch (TimeoutException | ExecutionException e) {
+                sendSync(5000, client, tick(100));
+                success++;
+            } catch (Exception e) {
                 // ignore
             }
-            server1 = new BioServer(9000);
-            client.connect(p1, new DtTime(1, TimeUnit.SECONDS));
-            // connect is idempotent
-            client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get(tick(20), TimeUnit.MILLISECONDS);
-            sendSyncByPeer(5000, client, p1, 500);
+        }
+        assertTrue(success >= 9);
 
-            // connect is idempotent
-            client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get(tick(20), TimeUnit.MILLISECONDS);
-
-            server1.close();
-            server2.close();
-            TestUtil.waitUtil(() -> client.getPeers().stream().allMatch(peer -> peer.getDtChannel() == null));
-            try {
-                sendSync(5000, client, tick(500));
-            } catch (ExecutionException e) {
-                assertEquals(NetException.class, e.getCause().getClass());
+        Peer p1 = null;
+        Peer p2 = null;
+        for (Peer peer : client.getPeers()) {
+            if (hp1.equals(peer.getEndPoint())) {
+                assertNull(peer.getDtChannel());
+                p1 = peer;
+            } else {
+                assertNotNull(peer.getDtChannel());
+                p2 = peer;
             }
+        }
 
-        } finally {
-            TestUtil.stop(client);
-            DtUtil.close(server1, server2);
+        try {
+            sendSyncByPeer(5000, client, p1, tick(500));
+        } catch (ExecutionException e) {
+            assertEquals(NetException.class, e.getCause().getClass());
+        }
+        sendSyncByPeer(5000, client, p2, tick(500));
+
+        try {
+            client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get(tick(20), TimeUnit.MILLISECONDS);
+            fail();
+        } catch (TimeoutException | ExecutionException e) {
+            // ignore
+        }
+        server1 = new BioServer(9000);
+        client.connect(p1, new DtTime(1, TimeUnit.SECONDS));
+        // connect is idempotent
+        client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get(tick(20), TimeUnit.MILLISECONDS);
+        sendSyncByPeer(5000, client, p1, 500);
+
+        // connect is idempotent
+        client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get(tick(20), TimeUnit.MILLISECONDS);
+
+        DtUtil.close(server1, server2);
+        server1 = null;
+        server2 = null;
+        TestUtil.waitUtil(() -> client.getPeers().stream().allMatch(peer -> peer.getDtChannel() == null));
+        try {
+            sendSync(5000, client, tick(500));
+        } catch (ExecutionException e) {
+            assertEquals(NetException.class, e.getCause().getClass());
         }
     }
 
     @Test
     public void reconnectTest2() throws Exception {
-        BioServer server1 = null;
         NioClientConfig c = new NioClientConfig();
         c.setWaitStartTimeout(tick(100));
         HostPort hp1 = new HostPort("127.0.0.1", 9000);
         c.setHostPorts(List.of(hp1));
-        NioClient client = new NioClient(c);
+        client = new NioClient(c);
+
+        server1 = new BioServer(9000);
+
+        client.start();
+        client.waitStart();
+
+        DtUtil.close(server1);
+
+        Peer p1 = client.getPeers().get(0);
+
         try {
-            server1 = new BioServer(9000);
-
-            client.start();
-            client.waitStart();
-
-            server1.close();
-
-            Peer p1 = client.getPeers().get(0);
-
-            try {
-                sendSyncByPeer(5000, client, p1, tick(500));
-            } catch (ExecutionException e) {
-                assertEquals(NetException.class, e.getCause().getClass());
-            }
-
-            server1 = new BioServer(9000);
-
-            // auto connect
-            sendSyncByPeer(5000, client, p1, 500);
-        } finally {
-            TestUtil.stop(client);
-            DtUtil.close(server1);
+            sendSyncByPeer(5000, client, p1, tick(500));
+        } catch (ExecutionException e) {
+            assertEquals(NetException.class, e.getCause().getClass());
         }
+
+        server1 = new BioServer(9000);
+
+        // auto connect
+        sendSyncByPeer(5000, client, p1, 500);
+
     }
 
     @Test
     public void peerManageTest() throws Exception {
-        BioServer server1 = null;
-        BioServer server2 = null;
         NioClientConfig c = new NioClientConfig();
         c.setWaitStartTimeout(tick(50));
         HostPort hp1 = new HostPort("127.0.0.1", 9000);
         HostPort hp2 = new HostPort("127.0.0.1", 9001);
         c.setHostPorts(new ArrayList<>());
-        NioClient client = new NioClient(c);
+        client = new NioClient(c);
+
+        server1 = new BioServer(9000);
+        server2 = new BioServer(9001);
+
+        client.start();
+        client.waitStart();
+        Peer p1 = client.addPeer(hp1).get();
+        Peer p2 = client.addPeer(hp2).get();
+        assertSame(p1, client.addPeer(hp1).get());
+        client.connect(p1, new DtTime(tick(1), TimeUnit.SECONDS)).get();
+        client.connect(p2, new DtTime(tick(1), TimeUnit.SECONDS)).get();
+        // connect is idempotent
+        client.connect(p1, new DtTime(tick(1), TimeUnit.SECONDS)).get();
+        client.connect(p2, new DtTime(tick(1), TimeUnit.SECONDS)).get();
+        assertEquals(2, client.getPeers().size());
+
+        sendSync(5000, client, tick(500));
+
+        client.disconnect(p1).get();
+        assertNull(p1.getDtChannel());
+        assertEquals(2, client.getPeers().size());
+        sendSync(5000, client, tick(100));
+
+        client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get();
+        assertNotNull(p1.getDtChannel());
+        assertEquals(2, client.getPeers().size());
+        sendSyncByPeer(5000, client, p1, tick(500));
+
+        client.disconnect(p1).get();
+        client.disconnect(p1).get();
+        client.removePeer(p1).get();
+        client.removePeer(p1).get(); //idempotent
+
         try {
-            server1 = new BioServer(9000);
-            server2 = new BioServer(9001);
-
-            client.start();
-            client.waitStart();
-            Peer p1 = client.addPeer(hp1).get();
-            Peer p2 = client.addPeer(hp2).get();
-            assertSame(p1, client.addPeer(hp1).get());
-            client.connect(p1, new DtTime(tick(1), TimeUnit.SECONDS)).get();
-            client.connect(p2, new DtTime(tick(1), TimeUnit.SECONDS)).get();
-            // connect is idempotent
-            client.connect(p1, new DtTime(tick(1), TimeUnit.SECONDS)).get();
-            client.connect(p2, new DtTime(tick(1), TimeUnit.SECONDS)).get();
-            assertEquals(2, client.getPeers().size());
-
-            sendSync(5000, client, tick(500));
-
-            client.disconnect(p1).get();
-            assertNull(p1.getDtChannel());
-            assertEquals(2, client.getPeers().size());
-            sendSync(5000, client, tick(100));
-
             client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get();
-            assertNotNull(p1.getDtChannel());
-            assertEquals(2, client.getPeers().size());
-            sendSyncByPeer(5000, client, p1, tick(500));
-
-            client.disconnect(p1).get();
-            client.disconnect(p1).get();
-            client.removePeer(p1).get();
-            client.removePeer(p1).get(); //idempotent
-
-            try {
-                client.connect(p1, new DtTime(1, TimeUnit.SECONDS)).get();
-            } catch (ExecutionException e) {
-                assertEquals(NetException.class, e.getCause().getClass());
-                assertEquals("peer is removed", e.getCause().getMessage());
-            }
-
-            assertEquals(1, client.getPeers().size());
-            sendSync(5000, client, tick(100));
-            assertThrows(ExecutionException.class, () -> sendSyncByPeer(5000, client, p1, tick(500)));
-            sendSyncByPeer(5000, client, p2, tick(500));
-
-            client.removePeer(p2.getEndPoint()).get();
-        } finally {
-            TestUtil.stop(client);
-            DtUtil.close(server1, server2);
+        } catch (ExecutionException e) {
+            assertEquals(NetException.class, e.getCause().getClass());
+            assertEquals("peer is removed", e.getCause().getMessage());
         }
+
+        assertEquals(1, client.getPeers().size());
+        sendSync(5000, client, tick(100));
+        assertThrows(ExecutionException.class, () -> sendSyncByPeer(5000, client, p1, tick(500)));
+        sendSyncByPeer(5000, client, p2, tick(500));
+
+        client.removePeer(p2.getEndPoint()).get();
+
     }
 
     @Test
     public void clientSemaphoreTimeoutTest() throws Exception {
-        BioServer server = null;
-        NioClient client = null;
+
+        server1 = new BioServer(9000);
+        server1.sleep = tick(30);
+        NioClientConfig c = new NioClientConfig();
+        c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+        c.setCleanInterval(1);
+        c.setSelectTimeout(1);
+        c.setMaxOutRequests(1);
+        client = new NioClient(c);
+        client.start();
+        client.waitStart();
+        CompletableFuture<Void> f1 = sendAsync(5000, client, tick(1000));
+        CompletableFuture<Void> f2 = sendAsync(5000, client, tick(15));
+        CompletableFuture<Void> f3 = sendAsync(5000, client, tick(1000));
+        f1.get(tick(1), TimeUnit.SECONDS);
         try {
-            server = new BioServer(9000);
-            server.sleep = tick(30);
-            NioClientConfig c = new NioClientConfig();
-            c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
-            c.setCleanInterval(1);
-            c.setSelectTimeout(1);
-            c.setMaxOutRequests(1);
-            client = new NioClient(c);
-            client.start();
-            client.waitStart();
-            CompletableFuture<Void> f1 = sendAsync(5000, client, tick(1000));
-            CompletableFuture<Void> f2 = sendAsync(5000, client, tick(15));
-            CompletableFuture<Void> f3 = sendAsync(5000, client, tick(1000));
-            f1.get(tick(1), TimeUnit.SECONDS);
-            try {
-                f2.get(tick(1), TimeUnit.SECONDS);
-            } catch (ExecutionException e) {
-                assertEquals(NetTimeoutException.class, e.getCause().getClass());
-            }
-            f3.get(tick(1), TimeUnit.SECONDS);
-        } finally {
-            TestUtil.stop(client);
-            DtUtil.close(server);
+            f2.get(tick(1), TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            assertEquals(NetTimeoutException.class, e.getCause().getClass());
         }
+        f3.get(tick(1), TimeUnit.SECONDS);
+
     }
 
     @Test
     public void clientStatusTest() throws Exception {
-        BioServer server = null;
-        NioClient client = null;
+        server1 = new BioServer(9000);
+        NioClientConfig c = new NioClientConfig();
+        c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+        client = new NioClient(c);
+        client.stop(new DtTime(1, TimeUnit.SECONDS));
+        assertEquals(AbstractLifeCircle.STATUS_STOPPED, client.getStatus());
+
         try {
-            server = new BioServer(9000);
-            NioClientConfig c = new NioClientConfig();
-            c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
-            client = new NioClient(c);
-            client.stop(new DtTime(1, TimeUnit.SECONDS));
-            assertEquals(AbstractLifeCircle.STATUS_STOPPED, client.getStatus());
-
-            try {
-                sendSync(5000, client, tick(1000));
-                fail();
-            } catch (ExecutionException e) {
-                assertEquals(NetException.class, e.getCause().getClass());
-            }
-
-            client = new NioClient(c);
-            client.start();
-            client.waitStart();
             sendSync(5000, client, tick(1000));
+            fail();
+        } catch (ExecutionException e) {
+            assertEquals(NetException.class, e.getCause().getClass());
+        }
 
-            TestUtil.stop(client);
+        client = new NioClient(c);
+        client.start();
+        client.waitStart();
+        sendSync(5000, client, tick(1000));
 
-            try {
-                sendSync(5000, client, tick(1000));
-                fail();
-            } catch (ExecutionException e) {
-                assertEquals(NetException.class, e.getCause().getClass());
-            }
+        TestUtil.stop(client);
 
-            try {
-                client.start();
-                fail();
-            } catch (IllegalStateException e) {
-                // ignore
-            }
-        } finally {
-            TestUtil.stop(client);
-            DtUtil.close(server);
+        try {
+            sendSync(5000, client, tick(1000));
+            fail();
+        } catch (ExecutionException e) {
+            assertEquals(NetException.class, e.getCause().getClass());
+        }
+
+        try {
+            client.start();
+            fail();
+        } catch (IllegalStateException e) {
+            // ignore
         }
     }
 
     @Test
     public void errorCodeTest() throws Exception {
-        BioServer server = null;
-        NioClient client = null;
+        server1 = new BioServer(9000);
+        NioClientConfig c = new NioClientConfig();
+        c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+        client = new NioClient(c);
+        client.start();
+        client.waitStart();
+        server1.resultCode = 100;
         try {
-            server = new BioServer(9000);
-            NioClientConfig c = new NioClientConfig();
-            c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
-            client = new NioClient(c);
-            client.start();
-            client.waitStart();
-            server.resultCode = 100;
-            try {
-                sendSync(5000, client, tick(1000));
-                fail();
-            } catch (ExecutionException e) {
-                assertEquals(NetCodeException.class, e.getCause().getClass());
-                assertEquals(100, ((NetCodeException) e.getCause()).getCode());
-            }
-        } finally {
-            TestUtil.stop(client);
-            DtUtil.close(server);
+            sendSync(5000, client, tick(1000));
+            fail();
+        } catch (ExecutionException e) {
+            assertEquals(NetCodeException.class, e.getCause().getClass());
+            assertEquals(100, ((NetCodeException) e.getCause()).getCode());
         }
     }
 
     @Test
     public void closeTest1() throws Exception {
-        BioServer server = null;
-        NioClient client = null;
-        try {
-            server = new BioServer(9000);
-            NioClientConfig c = new NioClientConfig();
-            c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
-            c.setCleanInterval(0);
-            c.setSelectTimeout(1);
-            client = new NioClient(c);
-            client.start();
-            client.waitStart();
-            server.sleep = tick(40);
-            CompletableFuture<Void> f = sendAsync(3000, client, tick(1000));
-            client.stop(new DtTime(3, TimeUnit.SECONDS));
-            f.get(tick(1), TimeUnit.SECONDS);
-        } finally {
-            TestUtil.stop(client);
-            DtUtil.close(server);
-        }
+        server1 = new BioServer(9000);
+        NioClientConfig c = new NioClientConfig();
+        c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+        c.setCleanInterval(0);
+        c.setSelectTimeout(1);
+        client = new NioClient(c);
+        client.start();
+        client.waitStart();
+        server1.sleep = tick(40);
+        CompletableFuture<Void> f = sendAsync(3000, client, tick(1000));
+        client.stop(new DtTime(3, TimeUnit.SECONDS));
+        f.get(tick(1), TimeUnit.SECONDS);
     }
 
     @Test
@@ -702,41 +645,36 @@ public class NioClientTest {
 
     @Test
     public void waitAutoConnectTimeoutTest() throws Exception {
-        NioClient client = null;
-        try {
-            NioClientConfig c = new NioClientConfig();
-            c.setCleanInterval(0);
-            c.setSelectTimeout(1);
-            client = new NioClient(c);
-            client.start();
-            client.waitStart();
-            Peer peer = client.addPeer(new HostPort("110.110.110.110", 2345)).get();
+        NioClientConfig c = new NioClientConfig();
+        c.setCleanInterval(0);
+        c.setSelectTimeout(1);
+        client = new NioClient(c);
+        client.start();
+        client.waitStart();
+        Peer peer = client.addPeer(new HostPort("110.110.110.110", 2345)).get();
 
-            try {
-                // auto connect
-                sendSyncByPeer(5000, client, peer, 1);
-                fail();
-            } catch (ExecutionException e) {
-                assertEquals(NetTimeoutException.class, e.getCause().getClass());
-                assertEquals("wait connect timeout", e.getCause().getMessage());
-            }
-        } finally {
-            TestUtil.stop(client);
+        try {
+            // auto connect
+            sendSyncByPeer(5000, client, peer, 1);
+            fail();
+        } catch (ExecutionException e) {
+            assertEquals(NetTimeoutException.class, e.getCause().getClass());
+            assertEquals("wait connect timeout", e.getCause().getMessage());
         }
     }
 
     @Test
     public void failOrderTest() throws Exception {
-        BioServer server = new BioServer(9000);
+        server1 = new BioServer(9000);
         NioClientConfig c = new NioClientConfig();
         c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
         c.setCleanInterval(0);
         c.setSelectTimeout(1);
         c.setFinishPendingImmediatelyWhenChannelClose(true);
-        NioClient client = new NioClient(c);
+        client = new NioClient(c);
         client.start();
         client.waitStart();
-        server.sleep = tick(300);
+        server1.sleep = tick(300);
 
         byte[] bs = new byte[1];
         ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.wrap(bs));
@@ -766,176 +704,159 @@ public class NioClientTest {
         }
 
         client.stop(new DtTime(1, TimeUnit.NANOSECONDS));
-        DtUtil.close(server);
+        client = null;
         CompletableFuture.allOf(allFutures).get();
         assertNull(fail.get());
     }
 
     @Test
     public void badDecoderTest() throws Exception {
-        BioServer server = null;
         NioClientConfig c = new NioClientConfig();
         c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
-        NioClient client = new NioClient(c);
-        try {
-            server = new BioServer(9000);
-            client.start();
-            client.waitStart();
+        client = new NioClient(c);
+        server1 = new BioServer(9000);
+        client.start();
+        client.waitStart();
 
-            sendSync(5000, client, tick(1000));
+        sendSync(5000, client, tick(1000));
 
-            {
-                // decoder fail in io thread
-                ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(1));
-                wf.setCommand(Commands.CMD_PING);
-                Decoder<Object> decoder = new CopyDecoder<>() {
+        {
+            // decoder fail in io thread
+            ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(1));
+            wf.setCommand(Commands.CMD_PING);
+            Decoder<Object> decoder = new CopyDecoder<>() {
 
-                    @Override
-                    public Object decode(ByteBuffer buffer) {
-                        throw new MockRuntimeException();
-                    }
-                };
-                CompletableFuture<?> f = client.sendRequest(wf,
-                        decoder, new DtTime(tick(1), TimeUnit.SECONDS));
-
-                try {
-                    f.get(tick(5), TimeUnit.SECONDS);
-                    fail();
-                } catch (ExecutionException e) {
-                    assertEquals(MockRuntimeException.class, e.getCause().getClass());
+                @Override
+                public Object decode(ByteBuffer buffer) {
+                    throw new MockRuntimeException();
                 }
-            }
+            };
+            CompletableFuture<?> f = client.sendRequest(wf,
+                    decoder, new DtTime(tick(1), TimeUnit.SECONDS));
 
-            // not affect the following requests
-            for (int i = 0; i < 10; i++) {
-                sendSync(5000, client, tick(1000));
+            try {
+                f.get(tick(5), TimeUnit.SECONDS);
+                fail();
+            } catch (ExecutionException e) {
+                assertEquals(MockRuntimeException.class, e.getCause().getClass());
             }
-        } finally {
-            TestUtil.stop(client);
-            DtUtil.close(server);
         }
+
+        // not affect the following requests
+        for (int i = 0; i < 10; i++) {
+            sendSync(5000, client, tick(1000));
+        }
+
     }
 
     @Test
     public void badEncoderTest() throws Exception {
-        BioServer server = null;
         NioClientConfig c = new NioClientConfig();
         c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
-        NioClient client = new NioClient(c);
-        try {
-            server = new BioServer(9000);
-            client.start();
-            client.waitStart();
+        client = new NioClient(c);
+        server1 = new BioServer(9000);
+        client.start();
+        client.waitStart();
 
+        sendSync(5000, client, tick(1000));
+
+        {
+            // encode fail in io thread
+            WriteFrame wf = new WriteFrame() {
+                @Override
+                protected int calcActualBodySize() {
+                    throw new MockRuntimeException();
+                }
+
+                @Override
+                protected boolean encodeBody(EncodeContext context, ByteBuffer buf) {
+                    return true;
+                }
+            };
+            wf.setCommand(Commands.CMD_PING);
+            CompletableFuture<?> f = client.sendRequest(wf, ByteArrayDecoder.INSTANCE,
+                    new DtTime(tick(1), TimeUnit.SECONDS));
+
+            try {
+                f.get(tick(5), TimeUnit.SECONDS);
+                fail();
+            } catch (ExecutionException e) {
+                assertEquals(MockRuntimeException.class, DtUtil.rootCause(e).getClass());
+            }
+        }
+
+        // not affect the following requests
+        for (int i = 0; i < 10; i++) {
             sendSync(5000, client, tick(1000));
+        }
 
-            {
-                // encode fail in io thread
-                WriteFrame wf = new WriteFrame() {
-                    @Override
-                    protected int calcActualBodySize() {
-                        throw new MockRuntimeException();
-                    }
-
-                    @Override
-                    protected boolean encodeBody(EncodeContext context, ByteBuffer buf) {
-                        return true;
-                    }
-                };
-                wf.setCommand(Commands.CMD_PING);
-                CompletableFuture<?> f = client.sendRequest(wf, ByteArrayDecoder.INSTANCE,
-                        new DtTime(tick(1), TimeUnit.SECONDS));
-
-                try {
-                    f.get(tick(5), TimeUnit.SECONDS);
-                    fail();
-                } catch (ExecutionException e) {
-                    assertEquals(MockRuntimeException.class, DtUtil.rootCause(e).getClass());
+        {
+            // encode fail in io thread
+            WriteFrame wf = new WriteFrame() {
+                @Override
+                protected int calcActualBodySize() {
+                    return 1;
                 }
-            }
 
-            // not affect the following requests
-            for (int i = 0; i < 10; i++) {
-                sendSync(5000, client, tick(1000));
-            }
-
-            {
-                // encode fail in io thread
-                WriteFrame wf = new WriteFrame() {
-                    @Override
-                    protected int calcActualBodySize() {
-                        return 1;
-                    }
-
-                    @Override
-                    protected boolean encodeBody(EncodeContext context, ByteBuffer buf) {
-                        throw new MockRuntimeException();
-                    }
-                };
-                wf.setCommand(Commands.CMD_PING);
-                CompletableFuture<?> f = client.sendRequest(wf, ByteArrayDecoder.INSTANCE,
-                        new DtTime(tick(1), TimeUnit.SECONDS));
-
-                try {
-                    f.get(tick(5), TimeUnit.SECONDS);
-                    fail();
-                } catch (ExecutionException e) {
-                    assertEquals(MockRuntimeException.class, DtUtil.rootCause(e).getClass());
+                @Override
+                protected boolean encodeBody(EncodeContext context, ByteBuffer buf) {
+                    throw new MockRuntimeException();
                 }
-            }
+            };
+            wf.setCommand(Commands.CMD_PING);
+            CompletableFuture<?> f = client.sendRequest(wf, ByteArrayDecoder.INSTANCE,
+                    new DtTime(tick(1), TimeUnit.SECONDS));
 
-            // not affect the following requests
-            for (int i = 0; i < 10; i++) {
-                sendSyncByPeer(5000, client, client.getPeers().get(0), tick(1000));
+            try {
+                f.get(tick(5), TimeUnit.SECONDS);
+                fail();
+            } catch (ExecutionException e) {
+                assertEquals(MockRuntimeException.class, DtUtil.rootCause(e).getClass());
             }
+        }
 
-        } finally {
-            TestUtil.stop(client);
-            DtUtil.close(server);
+        // not affect the following requests
+        for (int i = 0; i < 10; i++) {
+            sendSyncByPeer(5000, client, client.getPeers().get(0), tick(1000));
         }
     }
 
     @Test
     public void largeFrameTest() throws Exception {
-        BioServer server = null;
         NioClientConfig c = new NioClientConfig();
         c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
         c.setMaxFrameSize(100 + 128 * 1024);
         c.setMaxBodySize(100);
-        NioClient client = new NioClient(c);
+        client = new NioClient(c);
+        server1 = new BioServer(9000);
+        client.start();
+        client.waitStart();
+
+        Peer peer = client.getPeers().get(0);
+
+        ByteBuffer buf = ByteBuffer.allocate(101 + 128 * 1024);
         try {
-            server = new BioServer(9000);
-            client.start();
-            client.waitStart();
-
-            Peer peer = client.getPeers().get(0);
-
-            ByteBuffer buf = ByteBuffer.allocate(101 + 128 * 1024);
-            try {
-                ByteBufferWriteFrame f = new ByteBufferWriteFrame(buf);
-                f.setCommand(Commands.CMD_PING);
-                client.sendRequest(peer, f, ByteArrayDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS)).get();
-                fail();
-            } catch (Exception e) {
-                assertEquals(NetException.class, DtUtil.rootCause(e).getClass());
-                assertEquals("estimateSize overflow", DtUtil.rootCause(e).getMessage());
-            }
-
-            buf.limit(101);
-            try {
-                ByteBufferWriteFrame f = new ByteBufferWriteFrame(buf);
-                f.setCommand(Commands.CMD_PING);
-                client.sendRequest(peer, f, ByteArrayDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS)).get();
-                fail();
-            } catch (Exception e) {
-                assertEquals(NetException.class, DtUtil.rootCause(e).getClass());
-                assertTrue(DtUtil.rootCause(e).getMessage().contains("exceeds max body size"));
-            }
-
-            sendSyncByPeer(100, client, peer, tick(1000));
-        } finally {
-            TestUtil.stop(client);
-            DtUtil.close(server);
+            ByteBufferWriteFrame f = new ByteBufferWriteFrame(buf);
+            f.setCommand(Commands.CMD_PING);
+            client.sendRequest(peer, f, ByteArrayDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS)).get();
+            fail();
+        } catch (Exception e) {
+            assertEquals(NetException.class, DtUtil.rootCause(e).getClass());
+            assertEquals("estimateSize overflow", DtUtil.rootCause(e).getMessage());
         }
+
+        buf.limit(101);
+        try {
+            ByteBufferWriteFrame f = new ByteBufferWriteFrame(buf);
+            f.setCommand(Commands.CMD_PING);
+            client.sendRequest(peer, f, ByteArrayDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS)).get();
+            fail();
+        } catch (Exception e) {
+            assertEquals(NetException.class, DtUtil.rootCause(e).getClass());
+            assertTrue(DtUtil.rootCause(e).getMessage().contains("exceeds max body size"));
+        }
+
+        sendSyncByPeer(100, client, peer, tick(1000));
+
     }
 }
