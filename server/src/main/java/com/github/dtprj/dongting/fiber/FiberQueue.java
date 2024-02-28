@@ -24,7 +24,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author huangli
  */
 class FiberQueue {
-    private static FiberQueueTask TAIL = new FiberQueueTask() {
+    private static final FiberQueueTask TAIL = new FiberQueueTask() {
         @Override
         protected void run() {
         }
