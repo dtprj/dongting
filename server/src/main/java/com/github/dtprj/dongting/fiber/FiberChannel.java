@@ -27,7 +27,7 @@ import java.util.Collection;
 public class FiberChannel<T> {
     private final FiberGroup groupOfConsumer;
     private final Dispatcher dispatcherOfConsumer;
-    private final IndexedQueue<T> queue;
+    final IndexedQueue<T> queue;
     private final FiberCondition notEmptyCondition;
 
     FiberChannel(FiberGroup groupOfConsumer) {

@@ -225,17 +225,21 @@ public class FiberGroup {
     void updateFinishStatus() {
         boolean ss = (boolean) SHOULD_STOP.get(this);
         if (ss && !finished) {
-            if (normalFibers.size() == 0 && readyFibersNextRound.size() == 0) {
-                // update finished status in lock, so that other threads can see it in this lock
-                ReentrantLock lock = dispatcher.shareQueue.lock;
-                lock.lock();
-                try {
-                    finished = true;
-                } finally {
-                    lock.unlock();
-                }
-                shutdownFuture.complete(null);
+            if (normalFibers.size() > 0 || readyFibersNextRound.size() > 0) {
+                return;
             }
+            if (sysChannel.queue.size() > 0) {
+                return;
+            }
+            // update finished status in lock, so that other threads can see it in this lock
+            ReentrantLock lock = dispatcher.shareQueue.lock;
+            lock.lock();
+            try {
+                finished = true;
+            } finally {
+                lock.unlock();
+            }
+            shutdownFuture.complete(null);
         }
     }
 
