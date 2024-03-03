@@ -24,13 +24,13 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author huangli
  */
 class FiberQueue {
-    private static final FiberQueueTask TAIL = new FiberQueueTask() {
+    private static final FiberQueueTask TAIL = new FiberQueueTask(null) {
         @Override
         protected void run() {
         }
     };
 
-    private final ReentrantLock lock = new ReentrantLock();
+    final ReentrantLock lock = new ReentrantLock();
     private final Condition notEmpty = lock.newCondition();
 
     private FiberQueueTask head = TAIL;
@@ -48,6 +48,9 @@ class FiberQueue {
             }
             if (task.next != null) {
                 throw new FiberException("FiberQueueTask is already in queue");
+            }
+            if (task.ownerGroup != null && task.ownerGroup.finished) {
+                return false;
             }
             if (head == TAIL) {
                 head = tail = task;

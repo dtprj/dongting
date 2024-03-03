@@ -28,6 +28,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author huangli
@@ -79,11 +80,11 @@ public class FiberGroup {
     /**
      * can call in any thread
      */
-    public void fireFiber(Fiber fiber) {
+    public boolean fireFiber(Fiber fiber) {
         if (fiber.fiberGroup != this) {
             throw new DtException("fiber not in group");
         }
-        boolean b = dispatcher.doInDispatcherThread(new FiberQueueTask() {
+        boolean b = dispatcher.doInDispatcherThread(new FiberQueueTask(this) {
             @Override
             protected void run() {
                 start(fiber, false);
@@ -92,13 +93,14 @@ public class FiberGroup {
         if (!b) {
             log.info("dispatcher is shutdown, ignore fireFiber");
         }
+        return b;
     }
 
     /**
      * can call in any thread
      */
-    public void fireFiber(String fiberName, FiberFrame<Void> firstFrame) {
-        fireFiber(new Fiber(fiberName, this, firstFrame));
+    public boolean fireFiber(String fiberName, FiberFrame<Void> firstFrame) {
+        return fireFiber(new Fiber(fiberName, this, firstFrame));
     }
 
     /**
@@ -227,8 +229,15 @@ public class FiberGroup {
     void updateFinishStatus() {
         boolean ss = (boolean) SHOULD_STOP.get(this);
         if (ss && !finished) {
-            finished = normalFibers.size() == 0 && readyFibersNextRound.size() == 0;
-            if (finished) {
+            if (normalFibers.size() == 0 && readyFibersNextRound.size() == 0) {
+                // update finished status in lock, so that other threads can see it in this lock
+                ReentrantLock lock = dispatcher.shareQueue.lock;
+                lock.lock();
+                try {
+                    finished = true;
+                } finally {
+                    lock.unlock();
+                }
                 shutdownFuture.complete(null);
             }
         }
@@ -250,7 +259,7 @@ public class FiberGroup {
             logGroupInfo0(msg);
         } else {
             CompletableFuture<Void> f = new CompletableFuture<>();
-            boolean b = dispatcher.doInDispatcherThread(new FiberQueueTask() {
+            boolean b = dispatcher.doInDispatcherThread(new FiberQueueTask(this) {
                 @Override
                 protected void run() {
                     logGroupInfo0(msg);
@@ -258,7 +267,7 @@ public class FiberGroup {
                 }
             });
             if (!b) {
-                log.error("dispatcher is shutdown and can't log group info");
+                log.error("dispatcher or group is shutdown and can't log group info");
                 return;
             }
             try {

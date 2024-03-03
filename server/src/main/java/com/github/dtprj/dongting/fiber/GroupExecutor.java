@@ -43,14 +43,14 @@ class GroupExecutor implements ExecutorService {
     public void execute(Runnable command) {
         boolean b = group.sysChannel.fireOffer(command);
         if (!b) {
-            log.info("dispatcher is shutdown, ignore execute task");
+            log.warn("dispatcher is shutdown, ignore execute task");
         }
     }
 
     private void submit(CompletableFuture<?> future, Runnable task) {
         boolean b = group.sysChannel.fireOffer(task);
         if (!b) {
-            log.info("dispatcher is shutdown, ignore submit task");
+            log.warn("dispatcher is shutdown, ignore submit task");
             future.completeExceptionally(new FiberException("dispatcher is shutdown"));
         }
     }

@@ -31,6 +31,16 @@ public class FiberQueueTest {
     private FiberQueueTask t1;
     private FiberQueueTask t2;
 
+    public static class EmptyFiberQueueTask extends FiberQueueTask {
+        public EmptyFiberQueueTask() {
+            super(null);
+        }
+
+        @Override
+        protected void run() {
+        }
+    }
+
     @BeforeEach
     public void test() {
         t1 = new EmptyFiberQueueTask();

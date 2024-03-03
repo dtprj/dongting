@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 public class Dispatcher extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(Dispatcher.class);
 
-    private final FiberQueue shareQueue = new FiberQueue();
+    final FiberQueue shareQueue = new FiberQueue();
     private final ArrayList<FiberGroup> groups = new ArrayList<>();
     private final ArrayList<FiberGroup> finishedGroups = new ArrayList<>();
     final IndexedQueue<FiberGroup> readyGroups = new IndexedQueue<>(8);
@@ -74,16 +74,12 @@ public class Dispatcher extends AbstractLifeCircle {
 
     public CompletableFuture<Void> startGroup(FiberGroup fiberGroup) {
         CompletableFuture<Void> future = new CompletableFuture<>();
-        boolean b = shareQueue.offer(new FiberQueueTask() {
+        boolean b = shareQueue.offer(new FiberQueueTask(fiberGroup) {
             @Override
             protected void run() {
-                if (isShouldStopPlain()) {
-                    future.completeExceptionally(new FiberException("dispatcher should stop"));
-                } else {
-                    groups.add(fiberGroup);
-                    fiberGroup.startGroupRunnerFiber();
-                    future.complete(null);
-                }
+                groups.add(fiberGroup);
+                fiberGroup.startGroupRunnerFiber();
+                future.complete(null);
             }
         });
         if (!b) {
@@ -99,7 +95,7 @@ public class Dispatcher extends AbstractLifeCircle {
 
     @Override
     protected void doStop(DtTime timeout, boolean force) {
-        shareQueue.offer(new FiberQueueTask() {
+        shareQueue.offer(new FiberQueueTask(null) {
             @Override
             protected void run() {
                 SHOULD_STOP.setVolatile(Dispatcher.this, true);

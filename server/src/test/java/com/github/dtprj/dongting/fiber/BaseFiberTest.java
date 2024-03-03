@@ -47,7 +47,7 @@ public class BaseFiberTest {
     @AfterAll
     public static void shutdownDispatcher() throws Exception {
         if (dispatcher.thread.isAlive()) {
-            dispatcher.doInDispatcherThread(new FiberQueueTask() {
+            dispatcher.doInDispatcherThread(new FiberQueueTask(null) {
                 @Override
                 protected void run() {
                     // fix time if it's updated by TimeStamp.updateForUnitTest()

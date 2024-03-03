@@ -20,7 +20,13 @@ package com.github.dtprj.dongting.fiber;
  */
 abstract class FiberQueueTask {
 
+    final FiberGroup ownerGroup;
+
     FiberQueueTask next;
+
+    public FiberQueueTask(FiberGroup ownerGroup) {
+        this.ownerGroup = ownerGroup;
+    }
 
     protected abstract void run();
 }

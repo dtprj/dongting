@@ -45,18 +45,14 @@ public class FiberChannel<T> {
     }
 
     public boolean fireOffer(T data) {
-        boolean b = dispatcherOfConsumer.doInDispatcherThread(new FiberQueueTask() {
+        boolean b = dispatcherOfConsumer.doInDispatcherThread(new FiberQueueTask(groupOfConsumer) {
             @Override
             protected void run() {
-                if (groupOfConsumer.finished) {
-                    log.info("group {} is finished, ignore task", groupOfConsumer.getName());
-                } else {
-                    offer0(data);
-                }
+                offer0(data);
             }
         });
         if (!b) {
-            log.info("dispatcher is shutdown, ignore fireOffer task");
+            log.warn("dispatcher or group is shutdown, ignore fireOffer task");
         }
         return b;
     }
