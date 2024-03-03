@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.fiber;
 
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
+
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
@@ -24,6 +27,8 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author huangli
  */
 class FiberQueue {
+    private static final DtLog log = DtLogs.getLogger(FiberQueue.class);
+
     private static final FiberQueueTask TAIL = new FiberQueueTask(null) {
         @Override
         protected void run() {
@@ -44,12 +49,14 @@ class FiberQueue {
         lock.lock();
         try {
             if (shutdown) {
+                log.warn("task is not accepted because dispatcher is shutdown: {}", task);
                 return false;
             }
             if (task.next != null) {
                 throw new FiberException("FiberQueueTask is already in queue");
             }
             if (task.ownerGroup != null && task.ownerGroup.finished) {
+                log.warn("task is not accepted because its group is finished: {}", task);
                 return false;
             }
             if (head == TAIL) {

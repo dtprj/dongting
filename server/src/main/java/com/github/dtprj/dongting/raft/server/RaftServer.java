@@ -361,7 +361,9 @@ public class RaftServer extends AbstractLifeCircle {
         InitFiberFrame initFiberFrame = new InitFiberFrame(gc, raftSequenceProcessors);
         Fiber initFiber = new Fiber("init-raft-group-" + g.getGroupId(),
                 gc.getFiberGroup(), initFiberFrame);
-        gc.getFiberGroup().fireFiber(initFiber);
+        if (!gc.getFiberGroup().fireFiber(initFiber)) {
+            throw new RaftException("fire init fiber failed");
+        }
         initFiberFrame.getPrepareFuture().whenComplete((v, ex) -> {
             if (ex != null) {
                 gc.getRaftStatus().getInitFuture().completeExceptionally(ex);
@@ -419,7 +421,9 @@ public class RaftServer extends AbstractLifeCircle {
 
     private void startRaftGroup(RaftGroupImpl g) {
         GroupComponents gc = g.getGroupComponents();
-        gc.getFiberGroup().fireFiber(gc.getMemberManager().createRaftPingFiber());
+        if (!gc.getFiberGroup().fireFiber(gc.getMemberManager().createRaftPingFiber())) {
+            throw new RaftException("fire raft ping fiber failed");
+        }
         gc.getMemberManager().getStartReadyFuture().whenComplete((v, ex) -> {
             if (ex != null) {
                 gc.getRaftStatus().getStartFuture().completeExceptionally(ex);

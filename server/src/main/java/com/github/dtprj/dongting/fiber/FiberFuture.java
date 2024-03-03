@@ -109,23 +109,10 @@ public class FiberFuture<T> extends WaitSource {
             if (dispatcherThread.currentGroup == fiberGroup) {
                 complete0(r, ex);
             } else {
-                fiberGroup.sysChannel.offer0(() -> {
-                    if (fiberGroup.finished) {
-                        log.warn("group is stopped, ignore fireComplete");
-                        return;
-                    }
-                    complete0(r, ex);
-                });
+                fiberGroup.sysChannel.offer0(() -> complete0(r, ex));
             }
         } else {
-            boolean b = fiberGroup.sysChannel.fireOffer(() -> {
-                if (fiberGroup.finished) {
-                    log.warn("group is stopped, ignore fireComplete");
-                    return;
-                }
-                complete0(r, ex);
-            });
-            if (!b) {
+            if (!fiberGroup.sysChannel.fireOffer(() -> complete0(r, ex))) {
                 log.warn("dispatcher is shutdown, ignore fireComplete");
             }
         }

@@ -84,16 +84,12 @@ public class FiberGroup {
         if (fiber.fiberGroup != this) {
             throw new DtException("fiber not in group");
         }
-        boolean b = dispatcher.doInDispatcherThread(new FiberQueueTask(this) {
+        return dispatcher.doInDispatcherThread(new FiberQueueTask(this) {
             @Override
             protected void run() {
                 start(fiber, false);
             }
         });
-        if (!b) {
-            log.info("dispatcher is shutdown, ignore fireFiber");
-        }
-        return b;
     }
 
     /**
@@ -107,10 +103,10 @@ public class FiberGroup {
      * can call in any thread
      */
     public void requestShutdown() {
-        // if the dispatcher stopped, no ops
         Fiber shutdownGroupFiber = new Fiber("shutdownGroup", this, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
+                // if the dispatcher stopped, no ops
                 if ((boolean) SHOULD_STOP.get(FiberGroup.this)) {
                     return Fiber.frameReturn();
                 }
