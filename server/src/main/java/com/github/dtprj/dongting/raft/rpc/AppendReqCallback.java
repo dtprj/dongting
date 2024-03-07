@@ -115,7 +115,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
             if (currentPos == 0) {
                 // since AppendReqCallback not use context (to save status), we can use it in sub parser
                 callback = new LogItemCallback(context, group.getStateMachine());
-                logItemParser = parser.createOrResetNestedParserSingle(callback, len);
+                logItemParser = parser.createOrResetNestedParser(callback, len);
             } else {
                 logItemParser = parser.getNestedParser();
                 callback = (LogItemCallback) logItemParser.getCallback();

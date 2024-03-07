@@ -524,7 +524,7 @@ public class PbParser {
         return status == STATUS_FINISH;
     }
 
-    public PbParser createOrResetNestedParserSingle(PbCallback<?> callback, int pbLen) {
+    public PbParser createOrResetNestedParser(PbCallback<?> callback, int pbLen) {
         PbParser nestedParser = this.nestedParser;
         if (nestedParser == null) {
             nestedParser = singleParser(callback, pbLen);
