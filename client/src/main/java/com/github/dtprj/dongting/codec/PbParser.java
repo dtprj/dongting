@@ -85,23 +85,14 @@ public class PbParser {
         return new PbParser(callback, false, pbLen);
     }
 
-    @SuppressWarnings("unused")
-    public void resetMulti(PbCallback<?> callback, int maxFrame) {
-        reset(callback, true, maxFrame);
-    }
-
-    public void resetSingle(PbCallback<?> callback, int pbLen) {
-        reset(callback, false, pbLen);
-    }
-
     public void reset() {
-        resetSingle(null, 0);
-        if (nestedParser != null) {
-            nestedParser.reset();
-        }
+        reset(null, 0);
     }
 
-    private void reset(PbCallback<?> callback, boolean multi, int maxFrameOrPbLen) {
+    public void reset(PbCallback<?> callback, int pbLen) {
+        if (maxFrame > 0) {
+            throw new PbException("multi parser can't reset");
+        }
         this.callback = callback;
         this.parsedBytes = 0;
         this.pendingBytes = 0;
@@ -110,14 +101,10 @@ public class PbParser {
         this.fieldLen = 0;
         this.tempValue = 0;
 
-        if (multi) {
-            this.maxFrame = maxFrameOrPbLen;
-            this.frameLen = 0;
-            this.status = STATUS_PARSE_PB_LEN;
-        } else {
-            this.maxFrame = 0;
-            this.frameLen = maxFrameOrPbLen;
-            this.status = STATUS_SINGLE_INIT;
+        this.frameLen = pbLen;
+        this.status = STATUS_SINGLE_INIT;
+        if (nestedParser != null) {
+            nestedParser.reset(null, 0);
         }
     }
 
@@ -543,7 +530,7 @@ public class PbParser {
             nestedParser = singleParser(callback, pbLen);
             this.nestedParser = nestedParser;
         } else {
-            nestedParser.resetSingle(callback, pbLen);
+            nestedParser.reset(callback, pbLen);
         }
         return nestedParser;
     }

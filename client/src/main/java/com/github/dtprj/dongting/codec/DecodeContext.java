@@ -41,7 +41,7 @@ public class DecodeContext {
             this.pbParser = p;
             return p;
         } else {
-            p.resetSingle(callback, len);
+            p.reset(callback, len);
             return p;
         }
     }

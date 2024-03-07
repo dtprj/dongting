@@ -26,9 +26,7 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.function.Supplier;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -267,11 +265,11 @@ public class PbParserTest {
                 assertEquals(msg.f1 == 0 ? 0 : 1, setF1Count);
                 assertEquals(msg.f2 == 0 ? 0 : 1, setF2Count);
 
-                assertEquals(msg.f3.length() == 0 ? 0 : 1, f3BeginCount);
-                assertEquals(msg.f3.length() == 0 ? 0 : 1, f3EndCount);
+                assertEquals(msg.f3.isEmpty() ? 0 : 1, f3BeginCount);
+                assertEquals(msg.f3.isEmpty() ? 0 : 1, f3EndCount);
 
-                assertEquals(msg.f4.length() == 0 ? 0 : 1, f4BeginCount);
-                assertEquals(msg.f4.length() == 0 ? 0 : 1, f4EndCount);
+                assertEquals(msg.f4.isEmpty() ? 0 : 1, f4BeginCount);
+                assertEquals(msg.f4.isEmpty() ? 0 : 1, f4EndCount);
 
                 assertEquals(msg.f5 == 0 ? 0 : 1, setF5Count);
                 assertEquals(msg.f6 == 0 ? 0 : 1, setF6Count);
@@ -409,7 +407,7 @@ public class PbParserTest {
 
         callback.reset(100, 200, "msg", "body", 100, 200, new NestedMsg(30000, "abc"));
         buffer = callback.buildFrame(false);
-        parser.resetSingle(callback, buffer.remaining());
+        parser.reset(callback, buffer.remaining());
         parser.parse(buffer);
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endSuccessCount);
