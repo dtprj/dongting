@@ -21,6 +21,7 @@ import java.util.function.Function;
 /**
  * @author huangli
  */
+@SuppressWarnings("Convert2Diamond")
 public final class PbNoCopyDecoder<T> implements Decoder<T> {
 
     private final Function<DecodeContext, PbCallback<T>> callbackCreator;

@@ -83,6 +83,11 @@ public class PutProcessor extends AbstractRaftBizProcessor<PutReq> {
         return frame.getBody().getGroupId();
     }
 
+    @Override
+    protected void cleanReqInProcessorThread(ReqInfo<PutReq> reqInfo) {
+        // do nothing
+    }
+
     /**
      * run in io thread.
      */

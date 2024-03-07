@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
@@ -110,8 +111,12 @@ public class LinearTaskRunner {
     public CompletableFuture<RaftOutput> submitRaftTaskInBizThread(RaftInput input) {
         CompletableFuture<RaftOutput> f = new CompletableFuture<>();
         RaftTask t = new RaftTask(raftStatus.getTs(), LogItem.TYPE_NORMAL, input, f);
-        taskChannel.fireOffer(t);
-        return f;
+        if (taskChannel.fireOffer(t)) {
+            return f;
+        } else {
+            RaftUtil.release(input);
+            return CompletableFuture.failedFuture(new RaftException("submit raft task failed"));
+        }
     }
 
     public static long lastIndex(RaftStatusImpl raftStatus) {
@@ -129,6 +134,7 @@ public class LinearTaskRunner {
         RaftStatusImpl raftStatus = this.raftStatus;
         if (raftStatus.getRole() != RaftRole.leader) {
             for (RaftTask t : inputs) {
+                RaftUtil.release(t.getInput());
                 if (t.getFuture() != null) {
                     t.getFuture().completeExceptionally(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
                 }
@@ -167,13 +173,18 @@ public class LinearTaskRunner {
                 rt.setItem(item);
 
                 writeCount++;
+                // release resources when log item is cleaned from tail cache
                 tailCache.put(newIndex, rt);
                 raftStatus.setLastLogIndex(newIndex);
                 raftStatus.setLastLogTerm(currentTerm);
             } else {
                 // read
                 if (newIndex <= raftStatus.getLastApplied()) {
-                    applyManager.execRead(newIndex, rt);
+                    try {
+                        applyManager.execRead(newIndex, rt);
+                    } finally {
+                        RaftUtil.release(rt.getInput());
+                    }
                 } else {
                     RaftTask newTask = tailCache.get(newIndex);
                     if (newTask == null) {

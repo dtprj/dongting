@@ -76,6 +76,11 @@ public class GetProcessor extends AbstractRaftBizProcessor<GetReq> {
         return frame.getBody().getGroupId();
     }
 
+    @Override
+    protected void cleanReqInProcessorThread(ReqInfo<GetReq> reqInfo) {
+        // do nothing
+    }
+
     /**
      * run in io thread.
      */

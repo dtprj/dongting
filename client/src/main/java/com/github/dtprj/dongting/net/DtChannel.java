@@ -234,11 +234,11 @@ class DtChannel extends PbCallback<Object> {
     }
 
     private void resetDecode() {
-        decodeContext.reset();
         if (currentDecoder != null) {
             currentDecoder.finish(decodeContext);
             currentDecoder = null;
         }
+        decodeContext.reset();
     }
 
     private boolean readBody(ByteBuffer buf, int fieldLen, int currentPos, boolean end) {

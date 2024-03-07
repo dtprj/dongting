@@ -80,6 +80,22 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
         }
     }
 
+    @Override
+    protected void cleanReqInProcessorThread(ReqInfo<Object> reqInfo) {
+        // if no error occurs in io thread, this method will not be called.
+        // AppendProcessor do not call invokeCleanUp()
+        ReadFrame<Object> f = reqInfo.getReqFrame();
+        if (f.getCommand() == Commands.RAFT_APPEND_ENTRIES) {
+            AppendReqCallback req = (AppendReqCallback) f.getBody();
+            RaftUtil.release(req.getLogs());
+        } else {
+            InstallSnapshotReq req = (InstallSnapshotReq) f.getBody();
+            if (req.data != null) {
+                req.data.release();
+            }
+        }
+    }
+
     @SuppressWarnings({"rawtypes", "unchecked"})
     @Override
     public Decoder createDecoder(int command) {

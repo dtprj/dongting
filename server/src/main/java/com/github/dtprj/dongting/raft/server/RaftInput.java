@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.RefCount;
 
 /**
  * @author huangli
@@ -27,6 +28,8 @@ public final class RaftInput {
     private final Object header;
     private final Object body;
     private final long flowControlSize;
+    private final boolean headReleasable;
+    private final boolean bodyReleasable;
 
     public RaftInput(int bizType, Object header, Object body, DtTime deadline, long flowControlSize) {
         if (bizType < 0 || bizType > 127) {
@@ -39,6 +42,8 @@ public final class RaftInput {
         this.deadline = deadline;
         this.readOnly = false;
         this.flowControlSize = flowControlSize;
+        this.headReleasable = header instanceof RefCount;
+        this.bodyReleasable = body instanceof RefCount;
     }
 
     public long getFlowControlSize() {
@@ -63,5 +68,13 @@ public final class RaftInput {
 
     public int getBizType() {
         return bizType;
+    }
+
+    public boolean isHeadReleasable() {
+        return headReleasable;
+    }
+
+    public boolean isBodyReleasable() {
+        return bodyReleasable;
     }
 }

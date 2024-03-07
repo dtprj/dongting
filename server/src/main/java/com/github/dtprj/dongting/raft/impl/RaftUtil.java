@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.net.NioNet;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
+import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftNode;
 
 import java.nio.ByteBuffer;
@@ -97,6 +98,15 @@ public class RaftUtil {
 
     public static int getRwQuorum(int groupSize) {
         return groupSize >= 4 && groupSize % 2 == 0 ? groupSize / 2 : groupSize / 2 + 1;
+    }
+
+    public static void release(RaftInput raftInput) {
+        if (raftInput.isHeadReleasable()) {
+            ((LogItem) raftInput.getHeader()).release();
+        }
+        if (raftInput.isBodyReleasable()) {
+            ((LogItem) raftInput.getBody()).release();
+        }
     }
 
     public static void release(List<LogItem> items) {

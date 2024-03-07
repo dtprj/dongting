@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.common.DtUtil;
-import com.github.dtprj.dongting.common.RefCount;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
@@ -106,12 +105,7 @@ public class ApplyManager {
             future.completeExceptionally(e);
         } finally {
             // for read task, no LogItem generated
-            if (input.getHeader() instanceof RefCount) {
-                ((RefCount) input.getHeader()).release();
-            }
-            if (input.getBody() instanceof RefCount) {
-                ((RefCount) input.getBody()).release();
-            }
+            RaftUtil.release(input);
         }
     }
 
@@ -125,6 +119,8 @@ public class ApplyManager {
                 rt.getFuture().completeExceptionally(ex);
             }
             throw Fiber.fatal(new RaftException("exec write failed.", ex));
+        } finally {
+            rt.getItem().release();
         }
     }
 
@@ -240,6 +236,7 @@ public class ApplyManager {
             long diff = raftStatus.getCommitIndex() - appliedIndex;
             TailCache tailCache = raftStatus.getTailCache();
             taskList.clear();
+            taskIndex = 0;
             while (diff > 0) {
                 long index = appliedIndex + 1;
                 RaftTask rt = tailCache.get(index);
@@ -259,7 +256,6 @@ public class ApplyManager {
                     diff--;
                 }
             }
-            taskIndex = 0;
             return exec(null);
         }
 
@@ -279,7 +275,6 @@ public class ApplyManager {
                 RaftTask rt = buildRaftTask(item);
                 taskList.add(rt);
             }
-            taskIndex = 0;
             return exec(null);
         }
 

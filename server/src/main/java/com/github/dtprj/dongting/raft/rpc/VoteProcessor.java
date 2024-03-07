@@ -28,6 +28,7 @@ import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftServer;
+import com.github.dtprj.dongting.raft.server.ReqInfo;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
 /**
@@ -45,6 +46,11 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
     @Override
     protected int getGroupId(ReadFrame<VoteReq> frame) {
         return frame.getBody().getGroupId();
+    }
+
+    @Override
+    protected void cleanReqInProcessorThread(ReqInfo<VoteReq> reqInfo) {
+        // do nothing
     }
 
     @Override

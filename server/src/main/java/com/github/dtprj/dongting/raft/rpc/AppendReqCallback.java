@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
@@ -55,6 +56,17 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
     public AppendReqCallback(DecodeContext context, RaftServer raftServer) {
         this.context = context;
         this.raftServer = raftServer;
+    }
+
+    @Override
+    public void end(boolean success) {
+        if (!success) {
+            RaftUtil.release(logs);
+            if (parser.getNestedParser() != null) {
+                parser.getNestedParser().finishParse();
+            }
+        }
+        super.end(success);
     }
 
     @Override
@@ -99,14 +111,15 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                 throw new PbException("can't find raft group: " + groupId);
             }
             PbParser logItemParser;
+            LogItemCallback callback;
             if (currentPos == 0) {
                 // since AppendReqCallback not use context (to save status), we can use it in sub parser
-                LogItemCallback c = new LogItemCallback(context, group.getStateMachine());
-                logItemParser = parser.createOrResetNestedParserSingle(c, len);
+                callback = new LogItemCallback(context, group.getStateMachine());
+                logItemParser = parser.createOrResetNestedParserSingle(callback, len);
             } else {
                 logItemParser = parser.getNestedParser();
+                callback = (LogItemCallback) logItemParser.getCallback();
             }
-            LogItemCallback callback = (LogItemCallback) logItemParser.getCallback();
             logItemParser.parse(buf);
             if (end) {
                 LogItem i = callback.item;

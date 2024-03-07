@@ -28,6 +28,8 @@ public class ReqInfo<T> {
     private final ReqContext reqContext;
     private final RaftGroup raftGroup;
 
+    boolean invokeCleanUp;
+
     protected ReqInfo(ReadFrame<T> reqFrame, ChannelContext channelContext,
                       ReqContext reqContext, RaftGroup raftGroup) {
         this.reqFrame = reqFrame;

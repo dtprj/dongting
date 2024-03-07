@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.ChannelContext;
@@ -53,14 +54,17 @@ public abstract class AbstractRaftGroupProcessor<T> extends ReqProcessor<T> {
     @Override
     public final WriteFrame process(ReadFrame<T> frame, ChannelContext channelContext, ReqContext reqContext) {
         Object body = frame.getBody();
+        int groupId = getGroupId(frame);
+        RaftGroupImpl g = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
+        ReqInfoEx<T> reqInfo = new ReqInfoEx<>(frame, channelContext, reqContext, g);
         if (body == null) {
+            invokeCleanReqInProcessorThread(reqInfo);
             EmptyBodyRespFrame errorResp = new EmptyBodyRespFrame(CmdCodes.CLIENT_ERROR);
             errorResp.setMsg("empty body");
             return errorResp;
         }
-        int groupId = getGroupId(frame);
-        RaftGroupImpl g = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
         if (g == null) {
+            invokeCleanReqInProcessorThread(reqInfo);
             EmptyBodyRespFrame errorResp = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
             errorResp.setMsg("raft group not found: " + groupId);
             log.error(errorResp.getMsg());
@@ -68,14 +72,30 @@ public abstract class AbstractRaftGroupProcessor<T> extends ReqProcessor<T> {
         }
         GroupComponents gc = g.getGroupComponents();
         if (gc.getFiberGroup().isShouldStop()) {
+            invokeCleanReqInProcessorThread(reqInfo);
             EmptyBodyRespFrame wf = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
             wf.setMsg("raft group is stopped: " + groupId);
             return wf;
         } else {
-            ReqInfoEx<T> reqInfo = new ReqInfoEx<>(frame, channelContext, reqContext, g);
+            // release in sub class
             return doProcess(reqInfo);
         }
     }
 
+    protected final void invokeCleanReqInProcessorThread(ReqInfo<T> reqInfo) {
+        try {
+            if (!reqInfo.invokeCleanUp) {
+                reqInfo.invokeCleanUp = true;
+                cleanReqInProcessorThread(reqInfo);
+            } else {
+                BugLog.log(new Exception("invokeCleanUp already invoked"));
+            }
+        } catch (Throwable e) {
+            log.error("clean up error", e);
+        }
+    }
+
     protected abstract WriteFrame doProcess(ReqInfo<T> reqInfo);
+
+    protected abstract void cleanReqInProcessorThread(ReqInfo<T> reqInfo);
 }

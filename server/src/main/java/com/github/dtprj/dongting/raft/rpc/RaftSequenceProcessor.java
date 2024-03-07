@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.fiber.FiberChannel;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
@@ -101,7 +102,11 @@ public abstract class RaftSequenceProcessor<T> extends AbstractRaftGroupProcesso
     protected final WriteFrame doProcess(ReqInfo<T> reqInfo) {
         ReqInfoEx<T> rix = (ReqInfoEx<T>) reqInfo;
         FiberChannel<Object> c = rix.getRaftGroup().getProcessorChannels().get(typeId);
-        c.fireOffer(reqInfo);
+        if (!c.fireOffer(reqInfo)) {
+            invokeCleanReqInProcessorThread(reqInfo);
+            // we check stop status in parent class, so fireOffer should not fail
+            BugLog.getLog().error("fire task failed in " + getClass().getSimpleName());
+        }
         return null;
     }
 }

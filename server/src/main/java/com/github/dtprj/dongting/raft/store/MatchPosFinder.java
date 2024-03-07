@@ -45,7 +45,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
     private int leftTerm;
     private long rightIndex;
     private long midIndex;
-    private ByteBuffer buf;
+    private ByteBuffer buf;//no need release
 
     MatchPosFinder(IndexedQueue<LogFile> queue, IdxOps idxOps, Supplier<Boolean> cancel, long fileLenMask,
                    int suggestTerm, long suggestIndex, long lastLogIndex) {

@@ -37,4 +37,5 @@ public class ReqInfoEx<T> extends ReqInfo<T> {
     public RaftGroupImpl getRaftGroup() {
         return raftGroup;
     }
+
 }

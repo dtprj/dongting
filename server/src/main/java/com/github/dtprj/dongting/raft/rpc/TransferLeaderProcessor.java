@@ -29,6 +29,7 @@ import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftServer;
+import com.github.dtprj.dongting.raft.server.ReqInfo;
 
 /**
  * @author huangli
@@ -46,6 +47,11 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
     @Override
     protected int getGroupId(ReadFrame<TransferLeaderReq> frame) {
         return frame.getBody().groupId;
+    }
+
+    @Override
+    protected void cleanReqInProcessorThread(ReqInfo<TransferLeaderReq> reqInfo) {
+        // do nothing
     }
 
     @Override
