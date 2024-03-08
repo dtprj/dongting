@@ -36,7 +36,7 @@ public final class PbNoCopyDecoder<T> implements Decoder<T> {
         PbCallback<T> callback;
         if (currentPos == 0) {
             callback = callbackCreator.apply(context);
-            parser = context.createOrResetPbParser(callback, bodyLen);
+            parser = context.createOrGetPbParser(callback, bodyLen);
         } else {
             parser = context.getPbParser();
             callback = parser.getCallback();
@@ -47,14 +47,6 @@ public final class PbNoCopyDecoder<T> implements Decoder<T> {
             return callback.getResult();
         } else {
             return null;
-        }
-    }
-
-    @Override
-    public void finish(DecodeContext context) {
-        PbParser parser = context.getPbParser();
-        if (parser != null) {
-            parser.finishParse();
         }
     }
 

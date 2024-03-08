@@ -34,14 +34,14 @@ public class DecodeContext {
     }
 
     // only use by PbNoCopyDecoder
-    PbParser createOrResetPbParser(PbCallback<?> callback, int len) {
+    PbParser createOrGetPbParser(PbCallback<?> callback, int len) {
         PbParser p = this.pbParser;
         if (p == null) {
             p = PbParser.singleParser(callback, len);
             this.pbParser = p;
             return p;
         } else {
-            p.reset(callback, len);
+            p.prepareNext(callback, len);
             return p;
         }
     }

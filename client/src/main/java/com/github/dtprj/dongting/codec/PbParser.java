@@ -73,10 +73,6 @@ public class PbParser {
         }
     }
 
-    private boolean isSingle() {
-        return maxFrame == 0;
-    }
-
     public static PbParser multiParser(PbCallback<?> callback, int maxFrame) {
         return new PbParser(callback, true, maxFrame);
     }
@@ -86,26 +82,43 @@ public class PbParser {
     }
 
     public void reset() {
-        reset(null, 0);
-    }
-
-    public void reset(PbCallback<?> callback, int pbLen) {
-        if (maxFrame > 0) {
-            throw new PbException("multi parser can't reset");
+        finishParse();
+        if (maxFrame == 0) {
+            // TODO move this
+            this.callback = null;
         }
-        this.callback = callback;
-        this.parsedBytes = 0;
-        this.pendingBytes = 0;
         this.fieldType = 0;
         this.fieldIndex = 0;
         this.fieldLen = 0;
         this.tempValue = 0;
 
+        if (nestedParser != null) {
+            nestedParser.reset();
+        }
+    }
+
+    private void finishParse() {
+        switch (status) {
+            case STATUS_FINISH:
+            case STATUS_PARSE_PB_LEN:
+            case STATUS_SINGLE_INIT:
+            case STATUS_SINGLE_END:
+                return;
+            default:
+                callEnd(callback, false);
+        }
+    }
+
+    public void prepareNext(PbCallback<?> callback, int pbLen) {
+        if (maxFrame > 0) {
+            throw new PbException("multi parser");
+        }
+        if (status != STATUS_FINISH && status != STATUS_SINGLE_END) {
+            throw new PbException("can't prepare next when last parse not finished");
+        }
+        this.callback = callback;
         this.frameLen = pbLen;
         this.status = STATUS_SINGLE_INIT;
-        if (nestedParser != null) {
-            nestedParser.reset(null, 0);
-        }
     }
 
     public void parse(ByteBuffer buf) {
@@ -167,21 +180,8 @@ public class PbParser {
         }
     }
 
-    public void finishParse() {
-        switch (status) {
-            case STATUS_FINISH:
-            case STATUS_PARSE_PB_LEN:
-            case STATUS_SINGLE_INIT:
-            case STATUS_SINGLE_END:
-                return;
-            default:
-                callEnd(callback, false, STATUS_FINISH);
-                callback = null;
-        }
-    }
-
     private void callEnd(PbCallback<?> callback, boolean success) {
-        callEnd(callback, success, isSingle() ? STATUS_SINGLE_END : STATUS_PARSE_PB_LEN);
+        callEnd(callback, success, maxFrame == 0 ? STATUS_SINGLE_END : STATUS_PARSE_PB_LEN);
     }
 
     private void callEnd(PbCallback<?> callback, boolean success, int nextStatus) {
@@ -520,17 +520,17 @@ public class PbParser {
         return nestedParser;
     }
 
-    public boolean isFinished() {
+    boolean isFinished() {
         return status == STATUS_FINISH;
     }
 
-    public PbParser createOrResetNestedParser(PbCallback<?> callback, int pbLen) {
+    public PbParser createOrGetNestedParser(PbCallback<?> callback, int pbLen) {
         PbParser nestedParser = this.nestedParser;
         if (nestedParser == null) {
             nestedParser = singleParser(callback, pbLen);
             this.nestedParser = nestedParser;
         } else {
-            nestedParser.reset(callback, pbLen);
+            nestedParser.prepareNext(callback, pbLen);
         }
         return nestedParser;
     }

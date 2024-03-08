@@ -62,9 +62,6 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
     public void end(boolean success) {
         if (!success) {
             RaftUtil.release(logs);
-            if (parser.getNestedParser() != null) {
-                parser.getNestedParser().finishParse();
-            }
         }
         super.end(success);
     }
@@ -115,7 +112,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
             if (currentPos == 0) {
                 // since AppendReqCallback not use context (to save status), we can use it in sub parser
                 callback = new LogItemCallback(context, group.getStateMachine());
-                logItemParser = parser.createOrResetNestedParser(callback, len);
+                logItemParser = parser.createOrGetNestedParser(callback, len);
             } else {
                 logItemParser = parser.getNestedParser();
                 callback = (LogItemCallback) logItemParser.getCallback();
@@ -177,10 +174,21 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
         private final LogItem item = new LogItem(null);
         private final DecodeContext context;
         private final RaftCodecFactory codecFactory;
+        private Decoder<?> currentDecoder;
 
         public LogItemCallback(DecodeContext context, RaftCodecFactory codecFactory) {
             this.context = context;
             this.codecFactory = codecFactory;
+        }
+
+        @Override
+        public void end(boolean success) {
+            if (!success) {
+                item.release();
+                if (currentDecoder != null) {
+                    currentDecoder.finish(context);
+                }
+            }
         }
 
         @Override
@@ -225,12 +233,14 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                 }
                 Object result;
                 if (item.getType() == LogItem.TYPE_NORMAL) {
-                    Decoder<?> headerDecoder = codecFactory.createHeaderDecoder(item.getBizType());
-                    result = headerDecoder.decode(context, buf, len, currentPos);
+                    currentDecoder = codecFactory.createHeaderDecoder(item.getBizType());
+                    result = currentDecoder.decode(context, buf, len, currentPos);
                 } else {
-                    result = Decoder.decodeToByteBuffer(buf, len, currentPos, (ByteBuffer) item.getBody());
+                    result = Decoder.decodeToByteBuffer(buf, len, currentPos, (ByteBuffer) context.getStatus());
+                    context.setStatus(result);
                 }
                 if (end) {
+                    currentDecoder = null;
                     item.setActualHeaderSize(len);
                     item.setHeader(result);
                 }
@@ -240,12 +250,14 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                 }
                 Object result;
                 if (item.getType() == LogItem.TYPE_NORMAL) {
-                    Decoder<?> bodyDecoder = codecFactory.createBodyDecoder(item.getBizType());
-                    result = bodyDecoder.decode(context, buf, len, currentPos);
+                    currentDecoder = codecFactory.createBodyDecoder(item.getBizType());
+                    result = currentDecoder.decode(context, buf, len, currentPos);
                 } else {
-                    result = Decoder.decodeToByteBuffer(buf, len, currentPos, (ByteBuffer) item.getBody());
+                    result = Decoder.decodeToByteBuffer(buf, len, currentPos, (ByteBuffer) context.getStatus());
+                    context.setStatus(result);
                 }
                 if (end) {
+                    currentDecoder = null;
                     item.setActualBodySize(len);
                     item.setBody(result);
                 }

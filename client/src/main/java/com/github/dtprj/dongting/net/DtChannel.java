@@ -446,7 +446,7 @@ class DtChannel extends PbCallback<Object> {
         if (closed) {
             return;
         }
-        parser.finishParse();
+        parser.reset();
         closed = true;
     }
 

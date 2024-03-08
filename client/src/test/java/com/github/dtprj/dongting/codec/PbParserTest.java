@@ -324,7 +324,7 @@ public class PbParserTest {
             } else if (index == 7) {
                 PbParser np;
                 if (begin) {
-                    np = parser.createOrResetNestedParser(new NestedCallback(), len);
+                    np = parser.createOrGetNestedParser(new NestedCallback(), len);
                 } else {
                     np = parser.getNestedParser();
                 }
@@ -407,7 +407,7 @@ public class PbParserTest {
 
         callback.reset(100, 200, "msg", "body", 100, 200, new NestedMsg(30000, "abc"));
         buffer = callback.buildFrame(false);
-        parser.reset(callback, buffer.remaining());
+        parser.prepareNext(callback, buffer.remaining());
         parser.parse(buffer);
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endSuccessCount);
