@@ -59,7 +59,7 @@ public class FiberChannelTest extends BenchBase {
                     }
                 }
             });
-            group.fireFiber("consumer" + i, new FiberFrame<>() {
+            Fiber c = new Fiber("consumer" + i, group, new FiberFrame<>() {
                 @Override
                 public FrameCallResult execute(Void input) {
                     if (!isGroupShouldStopPlain()) {
@@ -78,7 +78,8 @@ public class FiberChannelTest extends BenchBase {
                         return Fiber.frameReturn();
                     }
                 }
-            });
+            }, true);
+            group.fireFiber(c);
         }
     }
 
