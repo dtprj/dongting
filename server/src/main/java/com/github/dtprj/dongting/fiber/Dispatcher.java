@@ -131,8 +131,7 @@ public class Dispatcher extends AbstractLifeCircle {
     private void runImpl(ArrayList<FiberQueueTask> localData) {
         pollAndRefreshTs(ts, localData);
         processScheduleFibers();
-        int len = localData.size();
-        for (int i = 0; i < len; i++) {
+        for (int len = localData.size(), i = 0; i < len; i++) {
             try {
                 FiberQueueTask r = localData.get(i);
                 r.run();
@@ -142,8 +141,7 @@ public class Dispatcher extends AbstractLifeCircle {
         }
         localData.clear();
 
-        len = readyGroups.size();
-        for (int i = 0; i < len; i++) {
+        for (int len = readyGroups.size(), i = 0; i < len; i++) {
             FiberGroup g = readyGroups.removeFirst();
             execGroup(g);
             if (g.ready) {
