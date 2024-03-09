@@ -82,6 +82,9 @@ public class PbParser {
     }
 
     public void reset() {
+        if (nestedParser != null) {
+            nestedParser.reset();
+        }
         finishParse();
         if (maxFrame == 0) {
             // TODO move this
@@ -91,10 +94,6 @@ public class PbParser {
         this.fieldIndex = 0;
         this.fieldLen = 0;
         this.tempValue = 0;
-
-        if (nestedParser != null) {
-            nestedParser.reset();
-        }
     }
 
     private void finishParse() {

@@ -189,6 +189,8 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                     currentDecoder.finish(context);
                 }
             }
+            context.reset();
+            super.end(success);
         }
 
         @Override

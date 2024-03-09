@@ -26,36 +26,17 @@ public class DecodeContext {
 
     private RefBufferFactory heapPool;
     private Object status;
-    private PbParser pbParser;
+
+    // only use by PbNoCopyDecoder
+    PbParser parser;
 
     private final byte[] threadLocalBuffer = THREAD_LOCAL_BUFFER.get();
 
     public DecodeContext() {
     }
 
-    // only use by PbNoCopyDecoder
-    PbParser createOrGetPbParser(PbCallback<?> callback, int len) {
-        PbParser p = this.pbParser;
-        if (p == null) {
-            p = PbParser.singleParser(callback, len);
-            this.pbParser = p;
-            return p;
-        } else {
-            p.prepareNext(callback, len);
-            return p;
-        }
-    }
-
     public void reset() {
-        if (pbParser != null) {
-            pbParser.reset();
-        }
         status = null;
-    }
-
-    // only use by PbNoCopyDecoder
-    PbParser getPbParser() {
-        return pbParser;
     }
 
     public RefBufferFactory getHeapPool() {
