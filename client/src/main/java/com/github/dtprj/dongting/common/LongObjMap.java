@@ -15,21 +15,20 @@
  */
 package com.github.dtprj.dongting.common;
 
-import com.github.dtprj.dongting.log.BugLog;
-
 import java.util.Objects;
 
 /**
  * This class is not thread safe.
+ *
  * @author huangli
  */
+@SuppressWarnings({"unchecked", "rawtypes"})
 public class LongObjMap<V> {
     private static final int MAX_ARRAY_SIZE = 1 << 30;
+    private final float loadFactor;
+    private LongMapNode[] values;
     private int size;
     private int resizeThreshold;
-    private final float loadFactor;
-    private long[] keys;
-    private Object[] values;
     private boolean readVisit;
     private boolean rwVisit;
 
@@ -52,58 +51,36 @@ public class LongObjMap<V> {
         return find(key, false);
     }
 
-    @SuppressWarnings("unchecked")
     private V find(long key, boolean remove) {
-        int h = hashCode(key);
-        Object[] values = this.values;
+        LongMapNode[] values = this.values;
         if (values == null) {
             return null;
         }
-        int idx = h & (values.length - 1);
-        Object existData = values[idx];
+        int idx = hashCode(key) & (values.length - 1);
+        LongMapNode<V> existData = values[idx];
         if (existData == null) {
             return null;
         }
-        if (existData instanceof LongMapNode) {
-            LongMapNode<V> mn = (LongMapNode<V>) existData;
-            if (mn.getKey() == key) {
-                if (remove) {
-                    LongMapNode<V> next = mn.getNext();
-                    values[idx] = next;
-                    if (next != null) {
-                        keys[idx] = next.getKey();
-                    } else {
-                        keys[idx] = 0L;
-                    }
-                    size--;
-                }
-                return mn.getValue();
+        if (existData.getKey() == key) {
+            if (remove) {
+                LongMapNode<V> next = existData.getNext();
+                values[idx] = next;
+                size--;
             }
-            LongMapNode<V> next;
-            while ((next = mn.getNext()) != null) {
-                if (next.getKey() == key) {
-                    if (remove) {
-                        mn.setNext(next.getNext());
-                        size--;
-                    }
-                    return next.getValue();
-                }
-                mn = next;
-            }
-            return null;
-        } else {
-            long[] keys = this.keys;
-            if (keys[idx] == key) {
-                if (remove) {
-                    size--;
-                    keys[idx] = 0L;
-                    values[idx] = null;
-                }
-                return (V) existData;
-            } else {
-                return null;
-            }
+            return existData.getValue();
         }
+        LongMapNode<V> next;
+        while ((next = existData.getNext()) != null) {
+            if (next.getKey() == key) {
+                if (remove) {
+                    existData.setNext(next.getNext());
+                    size--;
+                }
+                return next.getValue();
+            }
+            existData = next;
+        }
+        return null;
     }
 
     public V put(long key, V value) {
@@ -111,101 +88,76 @@ public class LongObjMap<V> {
         if (readVisit || rwVisit) {
             throw new IllegalStateException("can modify the map during iteration");
         }
-        long[] keys = resize();
-        Object[] values = this.values;
-        V r = put0(keys, values, key, value, keys.length - 1);
+        LongMapNode[] values = resize();
+        V r = put0(values, new LongMapNode<>(key, value), values.length - 1);
         if (r == null) {
             size++;
         }
         return r;
     }
 
-    @SuppressWarnings("unchecked")
-    private V put0(long[] keys, Object[] values, long key, V value, int mask) {
-        int h = hashCode(key);
-        int idx = h & mask;
-        Object existData = values[idx];
+    private V put0(LongMapNode[] values, LongMapNode<V> mn, int mask) {
+        long key = mn.getKey();
+        int idx = hashCode(key) & mask;
+        LongMapNode<V> existData = values[idx];
         if (existData == null) {
-            keys[idx] = key;
-            values[idx] = value;
+            values[idx] = mn;
             return null;
         } else {
-            LongMapNode<V> mn;
-            if (existData instanceof LongMapNode) {
-                mn = (LongMapNode<V>) existData;
-                while (true) {
-                    if (mn.getKey() == key) {
-                        V old = mn.getValue();
-                        mn.setValue(value);
-                        return old;
-                    }
-                    LongMapNode<V> next = mn.getNext();
-                    if (next == null) {
-                        LongMapNode<V> newNode = new LongMapNode<>(key, value);
-                        mn.setNext(newNode);
-                        return null;
-                    } else {
-                        mn = next;
-                    }
+            while (true) {
+                if (existData.getKey() == key) {
+                    V old = existData.getValue();
+                    existData.setValue(mn.getValue());
+                    return old;
                 }
-            } else {
-                if (keys[idx] == key) {
-                    values[idx] = value;
-                    return (V) existData;
-                } else {
-                    mn = new LongMapNode<>(keys[idx], (V) existData);
-                    values[idx] = mn;
-                    LongMapNode<V> newNode = new LongMapNode<>(key, value);
-                    mn.setNext(newNode);
+                LongMapNode<V> next = existData.getNext();
+                if (next == null) {
+                    existData.setNext(mn);
                     return null;
+                } else {
+                    existData = next;
                 }
             }
         }
     }
 
     @SuppressWarnings("unchecked")
-    private long[] resize() {
+    private LongMapNode[] resize() {
         int threshold = this.resizeThreshold;
-        long[] oldKeys = this.keys;
-        if (oldKeys == null) {
-            keys = new long[threshold];
-            values = new Object[threshold];
+        LongMapNode[] values = this.values;
+        if (values == null) {
+            values = new LongMapNode[threshold];
             this.resizeThreshold = (int) (loadFactor * threshold);
-            return keys;
+            this.values = values;
+            return values;
         }
         if (size < threshold) {
-            return oldKeys;
+            return values;
         }
 
-        int oldArrayLength = oldKeys.length;
+        int oldArrayLength = values.length;
         if (oldArrayLength >= MAX_ARRAY_SIZE) {
-            return oldKeys;
+            return values;
         }
-        int newSize = oldKeys.length << 1;
+        int newSize = values.length << 1;
         this.resizeThreshold = (int) (loadFactor * newSize);
         int mask = newSize - 1;
-        long[] newKeys = new long[newSize];
-        Object[] newValues = new Object[newSize];
-        Object[] values = this.values;
-        int len = values.length;
-        for (int i = 0; i < len; i++) {
-            Object v = values[i];
-            if (v == null) {
+        LongMapNode[] newValues = new LongMapNode[newSize];
+        //noinspection ForLoopReplaceableByForEach
+        for (int i = 0; i < oldArrayLength; i++) {
+            LongMapNode<V> mn = values[i];
+            if (mn == null) {
                 continue;
             }
-            if (v instanceof LongMapNode) {
-                LongMapNode<V> mn = (LongMapNode<V>) v;
-                do {
-                    put0(newKeys, newValues, mn.getKey(), mn.getValue(), mask);
-                    mn = mn.getNext();
-                } while (mn != null);
-            } else {
-                put0(newKeys, newValues, keys[i], (V) v, mask);
-            }
+            do {
+                LongMapNode<V> next = mn.getNext();
+                mn.setNext(null);
+                put0(newValues, mn, mask);
+                mn = next;
+            } while (mn != null);
         }
-        this.keys = newKeys;
         this.values = newValues;
-        return newKeys;
+        return newValues;
     }
 
     public V remove(long key) {
@@ -241,65 +193,30 @@ public class LongObjMap<V> {
     }
 
     private void forEach0(Visitor<V> visitor, ReadOnlyVisitor<V> readOnlyVisitor) {
-        long[] keys = this.keys;
-        if (keys == null) {
+        LongMapNode[] values = this.values;
+        if (values == null) {
             return;
         }
-        Object[] values = this.values;
         int len = values.length;
         for (int i = 0; i < len; i++) {
-            Object v = values[i];
-            if (v == null) {
+            LongMapNode<V> mn = values[i];
+            if (mn == null) {
                 continue;
             }
-            if (v instanceof LongMapNode) {
-                LongMapNode<V> prev = null;
-                boolean first = true;
-                @SuppressWarnings("unchecked")
-                LongMapNode<V> mn = (LongMapNode<V>) v;
-                do {
-                    boolean keep = visit(visitor, readOnlyVisitor, mn.getKey(), mn.getValue());
-                    if (!keep) {
-                        if (first) {
-                            LongMapNode<V> next = mn.getNext();
-                            if (next == null) {
-                                BugLog.getLog().error("LongObjMap: next is null");
-                            } else {
-                                keys[i] = next.getKey();
-                                if (next.getNext() == null) {
-                                    values[i] = next.getValue();
-                                } else {
-                                    values[i] = next;
-                                }
-                            }
-                        } else {
-                            if (prev != null) {
-                                prev.setNext(mn.getNext());
-                            } else {
-                                keys[i] = mn.getKey();
-                                if (mn.getNext() == null) {
-                                    values[i] = mn.getValue();
-                                } else {
-                                    values[i] = mn;
-                                }
-                            }
-                        }
-                        size--;
+            LongMapNode<V> prev = null;
+            do {
+                if (visit(visitor, readOnlyVisitor, mn.getKey(), mn.getValue())) {
+                    prev = mn;
+                } else {
+                    if (prev == null) {
+                        values[i] = mn.getNext();
                     } else {
-                        prev = mn;
+                        prev.setNext(mn.getNext());
                     }
-                    mn = mn.getNext();
-                    first = false;
-                } while (mn != null);
-            } else {
-                @SuppressWarnings("unchecked")
-                boolean keep = visit(visitor, readOnlyVisitor, keys[i], (V) v);
-                if (!keep) {
-                    values[i] = null;
-                    keys[i] = 0L;
                     size--;
                 }
-            }
+                mn = mn.getNext();
+            } while (mn != null);
         }
     }
 
@@ -339,14 +256,14 @@ public class LongObjMap<V> {
 
     private static <V> LongObjMap<V> copyMap(LongObjMap<V> map) {
         LongObjMap<V> newMap;
-        long[] keys = map.keys;
-        if (keys == null) {
+        LongMapNode[] values = map.values;
+        if (values == null) {
             newMap = new LongObjMap<>(map.resizeThreshold, map.loadFactor);
         } else {
-            if (map.size + 1 >= map.resizeThreshold && keys.length < MAX_ARRAY_SIZE) {
-                newMap = new LongObjMap<>(keys.length << 1, map.loadFactor);
+            if (map.size + 1 >= map.resizeThreshold && values.length < MAX_ARRAY_SIZE) {
+                newMap = new LongObjMap<>(values.length << 1, map.loadFactor);
             } else {
-                newMap = new LongObjMap<>(keys.length, map.loadFactor);
+                newMap = new LongObjMap<>(values.length, map.loadFactor);
             }
         }
         map.forEach(newMap::put);

@@ -15,21 +15,20 @@
  */
 package com.github.dtprj.dongting.common;
 
-import com.github.dtprj.dongting.log.BugLog;
-
 import java.util.Objects;
 
 /**
  * This class is not thread safe.
+ *
  * @author huangli
  */
+@SuppressWarnings({"unchecked", "rawtypes"})
 public class IntObjMap<V> {
     private static final int MAX_ARRAY_SIZE = 1 << 30;
+    private final float loadFactor;
+    private IntMapNode[] values;
     private int size;
     private int resizeThreshold;
-    private final float loadFactor;
-    private int[] keys;
-    private Object[] values;
     private boolean readVisit;
     private boolean rwVisit;
 
@@ -52,59 +51,36 @@ public class IntObjMap<V> {
         return find(key, false);
     }
 
-    @SuppressWarnings("unchecked")
     private V find(int key, boolean remove) {
-        int h = hashCode(key);
-        Object[] values = this.values;
+        IntMapNode[] values = this.values;
         if (values == null) {
             return null;
         }
-        int idx = h & (values.length - 1);
-        Object existData = values[idx];
+        int idx = hashCode(key) & (values.length - 1);
+        IntMapNode<V> existData = values[idx];
         if (existData == null) {
             return null;
         }
-        if (existData instanceof IntMapNode) {
-            @SuppressWarnings("unchecked")
-            IntMapNode<V> mn = (IntMapNode<V>) existData;
-            if (mn.getKey() == key) {
-                if (remove) {
-                    IntMapNode<V> next = mn.getNext();
-                    values[idx] = next;
-                    if (next != null) {
-                        keys[idx] = next.getKey();
-                    } else {
-                        keys[idx] = 0;
-                    }
-                    size--;
-                }
-                return mn.getValue();
+        if (existData.getKey() == key) {
+            if (remove) {
+                IntMapNode<V> next = existData.getNext();
+                values[idx] = next;
+                size--;
             }
-            IntMapNode<V> next;
-            while ((next = mn.getNext()) != null) {
-                if (next.getKey() == key) {
-                    if (remove) {
-                        mn.setNext(next.getNext());
-                        size--;
-                    }
-                    return next.getValue();
-                }
-                mn = next;
-            }
-            return null;
-        } else {
-            int[] keys = this.keys;
-            if (keys[idx] == key) {
-                if (remove) {
-                    size--;
-                    keys[idx] = 0;
-                    values[idx] = null;
-                }
-                return (V) existData;
-            } else {
-                return null;
-            }
+            return existData.getValue();
         }
+        IntMapNode<V> next;
+        while ((next = existData.getNext()) != null) {
+            if (next.getKey() == key) {
+                if (remove) {
+                    existData.setNext(next.getNext());
+                    size--;
+                }
+                return next.getValue();
+            }
+            existData = next;
+        }
+        return null;
     }
 
     public V put(int key, V value) {
@@ -112,9 +88,8 @@ public class IntObjMap<V> {
         if (readVisit || rwVisit) {
             throw new IllegalStateException("can modify the map during iteration");
         }
-        int[] keys = resize();
-        Object[] values = this.values;
-        V r = put0(keys, values, key, value, keys.length - 1);
+        IntMapNode[] values = resize();
+        V r = put0(values, new IntMapNode<>(key, value), values.length - 1);
         if (r == null) {
             size++;
         }
@@ -122,91 +97,67 @@ public class IntObjMap<V> {
     }
 
     @SuppressWarnings("unchecked")
-    private V put0(int[] keys, Object[] values, int key, V value, int mask) {
-        int h = hashCode(key);
-        int idx = h & mask;
-        Object existData = values[idx];
+    private V put0(IntMapNode[] values, IntMapNode<V> mn, int mask) {
+        int key = mn.getKey();
+        int idx = hashCode(key) & mask;
+        IntMapNode<V> existData = values[idx];
         if (existData == null) {
-            keys[idx] = key;
-            values[idx] = value;
+            values[idx] = mn;
             return null;
         } else {
-            IntMapNode<V> mn;
-            if (existData instanceof IntMapNode) {
-                mn = (IntMapNode<V>) existData;
-                while (true) {
-                    if (mn.getKey() == key) {
-                        V old = mn.getValue();
-                        mn.setValue(value);
-                        return old;
-                    }
-                    IntMapNode<V> next = mn.getNext();
-                    if (next == null) {
-                        IntMapNode<V> newNode = new IntMapNode<>(key, value);
-                        mn.setNext(newNode);
-                        return null;
-                    } else {
-                        mn = next;
-                    }
+            while (true) {
+                if (existData.getKey() == key) {
+                    V old = existData.getValue();
+                    existData.setValue(mn.getValue());
+                    return old;
                 }
-            } else {
-                if (keys[idx] == key) {
-                    values[idx] = value;
-                    return (V) existData;
-                } else {
-                    mn = new IntMapNode<>(keys[idx], (V) existData);
-                    values[idx] = mn;
-                    IntMapNode<V> newNode = new IntMapNode<>(key, value);
-                    mn.setNext(newNode);
+                IntMapNode<V> next = existData.getNext();
+                if (next == null) {
+                    existData.setNext(mn);
                     return null;
+                } else {
+                    existData = next;
                 }
             }
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private int[] resize() {
+    private IntMapNode[] resize() {
         int threshold = this.resizeThreshold;
-        int[] oldKeys = this.keys;
-        if (oldKeys == null) {
-            keys = new int[threshold];
-            values = new Object[threshold];
+        IntMapNode[] values = this.values;
+        if (values == null) {
+            values = new IntMapNode[threshold];
             this.resizeThreshold = (int) (loadFactor * threshold);
-            return keys;
+            this.values = values;
+            return values;
         }
         if (size < threshold) {
-            return oldKeys;
+            return values;
         }
 
-        int oldArrayLength = oldKeys.length;
+        int oldArrayLength = values.length;
         if (oldArrayLength >= MAX_ARRAY_SIZE) {
-            return oldKeys;
+            return values;
         }
-        int newSize = oldKeys.length << 1;
+        int newSize = values.length << 1;
         this.resizeThreshold = (int) (loadFactor * newSize);
         int mask = newSize - 1;
-        int[] newKeys = new int[newSize];
-        Object[] newValues = new Object[newSize];
-        Object[] values = this.values;
-        int len = values.length;
-        for (int i = 0; i < len; i++) {
-            Object v = values[i];
-            if (v == null) {
+        IntMapNode[] newValues = new IntMapNode[newSize];
+        //noinspection ForLoopReplaceableByForEach
+        for (int i = 0; i < oldArrayLength; i++) {
+            IntMapNode<V> mn = values[i];
+            if (mn == null) {
                 continue;
             }
-            if (v instanceof IntMapNode) {
-                IntMapNode<V> mn = (IntMapNode<V>) v;
-                do {
-                    put0(newKeys, newValues, mn.getKey(), mn.getValue(), mask);
-                    mn = mn.getNext();
-                } while (mn != null);
-            } else {
-                put0(newKeys, newValues, keys[i], (V) v, mask);
-            }
+            do {
+                IntMapNode<V> next = mn.getNext();
+                mn.setNext(null);
+                put0(newValues, mn, mask);
+                mn = next;
+            } while (mn != null);
         }
-        this.keys = newKeys;
         this.values = newValues;
-        return newKeys;
+        return newValues;
     }
 
     public V remove(int key) {
@@ -242,65 +193,30 @@ public class IntObjMap<V> {
     }
 
     private void forEach0(Visitor<V> visitor, ReadOnlyVisitor<V> readOnlyVisitor) {
-        int[] keys = this.keys;
-        if (keys == null) {
+        IntMapNode[] values = this.values;
+        if (values == null) {
             return;
         }
-        Object[] values = this.values;
         int len = values.length;
         for (int i = 0; i < len; i++) {
-            Object v = values[i];
-            if (v == null) {
+            IntMapNode<V> mn = values[i];
+            if (mn == null) {
                 continue;
             }
-            if (v instanceof IntMapNode) {
-                IntMapNode<V> prev = null;
-                boolean first = true;
-                @SuppressWarnings("unchecked")
-                IntMapNode<V> mn = (IntMapNode<V>) v;
-                do {
-                    boolean keep = visit(visitor, readOnlyVisitor, mn.getKey(), mn.getValue());
-                    if (!keep) {
-                        if (first) {
-                            IntMapNode<V> next = mn.getNext();
-                            if (next == null) {
-                                BugLog.getLog().error("IntObjMap: next is null");
-                            } else {
-                                keys[i] = next.getKey();
-                                if (next.getNext() == null) {
-                                    values[i] = next.getValue();
-                                } else {
-                                    values[i] = next;
-                                }
-                            }
-                        } else {
-                            if (prev != null) {
-                                prev.setNext(mn.getNext());
-                            } else {
-                                keys[i] = mn.getKey();
-                                if (mn.getNext() == null) {
-                                    values[i] = mn.getValue();
-                                } else {
-                                    values[i] = mn;
-                                }
-                            }
-                        }
-                        size--;
+            IntMapNode<V> prev = null;
+            do {
+                if (visit(visitor, readOnlyVisitor, mn.getKey(), mn.getValue())) {
+                    prev = mn;
+                } else {
+                    if (prev == null) {
+                        values[i] = mn.getNext();
                     } else {
-                        prev = mn;
+                        prev.setNext(mn.getNext());
                     }
-                    mn = mn.getNext();
-                    first = false;
-                } while (mn != null);
-            } else {
-                @SuppressWarnings("unchecked")
-                boolean keep = visit(visitor, readOnlyVisitor, keys[i], (V) v);
-                if (!keep) {
-                    values[i] = null;
-                    keys[i] = 0;
                     size--;
                 }
-            }
+                mn = mn.getNext();
+            } while (mn != null);
         }
     }
 
@@ -340,14 +256,14 @@ public class IntObjMap<V> {
 
     private static <V> IntObjMap<V> copyMap(IntObjMap<V> map) {
         IntObjMap<V> newMap;
-        int[] keys = map.keys;
-        if (keys == null) {
+        IntMapNode[] values = map.values;
+        if (values == null) {
             newMap = new IntObjMap<>(map.resizeThreshold, map.loadFactor);
         } else {
-            if (map.size + 1 >= map.resizeThreshold && keys.length < MAX_ARRAY_SIZE) {
-                newMap = new IntObjMap<>(keys.length << 1, map.loadFactor);
+            if (map.size + 1 >= map.resizeThreshold && values.length < MAX_ARRAY_SIZE) {
+                newMap = new IntObjMap<>(values.length << 1, map.loadFactor);
             } else {
-                newMap = new IntObjMap<>(keys.length, map.loadFactor);
+                newMap = new IntObjMap<>(values.length, map.loadFactor);
             }
         }
         map.forEach(newMap::put);
