@@ -85,27 +85,19 @@ public class PbParser {
         if (nestedParser != null) {
             nestedParser.reset();
         }
-        finishParse();
-        if (maxFrame == 0) {
-            // TODO move this
-            this.callback = null;
-        }
-        this.fieldType = 0;
-        this.fieldIndex = 0;
-        this.fieldLen = 0;
-        this.tempValue = 0;
-    }
-
-    private void finishParse() {
         switch (status) {
             case STATUS_ERROR:
             case STATUS_PARSE_PB_LEN:
             case STATUS_SINGLE_INIT:
             case STATUS_SINGLE_END:
-                return;
+                break;
             default:
                 callEnd(callback, false);
         }
+        this.fieldType = 0;
+        this.fieldIndex = 0;
+        this.fieldLen = 0;
+        this.tempValue = 0;
     }
 
     public void prepareNext(PbCallback<?> callback, int pbLen) {
@@ -192,6 +184,9 @@ public class PbParser {
             callback.end(success);
         } catch (Throwable e) {
             log.error("proto buffer parse callback end() fail", e);
+        }
+        if (maxFrame == 0) {
+            this.callback = null;
         }
     }
 
