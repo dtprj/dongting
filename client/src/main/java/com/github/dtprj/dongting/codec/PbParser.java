@@ -31,7 +31,7 @@ public class PbParser {
 
     private static final DtLog log = DtLogs.getLogger(PbParser.class);
 
-    private static final int STATUS_FINISH = -1;
+    private static final int STATUS_ERROR = -1;
     private static final int STATUS_PARSE_PB_LEN = 1;
     private static final int STATUS_PARSE_TAG = 2;
     private static final int STATUS_PARSE_FILED_LEN = 3;
@@ -98,7 +98,7 @@ public class PbParser {
 
     private void finishParse() {
         switch (status) {
-            case STATUS_FINISH:
+            case STATUS_ERROR:
             case STATUS_PARSE_PB_LEN:
             case STATUS_SINGLE_INIT:
             case STATUS_SINGLE_END:
@@ -112,7 +112,7 @@ public class PbParser {
         if (maxFrame > 0) {
             throw new PbException("multi parser");
         }
-        if (status != STATUS_FINISH && status != STATUS_SINGLE_END) {
+        if (status != STATUS_ERROR && status != STATUS_SINGLE_END) {
             throw new PbException("can't prepare next when last parse not finished");
         }
         this.callback = callback;
@@ -121,18 +121,18 @@ public class PbParser {
     }
 
     public void parse(ByteBuffer buf) {
-        if (status == STATUS_FINISH) {
+        if (status == STATUS_ERROR) {
             throw new PbException("parser is in error status");
         }
         try {
             parse0(buf);
         } catch (RuntimeException | Error e) {
-            if (status == STATUS_FINISH || status == STATUS_SINGLE_INIT || status == STATUS_SINGLE_END) {
+            if (status == STATUS_ERROR || status == STATUS_SINGLE_INIT || status == STATUS_SINGLE_END) {
                 BugLog.getLog().error("unexpect status: {}", status);
             } else if (status != STATUS_PARSE_PB_LEN) {
-                callEnd(callback, false, STATUS_FINISH);
+                callEnd(callback, false, STATUS_ERROR);
             }
-            status = STATUS_FINISH;
+            status = STATUS_ERROR;
             throw e;
         }
     }
@@ -519,8 +519,8 @@ public class PbParser {
         return nestedParser;
     }
 
-    boolean isFinished() {
-        return status == STATUS_FINISH;
+    boolean isError() {
+        return status == STATUS_ERROR;
     }
 
     public PbParser createOrGetNestedParser(PbCallback<?> callback, int pbLen) {
