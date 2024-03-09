@@ -94,10 +94,15 @@ public class PbParser {
             default:
                 callEnd(callback, false);
         }
-        this.fieldType = 0;
-        this.fieldIndex = 0;
-        this.fieldLen = 0;
-        this.tempValue = 0;
+
+        /*
+         these fields are not necessary to reset
+
+         this.fieldType = 0;
+         this.fieldIndex = 0;
+         this.fieldLen = 0;
+         this.tempValue = 0;
+        */
     }
 
     public void prepareNext(PbCallback<?> callback, int pbLen) {
