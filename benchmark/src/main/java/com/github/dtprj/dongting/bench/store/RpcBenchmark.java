@@ -48,9 +48,6 @@ public class RpcBenchmark extends BenchBase {
 
     private static final int DATA_LEN = 128;
     private static final boolean SYNC = false;
-    private static final int THREAD_COUNT = 1;
-    private static final long TIME = 1 * 1000;
-    private static final long WARMUP_TIME = 200;
     private static final long TIMEOUT = 1500;
 
 
@@ -128,28 +125,8 @@ public class RpcBenchmark extends BenchBase {
         }
     }
 
-    private static RpcBenchmark createPingBenchmark(int threadCount, long testTime, long warmupTime) {
-        return new RpcBenchmark(threadCount, testTime, warmupTime, Commands.CMD_PING);
-    }
-
-    private static RpcBenchmark createRaftLogBenchmark(int threadCount, long testTime, long warmupTime) {
-        return new RpcBenchmark(threadCount, testTime, warmupTime, BenchRaftLogProcessor.COMMAND) {
-            private final BenchRaftLogProcessor processor = new BenchRaftLogProcessor();
-            @Override
-            protected void registerProcessor(NioServer server) {
-                server.register(BenchRaftLogProcessor.COMMAND, processor, null);
-            }
-
-            @Override
-            public void shutdown() {
-                super.shutdown();
-                processor.shutdown();
-            }
-        };
-    }
-
     public static void main(String[] args) throws Exception {
-        RpcBenchmark benchmark = createRaftLogBenchmark(THREAD_COUNT, TIME, WARMUP_TIME);
+        RpcBenchmark benchmark = new RpcBenchmark(1, 1000, 200, Commands.CMD_PING);
         benchmark.start();
     }
 }
