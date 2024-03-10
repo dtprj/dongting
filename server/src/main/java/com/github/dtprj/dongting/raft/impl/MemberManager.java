@@ -125,6 +125,7 @@ public class MemberManager {
             raftStatus.setObservers(emptyList());
         }
         raftStatus.setPreparedMembers(emptyList());
+        raftStatus.setPreparedObservers(emptyList());
         computeDuplicatedData(raftStatus);
         if (!raftStatus.getNodeIdOfMembers().contains(serverConfig.getNodeId())
                 && !raftStatus.getNodeIdOfObservers().contains(serverConfig.getNodeId())) {

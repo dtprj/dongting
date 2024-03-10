@@ -75,6 +75,7 @@ public class NodeManager extends AbstractLifeCircle {
         this.startReadyQuorum = startReadyQuorum;
 
         this.allNodesEx = new IntObjMap<>(allRaftNodes.size() * 2, 0.75f);
+        this.allRaftNodesOnlyForInit = allRaftNodes;
     }
 
     private CompletableFuture<RaftNodeEx> addToNioClient(RaftNode node) {
