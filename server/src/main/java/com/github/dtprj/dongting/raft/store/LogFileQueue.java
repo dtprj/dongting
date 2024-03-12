@@ -76,8 +76,7 @@ class LogFileQueue extends FileQueue {
 
     public FiberFrame<Integer> restore(long restoreIndex, long restoreIndexPos, long firstValidPos) {
         log.info("start restore from {}, {}", restoreIndex, restoreIndexPos);
-        Restorer restorer = new Restorer(idxOps, this,
-                restoreIndex, restoreIndexPos, firstValidPos);
+        Restorer restorer = new Restorer(idxOps, this, restoreIndex, restoreIndexPos, firstValidPos);
         if (queue.size() == 0) {
             tryAllocateAsync(0);
             initLogAppender(1, 0);
@@ -102,8 +101,7 @@ class LogFileQueue extends FileQueue {
                     return finish();
                 }
                 LogFile lf = queue.get(i);
-                return Fiber.call(restorer.restoreFile(buffer, lf),
-                        this::afterRestoreSingleFile);
+                return Fiber.call(restorer.restoreFile(buffer, lf), this::afterRestoreSingleFile);
             }
 
             private FrameCallResult afterRestoreSingleFile(Pair<Boolean, Long> singleResult) {
@@ -122,6 +120,7 @@ class LogFileQueue extends FileQueue {
                     LogFile first = queue.get(0);
                     if (firstValidPos > first.startPos && firstValidPos < first.endPos && first.firstIndex == 0) {
                         // after install snapshot, the firstValidPos is too large in file, so this file has no items
+                        log.info("first file has no items, delete it");
                         queue.removeFirst();
                         return Fiber.call(delete(first), v -> this.finish());
                     }

@@ -105,39 +105,49 @@ class Restorer {
                 firstItemPos = 0;
             }
             AsyncIoTask task = new AsyncIoTask(fiberGroup, lf);
-            return task.read(buffer, firstItemPos).await(this::afterReadFirstItemHeader);
+            return task.read(buffer, firstItemPos).await(v -> afterReadFirstItemHeader(firstItemPos));
         }
 
-        private FrameCallResult afterReadFirstItemHeader(Void unused) {
+        private FrameCallResult afterReadFirstItemHeader(long firstItemPos) {
             buffer.flip();
             header.read(buffer);
             if (header.crcMatch()) {
-                if (!header.isEndMagic()) {
-                    lf.firstIndex = header.index;
-                    lf.firstTerm = header.term;
-                    lf.firstTimestamp = header.timestamp;
-                }
-            }
-
-            if (lf.endPos > restoreIndexPos) {
-                log.info("try restore file {}", lf.getFile().getPath());
-                if (restoreIndexPos >= lf.startPos) {
-                    // check from restoreIndex
-                    itemStartPosOfFile = logFileQueue.filePos(restoreIndexPos);
-                } else {
-                    // check full file
-                    itemStartPosOfFile = 0;
-                }
-                readPos = itemStartPosOfFile;
-                buffer.clear();
-                state = STATE_ITEM_HEADER;
-                return loopRestoreFileBlock();
-            } else {
-                if (header.crcMatch()) {
+                if (header.isEndMagic()) {
+                    log.info("first item is end magic. file={}, pos={}", lf.getFile().getPath(), firstItemPos);
                     setResult(new Pair<>(false, lf.endPos));
                     return Fiber.frameReturn();
                 } else {
-                    throw new RaftException("first item header crc fail: " + lf.getFile().getPath());
+                    lf.firstIndex = header.index;
+                    lf.firstTerm = header.term;
+                    lf.firstTimestamp = header.timestamp;
+
+                    if (restoreIndexPos < lf.endPos) {
+                        log.info("try restore file {}", lf.getFile().getPath());
+                        if (restoreIndexPos >= lf.startPos) {
+                            // check from restoreIndex
+                            itemStartPosOfFile = logFileQueue.filePos(restoreIndexPos);
+                        } else {
+                            // check full file
+                            itemStartPosOfFile = 0;
+                        }
+                        readPos = itemStartPosOfFile;
+                        buffer.clear();
+                        state = STATE_ITEM_HEADER;
+                        return loopRestoreFileBlock();
+                    } else {
+                        // no need restore
+                        setResult(new Pair<>(false, lf.endPos));
+                        return Fiber.frameReturn();
+                    }
+                }
+            } else {
+                if (restoreIndexChecked || (restoreIndexPos == 0 && restoreIndex == 1)) {
+                    log.info("file has no valid item: {}", lf.getFile().getPath());
+                    setResult(new Pair<>(true, lf.startPos));
+                    return Fiber.frameReturn();
+                } else {
+                    throw new RaftException("first item header crc not match. file=" + lf.getFile().getPath()
+                            + ", pos=" + firstItemPos);
                 }
             }
         }
