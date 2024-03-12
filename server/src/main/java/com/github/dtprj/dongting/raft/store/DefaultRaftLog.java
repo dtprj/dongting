@@ -91,10 +91,10 @@ public class DefaultRaftLog implements RaftLog {
                     return Fiber.call(beginInstall(), this::afterBeginInstall);
                 } else {
                     long restoreIndex = p.getLeft();
-                    long restoreIndexPos = p.getRight();
+                    long restoreStartPos = p.getRight();
                     long firstValidPos = Long.parseLong(statusManager.getProperties()
                             .getProperty(KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT, "0"));
-                    return Fiber.call(logFiles.restore(restoreIndex, restoreIndexPos, firstValidPos),
+                    return Fiber.call(logFiles.restore(restoreIndex, restoreStartPos, firstValidPos),
                             this::afterLogRestore);
                 }
             }

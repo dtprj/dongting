@@ -74,19 +74,19 @@ class LogFileQueue extends FileQueue {
         return fileSize;
     }
 
-    public FiberFrame<Integer> restore(long restoreIndex, long restoreIndexPos, long firstValidPos) {
-        log.info("start restore from {}, {}", restoreIndex, restoreIndexPos);
-        Restorer restorer = new Restorer(idxOps, this, restoreIndex, restoreIndexPos, firstValidPos);
+    public FiberFrame<Integer> restore(long restoreIndex, long restoreStartPos, long firstValidPos) {
+        log.info("start restore from {}, {}", restoreIndex, restoreStartPos);
+        Restorer restorer = new Restorer(idxOps, this, restoreIndex, restoreStartPos, firstValidPos);
         if (queue.size() == 0) {
             tryAllocateAsync(0);
             initLogAppender(1, 0);
             return FiberFrame.completedFrame(0);
         }
-        if (restoreIndexPos < queue.get(0).startPos) {
-            throw new RaftException("restoreIndexPos is illegal. " + restoreIndexPos);
+        if (restoreStartPos < queue.get(0).startPos) {
+            throw new RaftException("restoreStartPos is illegal. " + restoreStartPos);
         }
-        if (restoreIndexPos >= queue.get(queue.size() - 1).endPos) {
-            throw new RaftException("restoreIndexPos is illegal. " + restoreIndexPos);
+        if (restoreStartPos >= queue.get(queue.size() - 1).endPos) {
+            throw new RaftException("restoreStartPos is illegal. " + restoreStartPos);
         }
         return new FiberFrame<>() {
             long writePos = 0;

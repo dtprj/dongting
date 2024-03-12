@@ -48,7 +48,7 @@ class Restorer {
     private final IdxOps idxOps;
     private final LogFileQueue logFileQueue;
     private final long restoreIndex;
-    private final long restoreIndexPos;
+    private final long restoreStartPos;
     private final long firstValidPos;
     private final FiberGroup fiberGroup = FiberGroup.currentGroup();
 
@@ -63,11 +63,11 @@ class Restorer {
     int previousTerm;
 
     public Restorer(IdxOps idxOps, LogFileQueue logFileQueue, long restoreIndex,
-                    long restoreIndexPos, long firstValidPos) {
+                    long restoreStartPos, long firstValidPos) {
         this.idxOps = idxOps;
         this.logFileQueue = logFileQueue;
         this.restoreIndex = restoreIndex;
-        this.restoreIndexPos = restoreIndexPos;
+        this.restoreStartPos = restoreStartPos;
         this.firstValidPos = firstValidPos;
     }
 
@@ -121,11 +121,11 @@ class Restorer {
                     lf.firstTerm = header.term;
                     lf.firstTimestamp = header.timestamp;
 
-                    if (restoreIndexPos < lf.endPos) {
+                    if (restoreStartPos < lf.endPos) {
                         log.info("try restore file {}", lf.getFile().getPath());
-                        if (restoreIndexPos >= lf.startPos) {
+                        if (restoreStartPos >= lf.startPos) {
                             // check from restoreIndex
-                            itemStartPosOfFile = logFileQueue.filePos(restoreIndexPos);
+                            itemStartPosOfFile = logFileQueue.filePos(restoreStartPos);
                         } else {
                             // check full file
                             itemStartPosOfFile = 0;
@@ -141,7 +141,7 @@ class Restorer {
                     }
                 }
             } else {
-                if (restoreIndexChecked || (restoreIndexPos == 0 && restoreIndex == 1)) {
+                if (restoreIndexChecked || (restoreStartPos == 0 && restoreIndex == 1)) {
                     log.info("file has no valid item: {}", lf.getFile().getPath());
                     setResult(new Pair<>(true, lf.startPos));
                     return Fiber.frameReturn();
@@ -212,7 +212,7 @@ class Restorer {
             }
             return RT_RESTORE_FINISHED;
         } else {
-            throw new RaftException("restore index crc not match. " + restoreIndex + "," + restoreIndexPos);
+            throw new RaftException("restore index crc not match. " + restoreIndex + "," + restoreStartPos);
         }
     }
 

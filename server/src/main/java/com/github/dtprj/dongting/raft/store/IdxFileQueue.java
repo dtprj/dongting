@@ -111,16 +111,16 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
         if (restoreIndex == 0) {
             restoreIndex = 1;
-            long restoreIndexPos = 0;
+            long restoreStartPos = 0;
             nextIndex = 1;
             nextPersistIndex = 1;
 
             if (queueEndPosition == 0) {
                 tryAllocateAsync(0);
             }
-            log.info("restore from index: {}, pos: {}", restoreIndex, restoreIndexPos);
+            log.info("restore from index: {}, pos: {}", restoreIndex, restoreStartPos);
             flushFiber.start();
-            return FiberFrame.completedFrame(new Pair<>(restoreIndex, restoreIndexPos));
+            return FiberFrame.completedFrame(new Pair<>(restoreIndex, restoreStartPos));
         } else {
             nextIndex = restoreIndex + 1;
             nextPersistIndex = restoreIndex + 1;
