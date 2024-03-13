@@ -407,15 +407,13 @@ public class RaftServer extends AbstractLifeCircle {
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).whenComplete((v, ex) -> {
                 if (ex != null) {
                     readyFuture.completeExceptionally(ex);
-                } else if (status == STATUS_STARTING) {
+                } else if (checkStartStatus()) {
                     try {
                         serviceNioServer.start();
                         readyFuture.complete(null);
                     } catch (Exception serviceNioServerStartEx) {
                         readyFuture.completeExceptionally(serviceNioServerStartEx);
                     }
-                } else {
-                    readyFuture.completeExceptionally(new IllegalStateException("server is not starting"));
                 }
             });
         } catch (Exception e) {
