@@ -345,16 +345,22 @@ public class RaftServer extends AbstractLifeCircle {
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).whenComplete((v, ex) -> {
                 if (ex != null) {
                     readyFuture.completeExceptionally(ex);
-                } else if (status == STATUS_STARTING) {
+                } else if (checkStartStatus()) {
                     startServers();
-                } else {
-                    readyFuture.completeExceptionally(new IllegalStateException("server is not starting"));
                 }
             });
         } catch (Exception e) {
             log.error("start raft server failed", e);
             throw new RaftException(e);
         }
+    }
+
+    private boolean checkStartStatus(){
+        if (status > STATUS_RUNNING) {
+            readyFuture.completeExceptionally(new IllegalStateException("server is not running: " + status));
+            return false;
+        }
+        return true;
     }
 
     private void initRaftGroup(RaftGroupImpl g) {
@@ -380,10 +386,8 @@ public class RaftServer extends AbstractLifeCircle {
             nodeManager.readyFuture().whenComplete((v, ex) -> {
                 if (ex != null) {
                     readyFuture.completeExceptionally(ex);
-                } else if (status == STATUS_STARTING) {
+                } else if (checkStartStatus()) {
                     startGroups();
-                } else {
-                    readyFuture.completeExceptionally(new IllegalStateException("server is not starting"));
                 }
             });
         } catch (Exception e) {
