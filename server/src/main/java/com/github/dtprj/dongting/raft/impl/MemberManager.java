@@ -131,6 +131,9 @@ public class MemberManager {
                 && !raftStatus.getNodeIdOfObservers().contains(serverConfig.getNodeId())) {
             raftStatus.setSelf(null);
             raftStatus.setRole(RaftRole.observer);
+        } else {
+            // to update startReadyFuture
+            setReady(raftStatus.getSelf(), true);
         }
     }
 
@@ -195,6 +198,9 @@ public class MemberManager {
     private void check(RaftMember member) {
         RaftNodeEx node = member.getNode();
         NodeStatus nodeStatus = node.getStatus();
+        if (node.isSelf()) {
+            return;
+        }
         if (!nodeStatus.isReady()) {
             setReady(member, false);
         } else if (nodeStatus.getEpoch() != member.getNodeEpoch()) {
@@ -263,6 +269,7 @@ public class MemberManager {
     }
 
     public void setReady(RaftMember member, boolean ready) {
+        member.setReady(ready);
         if (ready && !startReadyFuture.isDone()) {
             int readyCount = getReadyCount(raftStatus.getMembers());
             if (readyCount >= startReadyQuorum) {
@@ -270,7 +277,6 @@ public class MemberManager {
                 startReadyFuture.complete(null);
             }
         }
-        member.setReady(ready);
     }
 
     private int getReadyCount(List<RaftMember> list) {
