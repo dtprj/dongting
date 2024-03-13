@@ -80,12 +80,14 @@ public class ApplyManager {
 
     public void init(FiberGroup fiberGroup, Runnable initCallback) {
         this.condition = fiberGroup.newCondition("needApply");
-        this.initCallback = initCallback;
         this.initCommitIndex = raftStatus.getCommitIndex();
         startApplyFiber(fiberGroup);
         if (raftStatus.getLastApplied() >= raftStatus.getCommitIndex()) {
+            log.info("apply manager init complete");
             initCallback.run();
-            initCallbackRun = true;
+            this.initCallbackRun = true;
+        } else {
+            this.initCallback = initCallback;
         }
     }
 
@@ -318,8 +320,10 @@ public class ApplyManager {
             }
 
             if (!initCallbackRun && index >= initCommitIndex) {
+                log.info("apply manager init complete, initCommitIndex={}", initCommitIndex);
                 initCallbackRun = true;
                 initCallback.run();
+                initCallback = null;
             }
             raftStatus.copyShareStatus();
 
