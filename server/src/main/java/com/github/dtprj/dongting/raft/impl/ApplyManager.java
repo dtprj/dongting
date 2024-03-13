@@ -240,6 +240,9 @@ public class ApplyManager {
         public FrameCallResult execute(Void input) {
             long appliedIndex = raftStatus.getLastApplied();
             long diff = raftStatus.getCommitIndex() - appliedIndex;
+            if (diff == 0) {
+                return condition.await(this);
+            }
             TailCache tailCache = raftStatus.getTailCache();
             taskList.clear();
             taskIndex = 0;
@@ -269,11 +272,11 @@ public class ApplyManager {
             if (stateMachineEpoch != raftStatus.getStateMachineEpoch()) {
                 log.warn("stateMachineEpoch changed, ignore load result");
                 RaftUtil.release(items);
-                return Fiber.frameReturn();
+                return Fiber.resume(null, this);
             }
             if (items == null || items.isEmpty()) {
                 log.error("load log failed, items is null");
-                return Fiber.frameReturn();
+                return Fiber.resume(null, this);
             }
             //noinspection ForLoopReplaceableByForEach
             for (int i = 0, readCount = items.size(); i < readCount; i++) {
