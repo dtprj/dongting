@@ -1,5 +1,6 @@
 package com.github.dtprj.dongting.raft.server;
 
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.sm.SnapshotManager;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
@@ -22,5 +23,5 @@ public interface RaftFactory {
 
     CompletableFuture<Void> startFiberGroup(FiberGroup group);
 
-    void requestGroupShutdown(FiberGroup group);
+    void requestGroupShutdown(FiberGroup group, DtTime timeout);
 }

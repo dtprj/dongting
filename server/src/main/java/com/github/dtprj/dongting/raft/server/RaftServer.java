@@ -450,7 +450,7 @@ public class RaftServer extends AbstractLifeCircle {
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
             raftGroups.forEach((groupId, g) -> {
                 g.setRequestShutdown(true);
-                raftFactory.requestGroupShutdown(g.getFiberGroup());
+                raftFactory.requestGroupShutdown(g.getFiberGroup(), timeout);
                 futures.add(g.getFiberGroup().getShutdownFuture());
             });
             nodeManager.stop(timeout);
@@ -590,7 +590,7 @@ public class RaftServer extends AbstractLifeCircle {
      * ADMIN API. This method is idempotent.
      */
     @SuppressWarnings("unused")
-    public CompletableFuture<Void> removeGroup(int groupId, long acquireLockTimeoutMillis) {
+    public CompletableFuture<Void> removeGroup(int groupId, long acquireLockTimeoutMillis, DtTime shutdownTimeout) {
         return doChange(acquireLockTimeoutMillis, () -> {
             try {
                 RaftGroupImpl g = raftGroups.get(groupId);
@@ -602,7 +602,7 @@ public class RaftServer extends AbstractLifeCircle {
                     return g.getFiberGroup().getShutdownFuture();
                 }
                 g.setRequestShutdown(true);
-                raftFactory.requestGroupShutdown(g.getFiberGroup());
+                raftFactory.requestGroupShutdown(g.getFiberGroup(), shutdownTimeout);
                 return g.getFiberGroup().getShutdownFuture().thenRun(() -> raftGroups.remove(groupId));
             } catch (Exception e) {
                 return CompletableFuture.failedFuture(e);
