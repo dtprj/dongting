@@ -83,6 +83,10 @@ public class ApplyManager {
         this.initCallback = initCallback;
         this.initCommitIndex = raftStatus.getCommitIndex();
         startApplyFiber(fiberGroup);
+        if (raftStatus.getLastApplied() >= raftStatus.getCommitIndex()) {
+            initCallback.run();
+            initCallbackRun = true;
+        }
     }
 
     private void startApplyFiber(FiberGroup fiberGroup) {
