@@ -23,5 +23,5 @@ public interface RaftFactory {
 
     CompletableFuture<Void> startFiberGroup(FiberGroup group);
 
-    void requestGroupShutdown(FiberGroup group, DtTime timeout);
+    void afterGroupShutdown(FiberGroup group, DtTime timeout);
 }

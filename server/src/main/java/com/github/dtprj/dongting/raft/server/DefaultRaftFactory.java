@@ -84,8 +84,7 @@ public abstract class DefaultRaftFactory extends AbstractLifeCircle implements R
     }
 
     @Override
-    public void requestGroupShutdown(FiberGroup group, DtTime timeout) {
-        group.requestShutdown();
+    public void afterGroupShutdown(FiberGroup group, DtTime timeout) {
         group.getDispatcher().stop(timeout);
     }
 }

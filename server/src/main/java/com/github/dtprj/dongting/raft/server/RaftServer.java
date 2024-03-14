@@ -180,13 +180,13 @@ public class RaftServer extends AbstractLifeCircle {
     private void createRaftGroups(RaftServerConfig serverConfig,
                                   List<RaftGroupConfig> groupConfig, HashSet<Integer> allNodeIds) {
         for (RaftGroupConfig rgc : groupConfig) {
-            RaftGroupImpl gc = createRaftGroup(serverConfig, allNodeIds, rgc);
             if (raftGroups.get(rgc.getGroupId()) != null) {
                 throw new IllegalArgumentException("duplicate group id: " + rgc.getGroupId());
             }
+            RaftGroupImpl gc = createRaftGroup(serverConfig, allNodeIds, rgc);
             raftGroups.put(rgc.getGroupId(), gc);
+            gc.getFiberGroup().getShutdownFuture().thenRun(() -> raftGroups.remove(rgc.getGroupId()));
         }
-
     }
 
     private RaftGroupImpl createRaftGroup(RaftServerConfig serverConfig,
@@ -448,11 +448,7 @@ public class RaftServer extends AbstractLifeCircle {
                 serviceNioServer.stop(timeout);
             }
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
-            raftGroups.forEach((groupId, g) -> {
-                g.setRequestShutdown(true);
-                raftFactory.requestGroupShutdown(g.getFiberGroup(), timeout);
-                futures.add(g.getFiberGroup().getShutdownFuture());
-            });
+            raftGroups.forEach((groupId, g) -> futures.add(stopGroup(g, timeout)));
             nodeManager.stop(timeout);
 
             try {
@@ -475,6 +471,12 @@ public class RaftServer extends AbstractLifeCircle {
             log.error("stop raft server failed", e);
             throw e;
         }
+    }
+
+    private CompletableFuture<Void> stopGroup(RaftGroupImpl g, DtTime timeout) {
+        g.getFiberGroup().requestShutdown();
+        raftFactory.afterGroupShutdown(g.getFiberGroup(), timeout);
+        return g.getFiberGroup().getShutdownFuture();
     }
 
     private void checkStatus() {
@@ -598,12 +600,7 @@ public class RaftServer extends AbstractLifeCircle {
                     log.warn("removeGroup failed: group not exist, groupId={}", groupId);
                     return CompletableFuture.failedFuture(new RaftException("group not exist: " + groupId));
                 }
-                if (g.isRequestShutdown()) {
-                    return g.getFiberGroup().getShutdownFuture();
-                }
-                g.setRequestShutdown(true);
-                raftFactory.requestGroupShutdown(g.getFiberGroup(), shutdownTimeout);
-                return g.getFiberGroup().getShutdownFuture().thenRun(() -> raftGroups.remove(groupId));
+                return stopGroup(g, shutdownTimeout);
             } catch (Exception e) {
                 return CompletableFuture.failedFuture(e);
             }
