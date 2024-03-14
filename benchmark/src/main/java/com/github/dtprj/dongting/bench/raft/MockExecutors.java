@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.bench.store;
+package com.github.dtprj.dongting.bench.raft;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
