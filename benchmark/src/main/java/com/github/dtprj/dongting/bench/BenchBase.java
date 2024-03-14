@@ -40,10 +40,6 @@ public abstract class BenchBase {
     private final LongAdder totalNanos = new LongAdder();
     private final AtomicLong maxNanos = new AtomicLong();
 
-    public BenchBase(int threadCount, long testTime) {
-        this(threadCount, testTime, 5000);
-    }
-
     public BenchBase(int threadCount, long testTime, long warmupTime) {
         this.threadCount = threadCount;
         this.testTime = testTime;

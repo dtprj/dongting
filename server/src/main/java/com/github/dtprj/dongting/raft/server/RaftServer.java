@@ -483,7 +483,7 @@ public class RaftServer extends AbstractLifeCircle {
             return g.getShutdownFuture();
         }
         fiberGroup.requestShutdown();
-        fiberGroup.fireFiber("shutdown" + g.getGroupId(), new FiberFrame<Void>() {
+        fiberGroup.fireFiber("shutdown" + g.getGroupId(), new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 GroupComponents gc = g.getGroupComponents();

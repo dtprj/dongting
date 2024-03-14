@@ -24,6 +24,12 @@ public class RaftLogBenchmark extends RpcBenchmark {
 
     private final BenchRaftLogProcessor processor = new BenchRaftLogProcessor();
 
+    public static void main(String[] args) throws Exception {
+        RpcBenchmark benchmark = new RaftLogBenchmark(1, 1000, 200,
+                BenchRaftLogProcessor.COMMAND);
+        benchmark.start();
+    }
+
     public RaftLogBenchmark(int threadCount, long testTime, long warmupTime, int cmd) {
         super(threadCount, testTime, warmupTime, cmd);
     }
@@ -37,12 +43,6 @@ public class RaftLogBenchmark extends RpcBenchmark {
     public void shutdown() {
         super.shutdown();
         processor.shutdown();
-    }
-
-    public static void main(String[] args) throws Exception {
-        RpcBenchmark benchmark = new RaftLogBenchmark(1, 1000, 200,
-                BenchRaftLogProcessor.COMMAND);
-        benchmark.start();
     }
 
 }

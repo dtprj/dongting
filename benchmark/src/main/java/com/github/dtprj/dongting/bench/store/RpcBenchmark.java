@@ -50,6 +50,10 @@ public class RpcBenchmark extends BenchBase {
     private static final boolean SYNC = false;
     private static final long TIMEOUT = 1500;
 
+    public static void main(String[] args) throws Exception {
+        RpcBenchmark benchmark = new RpcBenchmark(1, 1000, 200, Commands.CMD_PING);
+        benchmark.start();
+    }
 
     public RpcBenchmark(int threadCount, long testTime, long warmupTime, int cmd) {
         super(threadCount, testTime, warmupTime);
@@ -123,10 +127,5 @@ public class RpcBenchmark extends BenchBase {
                 logRt(startTime, state);
             }
         }
-    }
-
-    public static void main(String[] args) throws Exception {
-        RpcBenchmark benchmark = new RpcBenchmark(1, 1000, 200, Commands.CMD_PING);
-        benchmark.start();
     }
 }
