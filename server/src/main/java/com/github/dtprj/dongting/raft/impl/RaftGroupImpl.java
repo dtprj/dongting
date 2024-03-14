@@ -54,6 +54,7 @@ public class RaftGroupImpl extends RaftGroup {
     private final Timestamp readTimestamp = new Timestamp();
     private final GroupComponents gc;
     private final IntObjMap<FiberChannel<Object>> processorChannels = new IntObjMap<>();
+    private CompletableFuture<Void> shutdownFuture;
 
     public RaftGroupImpl(GroupComponents gc) {
         this.gc = gc;
@@ -232,4 +233,11 @@ public class RaftGroupImpl extends RaftGroup {
         return fiberGroup;
     }
 
+    public CompletableFuture<Void> getShutdownFuture() {
+        return shutdownFuture;
+    }
+
+    public void setShutdownFuture(CompletableFuture<Void> shutdownFuture) {
+        this.shutdownFuture = shutdownFuture;
+    }
 }

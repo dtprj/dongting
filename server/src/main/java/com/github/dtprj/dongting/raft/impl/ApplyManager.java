@@ -183,6 +183,10 @@ public class ApplyManager {
         condition.signal();
     }
 
+    public void close() {
+        condition.signal();
+    }
+
     private FrameCallResult doPrepare(RaftTask rt) {
         configChanging = true;
 
@@ -238,6 +242,9 @@ public class ApplyManager {
 
         @Override
         public FrameCallResult execute(Void input) {
+            if (isGroupShouldStopPlain()) {
+                return Fiber.frameReturn();
+            }
             long appliedIndex = raftStatus.getLastApplied();
             long diff = raftStatus.getCommitIndex() - appliedIndex;
             if (diff == 0) {

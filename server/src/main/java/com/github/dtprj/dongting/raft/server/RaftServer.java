@@ -22,7 +22,9 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.fiber.Dispatcher;
 import com.github.dtprj.dongting.fiber.Fiber;
+import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberGroup;
+import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
@@ -183,9 +185,11 @@ public class RaftServer extends AbstractLifeCircle {
             if (raftGroups.get(rgc.getGroupId()) != null) {
                 throw new IllegalArgumentException("duplicate group id: " + rgc.getGroupId());
             }
-            RaftGroupImpl gc = createRaftGroup(serverConfig, allNodeIds, rgc);
-            raftGroups.put(rgc.getGroupId(), gc);
-            gc.getFiberGroup().getShutdownFuture().thenRun(() -> raftGroups.remove(rgc.getGroupId()));
+            RaftGroupImpl g = createRaftGroup(serverConfig, allNodeIds, rgc);
+            raftGroups.put(rgc.getGroupId(), g);
+            CompletableFuture<Void> f = g.getFiberGroup().getShutdownFuture()
+                    .thenRun(() -> raftGroups.remove(rgc.getGroupId()));
+            g.setShutdownFuture(f);
         }
     }
 
@@ -355,7 +359,7 @@ public class RaftServer extends AbstractLifeCircle {
         }
     }
 
-    private boolean checkStartStatus(){
+    private boolean checkStartStatus() {
         if (status > STATUS_RUNNING) {
             readyFuture.completeExceptionally(new IllegalStateException("server is not running: " + status));
             return false;
@@ -474,9 +478,26 @@ public class RaftServer extends AbstractLifeCircle {
     }
 
     private CompletableFuture<Void> stopGroup(RaftGroupImpl g, DtTime timeout) {
-        g.getFiberGroup().requestShutdown();
-        raftFactory.afterGroupShutdown(g.getFiberGroup(), timeout);
-        return g.getFiberGroup().getShutdownFuture();
+        FiberGroup fiberGroup = g.getFiberGroup();
+        if (fiberGroup.isShouldStop()) {
+            return g.getShutdownFuture();
+        }
+        fiberGroup.requestShutdown();
+        fiberGroup.fireFiber("shutdown" + g.getGroupId(), new FiberFrame<Void>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                GroupComponents gc = g.getGroupComponents();
+                gc.getRaftLog().close();
+                gc.getApplyManager().close();
+                gc.getStatusManager().close();
+                return Fiber.frameReturn();
+            }
+        });
+
+        // the group shutdown is not finished, but it's ok to call afterGroupShutdown
+        raftFactory.afterGroupShutdown(fiberGroup, timeout);
+
+        return g.getShutdownFuture();
     }
 
     private void checkStatus() {
