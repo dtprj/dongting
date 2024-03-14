@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.codec.ByteArrayDecoder;
 import com.github.dtprj.dongting.codec.DecodeContext;
@@ -135,19 +136,27 @@ class DtChannel extends PbCallback<Object> {
 
     @Override
     public void end(boolean success) {
-        super.end(success);
-        resetDecode();
-        if (!success) {
-            return;
-        }
-        if (requestForResp == null && processorForRequest == null) {
-            // empty body
-            if (!initRelatedDataForFrame(false)) {
+        try {
+            super.end(success);
+            if (!success) {
                 return;
             }
+
             if (requestForResp == null && processorForRequest == null) {
-                return;
+                // empty body
+                if (!initRelatedDataForFrame()) {
+                    return;
+                }
+                if (requestForResp == null && processorForRequest == null) {
+                    return;
+                }
+                if (currentDecoder != null) {
+                    Object o = currentDecoder.decode(decodeContext, SimpleByteBufferPool.EMPTY_BUFFER, 0, 0);
+                    frame.setBody(o);
+                }
             }
+        } finally {
+            resetDecode();
         }
 
         if (frame.getFrameType() == FrameType.TYPE_RESP) {
@@ -247,7 +256,7 @@ class DtChannel extends PbCallback<Object> {
             throw new NetException("command invalid :" + frame.getCommand());
         }
         // the body field should encode as last field
-        if (!initRelatedDataForFrame(true)) {
+        if (!initRelatedDataForFrame()) {
             return false;
         }
         if (currentDecoder == null) {
@@ -270,7 +279,7 @@ class DtChannel extends PbCallback<Object> {
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    private boolean initRelatedDataForFrame(boolean initDecoder) {
+    private boolean initRelatedDataForFrame() {
         ReadFrame frame = this.frame;
         if (frame.getFrameType() == FrameType.TYPE_RESP) {
             WriteData requestForResp = this.requestForResp;
@@ -283,7 +292,7 @@ class DtChannel extends PbCallback<Object> {
                     this.requestForResp = requestForResp;
                 }
             }
-            if (initDecoder && currentDecoder == null) {
+            if (currentDecoder == null) {
                 currentDecoder = requestForResp.getRespDecoder();
             }
         } else {
@@ -316,7 +325,7 @@ class DtChannel extends PbCallback<Object> {
                 }
                 this.processorForRequest = processorForRequest;
             }
-            if (initDecoder && currentDecoder == null) {
+            if (currentDecoder == null) {
                 currentDecoder = processorForRequest.createDecoder(frame.getCommand());
             }
         }

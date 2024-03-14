@@ -277,17 +277,13 @@ public class NioClientTest {
         assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
         assertEquals("msg", rf.getMsg());
-        if (bs.length != 0) {
-            if (rf.getBody() instanceof RefBuffer) {
-                RefBuffer rc = (RefBuffer) rf.getBody();
-                assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
-                rc.release();
-            } else {
-                ByteBuffer buf = (ByteBuffer) rf.getBody();
-                assertEquals(ByteBuffer.wrap(bs), buf);
-            }
+        if (rf.getBody() instanceof RefBuffer) {
+            RefBuffer rc = (RefBuffer) rf.getBody();
+            assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
+            rc.release();
         } else {
-            assertNull(rf.getBody());
+            ByteBuffer buf = (ByteBuffer) rf.getBody();
+            assertEquals(ByteBuffer.wrap(bs), buf);
         }
     }
 
@@ -326,13 +322,9 @@ public class NioClientTest {
             assertEquals(wf.getSeq(), rf.getSeq());
             assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
             assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
-            if (bs.length != 0) {
-                RefBuffer rc = rf.getBody();
-                assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
-                rc.release();
-            } else {
-                assertNull(rf.getBody());
-            }
+            RefBuffer rc = rf.getBody();
+            assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
+            rc.release();
             return null;
         });
     }

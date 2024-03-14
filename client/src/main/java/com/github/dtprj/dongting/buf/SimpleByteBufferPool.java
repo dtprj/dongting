@@ -31,7 +31,7 @@ import java.util.Objects;
  */
 public class SimpleByteBufferPool extends ByteBufferPool {
     static final VersionFactory VF = VersionFactory.getInstance();
-    public static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0).asReadOnlyBuffer();
+    public static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);
     public static final int DEFAULT_THRESHOLD = 128;
 
     private final int threshold;
