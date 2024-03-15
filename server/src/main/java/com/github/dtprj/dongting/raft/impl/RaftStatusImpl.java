@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.server.RaftNode;
 import com.github.dtprj.dongting.raft.server.RaftStatus;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -86,7 +87,7 @@ public class RaftStatusImpl extends RaftStatus {
 
     public RaftStatusImpl(Timestamp ts) {
         this.ts = ts;
-        lastElectTime = ts.getNanoTime();
+        lastElectTime = ts.getNanoTime() - Duration.ofDays(1).toNanos();
     }
 
     public void copyShareStatus() {
