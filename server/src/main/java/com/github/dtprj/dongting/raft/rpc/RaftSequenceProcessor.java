@@ -42,23 +42,20 @@ public abstract class RaftSequenceProcessor<T> extends AbstractRaftGroupProcesso
 
     private final int typeId = PROCESSOR_TYPE_ID.incrementAndGet();
 
-    private boolean fiberStart;
-
     public RaftSequenceProcessor(RaftServer raftServer) {
         super(raftServer);
     }
 
     protected abstract FiberFrame<Void> processInFiberGroup(ReqInfoEx<T> reqInfo);
 
+    public final int getTypeId() {
+        return typeId;
+    }
 
     public void startProcessFiber(FiberChannel<ReqInfoEx<T>> channel) {
-        if (fiberStart) {
-            return;
-        }
         FiberFrame<Void> ff = new ProcessorFiberFrame(channel);
         Fiber f = new Fiber(getClass().getSimpleName(), FiberGroup.currentGroup(), ff, true);
         f.start();
-        fiberStart = true;
     }
 
     private class ProcessorFiberFrame extends FiberFrame<Void> {
@@ -90,7 +87,7 @@ public abstract class RaftSequenceProcessor<T> extends AbstractRaftGroupProcesso
                         current.getReqFrame(), wf, current.getReqContext().getTimeout());
             }
             if (!isGroupShouldStopPlain()) {
-                log.warn("uncaught exception in {}, restart processor fiber: {}",
+                log.error("uncaught exception in {}, restart processor fiber: {}",
                         getClass().getSimpleName(), ex.toString());
                 startProcessFiber(channel);
             }
@@ -101,7 +98,7 @@ public abstract class RaftSequenceProcessor<T> extends AbstractRaftGroupProcesso
     @Override
     protected final WriteFrame doProcess(ReqInfo<T> reqInfo) {
         ReqInfoEx<T> rix = (ReqInfoEx<T>) reqInfo;
-        FiberChannel<Object> c = rix.getRaftGroup().getProcessorChannels().get(typeId);
+        FiberChannel<Object> c = rix.getRaftGroup().getGroupComponents().getProcessorChannels().get(typeId);
         if (!c.fireOffer(reqInfo)) {
             invokeCleanReqInProcessorThread(reqInfo);
             // we check stop status in parent class, so fireOffer should not fail

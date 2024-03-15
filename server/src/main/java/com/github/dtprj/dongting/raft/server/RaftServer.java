@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.fiber.Dispatcher;
 import com.github.dtprj.dongting.fiber.Fiber;
+import com.github.dtprj.dongting.fiber.FiberChannel;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
@@ -133,8 +134,6 @@ public class RaftServer extends AbstractLifeCircle {
         nodeManager = new NodeManager(serverConfig, allRaftServers, replicateNioClient,
                 RaftUtil.getElectQuorum(allRaftServers.size()));
 
-        createRaftGroups(serverConfig, groupConfig, allNodeIds);
-
         NioServerConfig repServerConfig = new NioServerConfig();
         repServerConfig.setPort(serverConfig.getReplicatePort());
         repServerConfig.setName("RaftRepServer");
@@ -163,6 +162,7 @@ public class RaftServer extends AbstractLifeCircle {
         } else {
             serviceNioServer = null;
         }
+        createRaftGroups(serverConfig, groupConfig, allNodeIds);
     }
 
     private void addRaftGroupProcessor(NioServer nioServer, int command, RaftSequenceProcessor<?> processor) {
@@ -269,6 +269,11 @@ public class RaftServer extends AbstractLifeCircle {
         memberManager.postInit();
         linearTaskRunner.postInit();
         voteManager.postInit();
+
+        for (RaftSequenceProcessor<?> processor : raftSequenceProcessors) {
+            FiberChannel<Object> channel = fiberGroup.newChannel();
+            gc.getProcessorChannels().put(processor.getTypeId(), channel);
+        }
 
         return new RaftGroupImpl(gc);
     }

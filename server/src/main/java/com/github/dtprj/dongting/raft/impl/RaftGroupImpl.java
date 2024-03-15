@@ -17,9 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.FlowControlException;
-import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.fiber.FiberChannel;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.log.DtLog;
@@ -53,7 +51,6 @@ public class RaftGroupImpl extends RaftGroup {
 
     private final Timestamp readTimestamp = new Timestamp();
     private final GroupComponents gc;
-    private final IntObjMap<FiberChannel<Object>> processorChannels = new IntObjMap<>();
     private CompletableFuture<Void> shutdownFuture;
 
     public RaftGroupImpl(GroupComponents gc) {
@@ -65,10 +62,6 @@ public class RaftGroupImpl extends RaftGroup {
         this.serverStat = gc.getServerStat();
         this.stateMachine = gc.getStateMachine();
         this.fiberGroup = gc.getFiberGroup();
-    }
-
-    public IntObjMap<FiberChannel<Object>> getProcessorChannels() {
-        return processorChannels;
     }
 
     @Override

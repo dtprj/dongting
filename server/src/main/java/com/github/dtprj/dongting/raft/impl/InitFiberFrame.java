@@ -70,7 +70,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
 
         for (RaftSequenceProcessor<?> processor : raftSequenceProcessors) {
             @SuppressWarnings("rawtypes")
-            FiberChannel channel = getFiberGroup().newChannel();
+            FiberChannel channel = gc.getProcessorChannels().get(processor.getTypeId());
             //noinspection unchecked
             processor.startProcessFiber(channel);
         }

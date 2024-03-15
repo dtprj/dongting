@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.IntObjMap;
+import com.github.dtprj.dongting.fiber.FiberChannel;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
@@ -46,6 +48,8 @@ public class GroupComponents {
     private StateMachine stateMachine;
 
     private FiberGroup fiberGroup;
+
+    private final IntObjMap<FiberChannel<Object>> processorChannels = new IntObjMap<>();
 
     public RaftServerConfig getServerConfig() {
         return serverConfig;
@@ -173,5 +177,9 @@ public class GroupComponents {
 
     public void setReplicateManager(ReplicateManager replicateManager) {
         this.replicateManager = replicateManager;
+    }
+
+    public IntObjMap<FiberChannel<Object>> getProcessorChannels() {
+        return processorChannels;
     }
 }
