@@ -289,6 +289,7 @@ public class RaftUtil {
         log.info("change to leader. term={}", raftStatus.getCurrentTerm());
         resetStatus(raftStatus);
         raftStatus.setRole(RaftRole.leader);
+        raftStatus.setCurrentLeader(raftStatus.getSelf());
         raftStatus.setFirstIndexOfCurrentTerm(raftStatus.getLastLogIndex() + 1);
         for (RaftMember node : raftStatus.getReplicateList()) {
             node.setNextIndex(raftStatus.getLastLogIndex() + 1);
