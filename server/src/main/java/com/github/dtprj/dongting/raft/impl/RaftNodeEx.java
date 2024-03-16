@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.raft.server.RaftNode;
  */
 public class RaftNodeEx extends RaftNode {
 
+    private final boolean self;
     private final Peer peer;
 
     private boolean pinging;
@@ -33,8 +34,13 @@ public class RaftNodeEx extends RaftNode {
     private int useCount;
 
     public RaftNodeEx(int id, HostPort hostPort, boolean self, Peer peer) {
-        super(id, hostPort, self);
+        super(id, hostPort);
         this.peer = peer;
+        this.self = self;
+    }
+
+    public boolean isSelf() {
+        return self;
     }
 
     public int getUseCount() {

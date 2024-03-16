@@ -84,7 +84,7 @@ public class RaftUtil {
                 }
                 int id = Integer.parseInt(arr[0].trim());
                 String hostPortStr = arr[1];
-                list.add(new RaftNode(id, NioNet.parseHostPort(hostPortStr), id == selfId));
+                list.add(new RaftNode(id, NioNet.parseHostPort(hostPortStr)));
             }
             return list;
         } catch (NumberFormatException e) {

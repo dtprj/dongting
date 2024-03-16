@@ -79,8 +79,9 @@ public class NodeManager extends AbstractLifeCircle {
     }
 
     private CompletableFuture<RaftNodeEx> addToNioClient(RaftNode node) {
+        boolean self = node.getNodeId() == selfNodeId;
         return client.addPeer(node.getHostPort()).thenApply(peer
-                -> new RaftNodeEx(node.getNodeId(), node.getHostPort(), node.isSelf(), peer));
+                -> new RaftNodeEx(node.getNodeId(), node.getHostPort(), self, peer));
     }
 
     @Override

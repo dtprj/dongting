@@ -23,14 +23,12 @@ import com.github.dtprj.dongting.net.HostPort;
 public class RaftNode {
     private final int nodeId;
     private final HostPort hostPort;
-    private final boolean self;
 
     private String str;
 
-    public RaftNode(int nodeId, HostPort hostPort, boolean self) {
+    public RaftNode(int nodeId, HostPort hostPort) {
         this.nodeId = nodeId;
         this.hostPort = hostPort;
-        this.self = self;
     }
 
     public int getNodeId() {
@@ -39,10 +37,6 @@ public class RaftNode {
 
     public HostPort getHostPort() {
         return hostPort;
-    }
-
-    public boolean isSelf() {
-        return self;
     }
 
     @Override
