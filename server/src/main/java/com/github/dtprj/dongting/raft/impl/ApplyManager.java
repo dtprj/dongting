@@ -242,6 +242,8 @@ public class ApplyManager {
 
         @Override
         public FrameCallResult execute(Void input) {
+            taskList.clear();
+            taskIndex = 0;
             if (isGroupShouldStopPlain()) {
                 return Fiber.frameReturn();
             }
@@ -250,11 +252,10 @@ public class ApplyManager {
             if (diff == 0) {
                 return condition.await(this);
             }
+
             TailCache tailCache = raftStatus.getTailCache();
-            taskList.clear();
-            taskIndex = 0;
+            long index = appliedIndex + 1;
             while (diff > 0) {
-                long index = appliedIndex + 1;
                 RaftTask rt = tailCache.get(index);
                 if (rt == null || rt.getInput().isReadOnly()) {
                     int limit = (int) Math.min(diff, 1024L);
@@ -262,27 +263,37 @@ public class ApplyManager {
                         logIterator = raftLog.openIterator(null);
                     }
                     int stateMachineEpoch = raftStatus.getStateMachineEpoch();
+                    log.debug("load from {}, diff={}", index, diff);
                     FiberFrame<List<LogItem>> ff = logIterator.next(index, limit, 16 * 1024 * 1024);
                     return Fiber.call(ff, items -> afterLoad(items, stateMachineEpoch));
                 } else {
                     closeIterator();
                     rt.getItem().retain();
                     taskList.add(rt);
-                    appliedIndex++;
+                    index++;
                     diff--;
                 }
             }
             return exec(null);
         }
 
+        private void releaseTaskList() {
+            for (RaftTask rt : taskList) {
+                rt.getItem().release();
+            }
+            taskList.clear();
+        }
+
         private FrameCallResult afterLoad(List<LogItem> items, int stateMachineEpoch) {
             if (stateMachineEpoch != raftStatus.getStateMachineEpoch()) {
                 log.warn("stateMachineEpoch changed, ignore load result");
                 RaftUtil.release(items);
+                releaseTaskList();
                 return Fiber.resume(null, this);
             }
             if (items == null || items.isEmpty()) {
                 log.error("load log failed, items is null");
+                releaseTaskList();
                 return Fiber.resume(null, this);
             }
             //noinspection ForLoopReplaceableByForEach
