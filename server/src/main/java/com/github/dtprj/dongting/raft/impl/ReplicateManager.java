@@ -441,6 +441,7 @@ class RepFrame extends AbstractRepFrame {
                     if (size > sizeLimit && i != 0) {
                         break;
                     }
+                    li.retain();
                     items.add(li);
                 }
                 limit -= items.size();
@@ -459,6 +460,7 @@ class RepFrame extends AbstractRepFrame {
 
     private FrameCallResult resumeAfterLogLoad(List<LogItem> items) {
         if (shouldStopReplicate()) {
+            RaftUtil.release(items);
             return Fiber.frameReturn();
         }
         if (items == null || items.isEmpty()) {
@@ -468,6 +470,7 @@ class RepFrame extends AbstractRepFrame {
         }
         if (member.getNextIndex() != items.get(0).getIndex()) {
             log.error("the first load item index not match nextIndex, ignore load result");
+            RaftUtil.release(items);
             closeIterator();
             return Fiber.resume(null, this);
         }
@@ -493,7 +496,7 @@ class RepFrame extends AbstractRepFrame {
         member.setNextIndex(prevLogIndex + 1 + items.size());
 
         DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        retain(items);// release in AppendReqWriteFrame
+        // release in AppendReqWriteFrame
         CompletableFuture<ReadFrame<AppendRespCallback>> f = client.sendRequest(member.getNode().getPeer(),
                 req, APPEND_RESP_DECODER, timeout);
 
@@ -514,16 +517,6 @@ class RepFrame extends AbstractRepFrame {
         f.whenCompleteAsync((rf, ex) -> replicateManager.afterAppendRpc(rf, ex, this, prevLogIndex,
                         firstItem.getPrevLogTerm(), reqNanos, items.size(), finalBytes),
                 getFiberGroup().getExecutor());
-    }
-
-    private static void retain(List<LogItem> items) {
-        if (items == null) {
-            return;
-        }
-        //noinspection ForLoopReplaceableByForEach
-        for (int i = 0; i < items.size(); i++) {
-            items.get(i).retain();
-        }
     }
 
     public void descPending(int itemCount, long bytes) {
