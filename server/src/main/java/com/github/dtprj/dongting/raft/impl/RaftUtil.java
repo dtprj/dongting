@@ -70,7 +70,7 @@ public class RaftUtil {
         }
     }
 
-    public static List<RaftNode> parseServers(int selfId, String serversStr) {
+    public static List<RaftNode> parseServers(String serversStr) {
         String[] servers = serversStr.split(";");
         if (servers.length == 0) {
             throw new RaftException("servers list is empty");
