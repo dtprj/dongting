@@ -17,7 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.Peer;
-import com.github.dtprj.dongting.raft.server.RaftNode;
+import com.github.dtprj.dongting.raft.RaftNode;
 
 /**
  * @author huangli

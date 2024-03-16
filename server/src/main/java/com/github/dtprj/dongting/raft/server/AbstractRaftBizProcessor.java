@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespFrame;
+import com.github.dtprj.dongting.raft.RaftNode;
 
 import java.nio.charset.StandardCharsets;
 

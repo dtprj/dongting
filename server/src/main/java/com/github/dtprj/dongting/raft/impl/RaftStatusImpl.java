@@ -18,7 +18,7 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberGroup;
-import com.github.dtprj.dongting.raft.server.RaftNode;
+import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.server.RaftStatus;
 
 import java.time.Duration;

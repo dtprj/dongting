@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.server;
+package com.github.dtprj.dongting.raft;
 
 import com.github.dtprj.dongting.net.HostPort;
 

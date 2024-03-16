@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.RaftNode;
 
 /**
  * @author huangli
