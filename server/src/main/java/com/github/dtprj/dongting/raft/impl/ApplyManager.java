@@ -299,7 +299,7 @@ public class ApplyManager {
                 // loop execute
                 return Fiber.resume(null, this);
             }
-            RaftTask rt = taskList.get(taskIndex);
+            RaftTask rt = taskList.get(taskIndex++);
             long logIndex = rt.getItem().getIndex();
             switch (rt.getType()) {
                 case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
