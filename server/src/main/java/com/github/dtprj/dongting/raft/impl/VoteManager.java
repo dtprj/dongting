@@ -37,6 +37,7 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -61,7 +62,6 @@ public class VoteManager {
 
     private boolean voting;
     private HashSet<Integer> votes;
-    private int votePendingCount;
     private int currentVoteId;
 
     private static final Decoder<VoteResp> RESP_DECODER = new PbNoCopyDecoder<>(c -> new VoteResp.Callback());
@@ -92,26 +92,13 @@ public class VoteManager {
             voting = false;
             votes = null;
             currentVoteId++;
-            votePendingCount = 0;
         }
     }
 
-    private void initStatusForVoting(int count) {
+    private void initStatusForVoting() {
         voting = true;
         currentVoteId++;
         votes = new HashSet<>();
-        votes.add(config.getNodeId());
-        votePendingCount = count - 1;
-    }
-
-    private void descPending(int voteIdOfRequest) {
-        if (voteIdOfRequest != currentVoteId) {
-            return;
-        }
-        if (--votePendingCount == 0) {
-            voting = false;
-            votes = null;
-        }
     }
 
     private int readyCount(Collection<RaftMember> list) {
@@ -148,25 +135,21 @@ public class VoteManager {
     }
 
     public void tryStartPreVote() {
-        if (voting) {
-            return;
-        }
         if (!MemberManager.validCandidate(raftStatus, config.getNodeId())) {
             log.info("not valid candidate, can't start pre vote. groupId={}, term={}",
                     groupId, raftStatus.getCurrentTerm());
             return;
         }
 
-        // move last elect time 1 seconds, prevent pre-vote too frequently if failed
-        long newLastElectTime = raftStatus.getLastElectTime() + TimeUnit.SECONDS.toNanos(1);
-        raftStatus.setLastElectTime(newLastElectTime);
-
         if (readyNodesNotEnough(true)) {
             return;
         }
 
+        RaftUtil.resetElectTimer(raftStatus);
+
         Set<RaftMember> voter = RaftUtil.union(raftStatus.getMembers(), raftStatus.getPreparedMembers());
-        initStatusForVoting(readyCount(voter));
+        initStatusForVoting();
+
         log.info("node ready, start pre vote. groupId={}, term={}, voteId={}",
                 groupId, raftStatus.getCurrentTerm(), currentVoteId);
         startPreVote(voter);
@@ -174,7 +157,7 @@ public class VoteManager {
 
     private void startPreVote(Set<RaftMember> voter) {
         for (RaftMember member : voter) {
-            if (!member.getNode().isSelf() && member.isReady()) {
+            if (member.isReady()) {
                 sendRequest(member, true, 0);
             }
         }
@@ -184,7 +167,7 @@ public class VoteManager {
         VoteReq req = new VoteReq();
         int currentTerm = raftStatus.getCurrentTerm();
         req.setGroupId(groupId);
-        req.setTerm(preVote ? currentTerm + 1 : currentTerm);
+        req.setTerm(currentTerm);
         req.setCandidateId(config.getNodeId());
         req.setLastLogIndex(raftStatus.getLastLogIndex());
         req.setLastLogTerm(raftStatus.getLastLogTerm());
@@ -195,15 +178,28 @@ public class VoteManager {
 
         final int voteIdOfRequest = this.currentVoteId;
 
-        CompletableFuture<ReadFrame<VoteResp>> f = client.sendRequest(member.getNode().getPeer(), wf, RESP_DECODER, timeout);
-        log.info("send {} request. remoteNode={}, groupId={}, term={}, lastLogIndex={}, lastLogTerm={}",
-                preVote ? "pre-vote" : "vote", member.getNode().getNodeId(), groupId,
-                currentTerm, req.getLastLogIndex(), req.getLastLogTerm());
-        f.whenComplete((rf, ex) -> {
-            String fiberName = "vote-resp-processor(" + voteIdOfRequest + "," + member.getNode().getNodeId() + ")";
-            RespProcessFiberFrame initFrame = new RespProcessFiberFrame(rf, ex, member, req, voteIdOfRequest, leaseStartTime);
-            groupConfig.getFiberGroup().fireFiber(fiberName, initFrame);
-        });
+        if (member.getNode().isSelf()) {
+            VoteResp resp = new VoteResp();
+            resp.setVoteGranted(true);
+            resp.setTerm(currentTerm);
+            fireRespProcessFiber(req, resp, null, member, leaseStartTime, voteIdOfRequest);
+        } else {
+            CompletableFuture<ReadFrame<VoteResp>> f = client.sendRequest(member.getNode().getPeer(), wf,
+                    RESP_DECODER, timeout);
+            log.info("send {} request. remoteNode={}, groupId={}, term={}, lastLogIndex={}, lastLogTerm={}",
+                    preVote ? "pre-vote" : "vote", member.getNode().getNodeId(), groupId,
+                    currentTerm, req.getLastLogIndex(), req.getLastLogTerm());
+            f.whenComplete((rf, ex) -> fireRespProcessFiber(req, rf.getBody(),
+                    ex, member, leaseStartTime, voteIdOfRequest));
+        }
+    }
+
+    private void fireRespProcessFiber(VoteReq req, VoteResp resp, Throwable ex, RaftMember member,
+                                      long leaseStartTime, int voteIdOfRequest) {
+        String fiberName = "vote-resp-processor(" + voteIdOfRequest + "," + member.getNode().getNodeId() + ")";
+        RespProcessFiberFrame initFrame = new RespProcessFiberFrame(resp, ex, member,
+                req, voteIdOfRequest, leaseStartTime);
+        groupConfig.getFiberGroup().fireFiber(fiberName, initFrame);
     }
 
     private static int getVoteCount(Set<Integer> members, Set<Integer> votes) {
@@ -216,19 +212,19 @@ public class VoteManager {
         return count;
     }
 
-    private boolean voteSuccess(int nodeId, boolean preVote) {
+    private boolean isElected(int nodeId, boolean preVote) {
         if (!votes.add(nodeId)) {
             return false;
         }
         int quorum = raftStatus.getElectQuorum();
         int voteCount = getVoteCount(raftStatus.getNodeIdOfMembers(), votes);
         if (raftStatus.getPreparedMembers().isEmpty()) {
-            log.info("[{}] {} get {} grant of {}", preVote ? "pre-vote" : "vote", groupId, voteCount, quorum);
+            log.info("[{}] get {} grant of {}", preVote ? "pre-vote" : "vote", voteCount, quorum);
             return voteCount >= quorum;
         } else {
             int jointQuorum = RaftUtil.getElectQuorum(raftStatus.getPreparedMembers().size());
             int jointVoteCount = getVoteCount(raftStatus.getNodeIdOfPreparedMembers(), votes);
-            log.info("[{}] {} get {} grant of {}, joint consensus get {} grant of {}", groupId,
+            log.info("[{}] get {} grant of {}, joint consensus get {} grant of {}",
                     preVote ? "pre-vote" : "vote", voteCount, quorum, jointVoteCount, jointQuorum);
             return voteCount >= quorum && jointVoteCount >= jointQuorum;
         }
@@ -237,19 +233,28 @@ public class VoteManager {
     private class VoteFiberFrame extends FiberFrame<Void> {
 
         private final long electTimeoutNanos = Duration.ofMillis(config.getElectTimeout()).toNanos();
-        private static final long INTERVAL = 200;
+        private final long INTERVAL = new Random().nextInt(150) + 150;
 
         @Override
         public FrameCallResult execute(Void input) {
+            boolean timeout = raftStatus.getTs().getNanoTime() - raftStatus.getLastElectTime() > electTimeoutNanos;
             if (voting) {
-                return Fiber.sleep(INTERVAL, this);
+                if (timeout) {
+                    cancelVote();
+                } else {
+                    return Fiber.sleep(INTERVAL, this);
+                }
             }
-            if (raftStatus.getTs().getNanoTime() - raftStatus.getLastElectTime() > electTimeoutNanos) {
+            if (timeout) {
+                // move last elect time 1 seconds, prevent pre-vote too frequently if failed
+                long newLastElectTime = raftStatus.getLastElectTime() + TimeUnit.SECONDS.toNanos(1);
+                raftStatus.setLastElectTime(newLastElectTime);
+
                 if (RaftUtil.writeNotFinished(raftStatus)) {
                     return RaftUtil.waitWriteFinish(raftStatus, this);
                 }
                 tryStartPreVote();
-                return Fiber.frameReturn();
+                return Fiber.resume(null, this);
             } else {
                 return Fiber.sleep(INTERVAL, this);
             }
@@ -258,16 +263,16 @@ public class VoteManager {
 
     private class RespProcessFiberFrame extends FiberFrame<Void> {
 
-        private final ReadFrame<VoteResp> rf;
+        private final VoteResp resp;
         private final Throwable ex;
         private final RaftMember remoteMember;
         private final VoteReq req;
         private final int voteIdOfRequest;
         private final long leaseStartTime;
 
-        private RespProcessFiberFrame(ReadFrame<VoteResp> rf, Throwable ex, RaftMember remoteMember, VoteReq req,
+        private RespProcessFiberFrame(VoteResp resp, Throwable ex, RaftMember remoteMember, VoteReq req,
                                       int voteIdOfRequest, long leaseStartTime) {
-            this.rf = rf;
+            this.resp = resp;
             this.ex = ex;
             this.remoteMember = remoteMember;
             this.req = req;
@@ -284,11 +289,11 @@ public class VoteManager {
             }
         }
 
-        private boolean voteCheckFail() {
-            if (voteIdOfRequest != currentVoteId) {
+        private boolean voteCheckFail(long oldVoteId) {
+            if (oldVoteId != currentVoteId) {
                 log.info("vote id changed, ignore {} response. remoteNode={}, grant={}",
                         req.isPreVote() ? "preVote" : "vote", remoteMember.getNode().getNodeId(),
-                        rf.getBody().isVoteGranted());
+                        resp.isVoteGranted());
                 return true;
             }
             if (MemberManager.validCandidate(raftStatus, config.getNodeId())) {
@@ -302,18 +307,17 @@ public class VoteManager {
         }
 
         private FrameCallResult processPreVoteResp() {
-            if (voteCheckFail()) {
+            if (voteCheckFail(voteIdOfRequest)) {
                 return Fiber.frameReturn();
             }
             int currentTerm = raftStatus.getCurrentTerm();
             if (ex == null) {
-                VoteResp preVoteResp = rf.getBody();
-                if (preVoteResp.isVoteGranted() && raftStatus.getRole() == RaftRole.follower
-                        && preVoteResp.getTerm() == req.getTerm()) {
+                if (resp.isVoteGranted() && raftStatus.getRole() == RaftRole.follower
+                        && resp.getTerm() == req.getTerm()) {
                     log.info("receive pre-vote grant success. term={}, remoteNode={}, groupId={}",
                             currentTerm, remoteMember.getNode().getNodeId(), groupId);
-                    if (voteSuccess(remoteMember.getNode().getNodeId(), true)) {
-                        log.info("pre-vote success, start elect. groupId={}. term={}", groupId, currentTerm);
+                    if (isElected(remoteMember.getNode().getNodeId(), true)) {
+                        log.info("pre-vote success. groupId={}. term={}", groupId, currentTerm);
                         return startVote();
                     }
                 } else {
@@ -325,7 +329,6 @@ public class VoteManager {
                         currentTerm, remoteMember.getNode().getNodeId(), groupId, ex.toString());
                 // don't send more request for simplification
             }
-            descPending(voteIdOfRequest);
             return Fiber.frameReturn();
         }
 
@@ -337,7 +340,8 @@ public class VoteManager {
 
             Set<RaftMember> voter = RaftUtil.union(raftStatus.getMembers(), raftStatus.getPreparedMembers());
             // add vote id, so rest pre-vote response is ignored
-            initStatusForVoting(voter.size());
+            initStatusForVoting();
+
 
             RaftUtil.resetStatus(raftStatus);
             if (raftStatus.getRole() != RaftRole.candidate) {
@@ -350,11 +354,12 @@ public class VoteManager {
             raftStatus.copyShareStatus();
 
             statusManager.persistAsync(true);
-            return statusManager.waitForce(v -> afterStartVotePersist(voter));
+            int voteIfBeforePersist = currentVoteId;
+            return statusManager.waitForce(v -> afterStartVotePersist(voter, voteIfBeforePersist));
         }
 
-        private FrameCallResult afterStartVotePersist(Set<RaftMember> voter) {
-            if (voteCheckFail()) {
+        private FrameCallResult afterStartVotePersist(Set<RaftMember> voter, int oldVoteId) {
+            if (voteCheckFail(oldVoteId)) {
                 return Fiber.frameReturn();
             }
             if (readyNodesNotEnough(false)) {
@@ -365,54 +370,42 @@ public class VoteManager {
 
             long leaseStartTime = raftStatus.getTs().getNanoTime();
             for (RaftMember member : voter) {
-                if (!member.getNode().isSelf()) {
-                    if (member.isReady()) {
-                        sendRequest(member, false, leaseStartTime);
-                    } else {
-                        descPending(currentVoteId);
-                    }
-                } else {
-                    member.setLastConfirmReqNanos(leaseStartTime);
-                }
+                sendRequest(member, false, leaseStartTime);
             }
             return Fiber.frameReturn();
         }
 
         private FrameCallResult processVoteResp() {
-            if (voteCheckFail()) {
+            if (voteCheckFail(voteIdOfRequest)) {
                 return Fiber.frameReturn();
             }
             if (ex == null) {
-                processVoteResp(rf, remoteMember, req, leaseStartTime);
+                processVoteResp(remoteMember, req);
             } else {
                 log.warn("vote rpc fail. groupId={}, term={}, remote={}, error={}",
                         groupId, req.getTerm(), remoteMember.getNode().getHostPort(), ex.toString());
                 // don't send more request for simplification
             }
-            descPending(voteIdOfRequest);
             return Fiber.frameReturn();
         }
 
-        private void processVoteResp(ReadFrame<VoteResp> rf, RaftMember remoteMember, VoteReq voteReq, long leaseStartTime) {
-            VoteResp voteResp = rf.getBody();
-            int remoteTerm = voteResp.getTerm();
+        private void processVoteResp(RaftMember remoteMember, VoteReq voteReq) {
+            int remoteTerm = resp.getTerm();
             if (remoteTerm < raftStatus.getCurrentTerm()) {
                 log.warn("receive outdated vote resp, ignore, remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
-                        voteResp.getTerm(), voteReq.getTerm(), remoteMember.getNode().getNodeId(), groupId);
+                        resp.getTerm(), voteReq.getTerm(), remoteMember.getNode().getNodeId(), groupId);
             } else if (remoteTerm == raftStatus.getCurrentTerm()) {
                 if (raftStatus.getRole() != RaftRole.candidate) {
                     log.warn("receive vote resp, not candidate, ignore. remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
-                            voteResp.getTerm(), voteReq.getTerm(), remoteMember.getNode().getNodeId(), groupId);
+                            resp.getTerm(), voteReq.getTerm(), remoteMember.getNode().getNodeId(), groupId);
                 } else {
                     log.info("receive vote resp, granted={}, remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
-                            voteResp.isVoteGranted(), voteResp.getTerm(),
+                            resp.isVoteGranted(), resp.getTerm(),
                             voteReq.getTerm(), remoteMember.getNode().getNodeId(), groupId);
-                    if (voteResp.isVoteGranted()) {
-                        votes.add(remoteMember.getNode().getNodeId());
+                    if (resp.isVoteGranted()) {
                         remoteMember.setLastConfirmReqNanos(leaseStartTime);
-
-                        if (voteSuccess(remoteMember.getNode().getNodeId(), false)) {
-                            log.info("vote success, change to leader. groupId={}, term={}", groupId, raftStatus.getCurrentTerm());
+                        if (isElected(remoteMember.getNode().getNodeId(), false)) {
+                            log.info("successfully elected, change to leader. groupId={}, term={}", groupId, raftStatus.getCurrentTerm());
                             RaftUtil.changeToLeader(raftStatus);
                             RaftUtil.updateLease(raftStatus);
                             raftStatus.copyShareStatus();

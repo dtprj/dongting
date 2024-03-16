@@ -121,8 +121,8 @@ public class InitFiberFrame extends FiberFrame<Void> {
             log.error("raft log last index invalid, {}, {}, {}", initResultIndex, snapshotIndex, raftStatus.getCommitIndex());
             throw new RaftException("raft log last index invalid");
         }
-        if (initResultTerm < snapshotTerm || initResultTerm < raftStatus.getCurrentTerm()) {
-            log.error("raft log last term invalid, {}, {}, {}", initResultTerm, snapshotTerm, raftStatus.getCurrentTerm());
+        if (initResultTerm < snapshotTerm) {
+            log.error("raft log last term invalid, {}, {}", initResultTerm, snapshotTerm);
             throw new RaftException("raft log last term invalid");
         }
 
