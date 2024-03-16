@@ -369,8 +369,8 @@ class FileLogLoader implements RaftLog.LogIterator {
                             break;
                         }
                         readBytes += li.getActualBodySize();
-                        item.retain();
-                        result.add(item);
+                        li.retain();
+                        result.add(li);
                         index++;
                     }
                     finish(-1);
