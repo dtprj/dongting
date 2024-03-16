@@ -150,8 +150,8 @@ public class VoteManager {
         Set<RaftMember> voter = RaftUtil.union(raftStatus.getMembers(), raftStatus.getPreparedMembers());
         initStatusForVoting();
 
-        log.info("node ready, start pre vote. groupId={}, term={}, voteId={}",
-                groupId, raftStatus.getCurrentTerm(), currentVoteId);
+        log.info("node ready, start pre vote. groupId={}, term={}, voteId={}, lastIndex={}",
+                groupId, raftStatus.getCurrentTerm(), currentVoteId, raftStatus.getLastLogIndex());
         startPreVote(voter);
     }
 
@@ -366,7 +366,8 @@ public class VoteManager {
                 cancelVote();
                 return Fiber.frameReturn();
             }
-            log.info("start vote. groupId={}, newTerm={}, voteId={}", groupId, raftStatus.getCurrentTerm(), currentVoteId);
+            log.info("start vote. groupId={}, newTerm={}, voteId={}, lastIndex={}", groupId,
+                    raftStatus.getCurrentTerm(), currentVoteId, raftStatus.getLastLogIndex());
 
             long leaseStartTime = raftStatus.getTs().getNanoTime();
             for (RaftMember member : voter) {
