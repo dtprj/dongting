@@ -49,8 +49,7 @@ public abstract class AbstractRaftBizProcessor<T> extends AbstractRaftGroupProce
             errorResp = new EmptyBodyRespFrame(CmdCodes.NOT_RAFT_LEADER);
             RaftNode leader = ((NotLeaderException) root).getCurrentLeader();
             if (leader != null) {
-                String hpStr = leader.getHostPort().getHost() + ":" + leader.getHostPort().getPort();
-                errorResp.setExtra(hpStr.getBytes(StandardCharsets.UTF_8));
+                errorResp.setExtra(String.valueOf(leader.getNodeId()).getBytes(StandardCharsets.UTF_8));
             }
             log.warn("not leader, current leader is {}", leader);
         } else {

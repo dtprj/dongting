@@ -22,18 +22,15 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.Pair;
-import com.github.dtprj.dongting.common.RefCount;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
-import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.NetException;
 import com.github.dtprj.dongting.net.NetTimeoutException;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.NioClientConfig;
-import com.github.dtprj.dongting.net.NioNet;
 import com.github.dtprj.dongting.net.PbIntWriteFrame;
 import com.github.dtprj.dongting.net.Peer;
 import com.github.dtprj.dongting.net.ReadFrame;
@@ -41,16 +38,13 @@ import com.github.dtprj.dongting.net.WriteFrame;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author huangli
@@ -58,102 +52,111 @@ import java.util.concurrent.TimeoutException;
 public class RaftClient extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(RaftClient.class);
     private final NioClient client;
-    private final Map<HostPort, Pair<RefCount, Peer>> peers = new HashMap<>();
+    // key is nodeId
+    private final IntObjMap<NodeInfo> allNodes = new IntObjMap<>();
+    // key is groupId
     private volatile IntObjMap<GroupInfo> groups = new IntObjMap<>();
+
+    private final ReentrantLock lock = new ReentrantLock();
 
     public RaftClient(NioClientConfig nioClientConfig) {
         this.client = new NioClient(nioClientConfig);
     }
 
-    @SuppressWarnings("unused")
-    public synchronized void addOrUpdateGroup(int groupId, List<HostPort> servers) throws NetException {
+    public void addOrUpdateGroup(int groupId, List<RaftNode> servers) throws NetException {
+        lock.lock();
+        try {
+            addOrUpdateGroupInLock(groupId, servers);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private void addOrUpdateGroupInLock(int groupId, List<RaftNode> servers) throws NetException {
         Objects.requireNonNull(servers);
-        if (servers.size() == 0) {
+        if (servers.isEmpty()) {
             throw new IllegalArgumentException("servers is empty");
         }
-        ArrayList<HostPort> needAddList = new ArrayList<>();
-        for (HostPort hp : servers) {
-            Objects.requireNonNull(hp);
-            Pair<RefCount, Peer> peerInfo = peers.get(hp);
-            if (peerInfo == null) {
-                needAddList.add(hp);
+
+        ArrayList<NodeInfo> needAddList = new ArrayList<>();
+        ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
+        for (RaftNode n : servers) {
+            Objects.requireNonNull(n);
+            if (allNodes.get(n.getNodeId()) == null) {
+                CompletableFuture<Peer> f = client.addPeer(n.getHostPort());
+                futures.add(f.thenAccept(peer -> needAddList.add(new NodeInfo(n.getNodeId(), n.getHostPort(), peer))));
             }
         }
-        HashMap<HostPort, Pair<RefCount, Peer>> newPeers = new HashMap<>();
-        if (needAddList.size() > 0) {
+        if (!needAddList.isEmpty()) {
             boolean success = false;
             try {
-                ArrayList<CompletableFuture<Peer>> futures = new ArrayList<>();
-                for (HostPort hp : needAddList) {
-                    futures.add(client.addPeer(hp));
-                }
                 CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get(10, TimeUnit.SECONDS);
-                for (CompletableFuture<Peer> f : futures) {
-                    Peer peer = f.get();
-                    newPeers.put(peer.getEndPoint(), new Pair<>(new RefCount(false), peer));
-                }
                 success = true;
             } catch (InterruptedException e) {
                 DtUtil.restoreInterruptStatus();
                 throw new NetException(e);
-            } catch (ExecutionException e) {
+            } catch (Exception e) {
                 throw new NetException(e);
-            } catch (TimeoutException e) {
-                throw new NetTimeoutException("add peer timeout");
             } finally {
                 if (!success) {
-                    for (HostPort hp : needAddList) {
-                        client.removePeer(hp);
+                    for (NodeInfo n : needAddList) {
+                        client.removePeer(n.getHostPort());
                     }
                 }
             }
         }
 
-        ArrayList<Peer> allPeers = new ArrayList<>();
-        for (HostPort hp : servers) {
-            Pair<RefCount, Peer> peerInfo = peers.get(hp);
-            if (peerInfo != null) {
-                peerInfo.getLeft().retain();
-                allPeers.add(peerInfo.getRight());
-            }
-        }
-        peers.putAll(newPeers);
-        for (Pair<RefCount, Peer> value : newPeers.values()) {
-            allPeers.add(value.getRight());
-        }
-
-        ArrayList<Peer> needRemoveList = new ArrayList<>();
+        ArrayList<NodeInfo> nodeInfoOfGroup = new ArrayList<>();
         GroupInfo oldGroupInfo = groups.get(groupId);
-        if (oldGroupInfo != null) {
-            for (Peer peer : oldGroupInfo.getServers()) {
-                Pair<RefCount, Peer> peerInfo = peers.get(peer.getEndPoint());
-                if (peerInfo.getLeft().release()) {
-                    needRemoveList.add(peer);
-                    peers.remove(peer.getEndPoint());
+        Peer leader = null;
+        for (RaftNode n : servers) {
+            NodeInfo nodeInfo = allNodes.get(n.getNodeId());
+            if (nodeInfo != null) {
+                nodeInfo.getRefCount().retain();
+                nodeInfoOfGroup.add(nodeInfo);
+            }
+            if (oldGroupInfo != null) {
+                Peer oldLeader = oldGroupInfo.getLeader();
+                if (oldLeader != null && oldLeader.getEndPoint().equals(n.getHostPort())) {
+                    // old leader in the new servers list
+                    leader = oldLeader;
                 }
             }
         }
-        this.groups = IntObjMap.copyOnWritePut(groups, groupId, new GroupInfo(groupId, allPeers)).getRight();
-        if (needRemoveList.size() > 0) {
-            for (Peer peer : needRemoveList) {
-                client.removePeer(peer.getEndPoint());
+        for (NodeInfo nodeInfo : needAddList) {
+            nodeInfoOfGroup.add(nodeInfo);
+            allNodes.put(nodeInfo.getNodeId(), nodeInfo);
+        }
+
+        releaseOldGroup(oldGroupInfo);
+
+        GroupInfo gi = new GroupInfo(groupId, nodeInfoOfGroup, leader, null);
+        //noinspection NonAtomicOperationOnVolatileField
+        this.groups = IntObjMap.copyOnWritePut(groups, groupId, gi).getRight();
+    }
+
+    private void releaseOldGroup(GroupInfo oldGroupInfo) {
+        if (oldGroupInfo != null) {
+            for (NodeInfo nodeInfo : oldGroupInfo.getServers()) {
+                if (nodeInfo.getRefCount().release()) {
+                    allNodes.remove(nodeInfo.getNodeId());
+                    client.removePeer(nodeInfo.getPeer());
+                }
             }
         }
     }
 
     @SuppressWarnings("unused")
-    public synchronized void removeGroup(int groupId) throws NetException {
-        Pair<GroupInfo, IntObjMap<GroupInfo>> pair = IntObjMap.copyOnWriteRemove(groups, groupId);
-        GroupInfo oldGroupInfo = pair.getLeft();
-        this.groups = pair.getRight();
+    public void removeGroup(int groupId) throws NetException {
+        lock.lock();
+        try {
+            Pair<GroupInfo, IntObjMap<GroupInfo>> pair = IntObjMap.copyOnWriteRemove(groups, groupId);
+            GroupInfo oldGroupInfo = pair.getLeft();
+            this.groups = pair.getRight();
 
-        if (oldGroupInfo != null) {
-            for (Peer peer : oldGroupInfo.getServers()) {
-                Pair<RefCount, Peer> peerInfo = peers.get(peer.getEndPoint());
-                if (peerInfo.getLeft().release()) {
-                    peers.remove(peer.getEndPoint());
-                }
-            }
+            releaseOldGroup(oldGroupInfo);
+        } finally {
+            lock.unlock();
         }
     }
 
@@ -161,20 +164,18 @@ public class RaftClient extends AbstractLifeCircle {
                                                            Decoder<T> decoder, DtTime timeout) {
         GroupInfo groupInfo = groups.get(groupId);
         if (groupInfo == null) {
-            return DtUtil.failedFuture(new NoSuchGroupException());
+            return DtUtil.failedFuture(new NoSuchGroupException(groupId));
         }
-        Pair<Peer, CompletableFuture<Peer>> leaderInfo = groupInfo.getLeader();
         CompletableFuture<ReadFrame<T>> finalResult = new CompletableFuture<>();
         CompletableFuture<ReadFrame<T>> result;
-        if (leaderInfo != null && leaderInfo.getLeft() != null) {
-            Peer leader = leaderInfo.getLeft();
-            result = client.sendRequest(leader, request, decoder, timeout);
+        if (groupInfo.getLeader() != null) {
+            result = client.sendRequest(groupInfo.getLeader(), request, decoder, timeout);
         } else {
             CompletableFuture<Peer> leaderFuture;
-            if (leaderInfo == null) {
-                leaderFuture = updateLeaderInfo(groupInfo, timeout);
+            if (groupInfo.getLeaderFuture() == null) {
+                leaderFuture = updateLeaderInfo(groupId);
             } else {
-                leaderFuture = leaderInfo.getRight();
+                leaderFuture = groupInfo.getLeaderFuture();
             }
             result = leaderFuture.thenCompose(leader -> {
                 if (leader == null) {
@@ -197,9 +198,8 @@ public class RaftClient extends AbstractLifeCircle {
             if (ex instanceof NetCodeException) {
                 NetCodeException ncEx = (NetCodeException) ex;
                 if (ncEx.getCode() == CmdCodes.NOT_RAFT_LEADER) {
-                    Peer newLeader = parseLeaderFromExtra(ncEx.getRespFrame(), groupInfo);
+                    Peer newLeader = updateLeaderFromExtra(ncEx.getRespFrame(), groupInfo);
                     if (newLeader != null) {
-                        groupInfo.setLeader(new Pair<>(newLeader, null));
                         if (timeout.isTimeout()) {
                             finalResult.completeExceptionally(new NetTimeoutException("timeout after find new leader"));
                         } else {
@@ -220,79 +220,126 @@ public class RaftClient extends AbstractLifeCircle {
         return finalResult;
     }
 
-    private synchronized CompletableFuture<Peer> updateLeaderInfo(GroupInfo groupInfo, DtTime timeout) {
-        Pair<Peer, CompletableFuture<Peer>> leaderInfo = groupInfo.getLeader();
-        if (leaderInfo == null) {
+    private CompletableFuture<Peer> updateLeaderInfo(int groupId) {
+        lock.lock();
+        try {
+            GroupInfo gi = groups.get(groupId);
+            if (gi == null) {
+                return DtUtil.failedFuture(new NoSuchGroupException(groupId));
+            }
+            if (gi.getLeader() != null) {
+                return CompletableFuture.completedFuture(gi.getLeader());
+            }
+            if (gi.getLeaderFuture() != null) {
+                return gi.getLeaderFuture();
+            }
             CompletableFuture<Peer> f = new CompletableFuture<>();
-            leaderInfo = new Pair<>(null, f);
-            groupInfo.setLeader(leaderInfo);
-            findLeader(f, groupInfo, timeout);
+            GroupInfo newGroupInfo = new GroupInfo(groupId, gi.getServers(), null, f);
+            groups.put(groupId, newGroupInfo);
+            Iterator<NodeInfo> it = newGroupInfo.getServers().iterator();
+            findLeader(newGroupInfo, it);
             return f;
-        } else {
-            return leaderInfo.getRight();
+        } finally {
+            lock.unlock();
         }
     }
 
-    private void findLeader(CompletableFuture<Peer> f, GroupInfo groupInfo, DtTime timeout) {
-        Iterator<Peer> it = groupInfo.getServers().iterator();
-        findLeader0(f, groupInfo, timeout, it);
-    }
-
-    private void findLeader0(CompletableFuture<Peer> f, GroupInfo groupInfo, DtTime timeout, Iterator<Peer> it) {
-        if (timeout.isTimeout()) {
-            groupInfo.setLeader(null);
-            f.completeExceptionally(new NetTimeoutException("find leader timeout"));
+    private void findLeader(GroupInfo groupInfo, Iterator<NodeInfo> it) {
+        GroupInfo currentGroupInfo = groups.get(groupInfo.getGroupId());
+        if (currentGroupInfo != groupInfo) {
+            // group info changed, stop current find process
+            if (currentGroupInfo.getLeader() != null) {
+                groupInfo.getLeaderFuture().complete(currentGroupInfo.getLeader());
+            } else {
+                CompletableFuture<Peer> newLeaderFuture = currentGroupInfo.getLeaderFuture();
+                if (newLeaderFuture == null) {
+                    newLeaderFuture = updateLeaderInfo(groupInfo.getGroupId());
+                }
+                // use new leader future to complete the old one
+                newLeaderFuture.whenComplete((leader, ex) -> {
+                    if (ex != null) {
+                        groupInfo.getLeaderFuture().completeExceptionally(ex);
+                    } else {
+                        groupInfo.getLeaderFuture().complete(leader);
+                    }
+                });
+            }
             return;
         }
         if (!it.hasNext()) {
-            groupInfo.setLeader(null);
-            f.complete(null);
+            groupInfo.getLeaderFuture().complete(null);
+
+            // set new group info, to trigger next find
+            GroupInfo newGroupInfo = new GroupInfo(groupInfo.getGroupId(),
+                    groupInfo.getServers(), null, null);
+            groups.put(groupInfo.getGroupId(), newGroupInfo);
             return;
         }
-        Peer p = it.next();
+        NodeInfo node = it.next();
         PbIntWriteFrame req = new PbIntWriteFrame(groupInfo.getGroupId());
         req.setCommand(Commands.RAFT_QUERY_LEADER);
-        client.sendRequest(p, req, PbNoCopyDecoder.SIMPLE_STR_DECODER, timeout).whenComplete((rf, ex) -> {
+        DtTime rpcTimeout = new DtTime(3, TimeUnit.SECONDS);
+        client.sendRequest(node.getPeer(), req, PbNoCopyDecoder.SIMPLE_INT_DECODER, rpcTimeout)
+                .whenComplete((rf, ex) -> processLeaderQueryResult(groupInfo, it, rf, ex, node));
+    }
+
+    private void processLeaderQueryResult(GroupInfo groupInfo, Iterator<NodeInfo> it,
+                                          ReadFrame<Integer> rf, Throwable ex, NodeInfo node) {
+        lock.lock();
+        try {
             if (ex != null) {
-                log.warn("query leader from {} fail: {}", p.getEndPoint(), ex.toString());
-                findLeader0(f, groupInfo, timeout, it);
+                log.warn("query leader from {} fail: {}", node.getPeer().getEndPoint(), ex.toString());
+                findLeader(groupInfo, it);
             } else {
-                Peer leader = parseLeader(rf, groupInfo);
-                if (leader != null) {
-                    groupInfo.setLeader(new Pair<>(leader, null));
-                    f.complete(leader);
+                if (rf.getBody() == null || rf.getBody() < 0) {
+                    log.error("query leader from {} fail: {}", node.getPeer().getEndPoint(), rf.getBody());
+                    findLeader(groupInfo, it);
                 } else {
-                    findLeader0(f, groupInfo, timeout, it);
+                    Peer leader = parseLeader(groupInfo, rf.getBody());
+                    if (leader != null) {
+                        groupInfo.getLeaderFuture().complete(leader);
+                    } else {
+                        findLeader(groupInfo, it);
+                    }
                 }
             }
-        });
-    }
-
-    private Peer parseLeaderFromExtra(ReadFrame<?> frame, GroupInfo groupInfo) {
-        byte[] bs = frame.getExtra();
-        if (bs == null) {
-            return null;
+        } finally {
+            lock.unlock();
         }
-        String s = new String(bs, StandardCharsets.UTF_8);
-        return parseLeader(groupInfo, s);
     }
 
-    private Peer parseLeader(ReadFrame<String> frame, GroupInfo groupInfo) {
-        String s = frame.getBody();
-        if (s == null) {
-            return null;
+    private Peer updateLeaderFromExtra(ReadFrame<?> frame, GroupInfo groupInfo) {
+        lock.lock();
+        try {
+            GroupInfo currentGroupInfo = groups.get(groupInfo.getGroupId());
+            if (currentGroupInfo != groupInfo) {
+                // group info changed, drop the result
+                return null;
+            }
+            byte[] bs = frame.getExtra();
+            if (bs == null) {
+                return null;
+            }
+            String s = new String(bs, StandardCharsets.UTF_8);
+            Peer leader = parseLeader(groupInfo, Integer.parseInt(s));
+            if (leader != null) {
+                GroupInfo newGroupInfo = new GroupInfo(groupInfo.getGroupId(),
+                        groupInfo.getServers(), leader, null);
+                groups.put(groupInfo.getGroupId(), newGroupInfo);
+            }
+            return leader;
+        } finally {
+            lock.unlock();
         }
-        return parseLeader(groupInfo, s);
     }
 
-    private static Peer parseLeader(GroupInfo groupInfo, String s) {
-        HostPort hp = NioNet.parseHostPort(s);
-        for (Peer p : groupInfo.getServers()) {
-            if (p.getEndPoint().equals(hp)) {
-                return p;
+    private Peer parseLeader(GroupInfo groupInfo, int leaderId) {
+        for (NodeInfo ni : groupInfo.getServers()) {
+            if (ni.getNodeId() == leaderId) {
+                return ni.getPeer();
             }
         }
-        log.warn("leader {} not in group {}", s, groupInfo.getGroupId());
+        log.warn("leader {} not in group {}", leaderId, groupInfo.getGroupId());
         return null;
     }
 

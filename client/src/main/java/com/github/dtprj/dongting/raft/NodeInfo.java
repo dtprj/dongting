@@ -15,41 +15,39 @@
  */
 package com.github.dtprj.dongting.raft;
 
+import com.github.dtprj.dongting.common.RefCount;
+import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.Peer;
-
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * @author huangli
  */
-class GroupInfo {
-    private final int groupId;
-    private final List<NodeInfo> servers;
-    private final Peer leader;
-    private final CompletableFuture<Peer> leaderFuture;
+class NodeInfo {
+    private final int nodeId;
+    private final HostPort hostPort;
+    private final RefCount refCount = new RefCount();
+    private final Peer peer;
 
-    public GroupInfo(int groupId, List<NodeInfo> servers, Peer leader, CompletableFuture<Peer> leaderFuture) {
-        this.groupId = groupId;
-        this.servers = servers;
-        this.leader = leader;
-        this.leaderFuture = leaderFuture;
+    public NodeInfo(int nodeId, HostPort hostPort, Peer peer) {
+        this.nodeId = nodeId;
+        this.hostPort = hostPort;
+        this.peer = peer;
     }
 
-    public int getGroupId() {
-        return groupId;
+    public int getNodeId() {
+        return nodeId;
     }
 
-    public List<NodeInfo> getServers() {
-        return servers;
+    public HostPort getHostPort() {
+        return hostPort;
     }
 
-    public Peer getLeader() {
-        return leader;
+    public RefCount getRefCount() {
+        return refCount;
     }
 
-    public CompletableFuture<Peer> getLeaderFuture() {
-        return leaderFuture;
+    public Peer getPeer() {
+        return peer;
     }
-
 }
+

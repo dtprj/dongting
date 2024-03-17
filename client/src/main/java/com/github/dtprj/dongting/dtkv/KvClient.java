@@ -119,4 +119,8 @@ public class KvClient extends AbstractLifeCircle {
     protected void doStop(DtTime timeout, boolean force) {
         raftClient.stop(timeout);
     }
+
+    public RaftClient getRaftClient() {
+        return raftClient;
+    }
 }

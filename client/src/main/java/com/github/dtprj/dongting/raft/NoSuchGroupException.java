@@ -20,4 +20,8 @@ package com.github.dtprj.dongting.raft;
  */
 public class NoSuchGroupException extends RaftException {
     private static final long serialVersionUID = -1812071008632894155L;
+
+    public NoSuchGroupException(int groupId) {
+        super("No such group: " + groupId);
+    }
 }
