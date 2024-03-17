@@ -66,7 +66,7 @@ public abstract class Frame {
         return seq;
     }
 
-    public void setSeq(int seq) {
+    void setSeq(int seq) {
         this.seq = seq;
     }
 
@@ -86,11 +86,11 @@ public abstract class Frame {
         this.msg = msg;
     }
 
-    public long getTimeout() {
+    long getTimeout() {
         return timeout;
     }
 
-    public void setTimeout(long timeout) {
+    void setTimeout(long timeout) {
         this.timeout = timeout;
     }
 
