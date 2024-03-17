@@ -300,13 +300,9 @@ public class NioClientTest {
         assertEquals(wf.getSeq(), rf.getSeq());
         assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
-        if (bs.length != 0) {
-            RefBuffer rc = rf.getBody();
-            assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
-            rc.release();
-        } else {
-            assertNull(rf.getBody());
-        }
+        RefBuffer rc = rf.getBody();
+        assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
+        rc.release();
     }
 
     private static CompletableFuture<Void> sendAsync(int maxBodySize, NioClient client, long timeoutMillis) {

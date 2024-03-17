@@ -199,23 +199,19 @@ public class RaftClient extends AbstractLifeCircle {
                 NetCodeException ncEx = (NetCodeException) ex;
                 if (ncEx.getCode() == CmdCodes.NOT_RAFT_LEADER) {
                     Peer newLeader = updateLeaderFromExtra(ncEx.getRespFrame(), groupInfo);
-                    if (newLeader != null) {
-                        if (timeout.isTimeout()) {
-                            finalResult.completeExceptionally(new NetTimeoutException("timeout after find new leader"));
-                        } else {
-                            client.sendRequest(newLeader, request, decoder, timeout).whenComplete((rf2, ex2) -> {
-                                if (ex2 == null) {
-                                    finalResult.complete(rf2);
-                                } else {
-                                    finalResult.completeExceptionally(ex2);
-                                }
-                            });
-                        }
+                    if (newLeader != null && !timeout.isTimeout()) {
+                        client.sendRequest(newLeader, request, decoder, timeout).whenComplete((rf2, ex2) -> {
+                            if (ex2 == null) {
+                                finalResult.complete(rf2);
+                            } else {
+                                finalResult.completeExceptionally(ex2);
+                            }
+                        });
                         return;
                     }
                 }
-                finalResult.completeExceptionally(ex);
             }
+            finalResult.completeExceptionally(ex);
         });
         return finalResult;
     }
@@ -292,7 +288,7 @@ public class RaftClient extends AbstractLifeCircle {
                 findLeader(groupInfo, it);
             } else {
                 if (rf.getBody() == null || rf.getBody() < 0) {
-                    log.error("query leader from {} fail: {}", node.getPeer().getEndPoint(), rf.getBody());
+                    log.error("query leader from {} fail, leader id illegal: {}", node.getPeer().getEndPoint(), rf.getBody());
                     findLeader(groupInfo, it);
                 } else {
                     Peer leader = parseLeader(groupInfo, rf.getBody());
@@ -336,6 +332,7 @@ public class RaftClient extends AbstractLifeCircle {
     private Peer parseLeader(GroupInfo groupInfo, int leaderId) {
         for (NodeInfo ni : groupInfo.getServers()) {
             if (ni.getNodeId() == leaderId) {
+                log.info("group {} find leader: {}, {}", groupInfo.getGroupId(), leaderId, ni.getHostPort());
                 return ni.getPeer();
             }
         }
