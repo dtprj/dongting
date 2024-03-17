@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.SmallNoCopyWriteFrame;
@@ -63,6 +64,7 @@ public class KvClient extends AbstractLifeCircle {
                         + PbUtil.accurateLengthDelimitedSize(3, value.length);
             }
         };
+        wf.setCommand(Commands.DTKV_PUT);
         return raftClient.sendRequest(groupId, wf, Decoder.VOID_DECODER, timeout)
                 .thenApply(r -> null);
     }
@@ -85,6 +87,7 @@ public class KvClient extends AbstractLifeCircle {
                         + PbUtil.accurateLengthDelimitedSize(2, keyBytes.length);
             }
         };
+        wf.setCommand(Commands.DTKV_GET);
         return raftClient.sendRequest(groupId, wf, ByteArrayDecoder.INSTANCE, timeout)
                 .thenApply(ReadFrame::getBody);
     }
@@ -107,6 +110,7 @@ public class KvClient extends AbstractLifeCircle {
                         + PbUtil.accurateLengthDelimitedSize(2, keyBytes.length);
             }
         };
+        wf.setCommand(Commands.DTKV_REMOVE);
         return raftClient.sendRequest(groupId, wf, PbNoCopyDecoder.SIMPLE_INT_DECODER, timeout)
                 .thenApply(f -> f.getBody() != null && f.getBody() != 0);
     }
