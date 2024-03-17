@@ -94,7 +94,7 @@ class IoChannelQueue {
         if (subQueue.size() == 1 && !writing) {
             registerForWrite.run();
         }
-        workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() + 1);
+        workerStatus.addFramesToWrite(1);
     }
 
     private void fail(WriteData writeData, Supplier<NetException> ex) {
@@ -106,7 +106,7 @@ class IoChannelQueue {
 
     public void cleanSubQueue() {
         if (framesInBuffer > 0) {
-            workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() - framesInBuffer);
+            workerStatus.addFramesToWrite(-framesInBuffer);
         }
         if (this.writeBuffer != null) {
             directPool.release(this.writeBuffer);
@@ -114,13 +114,13 @@ class IoChannelQueue {
         }
 
         if (lastWriteData != null) {
-            workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() - 1);
+            workerStatus.addFramesToWrite(-1);
             fail(lastWriteData, () -> new NetException("channel closed, cancel request still in IoChannelQueue. 1"));
         }
         WriteData wd;
         while ((wd = subQueue.pollFirst()) != null) {
             fail(wd, () -> new NetException("channel closed, cancel request still in IoChannelQueue. 2"));
-            workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() - 1);
+            workerStatus.addFramesToWrite(-1);
         }
     }
 
@@ -131,7 +131,7 @@ class IoChannelQueue {
                 return writeBuffer;
             } else {
                 // current buffer write finished
-                workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() - framesInBuffer);
+                workerStatus.addFramesToWrite(-framesInBuffer);
                 directPool.release(writeBuffer);
                 this.writeBuffer = null;
                 framesInBuffer = 0;
@@ -187,7 +187,7 @@ class IoChannelQueue {
                 }
                 wd.getData().clean();
                 wd = null;
-                workerStatus.setFramesToWrite(workerStatus.getFramesToWrite() - 1);
+                workerStatus.addFramesToWrite(-1);
             }
             encodeContext.setStatus(null);
             // channel will be closed

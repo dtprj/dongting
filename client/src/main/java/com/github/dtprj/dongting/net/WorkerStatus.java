@@ -78,8 +78,8 @@ class WorkerStatus {
         return framesToWrite;
     }
 
-    public void setFramesToWrite(int framesToWrite) {
-        this.framesToWrite = framesToWrite;
+    public void addFramesToWrite(int delta) {
+        this.framesToWrite = framesToWrite + delta;
     }
 
     public Timestamp getTs() {
