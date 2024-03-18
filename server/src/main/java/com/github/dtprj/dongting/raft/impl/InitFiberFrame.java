@@ -60,6 +60,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
     protected FrameCallResult handle(Throwable ex) {
         log.error("raft group init failed, groupId={}", groupConfig.getGroupId(), ex);
         prepareFuture.completeExceptionally(ex);
+        getFiberGroup().requestShutdown();
         return Fiber.frameReturn();
     }
 
