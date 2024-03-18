@@ -294,6 +294,7 @@ class LogAppender {
             if (li.getActualHeaderSize() > 0) {
                 crc32c.reset();
                 try {
+                    int totalEncodeLen = 0;
                     while (true) {
                         int startPos = buffer.position();
                         boolean finish;
@@ -305,8 +306,12 @@ class LogAppender {
                             //noinspection unchecked
                             finish = encoder.encode(encodeContext, buffer, li.getHeader());
                         }
+                        totalEncodeLen += buffer.position() - startPos;
                         RaftUtil.updateCrc(crc32c, buffer, startPos, buffer.position() - startPos);
                         if (finish) {
+                            if(totalEncodeLen != li.getActualHeaderSize()){
+                                throw new RaftException("encode problem, totalEncodeLen != li.getActualHeaderSize()");
+                            }
                             break;
                         } else {
                             buffer = doWrite(file, buffer);
@@ -327,6 +332,7 @@ class LogAppender {
             if (li.getActualBodySize() > 0) {
                 crc32c.reset();
                 try {
+                    int totalEncodeLen = 0;
                     while (true) {
                         int startPos = buffer.position();
                         boolean finish;
@@ -338,8 +344,12 @@ class LogAppender {
                             //noinspection unchecked
                             finish = encoder.encode(encodeContext, buffer, li.getBody());
                         }
+                        totalEncodeLen += buffer.position() - startPos;
                         RaftUtil.updateCrc(crc32c, buffer, startPos, buffer.position() - startPos);
                         if (finish) {
+                            if(totalEncodeLen != li.getActualBodySize()){
+                                throw new RaftException("encode problem, totalEncodeLen != li.getActualBodySize()");
+                            }
                             break;
                         } else {
                             buffer = doWrite(file, buffer);
