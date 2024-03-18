@@ -131,9 +131,9 @@ class LogFileQueue extends FileQueue {
                             + ", restoreIndex=" + restoreIndex);
                 }
 
-                log.info("restore finished. lastTerm={}, lastIndex={}, lastPos={}, lastFile={}",
+                log.info("restore finished. lastTerm={}, lastIndex={}, lastPos={}, lastFile={}, totalRead={}",
                         restorer.previousTerm, restorer.previousIndex, writePos,
-                        queue.get(queue.size() - 1).getFile().getPath());
+                        queue.get(queue.size() - 1).getFile().getPath(), restorer.restoreCount);
                 initLogAppender(restorer.previousIndex + 1, writePos);
                 setResult(restorer.previousTerm);
                 return Fiber.frameReturn();

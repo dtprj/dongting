@@ -62,6 +62,8 @@ class Restorer {
     long previousIndex;
     int previousTerm;
 
+    int restoreCount;
+
     public Restorer(IdxOps idxOps, LogFileQueue logFileQueue, long restoreIndex,
                     long restoreStartPos, long firstValidPos) {
         this.idxOps = idxOps;
@@ -310,6 +312,7 @@ class Restorer {
         if (newState == STATE_ITEM_HEADER) {
             this.previousTerm = header.term;
             this.previousIndex = header.index;
+            this.restoreCount++;
         }
         state = newState;
         dataReadLength = 0;
