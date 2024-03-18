@@ -275,7 +275,13 @@ class LogAppender {
                     buffer = doWrite(file, buffer);
                 }
                 int len = LogHeader.writeHeader(crc32c, buffer, li);
+                if (!buffer.hasRemaining()) {
+                    buffer = doWrite(file, buffer);
+                }
                 buffer = encodeBizHeader(li, buffer, file);
+                if (!buffer.hasRemaining()) {
+                    buffer = doWrite(file, buffer);
+                }
                 buffer = encodeBizBody(li, buffer, file);
                 idxOps.put(li.getIndex(), dataPos);
                 dataPos += len;

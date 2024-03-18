@@ -42,7 +42,11 @@ public class ByteArrayEncoder implements Encoder<byte[]> {
         int count = Math.min(buffer.remaining(), totalLen - pos);
         buffer.put(data, pos, count);
 
-        return pos + count >= totalLen;
+        boolean finish = pos + count >= totalLen;
+        if (!finish) {
+            context.setStatus(pos + count);
+        }
+        return finish;
     }
 
     @Override
