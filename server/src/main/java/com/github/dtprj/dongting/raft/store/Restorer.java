@@ -205,10 +205,11 @@ class Restorer {
     private int crcFail(LogFile lf) {
         if (restoreIndexChecked) {
             if (header.totalLen == 0) {
-                log.info("reach end of file. file={}, pos={}", lf.getFile().getPath(), itemStartPosOfFile);
+                log.info("reach end of file. file={}, pos={}, index={}, term={}",
+                        lf.getFile().getPath(), itemStartPosOfFile, header.index, header.term);
             } else {
-                log.warn("reach end of file. last write maybe not finished. file={}, pos={}",
-                        lf.getFile().getPath(), itemStartPosOfFile);
+                log.warn("reach end of file. last write maybe not finished. file={}, pos={}, index={}, term={}",
+                        lf.getFile().getPath(), itemStartPosOfFile, header.index, header.term);
             }
             return RT_RESTORE_FINISHED;
         } else {
