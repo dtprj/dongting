@@ -277,8 +277,6 @@ class Restorer {
             throwEx("invalid term", lf, itemStartPosOfFile);
         }
 
-        this.previousTerm = header.term;
-        this.previousIndex = header.index;
         changeState(STATE_BIZ_HEADER);
         return RT_CONTINUE_READ;
     }
@@ -308,6 +306,10 @@ class Restorer {
     }
 
     private void changeState(int newState) {
+        if (newState == STATE_ITEM_HEADER) {
+            this.previousTerm = header.term;
+            this.previousIndex = header.index;
+        }
         state = newState;
         dataReadLength = 0;
         crc32c.reset();
