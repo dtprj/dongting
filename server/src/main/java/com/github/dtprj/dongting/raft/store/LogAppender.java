@@ -368,7 +368,8 @@ class LogAppender {
             // tryLock() will success immediately since we lock the file in afterPosReady()
             file.getLock().readLock().tryLock();
             task.getFuture().registerCallback((r, ex) -> {
-                //release lock in processWriteResult() since we should unlock in same fiber
+                // release lock in processWriteResult() since we should unlock in same fiber.
+                // unlock in processWriteResult
                 groupConfig.getDirectPool().release(task.getIoBuffer());
                 raftStatus.getDataArrivedCondition().signal(appendFiber);
             });
