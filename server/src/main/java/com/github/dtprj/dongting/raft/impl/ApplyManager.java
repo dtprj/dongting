@@ -119,7 +119,10 @@ public class ApplyManager {
         try {
             RaftInput input = rt.getInput();
             Object r = stateMachine.exec(index, input);
-            rt.getFuture().complete(new RaftOutput(index, r));
+            CompletableFuture<RaftOutput> future = rt.getFuture();
+            if (future != null) {
+                future.complete(new RaftOutput(index, r));
+            }
         } catch (Throwable ex) {
             if (rt.getFuture() != null) {
                 rt.getFuture().completeExceptionally(ex);
