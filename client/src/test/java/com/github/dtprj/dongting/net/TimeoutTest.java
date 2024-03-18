@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.codec.RefBufferDecoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.MockDtTime;
 import com.github.dtprj.dongting.common.TestUtil;
+import com.github.dtprj.dongting.log.BugLog;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -120,15 +121,19 @@ public class TimeoutTest {
     @Test
     public void dropBeforeRequestSendTest() throws Exception {
         setup(() -> registerDelayPingProcessor(null, null));
-        try {
-            DtTime deadline = new DtTime(System.nanoTime() - Duration.ofSeconds(1).toNanos(), 1, TimeUnit.NANOSECONDS);
-            CompletableFuture<?> f1 = send(deadline);
-            f1.get(5, TimeUnit.SECONDS);
-            fail();
-        } catch (ExecutionException e) {
-            assertEquals(NetTimeoutException.class, e.getCause().getClass());
-            assertTrue(e.getCause().getMessage().contains("timeout before send"), e.getCause().getMessage());
+        BugLog.BUG = false;
+        for (int i = 0; i < 3; i++) {
+            try {
+                DtTime deadline = new DtTime(System.nanoTime() - Duration.ofSeconds(1).toNanos(), 1, TimeUnit.NANOSECONDS);
+                CompletableFuture<?> f1 = send(deadline);
+                f1.get(5, TimeUnit.SECONDS);
+                fail();
+            } catch (ExecutionException e) {
+                assertEquals(NetTimeoutException.class, e.getCause().getClass());
+                assertTrue(e.getCause().getMessage().contains("timeout before send"), e.getCause().getMessage());
+            }
         }
+        assertFalse(BugLog.BUG);
         assertEquals(1, client.semaphore.availablePermits());
         //ensure connection status is correct after timeout
         NioServerClientTest.invoke(client);

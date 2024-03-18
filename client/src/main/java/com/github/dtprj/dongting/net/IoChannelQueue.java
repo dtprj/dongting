@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -34,6 +35,10 @@ import java.util.function.Supplier;
  */
 class IoChannelQueue {
     private static final DtLog log = DtLogs.getLogger(IoChannelQueue.class);
+
+    private static final int ENCODE_NOT_FINISH = 1;
+    private static final int ENCODE_FINISH = 2;
+    private static final int ENCODE_CANCEL = 3;
 
     private static final int MAX_BUFFER_SIZE = 512 * 1024;
     private final NioConfig config;
@@ -104,7 +109,7 @@ class IoChannelQueue {
         writeData.getData().clean();
     }
 
-    public void cleanSubQueue() {
+    public void cleanChannelQueue() {
         if (framesInBuffer > 0) {
             workerStatus.addFramesToWrite(-framesInBuffer);
         }
@@ -148,49 +153,47 @@ class IoChannelQueue {
         WriteData wd = this.lastWriteData;
         try {
             while (!subQueue.isEmpty() || wd != null) {
-                boolean encodeFinish;
+                int encodeResult;
                 if (wd == null) {
                     wd = subQueue.pollFirst();
-                    encodeFinish = encode(buf, wd, roundTime);
+                    encodeResult = encode(buf, wd, roundTime);
                 } else {
-                    encodeFinish = doEncode(buf, wd);
+                    encodeResult = doEncode(buf, wd);
                 }
-                if (encodeFinish) {
-                    framesInBuffer++;
-                    wd.getData().clean();
-                    subQueueBytes -= wd.getEstimateSize();
-                    if (subQueueBytes < 0) {
-                        subQueueBytes = 0;
-                    }
-                    WriteFrame f = wd.getData();
-                    if (f.getFrameType() == FrameType.TYPE_REQ) {
-                        long key = BitUtil.toLong(dtc.getChannelIndexInWorker(), f.getSeq());
-                        WriteData old = workerStatus.getPendingRequests().put(key, wd);
-                        if (old != null) {
-                            String errMsg = "dup seq: old=" + old.getData() + ", new=" + f;
-                            log.error(errMsg);
-                            fail(old, () -> new NetException(errMsg));
-                        }
-                    }
-                    encodeContext.setStatus(null);
-                    wd = null;
-                } else {
+                if (encodeResult == ENCODE_NOT_FINISH) {
                     return flipAndReturnBuffer(buf);
+                } else {
+                    if (encodeResult == ENCODE_FINISH) {
+                        WriteFrame f = wd.getData();
+                        if (f.getFrameType() == FrameType.TYPE_REQ) {
+                            long key = BitUtil.toLong(dtc.getChannelIndexInWorker(), f.getSeq());
+                            WriteData old = workerStatus.getPendingRequests().put(key, wd);
+                            if (old != null) {
+                                String errMsg = "dup seq: old=" + old.getData() + ", new=" + f;
+                                BugLog.getLog().error(errMsg);
+                                fail(old, () -> new NetException(errMsg));
+                            }
+                        }
+                        framesInBuffer++;
+                    } else {
+                        // cancel
+                        workerStatus.addFramesToWrite(-1);
+                    }
+
+                    subQueueBytes = Math.max(0, subQueueBytes - wd.getEstimateSize());
+                    try {
+                        wd.getData().clean();
+                    } finally {
+                        encodeContext.setStatus(null);
+                        wd = null;
+                    }
                 }
             }
             subQueueBytes = 0;
             return flipAndReturnBuffer(buf);
         } catch (RuntimeException | Error e) {
-            if (wd != null) {
-                if (wd.getFuture() != null) {
-                    wd.getFuture().completeExceptionally(e);
-                }
-                wd.getData().clean();
-                wd = null;
-                workerStatus.addFramesToWrite(-1);
-            }
             encodeContext.setStatus(null);
-            // channel will be closed
+            // channel will be closed, and cleanChannelQueue will be called
             throw e;
         } finally {
             this.lastWriteData = wd;
@@ -210,7 +213,7 @@ class IoChannelQueue {
         }
     }
 
-    private boolean encode(ByteBuffer buf, WriteData wd, Timestamp roundTime) {
+    private int encode(ByteBuffer buf, WriteData wd, Timestamp roundTime) {
         WriteFrame f = wd.getData();
         boolean request = f.getFrameType() == FrameType.TYPE_REQ;
         DtTime t = wd.getTimeout();
@@ -227,7 +230,7 @@ class IoChannelQueue {
                 log.info("response timeout before send: {}ms, seq={}, channel={}",
                         t.getTimeout(TimeUnit.MILLISECONDS), f.getSeq(), wd.getDtc().getChannel());
             }
-            return true;
+            return ENCODE_CANCEL;
         }
 
         if (request) {
@@ -239,9 +242,9 @@ class IoChannelQueue {
         return doEncode(buf, wd);
     }
 
-    private boolean doEncode(ByteBuffer buf, WriteData wd) {
+    private int doEncode(ByteBuffer buf, WriteData wd) {
         WriteFrame wf = wd.getData();
-        return wf.encode(encodeContext, buf);
+        return wf.encode(encodeContext, buf) ? ENCODE_FINISH : ENCODE_NOT_FINISH;
     }
 
     public void setWriting(boolean writing) {

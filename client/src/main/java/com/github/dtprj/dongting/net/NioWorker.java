@@ -295,9 +295,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             }
         } catch (Exception e) {
             if (e instanceof IOException) {
-                log.warn("{} error: {}", stage, e.toString());
+                log.warn("{} error, channel will close: {}", stage, e.toString());
             } else {
-                log.warn("{} error: {}", stage, e);
+                log.warn("{} error, channel will close: {}", stage, e);
             }
             closeChannelBySelKey(key);
         }
@@ -556,7 +556,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 tempSortList.clear();
             }
         }
-        dtc.getSubQueue().cleanSubQueue();
+        dtc.getSubQueue().cleanChannelQueue();
     }
 
     private void closeChannel0(SocketChannel sc) {

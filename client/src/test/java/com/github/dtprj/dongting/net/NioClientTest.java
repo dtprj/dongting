@@ -799,7 +799,7 @@ public class NioClientTest {
                 f.get(tick(5), TimeUnit.SECONDS);
                 fail();
             } catch (ExecutionException e) {
-                assertEquals(MockRuntimeException.class, DtUtil.rootCause(e).getClass());
+                assertTrue(e.getMessage().contains("channel closed, cancel request"));
             }
         }
 

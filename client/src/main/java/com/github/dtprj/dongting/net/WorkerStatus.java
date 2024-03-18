@@ -79,7 +79,7 @@ class WorkerStatus {
     }
 
     public void addFramesToWrite(int delta) {
-        this.framesToWrite = framesToWrite + delta;
+        this.framesToWrite = Math.max(framesToWrite + delta, 0);
     }
 
     public Timestamp getTs() {

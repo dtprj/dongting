@@ -22,11 +22,15 @@ public class BugLog {
 
     private static final DtLog log = DtLogs.getLogger(BugLog.class);
 
+    public static boolean BUG = false;
+
     public static void log(Throwable e) {
+        BUG = true;
         log.error("", e);
     }
 
     public static DtLog getLog() {
+        BUG = true;
         return log;
     }
 
