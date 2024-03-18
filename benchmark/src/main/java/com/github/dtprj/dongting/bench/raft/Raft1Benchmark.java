@@ -17,7 +17,12 @@ package com.github.dtprj.dongting.bench.raft;
 
 import com.github.dtprj.dongting.bench.BenchBase;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
+import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
+import com.github.dtprj.dongting.net.HostPort;
+import com.github.dtprj.dongting.net.NioClientConfig;
+import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.server.DefaultRaftFactory;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -26,18 +31,27 @@ import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.util.Collections;
+import java.util.Random;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
  * @author huangli
  */
 public class Raft1Benchmark extends BenchBase {
-    private RaftServer raftServer;
-    private DefaultRaftFactory raftFactory;
     private static final String DATA_DIR = "target/raftlog";
     private static final int REPLICATE_PORT = 4000;
     private static final int SERVICE_PORT = 4001;
     private static final int NODE_ID = 1;
+    private static final int GROUP_ID = 0;
+
+    private static final boolean SYNC = false;
+    private static final int DATA_LEN = 128;
+    private static final byte[] DATA = new byte[DATA_LEN];
+
+    private RaftServer raftServer;
+    private DefaultRaftFactory raftFactory;
+    private KvClient client;
 
     public static void main(String[] args) throws Exception {
         Raft1Benchmark benchmark = new Raft1Benchmark(1, 1000, 200);
@@ -50,13 +64,14 @@ public class Raft1Benchmark extends BenchBase {
 
     @Override
     public void init() throws Exception {
+        new Random().nextBytes(DATA);
         RaftServerConfig serverConfig = new RaftServerConfig();
         serverConfig.setServers(NODE_ID + ",127.0.0.1:" + REPLICATE_PORT);
         serverConfig.setNodeId(NODE_ID);
         serverConfig.setReplicatePort(REPLICATE_PORT);
         serverConfig.setServicePort(SERVICE_PORT);
 
-        RaftGroupConfig groupConfig = new RaftGroupConfig(0, String.valueOf(NODE_ID), "");
+        RaftGroupConfig groupConfig = new RaftGroupConfig(GROUP_ID, String.valueOf(NODE_ID), "");
         groupConfig.setDataDir(DATA_DIR);
 
         raftFactory = new DefaultRaftFactory(serverConfig) {
@@ -68,19 +83,52 @@ public class Raft1Benchmark extends BenchBase {
         raftFactory.start();
 
         raftServer = new RaftServer(serverConfig, Collections.singletonList(groupConfig), raftFactory);
+        KvServerUtil.initKvServer(raftServer);
         raftServer.start();
         raftServer.getReadyFuture().get();
+
+        // wait election
+        Thread.sleep(50);
+
+        client = new KvClient(new NioClientConfig());
+        client.start();
+        RaftNode node = new RaftNode(NODE_ID, new HostPort("127.0.0.1", SERVICE_PORT));
+        client.getRaftClient().addOrUpdateGroup(GROUP_ID, Collections.singletonList(node));
     }
 
     @Override
     public void shutdown() {
+        client.stop(new DtTime(3, TimeUnit.SECONDS));
         raftServer.stop(new DtTime(3, TimeUnit.SECONDS));
         raftFactory.stop(new DtTime(3, TimeUnit.SECONDS));
     }
 
     @Override
     public void test(int threadIndex, long startTime, int state) {
-        success(state);
+        try {
+            final DtTime timeout = new DtTime(800, TimeUnit.MILLISECONDS);
+            CompletableFuture<Void> f = client.put(GROUP_ID, "key1", DATA, timeout);
+
+            if (SYNC) {
+                f.get();
+                success(state);
+            } else {
+                f.whenComplete((result, ex) -> {
+                    logRt(startTime, state);
+                    if (ex != null) {
+                        fail(state);
+                    } else {
+                        success(state);
+                    }
+                });
+            }
+        } catch (Exception e) {
+            fail(state);
+        } finally {
+            if(SYNC) {
+                logRt(startTime, state);
+            }
+        }
     }
 
 
