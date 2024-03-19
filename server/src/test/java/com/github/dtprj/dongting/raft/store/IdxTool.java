@@ -25,20 +25,20 @@ public class IdxTool {
 
     private static void getLogPos(long index) throws Exception {
         File dir = new File("target/raftlog/idx");
-        long pos = index * 8;
+        long idxPos = index * 8;
         long mask = IdxFileQueue.DEFAULT_ITEMS_PER_FILE - 1;
-        long posOfFile = pos & mask;
-        long fileStartPos = pos - posOfFile;
+        long posOfIdxFile = idxPos & mask;
+        long fileStartPos = idxPos - posOfIdxFile;
         String fileName = String.format("%020d", fileStartPos);
-        System.out.println("file=" + fileName + ",posOfFile=" + posOfFile);
+        System.out.println("idx file=" + fileName + ",posOfIdxFile=" + posOfIdxFile);
         RandomAccessFile raf = new RandomAccessFile(new File(dir, fileName), "r");
-        raf.seek(posOfFile);
+        raf.seek(posOfIdxFile);
         long value = raf.readLong();
         System.out.println("idx=" + index + ", logPos=" + value);
         raf.close();
     }
 
     public static void main(String[] args) throws Exception {
-        getLogPos(91);
+        getLogPos(1411);
     }
 }

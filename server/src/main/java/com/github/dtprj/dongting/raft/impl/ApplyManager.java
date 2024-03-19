@@ -266,7 +266,7 @@ public class ApplyManager {
                         logIterator = raftLog.openIterator(null);
                     }
                     int stateMachineEpoch = raftStatus.getStateMachineEpoch();
-                    log.debug("load from {}, diff={}", index, diff);
+                    log.debug("load from {}, diff={}, limit={}", index, diff, limit);
                     FiberFrame<List<LogItem>> ff = logIterator.next(index, limit, 16 * 1024 * 1024);
                     return Fiber.call(ff, items -> afterLoad(items, stateMachineEpoch));
                 } else {

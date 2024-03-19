@@ -140,23 +140,21 @@ class FileLogLoader implements RaftLog.LogIterator {
             if (nextIndex == -1) {
                 return idxFiles.loadLogPos(startIndex, this::afterStartIndexPosLoad);
             } else {
-                return doNext();
+                if (readBuffer.hasRemaining()) {
+                    return parseContent();
+                } else {
+                    readBuffer.clear();
+                    nextPos = bufferEndPos;
+                    return loadLogFromStore();
+                }
             }
         }
 
         private FrameCallResult afterStartIndexPosLoad(Long startIndexPos) {
             nextPos = startIndexPos;
             nextIndex = startIndex;
-            return doNext();
-        }
-
-        private FrameCallResult doNext() {
-            if (readBuffer.hasRemaining()) {
-                return parseContent();
-            } else {
-                readBuffer.clear();
-                return loadLogFromStore();
-            }
+            readBuffer.clear();
+            return loadLogFromStore();
         }
 
         private FrameCallResult parseContent() {
@@ -235,7 +233,7 @@ class FileLogLoader implements RaftLog.LogIterator {
                 state = STATE_BIZ_HEADER;
                 if (!result.isEmpty() && header.bodyLen + readBytes >= bytesLimit) {
                     buf.position(buf.position() - LogHeader.ITEM_HEADER_SIZE);
-                    finish(bufferStartPos + buf.position());
+                    finish();
                     return RESULT_FINISH;
                 } else {
                     return RESULT_CONTINUE_PARSE;
@@ -247,6 +245,7 @@ class FileLogLoader implements RaftLog.LogIterator {
                     discardBufferAndLoadNextFile(buf);
                 } else {
                     StoreUtil.prepareNextRead(buf);
+                    nextPos = bufferEndPos;
                 }
                 return RESULT_NEED_LOAD;
             }
@@ -334,7 +333,7 @@ class FileLogLoader implements RaftLog.LogIterator {
                 result.add(item);
                 item = null;
                 state = STATE_ITEM_HEADER;
-                return checkItemLimit(buf);
+                return checkItemLimit();
             }
             ByteBuffer destBuf = item.getBodyBuffer();
             boolean readFinish = readData(buf, bodyLen, destBuf);
@@ -343,7 +342,7 @@ class FileLogLoader implements RaftLog.LogIterator {
                 readBytes += bodyLen;
                 item = null;
                 state = STATE_ITEM_HEADER;
-                return checkItemLimit(buf);
+                return checkItemLimit();
             } else {
                 StoreUtil.prepareNextRead(buf);
                 nextPos = bufferEndPos;
@@ -351,9 +350,9 @@ class FileLogLoader implements RaftLog.LogIterator {
             }
         }
 
-        private int checkItemLimit(ByteBuffer buf) {
+        private int checkItemLimit() {
             if (result.size() >= limit) {
-                finish(bufferStartPos + buf.position());
+                finish();
                 return RESULT_FINISH;
             } else {
                 long index = nextIndex + result.size();
@@ -362,16 +361,14 @@ class FileLogLoader implements RaftLog.LogIterator {
                     return RESULT_CONTINUE_PARSE;
                 } else {
                     // rest items in tail cache
-                    finish(-1);
                     FileLogLoader.this.reset();
                     return RESULT_FINISH;
                 }
             }
         }
 
-        private void finish(long newPos) {
+        private void finish() {
             nextIndex += result.size();
-            nextPos = newPos;
         }
     }
 
