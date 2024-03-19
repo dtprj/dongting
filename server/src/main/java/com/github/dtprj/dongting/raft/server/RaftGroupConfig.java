@@ -25,6 +25,7 @@ public class RaftGroupConfig {
     private String dataDir = "./data";
     private String statusFile = "raft.status";
     private long[] ioRetryInterval = new long[]{100, 1000, 3000, 5000, 10000, 20000};
+    private boolean syncForce = true;
 
     public RaftGroupConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         this.groupId = groupId;
@@ -68,4 +69,11 @@ public class RaftGroupConfig {
         this.ioRetryInterval = ioRetryInterval;
     }
 
+    public boolean isSyncForce() {
+        return syncForce;
+    }
+
+    public void setSyncForce(boolean syncForce) {
+        this.syncForce = syncForce;
+    }
 }

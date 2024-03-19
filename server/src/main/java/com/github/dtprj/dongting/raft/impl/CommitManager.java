@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.fiber.Fiber;
+import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
@@ -34,10 +35,12 @@ public class CommitManager {
     private final RaftStatusImpl raftStatus;
     private ApplyManager applyManager;
     private final IndexedQueue<AppendRespWriter> respQueue = new IndexedQueue<>(128);
+    private final boolean syncForce;
 
     public CommitManager(GroupComponents gc) {
         this.gc = gc;
         this.raftStatus = gc.getRaftStatus();
+        this.syncForce = gc.getGroupConfig().isSyncForce();
     }
 
     public void postInit() {
@@ -64,11 +67,13 @@ public class CommitManager {
         @Override
         public FrameCallResult execute(Void input) {
             RaftStatusImpl raftStatus = CommitManager.this.raftStatus;
-            long idx = raftStatus.getLastForceLogIndex();
+            long idx = syncForce ? raftStatus.getLastForceLogIndex() : raftStatus.getLastWriteLogIndex();
             if (idx > raftStatus.getCommitIndex()) {
                 CommitManager.this.finish(idx);
             }
-            return raftStatus.getLogForceFinishCondition().await(1000, this);
+            FiberCondition c = syncForce ? raftStatus.getLogForceFinishCondition()
+                    : raftStatus.getLogWriteFinishCondition();
+            return c.await(1000, this);
         }
     }
 
