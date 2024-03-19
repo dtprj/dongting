@@ -68,7 +68,7 @@ public class TailCache {
         cache.addLast(value);
         pending++;
         pendingBytes += value.getInput().getFlowControlSize();
-        if((putCount++ & 0x0F) == 0) { // call cleanPending 1/16
+        if ((putCount++ & 0x0F) == 0) { // call cleanPending 1/16
             cleanPending();
         }
     }
@@ -100,7 +100,7 @@ public class TailCache {
 
     private void release(RaftTask t) {
         pending--;
-        pendingBytes -= t.getInput().getFlowControlSize();
+        pendingBytes = Math.max(pendingBytes - t.getInput().getFlowControlSize(), 0);
         RaftTask x = t;
         while (x != null) {
             x.getItem().release();
@@ -120,6 +120,8 @@ public class TailCache {
         }
         if (cache.size() == 0) {
             firstIndex = -1;
+        } else {
+            firstIndex++;
         }
     }
 
@@ -150,13 +152,16 @@ public class TailCache {
                 break;
             }
             RaftTask t = cache.get(0);
-            if (t.getCreateTimeNanos() - timeBound >= 0) {
-                break;
-            }
             if (pending <= serverConfig.getMaxPendingWrites() && pendingBytes <= serverConfig.getMaxPendingWrites()) {
-                break;
+                if (t.getCreateTimeNanos() - timeBound >= 0) {
+                    // this item not timeout, so next items not timeout
+                    break;
+                } else {
+                    remove(index);
+                }
+            } else {
+                remove(index);
             }
-            remove(index);
         }
     }
 
