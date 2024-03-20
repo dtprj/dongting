@@ -250,14 +250,13 @@ public class ApplyManager {
             if (isGroupShouldStopPlain()) {
                 return Fiber.frameReturn();
             }
-            long appliedIndex = raftStatus.getLastApplied();
-            long diff = raftStatus.getCommitIndex() - appliedIndex;
+            long diff = raftStatus.getCommitIndex() - raftStatus.getLastApplied();
             if (diff == 0) {
                 return condition.await(this);
             }
 
             TailCache tailCache = raftStatus.getTailCache();
-            long index = appliedIndex + 1;
+            long index = raftStatus.getLastApplied() + 1;
             while (diff > 0) {
                 RaftTask rt = tailCache.get(index);
                 if (rt == null || rt.getInput().isReadOnly()) {
@@ -266,7 +265,11 @@ public class ApplyManager {
                         logIterator = raftLog.openIterator(null);
                     }
                     int stateMachineEpoch = raftStatus.getStateMachineEpoch();
-                    log.debug("load from {}, diff={}, limit={}", index, diff, limit);
+                    if (log.isDebugEnabled()) {
+                        log.debug("load from {}, diff={}, limit={}, cacheSize={}, cacheFirstIndex={},commitIndex={},applyIndex={}",
+                                index, diff, limit, tailCache.size(), tailCache.getFirstIndex(),
+                                raftStatus.getCommitIndex(), raftStatus.getLastApplied());
+                    }
                     FiberFrame<List<LogItem>> ff = logIterator.next(index, limit, 16 * 1024 * 1024);
                     return Fiber.call(ff, items -> afterLoad(items, stateMachineEpoch));
                 } else {
