@@ -248,7 +248,7 @@ public class VoteManager {
             if (timeout) {
                 // move last elect time 1 seconds, prevent pre-vote too frequently if failed
                 long newLastElectTime = raftStatus.getTs().getNanoTime() - raftStatus.getElectTimeoutNanos()
-                        - TimeUnit.SECONDS.toNanos(1);
+                        + TimeUnit.SECONDS.toNanos(1);
                 raftStatus.setLastElectTime(newLastElectTime);
 
                 if (RaftUtil.writeNotFinished(raftStatus)) {
