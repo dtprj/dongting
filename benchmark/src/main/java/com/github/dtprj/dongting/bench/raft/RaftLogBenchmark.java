@@ -30,6 +30,7 @@ import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.Dispatcher;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberChannel;
+import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
@@ -249,10 +250,11 @@ public class RaftLogBenchmark extends RpcBenchmark {
 
         private class PostStoreFrame extends FiberFrame<Void> {
 
+            private static final boolean SYNC_FORCE = false;
             @Override
             public FrameCallResult execute(Void input) {
 
-                long lastIndex = raftStatus.getLastForceLogIndex();
+                long lastIndex = SYNC_FORCE ? raftStatus.getLastForceLogIndex(): raftStatus.getLastWriteLogIndex();
                 raftStatus.setCommitIndex(lastIndex);
                 raftStatus.setLastApplied(lastIndex);
                 raftStatus.setLastLogIndex(lastIndex);
@@ -268,7 +270,8 @@ public class RaftLogBenchmark extends RpcBenchmark {
                         break;
                     }
                 }
-                return raftStatus.getLogForceFinishCondition().await(1000, this);
+                FiberCondition c = SYNC_FORCE ? raftStatus.getLogForceFinishCondition() : raftStatus.getLogWriteFinishCondition();
+                return c.await(1000, this);
             }
         }
 
