@@ -21,6 +21,8 @@ import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
+import com.github.dtprj.dongting.fiber.Dispatcher;
+import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.raft.RaftNode;
@@ -77,6 +79,14 @@ public class Raft3Benchmark extends BenchBase {
             @Override
             public StateMachine createStateMachine(RaftGroupConfigEx groupConfig) {
                 return new DtKV(groupConfig);
+            }
+
+            @Override
+            public FiberGroup createFiberGroup(RaftGroupConfig groupConfig) {
+                // we start 3 node in same jvm, so use node id as part of dispatcher name
+                Dispatcher dispatcher = new Dispatcher("dispatcher-" + GROUP_ID + "-node-" + nodeId);
+                dispatcher.start();
+                return new FiberGroup("group-" + GROUP_ID + "-node-" + nodeId, dispatcher);
             }
         };
         raftFactory.start();
