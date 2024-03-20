@@ -126,7 +126,7 @@ class LogFileQueue extends FileQueue {
                     }
                 }
 
-                if (restorer.previousIndex < restoreIndex) {
+                if (restoreIndex > 1 && restorer.previousIndex < restoreIndex) {
                     throw new RaftException("restore failed. previousIndex=" + restorer.previousIndex
                             + ", restoreIndex=" + restoreIndex);
                 }
