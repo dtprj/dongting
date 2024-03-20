@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.PbIntWriteFrame;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.raft.impl.RaftMember;
@@ -60,9 +61,9 @@ public class QueryLeaderProcessor extends RaftSequenceProcessor<Integer> {
                 RaftMember leader = raftStatus.getCurrentLeader();
 
                 if (leader == null) {
-                    writeResp(reqInfo, new PbIntWriteFrame(-1));
+                    writeResp(reqInfo, new PbIntWriteFrame(Commands.RAFT_QUERY_LEADER, -1));
                 } else {
-                    writeResp(reqInfo, new PbIntWriteFrame(leader.getNode().getNodeId()));
+                    writeResp(reqInfo, new PbIntWriteFrame(Commands.RAFT_QUERY_LEADER, leader.getNode().getNodeId()));
                 }
                 return Fiber.frameReturn();
             }

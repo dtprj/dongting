@@ -31,9 +31,9 @@ public class NodePingWriteFrame extends SmallNoCopyWriteFrame {
     private final UUID uuid;
 
     public NodePingWriteFrame(int selfNodeId, UUID uuid) {
+        setCommand(Commands.NODE_PING);
         this.selfNodeId = selfNodeId;
         this.uuid = uuid;
-        setCommand(Commands.NODE_PING);
     }
 
     @Override

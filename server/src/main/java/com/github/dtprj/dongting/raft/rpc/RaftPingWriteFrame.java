@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.PbUtil;
+import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.SmallNoCopyWriteFrame;
 
 import java.nio.ByteBuffer;
@@ -32,6 +33,7 @@ public class RaftPingWriteFrame extends SmallNoCopyWriteFrame {
     private final Set<Integer> nodeIdOfObservers;
 
     public RaftPingWriteFrame(int groupId, int nodeId, Set<Integer> nodeIdOfMembers, Set<Integer> nodeIdOfObservers) {
+        setCommand(Commands.RAFT_PING);
         this.groupId = groupId;
         this.nodeId = nodeId;
         this.nodeIdOfMembers = nodeIdOfMembers;

@@ -26,7 +26,8 @@ public class PbIntWriteFrame extends SmallNoCopyWriteFrame {
 
     private final int value;
 
-    public PbIntWriteFrame(int value) {
+    public PbIntWriteFrame(int command, int value) {
+        setCommand(command);
         this.value = value;
     }
 

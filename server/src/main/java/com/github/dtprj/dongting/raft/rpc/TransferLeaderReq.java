@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
+import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.SmallNoCopyWriteFrame;
 
 import java.nio.ByteBuffer;
@@ -73,6 +74,7 @@ public class TransferLeaderReq {
         private final TransferLeaderReq req;
 
         public TransferLeaderReqWriteFrame(TransferLeaderReq req) {
+            setCommand(Commands.RAFT_LEADER_TRANSFER);
             this.req = req;
         }
 

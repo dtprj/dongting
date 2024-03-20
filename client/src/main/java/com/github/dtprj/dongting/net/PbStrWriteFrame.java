@@ -27,7 +27,8 @@ public class PbStrWriteFrame extends SmallNoCopyWriteFrame {
 
     private final byte[] bytes;
 
-    public PbStrWriteFrame(String value) {
+    public PbStrWriteFrame(int command, String value) {
+        setCommand(command);
         if (value != null) {
             bytes = value.getBytes(StandardCharsets.UTF_8);
         } else {

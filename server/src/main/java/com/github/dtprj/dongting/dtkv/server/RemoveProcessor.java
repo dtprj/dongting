@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.codec.StrFiledDecoder;
 import com.github.dtprj.dongting.dtkv.RemoveReq;
 import com.github.dtprj.dongting.net.CmdCodes;
+import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.PbIntWriteFrame;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
@@ -94,7 +95,7 @@ public class RemoveProcessor extends AbstractRaftBizProcessor<RemoveReq> {
                 processError(reqInfo, ex);
             } else {
                 Boolean result = (Boolean) output.getResult();
-                PbIntWriteFrame resp = new PbIntWriteFrame(result ? 1 : 0);
+                PbIntWriteFrame resp = new PbIntWriteFrame(Commands.DTKV_REMOVE, result ? 1 : 0);
                 resp.setRespCode(CmdCodes.SUCCESS);
                 writeResp(reqInfo, resp);
             }

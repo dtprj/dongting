@@ -26,7 +26,8 @@ public class PbLongWriteFrame extends SmallNoCopyWriteFrame {
 
     private final long value;
 
-    public PbLongWriteFrame(long value) {
+    public PbLongWriteFrame(int command, long value) {
+        setCommand(command);
         this.value = value;
     }
 

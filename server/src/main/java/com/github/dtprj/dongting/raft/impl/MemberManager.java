@@ -26,6 +26,7 @@ import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.PbIntWriteFrame;
 import com.github.dtprj.dongting.net.PeerStatus;
@@ -395,7 +396,7 @@ public class MemberManager {
         } else {
             final PbNoCopyDecoder<QueryStatusResp> decoder = new PbNoCopyDecoder<>(
                     c -> new QueryStatusResp.QueryStatusRespCallback());
-            CompletableFuture<Boolean> queryFuture = client.sendRequest(n.getPeer(), new PbIntWriteFrame(groupId),
+            CompletableFuture<Boolean> queryFuture = client.sendRequest(n.getPeer(), new PbIntWriteFrame(Commands.RAFT_QUERY_STATUS, groupId),
                             decoder, new DtTime(3, TimeUnit.SECONDS))
                     .handle((resp, ex) -> {
                         if (ex != null) {

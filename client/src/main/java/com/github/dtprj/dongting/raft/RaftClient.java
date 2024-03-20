@@ -272,8 +272,7 @@ public class RaftClient extends AbstractLifeCircle {
             return;
         }
         NodeInfo node = it.next();
-        PbIntWriteFrame req = new PbIntWriteFrame(groupInfo.getGroupId());
-        req.setCommand(Commands.RAFT_QUERY_LEADER);
+        PbIntWriteFrame req = new PbIntWriteFrame(Commands.RAFT_QUERY_LEADER, groupInfo.getGroupId());
         DtTime rpcTimeout = new DtTime(3, TimeUnit.SECONDS);
         client.sendRequest(node.getPeer(), req, PbNoCopyDecoder.SIMPLE_INT_DECODER, rpcTimeout)
                 .whenComplete((rf, ex) -> processLeaderQueryResult(groupInfo, it, rf, ex, node));
