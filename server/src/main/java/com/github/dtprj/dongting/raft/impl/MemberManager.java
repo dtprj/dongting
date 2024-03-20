@@ -179,9 +179,13 @@ public class MemberManager {
         FiberFrame<Void> fiberFrame = new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                ensureRaftMemberStatus();
-                replicateManager.tryStartReplicateFibers();
-                return Fiber.sleep(1000, this);
+                try {
+                    ensureRaftMemberStatus();
+                    replicateManager.tryStartReplicateFibers();
+                    return Fiber.sleep(1000, this);
+                } catch (Throwable e) {
+                    throw Fiber.fatal(e);
+                }
             }
         };
         // daemon fiber
@@ -218,12 +222,17 @@ public class MemberManager {
         }
 
         member.setPinging(true);
-        DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        RaftPingWriteFrame f = new RaftPingWriteFrame(groupId, serverConfig.getNodeId(),
-                raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers());
-        client.sendRequest(raftNodeEx.getPeer(), f, RaftPingProcessor.DECODER, timeout)
-                .whenCompleteAsync((rf, ex) -> processPingResult(raftNodeEx, member, rf, ex, nodeEpochWhenStartPing),
-                        groupConfig.getFiberGroup().getExecutor());
+        try {
+            DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
+            RaftPingWriteFrame f = new RaftPingWriteFrame(groupId, serverConfig.getNodeId(),
+                    raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers());
+            client.sendRequest(raftNodeEx.getPeer(), f, RaftPingProcessor.DECODER, timeout)
+                    .whenCompleteAsync((rf, ex) -> processPingResult(raftNodeEx, member, rf, ex, nodeEpochWhenStartPing),
+                            groupConfig.getFiberGroup().getExecutor());
+        } catch (Exception e) {
+            log.error("raft ping error, remote={}", raftNodeEx.getHostPort(), e);
+            member.setPinging(false);
+        }
     }
 
     private void processPingResult(RaftNodeEx raftNodeEx, RaftMember member,
