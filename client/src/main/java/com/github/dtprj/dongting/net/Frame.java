@@ -28,13 +28,13 @@ public abstract class Frame {
     public static final int IDX_EXTRA = 7;
     public static final int IDX_BODY = 15;
 
-    protected int frameType;
-    protected int command;
-    protected int seq;
-    protected int respCode;
-    protected String msg;
-    protected long timeout;
-    protected byte[] extra;
+    int frameType;
+    int command;
+    int seq;
+    int respCode;
+    String msg;
+    long timeout;
+    byte[] extra;
 
     @Override
     public String toString() {
