@@ -202,7 +202,7 @@ public class RaftServer extends AbstractLifeCircle {
 
         HashSet<Integer> nodeIdOfMembers = new HashSet<>();
         parseMemberIds(allNodeIds, nodeIdOfMembers, rgc.getNodeIdOfMembers(), rgc.getGroupId());
-        if (nodeIdOfMembers.isEmpty() && serverConfig.isStaticConfig()) {
+        if (nodeIdOfMembers.isEmpty() && rgc.isStaticConfig()) {
             throw new IllegalArgumentException("no member in group: " + rgc.getGroupId());
         }
 
@@ -221,13 +221,13 @@ public class RaftServer extends AbstractLifeCircle {
 
         boolean isMember = nodeIdOfMembers.contains(serverConfig.getNodeId());
         boolean isObserver = nodeIdOfObservers.contains(serverConfig.getNodeId());
-        if (!isMember && !isObserver && serverConfig.isStaticConfig()) {
+        if (!isMember && !isObserver && rgc.isStaticConfig()) {
             throw new IllegalArgumentException("self id not found in group members/observers list: " + serverConfig.getNodeId());
         }
 
         FiberGroup fiberGroup = raftFactory.createFiberGroup(rgc);
         RaftStatusImpl raftStatus = new RaftStatusImpl(fiberGroup.getDispatcher().getTs());
-        raftStatus.setTailCache(new TailCache(serverConfig, raftStatus));
+        raftStatus.setTailCache(new TailCache(rgc, raftStatus));
         raftStatus.setNodeIdOfMembers(nodeIdOfMembers);
         raftStatus.setNodeIdOfObservers(nodeIdOfObservers);
         raftStatus.setGroupId(rgc.getGroupId());
@@ -286,6 +286,15 @@ public class RaftServer extends AbstractLifeCircle {
         rgcEx.setDataDir(rgc.getDataDir());
         rgcEx.setStatusFile(rgc.getStatusFile());
         rgcEx.setIoRetryInterval(rgc.getIoRetryInterval());
+        rgcEx.setSyncForce(rgc.isSyncForce());
+        rgcEx.setStaticConfig(rgc.isStaticConfig());
+
+        rgcEx.setMaxReplicateItems(rgc.getMaxReplicateItems());
+        rgcEx.setMaxReplicateBytes(rgc.getMaxReplicateBytes());
+        rgcEx.setSingleReplicateLimit(rgc.getSingleReplicateLimit());
+
+        rgcEx.setMaxPendingWrites(rgc.getMaxPendingWrites());
+        rgcEx.setMaxPendingWriteBytes(rgc.getMaxPendingWriteBytes());
 
         rgcEx.setTs(raftStatus.getTs());
         rgcEx.setHeapPool(createHeapPoolFactory(fiberGroup));

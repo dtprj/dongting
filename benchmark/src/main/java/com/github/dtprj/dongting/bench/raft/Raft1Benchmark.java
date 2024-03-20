@@ -73,6 +73,7 @@ public class Raft1Benchmark extends BenchBase {
 
         RaftGroupConfig groupConfig = new RaftGroupConfig(GROUP_ID, String.valueOf(NODE_ID), "");
         groupConfig.setDataDir(DATA_DIR);
+        groupConfig.setSyncForce(true);
 
         raftFactory = new DefaultRaftFactory(serverConfig) {
             @Override

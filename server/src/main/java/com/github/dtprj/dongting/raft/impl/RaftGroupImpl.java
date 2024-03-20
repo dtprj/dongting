@@ -26,9 +26,9 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
-import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.util.Objects;
@@ -44,7 +44,7 @@ public class RaftGroupImpl extends RaftGroup {
     private static final DtLog log = DtLogs.getLogger(RaftGroupImpl.class);
     private final int groupId;
     private final RaftStatusImpl raftStatus;
-    private final RaftServerConfig serverConfig;
+    private final RaftGroupConfigEx groupConfig;
     private final PendingStat serverStat;
     private final StateMachine stateMachine;
     private final FiberGroup fiberGroup;
@@ -58,7 +58,7 @@ public class RaftGroupImpl extends RaftGroup {
         this.groupId = gc.getGroupConfig().getGroupId();
 
         this.raftStatus = gc.getRaftStatus();
-        this.serverConfig = gc.getServerConfig();
+        this.groupConfig = gc.getGroupConfig();
         this.serverStat = gc.getServerStat();
         this.stateMachine = gc.getStateMachine();
         this.fiberGroup = gc.getFiberGroup();
@@ -83,7 +83,7 @@ public class RaftGroupImpl extends RaftGroup {
             return CompletableFuture.failedFuture(new RaftException("raft group thread is stop"));
         }
         int currentPendingWrites = (int) PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, 1);
-        if (currentPendingWrites >= serverConfig.getMaxPendingWrites()) {
+        if (currentPendingWrites >= groupConfig.getMaxPendingWrites()) {
             RaftUtil.release(input);
             String msg = "submitRaftTask failed: too many pending writes, currentPendingWrites=" + currentPendingWrites;
             log.warn(msg);
@@ -92,7 +92,7 @@ public class RaftGroupImpl extends RaftGroup {
         }
         long size = input.getFlowControlSize();
         long currentPendingWriteBytes = (long) PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, size);
-        if (currentPendingWriteBytes >= serverConfig.getMaxPendingWriteBytes()) {
+        if (currentPendingWriteBytes >= groupConfig.getMaxPendingWriteBytes()) {
             RaftUtil.release(input);
             String msg = "too many pending write bytes,currentPendingWriteBytes="
                     + currentPendingWriteBytes + ", currentRequestBytes=" + size;

@@ -26,6 +26,15 @@ public class RaftGroupConfig {
     private String statusFile = "raft.status";
     private long[] ioRetryInterval = new long[]{100, 1000, 3000, 5000, 10000, 20000};
     private boolean syncForce = true;
+    private boolean staticConfig = true;
+
+    private int maxReplicateItems = 3000;
+    private long maxReplicateBytes = 16 * 1024 * 1024;
+    private int singleReplicateLimit = 1800 * 1024;
+
+    private int maxPendingWrites = 10000;
+    private long maxPendingWriteBytes = 256 * 1024 * 1024;
+
 
     public RaftGroupConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         this.groupId = groupId;
@@ -75,5 +84,53 @@ public class RaftGroupConfig {
 
     public void setSyncForce(boolean syncForce) {
         this.syncForce = syncForce;
+    }
+
+    public int getMaxReplicateItems() {
+        return maxReplicateItems;
+    }
+
+    public void setMaxReplicateItems(int maxReplicateItems) {
+        this.maxReplicateItems = maxReplicateItems;
+    }
+
+    public long getMaxReplicateBytes() {
+        return maxReplicateBytes;
+    }
+
+    public void setMaxReplicateBytes(long maxReplicateBytes) {
+        this.maxReplicateBytes = maxReplicateBytes;
+    }
+
+    public int getSingleReplicateLimit() {
+        return singleReplicateLimit;
+    }
+
+    public void setSingleReplicateLimit(int singleReplicateLimit) {
+        this.singleReplicateLimit = singleReplicateLimit;
+    }
+
+    public int getMaxPendingWrites() {
+        return maxPendingWrites;
+    }
+
+    public void setMaxPendingWrites(int maxPendingWrites) {
+        this.maxPendingWrites = maxPendingWrites;
+    }
+
+    public long getMaxPendingWriteBytes() {
+        return maxPendingWriteBytes;
+    }
+
+    public void setMaxPendingWriteBytes(long maxPendingWriteBytes) {
+        this.maxPendingWriteBytes = maxPendingWriteBytes;
+    }
+
+    public boolean isStaticConfig() {
+        return staticConfig;
+    }
+
+    public void setStaticConfig(boolean staticConfig) {
+        this.staticConfig = staticConfig;
     }
 }

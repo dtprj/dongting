@@ -34,15 +34,8 @@ public class RaftServerConfig {
     private long rpcTimeout = 5 * 1000;
     private long connectTimeout = 2000;
     private long heartbeatInterval = 2000;
-    private int maxReplicateItems = 3000;
-    private long maxReplicateBytes = 16 * 1024 * 1024;
-    private int singleReplicateLimit = 1800 * 1024;
-
-    private int maxPendingWrites = 10000;
-    private long maxPendingWriteBytes = 256 * 1024 * 1024;
 
     private boolean checkSelf = true;
-    private boolean staticConfig = true;
 
     private int ioThreads = Math.max(Runtime.getRuntime().availableProcessors() * 5, 30);
 
@@ -104,38 +97,6 @@ public class RaftServerConfig {
         this.heartbeatInterval = heartbeatInterval;
     }
 
-    public int getMaxReplicateItems() {
-        return maxReplicateItems;
-    }
-
-    public void setMaxReplicateItems(int maxReplicateItems) {
-        this.maxReplicateItems = maxReplicateItems;
-    }
-
-    public long getMaxReplicateBytes() {
-        return maxReplicateBytes;
-    }
-
-    public void setMaxReplicateBytes(long maxReplicateBytes) {
-        this.maxReplicateBytes = maxReplicateBytes;
-    }
-
-    public int getMaxPendingWrites() {
-        return maxPendingWrites;
-    }
-
-    public void setMaxPendingWrites(int maxPendingWrites) {
-        this.maxPendingWrites = maxPendingWrites;
-    }
-
-    public long getMaxPendingWriteBytes() {
-        return maxPendingWriteBytes;
-    }
-
-    public void setMaxPendingWriteBytes(long maxPendingWriteBytes) {
-        this.maxPendingWriteBytes = maxPendingWriteBytes;
-    }
-
     public long getConnectTimeout() {
         return connectTimeout;
     }
@@ -144,28 +105,12 @@ public class RaftServerConfig {
         this.connectTimeout = connectTimeout;
     }
 
-    public int getSingleReplicateLimit() {
-        return singleReplicateLimit;
-    }
-
-    public void setSingleReplicateLimit(int singleReplicateLimit) {
-        this.singleReplicateLimit = singleReplicateLimit;
-    }
-
     public boolean isCheckSelf() {
         return checkSelf;
     }
 
     public void setCheckSelf(boolean checkSelf) {
         this.checkSelf = checkSelf;
-    }
-
-    public boolean isStaticConfig() {
-        return staticConfig;
-    }
-
-    public void setStaticConfig(boolean staticConfig) {
-        this.staticConfig = staticConfig;
     }
 
     public BiFunction<Timestamp, Boolean, ByteBufferPool> getPoolFactory() {

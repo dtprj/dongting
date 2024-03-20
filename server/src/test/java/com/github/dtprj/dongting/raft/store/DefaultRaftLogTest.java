@@ -61,7 +61,6 @@ public class DefaultRaftLogTest extends BaseFiberTest {
     private void init() throws Exception {
         raftStatus = new RaftStatusImpl(dispatcher.getTs());
         RaftServerConfig serverConfig = new RaftServerConfig();
-        raftStatus.setTailCache(new TailCache(serverConfig, raftStatus));
         config = new RaftGroupConfigEx(1, "1", "1");
         config.setFiberGroup(fiberGroup);
         config.setDataDir(dataDir);
@@ -69,6 +68,8 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         config.setTs(raftStatus.getTs());
         config.setDirectPool(TwoLevelPool.getDefaultFactory().apply(config.getTs(), true));
         config.setHeapPool(new RefBufferFactory(TwoLevelPool.getDefaultFactory().apply(config.getTs(), false), 0));
+
+        raftStatus.setTailCache(new TailCache(config, raftStatus));
         statusManager = new StatusManager(config);
         statusManager.initStatusFile();
         config.setRaftStatus(raftStatus);
@@ -79,7 +80,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         raftLog.logFileSize = 1024;
         doInFiber(new FiberFrame<>() {
             @Override
-            public FrameCallResult execute(Void input) throws Exception {
+            public FrameCallResult execute(Void input) {
                 InitFiberFrame.initRaftStatus(raftStatus, fiberGroup, serverConfig);
                 return Fiber.call(raftLog.init(), this::resume);
             }

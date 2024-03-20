@@ -261,7 +261,7 @@ public class MemberManager {
     }
 
     private boolean checkRemoteConfig(RaftPingFrameCallback callback) {
-        if (serverConfig.isStaticConfig()) {
+        if (groupConfig.isStaticConfig()) {
             return raftStatus.getNodeIdOfMembers().equals(callback.nodeIdOfMembers)
                     && raftStatus.getNodeIdOfObservers().equals(callback.nodeIdOfObservers);
         }

@@ -337,6 +337,7 @@ class RepFrame extends AbstractRepFrame {
     private static final DtLog log = DtLogs.getLogger(RepFrame.class);
     private static final long WAIT_CONDITION_TIMEOUT = 1000;
 
+    private final RaftGroupConfigEx groupConfig;
     private final RaftServerConfig serverConfig;
     private final NioClient client;
     private final ReplicateManager replicateManager;
@@ -358,6 +359,7 @@ class RepFrame extends AbstractRepFrame {
 
     public RepFrame(ReplicateManager replicateManager, RaftMember member) {
         super(replicateManager, member);
+        this.groupConfig = replicateManager.groupConfig;
         this.serverConfig = replicateManager.serverConfig;
 
         this.raftLog = replicateManager.raftLog;
@@ -365,8 +367,8 @@ class RepFrame extends AbstractRepFrame {
         this.client = replicateManager.client;
         this.replicateManager = replicateManager;
 
-        this.maxReplicateItems = serverConfig.getMaxReplicateItems();
-        this.maxReplicateBytes = serverConfig.getMaxReplicateBytes();
+        this.maxReplicateItems = groupConfig.getMaxReplicateItems();
+        this.maxReplicateBytes = groupConfig.getMaxReplicateBytes();
         this.restItemsToStartReplicate = (int) (maxReplicateItems * 0.1);
     }
 
@@ -431,7 +433,7 @@ class RepFrame extends AbstractRepFrame {
         RaftTask first = raftStatus.getTailCache().get(nextIndex);
         if (first != null && !first.getInput().isReadOnly()) {
             closeIterator();
-            long sizeLimit = serverConfig.getSingleReplicateLimit();
+            long sizeLimit = groupConfig.getSingleReplicateLimit();
             while (limit > 0) {
                 ArrayList<LogItem> items = new ArrayList<>(limit);
                 long size = 0;
@@ -453,7 +455,7 @@ class RepFrame extends AbstractRepFrame {
                 replicateIterator = raftLog.openIterator(this::epochChange);
             }
             FiberFrame<List<LogItem>> nextFrame = replicateIterator.next(nextIndex, Math.min(limit, 1024),
-                    serverConfig.getSingleReplicateLimit());
+                    groupConfig.getSingleReplicateLimit());
             return Fiber.call(nextFrame, this::resumeAfterLogLoad);
         }
     }
@@ -596,6 +598,7 @@ class InstallFrame extends AbstractRepFrame {
 
     private final RaftLog raftLog;
     private final StateMachine stateMachine;
+    private final RaftGroupConfigEx groupConfig;
     private final RaftServerConfig serverConfig;
     private final NioClient client;
     private final ReplicateManager replicateManager;
@@ -617,10 +620,11 @@ class InstallFrame extends AbstractRepFrame {
         super(replicateManager, member);
         this.stateMachine = replicateManager.stateMachine;
         this.raftLog = replicateManager.raftLog;
+        this.groupConfig = replicateManager.groupConfig;
         this.serverConfig = replicateManager.serverConfig;
         this.client = replicateManager.client;
         this.replicateManager = replicateManager;
-        this.restBytesThreshold = (long) (serverConfig.getMaxReplicateBytes() * 0.1);
+        this.restBytesThreshold = (long) (groupConfig.getMaxReplicateBytes() * 0.1);
     }
 
     @Override
@@ -673,7 +677,7 @@ class InstallFrame extends AbstractRepFrame {
         if (installFinish) {
             return Fiber.frameReturn();
         }
-        if (readFinish || serverConfig.getMaxReplicateBytes() - pendingBytes <= restBytesThreshold) {
+        if (readFinish || groupConfig.getMaxReplicateBytes() - pendingBytes <= restBytesThreshold) {
             // wait rpc finish
             return repCondition.await(1000, v -> installSnapshot());
         }

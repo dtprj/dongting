@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
-import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import org.junit.jupiter.api.Test;
 
@@ -46,13 +45,13 @@ public class StatusManagerTest extends BaseFiberTest {
     public void setup() {
         File dir = TestDir.createTestDir(StatusManagerTest.class.getSimpleName());
         raftStatus = new RaftStatusImpl(dispatcher.getTs());
-        raftStatus.setTailCache(new TailCache(new RaftServerConfig(), raftStatus));
         groupConfig = new RaftGroupConfigEx(1, "1", "1");
         groupConfig.setDataDir(dir.getAbsolutePath());
         groupConfig.setStatusFile("status.test");
         groupConfig.setRaftStatus(raftStatus);
         groupConfig.setIoExecutor(MockExecutors.ioExecutor());
         groupConfig.setFiberGroup(fiberGroup);
+        raftStatus.setTailCache(new TailCache(groupConfig, raftStatus));
         statusManager = new StatusManager(groupConfig);
     }
 

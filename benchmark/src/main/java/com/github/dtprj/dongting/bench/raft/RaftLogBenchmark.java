@@ -120,7 +120,6 @@ public class RaftLogBenchmark extends RpcBenchmark {
             queue = fiberGroup.newChannel();
             raftStatus = new RaftStatusImpl(dispatcher.getTs());
             RaftServerConfig serverConfig = new RaftServerConfig();
-            raftStatus.setTailCache(new TailCache(serverConfig, raftStatus));
             this.ts = dispatcher.getTs();
             RaftGroupConfigEx groupConfig = new RaftGroupConfigEx(1, "1", "1");
             groupConfig.setFiberGroup(fiberGroup);
@@ -164,6 +163,8 @@ public class RaftLogBenchmark extends RpcBenchmark {
                 }
             });
 
+            raftStatus.setTailCache(new TailCache(groupConfig, raftStatus));
+
             statusManager = new StatusManager(groupConfig);
             this.raftLog = new DefaultRaftLog(groupConfig, statusManager);
             CompletableFuture<Void> initFuture = new CompletableFuture<>();
@@ -175,7 +176,7 @@ public class RaftLogBenchmark extends RpcBenchmark {
                     return Fiber.call(statusManager.initStatusFile(), this::afterStatusManagerInit);
                 }
 
-                private FrameCallResult afterStatusManagerInit(Void unused) throws Exception {
+                private FrameCallResult afterStatusManagerInit(Void unused) {
                     return Fiber.call(raftLog.init(), this::afterRaftLogInit);
                 }
 

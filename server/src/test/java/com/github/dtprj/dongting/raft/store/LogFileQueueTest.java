@@ -105,8 +105,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         dir = TestDir.createTestDir(LogFileQueueTest.class.getSimpleName());
         raftStatus = new RaftStatusImpl(dispatcher.getTs());
         RaftServerConfig serverConfig = new RaftServerConfig();
-        tailCache = new TailCache(serverConfig, raftStatus);
-        raftStatus.setTailCache(tailCache);
+
         config = new RaftGroupConfigEx(1, "1", "1");
         config.setIoExecutor(MockExecutors.ioExecutor());
         config.setFiberGroup(fiberGroup);
@@ -114,6 +113,10 @@ public class LogFileQueueTest extends BaseFiberTest {
         config.setDirectPool(TwoLevelPool.getDefaultFactory().apply(config.getTs(), true));
         config.setHeapPool(new RefBufferFactory(TwoLevelPool.getDefaultFactory().apply(config.getTs(), false), 0));
         config.setRaftStatus(raftStatus);
+
+        tailCache = new TailCache(config, raftStatus);
+        raftStatus.setTailCache(tailCache);
+
         logFileQueue = new LogFileQueue(dir, config, idxOps, fileSize);
         logFileQueue.maxWriteBufferSize = maxWriteBufferSize;
         doInFiber(new FiberFrame<>() {

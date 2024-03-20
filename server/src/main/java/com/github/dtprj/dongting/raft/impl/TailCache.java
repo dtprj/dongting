@@ -19,7 +19,7 @@ import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.raft.server.RaftServerConfig;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
 
 import java.util.concurrent.TimeUnit;
 
@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 public class TailCache {
     private static final DtLog log = DtLogs.getLogger(TailCache.class);
     private static final long TIMEOUT = TimeUnit.SECONDS.toNanos(10);
-    private final RaftServerConfig serverConfig;
+    private final RaftGroupConfig groupConfig;
     private final RaftStatusImpl raftStatus;
     private long firstIndex = -1;
     private int pending;
@@ -38,8 +38,8 @@ public class TailCache {
 
     private int putCount;
 
-    public TailCache(RaftServerConfig serverConfig, RaftStatusImpl raftStatus) {
-        this.serverConfig = serverConfig;
+    public TailCache(RaftGroupConfig groupConfig, RaftStatusImpl raftStatus) {
+        this.groupConfig = groupConfig;
         this.raftStatus = raftStatus;
     }
 
@@ -152,7 +152,7 @@ public class TailCache {
                 break;
             }
             RaftTask t = cache.get(0);
-            if (pending <= serverConfig.getMaxPendingWrites() && pendingBytes <= serverConfig.getMaxPendingWrites()) {
+            if (pending <= groupConfig.getMaxPendingWrites() && pendingBytes <= groupConfig.getMaxPendingWrites()) {
                 if (t.getCreateTimeNanos() - timeBound >= 0) {
                     // this item not timeout, so next items not timeout
                     break;
