@@ -32,8 +32,7 @@ public class RaftPingFrameCallback extends PbCallback<RaftPingFrameCallback> {
     public boolean readFix32(int index, int value) {
         if (index == 1) {
             this.groupId = value;
-        }
-        if (index == 2) {
+        } else if (index == 2) {
             this.nodeId = value;
         } else if (index == 3) {
             nodeIdOfMembers.add(value);
