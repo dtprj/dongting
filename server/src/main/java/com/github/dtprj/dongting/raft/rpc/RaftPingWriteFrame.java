@@ -63,12 +63,12 @@ public class RaftPingWriteFrame extends SmallNoCopyWriteFrame {
         PbUtil.writeFix32(buf, 2, nodeId);
         if (nodeIdOfMembers != null) {
             for (int id : nodeIdOfMembers) {
-                PbUtil.writeFix32(buf, 2, id);
+                PbUtil.writeFix32(buf, 3, id);
             }
         }
         if (nodeIdOfObservers != null) {
             for (int id : nodeIdOfObservers) {
-                PbUtil.writeFix32(buf, 2, id);
+                PbUtil.writeFix32(buf, 4, id);
             }
         }
     }
