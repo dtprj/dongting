@@ -84,7 +84,7 @@ public class Raft3Benchmark extends BenchBase {
             @Override
             public FiberGroup createFiberGroup(RaftGroupConfig groupConfig) {
                 // we start 3 node in same jvm, so use node id as part of dispatcher name
-                Dispatcher dispatcher = new Dispatcher("dispatcher-" + GROUP_ID + "-node-" + nodeId);
+                Dispatcher dispatcher = new Dispatcher("node-" + nodeId);
                 dispatcher.start();
                 return new FiberGroup("group-" + GROUP_ID + "-node-" + nodeId, dispatcher);
             }
@@ -125,8 +125,8 @@ public class Raft3Benchmark extends BenchBase {
         client = new KvClient(new NioClientConfig());
         client.start();
         RaftNode n1 = new RaftNode(1, new HostPort("127.0.0.1", 5001));
-        RaftNode n2 = new RaftNode(1, new HostPort("127.0.0.1", 5002));
-        RaftNode n3 = new RaftNode(1, new HostPort("127.0.0.1", 5003));
+        RaftNode n2 = new RaftNode(2, new HostPort("127.0.0.1", 5002));
+        RaftNode n3 = new RaftNode(3, new HostPort("127.0.0.1", 5003));
         client.getRaftClient().addOrUpdateGroup(GROUP_ID, Arrays.asList(n1, n2, n3));
     }
 
