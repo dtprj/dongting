@@ -145,7 +145,9 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
             if (voteReq.getTerm() < localTerm) {
                 return false;
             } else {
-                if (raftStatus.getVotedFor() == 0 || raftStatus.getVotedFor() == voteReq.getCandidateId()) {
+                // pre-vote not save voteFor state, so not check it
+                if (voteReq.isPreVote() || raftStatus.getVotedFor() == 0
+                        || raftStatus.getVotedFor() == voteReq.getCandidateId()) {
                     if (voteReq.getLastLogTerm() > raftStatus.getLastLogTerm()) {
                         return true;
                     } else {
