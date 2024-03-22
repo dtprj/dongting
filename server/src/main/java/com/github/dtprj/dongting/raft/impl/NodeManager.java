@@ -161,13 +161,14 @@ public class NodeManager extends AbstractLifeCircle {
     private void processResultInScheduleThread(RaftNodeEx nodeEx, Throwable ex, Consumer<Throwable> extraCallback) {
         nodeEx.setPinging(false);
         if (ex != null) {
-            if (nodeEx.getStatus().isReady()) {
-                log.error("ping raft node {} fail", nodeEx.getPeer().getEndPoint(), ex);
-            } else {
-                log.warn("ping raft node {} fail: {}", nodeEx.getPeer().getEndPoint(), ex.toString());
-            }
+            log.error("ping raft node fail, remoteId={}, endPoint={}, err={}",
+                    nodeEx.getNodeId(), nodeEx.getPeer().getEndPoint(), ex.toString());
             updateNodeStatus(nodeEx, false);
         } else {
+            if (log.isDebugEnabled()) {
+                log.debug("node ping success, remoteId={}, endPoint={}",
+                        nodeEx.getNodeId(), nodeEx.getPeer().getEndPoint());
+            }
             updateNodeStatus(nodeEx, true);
         }
         if (extraCallback != null) {

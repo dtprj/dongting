@@ -33,7 +33,6 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
-import java.time.Duration;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -135,6 +134,11 @@ public class VoteManager {
     }
 
     public void tryStartPreVote() {
+        // move last elect time 1 seconds, prevent readyNodesNotEnough check too frequently if failed
+        long newLastElectTime = raftStatus.getTs().getNanoTime() - raftStatus.getElectTimeoutNanos()
+                + TimeUnit.SECONDS.toNanos(1);
+        raftStatus.setLastElectTime(newLastElectTime);
+
         if (!MemberManager.validCandidate(raftStatus, config.getNodeId())) {
             log.info("not valid candidate, can't start pre vote. groupId={}, term={}",
                     groupId, raftStatus.getCurrentTerm());
@@ -218,26 +222,28 @@ public class VoteManager {
         }
         int quorum = raftStatus.getElectQuorum();
         int voteCount = getVoteCount(raftStatus.getNodeIdOfMembers(), votes);
+        String voteType = preVote ? "pre-vote" : "vote";
         if (raftStatus.getPreparedMembers().isEmpty()) {
-            log.info("[{}] get {} grant of {}", preVote ? "pre-vote" : "vote", voteCount, quorum);
+            log.info("[{}] get {} valid votes of {}, term={}, current votes: {}",
+                    voteType, voteCount, raftStatus.getNodeIdOfMembers().size(), raftStatus.getCurrentTerm(), votes);
             return voteCount >= quorum;
         } else {
             int jointQuorum = RaftUtil.getElectQuorum(raftStatus.getPreparedMembers().size());
             int jointVoteCount = getVoteCount(raftStatus.getNodeIdOfPreparedMembers(), votes);
-            log.info("[{}] get {} grant of {}, joint consensus get {} grant of {}",
-                    preVote ? "pre-vote" : "vote", voteCount, quorum, jointVoteCount, jointQuorum);
+            log.info("[{}] get {} valid votes of {}, joint consensus get {} valid votes of {}, term={}, current votes: {}",
+                    voteType, voteCount, raftStatus.getNodeIdOfMembers().size(), jointVoteCount,
+                    raftStatus.getNodeIdOfPreparedMembers().size(), raftStatus.getCurrentTerm(), votes);
             return voteCount >= quorum && jointVoteCount >= jointQuorum;
         }
     }
 
     private class VoteFiberFrame extends FiberFrame<Void> {
 
-        private final long electTimeoutNanos = Duration.ofMillis(config.getElectTimeout()).toNanos();
         private final long INTERVAL = new Random().nextInt(150) + 150;
 
         @Override
         public FrameCallResult execute(Void input) {
-            boolean timeout = raftStatus.getTs().getNanoTime() - raftStatus.getLastElectTime() > electTimeoutNanos;
+            boolean timeout = raftStatus.getTs().getNanoTime() - raftStatus.getLastElectTime() > raftStatus.getElectTimeoutNanos();
             if (voting) {
                 if (timeout) {
                     cancelVote();
@@ -246,19 +252,19 @@ public class VoteManager {
                 }
             }
             if (timeout) {
-                // move last elect time 1 seconds, prevent pre-vote too frequently if failed
-                long newLastElectTime = raftStatus.getTs().getNanoTime() - raftStatus.getElectTimeoutNanos()
-                        + TimeUnit.SECONDS.toNanos(1);
-                raftStatus.setLastElectTime(newLastElectTime);
-
                 if (RaftUtil.writeNotFinished(raftStatus)) {
                     return RaftUtil.waitWriteFinish(raftStatus, this);
                 }
-                tryStartPreVote();
-                return Fiber.resume(null, this);
+                // sleep a random time to avoid multi nodes in same JVM start pre vote at almost same time (in tests)
+                return Fiber.sleep(new Random().nextInt(30), this::afterSleep);
             } else {
                 return Fiber.sleep(INTERVAL, this);
             }
+        }
+
+        private FrameCallResult afterSleep(Void unused) {
+            tryStartPreVote();
+            return Fiber.resume(null, this);
         }
     }
 
@@ -401,9 +407,11 @@ public class VoteManager {
                     log.warn("receive vote resp, not candidate, ignore. remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
                             resp.getTerm(), voteReq.getTerm(), remoteMember.getNode().getNodeId(), groupId);
                 } else {
-                    log.info("receive vote resp, granted={}, remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
-                            resp.isVoteGranted(), resp.getTerm(),
-                            voteReq.getTerm(), remoteMember.getNode().getNodeId(), groupId);
+                    if (remoteMember.getNode().getNodeId() != config.getNodeId()) {
+                        log.info("receive vote resp, granted={}, remoteTerm={}, reqTerm={}, remoteId={}, groupId={}",
+                                resp.isVoteGranted(), resp.getTerm(), voteReq.getTerm(),
+                                remoteMember.getNode().getNodeId(), groupId);
+                    }
                     if (resp.isVoteGranted()) {
                         remoteMember.setLastConfirmReqNanos(leaseStartTime);
                         if (isElected(remoteMember.getNode().getNodeId(), false)) {
