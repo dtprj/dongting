@@ -23,6 +23,8 @@ import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
 import com.github.dtprj.dongting.fiber.Dispatcher;
 import com.github.dtprj.dongting.fiber.FiberGroup;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.raft.RaftNode;
@@ -43,6 +45,7 @@ import java.util.concurrent.TimeUnit;
  * @author huangli
  */
 public class Raft3Benchmark extends BenchBase {
+    private static final DtLog log = DtLogs.getLogger(Raft3Benchmark.class);
     private static final String DATA_DIR = "target/raftlog";
     private static final int GROUP_ID = 0;
 
@@ -119,8 +122,12 @@ public class Raft3Benchmark extends BenchBase {
             s.getReadyFuture().get();
         }
 
+        log.info("raft servers started");
+
         // wait election
-        Thread.sleep(100);
+        Thread.sleep(200);
+
+        log.info("begin init raft client");
 
         client = new KvClient(new NioClientConfig());
         client.start();

@@ -321,14 +321,14 @@ public class VoteManager {
             if (ex == null) {
                 if (resp.isVoteGranted() && raftStatus.getRole() == RaftRole.follower
                         && resp.getTerm() == req.getTerm()) {
-                    log.info("receive pre-vote grant success. term={}, remoteNode={}, groupId={}",
+                    log.info("receive pre-vote grant true. term={}, remoteNode={}, groupId={}",
                             currentTerm, remoteMember.getNode().getNodeId(), groupId);
                     if (isElected(remoteMember.getNode().getNodeId(), true)) {
                         log.info("pre-vote success. groupId={}. term={}", groupId, currentTerm);
                         return startVote();
                     }
                 } else {
-                    log.info("receive pre-vote grant fail. term={}, remoteNode={}, groupId={}",
+                    log.info("receive pre-vote grant false. term={}, remoteNode={}, groupId={}",
                             currentTerm, remoteMember.getNode().getNodeId(), groupId);
                 }
             } else {
