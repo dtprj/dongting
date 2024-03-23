@@ -418,10 +418,7 @@ public class RaftServer extends AbstractLifeCircle {
     private void startGroups() {
         try {
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
-            raftGroups.forEach((groupId, g) -> {
-                startRaftGroup(g);
-                futures.add(g.getGroupComponents().getRaftStatus().getStartFuture());
-            });
+            raftGroups.forEach((groupId, g) -> futures.add(startRaftGroup(g)));
 
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).whenComplete((v, ex) -> {
                 if (ex != null) {
@@ -441,21 +438,26 @@ public class RaftServer extends AbstractLifeCircle {
         }
     }
 
-    private void startRaftGroup(RaftGroupImpl g) {
-        GroupComponents gc = g.getGroupComponents();
-        if (!gc.getFiberGroup().fireFiber(gc.getMemberManager().createRaftPingFiber())) {
-            throw new RaftException("fire raft ping fiber failed");
-        }
-        gc.getMemberManager().getStartReadyFuture().whenComplete((v, ex) -> {
-            if (ex != null) {
-                gc.getRaftStatus().getStartFuture().completeExceptionally(ex);
-            } else {
-                gc.getRaftStatus().getStartFuture().complete(null);
+    private CompletableFuture<Void> startRaftGroup(RaftGroupImpl g) {
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        try {
+            GroupComponents gc = g.getGroupComponents();
+            if (!gc.getFiberGroup().fireFiber(gc.getMemberManager().createRaftPingFiber())) {
+                throw new RaftException("fire raft ping fiber failed");
             }
-        });
+            gc.getMemberManager().getStartReadyFuture().whenComplete((v, ex) -> {
+                if (ex != null) {
+                    f.completeExceptionally(ex);
+                } else {
+                    f.complete(null);
+                }
+            });
+        } catch (Exception e) {
+            f.completeExceptionally(e);
+        }
+        return f;
     }
 
-    @SuppressWarnings("unused")
     public CompletableFuture<Void> getReadyFuture() {
         return readyFuture;
     }
@@ -611,10 +613,7 @@ public class RaftServer extends AbstractLifeCircle {
                 raftGroups.put(groupConfig.getGroupId(), g);
                 initRaftGroup(g);
                 RaftStatusImpl raftStatus = g.getGroupComponents().getRaftStatus();
-                return raftStatus.getInitFuture().thenCompose(v -> {
-                    startRaftGroup(g);
-                    return raftStatus.getStartFuture();
-                });
+                return raftStatus.getInitFuture().thenCompose(v -> startRaftGroup(g));
             } catch (InterruptedException e) {
                 DtUtil.restoreInterruptStatus();
                 return CompletableFuture.failedFuture(e);
