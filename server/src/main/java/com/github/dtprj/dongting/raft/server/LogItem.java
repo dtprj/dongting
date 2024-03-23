@@ -47,7 +47,6 @@ public class LogItem extends RefCount {
     private Object header;
     private int actualHeaderSize;
 
-    private int pbHeaderSize;
     private int pbItemSize;
 
     public LogItem(ByteBufferPool heapPool) {
@@ -165,14 +164,6 @@ public class LogItem extends RefCount {
 
     public void setHeaderBuffer(ByteBuffer headerBuffer) {
         this.headerBuffer = headerBuffer;
-    }
-
-    public int getPbHeaderSize() {
-        return pbHeaderSize;
-    }
-
-    public void setPbHeaderSize(int pbHeaderSize) {
-        this.pbHeaderSize = pbHeaderSize;
     }
 
     public int getPbItemSize() {
