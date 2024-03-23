@@ -79,7 +79,6 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                     log.info("receive pre-vote request. granted={}. reqTerm={}, localTerm={}",
                             resp.isVoteGranted(), voteReq.getTerm(), raftStatus.getCurrentTerm());
                 } else {
-                    RaftUtil.resetElectTimer(raftStatus);
                     if (RaftUtil.writeNotFinished(raftStatus)) {
                         return RaftUtil.waitWriteFinish(raftStatus, this);
                     }
@@ -115,6 +114,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
             }
 
             if (shouldGrant()) {
+                RaftUtil.resetElectTimer(raftStatus);
                 raftStatus.setVotedFor(voteReq.getCandidateId());
                 resp.setVoteGranted(true);
                 needPersist = true;
@@ -135,6 +135,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                         expectTerm, raftStatus.getCurrentTerm());
                 return Fiber.frameReturn();
             }
+            RaftUtil.updateLeader(raftStatus, voteReq.getCandidateId());
             log.info("receive vote request. granted={}. reqTerm={}, currentTerm={}",
                     resp.isVoteGranted(), voteReq.getTerm(), raftStatus.getCurrentTerm());
             return writeVoteResp();
