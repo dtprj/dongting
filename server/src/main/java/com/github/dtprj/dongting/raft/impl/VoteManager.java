@@ -256,7 +256,7 @@ public class VoteManager {
                     return RaftUtil.waitWriteFinish(raftStatus, this);
                 }
                 // sleep a random time to avoid multi nodes in same JVM start pre vote at almost same time (in tests)
-                return Fiber.sleep(new Random().nextInt(30), this::afterSleep);
+                return Fiber.sleep(new Random().nextInt(30) + 1, this::afterSleep);
             } else {
                 return Fiber.sleep(INTERVAL, this);
             }
