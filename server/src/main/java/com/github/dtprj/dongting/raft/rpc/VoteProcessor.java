@@ -64,12 +64,10 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
         private final VoteReq voteReq;
         private final VoteResp resp = new VoteResp();
         private final RaftStatusImpl raftStatus;
-        private final int localTermOfReceiveTime;
 
         private VoteFiberFrame(ReqInfoEx<VoteReq> reqInfo) {
             this.reqInfo = reqInfo;
             this.raftStatus = reqInfo.getRaftGroup().getGroupComponents().getRaftStatus();
-            this.localTermOfReceiveTime = raftStatus.getCurrentTerm();
             this.voteReq = reqInfo.getReqFrame().getBody();
         }
 
@@ -79,7 +77,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                 if (voteReq.isPreVote()) {
                     processPreVote();
                     log.info("receive pre-vote request. granted={}. reqTerm={}, localTerm={}",
-                            resp.isVoteGranted(), voteReq.getTerm(), localTermOfReceiveTime);
+                            resp.isVoteGranted(), voteReq.getTerm(), raftStatus.getCurrentTerm());
                 } else {
                     RaftUtil.resetElectTimer(raftStatus);
                     if (RaftUtil.writeNotFinished(raftStatus)) {
@@ -111,7 +109,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
 
         private FrameCallResult processVote() {
             boolean needPersist = false;
-            if (voteReq.getTerm() > localTermOfReceiveTime) {
+            if (voteReq.getTerm() > raftStatus.getCurrentTerm()) {
                 RaftUtil.incrTerm(voteReq.getTerm(), raftStatus, -1);
                 needPersist = true;
             }
@@ -124,33 +122,27 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
             if (needPersist) {
                 StatusManager statusManager = reqInfo.getRaftGroup().getGroupComponents().getStatusManager();
                 statusManager.persistAsync(true);
-                return statusManager.waitForce(this::postProcessVote);
+                int expectTerm = raftStatus.getCurrentTerm();
+                return statusManager.waitForce(v -> postProcessVote(expectTerm));
             } else {
-                return postProcessVote(null);
+                return postProcessVote(raftStatus.getCurrentTerm());
             }
         }
 
-        private FrameCallResult postProcessVote(Void unused) {
-            if (termChanged()) {
+        private FrameCallResult postProcessVote(int expectTerm) {
+            if (expectTerm != raftStatus.getCurrentTerm()) {
+                log.warn("localTerm changed, ignore vote response. expectTerm={}, currentTerm={}",
+                        expectTerm, raftStatus.getCurrentTerm());
                 return Fiber.frameReturn();
             }
-            log.info("receive vote request. granted={}. reqTerm={}, localTerm={}",
-                    resp.isVoteGranted(), voteReq.getTerm(), localTermOfReceiveTime);
+            log.info("receive vote request. granted={}. reqTerm={}, currentTerm={}",
+                    resp.isVoteGranted(), voteReq.getTerm(), raftStatus.getCurrentTerm());
             return writeVoteResp();
-        }
-
-        private boolean termChanged() {
-            if (localTermOfReceiveTime != raftStatus.getCurrentTerm()) {
-                log.warn("localTerm changed, ignore vote response. localTermOfReceiveTime={}, currentTerm={}",
-                        localTermOfReceiveTime, raftStatus.getCurrentTerm());
-                return true;
-            }
-            return false;
         }
 
         private boolean shouldGrant() {
             boolean result;
-            if (voteReq.getTerm() < localTermOfReceiveTime) {
+            if (voteReq.getTerm() < raftStatus.getCurrentTerm()) {
                 result = false;
             } else {
                 // pre-vote not save voteFor state, so not check it
@@ -167,10 +159,9 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                 }
             }
             String voteType = voteReq.isPreVote() ? "pre-vote" : "vote";
-            log.info("[{}] grant check {}. candidateId={}, reqTerm={}, localTermOfReceiveTime={}, " +
-                            "currentLocalTerm={}, voteFor={}, reqLastLogTerm={}, reqLastIndex={}, " +
-                            "localLastLogTerm={}, localLastIndex={}",
-                    voteType, result, voteReq.getCandidateId(), voteReq.getTerm(), localTermOfReceiveTime,
+            log.info("[{}] grant check {}. candidateId={}, reqTerm={}, currentLocalTerm={}, voteFor={}," +
+                            " reqLastLogTerm={}, reqLastIndex={}, localLastLogTerm={}, localLastIndex={}",
+                    voteType, result, voteReq.getCandidateId(), voteReq.getTerm(),
                     raftStatus.getCurrentTerm(), raftStatus.getVotedFor(), voteReq.getLastLogTerm(),
                     voteReq.getLastLogIndex(), raftStatus.getLastLogTerm(), raftStatus.getLastLogIndex());
             return result;
