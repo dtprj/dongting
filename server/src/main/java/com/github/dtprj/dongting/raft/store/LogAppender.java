@@ -318,7 +318,7 @@ class LogAppender {
                         }
                     }
                 } finally {
-                    encodeContext.setStatus(null);
+                    encodeContext.reset();
                 }
                 if (buffer.remaining() < 4) {
                     buffer = doWrite(file, buffer);
@@ -356,7 +356,7 @@ class LogAppender {
                         }
                     }
                 } finally {
-                    encodeContext.setStatus(null);
+                    encodeContext.reset();
                 }
                 if (buffer.remaining() < 4) {
                     buffer = doWrite(file, buffer);

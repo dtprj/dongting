@@ -221,7 +221,7 @@ public class AppendReqWriteFrame extends WriteFrame {
                 throw e;
             } finally {
                 if (result) {
-                    context.setStatus(null);
+                    context.reset();
                     currentEncoder = null;
                 }
             }

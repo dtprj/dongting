@@ -184,7 +184,7 @@ class IoChannelQueue {
                     try {
                         wd.getData().clean();
                     } finally {
-                        encodeContext.setStatus(null);
+                        encodeContext.reset();
                         wd = null;
                     }
                 }
@@ -192,7 +192,7 @@ class IoChannelQueue {
             subQueueBytes = 0;
             return flipAndReturnBuffer(buf);
         } catch (RuntimeException | Error e) {
-            encodeContext.setStatus(null);
+            encodeContext.reset();
             // channel will be closed, and cleanChannelQueue will be called
             throw e;
         } finally {
@@ -238,7 +238,7 @@ class IoChannelQueue {
             f.setSeq(seq);
             f.setTimeout(rest);
         }
-        encodeContext.setStatus(null);
+        encodeContext.reset();
         return doEncode(buf, wd);
     }
 

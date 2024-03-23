@@ -39,4 +39,8 @@ public class EncodeContext {
     public void setStatus(Object status) {
         this.status = status;
     }
+
+    public void reset() {
+        this.status = null;
+    }
 }
