@@ -135,7 +135,9 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                         expectTerm, raftStatus.getCurrentTerm());
                 return Fiber.frameReturn();
             }
-            RaftUtil.updateLeader(raftStatus, voteReq.getCandidateId());
+            if (resp.isVoteGranted()) {
+                RaftUtil.updateLeader(raftStatus, voteReq.getCandidateId());
+            }
             log.info("receive vote request. granted={}. reqTerm={}, currentTerm={}",
                     resp.isVoteGranted(), voteReq.getTerm(), raftStatus.getCurrentTerm());
             return writeVoteResp();
