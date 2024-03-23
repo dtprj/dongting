@@ -20,6 +20,7 @@ package com.github.dtprj.dongting.net;
  */
 public class ReadFrame<T> extends Frame {
     private T body;
+    boolean responseHasWrite;
 
     public ReadFrame() {
     }

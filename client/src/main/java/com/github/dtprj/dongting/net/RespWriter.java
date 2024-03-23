@@ -33,22 +33,23 @@ public class RespWriter {
     }
 
     // invoke by other threads
-    void writeRespInBizThreads(WriteFrame resp, DtTime timeout) {
+    public void writeRespInBizThreads(ReadFrame<?> req, WriteFrame resp, DtTime timeout) {
+        resp.setSeq(req.getSeq());
+        resp.setCommand(req.getCommand());
         if (dtc.isClosed()) {
             resp.clean();
             // not restrict, but we will check again in io thread
             return;
         }
+        if (req.responseHasWrite) {
+            // this check is not thread safe
+            throw new IllegalStateException("the response has been written");
+        }
+        req.responseHasWrite = true;
+
         resp.setFrameType(FrameType.TYPE_RESP);
         WriteData data = new WriteData(dtc, resp, timeout);
         ioWorkerQueue.writeFromBizThread(data);
         wakeupRunnable.run();
-    }
-
-    // invoke by other threads
-    public void writeRespInBizThreads(ReadFrame<?> req, WriteFrame resp, DtTime timeout) {
-        resp.setSeq(req.getSeq());
-        resp.setCommand(req.getCommand());
-        writeRespInBizThreads(resp, timeout);
     }
 }

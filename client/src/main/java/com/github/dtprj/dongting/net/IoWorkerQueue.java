@@ -42,6 +42,7 @@ class IoWorkerQueue {
             if (data.getFuture() != null) {
                 data.getFuture().completeExceptionally(new NetException("IoQueue closed"));
             }
+            data.getData().clean();
         }
     }
 
