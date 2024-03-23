@@ -28,7 +28,6 @@ import com.github.dtprj.dongting.log.DtLogs;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -76,18 +75,18 @@ class IoChannelQueue {
             // can't invoke actualSize() here because seq and timeout field is not set yet
             estimateSize = wf.calcMaxFrameSize();
             if (estimateSize > config.getMaxFrameSize() || estimateSize < 0) {
-                fail(writeData, () -> new NetException("estimateSize overflow"));
+                fail(writeData, new NetException("estimateSize overflow"));
                 return;
             }
             writeData.setEstimateSize(estimateSize);
             int bodySize = wf.actualBodySize();
             if (bodySize > config.getMaxBodySize() || bodySize < 0) {
-                fail(writeData, () -> new NetException("frame body size " + bodySize
+                fail(writeData, new NetException("frame body size " + bodySize
                         + " exceeds max body size " + config.getMaxBodySize()));
                 return;
             }
         } catch (RuntimeException | Error e) {
-            fail(writeData, () -> new NetException("encode calc size fail", e));
+            fail(writeData, new NetException("encode calc size fail", e));
             return;
         }
 
@@ -102,9 +101,9 @@ class IoChannelQueue {
         workerStatus.addFramesToWrite(1);
     }
 
-    private void fail(WriteData writeData, Supplier<NetException> ex) {
+    private void fail(WriteData writeData, NetException ex) {
         if (writeData.getFuture() != null) {
-            writeData.getFuture().completeExceptionally(ex.get());
+            writeData.getFuture().completeExceptionally(ex);
         }
         writeData.getData().clean();
     }
@@ -120,11 +119,11 @@ class IoChannelQueue {
 
         if (lastWriteData != null) {
             workerStatus.addFramesToWrite(-1);
-            fail(lastWriteData, () -> new NetException("channel closed, cancel request still in IoChannelQueue. 1"));
+            fail(lastWriteData, new NetException("channel closed, cancel request still in IoChannelQueue. 1"));
         }
         WriteData wd;
         while ((wd = subQueue.pollFirst()) != null) {
-            fail(wd, () -> new NetException("channel closed, cancel request still in IoChannelQueue. 2"));
+            fail(wd, new NetException("channel closed, cancel request still in IoChannelQueue. 2"));
             workerStatus.addFramesToWrite(-1);
         }
     }
@@ -171,7 +170,7 @@ class IoChannelQueue {
                             if (old != null) {
                                 String errMsg = "dup seq: old=" + old.getData() + ", new=" + f;
                                 BugLog.getLog().error(errMsg);
-                                fail(old, () -> new NetException(errMsg));
+                                fail(old, new NetException(errMsg));
                             }
                         }
                         framesInBuffer++;

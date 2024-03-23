@@ -32,6 +32,7 @@ public abstract class WriteFrame extends Frame {
     private static final int STATUS_INIT = 0;
     private static final int STATUS_HEADER_ENCODE_FINISHED = 1;
     private static final int STATUS_ENCODE_FINISHED = 2;
+    private static final int STATUS_CLEANED = 3;
 
     private int dumpSize;
     private int bodySize;
@@ -135,7 +136,7 @@ public abstract class WriteFrame extends Frame {
     }
 
     public final void clean() {
-        if (status == STATUS_INIT) {
+        if (status == STATUS_CLEANED) {
             return;
         }
         try {
@@ -143,7 +144,7 @@ public abstract class WriteFrame extends Frame {
         } catch (Throwable e) {
             log.error("clean error", e);
         } finally {
-            status = STATUS_INIT;
+            status = STATUS_CLEANED;
         }
     }
 
