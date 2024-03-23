@@ -50,6 +50,18 @@ public class DtUtil {
         }
     }
 
+    public static void stop(DtTime timeout, LifeCircle... lifeCircles) {
+        for (LifeCircle lf : lifeCircles) {
+            if (lf != null) {
+                try {
+                    lf.stop(timeout);
+                } catch (Exception e) {
+                    log.error("stop fail", e);
+                }
+            }
+        }
+    }
+
     public static int javaVersion() {
         return JAVA_VER;
     }

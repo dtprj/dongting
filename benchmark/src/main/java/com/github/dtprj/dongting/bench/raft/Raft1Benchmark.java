@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.bench.raft;
 
 import com.github.dtprj.dongting.bench.BenchBase;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
@@ -99,9 +100,7 @@ public class Raft1Benchmark extends BenchBase {
 
     @Override
     public void shutdown() {
-        client.stop(new DtTime(3, TimeUnit.SECONDS));
-        raftServer.stop(new DtTime(3, TimeUnit.SECONDS));
-        raftFactory.stop(new DtTime(3, TimeUnit.SECONDS));
+        DtUtil.stop(new DtTime(3, TimeUnit.SECONDS), client, raftServer, raftFactory);
     }
 
     @Override
