@@ -390,13 +390,6 @@ public class RaftServer extends AbstractLifeCircle {
         if (!gc.getFiberGroup().fireFiber(initFiber)) {
             throw new RaftException("fire init fiber failed");
         }
-        initFiberFrame.getPrepareFuture().whenComplete((v, ex) -> {
-            if (ex != null) {
-                gc.getRaftStatus().getInitFuture().completeExceptionally(ex);
-            } else {
-                gc.getRaftStatus().getInitFuture().complete(null);
-            }
-        });
     }
 
     private void startServers() {

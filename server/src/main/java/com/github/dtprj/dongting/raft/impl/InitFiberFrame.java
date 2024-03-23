@@ -35,7 +35,6 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * @author huangli
@@ -43,7 +42,6 @@ import java.util.concurrent.CompletableFuture;
 public class InitFiberFrame extends FiberFrame<Void> {
     private static final DtLog log = DtLogs.getLogger(InitFiberFrame.class);
 
-    private final CompletableFuture<Void> prepareFuture = new CompletableFuture<>();
     private final GroupComponents gc;
     private final RaftStatusImpl raftStatus;
     private final RaftGroupConfigEx groupConfig;
@@ -59,7 +57,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
     @Override
     protected FrameCallResult handle(Throwable ex) {
         log.error("raft group init failed, groupId={}", groupConfig.getGroupId(), ex);
-        prepareFuture.completeExceptionally(ex);
+        raftStatus.getInitFuture().completeExceptionally(ex);
         getFiberGroup().requestShutdown();
         return Fiber.frameReturn();
     }
@@ -95,7 +93,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
 
     private FrameCallResult afterRecoverStateMachine(Pair<Integer, Long> snapshotResult) {
         if (isGroupShouldStopPlain()) {
-            prepareFuture.completeExceptionally(new RaftException("group should stop"));
+            raftStatus.getInitFuture().completeExceptionally(new RaftException("group should stop"));
             return Fiber.frameReturn();
         }
 
@@ -113,7 +111,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
 
     private FrameCallResult afterRaftLogInit(Pair<Integer, Long> initResult, int snapshotTerm, long snapshotIndex) {
         if (isGroupShouldStopPlain()) {
-            prepareFuture.completeExceptionally(new RaftException("group should stop"));
+            raftStatus.getInitFuture().completeExceptionally(new RaftException("group should stop"));
             return Fiber.frameReturn();
         }
         int initResultTerm = initResult.getLeft();
@@ -138,16 +136,10 @@ public class InitFiberFrame extends FiberFrame<Void> {
 
         gc.getCommitManager().startCommitFiber();
         gc.getVoteManager().startFiber();
-        gc.getApplyManager().init(getFiberGroup(), () -> {
-            raftStatus.copyShareStatus();
-            prepareFuture.complete(null);
-        });
+        gc.getApplyManager().init(getFiberGroup());
         return Fiber.frameReturn();
     }
 
-    public CompletableFuture<Void> getPrepareFuture() {
-        return prepareFuture;
-    }
 }
 
 class RecoverStateMachineFiberFrame extends FiberFrame<Pair<Integer, Long>> {
