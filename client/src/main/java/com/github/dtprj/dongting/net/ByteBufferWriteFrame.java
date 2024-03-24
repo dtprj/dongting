@@ -38,7 +38,7 @@ public class ByteBufferWriteFrame extends WriteFrame {
 
     public static int copy(ByteBuffer src, ByteBuffer dest, int markedPosition) {
         int srcStart = src.position();
-        if (markedPosition < 0) {
+        if (markedPosition < srcStart) {
             markedPosition = srcStart;
         } else {
             src.position(markedPosition);
@@ -64,10 +64,5 @@ public class ByteBufferWriteFrame extends WriteFrame {
     protected boolean encodeBody(EncodeContext context, ByteBuffer buf) {
         markedPosition = copy(body, buf, markedPosition);
         return markedPosition == body.limit();
-    }
-
-    @Override
-    protected void doClean() {
-        markedPosition = -1;
     }
 }
