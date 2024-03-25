@@ -22,7 +22,7 @@ import com.github.dtprj.dongting.net.ByteBufferWriteFrame;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.sm.StateMachine;
+import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -52,17 +52,17 @@ import java.util.List;
 //}
 public class AppendReqWriteFrame extends WriteFrame {
 
-    private final StateMachine stateMachine;
+    private final RaftCodecFactory codecFactory;
     @SuppressWarnings("rawtypes")
     private Encoder currentEncoder;
 
-    private int groupId;
-    private int term;
-    private int leaderId;
-    private long prevLogIndex;
-    private int prevLogTerm;
-    private long leaderCommit;
-    private List<LogItem> logs;
+    int groupId;
+    int term;
+    int leaderId;
+    long prevLogIndex;
+    int prevLogTerm;
+    long leaderCommit;
+    List<LogItem> logs;
 
     private int headerSize;
 
@@ -78,8 +78,8 @@ public class AppendReqWriteFrame extends WriteFrame {
 
     private LogItem currentItem;
 
-    public AppendReqWriteFrame(StateMachine stateMachine) {
-        this.stateMachine = stateMachine;
+    public AppendReqWriteFrame(RaftCodecFactory codecFactory) {
+        this.codecFactory = codecFactory;
     }
 
     @Override
@@ -103,6 +103,7 @@ public class AppendReqWriteFrame extends WriteFrame {
         if (itemSize > 0) {
             return itemSize;
         }
+        item.calcHeaderBodySize(codecFactory);
         int itemHeaderSize = PbUtil.accurateUnsignedIntSize(1, item.getType())
                 + PbUtil.accurateUnsignedIntSize(2, item.getBizType())
                 + PbUtil.accurateUnsignedIntSize(3, item.getTerm())
@@ -113,6 +114,7 @@ public class AppendReqWriteFrame extends WriteFrame {
                 + PbUtil.accurateLengthDelimitedSize(7, item.getActualHeaderSize())
                 + PbUtil.accurateLengthDelimitedSize(8, item.getActualBodySize());
         item.setPbItemSize(itemSize);
+        item.setPbHeaderSize(itemHeaderSize);
         return itemSize;
     }
 
@@ -138,8 +140,8 @@ public class AppendReqWriteFrame extends WriteFrame {
                     } else {
                         return true;
                     }
-                    int require = PbUtil.accurateLengthDelimitedSize(7, computeItemSize(currentItem));
-                    if (buf.remaining() < require) {
+                    if (buf.remaining() < PbUtil.accurateLengthDelimitedPrefixSize(
+                            7, computeItemSize(currentItem)) + currentItem.getPbHeaderSize()) {
                         return false;
                     }
                     PbUtil.writeLengthDelimitedPrefix(buf, 7, computeItemSize(currentItem));
@@ -157,7 +159,8 @@ public class AppendReqWriteFrame extends WriteFrame {
                         writeStatus = WRITE_ITEM_BIZ_BODY_LEN;
                         break;
                     }
-                    if (buf.remaining() < currentItem.getActualHeaderSize()) {
+                    if (buf.remaining() < PbUtil.accurateLengthDelimitedPrefixSize(
+                            7, currentItem.getActualHeaderSize())) {
                         return false;
                     }
                     PbUtil.writeLengthDelimitedPrefix(buf, 7, currentItem.getActualHeaderSize());
@@ -175,7 +178,8 @@ public class AppendReqWriteFrame extends WriteFrame {
                         writeStatus = WRITE_ITEM_HEADER;
                         break;
                     }
-                    if (buf.remaining() < currentItem.getActualBodySize()) {
+                    if (buf.remaining() < PbUtil.accurateLengthDelimitedPrefixSize(
+                            8, currentItem.getActualBodySize())) {
                         return false;
                     }
                     PbUtil.writeLengthDelimitedPrefix(buf, 8, currentItem.getActualBodySize());
@@ -210,8 +214,8 @@ public class AppendReqWriteFrame extends WriteFrame {
             boolean result = false;
             try {
                 if (currentEncoder == null) {
-                    currentEncoder = header ? stateMachine.createHeaderEncoder(item.getBizType())
-                            : stateMachine.createBodyEncoder(item.getBizType());
+                    currentEncoder = header ? codecFactory.createHeaderEncoder(item.getBizType())
+                            : codecFactory.createBodyEncoder(item.getBizType());
                 }
                 //noinspection unchecked
                 result = currentEncoder.encode(context, dest, data);

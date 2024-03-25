@@ -16,7 +16,9 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.common.RefCount;
+import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.nio.ByteBuffer;
 
@@ -47,6 +49,7 @@ public class LogItem extends RefCount {
     private Object header;
     private int actualHeaderSize;
 
+    private int pbHeaderSize;
     private int pbItemSize;
 
     public LogItem(ByteBufferPool heapPool) {
@@ -67,6 +70,26 @@ public class LogItem extends RefCount {
         }
         if (body instanceof RefCount) {
             ((RefCount) body).release();
+        }
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public void calcHeaderBodySize(RaftCodecFactory codecFactory) {
+        if (actualHeaderSize == 0) {
+            if (headerBuffer != null) {
+                actualHeaderSize = headerBuffer.remaining();
+            } else if (header != null) {
+                Encoder encoder = codecFactory.createHeaderEncoder(bizType);
+                actualHeaderSize = encoder.actualSize(header);
+            }
+        }
+        if (actualBodySize == 0) {
+            if (bodyBuffer != null) {
+                actualBodySize = bodyBuffer.remaining();
+            } else if (body != null) {
+                Encoder encoder = codecFactory.createBodyEncoder(bizType);
+                actualBodySize = encoder.actualSize(body);
+            }
         }
     }
 
@@ -172,5 +195,13 @@ public class LogItem extends RefCount {
 
     public void setPbItemSize(int pbItemSize) {
         this.pbItemSize = pbItemSize;
+    }
+
+    public int getPbHeaderSize() {
+        return pbHeaderSize;
+    }
+
+    public void setPbHeaderSize(int pbHeaderSize) {
+        this.pbHeaderSize = pbHeaderSize;
     }
 }

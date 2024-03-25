@@ -37,12 +37,15 @@ import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
+import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.util.ArrayList;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -65,7 +68,11 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
 
     public AppendProcessor(RaftServer raftServer) {
         super(raftServer);
-        this.appendDecoder = new PbNoCopyDecoder<>(decodeContext -> new AppendReqCallback(decodeContext, raftServer));
+        Function<Integer, RaftCodecFactory> decoderFactory = groupId -> {
+            RaftGroup g = raftServer.getRaftGroup(groupId);
+            return g == null ? null : g.getStateMachine();
+        };
+        this.appendDecoder = new PbNoCopyDecoder<>(decodeContext -> new AppendReqCallback(decodeContext, decoderFactory));
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

@@ -182,14 +182,13 @@ class LogAppender {
             items.clear();
             lastItem = null;
 
-            long calculatedItemIndex = -1;
             boolean writeEndHeader = false;
             boolean rollNextFile = false;
             for (long lastIndex = cache.getLastIndex(), fileRestBytes = file.endPos - nextPersistPos;
                  nextPersistIndex <= lastIndex; ) {
                 RaftTask rt = cache.get(nextPersistIndex);
                 LogItem li = rt.getItem();
-                calculatedItemIndex = initItemSize(li, calculatedItemIndex);
+                li.calcHeaderBodySize(codecFactory);
                 int len = LogHeader.computeTotalLen(0, li.getActualHeaderSize(),
                         li.getActualBodySize());
                 if (len <= fileRestBytes) {
@@ -240,26 +239,6 @@ class LogAppender {
             file.getLock().readLock().unlock();
             // continue loop
             return Fiber.resume(null, this);
-        }
-
-        @SuppressWarnings({"rawtypes", "unchecked"})
-        private long initItemSize(LogItem item, long calculatedItemIndex) {
-            if (calculatedItemIndex >= item.getIndex()) {
-                return calculatedItemIndex;
-            }
-            if (item.getHeaderBuffer() != null) {
-                item.setActualHeaderSize(item.getHeaderBuffer().remaining());
-            } else if (item.getHeader() != null) {
-                Encoder encoder = codecFactory.createHeaderEncoder(item.getBizType());
-                item.setActualHeaderSize(encoder.actualSize(item.getHeader()));
-            }
-            if (item.getBodyBuffer() != null) {
-                item.setActualBodySize(item.getBodyBuffer().remaining());
-            } else if (item.getBody() != null) {
-                Encoder encoder = codecFactory.createBodyEncoder(item.getBizType());
-                item.setActualBodySize(encoder.actualSize(item.getBody()));
-            }
-            return item.getIndex();
         }
 
         private ByteBuffer encodeItems(ArrayList<LogItem> items, LogFile file, ByteBuffer buffer) {

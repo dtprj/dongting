@@ -33,7 +33,7 @@ public class ByteBufferEncoder implements Encoder<ByteBuffer> {
 
     @Override
     public boolean encode(EncodeContext context, ByteBuffer buffer, ByteBuffer data) {
-        int markedPos = 0;
+        int markedPos = -1;
         Integer s = (Integer) context.getStatus();
         if (s != null) {
             markedPos = s;

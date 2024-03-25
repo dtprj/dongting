@@ -20,14 +20,13 @@ import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.codec.PbParser;
-import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.function.Function;
 
 /**
  * @author huangli
@@ -44,7 +43,9 @@ import java.util.ArrayList;
 public class AppendReqCallback extends PbCallback<AppendReqCallback> {
 
     private final DecodeContext context;
-    private final RaftServer raftServer;
+    private final Function<Integer, RaftCodecFactory> decoderFactory;
+    private RaftCodecFactory raftCodecFactory;
+
     private int groupId;
     private int term;
     private int leaderId;
@@ -53,9 +54,10 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
     private final ArrayList<LogItem> logs = new ArrayList<>();
     private long leaderCommit;
 
-    public AppendReqCallback(DecodeContext context, RaftServer raftServer) {
+
+    public AppendReqCallback(DecodeContext context, Function<Integer, RaftCodecFactory> decoderFactory) {
         this.context = context;
-        this.raftServer = raftServer;
+        this.decoderFactory = decoderFactory;
     }
 
     @Override
@@ -102,16 +104,18 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
     public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
         boolean end = buf.remaining() >= len - currentPos;
         if (index == 7) {
-            RaftGroupImpl group = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
-            if (group == null) {
-                // group id should encode before entries
-                throw new PbException("can't find raft group: " + groupId);
-            }
             PbParser logItemParser;
             LogItemCallback callback;
             if (currentPos == 0) {
+                if (raftCodecFactory == null) {
+                    // group id should encode before entries
+                    raftCodecFactory = decoderFactory.apply(groupId);
+                    if (raftCodecFactory == null) {
+                        throw new PbException("can't find raft group: " + groupId);
+                    }
+                }
                 // since AppendReqCallback not use context (to save status), we can use it in sub parser
-                callback = new LogItemCallback(context, group.getStateMachine());
+                callback = new LogItemCallback(context, raftCodecFactory);
                 logItemParser = parser.createOrGetNestedParser(callback, len);
             } else {
                 logItemParser = parser.getNestedParser();
