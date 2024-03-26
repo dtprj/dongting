@@ -70,7 +70,12 @@ public class AppendReqWriteFrameTest {
 
     @Test
     public void testEncode() {
-        AppendReqWriteFrame f = createFrame();
+        testEncode0(true, true);
+        testEncode0(false, false);
+    }
+
+    private void testEncode0(boolean addHeader, boolean addBody) {
+        AppendReqWriteFrame f = createFrame(addHeader, addBody);
         ByteBuffer buf = ByteBuffer.allocate(f.actualBodySize());
         Assertions.assertTrue(f.encodeBody(new EncodeContext(null), buf));
         assertEquals(buf.position(), f.actualBodySize());
@@ -89,12 +94,13 @@ public class AppendReqWriteFrameTest {
     @Test
     public void testSmallBufferEncode() {
         for (int i = 0; i < 100; i++) {
-            testSmallBufferEncode0();
+            testSmallBufferEncode0(true, true);
+            testSmallBufferEncode0(false, false);
         }
     }
 
-    private void testSmallBufferEncode0() {
-        AppendReqWriteFrame f = createFrame();
+    private void testSmallBufferEncode0(boolean addHeader, boolean addBody) {
+        AppendReqWriteFrame f = createFrame(addHeader, addBody);
         EncodeContext context = new EncodeContext(null);
         DecodeContext decodeContext = new DecodeContext();
         AppendReqCallback c = new AppendReqCallback(decodeContext, g -> raftCodecFactory);
@@ -119,7 +125,7 @@ public class AppendReqWriteFrameTest {
         check(f, c);
     }
 
-    private AppendReqWriteFrame createFrame() {
+    private AppendReqWriteFrame createFrame(boolean addHeader, boolean addBody) {
         AppendReqWriteFrame f = new AppendReqWriteFrame(raftCodecFactory);
         f.setGroupId(12345);
         f.setTerm(4);
@@ -137,8 +143,12 @@ public class AppendReqWriteFrameTest {
             log.setTerm(4);
             log.setTimestamp(System.currentTimeMillis());
             log.setType(LogItem.TYPE_NORMAL);
-            log.setHeader(createBytes(10));
-            log.setBody(createBytes(20));
+            if (addHeader) {
+                log.setHeader(createBytes(10));
+            }
+            if (addBody) {
+                log.setBody(createBytes(20));
+            }
             logs.add(log);
         }
         return f;
