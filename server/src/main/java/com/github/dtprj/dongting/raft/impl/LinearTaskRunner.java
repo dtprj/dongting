@@ -180,11 +180,7 @@ public class LinearTaskRunner {
             } else {
                 // read
                 if (newIndex <= raftStatus.getLastApplied()) {
-                    try {
-                        applyManager.execRead(newIndex, rt);
-                    } finally {
-                        RaftUtil.release(rt.getInput());
-                    }
+                    applyManager.execRead(newIndex, rt);
                 } else {
                     RaftTask newTask = tailCache.get(newIndex);
                     if (newTask == null) {
