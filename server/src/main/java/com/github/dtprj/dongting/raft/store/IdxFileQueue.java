@@ -408,6 +408,9 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         if (index <= raftStatus.getCommitIndex()) {
             throw new RaftException("truncateTail index is too small: " + index);
         }
+        if (cache.size() == 0) {
+            return;
+        }
         if (index < cache.getFirstKey() || index > cache.getLastKey()) {
             throw new RaftException("truncateTail out of cache range: " + index);
         }

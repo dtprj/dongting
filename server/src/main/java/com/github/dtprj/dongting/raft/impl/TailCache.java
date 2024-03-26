@@ -77,6 +77,9 @@ public class TailCache {
      * truncate tail to index (inclusive)
      */
     public void truncate(long index) {
+        if (firstIndex < 0) {
+            return;
+        }
         if (index < firstIndex) {
             throw new IllegalArgumentException("index " + index + " is less than firstIndex " + firstIndex);
         }
