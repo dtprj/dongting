@@ -111,6 +111,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             RaftTask rt = new RaftTask(config.getTs(), LogItem.TYPE_NORMAL, ri, null);
             rt.setItem(items[i]);
             raftStatus.getTailCache().put(items[i].getIndex(), rt);
+            items[i].release();
         }
 
         doInFiber(new FiberFrame<>() {

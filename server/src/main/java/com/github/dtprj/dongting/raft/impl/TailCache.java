@@ -65,6 +65,7 @@ public class TailCache {
                 throw new IllegalArgumentException("index " + index + " is not nextWriteIndex " + nextWriteIndex());
             }
         }
+        value.getItem().retain();
         cache.addLast(value);
         pending++;
         pendingBytes += value.getInput().getFlowControlSize();

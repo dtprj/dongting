@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.RefCount;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCall;
@@ -102,10 +103,10 @@ public class RaftUtil {
 
     public static void release(RaftInput raftInput) {
         if (raftInput.isHeadReleasable()) {
-            ((LogItem) raftInput.getHeader()).release();
+            ((RefCount) raftInput.getHeader()).release();
         }
         if (raftInput.isBodyReleasable()) {
-            ((LogItem) raftInput.getBody()).release();
+            ((RefCount) raftInput.getBody()).release();
         }
     }
 

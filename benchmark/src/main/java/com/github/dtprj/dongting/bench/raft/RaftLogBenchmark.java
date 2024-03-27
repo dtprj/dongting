@@ -238,6 +238,7 @@ public class RaftLogBenchmark extends RpcBenchmark {
                     RaftTask rt = new RaftTask(ts, LogItem.TYPE_NORMAL, ri, null);
                     rt.setItem(item);
                     raftStatus.getTailCache().put(item.getIndex(), rt);
+                    item.release();
 
                     reqData.raftLogIndex = item.getIndex();
                     pending.addLast(reqData);
@@ -250,7 +251,7 @@ public class RaftLogBenchmark extends RpcBenchmark {
 
         private class PostStoreFrame extends FiberFrame<Void> {
 
-            private static final boolean SYNC_FORCE = false;
+            private static final boolean SYNC_FORCE = true;
             @Override
             public FrameCallResult execute(Void input) {
 

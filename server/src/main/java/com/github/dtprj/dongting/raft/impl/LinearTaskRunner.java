@@ -152,12 +152,14 @@ public class LinearTaskRunner {
             RaftInput input = rt.getInput();
 
             if (input.getDeadline() != null && input.getDeadline().isTimeout(ts)) {
+                RaftUtil.release(input);
                 rt.getFuture().completeExceptionally(new RaftExecTimeoutException("timeout "
                         + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms"));
                 continue;
             }
 
             if (!input.isReadOnly()) {
+                // write task
                 newIndex++;
                 LogItem item = new LogItem(null);
                 item.setType(rt.getType());
@@ -173,12 +175,16 @@ public class LinearTaskRunner {
                 rt.setItem(item);
 
                 writeCount++;
-                // release resources when log item is cleaned from tail cache
-                tailCache.put(newIndex, rt);
+                try {
+                    // put method retain the item
+                    tailCache.put(newIndex, rt);
+                } finally {
+                    item.release();
+                }
                 raftStatus.setLastLogIndex(newIndex);
                 raftStatus.setLastLogTerm(currentTerm);
             } else {
-                // read
+                // read task, release res in execRead
                 if (newIndex <= raftStatus.getLastApplied()) {
                     applyManager.execRead(newIndex, rt);
                 } else {
