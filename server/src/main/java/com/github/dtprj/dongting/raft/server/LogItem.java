@@ -62,15 +62,19 @@ public class LogItem extends RefCount {
         if (headerBuffer != null && heapPool != null) {
             heapPool.release(headerBuffer);
         }
+        headerBuffer = null;
         if (bodyBuffer != null && heapPool != null) {
             heapPool.release(bodyBuffer);
         }
+        bodyBuffer = null;
         if (header instanceof RefCount) {
             ((RefCount) header).release();
         }
+        header = null;
         if (body instanceof RefCount) {
             ((RefCount) body).release();
         }
+        body = null;
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
