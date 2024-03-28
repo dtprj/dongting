@@ -22,6 +22,16 @@ import java.nio.ByteBuffer;
  */
 public abstract class ByteBufferPool {
 
+    protected final boolean direct;
+
+    public ByteBufferPool(boolean direct) {
+        this.direct = direct;
+    }
+
+    public boolean isDirect() {
+        return direct;
+    }
+
     public abstract ByteBuffer borrow(int requestSize);
 
     public abstract void release(ByteBuffer buf);

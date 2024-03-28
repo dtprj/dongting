@@ -37,7 +37,6 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     private final int threshold;
     private final int[] bufSizes;
     private final long timeoutNanos;
-    private final boolean direct;
     private final boolean threadSafe;
 
     private long statBorrowTooSmallCount;
@@ -74,6 +73,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     }
 
     public SimpleByteBufferPool(SimpleByteBufferPoolConfig config) {
+        super(config.isDirect());
         Objects.requireNonNull(config.getBufSizes());
         Objects.requireNonNull(config.getMinCount());
         Objects.requireNonNull(config.getMaxCount());
@@ -84,7 +84,6 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         } else {
             this.ts = config.getTs();
         }
-        this.direct = config.isDirect();
         this.threshold = config.getThreshold();
         this.bufSizes = config.getBufSizes();
         this.timeoutNanos = config.getTimeoutMillis() * 1000 * 1000;

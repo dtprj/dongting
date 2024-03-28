@@ -30,6 +30,7 @@ public class RefBuffer extends RefCount {
 
     RefBuffer(boolean plain, ByteBufferPool pool, int requestSize, int threshold) {
         super(plain);
+        this.direct = pool.isDirect();
         if (requestSize <= threshold) {
             this.buffer = pool.allocate(requestSize);
             this.pool = null;
@@ -37,7 +38,6 @@ public class RefBuffer extends RefCount {
             this.buffer = pool.borrow(requestSize);
             this.pool = pool;
         }
-        this.direct = buffer.isDirect();
     }
 
     @Override

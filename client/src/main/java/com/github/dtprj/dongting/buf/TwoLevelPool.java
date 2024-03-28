@@ -28,7 +28,6 @@ import static com.github.dtprj.dongting.buf.SimpleByteBufferPool.calcTotalSize;
  * @author huangli
  */
 public class TwoLevelPool extends ByteBufferPool {
-    private final boolean direct;
     private final ByteBufferPool smallPool;
     private final ByteBufferPool largePool;
     private final int threshold;
@@ -83,7 +82,7 @@ public class TwoLevelPool extends ByteBufferPool {
     private TwoLevelPool(boolean direct, ByteBufferPool smallPool, ByteBufferPool largePool,
                          int threshold, boolean releaseInOtherThread,
                          Consumer<ByteBuffer> releaseCallback, Thread owner) {
-        this.direct = direct;
+        super(direct);
         this.smallPool = smallPool;
         this.largePool = largePool;
         this.threshold = threshold;
