@@ -197,7 +197,6 @@ public class LogFileQueueTest extends BaseFiberTest {
             RaftTask rt = new RaftTask(config.getTs(), LogItem.TYPE_NORMAL, ri, null);
             rt.setItem(items[i]);
             tailCache.put(items[i].getIndex(), rt);
-            items[i].release();
         }
 
         doInFiber(new FiberFrame<>() {

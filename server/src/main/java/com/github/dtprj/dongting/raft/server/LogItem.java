@@ -53,7 +53,6 @@ public class LogItem extends RefCount {
     private int pbItemSize;
 
     public LogItem(ByteBufferPool heapPool) {
-        super(true);
         this.heapPool = heapPool;
     }
 

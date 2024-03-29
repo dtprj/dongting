@@ -157,6 +157,7 @@ class AppendFiberFrame extends FiberFrame<Void> {
     private final AppendProcessor processor;
 
     private final ReqInfoEx<AppendReqCallback> reqInfo;
+    private boolean putTailCache = false;
 
     public AppendFiberFrame(ReqInfoEx<AppendReqCallback> reqInfo, AppendProcessor processor) {
         this.reqInfo = reqInfo;
@@ -174,7 +175,9 @@ class AppendFiberFrame extends FiberFrame<Void> {
     protected FrameCallResult doFinally() {
         reqInfo.getRaftGroup().getGroupComponents().getRaftStatus().copyShareStatus();
         AppendReqCallback req = reqInfo.getReqFrame().getBody();
-        RaftUtil.release(req.getLogs());
+        if (!putTailCache) {
+            RaftUtil.release(req.getLogs());
+        }
         return Fiber.frameReturn();
     }
 
@@ -277,6 +280,7 @@ class AppendFiberFrame extends FiberFrame<Void> {
             RaftTask task = new RaftTask(raftStatus.getTs(), li.getType(), raftInput, null);
             task.setItem(li);
             tailCache.put(li.getIndex(), task);
+            putTailCache = true;
             if (i == logs.size() - 1) {
                 raftStatus.setLastLogIndex(li.getIndex());
                 raftStatus.setLastLogTerm(li.getTerm());

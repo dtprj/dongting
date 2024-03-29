@@ -65,7 +65,6 @@ public class TailCache {
                 throw new IllegalArgumentException("index " + index + " is not nextWriteIndex " + nextWriteIndex());
             }
         }
-        value.getItem().retain();
         cache.addLast(value);
         pending++;
         pendingBytes += value.getInput().getFlowControlSize();
@@ -107,7 +106,9 @@ public class TailCache {
         pendingBytes = Math.max(pendingBytes - t.getInput().getFlowControlSize(), 0);
         RaftTask x = t;
         while (x != null) {
-            x.getItem().release();
+            if (x.getItem() != null) {
+                x.getItem().release();
+            }
             x = x.getNextReader();
         }
     }

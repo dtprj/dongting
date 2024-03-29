@@ -238,7 +238,6 @@ public class RaftLogBenchmark extends RpcBenchmark {
                     RaftTask rt = new RaftTask(ts, LogItem.TYPE_NORMAL, ri, null);
                     rt.setItem(item);
                     raftStatus.getTailCache().put(item.getIndex(), rt);
-                    item.release();
 
                     reqData.raftLogIndex = item.getIndex();
                     pending.addLast(reqData);

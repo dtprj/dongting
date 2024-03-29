@@ -176,15 +176,15 @@ public class LinearTaskRunner {
 
                 writeCount++;
                 try {
-                    // put method retain the item
                     tailCache.put(newIndex, rt);
-                } finally {
+                    // successful change owner to TailCache and release in TailCache.release(RaftTask)
+                } catch (RuntimeException | Error e) {
                     item.release();
                 }
                 raftStatus.setLastLogIndex(newIndex);
                 raftStatus.setLastLogTerm(currentTerm);
             } else {
-                // read task, release res in execRead
+                // read task, no LogItem, release res in execRead
                 if (newIndex <= raftStatus.getLastApplied()) {
                     applyManager.execRead(newIndex, rt);
                 } else {
