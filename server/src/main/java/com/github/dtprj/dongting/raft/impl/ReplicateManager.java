@@ -101,7 +101,7 @@ public class ReplicateManager {
                     f = new Fiber("install-" + m.getNode().getNodeId() + "-" + m.getReplicateEpoch(),
                             groupConfig.getFiberGroup(), ff, true);
                 } else {
-                    RepFrame ff = new RepFrame(this, m);
+                    RepFrame ff = new RepFrame(this, commitManager, m);
                     f = new Fiber("replicate-" + m.getNode().getNodeId() + "-" + m.getReplicateEpoch(),
                             groupConfig.getFiberGroup(), ff, true);
                 }
@@ -111,107 +111,7 @@ public class ReplicateManager {
         }
     }
 
-    void afterAppendRpc(ReadFrame<AppendRespCallback> rf, Throwable ex, RepFrame repFrame,
-                        long prevLogIndex, int prevLogTerm, long reqNanos, int itemCount, long bytes) {
-        if (repFrame.epochChange()) {
-            log.info("receive outdated append result, replicateEpoch not match. ignore.");
-            return;
-        }
-
-        repFrame.descPending(itemCount, bytes);
-
-        if (ex == null) {
-            processAppendResult(repFrame, rf, prevLogIndex, prevLogTerm, reqNanos, itemCount);
-        } else {
-            RaftMember member = repFrame.getMember();
-            repFrame.incrementEpoch();
-            repFrame.getRepCondition().signalAll();
-
-            String msg = "append fail. remoteId={}, groupId={}, localTerm={}, reqTerm={}, prevLogIndex={}";
-            log.error(msg, member.getNode().getNodeId(), groupId, raftStatus.getCurrentTerm(),
-                    repFrame.getTerm(), prevLogIndex, ex);
-        }
-    }
-
-    private void processAppendResult(RepFrame repFrame, ReadFrame<AppendRespCallback> rf, long prevLogIndex,
-                                     int prevLogTerm, long reqNanos, int count) {
-        long expectNewMatchIndex = prevLogIndex + count;
-        AppendRespCallback body = rf.getBody();
-        RaftStatusImpl raftStatus = this.raftStatus;
-        int remoteTerm = body.getTerm();
-        if (checkTermFailed(remoteTerm)) {
-            return;
-        }
-        RaftMember member = repFrame.getMember();
-        if (repFrame.getMember().isInstallSnapshot()) {
-            BugLog.getLog().error("receive append result when install snapshot, ignore. prevLogIndex={}, prevLogTerm={}, remoteId={}, groupId={}",
-                    prevLogIndex, prevLogTerm, member.getNode().getNodeId(), groupId);
-            repFrame.closeIterator();
-            return;
-        }
-        if (body.isSuccess()) {
-            if (member.getMatchIndex() <= prevLogIndex) {
-                updateLease(member, reqNanos, raftStatus);
-                member.setMatchIndex(expectNewMatchIndex);
-                repFrame.setMultiAppend(true);
-                commitManager.tryCommit(expectNewMatchIndex);
-                if (raftStatus.getLastLogIndex() >= member.getNextIndex()) {
-                    repFrame.getRepCondition().signalAll();
-                }
-            } else {
-                BugLog.getLog().error("append miss order. old matchIndex={}, append prevLogIndex={}," +
-                                " expectNewMatchIndex={}, remoteId={}, groupId={}, localTerm={}, reqTerm={}, remoteTerm={}",
-                        member.getMatchIndex(), prevLogIndex, expectNewMatchIndex, member.getNode().getNodeId(),
-                        groupId, raftStatus.getCurrentTerm(), repFrame.getTerm(), body.getTerm());
-                repFrame.closeIterator();
-                repFrame.incrementEpoch();
-            }
-        } else {
-            repFrame.closeIterator();
-            repFrame.incrementEpoch();
-            int appendCode = body.getAppendCode();
-            if (appendCode == AppendProcessor.APPEND_LOG_NOT_MATCH) {
-                updateLease(member, reqNanos, raftStatus);
-                processLogNotMatch(repFrame, prevLogIndex, prevLogTerm, body, raftStatus);
-            } else if (appendCode == AppendProcessor.APPEND_SERVER_ERROR) {
-                updateLease(member, reqNanos, raftStatus);
-                log.error("append fail because of remote error. groupId={}, prevLogIndex={}, msg={}",
-                        groupId, prevLogIndex, rf.getMsg());
-            } else if (appendCode == AppendProcessor.APPEND_INSTALL_SNAPSHOT) {
-                log.warn("append fail because of member is install snapshot. groupId={}, remoteId={}",
-                        groupId, member.getNode().getNodeId());
-                updateLease(member, reqNanos, raftStatus);
-                member.setInstallSnapshot(true);
-            } else {
-                BugLog.getLog().error("append fail. appendCode={}, old matchIndex={}, append prevLogIndex={}, " +
-                                "expectNewMatchIndex={}, remoteId={}, groupId={}, localTerm={}, reqTerm={}, remoteTerm={}",
-                        AppendProcessor.getAppendResultStr(appendCode), member.getMatchIndex(), prevLogIndex, expectNewMatchIndex,
-                        member.getNode().getNodeId(), groupId, raftStatus.getCurrentTerm(), repFrame.getTerm(), body.getTerm());
-            }
-        }
-    }
-
-    private void processLogNotMatch(RepFrame repFrame, long prevLogIndex, int prevLogTerm, AppendRespCallback body,
-                                    RaftStatusImpl raftStatus) {
-        RaftMember member = repFrame.getMember();
-        log.info("log not match. remoteId={}, groupId={}, matchIndex={}, prevLogIndex={}, prevLogTerm={}, remoteLogTerm={}, remoteLogIndex={}, localTerm={}",
-                member.getNode().getNodeId(), groupId, member.getMatchIndex(), prevLogIndex, prevLogTerm, body.getSuggestTerm(),
-                body.getSuggestIndex(), raftStatus.getCurrentTerm());
-        if (body.getSuggestTerm() == 0 && body.getSuggestIndex() == 0) {
-            log.info("remote has no suggest match index, begin install snapshot. remoteId={}, groupId={}",
-                    member.getNode().getNodeId(), groupId);
-            member.setInstallSnapshot(true);
-            return;
-        }
-        FiberFrame<Void> ff = new FindMatchPosFrame(this, repFrame.getMember(),
-                body.getSuggestTerm(), body.getSuggestIndex());
-        Fiber f = new Fiber("find-match-pos-" + member.getNode().getNodeId() + "-" + member.getReplicateEpoch(),
-                groupConfig.getFiberGroup(), ff, true);
-        member.setReplicateFiber(f);
-        f.start();
-    }
-
-    private boolean checkTermFailed(int remoteTerm) {
+    boolean checkTermFailed(int remoteTerm) {
         if (remoteTerm > raftStatus.getCurrentTerm()) {
             log.info("find remote term greater than local term. remoteTerm={}, localTerm={}",
                     remoteTerm, raftStatus.getCurrentTerm());
@@ -221,52 +121,6 @@ public class ReplicateManager {
         }
 
         return false;
-    }
-
-    private void updateLease(RaftMember member, long reqNanos, RaftStatusImpl raftStatus) {
-        member.setLastConfirmReqNanos(reqNanos);
-        RaftUtil.updateLease(raftStatus);
-        // not call raftStatus.copyShareStatus(), invoke after apply
-    }
-
-    void afterInstallRpc(ReadFrame<InstallSnapshotResp> rf, Throwable ex,
-                         InstallFrame installFrame, long reqOffset,
-                         int reqBytes, boolean reqDone, long reqLastIncludedIndex) {
-        try {
-            if (installFrame.epochChange()) {
-                log.info("epoch not match, ignore install snapshot response.");
-                return;
-            }
-            RaftMember member = installFrame.getMember();
-            installFrame.descPending(reqBytes);
-            if (ex != null) {
-                log.error("install snapshot fail, group={},remoteId={}", groupId, member.getNode().getNodeId(), ex);
-                installFrame.incrementEpoch();
-                return;
-            }
-            InstallSnapshotResp respBody = rf.getBody();
-            if (!respBody.success) {
-                log.error("install snapshot fail. remoteNode={}, groupId={}",
-                        member.getNode().getNodeId(), groupId);
-                installFrame.incrementEpoch();
-                return;
-            }
-            if (checkTermFailed(respBody.term)) {
-                return;
-            }
-            log.info("transfer snapshot data to member. nodeId={}, groupId={}, offset={}", member.getNode().getNodeId(), groupId, reqOffset);
-            if (reqDone) {
-                log.info("install snapshot for member finished success. nodeId={}, groupId={}",
-                        member.getNode().getNodeId(), groupId);
-                installFrame.incrementEpoch();
-                installFrame.setInstallFinish(true);
-                member.setInstallSnapshot(false);
-                member.setMatchIndex(reqLastIncludedIndex);
-                member.setNextIndex(reqLastIncludedIndex + 1);
-            }
-        } finally {
-            installFrame.getRepCondition().signalAll();
-        }
     }
 
 }
@@ -324,13 +178,6 @@ abstract class AbstractRepFrame extends FiberFrame<Void> {
         member.incrementReplicateEpoch(replicateEpoch);
     }
 
-    public RaftMember getMember() {
-        return member;
-    }
-
-    public FiberCondition getRepCondition() {
-        return repCondition;
-    }
 }
 
 class RepFrame extends AbstractRepFrame {
@@ -341,6 +188,7 @@ class RepFrame extends AbstractRepFrame {
     private final RaftServerConfig serverConfig;
     private final NioClient client;
     private final ReplicateManager replicateManager;
+    private final CommitManager commitManager;
     private final RaftLog raftLog;
     private final StateMachine stateMachine;
 
@@ -357,7 +205,7 @@ class RepFrame extends AbstractRepFrame {
     private static final PbNoCopyDecoder<AppendRespCallback> APPEND_RESP_DECODER =
             new PbNoCopyDecoder<>(c -> new AppendRespCallback());
 
-    public RepFrame(ReplicateManager replicateManager, RaftMember member) {
+    public RepFrame(ReplicateManager replicateManager, CommitManager commitManager, RaftMember member) {
         super(replicateManager, member);
         this.groupConfig = replicateManager.groupConfig;
         this.serverConfig = replicateManager.serverConfig;
@@ -366,6 +214,7 @@ class RepFrame extends AbstractRepFrame {
         this.stateMachine = replicateManager.stateMachine;
         this.client = replicateManager.client;
         this.replicateManager = replicateManager;
+        this.commitManager = commitManager;
 
         this.maxReplicateItems = groupConfig.getMaxReplicateItems();
         this.maxReplicateBytes = groupConfig.getMaxReplicateBytes();
@@ -516,9 +365,112 @@ class RepFrame extends AbstractRepFrame {
         pendingBytes += bytes;
 
         long finalBytes = bytes;
-        f.whenCompleteAsync((rf, ex) -> replicateManager.afterAppendRpc(rf, ex, this, prevLogIndex,
+        f.whenCompleteAsync((rf, ex) -> afterAppendRpc(rf, ex, prevLogIndex,
                         firstItem.getPrevLogTerm(), reqNanos, items.size(), finalBytes),
                 getFiberGroup().getExecutor());
+    }
+
+    void afterAppendRpc(ReadFrame<AppendRespCallback> rf, Throwable ex,
+                        long prevLogIndex, int prevLogTerm, long reqNanos, int itemCount, long bytes) {
+        if (epochChange()) {
+            log.info("receive outdated append result, replicateEpoch not match. ignore.");
+            return;
+        }
+
+        descPending(itemCount, bytes);
+
+        if (ex == null) {
+            processAppendResult(rf, prevLogIndex, prevLogTerm, reqNanos, itemCount);
+        } else {
+            incrementEpoch();
+            repCondition.signalAll();
+
+            String msg = "append fail. remoteId={}, groupId={}, localTerm={}, reqTerm={}, prevLogIndex={}";
+            log.error(msg, member.getNode().getNodeId(), groupId, raftStatus.getCurrentTerm(),
+                    term, prevLogIndex, ex);
+        }
+    }
+
+    private void processAppendResult(ReadFrame<AppendRespCallback> rf, long prevLogIndex,
+                                     int prevLogTerm, long reqNanos, int count) {
+        long expectNewMatchIndex = prevLogIndex + count;
+        AppendRespCallback body = rf.getBody();
+        RaftStatusImpl raftStatus = this.raftStatus;
+        int remoteTerm = body.getTerm();
+        if (replicateManager.checkTermFailed(remoteTerm)) {
+            return;
+        }
+        if (member.isInstallSnapshot()) {
+            BugLog.getLog().error("receive append result when install snapshot, ignore. prevLogIndex={}, prevLogTerm={}, remoteId={}, groupId={}",
+                    prevLogIndex, prevLogTerm, member.getNode().getNodeId(), groupId);
+            closeIterator();
+            return;
+        }
+        if (body.isSuccess()) {
+            if (member.getMatchIndex() <= prevLogIndex) {
+                updateLease(member, reqNanos, raftStatus);
+                member.setMatchIndex(expectNewMatchIndex);
+                multiAppend = true;
+                commitManager.tryCommit(expectNewMatchIndex);
+                if (raftStatus.getLastLogIndex() >= member.getNextIndex()) {
+                    repCondition.signalAll();
+                }
+            } else {
+                BugLog.getLog().error("append miss order. old matchIndex={}, append prevLogIndex={}," +
+                                " expectNewMatchIndex={}, remoteId={}, groupId={}, localTerm={}, reqTerm={}, remoteTerm={}",
+                        member.getMatchIndex(), prevLogIndex, expectNewMatchIndex, member.getNode().getNodeId(),
+                        groupId, raftStatus.getCurrentTerm(), term, body.getTerm());
+                closeIterator();
+                incrementEpoch();
+            }
+        } else {
+            closeIterator();
+            incrementEpoch();
+            int appendCode = body.getAppendCode();
+            if (appendCode == AppendProcessor.APPEND_LOG_NOT_MATCH) {
+                updateLease(member, reqNanos, raftStatus);
+                processLogNotMatch(prevLogIndex, prevLogTerm, body, raftStatus);
+            } else if (appendCode == AppendProcessor.APPEND_SERVER_ERROR) {
+                updateLease(member, reqNanos, raftStatus);
+                log.error("append fail because of remote error. groupId={}, prevLogIndex={}, msg={}",
+                        groupId, prevLogIndex, rf.getMsg());
+            } else if (appendCode == AppendProcessor.APPEND_INSTALL_SNAPSHOT) {
+                log.warn("append fail because of member is install snapshot. groupId={}, remoteId={}",
+                        groupId, member.getNode().getNodeId());
+                updateLease(member, reqNanos, raftStatus);
+                member.setInstallSnapshot(true);
+            } else {
+                BugLog.getLog().error("append fail. appendCode={}, old matchIndex={}, append prevLogIndex={}, " +
+                                "expectNewMatchIndex={}, remoteId={}, groupId={}, localTerm={}, reqTerm={}, remoteTerm={}",
+                        AppendProcessor.getAppendResultStr(appendCode), member.getMatchIndex(), prevLogIndex, expectNewMatchIndex,
+                        member.getNode().getNodeId(), groupId, raftStatus.getCurrentTerm(), term, body.getTerm());
+            }
+        }
+    }
+
+    private void processLogNotMatch(long prevLogIndex, int prevLogTerm, AppendRespCallback body,
+                                    RaftStatusImpl raftStatus) {
+        log.info("log not match. remoteId={}, groupId={}, matchIndex={}, prevLogIndex={}, prevLogTerm={}, remoteLogTerm={}, remoteLogIndex={}, localTerm={}",
+                member.getNode().getNodeId(), groupId, member.getMatchIndex(), prevLogIndex, prevLogTerm, body.getSuggestTerm(),
+                body.getSuggestIndex(), raftStatus.getCurrentTerm());
+        if (body.getSuggestTerm() == 0 && body.getSuggestIndex() == 0) {
+            log.info("remote has no suggest match index, begin install snapshot. remoteId={}, groupId={}",
+                    member.getNode().getNodeId(), groupId);
+            member.setInstallSnapshot(true);
+            return;
+        }
+        FiberFrame<Void> ff = new FindMatchPosFrame(replicateManager,member,
+                body.getSuggestTerm(), body.getSuggestIndex());
+        Fiber f = new Fiber("find-match-pos-" + member.getNode().getNodeId()
+                + "-" + member.getReplicateEpoch(), groupConfig.getFiberGroup(), ff, true);
+        member.setReplicateFiber(f);
+        f.start();
+    }
+
+    private void updateLease(RaftMember member, long reqNanos, RaftStatusImpl raftStatus) {
+        member.setLastConfirmReqNanos(reqNanos);
+        RaftUtil.updateLease(raftStatus);
+        // not call raftStatus.copyShareStatus(), invoke after apply
     }
 
     public void descPending(int itemCount, long bytes) {
@@ -537,9 +489,6 @@ class RepFrame extends AbstractRepFrame {
         return term;
     }
 
-    public void setMultiAppend(boolean multiAppend) {
-        this.multiAppend = multiAppend;
-    }
 }
 
 class FindMatchPosFrame extends AbstractRepFrame {
@@ -719,9 +668,47 @@ class InstallFrame extends AbstractRepFrame {
                 member.getNode().getPeer(), wf, INSTALL_SNAPSHOT_RESP_DECODER, timeout);
         int bytes = data == null ? 0 : data.getBuffer().remaining();
         snapshotOffset += bytes;
-        future.whenCompleteAsync((rf, ex) -> replicateManager.afterInstallRpc(
-                        rf, ex, this, req.offset, bytes, req.done, req.lastIncludedIndex),
+        future.whenCompleteAsync((rf, ex) -> afterInstallRpc(
+                        rf, ex, req.offset, bytes, req.done, req.lastIncludedIndex),
                 getFiberGroup().getExecutor());
+    }
+
+    void afterInstallRpc(ReadFrame<InstallSnapshotResp> rf, Throwable ex, long reqOffset,
+                         int reqBytes, boolean reqDone, long reqLastIncludedIndex) {
+        try {
+            if (epochChange()) {
+                log.info("epoch not match, ignore install snapshot response.");
+                return;
+            }
+            descPending(reqBytes);
+            if (ex != null) {
+                log.error("install snapshot fail, group={},remoteId={}", groupId, member.getNode().getNodeId(), ex);
+                incrementEpoch();
+                return;
+            }
+            InstallSnapshotResp respBody = rf.getBody();
+            if (!respBody.success) {
+                log.error("install snapshot fail. remoteNode={}, groupId={}",
+                        member.getNode().getNodeId(), groupId);
+                incrementEpoch();
+                return;
+            }
+            if (replicateManager.checkTermFailed(respBody.term)) {
+                return;
+            }
+            log.info("transfer snapshot data to member. nodeId={}, groupId={}, offset={}", member.getNode().getNodeId(), groupId, reqOffset);
+            if (reqDone) {
+                log.info("install snapshot for member finished success. nodeId={}, groupId={}",
+                        member.getNode().getNodeId(), groupId);
+                incrementEpoch();
+                setInstallFinish(true);
+                member.setInstallSnapshot(false);
+                member.setMatchIndex(reqLastIncludedIndex);
+                member.setNextIndex(reqLastIncludedIndex + 1);
+            }
+        } finally {
+            repCondition.signalAll();
+        }
     }
 
     public void setInstallFinish(boolean installFinish) {
