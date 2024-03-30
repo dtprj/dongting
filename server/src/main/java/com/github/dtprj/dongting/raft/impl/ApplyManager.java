@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberGroup;
+import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -37,7 +38,6 @@ import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -125,8 +125,6 @@ public class ApplyManager {
                 rt.getFuture().completeExceptionally(ex);
             }
             throw Fiber.fatal(new RaftException("exec write failed.", ex));
-        } finally {
-            rt.getItem().release();
         }
     }
 
@@ -224,12 +222,56 @@ public class ApplyManager {
         }
     }
 
+    private FrameCallResult exec(RaftTask rt, long index, FrameCall<Void> resumePoint) {
+        switch (rt.getType()) {
+            case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
+            case LogItem.TYPE_DROP_CONFIG_CHANGE:
+            case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
+                return Fiber.call(new ConfigChangeFrame(rt), unused -> afterExec(true, index, rt, resumePoint));
+            case LogItem.TYPE_NORMAL:
+                execNormalWrite(index, rt);
+                // not break here
+            case LogItem.TYPE_HEARTBEAT:
+            default:
+                return this.afterExec(false, index, rt, resumePoint);
+        }
+    }
+
+    private FrameCallResult afterExec(boolean configChange, long index, RaftTask rt, FrameCall<Void> resumePoint) {
+        RaftStatusImpl raftStatus = ApplyManager.this.raftStatus;
+
+        raftStatus.setLastApplied(index);
+
+        if (raftStatus.getFirstCommitOfApplied() != null && index >= raftStatus.getFirstIndexOfCurrentTerm()) {
+            raftStatus.getFirstCommitOfApplied().complete(null);
+            raftStatus.setFirstCommitOfApplied(null);
+        }
+
+        if (configChange) {
+            postConfigChange(index, rt);
+        }
+
+        if (!initFutureComplete && index >= initCommitIndex) {
+            log.info("apply manager init complete, initCommitIndex={}", initCommitIndex);
+            initFutureComplete = true;
+            raftStatus.getInitFuture().complete(null);
+        }
+        raftStatus.copyShareStatus();
+
+        execReaders(index, rt);
+
+        // release reader memory
+        rt.setNextReader(null);
+
+        // resume loop
+        return Fiber.resume(null, resumePoint);
+    }
+
     private class ApplyFrame extends FiberFrame<Void> {
 
         private RaftLog.LogIterator logIterator;
 
-        private int taskIndex;
-        private final ArrayList<RaftTask> taskList = new ArrayList<>();
+        private final TailCache tailCache = raftStatus.getTailCache();
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
@@ -242,8 +284,6 @@ public class ApplyManager {
 
         @Override
         public FrameCallResult execute(Void input) {
-            taskList.clear();
-            taskIndex = 0;
             if (isGroupShouldStopPlain()) {
                 return Fiber.frameReturn();
             }
@@ -252,111 +292,30 @@ public class ApplyManager {
                 return condition.await(this);
             }
 
-            TailCache tailCache = raftStatus.getTailCache();
             long index = raftStatus.getLastApplied() + 1;
-            while (diff > 0) {
-                RaftTask rt = tailCache.get(index);
-                if (rt == null || rt.getInput().isReadOnly()) {
-                    int limit = (int) Math.min(diff, 1024L);
-                    if (logIterator == null) {
-                        logIterator = raftLog.openIterator(null);
-                    }
-                    int stateMachineEpoch = raftStatus.getStateMachineEpoch();
-                    if (log.isDebugEnabled()) {
-                        log.debug("load from {}, diff={}, limit={}, cacheSize={}, cacheFirstIndex={},commitIndex={},applyIndex={}",
-                                index, diff, limit, tailCache.size(), tailCache.getFirstIndex(),
-                                raftStatus.getCommitIndex(), raftStatus.getLastApplied());
-                    }
-                    FiberFrame<List<LogItem>> ff = logIterator.next(index, limit, 16 * 1024 * 1024);
-                    return Fiber.call(ff, items -> afterLoad(items, stateMachineEpoch));
-                } else {
-                    closeIterator();
-                    rt.getItem().retain();
-                    taskList.add(rt);
-                    index++;
-                    diff--;
+            RaftTask rt = tailCache.get(index);
+            if (rt == null || rt.getInput().isReadOnly()) {
+                int limit = (int) Math.min(diff, 1024L);
+                if (log.isDebugEnabled()) {
+                    log.debug("load from {}, diff={}, limit={}, cacheSize={}, cacheFirstIndex={},commitIndex={},applyIndex={}",
+                            index, diff, limit, tailCache.size(), tailCache.getFirstIndex(),
+                            raftStatus.getCommitIndex(), raftStatus.getLastApplied());
                 }
+                if (logIterator == null) {
+                    logIterator = raftLog.openIterator(null);
+                }
+                int stateMachineEpoch = raftStatus.getStateMachineEpoch();
+                FiberFrame<List<LogItem>> ff = logIterator.next(index, limit, 16 * 1024 * 1024);
+                return Fiber.call(ff, items -> afterLoad(items, stateMachineEpoch));
+            } else {
+                closeIterator();
+                return exec(rt, index, this);
             }
-            return exec(null);
-        }
-
-        private void releaseTaskList() {
-            for (RaftTask rt : taskList) {
-                rt.getItem().release();
-            }
-            taskList.clear();
         }
 
         private FrameCallResult afterLoad(List<LogItem> items, int stateMachineEpoch) {
-            if (stateMachineEpoch != raftStatus.getStateMachineEpoch()) {
-                log.warn("stateMachineEpoch changed, ignore load result");
-                RaftUtil.release(items);
-                releaseTaskList();
-                return Fiber.resume(null, this);
-            }
-            if (items == null || items.isEmpty()) {
-                log.error("load log failed, items is null");
-                releaseTaskList();
-                return Fiber.resume(null, this);
-            }
-            //noinspection ForLoopReplaceableByForEach
-            for (int i = 0, readCount = items.size(); i < readCount; i++) {
-                LogItem item = items.get(i);
-                RaftTask rt = buildRaftTask(item);
-                taskList.add(rt);
-            }
-            return exec(null);
-        }
-
-        private FrameCallResult exec(Void v) {
-            if (taskIndex >= taskList.size()) {
-                // loop execute
-                return Fiber.resume(null, this);
-            }
-            RaftTask rt = taskList.get(taskIndex++);
-            long logIndex = rt.getItem().getIndex();
-            switch (rt.getType()) {
-                case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
-                case LogItem.TYPE_DROP_CONFIG_CHANGE:
-                case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
-                    return Fiber.call(new ConfigChangeFrame(rt), unused -> afterExec(true, logIndex, rt));
-                case LogItem.TYPE_NORMAL:
-                    execNormalWrite(logIndex, rt);
-                    // not break here
-                case LogItem.TYPE_HEARTBEAT:
-                default:
-                    return this.afterExec(false, logIndex, rt);
-            }
-        }
-
-        private FrameCallResult afterExec(boolean configChange, long index, RaftTask rt) {
-            RaftStatusImpl raftStatus = ApplyManager.this.raftStatus;
-
-            raftStatus.setLastApplied(index);
-
-            if (raftStatus.getFirstCommitOfApplied() != null && index >= raftStatus.getFirstIndexOfCurrentTerm()) {
-                raftStatus.getFirstCommitOfApplied().complete(null);
-                raftStatus.setFirstCommitOfApplied(null);
-            }
-
-            if (configChange) {
-                postConfigChange(index, rt);
-            }
-
-            if (!initFutureComplete && index >= initCommitIndex) {
-                log.info("apply manager init complete, initCommitIndex={}", initCommitIndex);
-                initFutureComplete = true;
-                raftStatus.getInitFuture().complete(null);
-            }
-            raftStatus.copyShareStatus();
-
-            execReaders(index, rt);
-
-            // release reader memory
-            rt.setNextReader(null);
-
-            // resume loop
-            return Fiber.resume(null, this::exec);
+            ExecLoadResultFrame ff = new ExecLoadResultFrame(items, stateMachineEpoch);
+            return Fiber.call(ff, this);
         }
 
         public void closeIterator() {
@@ -364,6 +323,47 @@ public class ApplyManager {
                 DtUtil.close(logIterator);
                 logIterator = null;
             }
+        }
+    }
+
+    private class ExecLoadResultFrame extends FiberFrame<Void> {
+
+        private final List<LogItem> items;
+        private final int stateMachineEpoch;
+        private int listIndex;
+
+        public ExecLoadResultFrame(List<LogItem> items, int stateMachineEpoch) {
+            this.items = items;
+            this.stateMachineEpoch = stateMachineEpoch;
+        }
+
+        @Override
+        public FrameCallResult execute(Void input) {
+            if (stateMachineEpoch != raftStatus.getStateMachineEpoch()) {
+                log.warn("stateMachineEpoch changed, ignore load result");
+                RaftUtil.release(items);
+                return Fiber.frameReturn();
+            }
+            if (items == null || items.isEmpty()) {
+                log.error("load log failed, items is null");
+                return Fiber.frameReturn();
+            }
+            if (listIndex >= items.size()) {
+                return Fiber.frameReturn();
+            }
+            LogItem item = items.get(listIndex++);
+            RaftTask rt = buildRaftTask(item);
+            return exec(rt, item.getIndex(), this);
+        }
+
+        @Override
+        protected FrameCallResult doFinally() {
+            if (items != null) {
+                for (LogItem i : items) {
+                    i.release();
+                }
+            }
+            return Fiber.frameReturn();
         }
     }
 

@@ -64,12 +64,12 @@ public class Fiber extends WaitSource {
         entryFrame.init(this);
     }
 
-    public static <O> FrameCallResult call(FiberFrame<O> subFrame, FrameCall<O> resumePoint) {
+    public static <T> FrameCallResult call(FiberFrame<T> subFrame, FrameCall<T> resumePoint) {
         Dispatcher.call(subFrame, resumePoint);
         return FrameCallResult.CALL_NEXT_FRAME;
     }
 
-    public static <O> FrameCallResult resume(O input, FrameCall<O> resumePoint) {
+    public static <I> FrameCallResult resume(I input, FrameCall<I> resumePoint) {
         Dispatcher.resume(input, null, resumePoint);
         return FrameCallResult.RETURN;
     }
