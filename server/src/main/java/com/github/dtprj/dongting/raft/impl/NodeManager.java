@@ -251,9 +251,9 @@ public class NodeManager extends AbstractLifeCircle {
         FiberFuture<T> f = FiberGroup.currentGroup().newFuture();
         RaftUtil.SCHEDULED_SERVICE.execute(() -> {
             try {
-                f.complete(supplier.get());
+                f.fireComplete(supplier.get());
             } catch (Throwable e) {
-                f.completeExceptionally(e);
+                f.fireCompleteExceptionally(e);
             }
         });
         return f;
