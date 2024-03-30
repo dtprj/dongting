@@ -76,6 +76,8 @@ public class MemberManager {
     private final CompletableFuture<Void> startReadyFuture;
     private final int startReadyQuorum;
 
+    private boolean configChangeInProgress = false;
+
     public MemberManager(NioClient client, GroupComponents gc) {
         this.client = client;
         this.gc = gc;
@@ -512,22 +514,8 @@ public class MemberManager {
         return outputFuture;
     }
 
-    public FrameCallResult doPrepare1(byte[] data) {
-        String dataStr = new String(data);
-        String[] fields = dataStr.split(";");
-        Set<Integer> oldMemberIds = parseSet(fields[0]);
-        Set<Integer> oldObserverIds = parseSet(fields[1]);
-        Set<Integer> newMemberIds = parseSet(fields[2]);
-        Set<Integer> newObserverIds = parseSet(fields[3]);
-        if (!oldMemberIds.equals(raftStatus.getNodeIdOfMembers())) {
-            log.error("oldMemberIds not match, oldMemberIds={}, currentMembers={}, groupId={}",
-                    oldMemberIds, raftStatus.getNodeIdOfMembers(), raftStatus.getGroupId());
-        }
-        if (!oldObserverIds.equals(raftStatus.getNodeIdOfObservers())) {
-            log.error("oldObserverIds not match, oldObserverIds={}, currentObservers={}, groupId={}",
-                    oldObserverIds, raftStatus.getNodeIdOfObservers(), raftStatus.getGroupId());
-        }
-
+    public FrameCallResult doPrepare(Set<Integer> newMemberIds, Set<Integer> newObserverIds) {
+        configChangeInProgress = true;
         return nodeManager.doPrepare(raftStatus.getNodeIdOfPreparedMembers(),
                         raftStatus.getNodeIdOfPreparedObservers(), newMemberIds, newObserverIds)
                 .await(this::doPrepare2);
@@ -584,24 +572,13 @@ public class MemberManager {
         return Fiber.frameReturn();
     }
 
-    public Set<Integer> parseSet(String s) {
-        if (s.isEmpty()) {
-            return emptySet();
-        }
-        String[] fields = s.split(",");
-        Set<Integer> set = new HashSet<>();
-        for (String f : fields) {
-            set.add(Integer.parseInt(f));
-        }
-        return set;
-    }
-
     public FrameCallResult doAbort() {
         HashSet<Integer> ids = new HashSet<>(raftStatus.getNodeIdOfPreparedMembers());
         for (RaftMember m : raftStatus.getPreparedObservers()) {
             ids.add(m.getNode().getNodeId());
         }
         if (ids.isEmpty()) {
+            configChangeInProgress = false;
             return Fiber.frameReturn();
         }
 
@@ -614,10 +591,14 @@ public class MemberManager {
                 RaftUtil.changeToObserver(raftStatus, -1);
             }
         }
-        return nodeManager.doAbort(ids).await(v -> Fiber.frameReturn());
+        return nodeManager.doAbort(ids).await(this::cleanConfigChangeStatus);
     }
 
     public FrameCallResult doCommit() {
+        if (!configChangeInProgress) {
+            log.warn("no prepared config change, ignore commit, groupId={}", raftStatus.getGroupId());
+            return Fiber.frameReturn();
+        }
         HashSet<Integer> ids = new HashSet<>(raftStatus.getNodeIdOfMembers());
         ids.addAll(raftStatus.getNodeIdOfObservers());
 
@@ -634,7 +615,12 @@ public class MemberManager {
             }
         }
 
-        return nodeManager.doCommit(ids).await(v -> Fiber.frameReturn());
+        return nodeManager.doCommit(ids).await(this::cleanConfigChangeStatus);
+    }
+
+    private FrameCallResult cleanConfigChangeStatus(Void v) {
+        configChangeInProgress = false;
+        return Fiber.frameReturn();
     }
 
     public boolean checkLeader(int nodeId) {

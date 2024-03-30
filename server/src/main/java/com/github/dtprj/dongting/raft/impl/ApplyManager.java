@@ -38,9 +38,13 @@ import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
 import java.nio.ByteBuffer;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+
+import static java.util.Collections.emptySet;
 
 /**
  * @author huangli
@@ -56,8 +60,6 @@ public class ApplyManager {
     private StateMachine stateMachine;
 
     private final DecodeContext decodeContext;
-
-    private boolean configChanging = false;
 
     private FiberCondition condition;
 
@@ -136,90 +138,12 @@ public class ApplyManager {
         }
     }
 
-    @SuppressWarnings("rawtypes")
-    private RaftTask buildRaftTask(LogItem item) {
-        try {
-            ByteBuffer headerRbb = item.getHeaderBuffer();
-            if (headerRbb != null) {
-                if (item.getType() == LogItem.TYPE_NORMAL) {
-                    Decoder decoder = stateMachine.createHeaderDecoder(item.getBizType());
-                    Object o = decoder.decode(decodeContext, headerRbb, headerRbb.remaining(), 0);
-                    item.setHeader(o);
-                } else {
-                    item.setHeader(RaftUtil.copy(headerRbb));
-                }
-            }
-            ByteBuffer bodyRbb = item.getBodyBuffer();
-            if (bodyRbb != null) {
-                if (item.getType() == LogItem.TYPE_NORMAL) {
-                    Decoder decoder = stateMachine.createBodyDecoder(item.getBizType());
-                    Object o = decoder.decode(decodeContext, bodyRbb, bodyRbb.remaining(), 0);
-                    item.setBody(o);
-                } else {
-                    item.setBody(RaftUtil.copy(bodyRbb));
-                }
-            }
-            RaftInput input = new RaftInput(item.getBizType(), item.getHeader(), item.getBody(),
-                    null, item.getActualBodySize());
-            RaftTask result = new RaftTask(ts, item.getType(), input, null);
-            result.setItem(item);
-            RaftTask reader = raftStatus.getTailCache().get(item.getIndex());
-            if (reader != null) {
-                if (reader.getInput().isReadOnly()) {
-                    result.setNextReader(reader);
-                } else {
-                    BugLog.getLog().error("not read only");
-                }
-            }
-            return result;
-        } finally {
-            decodeContext.reset();
-        }
-    }
-
     public void apply() {
         condition.signal();
     }
 
     public void close() {
         condition.signal();
-    }
-
-    private FrameCallResult doPrepare(RaftTask rt) {
-        configChanging = true;
-
-        ByteBuffer logData = (ByteBuffer) rt.getInput().getBody();
-        byte[] data = new byte[logData.remaining()];
-        logData.get(data);
-        return gc.getMemberManager().doPrepare1(data);
-    }
-
-    private FrameCallResult doAbort() {
-        try {
-            return gc.getMemberManager().doAbort();
-        } finally {
-            configChanging = false;
-        }
-    }
-
-    private FrameCallResult doCommit() {
-        try {
-            if (!configChanging) {
-                log.warn("no prepared config change, ignore commit, groupId={}", raftStatus.getGroupId());
-                return Fiber.frameReturn();
-            }
-
-            return gc.getMemberManager().doCommit();
-        } finally {
-            configChanging = false;
-        }
-    }
-
-    private void postConfigChange(long index, RaftTask rt) {
-        raftStatus.setLastConfigChangeIndex(index);
-        if (rt.getFuture() != null) {
-            rt.getFuture().complete(new RaftOutput(index, null));
-        }
     }
 
     private FrameCallResult exec(RaftTask rt, long index, FrameCall<Void> resumePoint) {
@@ -265,6 +189,13 @@ public class ApplyManager {
 
         // resume loop
         return Fiber.resume(null, resumePoint);
+    }
+
+    private void postConfigChange(long index, RaftTask rt) {
+        raftStatus.setLastConfigChangeIndex(index);
+        if (rt.getFuture() != null) {
+            rt.getFuture().complete(new RaftOutput(index, null));
+        }
     }
 
     private class ApplyFrame extends FiberFrame<Void> {
@@ -338,6 +269,16 @@ public class ApplyManager {
         }
 
         @Override
+        protected FrameCallResult doFinally() {
+            if (items != null) {
+                for (LogItem i : items) {
+                    i.release();
+                }
+            }
+            return Fiber.frameReturn();
+        }
+
+        @Override
         public FrameCallResult execute(Void input) {
             if (stateMachineEpoch != raftStatus.getStateMachineEpoch()) {
                 log.warn("stateMachineEpoch changed, ignore load result");
@@ -356,14 +297,45 @@ public class ApplyManager {
             return exec(rt, item.getIndex(), this);
         }
 
-        @Override
-        protected FrameCallResult doFinally() {
-            if (items != null) {
-                for (LogItem i : items) {
-                    i.release();
+        @SuppressWarnings("rawtypes")
+        private RaftTask buildRaftTask(LogItem item) {
+            try {
+                ByteBuffer headerRbb = item.getHeaderBuffer();
+                if (headerRbb != null) {
+                    if (item.getType() == LogItem.TYPE_NORMAL) {
+                        Decoder decoder = stateMachine.createHeaderDecoder(item.getBizType());
+                        Object o = decoder.decode(decodeContext, headerRbb, headerRbb.remaining(), 0);
+                        item.setHeader(o);
+                    } else {
+                        item.setHeader(RaftUtil.copy(headerRbb));
+                    }
                 }
+                ByteBuffer bodyRbb = item.getBodyBuffer();
+                if (bodyRbb != null) {
+                    if (item.getType() == LogItem.TYPE_NORMAL) {
+                        Decoder decoder = stateMachine.createBodyDecoder(item.getBizType());
+                        Object o = decoder.decode(decodeContext, bodyRbb, bodyRbb.remaining(), 0);
+                        item.setBody(o);
+                    } else {
+                        item.setBody(RaftUtil.copy(bodyRbb));
+                    }
+                }
+                RaftInput input = new RaftInput(item.getBizType(), item.getHeader(), item.getBody(),
+                        null, item.getActualBodySize());
+                RaftTask result = new RaftTask(ts, item.getType(), input, null);
+                result.setItem(item);
+                RaftTask reader = raftStatus.getTailCache().get(item.getIndex());
+                if (reader != null) {
+                    if (reader.getInput().isReadOnly()) {
+                        result.setNextReader(reader);
+                    } else {
+                        BugLog.getLog().error("not read only");
+                    }
+                }
+                return result;
+            } finally {
+                decodeContext.reset();
             }
-            return Fiber.frameReturn();
         }
     }
 
@@ -395,12 +367,45 @@ public class ApplyManager {
                 case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
                     return doPrepare(rt);
                 case LogItem.TYPE_DROP_CONFIG_CHANGE:
-                    return doAbort();
+                    return gc.getMemberManager().doAbort();
                 case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
-                    return doCommit();
+                    return gc.getMemberManager().doCommit();
                 default:
                     throw Fiber.fatal(new RaftException("unknown config change type"));
             }
+        }
+
+        private FrameCallResult doPrepare(RaftTask rt) {
+            ByteBuffer logData = (ByteBuffer) rt.getInput().getBody();
+            byte[] data = new byte[logData.remaining()];
+            logData.get(data);
+            String dataStr = new String(data);
+            String[] fields = dataStr.split(";");
+            Set<Integer> oldMemberIds = parseSet(fields[0]);
+            Set<Integer> oldObserverIds = parseSet(fields[1]);
+            Set<Integer> newMemberIds = parseSet(fields[2]);
+            Set<Integer> newObserverIds = parseSet(fields[3]);
+            if (!oldMemberIds.equals(raftStatus.getNodeIdOfMembers())) {
+                log.error("oldMemberIds not match, oldMemberIds={}, currentMembers={}, groupId={}",
+                        oldMemberIds, raftStatus.getNodeIdOfMembers(), raftStatus.getGroupId());
+            }
+            if (!oldObserverIds.equals(raftStatus.getNodeIdOfObservers())) {
+                log.error("oldObserverIds not match, oldObserverIds={}, currentObservers={}, groupId={}",
+                        oldObserverIds, raftStatus.getNodeIdOfObservers(), raftStatus.getGroupId());
+            }
+            return gc.getMemberManager().doPrepare(newMemberIds, newObserverIds);
+        }
+
+        private Set<Integer> parseSet(String s) {
+            if (s.isEmpty()) {
+                return emptySet();
+            }
+            String[] fields = s.split(",");
+            Set<Integer> set = new HashSet<>();
+            for (String f : fields) {
+                set.add(Integer.parseInt(f));
+            }
+            return set;
         }
     }
 }
