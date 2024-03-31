@@ -272,25 +272,26 @@ public class RaftClient extends AbstractLifeCircle {
             return;
         }
         NodeInfo node = it.next();
-        PbIntWriteFrame req = new PbIntWriteFrame(Commands.RAFT_QUERY_LEADER, groupInfo.getGroupId());
+        PbIntWriteFrame req = new PbIntWriteFrame(Commands.RAFT_QUERY_STATUS, groupInfo.getGroupId());
         DtTime rpcTimeout = new DtTime(3, TimeUnit.SECONDS);
-        client.sendRequest(node.getPeer(), req, PbNoCopyDecoder.SIMPLE_INT_DECODER, rpcTimeout)
+        Decoder<QueryStatusResp> decoder = new PbNoCopyDecoder<>(c -> new QueryStatusResp.QueryStatusRespCallback());
+        client.sendRequest(node.getPeer(), req, decoder, rpcTimeout)
                 .whenComplete((rf, ex) -> processLeaderQueryResult(groupInfo, it, rf, ex, node));
     }
 
     private void processLeaderQueryResult(GroupInfo groupInfo, Iterator<NodeInfo> it,
-                                          ReadFrame<Integer> rf, Throwable ex, NodeInfo node) {
+                                          ReadFrame<QueryStatusResp> rf, Throwable ex, NodeInfo node) {
         lock.lock();
         try {
             if (ex != null) {
                 log.warn("query leader from {} fail: {}", node.getPeer().getEndPoint(), ex.toString());
                 findLeader(groupInfo, it);
             } else {
-                if (rf.getBody() == null || rf.getBody() < 0) {
+                if (rf.getBody() == null || rf.getBody().getLeaderId() <= 0) {
                     log.error("query leader from {} fail, leader id illegal: {}", node.getPeer().getEndPoint(), rf.getBody());
                     findLeader(groupInfo, it);
                 } else {
-                    Peer leader = parseLeader(groupInfo, rf.getBody());
+                    Peer leader = parseLeader(groupInfo, rf.getBody().getLeaderId());
                     if (leader != null) {
                         groupInfo.getLeaderFuture().complete(leader);
                     } else {

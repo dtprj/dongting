@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
@@ -52,12 +53,12 @@ public class QueryStatusProcessor extends RaftSequenceProcessor<Integer> {
     protected FiberFrame<Void> processInFiberGroup(ReqInfoEx<Integer> reqInfo) {
         RaftStatusImpl raftStatus = reqInfo.getRaftGroup().getGroupComponents().getRaftStatus();
         QueryStatusResp resp = new QueryStatusResp();
-        resp.groupId = reqInfo.getRaftGroup().getGroupId();
-        resp.leaderId = raftStatus.getCurrentLeader() == null ? 0 : raftStatus.getCurrentLeader().getNode().getNodeId();
-        resp.term = raftStatus.getCurrentTerm();
-        resp.commitIndex = raftStatus.getCommitIndex();
-        resp.lastApplied = raftStatus.getLastApplied();
-        resp.lastLogIndex = raftStatus.getLastLogIndex();
+        resp.setGroupId(reqInfo.getRaftGroup().getGroupId());
+        resp.setLeaderId(raftStatus.getCurrentLeader() == null ? 0 : raftStatus.getCurrentLeader().getNode().getNodeId());
+        resp.setTerm(raftStatus.getCurrentTerm());
+        resp.setCommitIndex(raftStatus.getCommitIndex());
+        resp.setLastApplied(raftStatus.getLastApplied());
+        resp.setLastLogIndex(raftStatus.getLastLogIndex());
 
         QueryStatusResp.QueryStatusRespWriteFrame wf = new QueryStatusResp.QueryStatusRespWriteFrame(resp);
         wf.setRespCode(CmdCodes.SUCCESS);

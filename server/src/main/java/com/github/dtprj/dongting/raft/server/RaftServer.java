@@ -53,7 +53,6 @@ import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.impl.VoteManager;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.NodePingProcessor;
-import com.github.dtprj.dongting.raft.rpc.QueryLeaderProcessor;
 import com.github.dtprj.dongting.raft.rpc.QueryStatusProcessor;
 import com.github.dtprj.dongting.raft.rpc.RaftPingProcessor;
 import com.github.dtprj.dongting.raft.rpc.RaftSequenceProcessor;
@@ -150,7 +149,8 @@ public class RaftServer extends AbstractLifeCircle {
         addRaftGroupProcessor(replicateNioServer, Commands.RAFT_INSTALL_SNAPSHOT, appendProcessor);
         addRaftGroupProcessor(replicateNioServer, Commands.RAFT_REQUEST_VOTE, new VoteProcessor(this));
         addRaftGroupProcessor(replicateNioServer, Commands.RAFT_LEADER_TRANSFER, new TransferLeaderProcessor(this));
-        addRaftGroupProcessor(replicateNioServer, Commands.RAFT_QUERY_STATUS, new QueryStatusProcessor(this));
+        QueryStatusProcessor queryStatusProcessor = new QueryStatusProcessor(this);
+        addRaftGroupProcessor(replicateNioServer, Commands.RAFT_QUERY_STATUS, queryStatusProcessor);
 
         if (serverConfig.getServicePort() > 0) {
             NioServerConfig serviceServerConfig = new NioServerConfig();
@@ -159,7 +159,7 @@ public class RaftServer extends AbstractLifeCircle {
             serviceServerConfig.setBizThreads(0);
             // use multi io threads
             serviceNioServer = new NioServer(serviceServerConfig);
-            addRaftGroupProcessor(serviceNioServer, Commands.RAFT_QUERY_LEADER, new QueryLeaderProcessor(this));
+            addRaftGroupProcessor(serviceNioServer, Commands.RAFT_QUERY_STATUS, queryStatusProcessor);
         } else {
             serviceNioServer = null;
         }

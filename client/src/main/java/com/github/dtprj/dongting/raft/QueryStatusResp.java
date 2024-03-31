@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.raft.rpc;
+package com.github.dtprj.dongting.raft;
 
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
@@ -31,12 +31,12 @@ public class QueryStatusResp {
     // fixed64 commit_index = 4;
     // fixed64 last_applied = 5;
     // fixed64 last_log_index = 6;
-    int groupId;
-    int term;
-    int leaderId;
-    long commitIndex;
-    long lastApplied;
-    long lastLogIndex;
+    private int groupId;
+    private int term;
+    private int leaderId;
+    private long commitIndex;
+    private long lastApplied;
+    private long lastLogIndex;
 
     public static class QueryStatusRespCallback extends PbCallback<QueryStatusResp> {
         private final QueryStatusResp result = new QueryStatusResp();
@@ -130,5 +130,29 @@ public class QueryStatusResp {
 
     public long getLastLogIndex() {
         return lastLogIndex;
+    }
+
+    public void setGroupId(int groupId) {
+        this.groupId = groupId;
+    }
+
+    public void setTerm(int term) {
+        this.term = term;
+    }
+
+    public void setLeaderId(int leaderId) {
+        this.leaderId = leaderId;
+    }
+
+    public void setCommitIndex(long commitIndex) {
+        this.commitIndex = commitIndex;
+    }
+
+    public void setLastApplied(long lastApplied) {
+        this.lastApplied = lastApplied;
+    }
+
+    public void setLastLogIndex(long lastLogIndex) {
+        this.lastLogIndex = lastLogIndex;
     }
 }

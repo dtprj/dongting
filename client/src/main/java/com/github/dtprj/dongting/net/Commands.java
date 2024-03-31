@@ -34,7 +34,6 @@ public interface Commands {
     int RAFT_QUERY_STATUS = 105;
 
     // 110 ~ 119 for raft client
-    int RAFT_QUERY_LEADER = 110;
 
     // 120 ~ 139 for dt kv
     int DTKV_GET = 120;
