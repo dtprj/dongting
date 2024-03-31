@@ -64,7 +64,7 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
     private final PbNoCopyDecoder<AppendReqCallback> appendDecoder;
 
     private static final Decoder<InstallSnapshotReq> INSTALL_SNAPSHOT_DECODER = new PbNoCopyDecoder<>(
-            c -> new InstallSnapshotReq.Callback(c.getHeapPool()));
+            InstallSnapshotReq.Callback::new);
 
     public AppendProcessor(RaftServer raftServer) {
         super(raftServer);

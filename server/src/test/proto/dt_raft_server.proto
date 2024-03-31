@@ -92,7 +92,13 @@ message InstallSnapshotReq {
   uint32 last_included_term = 5;
   fixed64 offset = 6;
   bool done = 7;
+
   fixed64 next_write_pos = 8;
+  string members = 9;
+  string observers = 10;
+  string prepared_members = 11;
+  string prepared_observers = 12;
+
   bytes data = 15;
 }
 

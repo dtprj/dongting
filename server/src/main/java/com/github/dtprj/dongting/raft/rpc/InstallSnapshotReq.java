@@ -17,9 +17,11 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
+import com.github.dtprj.dongting.codec.StrFiledDecoder;
 import com.github.dtprj.dongting.net.WriteFrame;
 
 import java.nio.ByteBuffer;
@@ -34,7 +36,13 @@ import java.nio.ByteBuffer;
 //  uint32 last_included_term = 5;
 //  fixed64 offset = 6;
 //  bool done = 7;
+
 //  fixed64 next_write_pos = 8;
+//  string members = 9;
+//  string observers = 10;
+//  prepared_members = 11;
+//  prepared_observers = 12;
+
 //  bytes data = 15;
 public class InstallSnapshotReq {
     public int groupId;
@@ -43,16 +51,24 @@ public class InstallSnapshotReq {
     public long lastIncludedIndex;
     public int lastIncludedTerm;
     public long offset;
-    public RefBuffer data;
     public boolean done;
+
     public long nextWritePos;
+    public String members;
+    public String observers;
+    public String preparedMembers;
+    public String preparedObservers;
+
+    public RefBuffer data;
 
     public static class Callback extends PbCallback<InstallSnapshotReq> {
         private final InstallSnapshotReq result = new InstallSnapshotReq();
         private final RefBufferFactory heapPool;
+        private final DecodeContext context;
 
-        public Callback(RefBufferFactory heapPool) {
-            this.heapPool = heapPool;
+        public Callback(DecodeContext context) {
+            this.heapPool = context.getHeapPool();
+            this.context = context;
         }
 
         @Override
@@ -96,14 +112,28 @@ public class InstallSnapshotReq {
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
             boolean end = buf.remaining() >= len - currentPos;
-            if (index == 15) {
-                if (currentPos == 0) {
-                    result.data = heapPool.create(len);
-                }
-                result.data.getBuffer().put(buf);
-                if (end) {
-                    result.data.getBuffer().flip();
-                }
+            switch (index) {
+                case 9:
+                    result.members = StrFiledDecoder.INSTANCE.decode(context, buf, len, currentPos);
+                    break;
+                case 10:
+                    result.observers = StrFiledDecoder.INSTANCE.decode(context, buf, len, currentPos);
+                    break;
+                case 11:
+                    result.preparedMembers = StrFiledDecoder.INSTANCE.decode(context, buf, len, currentPos);
+                    break;
+                case 12:
+                    result.preparedObservers = StrFiledDecoder.INSTANCE.decode(context, buf, len, currentPos);
+                    break;
+                case 15:
+                    if (currentPos == 0) {
+                        result.data = heapPool.create(len);
+                    }
+                    result.data.getBuffer().put(buf);
+                    if (end) {
+                        result.data.getBuffer().flip();
+                    }
+                    break;
             }
             return true;
         }
