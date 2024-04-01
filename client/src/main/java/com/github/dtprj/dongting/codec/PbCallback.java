@@ -44,12 +44,20 @@ public abstract class PbCallback<T> {
         return true;
     }
 
-    public void begin(int len, PbParser parser) {
+    void beforeParse(int len, PbParser parser) {
         this.parser = parser;
+        begin(len);
     }
 
-    public void end(boolean success) {
+    void afterParse(boolean success) {
         this.parser = null;
+        end(success);
+    }
+
+    protected void begin(int len) {
+    }
+
+    protected void end(boolean success) {
     }
 
     public T getResult() {

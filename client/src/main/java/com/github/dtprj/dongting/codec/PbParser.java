@@ -184,7 +184,7 @@ public class PbParser {
 
     private void callEnd(PbCallback<?> callback, boolean success, int nextStatus) {
         try {
-            callback.end(success);
+            callback.afterParse(success);
         } catch (Throwable e) {
             log.error("proto buffer parse callback end() fail", e);
         }
@@ -200,7 +200,7 @@ public class PbParser {
 
     private void callBegin(PbCallback<?> callback, int len) {
         try {
-            callback.begin(len, this);
+            callback.beforeParse(len, this);
             this.status = STATUS_PARSE_TAG;
         } catch (Throwable e) {
             log.error("proto buffer parse callback begin() fail", e);

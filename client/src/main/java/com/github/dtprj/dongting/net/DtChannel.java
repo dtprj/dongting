@@ -119,8 +119,7 @@ class DtChannel extends PbCallback<Object> {
     }
 
     @Override
-    public void begin(int len, PbParser parser) {
-        super.begin(len, parser);
+    protected void begin(int len) {
         this.currentReadFrameSize = len;
         frame = new ReadFrame();
         readBody = false;
@@ -133,9 +132,8 @@ class DtChannel extends PbCallback<Object> {
     }
 
     @Override
-    public void end(boolean success) {
+    protected void end(boolean success) {
         try {
-            super.end(success);
             if (!success) {
                 return;
             }

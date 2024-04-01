@@ -61,11 +61,10 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
     }
 
     @Override
-    public void end(boolean success) {
+    protected void end(boolean success) {
         if (!success) {
             RaftUtil.release(logs);
         }
-        super.end(success);
     }
 
     @Override
@@ -186,7 +185,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
         }
 
         @Override
-        public void end(boolean success) {
+        protected void end(boolean success) {
             if (!success) {
                 item.release();
                 if (currentDecoder != null) {
@@ -194,7 +193,6 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                 }
             }
             context.reset();
-            super.end(success);
         }
 
         @Override

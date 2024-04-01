@@ -95,14 +95,12 @@ public class PbParserExTest {
         int endFailCount;
 
         @Override
-        public void begin(int len, PbParser parser) {
-            super.begin(len, parser);
+        protected void begin(int len) {
             beginCount++;
         }
 
         @Override
-        public void end(boolean success) {
-            super.end(success);
+        protected void end(boolean success) {
             if (success) {
                 endSuccessCount++;
             } else {

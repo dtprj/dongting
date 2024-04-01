@@ -120,9 +120,6 @@ public class FramePbTest {
 
         DtChannel dtc = new DtChannel(new NioStatus(null), workerStatus,
                 new NioClientConfig(), SocketChannel.open(), 0) {
-            @Override
-            public void end(boolean success) {
-            }
 
             @Override
             public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {

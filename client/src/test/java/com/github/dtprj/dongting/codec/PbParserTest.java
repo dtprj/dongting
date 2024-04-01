@@ -94,12 +94,12 @@ public class PbParserTest {
         }
 
         @Override
-        public void begin(int len, PbParser parser) {
+        protected void begin(int len) {
             beginCount++;
         }
 
         @Override
-        public void end(boolean success) {
+        protected void end(boolean success) {
             endCount++;
         }
 
@@ -228,8 +228,7 @@ public class PbParserTest {
         }
 
         @Override
-        public void begin(int len, PbParser parser) {
-            super.begin(len, parser);
+        protected void begin(int len) {
             beginCount++;
             assertEquals(expectLen, len);
             readMsg = new Msg();
@@ -249,7 +248,7 @@ public class PbParserTest {
         }
 
         @Override
-        public void end(boolean success) {
+        protected void end(boolean success) {
             if (success) {
                 endSuccessCount++;
                 afterSuccess();
@@ -534,7 +533,7 @@ public class PbParserTest {
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
-            public void begin(int len, PbParser p) {
+            protected void begin(int len) {
                 throw new ArrayIndexOutOfBoundsException();
             }
         };
@@ -542,7 +541,7 @@ public class PbParserTest {
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
-            public void end(boolean success) {
+            protected void end(boolean success) {
                 throw new ArrayIndexOutOfBoundsException();
             }
         };
