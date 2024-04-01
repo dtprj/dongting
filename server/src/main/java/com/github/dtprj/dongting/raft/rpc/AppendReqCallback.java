@@ -242,7 +242,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                     currentDecoder = codecFactory.createHeaderDecoder(item.getBizType());
                     result = currentDecoder.decode(context, buf, len, currentPos);
                 } else {
-                    result = Decoder.decodeToByteBuffer(buf, len, currentPos, (ByteBuffer) context.getStatus());
+                    result = parseByteBuffer(buf, len, currentPos);
                     context.setStatus(result);
                 }
                 if (end) {
@@ -259,7 +259,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                     currentDecoder = codecFactory.createBodyDecoder(item.getBizType());
                     result = currentDecoder.decode(context, buf, len, currentPos);
                 } else {
-                    result = Decoder.decodeToByteBuffer(buf, len, currentPos, (ByteBuffer) context.getStatus());
+                    result = parseByteBuffer(buf, len, currentPos);
                     context.setStatus(result);
                 }
                 if (end) {

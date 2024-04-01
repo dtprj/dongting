@@ -27,19 +27,6 @@ public interface Decoder<T> {
     default void finish(DecodeContext context) {
     }
 
-    static ByteBuffer decodeToByteBuffer(ByteBuffer buffer, int bodyLen, int currentPos, ByteBuffer result) {
-        if (currentPos == 0) {
-            result = ByteBuffer.allocate(bodyLen);
-        }
-        boolean end = buffer.remaining() >= bodyLen - currentPos;
-        result.put(buffer);
-
-        if (end) {
-            result.flip();
-        }
-        return result;
-    }
-
     Decoder<Void> VOID_DECODER = new Decoder<Void>() {
         @Override
         public Void decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
