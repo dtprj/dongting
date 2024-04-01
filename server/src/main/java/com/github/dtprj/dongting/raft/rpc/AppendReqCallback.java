@@ -188,10 +188,8 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
         protected void end(boolean success) {
             if (!success) {
                 item.release();
-                if (currentDecoder != null) {
-                    currentDecoder.finish(context);
-                }
             }
+            resetDecoder();
             context.reset();
         }
 
@@ -244,7 +242,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                     context.setStatus(result);
                 }
                 if (end) {
-                    currentDecoder = null;
+                    resetDecoder();
                     item.setActualHeaderSize(len);
                     item.setHeader(result);
                 }
@@ -261,12 +259,22 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                     context.setStatus(result);
                 }
                 if (end) {
-                    currentDecoder = null;
+                    resetDecoder();
                     item.setActualBodySize(len);
                     item.setBody(result);
                 }
             }
             return true;
+        }
+
+        private void resetDecoder() {
+            if (currentDecoder != null) {
+                try {
+                    currentDecoder.finish(context);
+                } finally {
+                    currentDecoder = null;
+                }
+            }
         }
     }
 }

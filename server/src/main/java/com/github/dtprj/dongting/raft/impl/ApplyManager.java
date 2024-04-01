@@ -305,6 +305,7 @@ public class ApplyManager {
                     if (item.getType() == LogItem.TYPE_NORMAL) {
                         Decoder decoder = stateMachine.createHeaderDecoder(item.getBizType());
                         Object o = decoder.decode(decodeContext, headerRbb, headerRbb.remaining(), 0);
+                        decoder.finish(decodeContext);
                         item.setHeader(o);
                     } else {
                         item.setHeader(RaftUtil.copy(headerRbb));
@@ -315,6 +316,7 @@ public class ApplyManager {
                     if (item.getType() == LogItem.TYPE_NORMAL) {
                         Decoder decoder = stateMachine.createBodyDecoder(item.getBizType());
                         Object o = decoder.decode(decodeContext, bodyRbb, bodyRbb.remaining(), 0);
+                        decoder.finish(decodeContext);
                         item.setBody(o);
                     } else {
                         item.setBody(RaftUtil.copy(bodyRbb));

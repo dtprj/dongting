@@ -152,7 +152,7 @@ class DtChannel extends PbCallback<Object> {
                 }
             }
         } finally {
-            resetDecode();
+            resetDecoder();
         }
 
         if (frame.getFrameType() == FrameType.TYPE_RESP) {
@@ -226,7 +226,7 @@ class DtChannel extends PbCallback<Object> {
                     return readBody(buf, fieldLen, currentPos, end);
                 } finally {
                     if (end) {
-                        resetDecode();
+                        resetDecoder();
                     }
                 }
             }
@@ -236,10 +236,13 @@ class DtChannel extends PbCallback<Object> {
 
     }
 
-    private void resetDecode() {
+    private void resetDecoder() {
         if (currentDecoder != null) {
-            currentDecoder.finish(decodeContext);
-            currentDecoder = null;
+            try {
+                currentDecoder.finish(decodeContext);
+            } finally {
+                currentDecoder = null;
+            }
         }
         decodeContext.reset();
     }
