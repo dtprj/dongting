@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.dtkv.server;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
-import com.github.dtprj.dongting.codec.StrFiledDecoder;
 import com.github.dtprj.dongting.dtkv.RemoveReq;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
@@ -53,7 +52,7 @@ public class RemoveProcessor extends AbstractRaftBizProcessor<RemoveReq> {
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == 2) {
-                result.setKey(StrFiledDecoder.INSTANCE.decode(c, buf, fieldLen, currentPos));
+                result.setKey(parseUTF8(buf, fieldLen, currentPos));
             }
             return true;
         }

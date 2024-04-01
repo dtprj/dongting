@@ -13,35 +13,19 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.fiber;
-
-import com.github.dtprj.dongting.common.DtThread;
+package com.github.dtprj.dongting.common;
 
 /**
  * @author huangli
  */
-class DispatcherThread extends DtThread {
+public class DtThread extends Thread {
+    private final byte[] cache = new byte[4096];
 
-    FiberGroup currentGroup;
-
-    DispatcherThread(Runnable r, String name) {
+    public DtThread(Runnable r, String name) {
         super(r, name);
     }
 
-    static DispatcherThread currentDispatcherThread() {
-        try {
-            return (DispatcherThread) Thread.currentThread();
-        } catch (ClassCastException e) {
-            throw new FiberException("not run in dispatcher thread");
-        }
+    public byte[] getCache() {
+        return cache;
     }
-
-    static FiberGroup currentGroup() {
-        return currentDispatcherThread().currentGroup;
-    }
-
-    static Fiber currentFiber() {
-        return currentDispatcherThread().currentGroup.currentFiber;
-    }
-
 }

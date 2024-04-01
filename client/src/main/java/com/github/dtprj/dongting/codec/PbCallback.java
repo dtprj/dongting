@@ -15,14 +15,16 @@
  */
 package com.github.dtprj.dongting.codec;
 
+import com.github.dtprj.dongting.common.DtThread;
+
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 /**
  * @author huangli
  */
 public abstract class PbCallback<T> {
 
-    // TODO remove this?
     protected PbParser parser;
 
     public boolean readVarNumber(int index, long value) {
@@ -53,4 +55,58 @@ public abstract class PbCallback<T> {
         throw new UnsupportedOperationException();
     }
 
+    protected final String parseUTF8(ByteBuffer buf, int fieldLen, int currentPos) {
+        if (fieldLen == 0) {
+            return "";
+        }
+        int needRead = fieldLen - currentPos;
+        int remain = buf.remaining();
+        byte[] result;
+        if (remain < needRead) {
+            if (currentPos == 0) {
+                result = new byte[fieldLen];
+                parser.attachment = result;
+            } else {
+                result = (byte[]) parser.attachment;
+            }
+            buf.get(result, currentPos, remain);
+            return null;
+        } else {
+            DtThread thread = (DtThread) Thread.currentThread();
+            if (currentPos == 0) {
+                byte[] cache = thread.getCache();
+                if (cache.length < fieldLen) {
+                    result = new byte[fieldLen];
+                } else {
+                    result = cache;
+                }
+            } else {
+                result = (byte[]) parser.attachment;
+            }
+            buf.get(result, currentPos, needRead);
+            return new String(result, 0, fieldLen, StandardCharsets.UTF_8);
+        }
+    }
+
+    protected final byte[] parseBytes(ByteBuffer buf, int fieldLen, int currentPos) {
+        if (fieldLen == 0) {
+            return new byte[0];
+        }
+        byte[] result;
+        if (currentPos == 0) {
+            result = new byte[fieldLen];
+        } else {
+            result = (byte[]) parser.attachment;
+        }
+        int needRead = fieldLen - currentPos;
+        int remain = buf.remaining();
+        if (remain < needRead) {
+            buf.get(result, currentPos, remain);
+            parser.attachment = result;
+            return null;
+        } else {
+            buf.get(result, currentPos, needRead);
+            return result;
+        }
+    }
 }

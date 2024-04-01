@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
+import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IntObjMap;
@@ -62,7 +63,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private long statReadBytes;
 
     private final String workerName;
-    private final Thread thread;
+    private final DtThread thread;
     private final NioStatus nioStatus;
     private final NioConfig config;
     private final NioClient client;
@@ -94,9 +95,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.nioStatus = nioStatus;
         this.config = config;
         this.client = client;
-        this.thread = new Thread(this);
+        this.thread = new DtThread(this, workerName);
         this.workerName = workerName;
-        this.thread.setName(workerName);
         this.readBufferTimeoutNanos = config.getReadBufferTimeout() * 1000 * 1000;
 
         this.channels = new IntObjMap<>();

@@ -21,7 +21,6 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
-import com.github.dtprj.dongting.codec.StrFiledDecoder;
 import com.github.dtprj.dongting.net.WriteFrame;
 
 import java.nio.ByteBuffer;
@@ -114,16 +113,16 @@ public class InstallSnapshotReq {
             boolean end = buf.remaining() >= len - currentPos;
             switch (index) {
                 case 9:
-                    result.members = StrFiledDecoder.INSTANCE.decode(context, buf, len, currentPos);
+                    result.members = parseUTF8(buf, len, currentPos);
                     break;
                 case 10:
-                    result.observers = StrFiledDecoder.INSTANCE.decode(context, buf, len, currentPos);
+                    result.observers = parseUTF8(buf, len, currentPos);
                     break;
                 case 11:
-                    result.preparedMembers = StrFiledDecoder.INSTANCE.decode(context, buf, len, currentPos);
+                    result.preparedMembers = parseUTF8(buf, len, currentPos);
                     break;
                 case 12:
-                    result.preparedObservers = StrFiledDecoder.INSTANCE.decode(context, buf, len, currentPos);
+                    result.preparedObservers = parseUTF8(buf, len, currentPos);
                     break;
                 case 15:
                     if (currentPos == 0) {

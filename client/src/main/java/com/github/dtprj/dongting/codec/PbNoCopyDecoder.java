@@ -65,7 +65,9 @@ public final class PbNoCopyDecoder<T> implements Decoder<T> {
 
         @Override
         public boolean readFix32(int index, int value) {
-            this.value = value;
+            if (index == 1) {
+                this.value = value;
+            }
             return true;
         }
 
@@ -80,7 +82,9 @@ public final class PbNoCopyDecoder<T> implements Decoder<T> {
 
         @Override
         public boolean readFix64(int index, long value) {
-            this.value = value;
+            if (index == 1) {
+                this.value = value;
+            }
             return true;
         }
 
@@ -95,19 +99,15 @@ public final class PbNoCopyDecoder<T> implements Decoder<T> {
 
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
-            value = StrFiledDecoder.INSTANCE.decode(c, buf, fieldLen, currentPos);
+            if (index == 1) {
+                value = parseUTF8(buf, fieldLen, currentPos);
+            }
             return true;
         }
 
         @Override
         public String getResult() {
             return value;
-        }
-
-        @Override
-        public void end(boolean success) {
-            super.end(success);
-            StrFiledDecoder.INSTANCE.finish(c);
         }
     });
 

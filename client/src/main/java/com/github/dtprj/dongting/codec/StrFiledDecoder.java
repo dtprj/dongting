@@ -52,8 +52,8 @@ public class StrFiledDecoder implements Decoder<String> {
 
         if (end) {
             String s = new String(bufferFromPool.array(), 0, bufferFromPool.position(), StandardCharsets.UTF_8);
-            decodeContext.getHeapPool().getPool().release(bufferFromPool);
             decodeContext.setStatus(null);
+            decodeContext.getHeapPool().getPool().release(bufferFromPool);
             return s;
         } else {
             decodeContext.setStatus(bufferFromPool);
@@ -65,6 +65,7 @@ public class StrFiledDecoder implements Decoder<String> {
     public void finish(DecodeContext context) {
         Object s = context.getStatus();
         if (s instanceof ByteBuffer) {
+            context.setStatus(null);
             context.getHeapPool().getPool().release((ByteBuffer) s);
         }
     }

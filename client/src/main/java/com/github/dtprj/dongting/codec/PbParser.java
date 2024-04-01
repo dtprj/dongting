@@ -58,6 +58,8 @@ public class PbParser {
 
     private PbParser nestedParser;
 
+    Object attachment;
+
     private PbParser(PbCallback<?> callback, boolean multi, int maxFrameOrPbLen) {
         Objects.requireNonNull(callback);
         if (multi) {
@@ -181,15 +183,16 @@ public class PbParser {
     }
 
     private void callEnd(PbCallback<?> callback, boolean success, int nextStatus) {
-        this.status = nextStatus;
-        this.pendingBytes = 0;
-        this.frameLen = 0;
-        this.parsedBytes = 0;
         try {
             callback.end(success);
         } catch (Throwable e) {
             log.error("proto buffer parse callback end() fail", e);
         }
+        this.status = nextStatus;
+        this.pendingBytes = 0;
+        this.frameLen = 0;
+        this.parsedBytes = 0;
+        this.attachment = null;
         if (maxFrame == 0) {
             this.callback = null;
         }
@@ -438,6 +441,7 @@ public class PbParser {
             if (result) {
                 if (needRead == actualRead) {
                     pendingBytes = 0;
+                    attachment = null;
                     status = STATUS_PARSE_TAG;
                 } else {
                     pendingBytes += actualRead;

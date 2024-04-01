@@ -6,6 +6,7 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.codec.DtFrame;
 import com.github.dtprj.dongting.codec.EncodeContext;
+import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.Test;
@@ -16,6 +17,7 @@ import java.nio.ByteOrder;
 import java.nio.channels.SocketChannel;
 import java.util.Arrays;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -26,7 +28,21 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class FramePbTest {
 
     @Test
-    public void test() throws Exception {
+    public void testInDtThread() throws Exception {
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        DtThread dtThread = new DtThread(() -> {
+            try {
+                test();
+                f.complete(null);
+            } catch (Throwable e) {
+                f.completeExceptionally(e);
+            }
+        }, "dtThread");
+        dtThread.start();
+        f.get();
+    }
+
+    private void test() throws Exception {
         test0(0, 0, 0, 0, "1", new byte[]{1}, 0, 0);
         test0(1, 1, 1, 1, "123", new byte[]{1, 5}, 1, 1);
         test0(1000, 1000, 1000, 1000, "123", null, 10000, 1000);

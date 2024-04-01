@@ -15,11 +15,9 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.codec.ByteArrayDecoder;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
-import com.github.dtprj.dongting.codec.StrFiledDecoder;
 import com.github.dtprj.dongting.dtkv.PutReq;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespFrame;
@@ -55,9 +53,9 @@ public class PutProcessor extends AbstractRaftBizProcessor<PutReq> {
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == 2) {
-                result.setKey(StrFiledDecoder.INSTANCE.decode(c, buf, fieldLen, currentPos));
+                result.setKey(parseUTF8(buf, fieldLen, currentPos));
             } else if (index == 3) {
-                result.setValue(ByteArrayDecoder.decodeToArray(c, buf, fieldLen, currentPos));
+                result.setValue(parseBytes(buf, fieldLen, currentPos));
             }
             return true;
         }

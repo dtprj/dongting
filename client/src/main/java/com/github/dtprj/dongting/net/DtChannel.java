@@ -19,13 +19,11 @@ import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
-import com.github.dtprj.dongting.codec.ByteArrayDecoder;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.codec.PbParser;
-import com.github.dtprj.dongting.codec.StrFiledDecoder;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -212,34 +210,32 @@ class DtChannel extends PbCallback<Object> {
         if (this.readBody) {
             throw new PbException("body has read");
         }
-        if (currentPos == 0 && currentDecoder != null) {
-            throw new IllegalStateException("currentDecoder is not null");
-        }
-        boolean end = buf.remaining() >= fieldLen - currentPos;
-        try {
-            switch (index) {
-                case Frame.IDX_MSG: {
-                    currentDecoder = StrFiledDecoder.INSTANCE;
-                    String msg = StrFiledDecoder.INSTANCE.decode(decodeContext, buf, fieldLen, currentPos);
-                    this.frame.setMsg(msg);
-                    return true;
-                }
-                case Frame.IDX_EXTRA: {
-                    byte[] extra = ByteArrayDecoder.INSTANCE.decode(decodeContext, buf, fieldLen, currentPos);
-                    this.frame.setExtra(extra);
-                    return true;
-                }
-                case Frame.IDX_BODY: {
+        switch (index) {
+            case Frame.IDX_MSG: {
+                this.frame.setMsg(parseUTF8(buf, fieldLen, currentPos));
+                return true;
+            }
+            case Frame.IDX_EXTRA: {
+                this.frame.setExtra(parseBytes(buf, fieldLen, currentPos));
+                return true;
+            }
+            case Frame.IDX_BODY: {
+                boolean end = buf.remaining() >= fieldLen - currentPos;
+                try {
+                    if (currentPos == 0 && currentDecoder != null) {
+                        throw new IllegalStateException("currentDecoder is not null");
+                    }
                     return readBody(buf, fieldLen, currentPos, end);
+                } finally {
+                    if (end) {
+                        resetDecode();
+                    }
                 }
-                default:
-                    return true;
             }
-        } finally {
-            if (end) {
-                resetDecode();
-            }
+            default:
+                return true;
         }
+
     }
 
     private void resetDecode() {
@@ -272,7 +268,6 @@ class DtChannel extends PbCallback<Object> {
             }
             return true;
         } catch (Throwable e) {
-            resetDecode();
             processIoDecodeFail(e);
             return false;
         }
