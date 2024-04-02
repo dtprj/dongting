@@ -31,11 +31,11 @@ public abstract class CopyWriteFrame extends WriteFrame {
     }
 
     @Override
-    protected final boolean encodeBody(EncodeContext context, ByteBuffer buf) {
+    protected final boolean encodeBody(EncodeContext context, ByteBuffer dest) {
         if (tempRefBuffer == null) {
             int bodySize = actualBodySize();
-            if (buf.remaining() >= bodySize) {
-                encodeBody(buf);
+            if (dest.remaining() >= bodySize) {
+                encodeBody(dest);
                 return true;
             } else {
                 tempRefBuffer = context.getHeapPool().create(bodySize);
@@ -43,12 +43,12 @@ public abstract class CopyWriteFrame extends WriteFrame {
                 encodeBody(tempBuf);
                 tempBuf.flip();
 
-                buf.put(tempBuf);
+                dest.put(tempBuf);
                 return tempBuf.hasRemaining();
             }
         } else {
             ByteBuffer tempBuf = tempRefBuffer.getBuffer();
-            buf.put(tempBuf);
+            dest.put(tempBuf);
             return tempBuf.hasRemaining();
         }
     }

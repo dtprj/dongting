@@ -34,7 +34,7 @@ public class EmptyBodyReqFrame extends WriteFrame {
     }
 
     @Override
-    protected boolean encodeBody(EncodeContext context, ByteBuffer buf) {
+    protected boolean encodeBody(EncodeContext context, ByteBuffer dest) {
         return true;
     }
 }

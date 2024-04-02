@@ -175,19 +175,19 @@ public class InstallSnapshotReq {
         }
 
         @Override
-        protected boolean encodeBody(EncodeContext context, ByteBuffer buf) {
+        protected boolean encodeBody(EncodeContext context, ByteBuffer dest) {
             if (!headerWritten) {
-                if (buf.remaining() >= headerSize) {
-                    PbUtil.writeUnsignedInt32(buf, 1, req.groupId);
-                    PbUtil.writeUnsignedInt32(buf, 2, req.term);
-                    PbUtil.writeUnsignedInt32(buf, 3, req.leaderId);
-                    PbUtil.writeFix64(buf, 4, req.lastIncludedIndex);
-                    PbUtil.writeUnsignedInt32(buf, 5, req.lastIncludedTerm);
-                    PbUtil.writeFix64(buf, 6, req.offset);
-                    PbUtil.writeUnsignedInt32(buf, 7, req.done ? 1 : 0);
-                    PbUtil.writeFix64(buf, 8, req.nextWritePos);
+                if (dest.remaining() >= headerSize) {
+                    PbUtil.writeUnsignedInt32(dest, 1, req.groupId);
+                    PbUtil.writeUnsignedInt32(dest, 2, req.term);
+                    PbUtil.writeUnsignedInt32(dest, 3, req.leaderId);
+                    PbUtil.writeFix64(dest, 4, req.lastIncludedIndex);
+                    PbUtil.writeUnsignedInt32(dest, 5, req.lastIncludedTerm);
+                    PbUtil.writeFix64(dest, 6, req.offset);
+                    PbUtil.writeUnsignedInt32(dest, 7, req.done ? 1 : 0);
+                    PbUtil.writeFix64(dest, 8, req.nextWritePos);
                     if (bufferSize > 0) {
-                        PbUtil.writeLengthDelimitedPrefix(buf, 15, bufferSize);
+                        PbUtil.writeLengthDelimitedPrefix(dest, 15, bufferSize);
                     }
                     headerWritten = true;
                 } else {
@@ -197,7 +197,7 @@ public class InstallSnapshotReq {
             if (bufferSize == 0) {
                 return true;
             }
-            buf.put(req.data.getBuffer());
+            dest.put(req.data.getBuffer());
             return !req.data.getBuffer().hasRemaining();
         }
 

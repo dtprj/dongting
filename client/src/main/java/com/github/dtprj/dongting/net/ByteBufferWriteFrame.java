@@ -23,46 +23,29 @@ import java.nio.ByteBuffer;
  * @author huangli
  */
 public class ByteBufferWriteFrame extends WriteFrame {
-    private final ByteBuffer body;
-    private int markedPosition = -1;
+    private final ByteBuffer data;
+    private int readBytes;
 
-    public ByteBufferWriteFrame(ByteBuffer body) {
-        this.body = body;
+    public ByteBufferWriteFrame(ByteBuffer data) {
+        this.data = data;
     }
 
     @Override
     protected int calcActualBodySize() {
-        ByteBuffer body = this.body;
+        ByteBuffer body = this.data;
         return body == null ? 0 : body.remaining();
     }
 
-    public static int copy(ByteBuffer src, ByteBuffer dest, int markedPosition) {
-        int srcStart = src.position();
-        if (markedPosition < srcStart) {
-            markedPosition = srcStart;
-        } else {
-            src.position(markedPosition);
-        }
-        int destRemaining = dest.remaining();
-        if (src.remaining() > destRemaining) {
-            int srcLimit = src.limit();
-            src.limit(markedPosition + destRemaining);
-            dest.put(src);
-
-            src.limit(srcLimit);
-            src.position(srcStart);
-            return markedPosition + destRemaining;
-        } else {
-            dest.put(src);
-            markedPosition = src.position();
-            src.position(srcStart);
-            return markedPosition;
-        }
+    // src must be heap buffer
+    public static int copyFromHeapBuffer(ByteBuffer src, ByteBuffer dest, int readBytes) {
+        int len = Math.min(src.remaining() - readBytes, dest.remaining());
+        dest.put(src.array(), src.position() + readBytes, len);
+        return readBytes + len;
     }
 
     @Override
-    protected boolean encodeBody(EncodeContext context, ByteBuffer buf) {
-        markedPosition = copy(body, buf, markedPosition);
-        return markedPosition == body.limit();
+    protected boolean encodeBody(EncodeContext context, ByteBuffer dest) {
+        readBytes = copyFromHeapBuffer(data, dest, readBytes);
+        return readBytes >= data.remaining();
     }
 }

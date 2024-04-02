@@ -757,7 +757,7 @@ public class NioClientTest {
                 }
 
                 @Override
-                protected boolean encodeBody(EncodeContext context, ByteBuffer buf) {
+                protected boolean encodeBody(EncodeContext context, ByteBuffer dest) {
                     return true;
                 }
             };
@@ -787,7 +787,7 @@ public class NioClientTest {
                 }
 
                 @Override
-                protected boolean encodeBody(EncodeContext context, ByteBuffer buf) {
+                protected boolean encodeBody(EncodeContext context, ByteBuffer dest) {
                     throw new MockRuntimeException();
                 }
             };

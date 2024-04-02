@@ -28,22 +28,24 @@ public class ByteBufferEncoder implements Encoder<ByteBuffer> {
 
     public static final ByteBufferEncoder INSTANCE = new ByteBufferEncoder();
 
-    private ByteBufferEncoder(){
+    private ByteBufferEncoder() {
     }
 
+    // src must be heap buffer
     @Override
-    public boolean encode(EncodeContext context, ByteBuffer buffer, ByteBuffer data) {
-        int markedPos = -1;
+    public boolean encode(EncodeContext context, ByteBuffer dest, ByteBuffer src) {
         Integer s = (Integer) context.getStatus();
+        int readBytes = 0;
         if (s != null) {
-            markedPos = s;
+            readBytes = s;
         }
-        markedPos = ByteBufferWriteFrame.copy(data, buffer, markedPos);
-        boolean result = markedPos == data.limit();
-        if (!result) {
-            context.setStatus(markedPos);
+        readBytes = ByteBufferWriteFrame.copyFromHeapBuffer(src, dest, readBytes);
+        if (readBytes >= src.remaining()) {
+            return true;
+        } else {
+            context.setStatus(readBytes);
+            return false;
         }
-        return result;
     }
 
     @Override

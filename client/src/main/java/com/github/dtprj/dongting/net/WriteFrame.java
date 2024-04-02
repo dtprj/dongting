@@ -52,7 +52,7 @@ public abstract class WriteFrame extends Frame {
 
     protected abstract int calcActualBodySize();
 
-    protected abstract boolean encodeBody(EncodeContext context, ByteBuffer buf);
+    protected abstract boolean encodeBody(EncodeContext context, ByteBuffer dest);
 
     public final int calcMaxFrameSize() {
         return MAX_HEADER_SIZE

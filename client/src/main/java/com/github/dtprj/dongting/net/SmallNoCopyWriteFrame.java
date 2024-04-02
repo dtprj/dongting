@@ -24,11 +24,11 @@ import java.nio.ByteBuffer;
  */
 public abstract class SmallNoCopyWriteFrame extends WriteFrame {
     @Override
-    protected final boolean encodeBody(EncodeContext context, ByteBuffer buf) {
-        if (buf.remaining() < actualBodySize()) {
+    protected final boolean encodeBody(EncodeContext context, ByteBuffer dest) {
+        if (dest.remaining() < actualBodySize()) {
             return false;
         }
-        encodeBody(buf);
+        encodeBody(dest);
         return true;
     }
 

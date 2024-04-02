@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
  */
 public interface Encoder<T> {
 
-    boolean encode(EncodeContext context, ByteBuffer buffer, T data);
+    boolean encode(EncodeContext context, ByteBuffer destBuffer, T data);
 
     int actualSize(T data);
 

@@ -74,7 +74,7 @@ public class AppendReqWriteFrame extends WriteFrame {
     private static final int WRITE_ITEM_BIZ_BODY = 5;
     private int writeStatus;
     private int encodeLogIndex;
-    private int markedPosition;
+    private int readBytes;
 
     private LogItem currentItem;
 
@@ -119,19 +119,19 @@ public class AppendReqWriteFrame extends WriteFrame {
     }
 
     @Override
-    protected boolean encodeBody(EncodeContext context, ByteBuffer buf) {
+    protected boolean encodeBody(EncodeContext context, ByteBuffer dest) {
         while (true) {
             switch (writeStatus) {
                 case WRITE_HEADER:
-                    if (buf.remaining() < headerSize) {
+                    if (dest.remaining() < headerSize) {
                         return false;
                     }
-                    PbUtil.writeUnsignedInt32(buf, 1, groupId);
-                    PbUtil.writeUnsignedInt32(buf, 2, term);
-                    PbUtil.writeUnsignedInt32(buf, 3, leaderId);
-                    PbUtil.writeFix64(buf, 4, prevLogIndex);
-                    PbUtil.writeUnsignedInt32(buf, 5, prevLogTerm);
-                    PbUtil.writeFix64(buf, 6, leaderCommit);
+                    PbUtil.writeUnsignedInt32(dest, 1, groupId);
+                    PbUtil.writeUnsignedInt32(dest, 2, term);
+                    PbUtil.writeUnsignedInt32(dest, 3, leaderId);
+                    PbUtil.writeFix64(dest, 4, prevLogIndex);
+                    PbUtil.writeUnsignedInt32(dest, 5, prevLogTerm);
+                    PbUtil.writeFix64(dest, 6, leaderCommit);
                     writeStatus = WRITE_ITEM_HEADER;
                     break;
                 case WRITE_ITEM_HEADER:
@@ -140,18 +140,18 @@ public class AppendReqWriteFrame extends WriteFrame {
                     } else {
                         return true;
                     }
-                    if (buf.remaining() < PbUtil.accurateLengthDelimitedPrefixSize(
+                    if (dest.remaining() < PbUtil.accurateLengthDelimitedPrefixSize(
                             7, computeItemSize(currentItem)) + currentItem.getPbHeaderSize()) {
                         return false;
                     }
-                    PbUtil.writeLengthDelimitedPrefix(buf, 7, computeItemSize(currentItem));
+                    PbUtil.writeLengthDelimitedPrefix(dest, 7, computeItemSize(currentItem));
 
-                    PbUtil.writeUnsignedInt32(buf, 1, currentItem.getType());
-                    PbUtil.writeUnsignedInt32(buf, 2, currentItem.getBizType());
-                    PbUtil.writeUnsignedInt32(buf, 3, currentItem.getTerm());
-                    PbUtil.writeFix64(buf, 4, currentItem.getIndex());
-                    PbUtil.writeUnsignedInt32(buf, 5, currentItem.getPrevLogTerm());
-                    PbUtil.writeFix64(buf, 6, currentItem.getTimestamp());
+                    PbUtil.writeUnsignedInt32(dest, 1, currentItem.getType());
+                    PbUtil.writeUnsignedInt32(dest, 2, currentItem.getBizType());
+                    PbUtil.writeUnsignedInt32(dest, 3, currentItem.getTerm());
+                    PbUtil.writeFix64(dest, 4, currentItem.getIndex());
+                    PbUtil.writeUnsignedInt32(dest, 5, currentItem.getPrevLogTerm());
+                    PbUtil.writeFix64(dest, 6, currentItem.getTimestamp());
                     writeStatus = WRITE_ITEM_BIZ_HEADER_LEN;
                     break;
                 case WRITE_ITEM_BIZ_HEADER_LEN:
@@ -159,16 +159,16 @@ public class AppendReqWriteFrame extends WriteFrame {
                         writeStatus = WRITE_ITEM_BIZ_BODY_LEN;
                         break;
                     }
-                    if (buf.remaining() < PbUtil.accurateLengthDelimitedPrefixSize(
+                    if (dest.remaining() < PbUtil.accurateLengthDelimitedPrefixSize(
                             7, currentItem.getActualHeaderSize())) {
                         return false;
                     }
-                    PbUtil.writeLengthDelimitedPrefix(buf, 7, currentItem.getActualHeaderSize());
-                    markedPosition = -1;
+                    PbUtil.writeLengthDelimitedPrefix(dest, 7, currentItem.getActualHeaderSize());
+                    readBytes = 0;
                     writeStatus = WRITE_ITEM_BIZ_HEADER;
                     break;
                 case WRITE_ITEM_BIZ_HEADER:
-                    if (!writeData(context, buf, currentItem, true)) {
+                    if (!writeData(context, dest, currentItem, true)) {
                         return false;
                     }
                     writeStatus = WRITE_ITEM_BIZ_BODY_LEN;
@@ -180,16 +180,16 @@ public class AppendReqWriteFrame extends WriteFrame {
                         writeStatus = WRITE_ITEM_HEADER;
                         break;
                     }
-                    if (buf.remaining() < PbUtil.accurateLengthDelimitedPrefixSize(
+                    if (dest.remaining() < PbUtil.accurateLengthDelimitedPrefixSize(
                             8, currentItem.getActualBodySize())) {
                         return false;
                     }
-                    PbUtil.writeLengthDelimitedPrefix(buf, 8, currentItem.getActualBodySize());
-                    markedPosition = -1;
+                    PbUtil.writeLengthDelimitedPrefix(dest, 8, currentItem.getActualBodySize());
+                    readBytes = 0;
                     writeStatus = WRITE_ITEM_BIZ_BODY;
                     break;
                 case WRITE_ITEM_BIZ_BODY:
-                    if (!writeData(context, buf, currentItem, false)) {
+                    if (!writeData(context, dest, currentItem, false)) {
                         return false;
                     }
                     currentItem = null;
@@ -210,8 +210,8 @@ public class AppendReqWriteFrame extends WriteFrame {
         ByteBuffer src = header? item.getHeaderBuffer() : item.getBodyBuffer();
         Object data = header? item.getHeader() : item.getBody();
         if (src != null) {
-            markedPosition = ByteBufferWriteFrame.copy(src, dest, markedPosition);
-            return markedPosition == src.limit();
+            readBytes = ByteBufferWriteFrame.copyFromHeapBuffer(src, dest, readBytes);
+            return readBytes >= src.remaining();
         } else if (data != null) {
             boolean result = false;
             try {
