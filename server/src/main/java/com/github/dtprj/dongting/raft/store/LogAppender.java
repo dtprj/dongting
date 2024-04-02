@@ -254,14 +254,32 @@ class LogAppender {
                     buffer = doWrite(file, buffer);
                 }
                 int len = LogHeader.writeHeader(crc32c, buffer, li);
-                if (!buffer.hasRemaining()) {
-                    buffer = doWrite(file, buffer);
+
+                if (li.getActualHeaderSize() > 0) {
+                    if (!buffer.hasRemaining()) {
+                        buffer = doWrite(file, buffer);
+                    }
+                    if (li.getHeaderBuffer() != null) {
+                        buffer = encodeData(li.getActualHeaderSize(), ByteBufferEncoder.INSTANCE,
+                                li.getHeaderBuffer(), buffer, file);
+                    } else {
+                        buffer = encodeData(li.getActualHeaderSize(), codecFactory.createHeaderEncoder(li.getBizType()),
+                                li.getHeader(), buffer, file);
+                    }
                 }
-                buffer = encodeBizHeader(li, buffer, file);
-                if (!buffer.hasRemaining()) {
-                    buffer = doWrite(file, buffer);
+                if (li.getActualBodySize() > 0) {
+                    if (!buffer.hasRemaining()) {
+                        buffer = doWrite(file, buffer);
+                    }
+                    if (li.getBodyBuffer() != null) {
+                        buffer = encodeData(li.getActualBodySize(), ByteBufferEncoder.INSTANCE,
+                                li.getBodyBuffer(), buffer, file);
+                    } else {
+                        buffer = encodeData(li.getActualBodySize(), codecFactory.createBodyEncoder(li.getBizType()),
+                                li.getBody(), buffer, file);
+                    }
                 }
-                buffer = encodeBizBody(li, buffer, file);
+
                 idxOps.put(li.getIndex(), dataPos);
                 dataPos += len;
                 lastItem = li;
@@ -269,80 +287,34 @@ class LogAppender {
             return buffer;
         }
 
-        private ByteBuffer encodeBizHeader(LogItem li, ByteBuffer buffer, LogFile file) {
-            if (li.getActualHeaderSize() > 0) {
-                crc32c.reset();
-                try {
-                    int totalEncodeLen = 0;
-                    while (true) {
-                        int startPos = buffer.position();
-                        boolean finish;
-                        if (li.getHeaderBuffer() != null) {
-                            finish = ByteBufferEncoder.INSTANCE.encode(encodeContext, buffer, li.getHeaderBuffer());
-                        } else {
-                            //noinspection rawtypes
-                            Encoder encoder = codecFactory.createHeaderEncoder(li.getBizType());
-                            //noinspection unchecked
-                            finish = encoder.encode(encodeContext, buffer, li.getHeader());
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        private ByteBuffer encodeData(int actualSize, Encoder encoder,
+                                      Object srcData, ByteBuffer dest, LogFile file) {
+            crc32c.reset();
+            try {
+                int totalEncodeLen = 0;
+                while (true) {
+                    int startPos = dest.position();
+                    boolean finish = encoder.encode(encodeContext, dest, srcData);
+                    totalEncodeLen += dest.position() - startPos;
+                    RaftUtil.updateCrc(crc32c, dest, startPos, dest.position() - startPos);
+                    if (finish) {
+                        if (totalEncodeLen != actualSize) {
+                            throw new RaftException("encode problem, totalEncodeLen != actualSize");
                         }
-                        totalEncodeLen += buffer.position() - startPos;
-                        RaftUtil.updateCrc(crc32c, buffer, startPos, buffer.position() - startPos);
-                        if (finish) {
-                            if(totalEncodeLen != li.getActualHeaderSize()){
-                                throw new RaftException("encode problem, totalEncodeLen != li.getActualHeaderSize()");
-                            }
-                            break;
-                        } else {
-                            buffer = doWrite(file, buffer);
-                        }
+                        break;
+                    } else {
+                        dest = doWrite(file, dest);
                     }
-                } finally {
-                    encodeContext.reset();
                 }
-                if (buffer.remaining() < 4) {
-                    buffer = doWrite(file, buffer);
-                }
-                buffer.putInt((int) crc32c.getValue());
+            } finally {
+                encodeContext.reset();
             }
-            return buffer;
-        }
-
-        private ByteBuffer encodeBizBody(LogItem li, ByteBuffer buffer, LogFile file) {
-            if (li.getActualBodySize() > 0) {
-                crc32c.reset();
-                try {
-                    int totalEncodeLen = 0;
-                    while (true) {
-                        int startPos = buffer.position();
-                        boolean finish;
-                        if (li.getBodyBuffer() != null) {
-                            finish = ByteBufferEncoder.INSTANCE.encode(encodeContext, buffer, li.getBodyBuffer());
-                        } else {
-                            //noinspection rawtypes
-                            Encoder encoder = codecFactory.createBodyEncoder(li.getBizType());
-                            //noinspection unchecked
-                            finish = encoder.encode(encodeContext, buffer, li.getBody());
-                        }
-                        totalEncodeLen += buffer.position() - startPos;
-                        RaftUtil.updateCrc(crc32c, buffer, startPos, buffer.position() - startPos);
-                        if (finish) {
-                            if(totalEncodeLen != li.getActualBodySize()){
-                                throw new RaftException("encode problem, totalEncodeLen != li.getActualBodySize()");
-                            }
-                            break;
-                        } else {
-                            buffer = doWrite(file, buffer);
-                        }
-                    }
-                } finally {
-                    encodeContext.reset();
-                }
-                if (buffer.remaining() < 4) {
-                    buffer = doWrite(file, buffer);
-                }
-                buffer.putInt((int) crc32c.getValue());
+            if (dest.remaining() < 4) {
+                dest = doWrite(file, dest);
             }
-            return buffer;
+            dest.putInt((int) crc32c.getValue());
+            return dest;
         }
 
         private ByteBuffer doWrite(LogFile file, ByteBuffer buffer) {
