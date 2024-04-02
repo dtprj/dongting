@@ -25,6 +25,7 @@ import java.nio.ByteBuffer;
 public class ByteBufferWriteFrame extends WriteFrame {
     private final ByteBuffer data;
     private int readBytes;
+    private ByteBuffer srcCopy;
 
     public ByteBufferWriteFrame(ByteBuffer data) {
         this.data = data;
@@ -36,16 +37,35 @@ public class ByteBufferWriteFrame extends WriteFrame {
         return body == null ? 0 : body.remaining();
     }
 
-    // src must be heap buffer
     public static int copyFromHeapBuffer(ByteBuffer src, ByteBuffer dest, int readBytes) {
         int len = Math.min(src.remaining() - readBytes, dest.remaining());
         dest.put(src.array(), src.position() + readBytes, len);
         return readBytes + len;
     }
 
+    public static ByteBuffer copyFromDirectBuffer(ByteBuffer src, ByteBuffer dest, ByteBuffer srcCopy) {
+        if (srcCopy == null) {
+            srcCopy = src.slice();
+        }
+        if (srcCopy.remaining() > dest.remaining()) {
+            int limit = srcCopy.limit();
+            srcCopy.limit(srcCopy.position() + dest.remaining());
+            dest.put(srcCopy);
+            srcCopy.limit(limit);
+        } else {
+            dest.put(srcCopy);
+        }
+        return srcCopy;
+    }
+
     @Override
     protected boolean encodeBody(EncodeContext context, ByteBuffer dest) {
-        readBytes = copyFromHeapBuffer(data, dest, readBytes);
-        return readBytes >= data.remaining();
+        if (data.isDirect()) {
+            srcCopy = copyFromDirectBuffer(data, dest, srcCopy);
+            return srcCopy.remaining() == 0;
+        } else {
+            readBytes = copyFromHeapBuffer(data, dest, readBytes);
+            return readBytes >= data.remaining();
+        }
     }
 }

@@ -31,20 +31,30 @@ public class ByteBufferEncoder implements Encoder<ByteBuffer> {
     private ByteBufferEncoder() {
     }
 
-    // src must be heap buffer
     @Override
     public boolean encode(EncodeContext context, ByteBuffer dest, ByteBuffer src) {
-        Integer s = (Integer) context.getStatus();
-        int readBytes = 0;
-        if (s != null) {
-            readBytes = s;
-        }
-        readBytes = ByteBufferWriteFrame.copyFromHeapBuffer(src, dest, readBytes);
-        if (readBytes >= src.remaining()) {
-            return true;
+        if (src.isDirect()) {
+            ByteBuffer srcCopy = (ByteBuffer) context.getStatus();
+            srcCopy = ByteBufferWriteFrame.copyFromDirectBuffer(src, dest, srcCopy);
+            if (srcCopy.remaining() == 0) {
+                return true;
+            } else {
+                context.setStatus(srcCopy);
+                return false;
+            }
         } else {
-            context.setStatus(readBytes);
-            return false;
+            Integer s = (Integer) context.getStatus();
+            int readBytes = 0;
+            if (s != null) {
+                readBytes = s;
+            }
+            readBytes = ByteBufferWriteFrame.copyFromHeapBuffer(src, dest, readBytes);
+            if (readBytes >= src.remaining()) {
+                return true;
+            } else {
+                context.setStatus(readBytes);
+                return false;
+            }
         }
     }
 
