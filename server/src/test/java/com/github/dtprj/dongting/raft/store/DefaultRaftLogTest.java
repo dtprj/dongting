@@ -107,7 +107,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         LogItem[] items = new LogItem[totalSizes.length];
         for (int i = 0; i < totalSizes.length; i++) {
             items[i] = LogFileQueueTest.createItem(config, 100, 100, index++, totalSizes[i], bizHeaderLen[i]);
-            RaftInput ri = new RaftInput(0, null, null, null, 0);
+            RaftInput ri = new RaftInput(0, null, null, null);
             RaftTask rt = new RaftTask(config.getTs(), LogItem.TYPE_NORMAL, ri, null);
             rt.setItem(items[i]);
             raftStatus.getTailCache().put(items[i].getIndex(), rt);

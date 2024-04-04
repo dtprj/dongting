@@ -15,10 +15,9 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
-import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.codec.PbUtil;
-import com.github.dtprj.dongting.net.ByteBufferWriteFrame;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
@@ -53,8 +52,6 @@ import java.util.List;
 public class AppendReqWriteFrame extends WriteFrame {
 
     private final RaftCodecFactory codecFactory;
-    @SuppressWarnings("rawtypes")
-    private Encoder currentEncoder;
 
     int groupId;
     int term;
@@ -103,7 +100,7 @@ public class AppendReqWriteFrame extends WriteFrame {
         if (itemSize > 0) {
             return itemSize;
         }
-        item.calcHeaderBodySize(codecFactory);
+        item.calcHeaderBodySize();
         int itemHeaderSize = PbUtil.accurateUnsignedIntSize(1, item.getType())
                 + PbUtil.accurateUnsignedIntSize(2, item.getBizType())
                 + PbUtil.accurateUnsignedIntSize(3, item.getTerm())
@@ -168,7 +165,7 @@ public class AppendReqWriteFrame extends WriteFrame {
                     writeStatus = WRITE_ITEM_BIZ_HEADER;
                     break;
                 case WRITE_ITEM_BIZ_HEADER:
-                    if (!writeData(context, dest, currentItem, true)) {
+                    if (!writeData(context, dest, currentItem.getHeader())) {
                         return false;
                     }
                     writeStatus = WRITE_ITEM_BIZ_BODY_LEN;
@@ -189,7 +186,7 @@ public class AppendReqWriteFrame extends WriteFrame {
                     writeStatus = WRITE_ITEM_BIZ_BODY;
                     break;
                 case WRITE_ITEM_BIZ_BODY:
-                    if (!writeData(context, dest, currentItem, false)) {
+                    if (!writeData(context, dest, currentItem.getBody())) {
                         return false;
                     }
                     currentItem = null;
@@ -203,36 +200,21 @@ public class AppendReqWriteFrame extends WriteFrame {
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    private boolean writeData(EncodeContext context, ByteBuffer dest, LogItem item, boolean header) {
+    private boolean writeData(EncodeContext context, ByteBuffer dest, Encodable data) {
         if (!dest.hasRemaining()) {
             return false;
         }
-        ByteBuffer src = header? item.getHeaderBuffer() : item.getBodyBuffer();
-        Object data = header? item.getHeader() : item.getBody();
-        if (src != null) {
-            readBytes = ByteBufferWriteFrame.copyFromHeapBuffer(src, dest, readBytes);
-            return readBytes >= src.remaining();
-        } else if (data != null) {
-            boolean result = false;
-            try {
-                if (currentEncoder == null) {
-                    currentEncoder = header ? codecFactory.createHeaderEncoder(item.getBizType())
-                            : codecFactory.createBodyEncoder(item.getBizType());
-                }
-                //noinspection unchecked
-                result = currentEncoder.encode(context, dest, data);
-                return result;
-            } catch (RuntimeException | Error e) {
-                currentEncoder = null;
-                throw e;
-            } finally {
-                if (result) {
-                    context.reset();
-                    currentEncoder = null;
-                }
+        boolean result = false;
+        try {
+            result = data.encode(context, dest);
+            return result;
+        } catch (RuntimeException | Error e){
+            context.reset();
+            throw e;
+        } finally {
+            if (result) {
+                context.reset();
             }
-        } else {
-            return true;
         }
     }
 

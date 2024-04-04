@@ -16,9 +16,8 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.codec.Encoder;
+import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.common.RefCount;
-import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.nio.ByteBuffer;
 
@@ -42,11 +41,11 @@ public class LogItem extends RefCount {
     private long timestamp;
 
     private ByteBuffer bodyBuffer;
-    private Object body;
+    private Encodable body;
     private int actualBodySize;
 
     private ByteBuffer headerBuffer;
-    private Object header;
+    private Encodable header;
     private int actualHeaderSize;
 
     private int pbHeaderSize;
@@ -76,22 +75,19 @@ public class LogItem extends RefCount {
         body = null;
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    public void calcHeaderBodySize(RaftCodecFactory codecFactory) {
+    public void calcHeaderBodySize() {
         if (actualHeaderSize == 0) {
             if (headerBuffer != null) {
                 actualHeaderSize = headerBuffer.remaining();
             } else if (header != null) {
-                Encoder encoder = codecFactory.createHeaderEncoder(bizType);
-                actualHeaderSize = encoder.actualSize(header);
+                actualHeaderSize = header.actualSize();
             }
         }
         if (actualBodySize == 0) {
             if (bodyBuffer != null) {
                 actualBodySize = bodyBuffer.remaining();
             } else if (body != null) {
-                Encoder encoder = codecFactory.createBodyEncoder(bizType);
-                actualBodySize = encoder.actualSize(body);
+                actualBodySize = body.actualSize();
             }
         }
     }
@@ -128,11 +124,11 @@ public class LogItem extends RefCount {
         this.prevLogTerm = prevLogTerm;
     }
 
-    public Object getBody() {
+    public Encodable getBody() {
         return body;
     }
 
-    public void setBody(Object body) {
+    public void setBody(Encodable body) {
         this.body = body;
     }
 
@@ -160,19 +156,11 @@ public class LogItem extends RefCount {
         this.timestamp = timestamp;
     }
 
-    public ByteBuffer getBodyBuffer() {
-        return bodyBuffer;
-    }
-
-    public void setBodyBuffer(ByteBuffer bodyBuffer) {
-        this.bodyBuffer = bodyBuffer;
-    }
-
-    public Object getHeader() {
+    public Encodable getHeader() {
         return header;
     }
 
-    public void setHeader(Object header) {
+    public void setHeader(Encodable header) {
         this.header = header;
     }
 
@@ -182,14 +170,6 @@ public class LogItem extends RefCount {
 
     public void setActualHeaderSize(int actualHeaderSize) {
         this.actualHeaderSize = actualHeaderSize;
-    }
-
-    public ByteBuffer getHeaderBuffer() {
-        return headerBuffer;
-    }
-
-    public void setHeaderBuffer(ByteBuffer headerBuffer) {
-        this.headerBuffer = headerBuffer;
     }
 
     public int getPbItemSize() {
@@ -206,5 +186,21 @@ public class LogItem extends RefCount {
 
     public void setPbHeaderSize(int pbHeaderSize) {
         this.pbHeaderSize = pbHeaderSize;
+    }
+
+    public ByteBuffer getBodyBuffer() {
+        return bodyBuffer;
+    }
+
+    public void setBodyBuffer(ByteBuffer bodyBuffer) {
+        this.bodyBuffer = bodyBuffer;
+    }
+
+    public ByteBuffer getHeaderBuffer() {
+        return headerBuffer;
+    }
+
+    public void setHeaderBuffer(ByteBuffer headerBuffer) {
+        this.headerBuffer = headerBuffer;
     }
 }

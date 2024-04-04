@@ -207,7 +207,7 @@ public class LinearTaskRunner {
 
     public void sendHeartBeat() {
         DtTime deadline = new DtTime(ts, raftStatus.getElectTimeoutNanos(), TimeUnit.NANOSECONDS);
-        RaftInput input = new RaftInput(0, null, null, deadline, 0);
+        RaftInput input = new RaftInput(0, null, null, deadline);
         RaftTask rt = new RaftTask(ts, LogItem.TYPE_HEARTBEAT, input, null);
         raftExec(Collections.singletonList(rt));
     }

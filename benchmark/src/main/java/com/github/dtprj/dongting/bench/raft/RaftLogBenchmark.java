@@ -20,8 +20,7 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.codec.Decoder;
-import com.github.dtprj.dongting.codec.EncodeContext;
-import com.github.dtprj.dongting.codec.Encoder;
+import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.RefBufferDecoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IndexedQueue;
@@ -51,12 +50,10 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
-import com.github.dtprj.dongting.raft.store.ByteBufferEncoder;
 import com.github.dtprj.dongting.raft.store.DefaultRaftLog;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -132,35 +129,13 @@ public class RaftLogBenchmark extends RpcBenchmark {
             groupConfig.setRaftStatus(raftStatus);
             groupConfig.setCodecFactory(new RaftCodecFactory() {
                 @Override
-                public Decoder<?> createHeaderDecoder(int bizType) {
+                public Decoder<? extends Encodable> createHeaderDecoder(int bizType) {
                     return null;
                 }
 
                 @Override
-                public Decoder<?> createBodyDecoder(int bizType) {
+                public Decoder<? extends Encodable> createBodyDecoder(int bizType) {
                     return null;
-                }
-
-                @Override
-                public Encoder<?> createHeaderEncoder(int bizType) {
-                    return null;
-                }
-
-                private final Encoder<RefBuffer> encoder = new Encoder<>() {
-                    @Override
-                    public boolean encode(EncodeContext context, ByteBuffer buffer, RefBuffer data) {
-                        return ByteBufferEncoder.INSTANCE.encode(context, buffer, data.getBuffer());
-                    }
-
-                    @Override
-                    public int actualSize(RefBuffer data) {
-                        return data.getBuffer().remaining();
-                    }
-                };
-
-                @Override
-                public Encoder<?> createBodyEncoder(int bizType) {
-                    return encoder;
                 }
             });
 
@@ -234,7 +209,7 @@ public class RaftLogBenchmark extends RpcBenchmark {
             private FrameCallResult afterTake(Void v) {
                 for (ReqData reqData : list) {
                     LogItem item = createItems(nextIndex++, ts, reqData.frame.getBody());
-                    RaftInput ri = new RaftInput(0, null, null, null, 0);
+                    RaftInput ri = new RaftInput(0, null, null, null);
                     RaftTask rt = new RaftTask(ts, LogItem.TYPE_NORMAL, ri, null);
                     rt.setItem(item);
                     raftStatus.getTailCache().put(item.getIndex(), rt);

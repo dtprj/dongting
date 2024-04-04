@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.log.DtLog;
@@ -26,7 +27,7 @@ import java.nio.charset.StandardCharsets;
 /**
  * @author huangli
  */
-public abstract class WriteFrame extends Frame {
+public abstract class WriteFrame extends Frame implements Encodable {
     private static final DtLog log = DtLogs.getLogger(WriteFrame.class);
 
     private static final int STATUS_INIT = 0;
@@ -78,6 +79,7 @@ public abstract class WriteFrame extends Frame {
         }
     }
 
+    @Override
     public final int actualSize() {
         int dumpSize = this.dumpSize;
         if (dumpSize == 0) {
@@ -95,6 +97,7 @@ public abstract class WriteFrame extends Frame {
         return dumpSize;
     }
 
+    @Override
     public final boolean encode(EncodeContext context, ByteBuffer buf) {
         if (status == STATUS_INIT) {
             int totalSize = actualSize();

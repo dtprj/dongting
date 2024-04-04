@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
-import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.fiber.DoInLockFrame;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -36,7 +36,6 @@ import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
-import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -54,7 +53,6 @@ class LogAppender {
 
     private final IdxOps idxOps;
     private final LogFileQueue logFileQueue;
-    private final RaftCodecFactory codecFactory;
     private final RaftGroupConfigEx groupConfig;
     private final CRC32C crc32c = new CRC32C();
     private final EncodeContext encodeContext;
@@ -80,7 +78,6 @@ class LogAppender {
     LogAppender(IdxOps idxOps, LogFileQueue logFileQueue, RaftGroupConfigEx groupConfig) {
         this.idxOps = idxOps;
         this.logFileQueue = logFileQueue;
-        this.codecFactory = groupConfig.getCodecFactory();
         this.encodeContext = new EncodeContext(groupConfig.getHeapPool());
         this.fileLenMask = logFileQueue.fileLength() - 1;
         this.groupConfig = groupConfig;
@@ -188,7 +185,7 @@ class LogAppender {
                  nextPersistIndex <= lastIndex; ) {
                 RaftTask rt = cache.get(nextPersistIndex);
                 LogItem li = rt.getItem();
-                li.calcHeaderBodySize(codecFactory);
+                li.calcHeaderBodySize();
                 int len = LogHeader.computeTotalLen(0, li.getActualHeaderSize(),
                         li.getActualBodySize());
                 if (len <= fileRestBytes) {
@@ -259,25 +256,13 @@ class LogAppender {
                     if (!buffer.hasRemaining()) {
                         buffer = doWrite(file, buffer);
                     }
-                    if (li.getHeaderBuffer() != null) {
-                        buffer = encodeData(li.getActualHeaderSize(), ByteBufferEncoder.INSTANCE,
-                                li.getHeaderBuffer(), buffer, file);
-                    } else {
-                        buffer = encodeData(li.getActualHeaderSize(), codecFactory.createHeaderEncoder(li.getBizType()),
-                                li.getHeader(), buffer, file);
-                    }
+                    buffer = encodeData(li.getActualHeaderSize(), li.getHeader() , buffer, file);
                 }
                 if (li.getActualBodySize() > 0) {
                     if (!buffer.hasRemaining()) {
                         buffer = doWrite(file, buffer);
                     }
-                    if (li.getBodyBuffer() != null) {
-                        buffer = encodeData(li.getActualBodySize(), ByteBufferEncoder.INSTANCE,
-                                li.getBodyBuffer(), buffer, file);
-                    } else {
-                        buffer = encodeData(li.getActualBodySize(), codecFactory.createBodyEncoder(li.getBizType()),
-                                li.getBody(), buffer, file);
-                    }
+                    buffer = encodeData(li.getActualBodySize(), li.getBody(), buffer, file);
                 }
 
                 idxOps.put(li.getIndex(), dataPos);
@@ -287,15 +272,13 @@ class LogAppender {
             return buffer;
         }
 
-        @SuppressWarnings({"rawtypes", "unchecked"})
-        private ByteBuffer encodeData(int actualSize, Encoder encoder,
-                                      Object srcData, ByteBuffer dest, LogFile file) {
+        private ByteBuffer encodeData(int actualSize, Encodable src, ByteBuffer dest, LogFile file) {
             crc32c.reset();
             try {
                 int totalEncodeLen = 0;
                 while (true) {
                     int startPos = dest.position();
-                    boolean finish = encoder.encode(encodeContext, dest, srcData);
+                    boolean finish = src.encode(encodeContext, dest);
                     totalEncodeLen += dest.position() - startPos;
                     RaftUtil.updateCrc(crc32c, dest, startPos, dest.position() - startPos);
                     if (finish) {

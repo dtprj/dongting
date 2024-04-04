@@ -193,7 +193,7 @@ public class LogFileQueueTest extends BaseFiberTest {
             items[i] = createItem(config, term, prevTerm, index, totalSizes[i], bizHeaderLen);
             index++;
             prevTerm = term;
-            RaftInput ri = new RaftInput(0, null, null, null, 0);
+            RaftInput ri = new RaftInput(0, null, null, null);
             RaftTask rt = new RaftTask(config.getTs(), LogItem.TYPE_NORMAL, ri, null);
             rt.setItem(items[i]);
             tailCache.put(items[i].getIndex(), rt);

@@ -17,12 +17,10 @@ package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.codec.ByteArrayDecoder;
 import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.Decoder;
-import com.github.dtprj.dongting.codec.Encoder;
-import com.github.dtprj.dongting.codec.StrFieldEncoder;
-import com.github.dtprj.dongting.codec.StrFiledDecoder;
+import com.github.dtprj.dongting.codec.Encodable;
+import com.github.dtprj.dongting.codec.StrEncoder;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
@@ -62,50 +60,25 @@ public class DtKV implements StateMachine {
     }
 
     @Override
-    public Decoder<?> createHeaderDecoder(int bizType) {
+    public Decoder<? extends Encodable> createHeaderDecoder(int bizType) {
         switch (bizType) {
             case BIZ_TYPE_GET:
             case BIZ_TYPE_REMOVE:
             case BIZ_TYPE_PUT:
-                return StrFiledDecoder.INSTANCE;
+                return StrEncoder.DECODER;
             default:
                 throw new IllegalArgumentException("unknown bizType " + bizType);
         }
     }
 
     @Override
-    public Decoder<?> createBodyDecoder(int bizType) {
+    public Decoder<? extends Encodable> createBodyDecoder(int bizType) {
         switch (bizType) {
             case BIZ_TYPE_GET:
             case BIZ_TYPE_REMOVE:
                 return null;
             case BIZ_TYPE_PUT:
-                return ByteArrayDecoder.INSTANCE;
-            default:
-                throw new IllegalArgumentException("unknown bizType " + bizType);
-        }
-    }
-
-    @Override
-    public Encoder<?> createHeaderEncoder(int bizType) {
-        switch (bizType) {
-            case BIZ_TYPE_GET:
-            case BIZ_TYPE_REMOVE:
-            case BIZ_TYPE_PUT:
-                return new StrFieldEncoder();
-            default:
-                throw new IllegalArgumentException("unknown bizType " + bizType);
-        }
-    }
-
-    @Override
-    public Encoder<?> createBodyEncoder(int bizType) {
-        switch (bizType) {
-            case BIZ_TYPE_GET:
-            case BIZ_TYPE_REMOVE:
-                return null;
-            case BIZ_TYPE_PUT:
-                return ByteArrayEncoder.INSTANCE;
+                return ByteArrayEncoder.DECODER;
             default:
                 throw new IllegalArgumentException("unknown bizType " + bizType);
         }
@@ -115,15 +88,16 @@ public class DtKV implements StateMachine {
     public Object exec(long index, RaftInput input) {
         KvStatus kvStatus = this.kvStatus;
         ensureRunning(kvStatus);
-        String key = (String) input.getHeader();
+        StrEncoder key = (StrEncoder) input.getHeader();
+        ByteArrayEncoder data = (ByteArrayEncoder) input.getBody();
         switch (input.getBizType()) {
             case BIZ_TYPE_GET:
-                return kvStatus.kvImpl.get(key);
+                return kvStatus.kvImpl.get(key.getStr());
             case BIZ_TYPE_PUT:
-                kvStatus.kvImpl.put(index, key, (byte[]) input.getBody(), minOpenSnapshotIndex);
+                kvStatus.kvImpl.put(index, key.getStr(), data.getData(), minOpenSnapshotIndex);
                 return null;
             case BIZ_TYPE_REMOVE:
-                return kvStatus.kvImpl.remove(index, key, minOpenSnapshotIndex);
+                return kvStatus.kvImpl.remove(index, key.getStr(), minOpenSnapshotIndex);
             default:
                 throw new IllegalArgumentException("unknown bizType " + input.getBizType());
         }

@@ -276,7 +276,7 @@ class AppendFiberFrame extends FiberFrame<Void> {
                 writeAppendResp(reqInfo, AppendProcessor.APPEND_REQ_ERROR);
                 return Fiber.frameReturn();
             }
-            RaftInput raftInput = new RaftInput(li.getBizType(), li.getHeader(), li.getBody(), null, li.getActualBodySize());
+            RaftInput raftInput = new RaftInput(li.getBizType(), li.getHeader(), li.getBody(), null);
             RaftTask task = new RaftTask(raftStatus.getTs(), li.getType(), raftInput, null);
             task.setItem(li);
             tailCache.put(li.getIndex(), task);

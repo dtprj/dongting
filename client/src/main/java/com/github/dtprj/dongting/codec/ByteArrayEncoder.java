@@ -20,40 +20,55 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class ByteArrayEncoder implements Encoder<byte[]> {
+public class ByteArrayEncoder implements Encodable {
 
-    public static final ByteArrayEncoder INSTANCE = new ByteArrayEncoder();
+    private final byte[] data;
+    private final int size;
 
-    private ByteArrayEncoder() {
+    public ByteArrayEncoder(byte[] data) {
+        this.data = data;
+        if (data != null) {
+            size = data.length;
+        } else {
+            size = 0;
+        }
     }
 
     @Override
-    public boolean encode(EncodeContext context, ByteBuffer buffer, byte[] data) {
-        if (data == null) {
-            return true;
-        }
-        int totalLen = data.length;
-        if (totalLen == 0) {
+    public boolean encode(EncodeContext context, ByteBuffer buffer) {
+        if (size == 0) {
             return true;
         }
         Integer lastPos = (Integer) context.getStatus();
         int pos = lastPos == null ? 0 : lastPos;
 
-        int count = Math.min(buffer.remaining(), totalLen - pos);
+        int count = Math.min(buffer.remaining(), size - pos);
         buffer.put(data, pos, count);
 
-        boolean finish = pos + count >= totalLen;
+        boolean finish = pos + count >= size;
         if (!finish) {
             context.setStatus(pos + count);
         }
         return finish;
     }
 
-    @Override
-    public int actualSize(byte[] data) {
-        if (data == null) {
-            return 0;
-        }
-        return data.length;
+    public int actualSize() {
+        return size;
     }
+
+    public byte[] getData() {
+        return data;
+    }
+
+    public static final Decoder<ByteArrayEncoder> DECODER = new Decoder<ByteArrayEncoder>() {
+        @Override
+        public ByteArrayEncoder decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
+            byte[] bs = ByteArrayDecoder.decode0(context, buffer, bodyLen, currentPos);
+            if (bs != null) {
+                return new ByteArrayEncoder(bs);
+            } else {
+                return null;
+            }
+        }
+    };
 }

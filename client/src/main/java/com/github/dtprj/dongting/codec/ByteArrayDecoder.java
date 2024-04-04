@@ -28,6 +28,10 @@ public class ByteArrayDecoder implements Decoder<byte[]> {
 
     @Override
     public byte[] decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
+        return decode0(context, buffer, bodyLen, currentPos);
+    }
+
+    static byte[] decode0(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
         boolean start = currentPos == 0;
         int remaining = buffer.remaining();
         boolean end = remaining >= bodyLen - currentPos;

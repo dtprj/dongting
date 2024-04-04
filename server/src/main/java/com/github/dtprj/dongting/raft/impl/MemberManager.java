@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IntObjMap;
@@ -44,7 +45,6 @@ import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -465,14 +465,14 @@ public class MemberManager {
         }
     }
 
-    private ByteBuffer getInputData(Set<Integer> newMemberNodes, Set<Integer> newObserverNodes) {
+    private byte[] getInputData(Set<Integer> newMemberNodes, Set<Integer> newObserverNodes) {
         StringBuilder sb = new StringBuilder(64);
         appendSet(sb, raftStatus.getNodeIdOfMembers());
         appendSet(sb, raftStatus.getNodeIdOfObservers());
         appendSet(sb, newMemberNodes);
         appendSet(sb, newObserverNodes);
         sb.deleteCharAt(sb.length() - 1);
-        return ByteBuffer.wrap(sb.toString().getBytes());
+        return sb.toString().getBytes();
     }
 
     private void appendSet(StringBuilder sb, Set<Integer> set) {
@@ -485,7 +485,7 @@ public class MemberManager {
         sb.append(';');
     }
 
-    private CompletableFuture<RaftOutput> leaderConfigChange(int type, ByteBuffer data) {
+    private CompletableFuture<RaftOutput> leaderConfigChange(int type, byte[] data) {
         if (raftStatus.getRole() != RaftRole.leader) {
             String stageStr;
             switch (type) {
@@ -506,7 +506,7 @@ public class MemberManager {
             return CompletableFuture.failedFuture(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
         }
         CompletableFuture<RaftOutput> outputFuture = new CompletableFuture<>();
-        RaftInput input = new RaftInput(0, null, data, null, 0);
+        RaftInput input = new RaftInput(0, null, new ByteArrayEncoder(data), null);
         RaftTask rt = new RaftTask(raftStatus.getTs(), type, input, outputFuture);
 
         gc.getLinearTaskRunner().raftExec(Collections.singletonList(rt));

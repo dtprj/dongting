@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.codec.DecodeContext;
-import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -59,8 +57,6 @@ public class ApplyManager {
     private RaftLog raftLog;
     private StateMachine stateMachine;
 
-    private final DecodeContext decodeContext;
-
     private FiberCondition condition;
 
     private long initCommitIndex;
@@ -70,8 +66,6 @@ public class ApplyManager {
         this.ts = gc.getRaftStatus().getTs();
         this.raftStatus = gc.getRaftStatus();
         this.gc = gc;
-        this.decodeContext = new DecodeContext();
-        this.decodeContext.setHeapPool(gc.getGroupConfig().getHeapPool());
     }
 
     public void postInit() {
@@ -297,47 +291,19 @@ public class ApplyManager {
             return exec(rt, item.getIndex(), this);
         }
 
-        @SuppressWarnings("rawtypes")
         private RaftTask buildRaftTask(LogItem item) {
-            try {
-                ByteBuffer headerRbb = item.getHeaderBuffer();
-                if (headerRbb != null) {
-                    if (item.getType() == LogItem.TYPE_NORMAL) {
-                        Decoder decoder = stateMachine.createHeaderDecoder(item.getBizType());
-                        Object o = decoder.decode(decodeContext, headerRbb, headerRbb.remaining(), 0);
-                        decoder.finish(decodeContext);
-                        item.setHeader(o);
-                    } else {
-                        item.setHeader(RaftUtil.copy(headerRbb));
-                    }
+            RaftInput input = new RaftInput(item.getBizType(), item.getHeader(), item.getBody(), null);
+            RaftTask result = new RaftTask(ts, item.getType(), input, null);
+            result.setItem(item);
+            RaftTask reader = raftStatus.getTailCache().get(item.getIndex());
+            if (reader != null) {
+                if (reader.getInput().isReadOnly()) {
+                    result.setNextReader(reader);
+                } else {
+                    BugLog.getLog().error("not read only");
                 }
-                ByteBuffer bodyRbb = item.getBodyBuffer();
-                if (bodyRbb != null) {
-                    if (item.getType() == LogItem.TYPE_NORMAL) {
-                        Decoder decoder = stateMachine.createBodyDecoder(item.getBizType());
-                        Object o = decoder.decode(decodeContext, bodyRbb, bodyRbb.remaining(), 0);
-                        decoder.finish(decodeContext);
-                        item.setBody(o);
-                    } else {
-                        item.setBody(RaftUtil.copy(bodyRbb));
-                    }
-                }
-                RaftInput input = new RaftInput(item.getBizType(), item.getHeader(), item.getBody(),
-                        null, item.getActualBodySize());
-                RaftTask result = new RaftTask(ts, item.getType(), input, null);
-                result.setItem(item);
-                RaftTask reader = raftStatus.getTailCache().get(item.getIndex());
-                if (reader != null) {
-                    if (reader.getInput().isReadOnly()) {
-                        result.setNextReader(reader);
-                    } else {
-                        BugLog.getLog().error("not read only");
-                    }
-                }
-                return result;
-            } finally {
-                decodeContext.reset();
             }
+            return result;
         }
     }
 

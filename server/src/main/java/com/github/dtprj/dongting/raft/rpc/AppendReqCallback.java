@@ -15,8 +15,10 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
+import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.codec.PbParser;
@@ -177,7 +179,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
         private final LogItem item = new LogItem(null);
         private final DecodeContext context;
         private final RaftCodecFactory codecFactory;
-        private Decoder<?> currentDecoder;
+        private Decoder<? extends Encodable> currentDecoder;
 
         public LogItemCallback(DecodeContext context, RaftCodecFactory codecFactory) {
             this.context = context;
@@ -233,13 +235,16 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                 if (begin) {
                     item.setActualHeaderSize(len);
                 }
-                Object result;
+                Encodable result = null;
                 if (item.getType() == LogItem.TYPE_NORMAL) {
                     currentDecoder = codecFactory.createHeaderDecoder(item.getBizType());
                     result = currentDecoder.decode(context, buf, len, currentPos);
                 } else {
-                    result = parseByteBuffer(buf, len, currentPos);
-                    context.setStatus(result);
+                    byte[] bytes = parseBytes(buf, len, currentPos);
+                    context.setStatus(bytes);
+                    if (bytes != null) {
+                        result = new ByteArrayEncoder(bytes);
+                    }
                 }
                 if (end) {
                     resetDecoder();
@@ -250,13 +255,16 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                 if (begin) {
                     item.setActualBodySize(len);
                 }
-                Object result;
+                Encodable result = null;
                 if (item.getType() == LogItem.TYPE_NORMAL) {
                     currentDecoder = codecFactory.createBodyDecoder(item.getBizType());
                     result = currentDecoder.decode(context, buf, len, currentPos);
                 } else {
-                    result = parseByteBuffer(buf, len, currentPos);
-                    context.setStatus(result);
+                    byte[] bytes = parseBytes(buf, len, currentPos);
+                    context.setStatus(bytes);
+                    if (bytes != null) {
+                        result = new ByteArrayEncoder(bytes);
+                    }
                 }
                 if (end) {
                     resetDecoder();

@@ -32,6 +32,10 @@ public class StrFiledDecoder implements Decoder<String> {
 
     @Override
     public String decode(DecodeContext decodeContext, ByteBuffer buf, int fieldLen, int currentPos) {
+        return decode0(decodeContext, buf, fieldLen, currentPos);
+    }
+
+    static String decode0(DecodeContext decodeContext, ByteBuffer buf, int fieldLen, int currentPos) {
         boolean start = currentPos == 0;
         boolean end = buf.remaining() >= fieldLen - currentPos;
         if (start && end) {
@@ -63,6 +67,10 @@ public class StrFiledDecoder implements Decoder<String> {
 
     @Override
     public void finish(DecodeContext context) {
+        finish0(context);
+    }
+
+    static void finish0(DecodeContext context) {
         Object s = context.getStatus();
         if (s instanceof ByteBuffer) {
             context.setStatus(null);

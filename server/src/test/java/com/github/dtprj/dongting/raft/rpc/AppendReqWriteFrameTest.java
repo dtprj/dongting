@@ -15,12 +15,11 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.codec.ByteArrayDecoder;
 import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
+import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
-import com.github.dtprj.dongting.codec.Encoder;
 import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
@@ -42,30 +41,20 @@ public class AppendReqWriteFrameTest {
     private final RaftCodecFactory raftCodecFactory = new RaftCodecFactory() {
 
         @Override
-        public Decoder<?> createBodyDecoder(int bizType) {
-            return ByteArrayDecoder.INSTANCE;
+        public Decoder<? extends Encodable> createBodyDecoder(int bizType) {
+            return ByteArrayEncoder.DECODER;
         }
 
         @Override
-        public Decoder<?> createHeaderDecoder(int bizType) {
-            return ByteArrayDecoder.INSTANCE;
-        }
-
-        @Override
-        public Encoder<?> createHeaderEncoder(int bizType) {
-            return ByteArrayEncoder.INSTANCE;
-        }
-
-        @Override
-        public Encoder<?> createBodyEncoder(int bizType) {
-            return ByteArrayEncoder.INSTANCE;
+        public Decoder<? extends Encodable> createHeaderDecoder(int bizType) {
+            return ByteArrayEncoder.DECODER;
         }
     };
 
-    private static byte[] createBytes(int size) {
+    private static Encodable createBytes(int size) {
         byte[] bytes = new byte[size];
         new Random().nextBytes(bytes);
-        return bytes;
+        return new ByteArrayEncoder(bytes);
     }
 
     @Test
@@ -170,8 +159,8 @@ public class AppendReqWriteFrameTest {
             assertEquals(l1.getTerm(), l2.getTerm());
             assertEquals(l1.getTimestamp(), l2.getTimestamp());
             assertEquals(l1.getType(), l2.getType());
-            assertArrayEquals((byte[]) l1.getHeader(), (byte[]) l2.getHeader());
-            assertArrayEquals((byte[]) l1.getBody(), (byte[]) l2.getBody());
+            assertArrayEquals(((ByteArrayEncoder) l1.getHeader()).getData(), ((ByteArrayEncoder) l2.getHeader()).getData());
+            assertArrayEquals(((ByteArrayEncoder) l1.getBody()).getData(), ((ByteArrayEncoder) l2.getBody()).getData());
         }
     }
 }

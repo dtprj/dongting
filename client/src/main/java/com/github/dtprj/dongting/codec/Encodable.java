@@ -20,23 +20,8 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class BoolEncoder implements Encoder<Boolean> {
+public interface Encodable {
+    boolean encode(EncodeContext context, ByteBuffer destBuffer);
 
-    public static final BoolEncoder INSTANCE = new BoolEncoder();
-
-    private BoolEncoder() {
-    }
-
-    @Override
-    public boolean encode(EncodeContext context, ByteBuffer buffer, Boolean data) {
-        if (buffer.hasRemaining()) {
-            buffer.put((byte) (data == null ? -1 : data ? 1 : 0));
-        }
-        return false;
-    }
-
-    @Override
-    public int actualSize(Boolean data) {
-        return 1;
-    }
+    int actualSize();
 }

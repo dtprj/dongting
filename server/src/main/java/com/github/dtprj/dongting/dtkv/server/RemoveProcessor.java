@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.dtkv.server;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
+import com.github.dtprj.dongting.codec.StrEncoder;
 import com.github.dtprj.dongting.dtkv.RemoveReq;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
@@ -86,8 +87,8 @@ public class RemoveProcessor extends AbstractRaftBizProcessor<RemoveReq> {
     protected WriteFrame doProcess(ReqInfo<RemoveReq> reqInfo) {
         RemoveReq req = reqInfo.getReqFrame().getBody();
         ReqContext reqContext = reqInfo.getReqContext();
-        RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_REMOVE, req.getKey(), null,
-                reqContext.getTimeout(), 0);
+        RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_REMOVE, new StrEncoder(req.getKey()), null,
+                reqContext.getTimeout());
         CompletableFuture<RaftOutput> f = reqInfo.getRaftGroup().submitLinearTask(ri);
         f.whenComplete((output, ex) -> {
             if (ex != null) {

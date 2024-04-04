@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.RefCount;
 
@@ -25,13 +26,13 @@ public final class RaftInput {
     private final int bizType;
     private final DtTime deadline;
     private final boolean readOnly;
-    private final Object header;
-    private final Object body;
+    private final Encodable header;
+    private final Encodable body;
     private final long flowControlSize;
     private final boolean headReleasable;
     private final boolean bodyReleasable;
 
-    public RaftInput(int bizType, Object header, Object body, DtTime deadline, long flowControlSize) {
+    public RaftInput(int bizType, Encodable header, Encodable body, DtTime deadline) {
         if (bizType < 0 || bizType > 127) {
             // we use 1 byte to store bizType in raft log
             throw new IllegalArgumentException("bizType must be in [0, 127]");
@@ -41,6 +42,13 @@ public final class RaftInput {
         this.header = header;
         this.deadline = deadline;
         this.readOnly = false;
+        int flowControlSize = 0;
+        if (header != null) {
+            flowControlSize += header.actualSize();
+        }
+        if (body != null) {
+            flowControlSize += body.actualSize();
+        }
         this.flowControlSize = flowControlSize;
         this.headReleasable = header instanceof RefCount;
         this.bodyReleasable = body instanceof RefCount;
@@ -54,11 +62,11 @@ public final class RaftInput {
         return deadline;
     }
 
-    public Object getBody() {
+    public Encodable getBody() {
         return body;
     }
 
-    public Object getHeader() {
+    public Encodable getHeader() {
         return header;
     }
 

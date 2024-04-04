@@ -15,14 +15,17 @@
  */
 package com.github.dtprj.dongting.buf;
 
+import com.github.dtprj.dongting.codec.Encodable;
+import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.RefCount;
+import com.github.dtprj.dongting.net.ByteBufferWriteFrame;
 
 import java.nio.ByteBuffer;
 
 /**
  * @author huangli
  */
-public class RefBuffer extends RefCount {
+public class RefBuffer extends RefCount implements Encodable {
 
     private ByteBuffer buffer;
     private final ByteBufferPool pool;
@@ -69,5 +72,41 @@ public class RefBuffer extends RefCount {
 
     public ByteBuffer getBuffer() {
         return buffer;
+    }
+
+    @Override
+    public boolean encode(EncodeContext context, ByteBuffer destBuffer) {
+        ByteBuffer src = this.buffer;
+        if (src == null || src.remaining() == 0) {
+            return true;
+        }
+        if (src.isDirect()) {
+            ByteBuffer srcCopy = (ByteBuffer) context.getStatus();
+            srcCopy = ByteBufferWriteFrame.copyFromDirectBuffer(src, destBuffer, srcCopy);
+            if (srcCopy.remaining() == 0) {
+                return true;
+            } else {
+                context.setStatus(srcCopy);
+                return false;
+            }
+        } else {
+            Integer s = (Integer) context.getStatus();
+            int readBytes = 0;
+            if (s != null) {
+                readBytes = s;
+            }
+            readBytes = ByteBufferWriteFrame.copyFromHeapBuffer(src, destBuffer, readBytes);
+            if (readBytes >= src.remaining()) {
+                return true;
+            } else {
+                context.setStatus(readBytes);
+                return false;
+            }
+        }
+    }
+
+    @Override
+    public int actualSize() {
+        return this.buffer == null ? 0 : this.buffer.remaining();
     }
 }
