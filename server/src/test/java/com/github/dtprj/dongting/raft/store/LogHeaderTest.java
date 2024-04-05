@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class LogHeaderTest {
     @Test
     public void testWriteAndRead() {
-        LogItem item = new LogItem(null);
+        LogItem item = new LogItem();
         item.setType(1);
         item.setBizType(2);
         item.setTerm(1000);

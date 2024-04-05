@@ -15,7 +15,9 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.codec.DecodeContext;
+import com.github.dtprj.dongting.codec.Decoder;
+import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
@@ -29,6 +31,7 @@ import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.nio.ByteBuffer;
 import java.util.LinkedList;
@@ -47,7 +50,6 @@ class FileLogLoader implements RaftLog.LogIterator {
 
     private final IdxOps idxFiles;
     private final LogFileQueue logFiles;
-    private final ByteBufferPool heapPool;
     private final RaftGroupConfigEx groupConfig;
     private final ByteBuffer readBuffer;
     private final TailCache tailCache;
@@ -55,6 +57,8 @@ class FileLogLoader implements RaftLog.LogIterator {
     private final Supplier<Boolean> cancelIndicator;
     private final CRC32C crc32c = new CRC32C();
     private final LogHeader header = new LogHeader();
+    private final RaftCodecFactory codecFactory;
+    private final DecodeContext decodeContext;
 
     private boolean error;
     private boolean close;
@@ -66,21 +70,23 @@ class FileLogLoader implements RaftLog.LogIterator {
     private long bufferEndPos;
     private LogFile logFile;
 
-    FileLogLoader(IdxOps idxFiles, LogFileQueue logFiles, RaftGroupConfigEx groupConfig,
+    FileLogLoader(IdxOps idxFiles, LogFileQueue logFiles, RaftGroupConfigEx groupConfig, RaftCodecFactory codecFactory,
                   Supplier<Boolean> cancelIndicator) {
-        this(idxFiles, logFiles, groupConfig, cancelIndicator, 256 * 1024);
+        this(idxFiles, logFiles, groupConfig, codecFactory, cancelIndicator, 256 * 1024);
     }
 
     FileLogLoader(IdxOps idxFiles, LogFileQueue logFiles, RaftGroupConfigEx groupConfig,
-                  Supplier<Boolean> cancelIndicator, int readBufferSize) {
+                  RaftCodecFactory codecFactory, Supplier<Boolean> cancelIndicator, int readBufferSize) {
         this.idxFiles = idxFiles;
         this.logFiles = logFiles;
         this.groupConfig = groupConfig;
-        this.heapPool = groupConfig.getHeapPool().getPool();
+        this.codecFactory = codecFactory;
         this.cancelIndicator = cancelIndicator;
         this.tailCache = ((RaftStatusImpl) groupConfig.getRaftStatus()).getTailCache();
 
         this.readBuffer = groupConfig.getDirectPool().borrow(readBufferSize);
+        this.decodeContext = new DecodeContext();
+        decodeContext.setHeapPool(groupConfig.getHeapPool());
         reset();
     }
 
@@ -117,7 +123,9 @@ class FileLogLoader implements RaftLog.LogIterator {
         private final int limit;
         private final int bytesLimit;
 
-        private int readBytes;
+        private int totalReadBytes;
+        private int currentReadBytes;
+        private Decoder<? extends Encodable> currentDecoder;
         private final List<LogItem> result = new LinkedList<>();
         private int state = STATE_ITEM_HEADER;
         private LogItem item;
@@ -133,6 +141,12 @@ class FileLogLoader implements RaftLog.LogIterator {
         protected FrameCallResult handle(Throwable ex) throws Throwable {
             error = true;
             throw ex;
+        }
+
+        @Override
+        protected FrameCallResult doFinally() {
+            resetDecoder();
+            return Fiber.frameReturn();
         }
 
         @Override
@@ -231,9 +245,9 @@ class FileLogLoader implements RaftLog.LogIterator {
                 }
                 crc32c.reset();
                 state = STATE_BIZ_HEADER;
-                if (!result.isEmpty() && header.bodyLen + readBytes >= bytesLimit) {
+                if (!result.isEmpty() && header.bodyLen + totalReadBytes >= bytesLimit) {
                     buf.position(buf.position() - LogHeader.ITEM_HEADER_SIZE);
-                    finish();
+                    finishRead();
                     return RESULT_FINISH;
                 } else {
                     return RESULT_CONTINUE_PARSE;
@@ -268,21 +282,13 @@ class FileLogLoader implements RaftLog.LogIterator {
                 throw new RaftException("header check fail: index=" + (nextIndex + result.size()) + ",pos=" + itemStartPos);
             }
 
-            LogItem li = new LogItem(heapPool);
+            LogItem li = new LogItem();
             this.item = li;
             h.copy(li);
 
-
-            int bizHeaderLen = h.bizHeaderLen;
-            li.setActualHeaderSize(bizHeaderLen);
-            if (bizHeaderLen > 0) {
-                li.setHeaderBuffer(heapPool.borrow(bizHeaderLen));
-            }
-
+            li.setActualHeaderSize(h.bizHeaderLen);
             li.setActualBodySize(bodyLen);
-            if (bodyLen > 0) {
-                li.setBodyBuffer(heapPool.borrow(bodyLen));
-            }
+
             return true;
         }
 
@@ -292,8 +298,7 @@ class FileLogLoader implements RaftLog.LogIterator {
                 state = STATE_BIZ_BODY;
                 return RESULT_CONTINUE_PARSE;
             }
-            ByteBuffer destBuf = item.getHeaderBuffer();
-            boolean readFinish = readData(buf, bizHeaderLen, destBuf);
+            boolean readFinish = readData(buf, bizHeaderLen, true);
             if (readFinish) {
                 crc32c.reset();
                 state = STATE_BIZ_BODY;
@@ -305,21 +310,33 @@ class FileLogLoader implements RaftLog.LogIterator {
             }
         }
 
-        private boolean readData(ByteBuffer buf, int dataLen, ByteBuffer destBuf) {
-            int read = destBuf.position();
-            int needRead = dataLen - read;
-            if (needRead > 0 && buf.remaining() > 0) {
-                int actualRead = Math.min(needRead, buf.remaining());
-                RaftUtil.updateCrc(crc32c, buf, buf.position(), actualRead);
-                buf.get(destBuf.array(), read, actualRead);
-                destBuf.position(read + actualRead);
+        private boolean readData(ByteBuffer buf, int dataLen, boolean isHeader) {
+            if (dataLen - currentReadBytes > 0 && buf.remaining() > 0) {
+                int oldPos = buf.position();
+                if (currentDecoder == null) {
+                    currentDecoder = isHeader ? codecFactory.createHeaderDecoder(header.bizType)
+                            : codecFactory.createBodyDecoder(header.bizType);
+                }
+                Encodable result = currentDecoder.decode(decodeContext, buf, dataLen, currentReadBytes);
+                if (isHeader) {
+                    item.setHeader(result);
+                } else {
+                    item.setBody(result);
+                }
+                int read = buf.position() - oldPos;
+                if (read > 0) {
+                    RaftUtil.updateCrc(crc32c, buf, oldPos, read);
+                }
+                currentReadBytes += read;
             }
-            needRead = dataLen - destBuf.position();
-            if (needRead == 0 && buf.remaining() >= 4) {
-                destBuf.flip();
+            if (dataLen - currentReadBytes <= 0 && buf.remaining() >= 4) {
+                totalReadBytes += currentReadBytes;
+                currentReadBytes = 0;
+                resetDecoder();
                 int crc = (int) crc32c.getValue();
                 if (crc != buf.getInt()) {
-                    throw new ChecksumException("crc32c not match: index=" + header.index + ",pos=" + itemStartPos + ",len=" + dataLen);
+                    throw new ChecksumException("crc32c not match: index=" + header.index + ",pos="
+                            + itemStartPos + ",len=" + dataLen);
                 }
                 return true;
             } else {
@@ -335,11 +352,9 @@ class FileLogLoader implements RaftLog.LogIterator {
                 state = STATE_ITEM_HEADER;
                 return checkItemLimit();
             }
-            ByteBuffer destBuf = item.getBodyBuffer();
-            boolean readFinish = readData(buf, bodyLen, destBuf);
+            boolean readFinish = readData(buf, bodyLen, false);
             if (readFinish) {
                 result.add(item);
-                readBytes += bodyLen;
                 item = null;
                 state = STATE_ITEM_HEADER;
                 return checkItemLimit();
@@ -352,7 +367,7 @@ class FileLogLoader implements RaftLog.LogIterator {
 
         private int checkItemLimit() {
             if (result.size() >= limit) {
-                finish();
+                finishRead();
                 return RESULT_FINISH;
             } else {
                 long index = nextIndex + result.size();
@@ -367,8 +382,19 @@ class FileLogLoader implements RaftLog.LogIterator {
             }
         }
 
-        private void finish() {
+        private void finishRead() {
             nextIndex += result.size();
+        }
+
+        private void resetDecoder() {
+            if (currentDecoder != null) {
+                try {
+                    currentDecoder.finish(decodeContext);
+                    decodeContext.reset();
+                } finally {
+                    currentDecoder = null;
+                }
+            }
         }
     }
 

@@ -74,7 +74,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         statusManager.initStatusFile();
         config.setRaftStatus(raftStatus);
 
-        raftLog = new DefaultRaftLog(config, statusManager, 1);
+        raftLog = new DefaultRaftLog(config, statusManager, null,1);
         raftLog.idxItemsPerFile = 8;
         raftLog.idxMaxCacheItems = 4;
         raftLog.logFileSize = 1024;

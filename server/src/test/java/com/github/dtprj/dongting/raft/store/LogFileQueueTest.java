@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
+import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.common.RunnableEx;
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -159,30 +160,28 @@ public class LogFileQueueTest extends BaseFiberTest {
     }
 
     static LogItem createItem(RaftGroupConfigEx config, int term, int prevTerm, long index, int totalSize, int bizHeaderLen) {
-        LogItem item = new LogItem(config.getHeapPool().getPool());
+        LogItem item = new LogItem();
         item.setType(1);
         item.setBizType(2);
         item.setTerm(term);
         item.setPrevLogTerm(prevTerm);
         item.setIndex(index);
         item.setTimestamp(config.getTs().getWallClockMillis());
-        ByteBuffer buf = ByteBuffer.allocate(bizHeaderLen);
+        byte[] bs = new byte[bizHeaderLen];
         for (int i = 0; i < bizHeaderLen; i++) {
-            buf.put((byte) i);
+            bs[i] = (byte) i;
         }
-        buf.clear();
-        item.setHeaderBuffer(buf);
+        item.setHeader(new ByteArrayEncoder(bs));
         int bodySize = totalSize - LogHeader.computeTotalLen(0, bizHeaderLen, 0);
         if (bodySize > 0) {
             // crc 4 bytes
             bodySize -= 4;
         }
-        buf = ByteBuffer.allocate(bodySize);
+        bs = new byte[bodySize];
         for (int i = 0; i < bodySize; i++) {
-            buf.put((byte) i);
+            bs[i] = (byte) i;
         }
-        buf.clear();
-        item.setBodyBuffer(buf);
+        item.setBody(new ByteArrayEncoder(bs));
         return item;
     }
 
@@ -245,7 +244,7 @@ public class LogFileQueueTest extends BaseFiberTest {
 
             if (bizHeaderLen > 0) {
                 for (int j = 0; j < bizHeaderLen; j++) {
-                    assertEquals(item.getHeaderBuffer().get(j), buf.get());
+                    assertEquals(((ByteArrayEncoder) item.getHeader()).getData()[j], buf.get());
                 }
                 crc32C.reset();
                 RaftUtil.updateCrc(crc32C, buf, buf.position() - bizHeaderLen, bizHeaderLen);
@@ -255,7 +254,7 @@ public class LogFileQueueTest extends BaseFiberTest {
             if (header.bodyLen > 0) {
                 int bodyLen = header.bodyLen;
                 for (int j = 0; j < bodyLen; j++) {
-                    assertEquals(item.getBodyBuffer().get(j), buf.get());
+                    assertEquals(((ByteArrayEncoder)item.getBody()).getData()[j], buf.get());
                 }
                 crc32C.reset();
                 RaftUtil.updateCrc(crc32C, buf, buf.position() - bodyLen, bodyLen);

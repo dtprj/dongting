@@ -208,6 +208,12 @@ public class ApplyManager {
         }
 
         @Override
+        protected FrameCallResult doFinally() {
+            closeIterator();
+            return Fiber.frameReturn();
+        }
+
+        @Override
         public FrameCallResult execute(Void input) {
             if (isGroupShouldStopPlain()) {
                 return Fiber.frameReturn();

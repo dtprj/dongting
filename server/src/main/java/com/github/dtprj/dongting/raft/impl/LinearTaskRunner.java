@@ -161,7 +161,7 @@ public class LinearTaskRunner {
             if (!input.isReadOnly()) {
                 // write task
                 newIndex++;
-                LogItem item = new LogItem(null);
+                LogItem item = new LogItem();
                 item.setType(rt.getType());
                 item.setBizType(input.getBizType());
                 item.setTerm(currentTerm);

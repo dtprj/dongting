@@ -142,7 +142,7 @@ public class RaftLogBenchmark extends RpcBenchmark {
             raftStatus.setTailCache(new TailCache(groupConfig, raftStatus));
 
             statusManager = new StatusManager(groupConfig);
-            this.raftLog = new DefaultRaftLog(groupConfig, statusManager);
+            this.raftLog = new DefaultRaftLog(groupConfig, statusManager, groupConfig.getCodecFactory());
             CompletableFuture<Void> initFuture = new CompletableFuture<>();
 
             fiberGroup.fireFiber("init", new FiberFrame<>() {
@@ -185,7 +185,7 @@ public class RaftLogBenchmark extends RpcBenchmark {
         }
 
         public static LogItem createItems(long index, Timestamp ts, RefBuffer bodyBuffer) {
-            LogItem item = new LogItem(null);
+            LogItem item = new LogItem();
             item.setIndex(index);
             item.setType(1);
             item.setBizType(2);

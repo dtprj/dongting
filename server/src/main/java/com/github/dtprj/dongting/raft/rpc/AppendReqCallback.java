@@ -176,7 +176,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
     //  bytes body = 8;
     //}
     static class LogItemCallback extends PbCallback<Object> {
-        private final LogItem item = new LogItem(null);
+        private final LogItem item = new LogItem();
         private final DecodeContext context;
         private final RaftCodecFactory codecFactory;
         private Decoder<? extends Encodable> currentDecoder;

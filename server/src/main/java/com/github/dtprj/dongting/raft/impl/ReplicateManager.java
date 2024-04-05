@@ -190,7 +190,6 @@ class RepFrame extends AbstractRepFrame {
     private final ReplicateManager replicateManager;
     private final CommitManager commitManager;
     private final RaftLog raftLog;
-    private final StateMachine stateMachine;
 
     private final int maxReplicateItems;
     private final int restItemsToStartReplicate;
@@ -211,7 +210,6 @@ class RepFrame extends AbstractRepFrame {
         this.serverConfig = replicateManager.serverConfig;
 
         this.raftLog = replicateManager.raftLog;
-        this.stateMachine = replicateManager.stateMachine;
         this.client = replicateManager.client;
         this.replicateManager = replicateManager;
         this.commitManager = commitManager;
@@ -334,7 +332,7 @@ class RepFrame extends AbstractRepFrame {
         LogItem firstItem = items.get(0);
         long prevLogIndex = firstItem.getIndex() - 1;
 
-        AppendReqWriteFrame req = new AppendReqWriteFrame(stateMachine);
+        AppendReqWriteFrame req = new AppendReqWriteFrame();
         req.setCommand(Commands.RAFT_APPEND_ENTRIES);
         req.setGroupId(groupId);
         req.setTerm(raftStatus.getCurrentTerm());

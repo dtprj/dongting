@@ -21,7 +21,6 @@ import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -51,8 +50,6 @@ import java.util.List;
 //}
 public class AppendReqWriteFrame extends WriteFrame {
 
-    private final RaftCodecFactory codecFactory;
-
     int groupId;
     int term;
     int leaderId;
@@ -71,12 +68,10 @@ public class AppendReqWriteFrame extends WriteFrame {
     private static final int WRITE_ITEM_BIZ_BODY = 5;
     private int writeStatus;
     private int encodeLogIndex;
-    private int readBytes;
 
     private LogItem currentItem;
 
-    public AppendReqWriteFrame(RaftCodecFactory codecFactory) {
-        this.codecFactory = codecFactory;
+    public AppendReqWriteFrame() {
     }
 
     @Override
@@ -161,7 +156,6 @@ public class AppendReqWriteFrame extends WriteFrame {
                         return false;
                     }
                     PbUtil.writeLengthDelimitedPrefix(dest, 7, currentItem.getActualHeaderSize());
-                    readBytes = 0;
                     writeStatus = WRITE_ITEM_BIZ_HEADER;
                     break;
                 case WRITE_ITEM_BIZ_HEADER:
@@ -182,7 +176,6 @@ public class AppendReqWriteFrame extends WriteFrame {
                         return false;
                     }
                     PbUtil.writeLengthDelimitedPrefix(dest, 8, currentItem.getActualBodySize());
-                    readBytes = 0;
                     writeStatus = WRITE_ITEM_BIZ_BODY;
                     break;
                 case WRITE_ITEM_BIZ_BODY:

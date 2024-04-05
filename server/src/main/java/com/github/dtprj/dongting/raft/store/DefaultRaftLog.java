@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.io.File;
 import java.util.function.Supplier;
@@ -42,6 +43,7 @@ public class DefaultRaftLog implements RaftLog {
     private final RaftStatusImpl raftStatus;
     private final StatusManager statusManager;
     private final FiberGroup fiberGroup;
+    private final RaftCodecFactory raftCodecFactory;
     LogFileQueue logFiles;
     IdxFileQueue idxFiles;
 
@@ -53,19 +55,21 @@ public class DefaultRaftLog implements RaftLog {
 
     private final Fiber deleteFiber;
 
-    DefaultRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager, long deleteIntervalMillis) {
+    DefaultRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager, RaftCodecFactory raftCodecFactory,
+                   long deleteIntervalMillis) {
         this.groupConfig = groupConfig;
         this.ts = groupConfig.getTs();
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
         this.statusManager = statusManager;
         this.fiberGroup = groupConfig.getFiberGroup();
+        this.raftCodecFactory = raftCodecFactory;
 
         this.deleteFiber = new Fiber("delete-" + groupConfig.getGroupId(),
                 fiberGroup, new DeleteFiberFrame(deleteIntervalMillis), true);
     }
 
-    public DefaultRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager) {
-        this(groupConfig, statusManager, DEFAULT_DELETE_INTERVAL_MILLIS);
+    public DefaultRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager, RaftCodecFactory raftCodecFactory) {
+        this(groupConfig, statusManager, raftCodecFactory, DEFAULT_DELETE_INTERVAL_MILLIS);
     }
 
     @Override
@@ -141,7 +145,7 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public LogIterator openIterator(Supplier<Boolean> cancelIndicator) {
-        return new FileLogLoader(idxFiles, logFiles, groupConfig, cancelIndicator);
+        return new FileLogLoader(idxFiles, logFiles, groupConfig, raftCodecFactory, cancelIndicator);
     }
 
     @Override

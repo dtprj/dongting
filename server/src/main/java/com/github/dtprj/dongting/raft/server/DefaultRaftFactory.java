@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.fiber.Dispatcher;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.sm.DefaultSnapshotManager;
+import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 import com.github.dtprj.dongting.raft.sm.SnapshotManager;
 import com.github.dtprj.dongting.raft.store.DefaultRaftLog;
 import com.github.dtprj.dongting.raft.store.RaftLog;
@@ -62,8 +63,8 @@ public abstract class DefaultRaftFactory extends AbstractLifeCircle implements R
     }
 
     @Override
-    public RaftLog createRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager) {
-        return new DefaultRaftLog(groupConfig, statusManager);
+    public RaftLog createRaftLog(RaftGroupConfigEx groupConfig, StatusManager statusManager, RaftCodecFactory codecFactory) {
+        return new DefaultRaftLog(groupConfig, statusManager, codecFactory);
     }
 
     @Override

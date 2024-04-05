@@ -115,7 +115,7 @@ public class AppendReqWriteFrameTest {
     }
 
     private AppendReqWriteFrame createFrame(boolean addHeader, boolean addBody) {
-        AppendReqWriteFrame f = new AppendReqWriteFrame(raftCodecFactory);
+        AppendReqWriteFrame f = new AppendReqWriteFrame();
         f.setGroupId(12345);
         f.setTerm(4);
         f.setLeaderId(2);
@@ -126,7 +126,7 @@ public class AppendReqWriteFrameTest {
         ArrayList<LogItem> logs = new ArrayList<>();
         f.setLogs(logs);
         for (int i = 0; i < 2; i++) {
-            LogItem log = new LogItem(null);
+            LogItem log = new LogItem();
             log.setBizType(1);
             log.setIndex(200 + i);
             log.setTerm(4);
@@ -159,8 +159,18 @@ public class AppendReqWriteFrameTest {
             assertEquals(l1.getTerm(), l2.getTerm());
             assertEquals(l1.getTimestamp(), l2.getTimestamp());
             assertEquals(l1.getType(), l2.getType());
-            assertArrayEquals(((ByteArrayEncoder) l1.getHeader()).getData(), ((ByteArrayEncoder) l2.getHeader()).getData());
-            assertArrayEquals(((ByteArrayEncoder) l1.getBody()).getData(), ((ByteArrayEncoder) l2.getBody()).getData());
+            if (l1.getHeader() != null) {
+                assertArrayEquals(((ByteArrayEncoder) l1.getHeader()).getData(),
+                        ((ByteArrayEncoder) l2.getHeader()).getData());
+            } else {
+                assertNull(l2.getHeader());
+            }
+            if (l1.getBody() != null) {
+                assertArrayEquals(((ByteArrayEncoder) l1.getBody()).getData(),
+                        ((ByteArrayEncoder) l2.getBody()).getData());
+            } else {
+                assertNull(l2.getBody());
+            }
         }
     }
 }

@@ -15,11 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.common.RefCount;
-
-import java.nio.ByteBuffer;
 
 /**
  * @author huangli
@@ -31,8 +28,6 @@ public class LogItem extends RefCount {
     public static final int TYPE_DROP_CONFIG_CHANGE = 3;
     public static final int TYPE_COMMIT_CONFIG_CHANGE = 4;
 
-    private final ByteBufferPool heapPool;
-
     private int type;
     private int bizType;
     private int term;
@@ -40,31 +35,20 @@ public class LogItem extends RefCount {
     private int prevLogTerm;
     private long timestamp;
 
-    private ByteBuffer bodyBuffer;
     private Encodable body;
     private int actualBodySize;
 
-    private ByteBuffer headerBuffer;
     private Encodable header;
     private int actualHeaderSize;
 
     private int pbHeaderSize;
     private int pbItemSize;
 
-    public LogItem(ByteBufferPool heapPool) {
-        this.heapPool = heapPool;
+    public LogItem() {
     }
 
     @Override
     protected void doClean() {
-        if (headerBuffer != null && heapPool != null) {
-            heapPool.release(headerBuffer);
-        }
-        headerBuffer = null;
-        if (bodyBuffer != null && heapPool != null) {
-            heapPool.release(bodyBuffer);
-        }
-        bodyBuffer = null;
         if (header instanceof RefCount) {
             ((RefCount) header).release();
         }
@@ -77,18 +61,10 @@ public class LogItem extends RefCount {
 
     public void calcHeaderBodySize() {
         if (actualHeaderSize == 0) {
-            if (headerBuffer != null) {
-                actualHeaderSize = headerBuffer.remaining();
-            } else if (header != null) {
-                actualHeaderSize = header.actualSize();
-            }
+            actualHeaderSize = header == null ? 0 : header.actualSize();
         }
         if (actualBodySize == 0) {
-            if (bodyBuffer != null) {
-                actualBodySize = bodyBuffer.remaining();
-            } else if (body != null) {
-                actualBodySize = body.actualSize();
-            }
+            actualBodySize = body == null ? 0 : body.actualSize();
         }
     }
 
@@ -188,19 +164,4 @@ public class LogItem extends RefCount {
         this.pbHeaderSize = pbHeaderSize;
     }
 
-    public ByteBuffer getBodyBuffer() {
-        return bodyBuffer;
-    }
-
-    public void setBodyBuffer(ByteBuffer bodyBuffer) {
-        this.bodyBuffer = bodyBuffer;
-    }
-
-    public ByteBuffer getHeaderBuffer() {
-        return headerBuffer;
-    }
-
-    public void setHeaderBuffer(ByteBuffer headerBuffer) {
-        this.headerBuffer = headerBuffer;
-    }
 }
