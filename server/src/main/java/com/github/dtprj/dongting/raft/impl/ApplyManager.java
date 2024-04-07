@@ -270,11 +270,7 @@ public class ApplyManager {
 
         @Override
         protected FrameCallResult doFinally() {
-            if (items != null) {
-                for (LogItem i : items) {
-                    i.release();
-                }
-            }
+            RaftUtil.release(items);
             return Fiber.frameReturn();
         }
 
@@ -282,7 +278,6 @@ public class ApplyManager {
         public FrameCallResult execute(Void input) {
             if (stateMachineEpoch != raftStatus.getStateMachineEpoch()) {
                 log.warn("stateMachineEpoch changed, ignore load result");
-                RaftUtil.release(items);
                 return Fiber.frameReturn();
             }
             if (items == null || items.isEmpty()) {
