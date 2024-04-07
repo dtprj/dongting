@@ -63,11 +63,9 @@ public class InstallSnapshotReq {
     public static class Callback extends PbCallback<InstallSnapshotReq> {
         private final InstallSnapshotReq result = new InstallSnapshotReq();
         private final RefBufferFactory heapPool;
-        private final DecodeContext context;
 
         public Callback(DecodeContext context) {
             this.heapPool = context.getHeapPool();
-            this.context = context;
         }
 
         @Override
