@@ -27,4 +27,6 @@ public interface CmdCodes {
     int BIZ_ERROR = 5;
     int FLOW_CONTROL = 6;
     int NOT_RAFT_LEADER = 7;
+    int RAFT_GROUP_NOT_FOUND = 8;
+    int RAFT_GROUP_STOPPED = 9;
 }

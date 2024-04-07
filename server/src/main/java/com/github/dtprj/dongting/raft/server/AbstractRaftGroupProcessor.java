@@ -65,7 +65,7 @@ public abstract class AbstractRaftGroupProcessor<T> extends ReqProcessor<T> {
         }
         if (g == null) {
             invokeCleanReqInProcessorThread(reqInfo);
-            EmptyBodyRespFrame errorResp = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
+            EmptyBodyRespFrame errorResp = new EmptyBodyRespFrame(CmdCodes.RAFT_GROUP_NOT_FOUND);
             errorResp.setMsg("raft group not found: " + groupId);
             log.error(errorResp.getMsg());
             return errorResp;
@@ -73,7 +73,7 @@ public abstract class AbstractRaftGroupProcessor<T> extends ReqProcessor<T> {
         GroupComponents gc = g.getGroupComponents();
         if (gc.getFiberGroup().isShouldStop()) {
             invokeCleanReqInProcessorThread(reqInfo);
-            EmptyBodyRespFrame wf = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
+            EmptyBodyRespFrame wf = new EmptyBodyRespFrame(CmdCodes.RAFT_GROUP_STOPPED);
             wf.setMsg("raft group is stopped: " + groupId);
             return wf;
         } else {
