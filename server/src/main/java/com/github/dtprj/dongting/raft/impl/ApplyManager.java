@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -35,7 +36,6 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
-import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -345,9 +345,7 @@ public class ApplyManager {
         }
 
         private FrameCallResult doPrepare(RaftTask rt) {
-            ByteBuffer logData = (ByteBuffer) rt.getInput().getBody();
-            byte[] data = new byte[logData.remaining()];
-            logData.get(data);
+            byte[] data = ((ByteArrayEncoder) rt.getInput().getBody()).getData();
             String dataStr = new String(data);
             String[] fields = dataStr.split(";");
             Set<Integer> oldMemberIds = parseSet(fields[0]);

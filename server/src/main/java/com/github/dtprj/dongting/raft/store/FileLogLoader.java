@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.Encodable;
@@ -172,9 +173,8 @@ class FileLogLoader implements RaftLog.LogIterator {
         }
 
         private FrameCallResult parseContent() {
-            ByteBuffer buf = readBuffer;
             while (true) {
-                int r = doParse(buf);
+                int r = doParse(readBuffer);
                 if (r == RESULT_FINISH) {
                     setResult(result);
                     return Fiber.frameReturn();
@@ -314,8 +314,12 @@ class FileLogLoader implements RaftLog.LogIterator {
             if (dataLen - currentReadBytes > 0 && buf.remaining() > 0) {
                 int oldPos = buf.position();
                 if (currentDecoder == null) {
-                    currentDecoder = isHeader ? codecFactory.createHeaderDecoder(header.bizType)
-                            : codecFactory.createBodyDecoder(header.bizType);
+                    if (header.bizType == LogItem.TYPE_NORMAL) {
+                        currentDecoder = isHeader ? codecFactory.createHeaderDecoder(header.bizType)
+                                : codecFactory.createBodyDecoder(header.bizType);
+                    } else {
+                        currentDecoder = ByteArrayEncoder.DECODER;
+                    }
                 }
                 Encodable result = currentDecoder.decode(decodeContext, buf, dataLen, currentReadBytes);
                 if (isHeader) {
