@@ -595,6 +595,7 @@ class InstallFrame extends AbstractRepFrame {
     }
 
     private FrameCallResult afterTakeSnapshot(Snapshot snapshot) {
+        this.snapshot = snapshot;
         if (shouldStopReplicate()) {
             return Fiber.frameReturn();
         }
