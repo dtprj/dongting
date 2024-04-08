@@ -74,7 +74,11 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
         @Override
         public FrameCallResult execute(Void input) {
             if (MemberManager.validCandidate(raftStatus, voteReq.getCandidateId())) {
-                if (voteReq.isPreVote()) {
+                if(raftStatus.isInstallSnapshot()) {
+                    resp.setVoteGranted(false);
+                    log.info("receive vote/preVote request during install snapshot. remoteId={}, group={}",
+                            voteReq.getCandidateId(), voteReq.getGroupId());
+                } else if (voteReq.isPreVote()) {
                     processPreVote();
                     log.info("receive pre-vote request. granted={}. reqTerm={}, localTerm={}",
                             resp.isVoteGranted(), voteReq.getTerm(), raftStatus.getCurrentTerm());
@@ -84,12 +88,14 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                     }
                     return processVote();
                 }
+                return writeVoteResp();
             } else {
                 resp.setVoteGranted(false);
                 log.warn("receive vote request from unknown member. remoteId={}, group={}, remote={}",
                         voteReq.getCandidateId(), voteReq.getGroupId(), reqInfo.getChannelContext().getRemoteAddr());
+                // don't write response
+                return Fiber.frameReturn();
             }
-            return writeVoteResp();
         }
 
         private FrameCallResult writeVoteResp() {

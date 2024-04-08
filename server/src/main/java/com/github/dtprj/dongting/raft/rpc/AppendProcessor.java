@@ -42,7 +42,6 @@ import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
-import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.util.ArrayList;
 import java.util.function.Function;
@@ -449,28 +448,25 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     @Override
     protected FrameCallResult process() throws Exception {
         RaftStatusImpl raftStatus = gc.getRaftStatus();
+        InstallSnapshotReq req = reqInfo.getReqFrame().getBody();
+        if (req.offset == 0 && req.members != null) {
+            return startInstall(raftStatus);
+        }
+        return doInstall(raftStatus, req);
+    }
+
+    private FrameCallResult startInstall(RaftStatusImpl raftStatus) throws Exception {
         if (RaftUtil.writeNotFinished(raftStatus)) {
             return RaftUtil.waitWriteFinish(raftStatus, this);
         }
-        InstallSnapshotReq req = reqInfo.getReqFrame().getBody();
-        StateMachine stateMachine = gc.getStateMachine();
-        boolean start = req.offset == 0 && req.members != null;
+        raftStatus.setInstallSnapshot(true);
+        raftStatus.setStateMachineEpoch(raftStatus.getStateMachineEpoch() + 1);
+        return Fiber.call(gc.getRaftLog().beginInstall(), this::success);
+    }
+
+    private FrameCallResult doInstall(RaftStatusImpl raftStatus, InstallSnapshotReq req) {
         boolean finish = req.done;
-        if (start) {
-            raftStatus.setInstallSnapshot(true);
-            raftStatus.setStateMachineEpoch(raftStatus.getStateMachineEpoch() + 1);
-            return Fiber.call(gc.getRaftLog().beginInstall(), this::success);
-        }
-        return doInstall(raftStatus, req, stateMachine, finish);
-    }
-
-    private FrameCallResult success(Void v) {
-        return writeAppendResp(AppendProcessor.APPEND_SUCCESS, null);
-    }
-
-    private FrameCallResult doInstall(RaftStatusImpl raftStatus, InstallSnapshotReq req,
-                                      StateMachine stateMachine, boolean finish) {
-        FiberFuture<Void> f = stateMachine.installSnapshot(req.lastIncludedIndex,
+        FiberFuture<Void> f = gc.getStateMachine().installSnapshot(req.lastIncludedIndex,
                 req.lastIncludedTerm, req.offset, finish, req.data);
         // fiber blocked, so can't process block concurrently
         if (finish) {
@@ -496,6 +492,10 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
         FiberFrame<Void> finishFrame = gc.getRaftLog().finishInstall(
                 req.lastIncludedIndex + 1, req.nextWritePos);
         return Fiber.call(finishFrame, this::success);
+    }
+
+    private FrameCallResult success(Void v) {
+        return writeAppendResp(AppendProcessor.APPEND_SUCCESS, null);
     }
 }
 

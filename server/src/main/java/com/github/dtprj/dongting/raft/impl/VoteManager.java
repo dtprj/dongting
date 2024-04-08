@@ -133,7 +133,7 @@ public class VoteManager {
         return false;
     }
 
-    public void tryStartPreVote() {
+    private void tryStartPreVote() {
         // move last elect time 1 seconds, prevent readyNodesNotEnough check too frequently if failed
         long newLastElectTime = raftStatus.getTs().getNanoTime() - raftStatus.getElectTimeoutNanos()
                 + TimeUnit.SECONDS.toNanos(1);
@@ -250,6 +250,9 @@ public class VoteManager {
                 } else {
                     return Fiber.sleep(INTERVAL, this);
                 }
+            }
+            if (raftStatus.isInstallSnapshot()) {
+                return Fiber.sleep(INTERVAL, this);
             }
             if (timeout) {
                 if (RaftUtil.writeNotFinished(raftStatus)) {
