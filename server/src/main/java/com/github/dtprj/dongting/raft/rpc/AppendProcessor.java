@@ -454,44 +454,48 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
         }
         InstallSnapshotReq req = reqInfo.getReqFrame().getBody();
         StateMachine stateMachine = gc.getStateMachine();
-        boolean start = req.offset == 0;
+        boolean start = req.offset == 0 && req.members != null;
         boolean finish = req.done;
         if (start) {
             raftStatus.setInstallSnapshot(true);
             raftStatus.setStateMachineEpoch(raftStatus.getStateMachineEpoch() + 1);
-            return Fiber.call(gc.getRaftLog().beginInstall(),
-                    v -> doInstall(raftStatus, req, stateMachine, finish));
+            return Fiber.call(gc.getRaftLog().beginInstall(), this::success);
         }
         return doInstall(raftStatus, req, stateMachine, finish);
     }
 
-    private FrameCallResult doInstall(RaftStatusImpl raftStatus,
-                                      InstallSnapshotReq req, StateMachine stateMachine, boolean finish) {
+    private FrameCallResult success(Void v) {
+        return writeAppendResp(AppendProcessor.APPEND_SUCCESS, null);
+    }
+
+    private FrameCallResult doInstall(RaftStatusImpl raftStatus, InstallSnapshotReq req,
+                                      StateMachine stateMachine, boolean finish) {
         FiberFuture<Void> f = stateMachine.installSnapshot(req.lastIncludedIndex,
                 req.lastIncludedTerm, req.offset, finish, req.data);
         // fiber blocked, so can't process block concurrently
-        return f.await(v -> afterInstallBlock(req, finish, raftStatus));
+        if (finish) {
+            return f.await(v -> finishInstall(req, raftStatus));
+        } else {
+            return f.await(this::success);
+        }
     }
 
-    private FrameCallResult afterInstallBlock(InstallSnapshotReq req, boolean finish, RaftStatusImpl raftStatus)
-            throws Exception {
-        raftStatus.setLastLogTerm(req.lastIncludedTerm);
+    private FrameCallResult finishInstall(InstallSnapshotReq req, RaftStatusImpl raftStatus) throws Exception {
+        raftStatus.setInstallSnapshot(false);
 
+        // call raftStatus.copyShareStatus() in doFinally()
+        raftStatus.setLastApplied(req.lastIncludedIndex);
+
+        raftStatus.setCommitIndex(req.lastIncludedIndex);
+
+        raftStatus.setLastLogTerm(req.lastIncludedTerm);
         raftStatus.setLastLogIndex(req.lastIncludedIndex);
         raftStatus.setLastWriteLogIndex(req.lastIncludedIndex);
         raftStatus.setLastForceLogIndex(req.lastIncludedIndex);
 
-        if (finish) {
-            raftStatus.setInstallSnapshot(false);
-            raftStatus.setLastApplied(req.lastIncludedIndex);
-            // call raftStatus.copyShareStatus() in doFinally()
-            raftStatus.setCommitIndex(req.lastIncludedIndex);
-            FiberFrame<Void> finishFrame = gc.getRaftLog().finishInstall(
-                    req.lastIncludedIndex + 1, req.nextWritePos);
-            return Fiber.call(finishFrame, v -> writeAppendResp(AppendProcessor.APPEND_SUCCESS, null));
-        } else {
-            return writeAppendResp(AppendProcessor.APPEND_SUCCESS, null);
-        }
+        FiberFrame<Void> finishFrame = gc.getRaftLog().finishInstall(
+                req.lastIncludedIndex + 1, req.nextWritePos);
+        return Fiber.call(finishFrame, this::success);
     }
 }
 

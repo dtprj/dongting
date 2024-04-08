@@ -24,6 +24,8 @@ import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.net.WriteFrame;
 
 import java.nio.ByteBuffer;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * @author huangli
@@ -37,10 +39,10 @@ import java.nio.ByteBuffer;
 //  bool done = 7;
 
 //  fixed64 next_write_pos = 8;
-//  string members = 9;
-//  string observers = 10;
-//  prepared_members = 11;
-//  prepared_observers = 12;
+//  repeated fixed32 members = 9[packed = false];
+//  repeated fixed32 observers = 10[packed = false];
+//  repeated fixed32 prepared_members = 11[packed = false];
+//  repeated fixed32 prepared_observers = 12[packed = false];
 
 //  bytes data = 15;
 public class InstallSnapshotReq {
@@ -53,10 +55,10 @@ public class InstallSnapshotReq {
     public boolean done;
 
     public long nextWritePos;
-    public String members;
-    public String observers;
-    public String preparedMembers;
-    public String preparedObservers;
+    public Set<Integer> members;
+    public Set<Integer> observers;
+    public Set<Integer> preparedMembers;
+    public Set<Integer> preparedObservers;
 
     public RefBuffer data;
 
@@ -106,31 +108,43 @@ public class InstallSnapshotReq {
             return true;
         }
 
+        private Set<Integer> addToSet(Set<Integer> s, int value) {
+            if (s == null) {
+                s = new HashSet<>();
+            }
+            s.add(value);
+            return s;
+        }
+
+        public boolean readFix32(int index, int value) {
+            switch (index) {
+                case 9:
+                    result.members = addToSet(result.members, value);
+                    break;
+                case 10:
+                    result.observers = addToSet(result.observers, value);
+                    break;
+                case 11:
+                    result.preparedMembers = addToSet(result.preparedMembers, value);
+                    break;
+                case 12:
+                    result.preparedObservers = addToSet(result.preparedObservers, value);
+                    break;
+            }
+            return true;
+        }
+
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
             boolean end = buf.remaining() >= len - currentPos;
-            switch (index) {
-                case 9:
-                    result.members = parseUTF8(buf, len, currentPos);
-                    break;
-                case 10:
-                    result.observers = parseUTF8(buf, len, currentPos);
-                    break;
-                case 11:
-                    result.preparedMembers = parseUTF8(buf, len, currentPos);
-                    break;
-                case 12:
-                    result.preparedObservers = parseUTF8(buf, len, currentPos);
-                    break;
-                case 15:
-                    if (currentPos == 0) {
-                        result.data = heapPool.create(len);
-                    }
-                    result.data.getBuffer().put(buf);
-                    if (end) {
-                        result.data.getBuffer().flip();
-                    }
-                    break;
+            if (index == 15) {
+                if (currentPos == 0) {
+                    result.data = heapPool.create(len);
+                }
+                result.data.getBuffer().put(buf);
+                if (end) {
+                    result.data.getBuffer().flip();
+                }
             }
             return true;
         }
@@ -158,6 +172,11 @@ public class InstallSnapshotReq {
                     + PbUtil.accurateFix64Size(6, req.offset)
                     + PbUtil.accurateUnsignedIntSize(7, req.done ? 1 : 0)
                     + PbUtil.accurateFix64Size(8, req.nextWritePos);
+            x += calcFix32SetSize(9, req.members);
+            x += calcFix32SetSize(10, req.observers);
+            x += calcFix32SetSize(11, req.preparedMembers);
+            x += calcFix32SetSize(12, req.preparedObservers);
+
             if (req.data != null && req.data.getBuffer().hasRemaining()) {
                 this.bufferSize = req.data.getBuffer().remaining();
                 x += PbUtil.accurateLengthDelimitedSize(15, bufferSize);
@@ -165,6 +184,17 @@ public class InstallSnapshotReq {
                 this.bufferSize = 0;
             }
             this.headerSize = x - bufferSize;
+        }
+
+        private int calcFix32SetSize(int index, Set<Integer> s) {
+            if (s == null) {
+                return 0;
+            }
+            int x = 0;
+            for (int id : s) {
+                x += PbUtil.accurateFix32Size(index, id);
+            }
+            return x;
         }
 
         @Override
@@ -184,6 +214,10 @@ public class InstallSnapshotReq {
                     PbUtil.writeFix64(dest, 6, req.offset);
                     PbUtil.writeUnsignedInt32(dest, 7, req.done ? 1 : 0);
                     PbUtil.writeFix64(dest, 8, req.nextWritePos);
+                    writeSet(dest, 9, req.members);
+                    writeSet(dest, 10, req.observers);
+                    writeSet(dest, 11, req.preparedMembers);
+                    writeSet(dest, 12, req.preparedObservers);
                     if (bufferSize > 0) {
                         PbUtil.writeLengthDelimitedPrefix(dest, 15, bufferSize);
                     }
@@ -197,6 +231,14 @@ public class InstallSnapshotReq {
             }
             dest.put(req.data.getBuffer());
             return !req.data.getBuffer().hasRemaining();
+        }
+
+        private void writeSet(ByteBuffer buf, int index, Set<Integer> s) {
+            if (s != null) {
+                for (int id : s) {
+                    PbUtil.writeFix32(buf, index, id);
+                }
+            }
         }
 
         @Override

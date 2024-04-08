@@ -95,10 +95,10 @@ message InstallSnapshotReq {
   bool done = 7;
 
   fixed64 next_write_pos = 8;
-  string members = 9;
-  string observers = 10;
-  string prepared_members = 11;
-  string prepared_observers = 12;
+  repeated fixed32 members = 9[packed = false];
+  repeated fixed32 observers = 10[packed = false];
+  repeated fixed32 prepared_members = 11[packed = false];
+  repeated fixed32 prepared_observers = 12[packed = false];
 
   bytes data = 15;
 }

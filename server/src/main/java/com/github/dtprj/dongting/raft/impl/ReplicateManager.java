@@ -610,7 +610,9 @@ class InstallFrame extends AbstractRepFrame {
                 member.getNode().getNodeId(), groupId);
         this.snapshot = snapshot;
         this.nextPosAfterInstallFinish = nextPos;
-        return installSnapshot();
+        // send the first request, no data
+        sendInstallSnapshotReq(member, null);
+        return repCondition.await(v -> installSnapshot());
     }
 
     private FrameCallResult installSnapshot() {
@@ -647,7 +649,15 @@ class InstallFrame extends AbstractRepFrame {
         req.lastIncludedIndex = snapshot.getLastIncludedIndex();
         req.lastIncludedTerm = snapshot.getLastIncludedTerm();
         req.offset = snapshotOffset;
+
+        if (req.offset == 0 && data == null) {
+            req.members = raftStatus.getNodeIdOfMembers();
+            req.observers = raftStatus.getNodeIdOfObservers();
+            req.preparedMembers = raftStatus.getNodeIdOfPreparedMembers();
+            req.preparedObservers = raftStatus.getNodeIdOfPreparedObservers();
+        }
         req.nextWritePos = nextPosAfterInstallFinish;
+
         req.data = data;
         req.done = data == null || data.getBuffer() == null || !data.getBuffer().hasRemaining();
 
@@ -662,9 +672,8 @@ class InstallFrame extends AbstractRepFrame {
                 member.getNode().getPeer(), wf, APPEND_RESP_DECODER, timeout);
         int bytes = data == null ? 0 : data.getBuffer().remaining();
         snapshotOffset += bytes;
-        future.whenCompleteAsync((rf, ex) -> afterInstallRpc(
-                        rf, ex, req.offset, bytes, req.done, req.lastIncludedIndex),
-                getFiberGroup().getExecutor());
+        future.whenCompleteAsync((rf, ex) -> afterInstallRpc(rf, ex, req.offset, bytes,
+                        req.done, req.lastIncludedIndex), getFiberGroup().getExecutor());
     }
 
     void afterInstallRpc(ReadFrame<AppendRespCallback> rf, Throwable ex, long reqOffset,
