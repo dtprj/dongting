@@ -84,6 +84,7 @@ message RequestVoteResp {
   uint32 vote_granted = 2;
 }
 
+// use AppendEntriesResp
 message InstallSnapshotReq {
   uint32 group_id = 1;
   uint32 term = 2;
@@ -100,11 +101,6 @@ message InstallSnapshotReq {
   string prepared_observers = 12;
 
   bytes data = 15;
-}
-
-message InstallSnapshotResp {
-  uint32 term = 1;
-  bool success = 2;
 }
 
 message TransferLeaderReq {

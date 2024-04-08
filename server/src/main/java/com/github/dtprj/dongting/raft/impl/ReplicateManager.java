@@ -35,7 +35,6 @@ import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.AppendReqWriteFrame;
 import com.github.dtprj.dongting.raft.rpc.AppendRespCallback;
 import com.github.dtprj.dongting.raft.rpc.InstallSnapshotReq;
-import com.github.dtprj.dongting.raft.rpc.InstallSnapshotResp;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
@@ -134,6 +133,8 @@ abstract class AbstractRepFrame extends FiberFrame<Void> {
     protected final int groupId;
     protected final RaftMember member;
 
+    protected static final PbNoCopyDecoder<AppendRespCallback> APPEND_RESP_DECODER =
+            new PbNoCopyDecoder<>(c -> new AppendRespCallback());
 
     public AbstractRepFrame(ReplicateManager replicateManager, RaftMember member) {
         this.groupId = replicateManager.groupId;
@@ -200,9 +201,6 @@ class RepFrame extends AbstractRepFrame {
     private boolean multiAppend;
 
     private RaftLog.LogIterator replicateIterator;
-
-    private static final PbNoCopyDecoder<AppendRespCallback> APPEND_RESP_DECODER =
-            new PbNoCopyDecoder<>(c -> new AppendRespCallback());
 
     public RepFrame(ReplicateManager replicateManager, CommitManager commitManager, RaftMember member) {
         super(replicateManager, member);
@@ -560,9 +558,6 @@ class InstallFrame extends AbstractRepFrame {
 
     long pendingBytes;
 
-    private static final PbNoCopyDecoder<InstallSnapshotResp> INSTALL_SNAPSHOT_RESP_DECODER =
-            new PbNoCopyDecoder<>(c -> new InstallSnapshotResp.Callback());
-
     public InstallFrame(ReplicateManager replicateManager, RaftMember member) {
         super(replicateManager, member);
         this.stateMachine = replicateManager.stateMachine;
@@ -663,8 +658,8 @@ class InstallFrame extends AbstractRepFrame {
         InstallSnapshotReq.InstallReqWriteFrame wf = new InstallSnapshotReq.InstallReqWriteFrame(req);
         wf.setCommand(Commands.RAFT_INSTALL_SNAPSHOT);
         DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        CompletableFuture<ReadFrame<InstallSnapshotResp>> future = client.sendRequest(
-                member.getNode().getPeer(), wf, INSTALL_SNAPSHOT_RESP_DECODER, timeout);
+        CompletableFuture<ReadFrame<AppendRespCallback>> future = client.sendRequest(
+                member.getNode().getPeer(), wf, APPEND_RESP_DECODER, timeout);
         int bytes = data == null ? 0 : data.getBuffer().remaining();
         snapshotOffset += bytes;
         future.whenCompleteAsync((rf, ex) -> afterInstallRpc(
@@ -672,7 +667,7 @@ class InstallFrame extends AbstractRepFrame {
                 getFiberGroup().getExecutor());
     }
 
-    void afterInstallRpc(ReadFrame<InstallSnapshotResp> rf, Throwable ex, long reqOffset,
+    void afterInstallRpc(ReadFrame<AppendRespCallback> rf, Throwable ex, long reqOffset,
                          int reqBytes, boolean reqDone, long reqLastIncludedIndex) {
         try {
             if (epochChange()) {
@@ -685,14 +680,14 @@ class InstallFrame extends AbstractRepFrame {
                 incrementEpoch();
                 return;
             }
-            InstallSnapshotResp respBody = rf.getBody();
-            if (!respBody.success) {
+            AppendRespCallback respBody = rf.getBody();
+            if (!respBody.isSuccess()) {
                 log.error("install snapshot fail. remoteNode={}, groupId={}",
                         member.getNode().getNodeId(), groupId);
                 incrementEpoch();
                 return;
             }
-            if (replicateManager.checkTermFailed(respBody.term)) {
+            if (replicateManager.checkTermFailed(respBody.getTerm())) {
                 return;
             }
             log.info("transfer snapshot data to member. nodeId={}, groupId={}, offset={}", member.getNode().getNodeId(), groupId, reqOffset);
