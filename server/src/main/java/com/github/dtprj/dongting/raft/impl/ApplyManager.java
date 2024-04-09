@@ -218,6 +218,9 @@ public class ApplyManager {
             if (isGroupShouldStopPlain()) {
                 return Fiber.frameReturn();
             }
+            if (raftStatus.isInstallSnapshot()) {
+                return Fiber.sleepUntilShouldStop(10, this);
+            }
             long diff = raftStatus.getCommitIndex() - raftStatus.getLastApplied();
             if (diff == 0) {
                 return condition.await(this);
