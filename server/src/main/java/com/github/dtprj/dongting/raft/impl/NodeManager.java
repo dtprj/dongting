@@ -227,7 +227,7 @@ public class NodeManager extends AbstractLifeCircle {
     }
 
     public FiberFuture<Void> checkLeaderPrepare(Set<Integer> memberIds, Set<Integer> observerIds) {
-        return runInScheduleThread(()-> {
+        return runInScheduleThread(() -> {
             checkNodeIdSet(memberIds);
             checkNodeIdSet(observerIds);
             return null;
@@ -266,10 +266,10 @@ public class NodeManager extends AbstractLifeCircle {
         return runInScheduleThread(() -> {
             List<RaftNodeEx> newMemberNodes = checkNodeIdSet(newMembers);
             List<RaftNodeEx> newObserverNodes = checkNodeIdSet(newObservers);
-            processUseCount(oldPrepareMembers, -1);
-            processUseCount(oldPrepareObservers, -1);
             processUseCount(newMembers, 1);
             processUseCount(newObservers, 1);
+            processUseCount(oldPrepareMembers, -1);
+            processUseCount(oldPrepareObservers, -1);
             return new Pair<>(newMemberNodes, newObserverNodes);
         });
     }
@@ -295,7 +295,7 @@ public class NodeManager extends AbstractLifeCircle {
             if (nodeEx != null) {
                 nodeEx.setUseCount(nodeEx.getUseCount() + delta);
             } else {
-                log.error("node not exist: nodeId={}", nodeId);
+                throw new RaftException("node not exist: nodeId=" + nodeId);
             }
         }
     }
