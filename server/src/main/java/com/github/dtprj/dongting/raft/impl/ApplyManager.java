@@ -246,17 +246,16 @@ public class ApplyManager {
                 if (logIterator == null) {
                     logIterator = raftLog.openIterator(null);
                 }
-                int stateMachineEpoch = raftStatus.getStateMachineEpoch();
                 FiberFrame<List<LogItem>> ff = logIterator.next(index, limit, 16 * 1024 * 1024);
-                return Fiber.call(ff, items -> afterLoad(items, stateMachineEpoch));
+                return Fiber.call(ff, this::afterLoad);
             } else {
                 closeIterator();
                 return exec(rt, index, this);
             }
         }
 
-        private FrameCallResult afterLoad(List<LogItem> items, int stateMachineEpoch) {
-            ExecLoadResultFrame ff = new ExecLoadResultFrame(items, stateMachineEpoch);
+        private FrameCallResult afterLoad(List<LogItem> items) {
+            ExecLoadResultFrame ff = new ExecLoadResultFrame(items);
             return Fiber.call(ff, this);
         }
 
@@ -271,12 +270,10 @@ public class ApplyManager {
     private class ExecLoadResultFrame extends FiberFrame<Void> {
 
         private final List<LogItem> items;
-        private final int stateMachineEpoch;
         private int listIndex;
 
-        public ExecLoadResultFrame(List<LogItem> items, int stateMachineEpoch) {
+        public ExecLoadResultFrame(List<LogItem> items) {
             this.items = items;
-            this.stateMachineEpoch = stateMachineEpoch;
         }
 
         @Override
@@ -287,8 +284,8 @@ public class ApplyManager {
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (stateMachineEpoch != raftStatus.getStateMachineEpoch()) {
-                log.warn("stateMachineEpoch changed, ignore load result");
+            if (raftStatus.isInstallSnapshot()) {
+                log.warn("install snapshot, ignore load result");
                 return Fiber.frameReturn();
             }
             if (items == null || items.isEmpty()) {

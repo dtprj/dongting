@@ -460,7 +460,6 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
             return RaftUtil.waitWriteFinish(raftStatus, this);
         }
         raftStatus.setInstallSnapshot(true);
-        raftStatus.setStateMachineEpoch(raftStatus.getStateMachineEpoch() + 1);
         return Fiber.call(gc.getRaftLog().beginInstall(), this::success);
     }
 
