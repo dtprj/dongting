@@ -202,6 +202,14 @@ public class ApplyManager {
         protected FrameCallResult handle(Throwable ex) {
             log.error("apply failed", ex);
             if (!isGroupShouldStopPlain()) {
+                return Fiber.sleepUntilShouldStop(1000, this::restartApplyFiber);
+            } else {
+                return Fiber.frameReturn();
+            }
+        }
+
+        private FrameCallResult restartApplyFiber(Void unused) {
+            if (!isGroupShouldStopPlain()) {
                 startApplyFiber(getFiberGroup());
             }
             return Fiber.frameReturn();
@@ -319,13 +327,7 @@ public class ApplyManager {
             this.rt = rt;
         }
 
-        @Override
-        protected FrameCallResult handle(Throwable ex) {
-            if (rt.getFuture() != null) {
-                rt.getFuture().completeExceptionally(ex);
-            }
-            throw Fiber.fatal(new RaftException("exec write failed.", ex));
-        }
+        // no error handler, use ApplyFrame process ex and retry
 
         @Override
         public FrameCallResult execute(Void input) {
