@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.sm;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 
@@ -40,6 +39,6 @@ public interface StateMachine extends AutoCloseable, RaftCodecFactory {
     /**
      * this method is called in raft thread.
      */
-    FiberFrame<Snapshot> takeSnapshot(int currentTerm);
+    Snapshot takeSnapshot();
 
 }

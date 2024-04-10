@@ -586,11 +586,7 @@ class InstallFrame extends AbstractRepFrame {
 
     @Override
     public FrameCallResult execute(Void input) throws Throwable {
-        return Fiber.call(stateMachine.takeSnapshot(raftStatus.getCurrentTerm()), this::afterTakeSnapshot);
-    }
-
-    private FrameCallResult afterTakeSnapshot(Snapshot snapshot) {
-        this.snapshot = snapshot;
+        this.snapshot = stateMachine.takeSnapshot();
         if (shouldStopReplicate()) {
             return Fiber.frameReturn();
         }

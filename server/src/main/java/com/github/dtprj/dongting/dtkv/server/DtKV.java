@@ -21,7 +21,6 @@ import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.StrEncoder;
-import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -150,14 +149,14 @@ public class DtKV implements StateMachine {
     }
 
     @Override
-    public FiberFrame<Snapshot> takeSnapshot(int currentTerm) {
+    public Snapshot takeSnapshot() {
         KvStatus kvStatus = this.kvStatus;
         ensureRunning(kvStatus);
         KvSnapshot snapshot = new KvSnapshot(raftStatus.getLastApplied(), raftStatus.getCurrentTerm(), () -> kvStatus,
                 kvStatus, groupConfig.getHeapPool(), this::closeSnapshot);
         openSnapshots.add(snapshot);
         updateMin();
-        return FiberFrame.completedFrame(snapshot);
+        return snapshot;
     }
 
     private void closeSnapshot(Snapshot snapshot) {

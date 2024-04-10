@@ -220,18 +220,12 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         @Override
-        public FrameCallResult execute(Void input) {
+        public FrameCallResult execute(Void input) throws Exception {
             if (checkCancel()) {
                 return Fiber.frameReturn();
             }
-            return Fiber.call(stateMachine.takeSnapshot(raftStatus.getCurrentTerm()), this::afterTakeSnapshot);
-        }
+            readSnapshot = stateMachine.takeSnapshot();
 
-        private FrameCallResult afterTakeSnapshot(Snapshot snapshot) throws Exception {
-            readSnapshot = snapshot;
-            if (checkCancel()) {
-                return Fiber.frameReturn();
-            }
             SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
             String baseName = sdf.format(new Date()) + "_" + readSnapshot.getId();
             File dataFile = new File(snapshotDir, baseName + DATA_SUFFIX);
