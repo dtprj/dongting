@@ -26,9 +26,9 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
-import com.github.dtprj.dongting.raft.server.RaftStatus;
 import com.github.dtprj.dongting.raft.store.AsyncIoTask;
 import com.github.dtprj.dongting.raft.store.DtFile;
 import com.github.dtprj.dongting.raft.store.ForceFrame;
@@ -61,19 +61,19 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
     private final RaftGroupConfigEx groupConfig;
     private final ExecutorService ioExecutor;
-    private final RaftStatus raftStatus;
+    private final RaftStatusImpl raftStatus;
 
     private File snapshotDir;
 
     private File lastIdxFile;
     private File lastDataFile;
 
-    private SnapshotSaveTask currentSaveTask;
+    private SaveFrame currentSaveTask;
 
     public DefaultSnapshotManager(RaftGroupConfigEx groupConfig, ExecutorService ioExecutor) {
         this.groupConfig = groupConfig;
         this.ioExecutor = ioExecutor;
-        this.raftStatus = groupConfig.getRaftStatus();
+        this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
     }
 
     @Override
@@ -163,15 +163,17 @@ public class DefaultSnapshotManager implements SnapshotManager {
             result.complete(-1L);
             return;
         }
-        currentSaveTask = new SnapshotSaveTask(stateMachine, result);
+        currentSaveTask = new SaveFrame(stateMachine, result);
         Fiber f = new Fiber("saveSnapshot", FiberGroup.currentGroup(), currentSaveTask);
         f.start();
     }
 
-    private class SnapshotSaveTask extends FiberFrame<Void> {
+    private class SaveFrame extends FiberFrame<Void> {
         private final StateMachine stateMachine;
         private final CompletableFuture<Long> result;
+
         private final long startTime = System.currentTimeMillis();
+
         private final CompletableFuture<Long> future = new CompletableFuture<>();
         private final CRC32C crc32c = new CRC32C();
         private final ByteBuffer headerBuffer = ByteBuffer.allocate(8);
@@ -186,7 +188,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
         private long currentWritePos;
 
-        public SnapshotSaveTask(StateMachine stateMachine, CompletableFuture<Long> result) {
+        public SaveFrame(StateMachine stateMachine, CompletableFuture<Long> result) {
             this.stateMachine = stateMachine;
             this.result = result;
         }
@@ -219,11 +221,17 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
         @Override
         public FrameCallResult execute(Void input) {
+            if (checkCancel()) {
+                return Fiber.frameReturn();
+            }
             return Fiber.call(stateMachine.takeSnapshot(raftStatus.getCurrentTerm()), this::afterTakeSnapshot);
         }
 
         private FrameCallResult afterTakeSnapshot(Snapshot snapshot) throws Exception {
             readSnapshot = snapshot;
+            if (checkCancel()) {
+                return Fiber.frameReturn();
+            }
             SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
             String baseName = sdf.format(new Date()) + "_" + readSnapshot.getId();
             File dataFile = new File(snapshotDir, baseName + DATA_SUFFIX);
@@ -246,6 +254,10 @@ public class DefaultSnapshotManager implements SnapshotManager {
             if (isGroupShouldStopPlain()) {
                 log.info("snapshot save task is cancelled");
                 future.cancel(false);
+                return true;
+            }
+            if (raftStatus.isInstallSnapshot()) {
+                log.warn("install snapshot, cancel save snapshot task");
                 return true;
             }
             return false;
