@@ -633,7 +633,9 @@ class InstallFrame extends AbstractRepFrame {
 
     private FrameCallResult afterSnapshotRead(RefBuffer rb) {
         if (shouldStopReplicate()) {
-            rb.release();
+            if (rb != null) {
+                rb.release();
+            }
             return Fiber.frameReturn();
         }
         // rb release in InstallReqWriteFrame.doClean()
