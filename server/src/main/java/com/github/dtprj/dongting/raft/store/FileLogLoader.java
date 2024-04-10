@@ -314,7 +314,7 @@ class FileLogLoader implements RaftLog.LogIterator {
             if (dataLen - currentReadBytes > 0 && buf.remaining() > 0) {
                 int oldPos = buf.position();
                 if (currentDecoder == null) {
-                    if (header.bizType == LogItem.TYPE_NORMAL) {
+                    if (header.type == LogItem.TYPE_NORMAL) {
                         currentDecoder = isHeader ? codecFactory.createHeaderDecoder(header.bizType)
                                 : codecFactory.createBodyDecoder(header.bizType);
                     } else {
