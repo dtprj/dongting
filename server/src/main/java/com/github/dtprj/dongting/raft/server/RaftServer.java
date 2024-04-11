@@ -365,7 +365,7 @@ public class RaftServer extends AbstractLifeCircle {
                 if (ex != null) {
                     readyFuture.completeExceptionally(ex);
                 } else if (checkStartStatus()) {
-                    startServers();
+                    startNodePing();
                 }
             });
         } catch (Exception e) {
@@ -392,14 +392,14 @@ public class RaftServer extends AbstractLifeCircle {
         }
     }
 
-    private void startServers() {
+    private void startNodePing() {
         try {
             nodeManager.start();
-            nodeManager.readyFuture().whenComplete((v, ex) -> {
+            nodeManager.getNodePingReadyFuture().whenComplete((v, ex) -> {
                 if (ex != null) {
                     readyFuture.completeExceptionally(ex);
                 } else if (checkStartStatus()) {
-                    startGroups();
+                    startMemberPing();
                 }
             });
         } catch (Exception e) {
@@ -408,10 +408,10 @@ public class RaftServer extends AbstractLifeCircle {
         }
     }
 
-    private void startGroups() {
+    private void startMemberPing() {
         try {
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
-            raftGroups.forEach((groupId, g) -> futures.add(startRaftGroup(g)));
+            raftGroups.forEach((groupId, g) -> futures.add(startMemberPing(g)));
 
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).whenComplete((v, ex) -> {
                 if (ex != null) {
@@ -431,14 +431,14 @@ public class RaftServer extends AbstractLifeCircle {
         }
     }
 
-    private CompletableFuture<Void> startRaftGroup(RaftGroupImpl g) {
+    private CompletableFuture<Void> startMemberPing(RaftGroupImpl g) {
         CompletableFuture<Void> f = new CompletableFuture<>();
         try {
             GroupComponents gc = g.getGroupComponents();
             if (!gc.getFiberGroup().fireFiber(gc.getMemberManager().createRaftPingFiber())) {
                 throw new RaftException("fire raft ping fiber failed");
             }
-            gc.getMemberManager().getStartReadyFuture().whenComplete((v, ex) -> {
+            gc.getMemberManager().getPingReadyFuture().whenComplete((v, ex) -> {
                 if (ex != null) {
                     f.completeExceptionally(ex);
                 } else {
@@ -606,7 +606,7 @@ public class RaftServer extends AbstractLifeCircle {
                 raftGroups.put(groupConfig.getGroupId(), g);
                 initRaftGroup(g);
                 RaftStatusImpl raftStatus = g.getGroupComponents().getRaftStatus();
-                return raftStatus.getInitFuture().thenCompose(v -> startRaftGroup(g));
+                return raftStatus.getInitFuture().thenCompose(v -> startMemberPing(g));
             } catch (InterruptedException e) {
                 DtUtil.restoreInterruptStatus();
                 return CompletableFuture.failedFuture(e);

@@ -73,7 +73,7 @@ public class MemberManager {
     private ReplicateManager replicateManager;
     private NodeManager nodeManager;
 
-    private final CompletableFuture<Void> startReadyFuture;
+    private final CompletableFuture<Void> pingReadyFuture;
     private final int startReadyQuorum;
 
     private boolean configChangeInProgress = false;
@@ -87,11 +87,11 @@ public class MemberManager {
         this.groupId = raftStatus.getGroupId();
 
         if (raftStatus.getNodeIdOfMembers().isEmpty()) {
-            this.startReadyFuture = CompletableFuture.completedFuture(null);
+            this.pingReadyFuture = CompletableFuture.completedFuture(null);
             this.startReadyQuorum = 0;
         } else {
             this.startReadyQuorum = RaftUtil.getElectQuorum(raftStatus.getNodeIdOfMembers().size());
-            this.startReadyFuture = new CompletableFuture<>();
+            this.pingReadyFuture = new CompletableFuture<>();
         }
     }
 
@@ -282,11 +282,11 @@ public class MemberManager {
 
     public void setReady(RaftMember member, boolean ready) {
         member.setReady(ready);
-        if (ready && !startReadyFuture.isDone()) {
+        if (ready && !pingReadyFuture.isDone()) {
             int readyCount = getReadyCount(raftStatus.getMembers());
             if (readyCount >= startReadyQuorum) {
                 log.info("member manager is ready: groupId={}", groupId);
-                startReadyFuture.complete(null);
+                pingReadyFuture.complete(null);
             }
         }
     }
@@ -730,7 +730,7 @@ public class MemberManager {
         }
     }
 
-    public CompletableFuture<Void> getStartReadyFuture() {
-        return startReadyFuture;
+    public CompletableFuture<Void> getPingReadyFuture() {
+        return pingReadyFuture;
     }
 }

@@ -174,7 +174,7 @@ public class RaftGroupImpl extends RaftGroup {
     }
 
     private void checkStatus() {
-        CompletableFuture<Void> f = gc.getMemberManager().getStartReadyFuture();
+        CompletableFuture<Void> f = gc.getMemberManager().getPingReadyFuture();
         if (!f.isDone() || f.isCompletedExceptionally()) {
             throw new RaftException("not initialized");
         }

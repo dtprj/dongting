@@ -65,7 +65,7 @@ public class NodeManager extends AbstractLifeCircle {
 
     private int currentReadyNodes;
 
-    private final CompletableFuture<Void> startReadyFuture = new CompletableFuture<>();
+    private final CompletableFuture<Void> nodePingReadyFuture = new CompletableFuture<>();
     private final int startReadyQuorum;
 
     public NodeManager(RaftServerConfig config, List<RaftNode> allRaftNodes, NioClient client, int startReadyQuorum) {
@@ -188,9 +188,9 @@ public class NodeManager extends AbstractLifeCircle {
             currentReadyNodes--;
             nodeEx.setStatus(new NodeStatus(false, oldStatus.getEpoch()));
         }
-        if (currentReadyNodes >= startReadyQuorum && !startReadyFuture.isDone()) {
+        if (currentReadyNodes >= startReadyQuorum && !nodePingReadyFuture.isDone()) {
             log.info("nodeManager is ready");
-            startReadyFuture.complete(null);
+            nodePingReadyFuture.complete(null);
         }
     }
 
@@ -348,8 +348,8 @@ public class NodeManager extends AbstractLifeCircle {
         return f;
     }
 
-    public CompletableFuture<Void> readyFuture() {
-        return startReadyFuture;
+    public CompletableFuture<Void> getNodePingReadyFuture() {
+        return nodePingReadyFuture;
     }
 
     public UUID getUuid() {
