@@ -58,7 +58,7 @@ public abstract class AbstractRaftGroupProcessor<T> extends ReqProcessor<T> {
         RaftGroupImpl g = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
         ReqInfoEx<T> reqInfo = new ReqInfoEx<>(frame, channelContext, reqContext, g);
         if (body == null) {
-            invokeCleanReqInProcessorThread(reqInfo);
+            // no data need invoke clean
             EmptyBodyRespFrame errorResp = new EmptyBodyRespFrame(CmdCodes.CLIENT_ERROR);
             errorResp.setMsg("empty body");
             return errorResp;
@@ -97,5 +97,6 @@ public abstract class AbstractRaftGroupProcessor<T> extends ReqProcessor<T> {
 
     protected abstract WriteFrame doProcess(ReqInfo<T> reqInfo);
 
-    protected abstract void cleanReqInProcessorThread(ReqInfo<T> reqInfo);
+    protected void cleanReqInProcessorThread(ReqInfo<T> reqInfo){
+    }
 }

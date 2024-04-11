@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.server.RaftServer;
-import com.github.dtprj.dongting.raft.server.ReqInfo;
 
 /**
  * @author huangli
@@ -38,11 +37,6 @@ public class RaftPingProcessor extends RaftSequenceProcessor<RaftPingFrameCallba
     @Override
     protected int getGroupId(ReadFrame<RaftPingFrameCallback> frame) {
         return frame.getBody().groupId;
-    }
-
-    @Override
-    protected void cleanReqInProcessorThread(ReqInfo<RaftPingFrameCallback> reqInfo) {
-        // do nothing
     }
 
     @Override

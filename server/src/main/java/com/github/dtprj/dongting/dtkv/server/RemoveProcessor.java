@@ -79,11 +79,6 @@ public class RemoveProcessor extends AbstractRaftBizProcessor<RemoveReq> {
     }
 
     @Override
-    protected void cleanReqInProcessorThread(ReqInfo<RemoveReq> reqInfo) {
-        // do nothing
-    }
-
-    @Override
     protected WriteFrame doProcess(ReqInfo<RemoveReq> reqInfo) {
         RemoveReq req = reqInfo.getReqFrame().getBody();
         ReqContext reqContext = reqInfo.getReqContext();
