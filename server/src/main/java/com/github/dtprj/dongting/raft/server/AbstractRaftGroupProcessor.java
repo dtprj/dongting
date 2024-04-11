@@ -71,6 +71,12 @@ public abstract class AbstractRaftGroupProcessor<T> extends ReqProcessor<T> {
             return errorResp;
         }
         GroupComponents gc = g.getGroupComponents();
+        if (!gc.getRaftStatus().isInitialized()) {
+            invokeCleanReqInProcessorThread(reqInfo);
+            EmptyBodyRespFrame wf = new EmptyBodyRespFrame(CmdCodes.RAFT_GROUP_NOT_INIT);
+            wf.setMsg("raft group not initialized: " + groupId);
+            return wf;
+        }
         if (gc.getFiberGroup().isShouldStop()) {
             invokeCleanReqInProcessorThread(reqInfo);
             EmptyBodyRespFrame wf = new EmptyBodyRespFrame(CmdCodes.RAFT_GROUP_STOPPED);
@@ -97,6 +103,6 @@ public abstract class AbstractRaftGroupProcessor<T> extends ReqProcessor<T> {
 
     protected abstract WriteFrame doProcess(ReqInfo<T> reqInfo);
 
-    protected void cleanReqInProcessorThread(ReqInfo<T> reqInfo){
+    protected void cleanReqInProcessorThread(ReqInfo<T> reqInfo) {
     }
 }

@@ -82,10 +82,12 @@ public class RaftStatusImpl extends RaftStatus {
     private FiberCondition transferLeaderCondition;
 
     private final CompletableFuture<Void> initFuture = new CompletableFuture<>();
+    private volatile boolean initialized;
 
     public RaftStatusImpl(Timestamp ts) {
         this.ts = ts;
         lastElectTime = ts.getNanoTime() - Duration.ofDays(1).toNanos();
+        initFuture.thenRun(() -> this.initialized = true);
     }
 
     public void copyShareStatus() {
@@ -396,5 +398,9 @@ public class RaftStatusImpl extends RaftStatus {
 
     public CompletableFuture<Void> getInitFuture() {
         return initFuture;
+    }
+
+    public boolean isInitialized() {
+        return initialized;
     }
 }

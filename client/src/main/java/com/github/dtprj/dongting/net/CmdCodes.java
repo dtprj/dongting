@@ -29,4 +29,5 @@ public interface CmdCodes {
     int NOT_RAFT_LEADER = 7;
     int RAFT_GROUP_NOT_FOUND = 8;
     int RAFT_GROUP_STOPPED = 9;
+    int RAFT_GROUP_NOT_INIT = 10;
 }
