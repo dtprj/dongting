@@ -111,6 +111,17 @@ class FiberQueue {
         }
     }
 
+    boolean hasTask(FiberGroup g) {
+        FiberQueueTask task = head;
+        while (task != TAIL) {
+            if (task.ownerGroup == g) {
+                return true;
+            }
+            task = task.next;
+        }
+        return false;
+    }
+
     public void shutdown() {
         lock.lock();
         try {

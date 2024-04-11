@@ -235,11 +235,15 @@ public class FiberGroup {
             ReentrantLock lock = dispatcher.shareQueue.lock;
             lock.lock();
             try {
-                finished = true;
+                if (!dispatcher.shareQueue.hasTask(this)) {
+                    finished = true;
+                }
             } finally {
                 lock.unlock();
             }
-            shutdownFuture.complete(null);
+            if (finished) {
+                shutdownFuture.complete(null);
+            }
         }
     }
 
