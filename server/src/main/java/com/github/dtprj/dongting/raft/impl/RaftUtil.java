@@ -322,4 +322,27 @@ public class RaftUtil {
             return Fiber.resume(null, resumePoint);
         }
     }
+
+    public static String setToStr(Set<Integer> s) {
+        StringBuilder sb = new StringBuilder();
+        for (int id : s) {
+            sb.append(id).append(',');
+        }
+        if (sb.length() > 0) {
+            sb.setLength(sb.length() - 1);
+        }
+        return sb.toString();
+    }
+
+    public static Set<Integer> strToIdSet(String str) {
+        if (str == null || str.isEmpty()) {
+            return Set.of();
+        }
+        String[] arr = str.split(",");
+        Set<Integer> set = new HashSet<>();
+        for (String s : arr) {
+            set.add(Integer.parseInt(s));
+        }
+        return set;
+    }
 }

@@ -99,6 +99,7 @@ message InstallSnapshotReq {
   repeated fixed32 observers = 10[packed = false];
   repeated fixed32 prepared_members = 11[packed = false];
   repeated fixed32 prepared_observers = 12[packed = false];
+  fixed64 snapshot_size = 13;
 
   bytes data = 15;
 }

@@ -39,6 +39,7 @@ import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
+import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
@@ -586,15 +587,15 @@ class InstallFrame extends AbstractRepFrame {
 
     @Override
     public FrameCallResult execute(Void input) throws Throwable {
-        this.snapshot = stateMachine.takeSnapshot();
         if (shouldStopReplicate()) {
             return Fiber.frameReturn();
         }
+        this.snapshot = stateMachine.takeSnapshot(new SnapshotInfo(raftStatus));
         if (snapshot == null) {
             log.error("open recent snapshot fail, return null");
             return Fiber.frameReturn();
         }
-        FiberFrame<Long> f = raftLog.loadNextItemPos(snapshot.getLastIncludedIndex());
+        FiberFrame<Long> f = raftLog.loadNextItemPos(snapshot.getSnapshotInfo().getLastIncludedIndex());
         return Fiber.call(f, result -> afterLoadNextItemPos(result, snapshot));
     }
 
@@ -640,26 +641,28 @@ class InstallFrame extends AbstractRepFrame {
     }
 
     private void sendInstallSnapshotReq(RaftMember member, RefBuffer data) {
+        SnapshotInfo si = snapshot.getSnapshotInfo();
         InstallSnapshotReq req = new InstallSnapshotReq();
         req.groupId = groupId;
         req.term = raftStatus.getCurrentTerm();
         req.leaderId = serverConfig.getNodeId();
-        req.lastIncludedIndex = snapshot.getLastIncludedIndex();
-        req.lastIncludedTerm = snapshot.getLastIncludedTerm();
+        req.lastIncludedIndex = si.getLastIncludedIndex();
+        req.lastIncludedTerm = si.getLastIncludedTerm();
         req.offset = snapshotOffset;
 
         if (req.offset == 0 && data == null) {
-            req.members = raftStatus.getNodeIdOfMembers();
-            req.observers = raftStatus.getNodeIdOfObservers();
-            req.preparedMembers = raftStatus.getNodeIdOfPreparedMembers();
-            req.preparedObservers = raftStatus.getNodeIdOfPreparedObservers();
+            req.members = si.getMembers();
+            req.observers = si.getObservers();
+            req.preparedMembers = si.getPreparedMembers();
+            req.preparedObservers = si.getPreparedObservers();
+            req.lastConfigChangeIndex = si.getLastConfigChangeIndex();
         }
-        req.nextWritePos = nextPosAfterInstallFinish;
 
         req.data = data;
         req.done = data == null || data.getBuffer() == null || !data.getBuffer().hasRemaining();
 
         if (req.done) {
+            req.nextWritePos = nextPosAfterInstallFinish;
             readFinish = true;
         }
 

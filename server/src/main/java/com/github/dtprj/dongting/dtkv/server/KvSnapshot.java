@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
+import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -39,12 +40,12 @@ class KvSnapshot extends Snapshot {
     private final Iterator<Map.Entry<String, Value>> iterator;
     private final int epoch;
 
-    public KvSnapshot(long lastIncludedIndex, int lastIncludedTerm, Supplier<KvStatus> statusSupplier,
-                      KvStatus kvStatus, RefBufferFactory heapPool, Consumer<Snapshot> closeCallback) {
-        super(lastIncludedIndex, lastIncludedTerm);
+    public KvSnapshot(SnapshotInfo si, Supplier<KvStatus> statusSupplier, RefBufferFactory heapPool, Consumer<Snapshot> closeCallback) {
+        super(si);
         this.statusSupplier = statusSupplier;
         this.heapPool = heapPool;
         this.closeCallback = closeCallback;
+        KvStatus kvStatus = statusSupplier.get();
         this.iterator = kvStatus.kvImpl.getMap().entrySet().iterator();
         this.epoch = kvStatus.epoch;
     }
@@ -61,7 +62,7 @@ class KvSnapshot extends Snapshot {
         Map.Entry<String, Value> en;
         while ((en = iterator.next()) != null) {
             Value value = en.getValue();
-            while (value != null && value.getRaftIndex() > lastIncludedIndex) {
+            while (value != null && value.getRaftIndex() > getSnapshotInfo().getLastIncludedIndex()) {
                 value = value.getPrevious();
             }
             if (value == null) {

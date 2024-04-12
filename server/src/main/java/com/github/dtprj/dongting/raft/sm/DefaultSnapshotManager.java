@@ -42,6 +42,8 @@ import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.zip.CRC32C;
@@ -58,6 +60,11 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
     private static final String KEY_LAST_INDEX = "lastIncludedIndex";
     private static final String KEY_LAST_TERM = "lastIncludedTerm";
+    private static final String KEY_MEMBERS = "members";
+    private static final String KEY_OBSERVERS = "observers";
+    private static final String KEY_PREPARED_MEMBERS = "preparedMembers";
+    private static final String KEY_PREPARED_OBSERVERS = "preparedObservers";
+    private static final String KEY_LAST_CONFIG_CHANGE_INDEX = "lastConfigChangeIndex";
 
     private final RaftGroupConfigEx groupConfig;
     private final ExecutorService ioExecutor;
@@ -134,11 +141,18 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         private FrameCallResult afterStatusFileInit(Void unused) throws Exception {
-            String lastIndex = snapshotIdxFile.getProperties().getProperty(KEY_LAST_INDEX);
-            String lastTerm = snapshotIdxFile.getProperties().getProperty(KEY_LAST_TERM);
+            Properties p = snapshotIdxFile.getProperties();
+            long lastIndex = Long.parseLong(p.getProperty(KEY_LAST_INDEX));
+            int lastTerm = Integer.parseInt(p.getProperty(KEY_LAST_TERM));
+            Set<Integer> members = RaftUtil.strToIdSet(p.getProperty(KEY_MEMBERS));
+            Set<Integer> observers = RaftUtil.strToIdSet(p.getProperty(KEY_OBSERVERS));
+            Set<Integer> preparedMembers = RaftUtil.strToIdSet(p.getProperty(KEY_PREPARED_MEMBERS));
+            Set<Integer> preparedObservers = RaftUtil.strToIdSet(p.getProperty(KEY_PREPARED_OBSERVERS));
+            long lastConfigChangeIndex = Long.parseLong(p.getProperty(KEY_LAST_CONFIG_CHANGE_INDEX));
+            SnapshotInfo si = new SnapshotInfo(lastIndex, lastTerm, members, observers, preparedMembers,
+                    preparedObservers, lastConfigChangeIndex);
 
-            FileSnapshot s = new FileSnapshot(groupConfig, Long.parseLong(lastIndex),
-                    Integer.parseInt(lastTerm), lastDataFile, ioExecutor);
+            FileSnapshot s = new FileSnapshot(groupConfig, si, lastDataFile);
             log.info("open snapshot file {}", lastDataFile);
             setResult(s);
             return Fiber.frameReturn();
@@ -224,7 +238,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             if (checkCancel()) {
                 return Fiber.frameReturn();
             }
-            readSnapshot = stateMachine.takeSnapshot();
+            readSnapshot = stateMachine.takeSnapshot(new SnapshotInfo(raftStatus));
 
             SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
             String baseName = sdf.format(new Date()) + "_" + readSnapshot.getId();
@@ -322,8 +336,15 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
             statusFile = new StatusFile(newIdxFile, ioExecutor, getFiberGroup());
             statusFile.init();
-            statusFile.getProperties().setProperty(KEY_LAST_INDEX, String.valueOf(readSnapshot.getLastIncludedIndex()));
-            statusFile.getProperties().setProperty(KEY_LAST_TERM, String.valueOf(readSnapshot.getLastIncludedTerm()));
+            SnapshotInfo si = readSnapshot.getSnapshotInfo();
+            Properties p = statusFile.getProperties();
+            p.setProperty(KEY_LAST_INDEX, String.valueOf(si.getLastIncludedIndex()));
+            p.setProperty(KEY_LAST_TERM, String.valueOf(si.getLastIncludedTerm()));
+            p.setProperty(KEY_MEMBERS, RaftUtil.setToStr(si.getMembers()));
+            p.setProperty(KEY_OBSERVERS, RaftUtil.setToStr(si.getObservers()));
+            p.setProperty(KEY_PREPARED_MEMBERS, RaftUtil.setToStr(si.getPreparedMembers()));
+            p.setProperty(KEY_PREPARED_OBSERVERS, RaftUtil.setToStr(si.getPreparedObservers()));
+            p.setProperty(KEY_LAST_CONFIG_CHANGE_INDEX, String.valueOf(si.getLastConfigChangeIndex()));
 
             // just for human reading
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
@@ -336,7 +357,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         private FrameCallResult finish2(Void unused) {
             log.info("snapshot status file write success: {}", newIdxFile.getPath());
 
-            future.complete(readSnapshot.getLastIncludedIndex());
+            future.complete(readSnapshot.getSnapshotInfo().getLastIncludedIndex());
 
             File oldIdxFile = lastIdxFile;
             File oldDataFile = lastDataFile;

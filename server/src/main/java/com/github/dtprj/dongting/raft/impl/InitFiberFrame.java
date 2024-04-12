@@ -30,6 +30,7 @@ import com.github.dtprj.dongting.raft.rpc.RaftSequenceProcessor;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
+import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import com.github.dtprj.dongting.raft.sm.SnapshotManager;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
@@ -195,20 +196,22 @@ class RecoverStateMachineFiberFrame extends FiberFrame<Pair<Integer, Long>> {
         this.rb = rb;
         RaftUtil.checkStop(getFiberGroup());
         long count = rb == null ? 0 : rb.getBuffer() == null ? 0 : rb.getBuffer().remaining();
+        SnapshotInfo si = snapshot.getSnapshotInfo();
         if (count == 0) {
-            FiberFuture<Void> fu = stateMachine.installSnapshot(snapshot.getLastIncludedIndex(),
-                    snapshot.getLastIncludedTerm(), offset, true, rb);
+            FiberFuture<Void> fu = stateMachine.installSnapshot(si.getLastIncludedIndex(),
+                    si.getLastIncludedTerm(), offset, true, rb);
             return fu.await(this::finish);
         } else {
-            FiberFuture<Void> fu = stateMachine.installSnapshot(snapshot.getLastIncludedIndex(),
-                    snapshot.getLastIncludedTerm(), offset, false, rb);
+            FiberFuture<Void> fu = stateMachine.installSnapshot(si.getLastIncludedIndex(),
+                    si.getLastIncludedTerm(), offset, false, rb);
             offset += count;
             return fu.await(this::read);
         }
     }
 
     private FrameCallResult finish(Void v) {
-        setResult(new Pair<>(snapshot.getLastIncludedTerm(), snapshot.getLastIncludedIndex()));
+        SnapshotInfo si = snapshot.getSnapshotInfo();
+        setResult(new Pair<>(si.getLastIncludedTerm(), si.getLastIncludedIndex()));
         return Fiber.frameReturn();
     }
 

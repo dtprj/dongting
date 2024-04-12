@@ -32,7 +32,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
 import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
-import java.util.concurrent.ExecutorService;
 import java.util.zip.CRC32C;
 
 /**
@@ -50,9 +49,8 @@ public class FileSnapshot extends Snapshot {
 
     private long filePos;
 
-    public FileSnapshot(RaftGroupConfigEx groupConfig, long lastIncludedIndex, int lastIncludedTerm,
-                        File dataFile, ExecutorService ioExecutor) throws IOException {
-        super(lastIncludedIndex, lastIncludedTerm);
+    public FileSnapshot(RaftGroupConfigEx groupConfig, SnapshotInfo si, File dataFile) throws IOException {
+        super(si);
         this.fiberGroup = groupConfig.getFiberGroup();
         this.fileSize = dataFile.length();
         this.directRefBufferFactory = new RefBufferFactory(groupConfig.getDirectPool(), 0);

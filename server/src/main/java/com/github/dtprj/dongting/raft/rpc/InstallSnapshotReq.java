@@ -59,6 +59,7 @@ public class InstallSnapshotReq {
     public Set<Integer> observers;
     public Set<Integer> preparedMembers;
     public Set<Integer> preparedObservers;
+    public long lastConfigChangeIndex;
 
     public RefBuffer data;
 
@@ -103,6 +104,9 @@ public class InstallSnapshotReq {
                     break;
                 case 8:
                     result.nextWritePos = value;
+                    break;
+                case 13:
+                    result.lastConfigChangeIndex = value;
                     break;
             }
             return true;
@@ -176,6 +180,7 @@ public class InstallSnapshotReq {
             x += calcFix32SetSize(10, req.observers);
             x += calcFix32SetSize(11, req.preparedMembers);
             x += calcFix32SetSize(12, req.preparedObservers);
+            x += PbUtil.accurateFix64Size(13, req.lastConfigChangeIndex);
 
             if (req.data != null && req.data.getBuffer().hasRemaining()) {
                 this.bufferSize = req.data.getBuffer().remaining();
@@ -218,6 +223,7 @@ public class InstallSnapshotReq {
                     writeSet(dest, 10, req.observers);
                     writeSet(dest, 11, req.preparedMembers);
                     writeSet(dest, 12, req.preparedObservers);
+                    PbUtil.writeFix64(dest, 13, req.lastConfigChangeIndex);
                     if (bufferSize > 0) {
                         PbUtil.writeLengthDelimitedPrefix(dest, 15, bufferSize);
                     }

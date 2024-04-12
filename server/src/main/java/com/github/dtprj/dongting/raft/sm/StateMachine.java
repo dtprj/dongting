@@ -39,6 +39,6 @@ public interface StateMachine extends AutoCloseable, RaftCodecFactory {
     /**
      * this method is called in raft thread.
      */
-    Snapshot takeSnapshot();
+    Snapshot takeSnapshot(SnapshotInfo snapshotInfo);
 
 }

@@ -30,23 +30,16 @@ public abstract class Snapshot {
     private static final DtLog log = DtLogs.getLogger(Snapshot.class);
     private static final AtomicLong NEXT_ID = new AtomicLong();
     private final long id = NEXT_ID.incrementAndGet();
-    protected final long lastIncludedIndex;
-    protected final int lastIncludedTerm;
     private final AtomicBoolean closed = new AtomicBoolean();
+    private final SnapshotInfo snapshotInfo;
 
-    public Snapshot(long lastIncludedIndex, int lastIncludedTerm) {
-        this.lastIncludedTerm = lastIncludedTerm;
-        this.lastIncludedIndex = lastIncludedIndex;
+    public Snapshot(SnapshotInfo snapshotInfo) {
+        this.snapshotInfo = snapshotInfo;
     }
 
-    public long getLastIncludedIndex() {
-        return lastIncludedIndex;
+    public SnapshotInfo getSnapshotInfo() {
+        return snapshotInfo;
     }
-
-    public int getLastIncludedTerm() {
-        return lastIncludedTerm;
-    }
-
 
     public abstract FiberFuture<RefBuffer> readNext();
 

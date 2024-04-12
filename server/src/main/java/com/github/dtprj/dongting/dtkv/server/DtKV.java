@@ -26,8 +26,8 @@ import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
-import com.github.dtprj.dongting.raft.server.RaftStatus;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
+import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.nio.ByteBuffer;
@@ -44,7 +44,6 @@ public class DtKV implements StateMachine {
     public static final int BIZ_TYPE_REMOVE = 2;
 
     private final RaftGroupConfigEx groupConfig;
-    private final RaftStatus raftStatus;
     private final ByteBufferPool heapPool;
 
     private final ArrayList<Snapshot> openSnapshots = new ArrayList<>();
@@ -54,7 +53,6 @@ public class DtKV implements StateMachine {
 
     public DtKV(RaftGroupConfigEx groupConfig) {
         this.groupConfig = groupConfig;
-        this.raftStatus = groupConfig.getRaftStatus();
         this.heapPool = groupConfig.getHeapPool().getPool();
     }
 
@@ -149,11 +147,10 @@ public class DtKV implements StateMachine {
     }
 
     @Override
-    public Snapshot takeSnapshot() {
+    public Snapshot takeSnapshot(SnapshotInfo si) {
         KvStatus kvStatus = this.kvStatus;
         ensureRunning(kvStatus);
-        KvSnapshot snapshot = new KvSnapshot(raftStatus.getLastApplied(), raftStatus.getCurrentTerm(), () -> kvStatus,
-                kvStatus, groupConfig.getHeapPool(), this::closeSnapshot);
+        KvSnapshot snapshot = new KvSnapshot(si, () -> kvStatus, groupConfig.getHeapPool(), this::closeSnapshot);
         openSnapshots.add(snapshot);
         updateMin();
         return snapshot;
@@ -167,7 +164,8 @@ public class DtKV implements StateMachine {
     private void updateMin() {
         long min = 0;
         for (Snapshot s : openSnapshots) {
-            min = min == 0 ? s.getLastIncludedIndex() : Math.min(min, s.getLastIncludedIndex());
+            SnapshotInfo si = s.getSnapshotInfo();
+            min = min == 0 ? si.getLastIncludedIndex() : Math.min(min, si.getLastIncludedIndex());
         }
         this.minOpenSnapshotIndex = min;
     }
