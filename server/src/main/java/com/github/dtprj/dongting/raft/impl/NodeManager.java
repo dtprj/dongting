@@ -266,6 +266,9 @@ public class NodeManager extends AbstractLifeCircle {
         return runInScheduleThread(() -> {
             List<RaftNodeEx> newMemberNodes = checkNodeIdSet(newMembers);
             List<RaftNodeEx> newObserverNodes = checkNodeIdSet(newObservers);
+            checkNodeIdSet(oldPrepareMembers);
+            checkNodeIdSet(oldPrepareObservers);
+
             processUseCount(newMembers, 1);
             processUseCount(newObservers, 1);
             processUseCount(oldPrepareMembers, -1);
@@ -277,6 +280,7 @@ public class NodeManager extends AbstractLifeCircle {
     public FiberFuture<Void> doAbort(HashSet<Integer> ids) {
 
         return runInScheduleThread(() -> {
+            checkNodeIdSet(ids);
             processUseCount(ids, -1);
             return null;
         });
@@ -284,6 +288,7 @@ public class NodeManager extends AbstractLifeCircle {
 
     public FiberFuture<Void> doCommit(HashSet<Integer> ids) {
         return runInScheduleThread(() -> {
+            checkNodeIdSet(ids);
             processUseCount(ids, -1);
             return null;
         });
@@ -292,11 +297,7 @@ public class NodeManager extends AbstractLifeCircle {
     private void processUseCount(Collection<Integer> nodeIds, int delta) {
         for (int nodeId : nodeIds) {
             RaftNodeEx nodeEx = allNodesEx.get(nodeId);
-            if (nodeEx != null) {
-                nodeEx.setUseCount(nodeEx.getUseCount() + delta);
-            } else {
-                throw new RaftException("node not exist: nodeId=" + nodeId);
-            }
+            nodeEx.setUseCount(nodeEx.getUseCount() + delta);
         }
     }
 
