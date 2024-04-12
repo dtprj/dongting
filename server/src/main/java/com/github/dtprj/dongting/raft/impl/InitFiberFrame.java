@@ -197,14 +197,12 @@ class RecoverStateMachineFiberFrame extends FiberFrame<Pair<Integer, Long>> {
         RaftUtil.checkStop(getFiberGroup());
         long count = rb == null ? 0 : rb.getBuffer() == null ? 0 : rb.getBuffer().remaining();
         SnapshotInfo si = snapshot.getSnapshotInfo();
+        FiberFuture<Void> fu = stateMachine.installSnapshot(si.getLastIncludedIndex(),
+                si.getLastIncludedTerm(), offset, count == 0, rb);
+        offset += count;
         if (count == 0) {
-            FiberFuture<Void> fu = stateMachine.installSnapshot(si.getLastIncludedIndex(),
-                    si.getLastIncludedTerm(), offset, true, rb);
             return fu.await(this::finish);
         } else {
-            FiberFuture<Void> fu = stateMachine.installSnapshot(si.getLastIncludedIndex(),
-                    si.getLastIncludedTerm(), offset, false, rb);
-            offset += count;
             return fu.await(this::read);
         }
     }
