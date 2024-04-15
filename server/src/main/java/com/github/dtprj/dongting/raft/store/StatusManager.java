@@ -28,8 +28,8 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
+import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
-import com.github.dtprj.dongting.raft.server.RaftStatus;
 
 import java.io.File;
 import java.util.Properties;
@@ -43,9 +43,10 @@ public class StatusManager {
     static final String CURRENT_TERM_KEY = "currentTerm";
     static final String VOTED_FOR_KEY = "votedFor";
     static final String COMMIT_INDEX_KEY = "commitIndex";
+    static final String KEY_INSTALL_SNAPSHOT = "installSnapshot";
 
     private final RaftGroupConfigEx groupConfig;
-    private final RaftStatus raftStatus;
+    private final RaftStatusImpl raftStatus;
     private final StatusFile statusFile;
 
     private boolean closed;
@@ -60,7 +61,7 @@ public class StatusManager {
 
     public StatusManager(RaftGroupConfigEx groupConfig) {
         this.groupConfig = groupConfig;
-        this.raftStatus = groupConfig.getRaftStatus();
+        this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
         File dir = FileUtil.ensureDir(groupConfig.getDataDir());
         File file = new File(dir, groupConfig.getStatusFile());
         FiberGroup fg = groupConfig.getFiberGroup();
@@ -80,6 +81,8 @@ public class StatusManager {
                 raftStatus.setCurrentTerm(Integer.parseInt(loadedProps.getProperty(CURRENT_TERM_KEY, "0")));
                 raftStatus.setVotedFor(Integer.parseInt(loadedProps.getProperty(VOTED_FOR_KEY, "0")));
                 raftStatus.setCommitIndex(Integer.parseInt(loadedProps.getProperty(COMMIT_INDEX_KEY, "0")));
+                raftStatus.setInstallSnapshot(Boolean.parseBoolean(loadedProps.getProperty(
+                        KEY_INSTALL_SNAPSHOT, "false")));
 
                 updateFiber.start();
                 return Fiber.frameReturn();
@@ -159,6 +162,7 @@ public class StatusManager {
             destProps.setProperty(CURRENT_TERM_KEY, String.valueOf(raftStatus.getCurrentTerm()));
             destProps.setProperty(VOTED_FOR_KEY, String.valueOf(raftStatus.getVotedFor()));
             destProps.setProperty(COMMIT_INDEX_KEY, String.valueOf(raftStatus.getCommitIndex()));
+            destProps.setProperty(KEY_INSTALL_SNAPSHOT, String.valueOf(raftStatus.isInstallSnapshot()));
         }
     }
 

@@ -357,13 +357,9 @@ abstract class FileQueue {
     }
 
     public FiberFrame<Void> beginInstall() {
-        return new FiberFrame<>() {
+        return new DoInLockFrame<>(allocateLock) {
             @Override
-            public FrameCallResult execute(Void input) {
-                return allocateLock.lock(this::afterGetAllocLock);
-            }
-
-            private FrameCallResult afterGetAllocLock(Void unused) {
+            protected FrameCallResult afterGetLock() {
                 return Fiber.call(deleteByPredicate(logFile -> true), this::justReturn);
             }
         };

@@ -89,7 +89,12 @@ public class InitFiberFrame extends FiberFrame<Void> {
     }
 
     private FrameCallResult afterInitStatusFile(Void unused) {
-        return Fiber.call(new RecoverStateMachineFiberFrame(gc), this::afterRecoverStateMachine);
+        if (raftStatus.isInstallSnapshot()) {
+            log.info("install snapshot, skip recover, groupId={}", groupConfig.getGroupId());
+            return initRaftFibers();
+        } else {
+            return Fiber.call(new RecoverStateMachineFiberFrame(gc), this::afterRecoverStateMachine);
+        }
     }
 
     private FrameCallResult afterRecoverStateMachine(Pair<Integer, Long> snapshotResult) {
@@ -135,6 +140,10 @@ public class InitFiberFrame extends FiberFrame<Void> {
         log.info("raft group log init complete, maxTerm={}, maxIndex={}, groupId={}",
                 initResult.getLeft(), initResult.getRight(), groupConfig.getGroupId());
 
+        return initRaftFibers();
+    }
+
+    private FrameCallResult initRaftFibers() {
         gc.getCommitManager().startCommitFiber();
         gc.getVoteManager().startFiber();
         gc.getApplyManager().init(getFiberGroup());

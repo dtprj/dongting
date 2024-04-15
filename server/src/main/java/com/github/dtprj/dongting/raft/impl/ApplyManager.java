@@ -81,6 +81,10 @@ public class ApplyManager {
             log.info("apply manager init complete");
             raftStatus.getInitFuture().complete(null);
             this.initFutureComplete = true;
+        } else if (raftStatus.isInstallSnapshot()) {
+            log.info("install snapshot, apply manager init complete");
+            raftStatus.getInitFuture().complete(null);
+            this.initFutureComplete = true;
         }
     }
 

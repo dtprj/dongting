@@ -44,7 +44,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     static final String KEY_PERSIST_IDX_INDEX = "persistIdxIndex";
     static final String KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT = "nextIdxAfterInstallSnapshot";
     static final String KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT = "nextPosAfterInstallSnapshot";
-    static final String KEY_INSTALL_SNAPSHOT = "installSnapshot";
 
     public static final int DEFAULT_ITEMS_PER_FILE = 1024 * 1024;
     public static final int DEFAULT_MAX_CACHE_ITEMS = 16 * 1024;
@@ -97,12 +96,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 .getProperty(KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, "0"));
         long restoreIndex = Long.parseLong(statusManager.getProperties()
                 .getProperty(KEY_PERSIST_IDX_INDEX, "0"));
-        boolean installSnapshot = Boolean.parseBoolean(statusManager.getProperties()
-                .getProperty(KEY_INSTALL_SNAPSHOT, "false"));
-        if (installSnapshot) {
-            log.warn("install snapshot not finished");
-            return FiberFrame.completedFrame(null);
-        }
 
         log.info("load raft status file. firstIndex={}, {}={}, {}={}", firstIndex, KEY_PERSIST_IDX_INDEX, restoreIndex,
                 KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, firstValidIndex);

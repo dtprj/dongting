@@ -32,7 +32,8 @@ import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 import java.io.File;
 import java.util.function.Supplier;
 
-import static com.github.dtprj.dongting.raft.store.IdxFileQueue.*;
+import static com.github.dtprj.dongting.raft.store.IdxFileQueue.KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT;
+import static com.github.dtprj.dongting.raft.store.IdxFileQueue.KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT;
 
 /**
  * @author huangli
@@ -90,22 +91,12 @@ public class DefaultRaftLog implements RaftLog {
 
             private FrameCallResult afterIdxFileQueueInit(Pair<Long, Long> p) {
                 RaftUtil.checkStop(fiberGroup);
-                if (p == null) {
-                    raftStatus.setInstallSnapshot(true);
-                    return Fiber.call(beginInstall(), this::afterBeginInstall);
-                } else {
-                    long restoreIndex = p.getLeft();
-                    long restoreStartPos = p.getRight();
-                    long firstValidPos = Long.parseLong(statusManager.getProperties()
-                            .getProperty(KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT, "0"));
-                    return Fiber.call(logFiles.restore(restoreIndex, restoreStartPos, firstValidPos),
-                            this::afterLogRestore);
-                }
-            }
-
-            private FrameCallResult afterBeginInstall(Void unused) {
-                setResult(new Pair<>(0, 0L));
-                return Fiber.frameReturn();
+                long restoreIndex = p.getLeft();
+                long restoreStartPos = p.getRight();
+                long firstValidPos = Long.parseLong(statusManager.getProperties()
+                        .getProperty(KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT, "0"));
+                return Fiber.call(logFiles.restore(restoreIndex, restoreStartPos, firstValidPos),
+                        this::afterLogRestore);
             }
 
             private FrameCallResult afterLogRestore(int lastTerm) {
@@ -172,7 +163,7 @@ public class DefaultRaftLog implements RaftLog {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                statusManager.getProperties().setProperty(KEY_INSTALL_SNAPSHOT, "true");
+                raftStatus.setInstallSnapshot(true);
                 statusManager.persistAsync(true);
                 return statusManager.waitForce(this::afterPersist);
             }
@@ -217,7 +208,6 @@ public class DefaultRaftLog implements RaftLog {
             }
 
             private FrameCallResult afterIdxFinishInstall(Void unused) {
-                statusManager.getProperties().remove(KEY_INSTALL_SNAPSHOT);
                 statusManager.getProperties().setProperty(KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, String.valueOf(nextLogIndex));
                 statusManager.getProperties().setProperty(KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT, String.valueOf(nextLogPos));
                 statusManager.persistAsync(true);
