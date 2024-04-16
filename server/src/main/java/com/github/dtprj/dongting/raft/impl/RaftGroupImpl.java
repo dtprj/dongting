@@ -187,6 +187,9 @@ public class RaftGroupImpl extends RaftGroup {
     public CompletableFuture<Long> leaderPrepareJointConsensus(Set<Integer> members, Set<Integer> observers) {
         Objects.requireNonNull(members);
         Objects.requireNonNull(observers);
+        if (members.isEmpty()) {
+            throw new RaftException("members are empty");
+        }
         checkStatus();
         for (int nodeId : members) {
             if (observers.contains(nodeId)) {
