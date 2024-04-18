@@ -156,6 +156,7 @@ class RecoverStateMachineFiberFrame extends FiberFrame<Pair<Integer, Long>> {
 
     private final SnapshotManager snapshotManager;
     private final StateMachine stateMachine;
+    private final GroupComponents gc;
 
     private Snapshot snapshot;
     private long offset;
@@ -164,6 +165,7 @@ class RecoverStateMachineFiberFrame extends FiberFrame<Pair<Integer, Long>> {
     public RecoverStateMachineFiberFrame(GroupComponents gc) {
         this.snapshotManager = gc.getSnapshotManager();
         this.stateMachine = gc.getStateMachine();
+        this.gc = gc;
     }
 
     @Override
@@ -191,7 +193,13 @@ class RecoverStateMachineFiberFrame extends FiberFrame<Pair<Integer, Long>> {
         }
         this.snapshot = snapshot;
 
-        return read(null);
+        SnapshotInfo si = snapshot.getSnapshotInfo();
+        gc.getRaftStatus().setLastConfigChangeIndex(si.getLastConfigChangeIndex());
+
+        FiberFrame<Void> f = gc.getMemberManager().applyConfigFrame(
+                "state machine recover apply config change",
+                si.getMembers(), si.getObservers(), si.getPreparedMembers(), si.getPreparedObservers());
+        return Fiber.call(f, this::read);
     }
 
     private FrameCallResult read(Void v) {

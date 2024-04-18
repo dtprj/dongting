@@ -533,8 +533,9 @@ public class MemberManager {
     }
 
     public FrameCallResult doPrepare(Set<Integer> newMemberIds, Set<Integer> newObserverIds) {
-        return doApplyConfig("prepare config change", raftStatus.getNodeIdOfMembers(),
+        ApplyConfigFrame f = new ApplyConfigFrame("prepare config change", raftStatus.getNodeIdOfMembers(),
                 raftStatus.getNodeIdOfObservers(), newMemberIds, newObserverIds);
+        return Fiber.call(f, v -> Fiber.frameReturn());
     }
 
     public FrameCallResult doAbort() {
@@ -543,8 +544,9 @@ public class MemberManager {
             log.info("no pending config change, ignore abort, groupId={}", raftStatus.getGroupId());
             return Fiber.frameReturn();
         }
-        return doApplyConfig("abort config change", raftStatus.getNodeIdOfMembers(),
+        ApplyConfigFrame f = new ApplyConfigFrame("abort config change", raftStatus.getNodeIdOfMembers(),
                 raftStatus.getNodeIdOfObservers(), emptySet(), emptySet());
+        return Fiber.call(f, v -> Fiber.frameReturn());
     }
 
     public FrameCallResult doCommit() {
@@ -552,28 +554,84 @@ public class MemberManager {
             log.warn("no prepared config change, ignore commit, groupId={}", raftStatus.getGroupId());
             return Fiber.frameReturn();
         }
-        return doApplyConfig("commit config change", raftStatus.getNodeIdOfPreparedMembers(),
+        ApplyConfigFrame f = new ApplyConfigFrame("commit config change", raftStatus.getNodeIdOfPreparedMembers(),
                 raftStatus.getNodeIdOfPreparedObservers(), emptySet(), emptySet());
+        return Fiber.call(f, v -> Fiber.frameReturn());
     }
 
+    public FiberFrame<Void> applyConfigFrame(String msg, Set<Integer> newMembers, Set<Integer> observerIds,
+                                             Set<Integer> preparedMemberIds, Set<Integer> preparedObserverIds) {
+        return new ApplyConfigFrame(msg, newMembers, observerIds, preparedMemberIds, preparedObserverIds);
+    }
 
-    private FrameCallResult doApplyConfig(String msg, Set<Integer> newMembers, Set<Integer> observerIds,
-                                          Set<Integer> preparedMemberIds, Set<Integer> preparedObserverIds) {
-        if (raftStatus.getNodeIdOfMembers().equals(newMembers)
-                && raftStatus.getNodeIdOfObservers().equals(observerIds)
-                && raftStatus.getNodeIdOfPreparedMembers().equals(preparedMemberIds)
-                && raftStatus.getNodeIdOfPreparedObservers().equals(preparedObserverIds)) {
+    private class ApplyConfigFrame extends FiberFrame<Void> {
+        private final String msg;
+        private final Set<Integer> newMembers;
+        private final Set<Integer> observerIds;
+        private final Set<Integer> preparedMemberIds;
+        private final Set<Integer> preparedObserverIds;
+
+        ApplyConfigFrame(String msg, Set<Integer> newMembers, Set<Integer> observerIds,
+                         Set<Integer> preparedMemberIds, Set<Integer> preparedObserverIds) {
+            this.msg = msg;
+            this.newMembers = newMembers;
+            this.observerIds = observerIds;
+            this.preparedMemberIds = preparedMemberIds;
+            this.preparedObserverIds = preparedObserverIds;
+        }
+
+        @Override
+        public FrameCallResult execute(Void v) {
+            if (raftStatus.getNodeIdOfMembers().equals(newMembers)
+                    && raftStatus.getNodeIdOfObservers().equals(observerIds)
+                    && raftStatus.getNodeIdOfPreparedMembers().equals(preparedMemberIds)
+                    && raftStatus.getNodeIdOfPreparedObservers().equals(preparedObserverIds)) {
+                return Fiber.frameReturn();
+            }
+            log.info("{} , groupId={}, oldMember={}, oldObserver={}, oldPreparedMember={}, oldPreparedObserver={}, newMember={}, newObserver={}, newPreparedMember={}, newPreparedObserver={}",
+                    msg, groupId, raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers(),
+                    raftStatus.getNodeIdOfPreparedMembers(), raftStatus.getNodeIdOfPreparedObservers(),
+                    newMembers, observerIds, preparedMemberIds, preparedObserverIds);
+            return nodeManager.doApplyConfig(
+                            raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers(),
+                            raftStatus.getNodeIdOfPreparedMembers(), raftStatus.getNodeIdOfPreparedObservers(),
+                            newMembers, observerIds, preparedMemberIds, preparedObserverIds)
+                    .await(result -> postConfigChange(msg, result));
+        }
+
+        private FrameCallResult postConfigChange(String msg, List<List<RaftNodeEx>> result) {
+            List<RaftNodeEx> newMemberNodes = result.get(0);
+            List<RaftNodeEx> newObserverNodes = result.get(1);
+            List<RaftNodeEx> preparedMemberNodes = result.get(2);
+            List<RaftNodeEx> preparedObserverNodes = result.get(3);
+
+            List<RaftMember> newMembers = createMembers(newMemberNodes);
+            List<RaftMember> newObservers = createMembers(newObserverNodes);
+            List<RaftMember> newPreparedMembers = createMembers(preparedMemberNodes);
+            List<RaftMember> newPreparedObservers = createMembers(preparedObserverNodes);
+
+            raftStatus.setMembers(newMembers);
+            raftStatus.setObservers(newObservers);
+            raftStatus.setPreparedMembers(newPreparedMembers);
+            raftStatus.setPreparedObservers(newPreparedObservers);
+            computeDuplicatedData(raftStatus);
+
+            int selfNodeId = serverConfig.getNodeId();
+            boolean selfIsMember = raftStatus.getNodeIdOfMembers().contains(selfNodeId)
+                    || raftStatus.getNodeIdOfPreparedMembers().contains(selfNodeId);
+            boolean selfIsObserver = raftStatus.getNodeIdOfObservers().contains(selfNodeId)
+                    || raftStatus.getNodeIdOfPreparedObservers().contains(selfNodeId);
+            int currentLeaderId = raftStatus.getCurrentLeader() == null ? -1 :
+                    raftStatus.getCurrentLeader().getNode().getNodeId();
+            if (raftStatus.getRole() == RaftRole.observer && selfIsMember) {
+                RaftUtil.changeToFollower(raftStatus, currentLeaderId);
+            } else if (raftStatus.getRole() == RaftRole.follower && selfIsObserver) {
+                RaftUtil.changeToObserver(raftStatus, currentLeaderId);
+            }
+            gc.getVoteManager().cancelVote();
+            log.info("{} success, groupId={}", msg, groupId);
             return Fiber.frameReturn();
         }
-        log.info("{} , groupId={}, oldMember={}, oldObserver={}, oldPreparedMember={}, oldPreparedObserver={}, newMember={}, newObserver={}, newPreparedMember={}, newPreparedObserver={}",
-                msg, groupId, raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers(),
-                raftStatus.getNodeIdOfPreparedMembers(), raftStatus.getNodeIdOfPreparedObservers(),
-                newMembers, observerIds, preparedMemberIds, preparedObserverIds);
-        return nodeManager.doApplyConfig(
-                        raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers(),
-                        raftStatus.getNodeIdOfPreparedMembers(), raftStatus.getNodeIdOfPreparedObservers(),
-                        newMembers, observerIds, preparedMemberIds, preparedObserverIds)
-                .await(result -> doApplyConfig2(msg, result));
     }
 
     private List<RaftMember> createMembers(List<RaftNodeEx> nodes) {
@@ -588,39 +646,6 @@ public class MemberManager {
         return newMembers;
     }
 
-    private FrameCallResult doApplyConfig2(String msg, List<List<RaftNodeEx>> result) {
-        List<RaftNodeEx> newMemberNodes = result.get(0);
-        List<RaftNodeEx> newObserverNodes = result.get(1);
-        List<RaftNodeEx> preparedMemberNodes = result.get(2);
-        List<RaftNodeEx> preparedObserverNodes = result.get(3);
-
-        List<RaftMember> newMembers = createMembers(newMemberNodes);
-        List<RaftMember> newObservers = createMembers(newObserverNodes);
-        List<RaftMember> newPreparedMembers = createMembers(preparedMemberNodes);
-        List<RaftMember> newPreparedObservers = createMembers(preparedObserverNodes);
-
-        raftStatus.setMembers(newMembers);
-        raftStatus.setObservers(newObservers);
-        raftStatus.setPreparedMembers(newPreparedMembers);
-        raftStatus.setPreparedObservers(newPreparedObservers);
-        computeDuplicatedData(raftStatus);
-
-        int selfNodeId = serverConfig.getNodeId();
-        boolean selfIsMember = raftStatus.getNodeIdOfMembers().contains(selfNodeId)
-                || raftStatus.getNodeIdOfPreparedMembers().contains(selfNodeId);
-        boolean selfIsObserver = raftStatus.getNodeIdOfObservers().contains(selfNodeId)
-                || raftStatus.getNodeIdOfPreparedObservers().contains(selfNodeId);
-        int currentLeaderId = raftStatus.getCurrentLeader() == null ? -1 :
-                raftStatus.getCurrentLeader().getNode().getNodeId();
-        if (raftStatus.getRole() == RaftRole.observer && selfIsMember) {
-            RaftUtil.changeToFollower(raftStatus, currentLeaderId);
-        } else if (raftStatus.getRole() == RaftRole.follower && selfIsObserver) {
-            RaftUtil.changeToObserver(raftStatus, currentLeaderId);
-        }
-        gc.getVoteManager().cancelVote();
-        log.info("{} success, groupId={}", msg, groupId);
-        return Fiber.frameReturn();
-    }
 
     public boolean checkLeader(int nodeId) {
         RaftMember leader = raftStatus.getCurrentLeader();

@@ -31,6 +31,7 @@ import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.LinearTaskRunner;
+import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
@@ -459,7 +460,18 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
         if (RaftUtil.writeNotFinished(raftStatus)) {
             return RaftUtil.waitWriteFinish(raftStatus, this);
         }
-        return Fiber.call(gc.getRaftLog().beginInstall(), this::success);
+        return Fiber.call(gc.getRaftLog().beginInstall(), this:: applyConfigChange);
+    }
+
+    private FrameCallResult applyConfigChange(Void unused) {
+        MemberManager mm = reqInfo.getRaftGroup().getGroupComponents().getMemberManager();
+        InstallSnapshotReq req = reqInfo.getReqFrame().getBody();
+
+        reqInfo.getRaftGroup().getGroupComponents().getRaftStatus().setLastConfigChangeIndex(req.lastIncludedIndex);
+
+        FiberFrame<Void> f = mm.applyConfigFrame("install snapshot config change",
+                req.members, req.observers, req.preparedMembers, req.preparedObservers);
+        return Fiber.call(f, this::success);
     }
 
     private FrameCallResult doInstall(RaftStatusImpl raftStatus, InstallSnapshotReq req) {
