@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IntObjMap;
-import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.log.DtLog;
@@ -259,38 +258,31 @@ public class NodeManager extends AbstractLifeCircle {
         return f;
     }
 
-    public FiberFuture<Pair<List<RaftNodeEx>, List<RaftNodeEx>>> doPrepare(Set<Integer> oldPrepareMembers,
-                                                                           Set<Integer> oldPrepareObservers,
-                                                                           Set<Integer> newMembers,
-                                                                           Set<Integer> newObservers) {
+    public FiberFuture<List<List<RaftNodeEx>>> doApplyConfig(Set<Integer> oldMemberIds, Set<Integer> oldObserverIds,
+                                           Set<Integer> oldPreparedMemberIds, Set<Integer> oldPreparedObserverIds,
+                                           Set<Integer> newMemberIds, Set<Integer> newObserverIds,
+                                           Set<Integer> newPreparedMemberIds, Set<Integer> newPreparedObserverIds) {
         return runInScheduleThread(() -> {
-            List<RaftNodeEx> newMemberNodes = checkNodeIdSet(newMembers);
-            List<RaftNodeEx> newObserverNodes = checkNodeIdSet(newObservers);
-            checkNodeIdSet(oldPrepareMembers);
-            checkNodeIdSet(oldPrepareObservers);
+            checkNodeIdSet(oldMemberIds);
+            checkNodeIdSet(oldObserverIds);
+            checkNodeIdSet(oldPreparedMemberIds);
+            checkNodeIdSet(oldPreparedObserverIds);
 
-            processUseCount(newMembers, 1);
-            processUseCount(newObservers, 1);
-            processUseCount(oldPrepareMembers, -1);
-            processUseCount(oldPrepareObservers, -1);
-            return new Pair<>(newMemberNodes, newObserverNodes);
-        });
-    }
+            List<RaftNodeEx> newMembers = checkNodeIdSet(newMemberIds);
+            List<RaftNodeEx> newObservers = checkNodeIdSet(newObserverIds);
+            List<RaftNodeEx> newPreparedMembers = checkNodeIdSet(newPreparedMemberIds);
+            List<RaftNodeEx> newPreparedObservers = checkNodeIdSet(newPreparedObserverIds);
 
-    public FiberFuture<Void> doAbort(HashSet<Integer> ids) {
+            processUseCount(newMemberIds, 1);
+            processUseCount(newObserverIds, 1);
+            processUseCount(newPreparedMemberIds, 1);
+            processUseCount(newPreparedObserverIds, 1);
 
-        return runInScheduleThread(() -> {
-            checkNodeIdSet(ids);
-            processUseCount(ids, -1);
-            return null;
-        });
-    }
-
-    public FiberFuture<Void> doCommit(HashSet<Integer> ids) {
-        return runInScheduleThread(() -> {
-            checkNodeIdSet(ids);
-            processUseCount(ids, -1);
-            return null;
+            processUseCount(oldMemberIds, -1);
+            processUseCount(oldObserverIds, -1);
+            processUseCount(oldPreparedMemberIds, -1);
+            processUseCount(oldPreparedObserverIds, -1);
+            return List.of(newMembers, newObservers, newPreparedMembers, newPreparedObservers);
         });
     }
 

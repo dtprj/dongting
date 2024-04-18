@@ -19,11 +19,9 @@ import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IntObjMap;
-import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
-import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -76,8 +74,6 @@ public class MemberManager {
     private final CompletableFuture<Void> pingReadyFuture;
     private final int startReadyQuorum;
 
-    private boolean configChangeInProgress = false;
-
     public MemberManager(NioClient client, GroupComponents gc) {
         this.client = client;
         this.gc = gc;
@@ -107,20 +103,14 @@ public class MemberManager {
         raftStatus.setMembers(new ArrayList<>());
         for (int nodeId : raftStatus.getNodeIdOfMembers()) {
             RaftNodeEx node = allNodes.get(nodeId);
-            RaftMember m = new RaftMember(node, groupConfig.getFiberGroup());
-            if (node.isSelf()) {
-                initSelf(m, RaftRole.follower);
-            }
+            RaftMember m = createMember(node, RaftRole.follower);
             raftStatus.getMembers().add(m);
         }
         if (!raftStatus.getNodeIdOfObservers().isEmpty()) {
             List<RaftMember> observers = new ArrayList<>();
             for (int nodeId : raftStatus.getNodeIdOfObservers()) {
                 RaftNodeEx node = allNodes.get(nodeId);
-                RaftMember m = new RaftMember(node, groupConfig.getFiberGroup());
-                if (node.isSelf()) {
-                    initSelf(m, RaftRole.observer);
-                }
+                RaftMember m = createMember(node, RaftRole.observer);
                 observers.add(m);
             }
             raftStatus.setObservers(observers);
@@ -138,13 +128,6 @@ public class MemberManager {
             // to update startReadyFuture
             setReady(raftStatus.getSelf(), true);
         }
-    }
-
-    private void initSelf(RaftMember m, RaftRole role) {
-        m.setReady(true);
-        raftStatus.setSelf(m);
-        raftStatus.setRole(role);
-        raftStatus.copyShareStatus();
     }
 
     static void computeDuplicatedData(RaftStatusImpl raftStatus) {
@@ -514,112 +497,128 @@ public class MemberManager {
         return outputFuture;
     }
 
-    public FrameCallResult doPrepare(Set<Integer> newMemberIds, Set<Integer> newObserverIds) {
-        configChangeInProgress = true;
-        return nodeManager.doPrepare(raftStatus.getNodeIdOfPreparedMembers(),
-                        raftStatus.getNodeIdOfPreparedObservers(), newMemberIds, newObserverIds)
-                .await(this::doPrepare2);
-    }
-
-    private FrameCallResult doPrepare2(Pair<List<RaftNodeEx>, List<RaftNodeEx>> pair) {
-        List<RaftNodeEx> newMemberNodes = pair.getLeft();
-        List<RaftNodeEx> newObserverNodes = pair.getRight();
-
-        IntObjMap<RaftMember> currentNodes = new IntObjMap<>();
+    private RaftMember findExistMember(int nodeId) {
         for (RaftMember m : raftStatus.getMembers()) {
-            currentNodes.put(m.getNode().getNodeId(), m);
+            if (m.getNode().getNodeId() == nodeId) {
+                return m;
+            }
         }
         for (RaftMember m : raftStatus.getObservers()) {
-            currentNodes.put(m.getNode().getNodeId(), m);
-        }
-
-        List<RaftMember> newMembers = new ArrayList<>();
-        List<RaftMember> newObservers = new ArrayList<>();
-        for (RaftNodeEx node : newMemberNodes) {
-            RaftMember m = currentNodes.get(node.getNodeId());
-            if (m == null) {
-                m = new RaftMember(node, FiberGroup.currentGroup());
-                if (node.getNodeId() == serverConfig.getNodeId()) {
-                    initSelf(m, RaftRole.follower);
-                }
-            } else {
-                if (node.getNodeId() == serverConfig.getNodeId() && raftStatus.getRole() == RaftRole.observer) {
-                    if (raftStatus.getCurrentLeader() == null) {
-                        RaftUtil.changeToFollower(raftStatus, -1);
-                    } else {
-                        RaftUtil.changeToFollower(raftStatus, raftStatus.getCurrentLeader().getNode().getNodeId());
-                    }
-                }
+            if (m.getNode().getNodeId() == nodeId) {
+                return m;
             }
-            newMembers.add(m);
         }
-        for (RaftNodeEx node : newObserverNodes) {
-            RaftMember m = currentNodes.get(node.getNodeId());
-            if (m == null) {
-                m = new RaftMember(node, FiberGroup.currentGroup());
-                if (node.getNodeId() == serverConfig.getNodeId()) {
-                    initSelf(m, RaftRole.observer);
-                }
+        for (RaftMember m : raftStatus.getPreparedMembers()) {
+            if (m.getNode().getNodeId() == nodeId) {
+                return m;
             }
-            newObservers.add(m);
         }
-        raftStatus.setPreparedMembers(newMembers);
-        raftStatus.setPreparedObservers(newObservers);
+        for (RaftMember m : raftStatus.getPreparedObservers()) {
+            if (m.getNode().getNodeId() == nodeId) {
+                return m;
+            }
+        }
+        return null;
+    }
 
-        computeDuplicatedData(raftStatus);
+    private RaftMember createMember(RaftNodeEx node, RaftRole role) {
+        RaftMember m = new RaftMember(node, groupConfig.getFiberGroup());
+        if (node.isSelf()) {
+            m.setReady(true);
+            raftStatus.setSelf(m);
+            raftStatus.setRole(role);
+            raftStatus.copyShareStatus();
+        }
+        return m;
+    }
 
-        gc.getVoteManager().cancelVote();
-        return Fiber.frameReturn();
+    public FrameCallResult doPrepare(Set<Integer> newMemberIds, Set<Integer> newObserverIds) {
+        return doApplyConfig("prepare config change", raftStatus.getNodeIdOfMembers(),
+                raftStatus.getNodeIdOfObservers(), newMemberIds, newObserverIds);
     }
 
     public FrameCallResult doAbort() {
-        HashSet<Integer> ids = new HashSet<>(raftStatus.getNodeIdOfPreparedMembers());
-        for (RaftMember m : raftStatus.getPreparedObservers()) {
-            ids.add(m.getNode().getNodeId());
-        }
-        if (ids.isEmpty()) {
-            configChangeInProgress = false;
+        HashSet<Integer> preparedMemberIds = new HashSet<>(raftStatus.getNodeIdOfPreparedMembers());
+        if (preparedMemberIds.isEmpty()) {
+            log.info("no pending config change, ignore abort, groupId={}", raftStatus.getGroupId());
             return Fiber.frameReturn();
         }
-
-        raftStatus.setPreparedMembers(emptyList());
-        raftStatus.setPreparedObservers(emptyList());
-        MemberManager.computeDuplicatedData(raftStatus);
-
-        if (!raftStatus.getNodeIdOfMembers().contains(serverConfig.getNodeId())) {
-            if (raftStatus.getRole() != RaftRole.observer) {
-                RaftUtil.changeToObserver(raftStatus, -1);
-            }
-        }
-        return nodeManager.doAbort(ids).await(this::cleanConfigChangeStatus);
+        return doApplyConfig("abort config change", raftStatus.getNodeIdOfMembers(),
+                raftStatus.getNodeIdOfObservers(), emptySet(), emptySet());
     }
 
     public FrameCallResult doCommit() {
-        if (!configChangeInProgress) {
+        if (raftStatus.getPreparedMembers().isEmpty()) {
             log.warn("no prepared config change, ignore commit, groupId={}", raftStatus.getGroupId());
             return Fiber.frameReturn();
         }
-        HashSet<Integer> ids = new HashSet<>(raftStatus.getNodeIdOfMembers());
-        ids.addAll(raftStatus.getNodeIdOfObservers());
-
-        raftStatus.setMembers(raftStatus.getPreparedMembers());
-        raftStatus.setObservers(raftStatus.getPreparedObservers());
-
-        raftStatus.setPreparedMembers(emptyList());
-        raftStatus.setPreparedObservers(emptyList());
-        MemberManager.computeDuplicatedData(raftStatus);
-
-        if (raftStatus.getNodeIdOfMembers().contains(serverConfig.getNodeId())) {
-            if (raftStatus.getRole() != RaftRole.observer) {
-                RaftUtil.changeToObserver(raftStatus, -1);
-            }
-        }
-
-        return nodeManager.doCommit(ids).await(this::cleanConfigChangeStatus);
+        return doApplyConfig("commit config change", raftStatus.getNodeIdOfPreparedMembers(),
+                raftStatus.getNodeIdOfPreparedObservers(), emptySet(), emptySet());
     }
 
-    private FrameCallResult cleanConfigChangeStatus(Void v) {
-        configChangeInProgress = false;
+
+    private FrameCallResult doApplyConfig(String msg, Set<Integer> newMembers, Set<Integer> observerIds,
+                                          Set<Integer> preparedMemberIds, Set<Integer> preparedObserverIds) {
+        if (raftStatus.getNodeIdOfMembers().equals(newMembers)
+                && raftStatus.getNodeIdOfObservers().equals(observerIds)
+                && raftStatus.getNodeIdOfPreparedMembers().equals(preparedMemberIds)
+                && raftStatus.getNodeIdOfPreparedObservers().equals(preparedObserverIds)) {
+            return Fiber.frameReturn();
+        }
+        log.info("{} , groupId={}, oldMember={}, oldObserver={}, oldPreparedMember={}, oldPreparedObserver={}, newMember={}, newObserver={}, newPreparedMember={}, newPreparedObserver={}",
+                msg, groupId, raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers(),
+                raftStatus.getNodeIdOfPreparedMembers(), raftStatus.getNodeIdOfPreparedObservers(),
+                newMembers, observerIds, preparedMemberIds, preparedObserverIds);
+        return nodeManager.doApplyConfig(
+                        raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers(),
+                        raftStatus.getNodeIdOfPreparedMembers(), raftStatus.getNodeIdOfPreparedObservers(),
+                        newMembers, observerIds, preparedMemberIds, preparedObserverIds)
+                .await(result -> doApplyConfig2(msg, result));
+    }
+
+    private List<RaftMember> createMembers(List<RaftNodeEx> nodes) {
+        List<RaftMember> newMembers = new ArrayList<>();
+        for (RaftNodeEx node : nodes) {
+            RaftMember m = findExistMember(node.getNodeId());
+            if (m == null) {
+                m = createMember(node, RaftRole.observer);
+            }
+            newMembers.add(m);
+        }
+        return newMembers;
+    }
+
+    private FrameCallResult doApplyConfig2(String msg, List<List<RaftNodeEx>> result) {
+        List<RaftNodeEx> newMemberNodes = result.get(0);
+        List<RaftNodeEx> newObserverNodes = result.get(1);
+        List<RaftNodeEx> preparedMemberNodes = result.get(2);
+        List<RaftNodeEx> preparedObserverNodes = result.get(3);
+
+        List<RaftMember> newMembers = createMembers(newMemberNodes);
+        List<RaftMember> newObservers = createMembers(newObserverNodes);
+        List<RaftMember> newPreparedMembers = createMembers(preparedMemberNodes);
+        List<RaftMember> newPreparedObservers = createMembers(preparedObserverNodes);
+
+        raftStatus.setMembers(newMembers);
+        raftStatus.setObservers(newObservers);
+        raftStatus.setPreparedMembers(newPreparedMembers);
+        raftStatus.setPreparedObservers(newPreparedObservers);
+        computeDuplicatedData(raftStatus);
+
+        int selfNodeId = serverConfig.getNodeId();
+        boolean selfIsMember = raftStatus.getNodeIdOfMembers().contains(selfNodeId)
+                || raftStatus.getNodeIdOfPreparedMembers().contains(selfNodeId);
+        boolean selfIsObserver = raftStatus.getNodeIdOfObservers().contains(selfNodeId)
+                || raftStatus.getNodeIdOfPreparedObservers().contains(selfNodeId);
+        int currentLeaderId = raftStatus.getCurrentLeader() == null ? -1 :
+                raftStatus.getCurrentLeader().getNode().getNodeId();
+        if (raftStatus.getRole() == RaftRole.observer && selfIsMember) {
+            RaftUtil.changeToFollower(raftStatus, currentLeaderId);
+        } else if (raftStatus.getRole() == RaftRole.follower && selfIsObserver) {
+            RaftUtil.changeToObserver(raftStatus, currentLeaderId);
+        }
+        gc.getVoteManager().cancelVote();
+        log.info("{} success, groupId={}", msg, groupId);
         return Fiber.frameReturn();
     }
 
