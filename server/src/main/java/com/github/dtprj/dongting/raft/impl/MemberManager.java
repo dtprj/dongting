@@ -348,6 +348,9 @@ public class MemberManager {
 
             @Override
             public FrameCallResult execute(Void input) {
+                if (lastConfigIndexNotMatch(prepareIndex, finalFuture)) {
+                    return Fiber.frameReturn();
+                }
                 final HashMap<Integer, CompletableFuture<Boolean>> resultMap = new HashMap<>();
 
                 for (RaftMember m : raftStatus.getMembers()) {
@@ -398,6 +401,17 @@ public class MemberManager {
         }
     }
 
+    private boolean lastConfigIndexNotMatch(long prepareIndex, CompletableFuture<Void> finalFuture) {
+        if (prepareIndex != raftStatus.getLastConfigChangeIndex()) {
+            log.error("prepareIndex not match. prepareIndex={}, lastConfigChangeIndex={}",
+                    prepareIndex, raftStatus.getLastConfigChangeIndex());
+            finalFuture.completeExceptionally(new RaftException("prepareIndex not match. prepareIndex="
+                    + prepareIndex + ", lastConfigChangeIndex=" + raftStatus.getLastConfigChangeIndex()));
+            return true;
+        }
+        return false;
+    }
+
     private void checkPrepareStatus(HashMap<Integer, CompletableFuture<Boolean>> resultMap, long prepareIndex,
                                     CompletableFuture<Void> finalFuture) {
         try {
@@ -405,11 +419,7 @@ public class MemberManager {
                 // prevent duplicate change
                 return;
             }
-            if (prepareIndex != raftStatus.getLastConfigChangeIndex()) {
-                log.error("prepareIndex not match. prepareIndex={}, lastConfigChangeIndex={}",
-                        prepareIndex, raftStatus.getLastConfigChangeIndex());
-                finalFuture.completeExceptionally(new RaftException("prepareIndex not match. prepareIndex="
-                        + prepareIndex + ", lastConfigChangeIndex=" + raftStatus.getLastConfigChangeIndex()));
+            if (lastConfigIndexNotMatch(prepareIndex, finalFuture)) {
                 return;
             }
             int memberReadyCount = 0;
