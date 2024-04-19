@@ -288,7 +288,8 @@ public class RaftClient extends AbstractLifeCircle {
                 findLeader(groupInfo, it);
             } else {
                 if (rf.getBody() == null || rf.getBody().getLeaderId() <= 0) {
-                    log.error("query leader from {} fail, leader id illegal: {}", node.getPeer().getEndPoint(), rf.getBody());
+                    log.error("query leader from {} fail, leader id illegal: {}",
+                            node.getPeer().getEndPoint(), rf.getBody() == null ? null : rf.getBody().getLeaderId());
                     findLeader(groupInfo, it);
                 } else {
                     Peer leader = parseLeader(groupInfo, rf.getBody().getLeaderId());
