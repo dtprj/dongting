@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class RefBufferDecoder implements Decoder<RefBuffer> {
+public class RefBufferDecoder extends Decoder<RefBuffer> {
 
     public static final RefBufferDecoder INSTANCE = new RefBufferDecoder(false);
     public static final RefBufferDecoder PLAIN_INSTANCE = new RefBufferDecoder(true);

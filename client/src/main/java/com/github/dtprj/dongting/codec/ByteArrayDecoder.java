@@ -20,7 +20,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class ByteArrayDecoder implements Decoder<byte[]> {
+public class ByteArrayDecoder extends Decoder<byte[]> {
     public static final ByteArrayDecoder INSTANCE = new ByteArrayDecoder();
 
     private ByteArrayDecoder() {

@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class BoolDecoder implements Decoder<Boolean> {
+public class BoolDecoder extends Decoder<Boolean> {
 
     public static final BoolDecoder INSTANCE = new BoolDecoder();
 

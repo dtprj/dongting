@@ -20,14 +20,14 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public interface Decoder<T> {
+public abstract class Decoder<T> {
 
-    T decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos);
+    public abstract T decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos);
 
-    default void finish(DecodeContext context) {
+    public void finish(DecodeContext context) {
     }
 
-    Decoder<Void> VOID_DECODER = new Decoder<Void>() {
+    public static final Decoder<Void> VOID_DECODER = new Decoder<Void>() {
         @Override
         public Void decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
             return null;

@@ -23,7 +23,7 @@ import java.nio.charset.StandardCharsets;
  *
  * @author huangli
  */
-public class StrFiledDecoder implements Decoder<String> {
+public class StrFiledDecoder extends Decoder<String> {
 
     public static final StrFiledDecoder INSTANCE = new StrFiledDecoder();
 
