@@ -34,7 +34,7 @@ public class RefBufferDecoder extends Decoder<RefBuffer> {
     }
 
     @Override
-    public RefBuffer decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
+    public RefBuffer doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
         RefBuffer result;
         boolean end = buffer.remaining() >= bodyLen - currentPos;
         if (currentPos == 0) {

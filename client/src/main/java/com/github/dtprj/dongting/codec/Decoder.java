@@ -22,14 +22,29 @@ import java.nio.ByteBuffer;
  */
 public abstract class Decoder<T> {
 
-    public abstract T decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos);
+    public final T decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
+        int oldPos = buffer.position();
+        int oldLimit = buffer.limit();
+        int end = Math.min(oldLimit, oldPos - currentPos + bodyLen);
+        try {
+            if (oldLimit - oldPos > bodyLen - currentPos) {
+                buffer.limit(end);
+            }
+            return doDecode(context, buffer, bodyLen, currentPos);
+        } finally {
+            buffer.limit(oldLimit);
+            buffer.position(end);
+        }
+    }
+
+    protected abstract T doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos);
 
     public void finish(DecodeContext context) {
     }
 
     public static final Decoder<Void> VOID_DECODER = new Decoder<Void>() {
         @Override
-        public Void decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
+        public Void doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
             return null;
         }
 

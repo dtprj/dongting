@@ -31,7 +31,7 @@ public final class PbNoCopyDecoder<T> extends Decoder<T> {
     }
 
     @Override
-    public T decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
+    public T doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
         PbCallback<T> callback;
         if (currentPos == 0) {
             callback = callbackCreator.apply(context);

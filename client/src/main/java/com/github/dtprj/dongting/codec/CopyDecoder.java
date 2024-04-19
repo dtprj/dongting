@@ -24,7 +24,7 @@ import java.nio.ByteBuffer;
  */
 public abstract class CopyDecoder<T> extends Decoder<T> {
     @Override
-    public T decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
+    public T doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
         boolean start = currentPos == 0;
         boolean end = buffer.remaining() >= bodyLen - currentPos;
         if (start && end) {

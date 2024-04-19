@@ -62,7 +62,7 @@ public class ByteArrayEncoder implements Encodable {
 
     public static final Decoder<ByteArrayEncoder> DECODER = new Decoder<ByteArrayEncoder>() {
         @Override
-        public ByteArrayEncoder decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
+        public ByteArrayEncoder doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
             byte[] bs = ByteArrayDecoder.decode0(context, buffer, bodyLen, currentPos);
             if (bs != null) {
                 return new ByteArrayEncoder(bs);

@@ -23,7 +23,7 @@ import java.nio.charset.StandardCharsets;
  */
 public class StrEncoder extends ByteArrayEncoder {
 
-    private String str;
+    private final String str;
 
     public StrEncoder(String str) {
         super(str == null ? null : str.getBytes(StandardCharsets.UTF_8));
@@ -41,7 +41,7 @@ public class StrEncoder extends ByteArrayEncoder {
 
     public static final Decoder<StrEncoder> DECODER = new Decoder<StrEncoder>() {
         @Override
-        public StrEncoder decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
+        public StrEncoder doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
             String s = StrFiledDecoder.decode0(context, buffer, bodyLen, currentPos);
             if (s != null) {
                 return new StrEncoder(s);

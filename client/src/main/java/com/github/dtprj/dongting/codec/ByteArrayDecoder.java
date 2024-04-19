@@ -27,7 +27,7 @@ public class ByteArrayDecoder extends Decoder<byte[]> {
     }
 
     @Override
-    public byte[] decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
+    public byte[] doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
         return decode0(context, buffer, bodyLen, currentPos);
     }
 

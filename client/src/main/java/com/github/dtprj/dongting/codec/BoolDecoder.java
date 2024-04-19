@@ -30,7 +30,7 @@ public class BoolDecoder extends Decoder<Boolean> {
     }
 
     @Override
-    public Boolean decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
+    public Boolean doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
         if (bodyLen != 1 || currentPos != 0) {
             throw new NetException("invalid bool data");
         }

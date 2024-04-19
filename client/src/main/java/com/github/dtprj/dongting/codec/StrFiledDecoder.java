@@ -31,7 +31,7 @@ public class StrFiledDecoder extends Decoder<String> {
     }
 
     @Override
-    public String decode(DecodeContext decodeContext, ByteBuffer buf, int fieldLen, int currentPos) {
+    public String doDecode(DecodeContext decodeContext, ByteBuffer buf, int fieldLen, int currentPos) {
         return decode0(decodeContext, buf, fieldLen, currentPos);
     }
 
