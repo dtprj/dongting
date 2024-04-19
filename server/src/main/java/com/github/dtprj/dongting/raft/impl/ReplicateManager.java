@@ -28,7 +28,9 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
+import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
@@ -382,9 +384,19 @@ class RepFrame extends AbstractRepFrame {
             incrementEpoch();
             repCondition.signalAll();
 
-            String msg = "append fail. remoteId={}, groupId={}, localTerm={}, reqTerm={}, prevLogIndex={}";
-            log.error(msg, member.getNode().getNodeId(), groupId, raftStatus.getCurrentTerm(),
-                    term, prevLogIndex, ex);
+            boolean warn = false;
+            if (ex instanceof NetCodeException) {
+                int c = ((NetCodeException) ex).getCode();
+                warn = c == CmdCodes.RAFT_GROUP_STOPPED || c == CmdCodes.RAFT_GROUP_NOT_INIT || c == CmdCodes.STOPPING;
+            }
+            if (warn) {
+                log.warn("append fail. remoteId={}, groupId={}, localTerm={}, reqTerm={}, prevLogIndex={}. {}",
+                        member.getNode().getNodeId(), groupId, raftStatus.getCurrentTerm(),
+                        term, prevLogIndex, ex.toString());
+            } else {
+                log.error("append fail. remoteId={}, groupId={}, localTerm={}, reqTerm={}, prevLogIndex={}",
+                        member.getNode().getNodeId(), groupId, raftStatus.getCurrentTerm(), term, prevLogIndex, ex);
+            }
         }
     }
 
@@ -456,7 +468,7 @@ class RepFrame extends AbstractRepFrame {
             member.setInstallSnapshot(true);
             return;
         }
-        FiberFrame<Void> ff = new FindMatchPosFrame(replicateManager,member,
+        FiberFrame<Void> ff = new FindMatchPosFrame(replicateManager, member,
                 body.getSuggestTerm(), body.getSuggestIndex());
         Fiber f = new Fiber("find-match-pos-" + member.getNode().getNodeId()
                 + "-" + member.getReplicateEpoch(), groupConfig.getFiberGroup(), ff, true);
@@ -674,7 +686,7 @@ class InstallFrame extends AbstractRepFrame {
         int bytes = data == null ? 0 : data.getBuffer().remaining();
         snapshotOffset += bytes;
         future.whenCompleteAsync((rf, ex) -> afterInstallRpc(rf, ex, req.offset, bytes,
-                        req.done, req.lastIncludedIndex), getFiberGroup().getExecutor());
+                req.done, req.lastIncludedIndex), getFiberGroup().getExecutor());
     }
 
     void afterInstallRpc(ReadFrame<AppendRespCallback> rf, Throwable ex, long reqOffset,
