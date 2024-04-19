@@ -87,4 +87,7 @@ public abstract class RaftGroup {
     @SuppressWarnings("unused")
     public abstract CompletableFuture<Void> leaderCommitJointConsensus(long prepareIndex);
 
+    public abstract boolean isLeader();
+
+
 }

@@ -126,7 +126,15 @@ public class Raft3Benchmark extends BenchBase {
         log.info("raft servers started");
 
         // wait election
-        Thread.sleep(200);
+        LOOP: while (true) {
+            for (RaftServer s : raftServers) {
+                if (s.getRaftGroup(GROUP_ID).isLeader()) {
+                    break LOOP;
+                }
+            }
+            //noinspection BusyWait
+            Thread.sleep(10);
+        }
 
         log.info("begin init raft client");
 

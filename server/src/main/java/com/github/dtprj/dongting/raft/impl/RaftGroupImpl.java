@@ -70,6 +70,12 @@ public class RaftGroupImpl extends RaftGroup {
     }
 
     @Override
+    public boolean isLeader() {
+        RaftMember leader = raftStatus.getShareStatus().currentLeader;
+        return leader !=null && leader.getNode().isSelf();
+    }
+
+    @Override
     public StateMachine getStateMachine() {
         return stateMachine;
     }
