@@ -158,6 +158,10 @@ public class RaftUtil {
     }
 
     public static void resetStatus(RaftStatusImpl raftStatus) {
+        resetStatus(raftStatus, true);
+    }
+
+    private static void resetStatus(RaftStatusImpl raftStatus, boolean cleanLastConfirmReqNanos) {
         raftStatus.setFirstIndexOfCurrentTerm(0);
         raftStatus.setFirstCommitOfApplied(new CompletableFuture<>());
         RaftUtil.resetElectTimer(raftStatus);
@@ -175,7 +179,9 @@ public class RaftUtil {
         for (RaftMember member : raftStatus.getReplicateList()) {
             member.setMatchIndex(0);
             member.setNextIndex(0);
-            member.setLastConfirmReqNanos(raftStatus.getTs().getNanoTime() - Duration.ofDays(1).toNanos());
+            if (cleanLastConfirmReqNanos) {
+                member.setLastConfirmReqNanos(raftStatus.getTs().getNanoTime() - Duration.ofDays(1).toNanos());
+            }
 
             member.setInstallSnapshot(false);
             member.incrementReplicateEpoch(member.getReplicateEpoch());
@@ -292,14 +298,15 @@ public class RaftUtil {
 
     public static void changeToLeader(RaftStatusImpl raftStatus) {
         log.info("change to leader. term={}", raftStatus.getCurrentTerm());
-        resetStatus(raftStatus);
+        resetStatus(raftStatus, false);
         raftStatus.setRole(RaftRole.leader);
         raftStatus.setCurrentLeader(raftStatus.getSelf());
         raftStatus.setFirstIndexOfCurrentTerm(raftStatus.getLastLogIndex() + 1);
         for (RaftMember node : raftStatus.getReplicateList()) {
             node.setNextIndex(raftStatus.getLastLogIndex() + 1);
         }
-        // not call raftStatus.copyShareStatus(), invoke in VoteManager.processVoteResp()
+        updateLease(raftStatus);
+        raftStatus.copyShareStatus();
     }
 
     public static boolean writeNotFinished(RaftStatusImpl raftStatus) {

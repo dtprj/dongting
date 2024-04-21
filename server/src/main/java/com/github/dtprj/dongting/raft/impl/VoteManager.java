@@ -364,8 +364,8 @@ public class VoteManager {
             raftStatus.copyShareStatus();
 
             statusManager.persistAsync(true);
-            int voteIfBeforePersist = currentVoteId;
-            return statusManager.waitForce(v -> afterStartVotePersist(voter, voteIfBeforePersist));
+            int voteIdBeforePersist = currentVoteId;
+            return statusManager.waitForce(v -> afterStartVotePersist(voter, voteIdBeforePersist));
         }
 
         private FrameCallResult afterStartVotePersist(Set<RaftMember> voter, int oldVoteId) {
@@ -420,8 +420,6 @@ public class VoteManager {
                         if (isElected(remoteMember.getNode().getNodeId(), false)) {
                             log.info("successfully elected, change to leader. groupId={}, term={}", groupId, raftStatus.getCurrentTerm());
                             RaftUtil.changeToLeader(raftStatus);
-                            RaftUtil.updateLease(raftStatus);
-                            raftStatus.copyShareStatus();
                             cancelVote();
                             linearTaskRunner.sendHeartBeat();
                         }
