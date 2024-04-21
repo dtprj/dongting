@@ -144,6 +144,9 @@ public class Raft3Benchmark extends BenchBase {
         RaftNode n2 = new RaftNode(2, new HostPort("127.0.0.1", 5002));
         RaftNode n3 = new RaftNode(3, new HostPort("127.0.0.1", 5003));
         client.getRaftClient().addOrUpdateGroup(GROUP_ID, Arrays.asList(n1, n2, n3));
+
+        // make client find the leader
+        client.get(GROUP_ID, "kkk", new DtTime(5, TimeUnit.SECONDS)).get();
     }
 
     @Override

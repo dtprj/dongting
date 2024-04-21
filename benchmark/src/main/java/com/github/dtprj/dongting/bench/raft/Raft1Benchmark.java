@@ -90,12 +90,18 @@ public class Raft1Benchmark extends BenchBase {
         raftServer.getReadyFuture().get();
 
         // wait election
-        Thread.sleep(50);
+        while(!raftServer.getRaftGroup(GROUP_ID).isLeader()) {
+            //noinspection BusyWait
+            Thread.sleep(10);
+        }
 
         client = new KvClient(new NioClientConfig());
         client.start();
         RaftNode node = new RaftNode(NODE_ID, new HostPort("127.0.0.1", SERVICE_PORT));
         client.getRaftClient().addOrUpdateGroup(GROUP_ID, Collections.singletonList(node));
+
+        // make client find the leader
+        client.get(GROUP_ID, "kkk", new DtTime(5, TimeUnit.SECONDS)).get();
     }
 
     @Override
@@ -125,7 +131,7 @@ public class Raft1Benchmark extends BenchBase {
         } catch (Exception e) {
             fail(state);
         } finally {
-            if(SYNC) {
+            if (SYNC) {
                 logRt(startTime, state);
             }
         }
