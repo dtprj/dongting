@@ -94,11 +94,15 @@ public class RaftUtil {
     }
 
     public static int getElectQuorum(int groupSize) {
-        return groupSize / 2 + 1;
+        return (groupSize >> 2) + 1;
     }
 
     public static int getRwQuorum(int groupSize) {
-        return groupSize >= 4 && groupSize % 2 == 0 ? groupSize / 2 : groupSize / 2 + 1;
+        if (groupSize >= 4 && groupSize % 2 == 0) {
+            return groupSize >> 2;
+        } else {
+            return (groupSize >> 2) + 1;
+        }
     }
 
     public static void release(RaftInput raftInput) {
