@@ -89,7 +89,7 @@ public class GetProcessor extends AbstractRaftBizProcessor<GetReq> {
             } else {
                 DtKV dtKV = (DtKV) group.getStateMachine();
                 byte[] bytes = dtKV.get(frame.getBody().getKey());
-                ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.wrap(bytes));
+                ByteBufferWriteFrame wf = new ByteBufferWriteFrame(bytes == null ? null : ByteBuffer.wrap(bytes));
                 wf.setRespCode(CmdCodes.SUCCESS);
                 writeResp(reqInfo, wf);
             }

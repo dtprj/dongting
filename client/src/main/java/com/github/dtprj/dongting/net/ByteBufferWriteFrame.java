@@ -60,6 +60,9 @@ public class ByteBufferWriteFrame extends WriteFrame {
 
     @Override
     protected boolean encodeBody(EncodeContext context, ByteBuffer dest) {
+        if (data == null) {
+            return true;
+        }
         if (data.isDirect()) {
             srcCopy = copyFromDirectBuffer(data, dest, srcCopy);
             return srcCopy.remaining() == 0;
