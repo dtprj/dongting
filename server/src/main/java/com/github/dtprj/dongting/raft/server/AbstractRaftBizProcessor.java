@@ -54,7 +54,7 @@ public abstract class AbstractRaftBizProcessor<T> extends AbstractRaftGroupProce
             log.warn("not leader, current leader is {}", leader);
         } else {
             errorResp = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
-            log.warn("raft processor error: {}", ex.toString());
+            log.warn("raft processor error", ex);
         }
         errorResp.setMsg(root.toString());
         writeResp(reqInfo, errorResp);

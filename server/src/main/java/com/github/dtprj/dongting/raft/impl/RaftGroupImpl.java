@@ -123,7 +123,6 @@ public class RaftGroupImpl extends RaftGroup {
         if (fiberGroup.isShouldStop()) {
             return CompletableFuture.failedFuture(new RaftException("raft group thread is stop"));
         }
-        RaftStatusImpl raftStatus = this.raftStatus;
         ShareStatus ss = raftStatus.getShareStatus();
         // NOTICE : timestamp is not thread safe
         readTimestamp.refresh(1);
@@ -139,6 +138,9 @@ public class RaftGroupImpl extends RaftGroup {
             return CompletableFuture.completedFuture(ss.lastApplied);
         }
 
+        if (ss.firstCommitOfApplied.isDone()) {
+            return CompletableFuture.completedFuture(ss.lastApplied);
+        }
         // wait fist commit of applied
         return ss.firstCommitOfApplied.thenCompose(v -> {
             if (deadline.isTimeout()) {
