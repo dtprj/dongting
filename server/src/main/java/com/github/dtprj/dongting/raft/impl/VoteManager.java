@@ -243,31 +243,32 @@ public class VoteManager {
 
         @Override
         public FrameCallResult execute(Void input) {
+            // sleep a random time to avoid multi nodes in same JVM start pre vote at almost same time (in tests)
+            return Fiber.sleep(new Random().nextInt(30) + 1, this::loop);
+        }
+
+        private FrameCallResult loop(Void input) {
             boolean timeout = raftStatus.getTs().getNanoTime() - raftStatus.getLastElectTime() > raftStatus.getElectTimeoutNanos();
             if (voting) {
                 if (timeout) {
                     cancelVote();
                 } else {
-                    return Fiber.sleep(INTERVAL, this);
+                    return Fiber.sleep(INTERVAL, this::loop);
                 }
             }
             if (raftStatus.isInstallSnapshot()) {
-                return Fiber.sleep(INTERVAL, this);
+                return Fiber.sleep(INTERVAL, this::loop);
             }
             if (timeout) {
                 if (RaftUtil.writeNotFinished(raftStatus)) {
-                    return RaftUtil.waitWriteFinish(raftStatus, this);
+                    return RaftUtil.waitWriteFinish(raftStatus, this::loop);
                 }
-                // sleep a random time to avoid multi nodes in same JVM start pre vote at almost same time (in tests)
-                return Fiber.sleep(new Random().nextInt(30) + 1, this::afterSleep);
-            } else {
-                return Fiber.sleep(INTERVAL, this);
-            }
-        }
 
-        private FrameCallResult afterSleep(Void unused) {
-            tryStartPreVote();
-            return Fiber.resume(null, this);
+                tryStartPreVote();
+                return Fiber.resume(null, this::loop);
+            } else {
+                return Fiber.sleep(INTERVAL, this::loop);
+            }
         }
     }
 
