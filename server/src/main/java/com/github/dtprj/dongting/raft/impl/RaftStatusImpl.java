@@ -109,33 +109,45 @@ public class RaftStatusImpl extends RaftStatus {
     }
 
     public void setLastApplied(long lastApplied) {
-        this.lastApplied = lastApplied;
-        this.shareStatusUpdated = true;
+        if (lastApplied != this.lastApplied) {
+            this.lastApplied = lastApplied;
+            this.shareStatusUpdated = true;
+        }
     }
 
     public void setRole(RaftRole role) {
-        this.role = role;
-        this.shareStatusUpdated = true;
+        if (role != this.role) {
+            this.role = role;
+            this.shareStatusUpdated = true;
+        }
     }
 
     public void setLeaseStartNanos(long leaseStartNanos) {
-        this.leaseStartNanos = leaseStartNanos;
-        this.shareStatusUpdated = true;
+        if (leaseStartNanos != this.leaseStartNanos) {
+            this.leaseStartNanos = leaseStartNanos;
+            this.shareStatusUpdated = true;
+        }
     }
 
     public void setCurrentLeader(RaftMember currentLeader) {
-        this.currentLeader = currentLeader;
-        this.shareStatusUpdated = true;
+        if (currentLeader != this.currentLeader) {
+            this.currentLeader = currentLeader;
+            this.shareStatusUpdated = true;
+        }
     }
 
     public void setElectTimeoutNanos(long electTimeoutNanos) {
-        this.electTimeoutNanos = electTimeoutNanos;
-        this.shareStatusUpdated = true;
+        if (electTimeoutNanos != this.electTimeoutNanos) {
+            this.electTimeoutNanos = electTimeoutNanos;
+            this.shareStatusUpdated = true;
+        }
     }
 
     public void setFirstCommitOfApplied(CompletableFuture<Void> firstCommitOfApplied) {
-        this.firstCommitOfApplied = firstCommitOfApplied;
-        this.shareStatusUpdated = true;
+        if (firstCommitOfApplied != this.firstCommitOfApplied) {
+            this.firstCommitOfApplied = firstCommitOfApplied;
+            this.shareStatusUpdated = true;
+        }
     }
 
     //------------------------- simple getters and setters--------------------------------

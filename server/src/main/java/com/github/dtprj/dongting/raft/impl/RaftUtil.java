@@ -94,14 +94,14 @@ public class RaftUtil {
     }
 
     public static int getElectQuorum(int groupSize) {
-        return (groupSize >> 2) + 1;
+        return (groupSize >> 1) + 1;
     }
 
     public static int getRwQuorum(int groupSize) {
         if (groupSize >= 4 && groupSize % 2 == 0) {
-            return groupSize >> 2;
+            return groupSize >> 1;
         } else {
-            return (groupSize >> 2) + 1;
+            return (groupSize >> 1) + 1;
         }
     }
 
@@ -229,13 +229,11 @@ public class RaftUtil {
                 leaseStartTime = lease2;
             }
         }
-        if (leaseStartTime != raftStatus.getLeaseStartNanos()) {
-            raftStatus.setLeaseStartNanos(leaseStartTime);
-        }
+        raftStatus.setLeaseStartNanos(leaseStartTime);
     }
 
     /**
-     * test if currentReqNanos is the X(X=quorum)th large value in list(lastConfirmReqNanos).
+     * return the X(X=quorum)th large(lastConfirmReqNanos) value in list.
      */
     private static long computeLease(RaftStatusImpl raftStatus, int quorum, List<RaftMember> list) {
         int len = list.size();
@@ -252,13 +250,15 @@ public class RaftUtil {
             arr[i] = m.getLastConfirmReqNanos();
         }
         for (int i = 0; i < quorum; i++) {
-            if (arr[i] - arr[i + 1] < 0) {
-                long tmp = arr[i];
-                arr[i] = arr[i + 1];
-                arr[i + 1] = tmp;
+            for (int j = 0; j < len - 1; j++) {
+                if (arr[j] - arr[j + 1] < 0) {
+                    long tmp = arr[j];
+                    arr[j] = arr[j + 1];
+                    arr[j + 1] = tmp;
+                }
             }
         }
-        return arr[quorum];
+        return arr[quorum - 1];
     }
 
     public static ByteBuffer copy(ByteBuffer src) {
