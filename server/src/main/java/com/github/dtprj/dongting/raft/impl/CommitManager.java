@@ -91,11 +91,9 @@ public class CommitManager {
                 self.setLastConfirmReqNanos(raftStatus.getTs().getNanoTime());
             }
 
-            // for single node mode
-            if (raftStatus.getRwQuorum() == 1) {
-                RaftUtil.updateLease(raftStatus);
-                // not call raftStatus.copyShareStatus(), invoke after apply
-            }
+            RaftUtil.updateLease(raftStatus);
+            // not call raftStatus.copyShareStatus(), invoke after apply
+
             tryCommit(lastPersistIndex);
         } else {
             while (respQueue.size() > 0) {
