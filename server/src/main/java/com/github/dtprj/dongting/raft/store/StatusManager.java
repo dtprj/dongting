@@ -26,7 +26,6 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.fiber.PostFiberFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -179,9 +178,6 @@ public class StatusManager {
     }
 
     private FrameCallResult waitForce(long version, FrameCall<Void> resumePoint) {
-        if (closed) {
-            throw new RaftException("status manager is closed");
-        }
         if (finishedUpdateVersion >= version) {
             return Fiber.resume(null, resumePoint);
         }
