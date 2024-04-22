@@ -186,7 +186,7 @@ public class RaftUtil {
             member.setInstallSnapshot(false);
             member.incrementReplicateEpoch(member.getReplicateEpoch());
             // wake up replicate fiber if it is waiting on this condition
-            member.getFinishCondition().signalAll();
+            member.getRepCondition().signalAll();
         }
     }
 

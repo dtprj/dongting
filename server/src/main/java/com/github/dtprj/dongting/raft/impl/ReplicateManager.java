@@ -146,7 +146,7 @@ abstract class AbstractRepFrame extends FiberFrame<Void> {
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
         this.replicateEpoch = member.getReplicateEpoch();
         this.term = raftStatus.getCurrentTerm();
-        this.repCondition = member.getFinishCondition();
+        this.repCondition = member.getRepCondition();
     }
 
     protected boolean shouldStopReplicate() {
