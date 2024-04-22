@@ -220,14 +220,14 @@ class IoChannelQueue {
         if (rest <= 0) {
             if (request) {
                 String msg = "timeout before send: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
-                log.info("request timeout before send: {}ms, channel={}",
-                        t.getTimeout(TimeUnit.MILLISECONDS), wd.getDtc().getChannel());
+                log.warn("request timeout before send: {}ms, cmd={}, seq={}, channel={}",
+                        t.getTimeout(TimeUnit.MILLISECONDS), f.getCommand() ,f.getSeq(), wd.getDtc().getChannel());
                 if (wd.getFuture() != null) {
                     wd.getFuture().completeExceptionally(new NetTimeoutException(msg));
                 }
             } else {
-                log.info("response timeout before send: {}ms, seq={}, channel={}",
-                        t.getTimeout(TimeUnit.MILLISECONDS), f.getSeq(), wd.getDtc().getChannel());
+                log.warn("response timeout before send: {}ms, cmd={}, seq={}, channel={}",
+                        t.getTimeout(TimeUnit.MILLISECONDS), f.getCommand(), f.getSeq(), wd.getDtc().getChannel());
             }
             return ENCODE_CANCEL;
         }
