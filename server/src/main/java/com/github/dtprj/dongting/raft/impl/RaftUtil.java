@@ -162,8 +162,10 @@ public class RaftUtil {
     }
 
     private static void resetStatus(RaftStatusImpl raftStatus, boolean cleanLastConfirmReqNanos) {
-        raftStatus.setFirstIndexOfCurrentTerm(0);
-        raftStatus.setFirstCommitOfApplied(new CompletableFuture<>());
+        raftStatus.setGroupReadyIndex(Long.MAX_VALUE);
+        if (raftStatus.getGroupReadyFuture() == null) {
+            raftStatus.setGroupReadyFuture(new CompletableFuture<>());
+        }
         RaftUtil.resetElectTimer(raftStatus);
         raftStatus.setLeaseStartNanos(0);
         raftStatus.setCurrentLeader(null);
@@ -301,7 +303,7 @@ public class RaftUtil {
         resetStatus(raftStatus, false);
         raftStatus.setRole(RaftRole.leader);
         raftStatus.setCurrentLeader(raftStatus.getSelf());
-        raftStatus.setFirstIndexOfCurrentTerm(raftStatus.getLastLogIndex() + 1);
+        raftStatus.setGroupReadyIndex(raftStatus.getLastLogIndex() + 1);
         for (RaftMember node : raftStatus.getReplicateList()) {
             node.setNextIndex(raftStatus.getLastLogIndex() + 1);
         }

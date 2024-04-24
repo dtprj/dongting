@@ -164,9 +164,11 @@ public class ApplyManager {
 
         raftStatus.setLastApplied(index);
 
-        if (raftStatus.getFirstCommitOfApplied() != null && index >= raftStatus.getFirstIndexOfCurrentTerm()) {
-            raftStatus.getFirstCommitOfApplied().complete(null);
-            raftStatus.setFirstCommitOfApplied(null);
+        if (raftStatus.getGroupReadyFuture() != null && index >= raftStatus.getGroupReadyIndex()) {
+            raftStatus.getGroupReadyFuture().complete(null);
+            raftStatus.setGroupReadyFuture(null);
+            log.info("mark group ready future complete: groupId={}, groupReadyIndex={}",
+                    raftStatus.getGroupId(), raftStatus.getGroupReadyIndex());
         }
 
         if (configChange) {

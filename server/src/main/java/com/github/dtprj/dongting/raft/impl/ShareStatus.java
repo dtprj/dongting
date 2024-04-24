@@ -24,6 +24,6 @@ public class ShareStatus {
     public long lastApplied;
     public RaftRole role;
     public long leaseEndNanos;
-    public CompletableFuture<Void> firstCommitOfApplied;
+    public CompletableFuture<Void> groupReadyFuture;
     public RaftMember currentLeader;
 }

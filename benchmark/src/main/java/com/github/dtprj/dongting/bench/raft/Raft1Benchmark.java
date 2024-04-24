@@ -21,6 +21,8 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.raft.RaftNode;
@@ -40,6 +42,7 @@ import java.util.concurrent.TimeUnit;
  * @author huangli
  */
 public class Raft1Benchmark extends BenchBase {
+    private static final DtLog log = DtLogs.getLogger(Raft1Benchmark.class);
     private static final String DATA_DIR = "target/raftlog";
     private static final int REPLICATE_PORT = 4000;
     private static final int SERVICE_PORT = 4001;
@@ -87,13 +90,9 @@ public class Raft1Benchmark extends BenchBase {
         raftServer = new RaftServer(serverConfig, Collections.singletonList(groupConfig), raftFactory);
         KvServerUtil.initKvServer(raftServer);
         raftServer.start();
-        raftServer.getReadyFuture().get();
 
-        // wait election
-        while(!raftServer.getRaftGroup(GROUP_ID).isLeader()) {
-            //noinspection BusyWait
-            Thread.sleep(10);
-        }
+        raftServer.getAllGroupReadyFuture().get(5, TimeUnit.SECONDS);
+        log.info("raft servers started");
 
         client = new KvClient(new NioClientConfig());
         client.start();

@@ -121,7 +121,7 @@ public class CommitManager {
             return;
         }
         // leader can only commit log in current term, see raft paper 5.4.2
-        if (recentMatchIndex < raftStatus.getFirstIndexOfCurrentTerm()) {
+        if (recentMatchIndex < raftStatus.getGroupReadyIndex()) {
             return;
         }
         raftStatus.setCommitIndex(recentMatchIndex);

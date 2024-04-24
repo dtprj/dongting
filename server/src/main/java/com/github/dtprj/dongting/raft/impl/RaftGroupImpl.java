@@ -134,15 +134,15 @@ public class RaftGroupImpl extends RaftGroup {
         if (ss.leaseEndNanos - t < 0) {
             return CompletableFuture.failedFuture(new NotLeaderException(null));
         }
-        if (ss.firstCommitOfApplied == null) {
+        if (ss.groupReadyFuture == null) {
             return CompletableFuture.completedFuture(ss.lastApplied);
         }
 
-        if (ss.firstCommitOfApplied.isDone()) {
+        if (ss.groupReadyFuture.isDone()) {
             return CompletableFuture.completedFuture(ss.lastApplied);
         }
         // wait fist commit of applied
-        return ss.firstCommitOfApplied.thenCompose(v -> {
+        return ss.groupReadyFuture.thenCompose(v -> {
             if (deadline.isTimeout()) {
                 return CompletableFuture.failedFuture(new RaftExecTimeoutException());
             }

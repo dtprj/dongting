@@ -18,6 +18,8 @@ package com.github.dtprj.dongting.raft.impl;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberGroup;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.server.RaftStatus;
 
@@ -30,6 +32,7 @@ import java.util.concurrent.CompletableFuture;
  * @author huangli
  */
 public class RaftStatusImpl extends RaftStatus {
+    private static final DtLog log = DtLogs.getLogger(RaftStatusImpl.class);
 
     private volatile ShareStatus shareStatus;
 
@@ -57,8 +60,9 @@ public class RaftStatusImpl extends RaftStatus {
 
     private FiberCondition dataArrivedCondition;
     private TailCache tailCache;
-    private long firstIndexOfCurrentTerm;
-    private CompletableFuture<Void> firstCommitOfApplied; // shared
+
+    private long groupReadyIndex = Long.MAX_VALUE;
+    private CompletableFuture<Void> groupReadyFuture = new CompletableFuture<>(); // shared
 
     private boolean shareStatusUpdated;
     private long electTimeoutNanos; // shared
@@ -97,7 +101,7 @@ public class RaftStatusImpl extends RaftStatus {
             ss.lastApplied = lastApplied;
             ss.leaseEndNanos = leaseStartNanos + electTimeoutNanos;
             ss.currentLeader = currentLeader;
-            ss.firstCommitOfApplied = firstCommitOfApplied;
+            ss.groupReadyFuture = groupReadyFuture;
 
             this.shareStatusUpdated = false;
             this.shareStatus = ss;
@@ -143,9 +147,9 @@ public class RaftStatusImpl extends RaftStatus {
         }
     }
 
-    public void setFirstCommitOfApplied(CompletableFuture<Void> firstCommitOfApplied) {
-        if (firstCommitOfApplied != this.firstCommitOfApplied) {
-            this.firstCommitOfApplied = firstCommitOfApplied;
+    public void setGroupReadyFuture(CompletableFuture<Void> groupReadyFuture) {
+        if (groupReadyFuture != this.groupReadyFuture) {
+            this.groupReadyFuture = groupReadyFuture;
             this.shareStatusUpdated = true;
         }
     }
@@ -260,12 +264,15 @@ public class RaftStatusImpl extends RaftStatus {
         this.tailCache = tailCache;
     }
 
-    public long getFirstIndexOfCurrentTerm() {
-        return firstIndexOfCurrentTerm;
+    public long getGroupReadyIndex() {
+        return groupReadyIndex;
     }
 
-    public void setFirstIndexOfCurrentTerm(long firstIndexOfCurrentTerm) {
-        this.firstIndexOfCurrentTerm = firstIndexOfCurrentTerm;
+    public void setGroupReadyIndex(long groupReadyIndex) {
+        if (groupReadyIndex != Long.MAX_VALUE) {
+            log.info("set groupReadyIndex to {}, groupId={}", groupReadyIndex, groupId);
+        }
+        this.groupReadyIndex = groupReadyIndex;
     }
 
     public Timestamp getTs() {
@@ -284,8 +291,8 @@ public class RaftStatusImpl extends RaftStatus {
         return electTimeoutNanos;
     }
 
-    public CompletableFuture<Void> getFirstCommitOfApplied() {
-        return firstCommitOfApplied;
+    public CompletableFuture<Void> getGroupReadyFuture() {
+        return groupReadyFuture;
     }
 
     public boolean isInstallSnapshot() {

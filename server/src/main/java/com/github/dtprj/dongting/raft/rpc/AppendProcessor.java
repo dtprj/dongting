@@ -314,6 +314,14 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReqCallback> {
             return Fiber.frameReturn();
         }
 
+        if (req.getLeaderCommit() < raftStatus.getCommitIndex()) {
+            log.info("leader commitIndex less than local, maybe leader restart recently. leaderId={}, leaderTerm={}, leaderCommitIndex={}, localCommitIndex={}, groupId={}",
+                    req.getLeaderId(), req.getTerm(), req.getLeaderCommit(), raftStatus.getCommitIndex(), raftStatus.getGroupId());
+        }
+        if (req.getLeaderCommit() > raftStatus.getLeaderCommit()) {
+            raftStatus.setLeaderCommit(req.getLeaderCommit());
+        }
+
         long index = LinearTaskRunner.lastIndex(raftStatus);
 
         TailCache tailCache = raftStatus.getTailCache();
@@ -328,13 +336,16 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReqCallback> {
             RaftInput raftInput = new RaftInput(li.getBizType(), li.getHeader(), li.getBody(), null);
             RaftTask task = new RaftTask(raftStatus.getTs(), li.getType(), raftInput, null);
             task.setItem(li);
-            tailCache.put(li.getIndex(), task);
+            tailCache.put(index, task);
             putTailCache = true;
+            if (index < raftStatus.getGroupReadyIndex()) {
+                raftStatus.setGroupReadyIndex(index);
+            }
             if (i == logs.size() - 1) {
-                raftStatus.setLastLogIndex(li.getIndex());
+                raftStatus.setLastLogIndex(index);
                 raftStatus.setLastLogTerm(li.getTerm());
                 int term = raftStatus.getCurrentTerm();
-                long itemIndex = li.getIndex();
+                long itemIndex = index;
                 // register write response callback
                 gc.getCommitManager().registerRespWriter(lastPersistIndex -> {
                     if (raftStatus.getCurrentTerm() == term) {
@@ -351,14 +362,6 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReqCallback> {
             }
         }
         raftStatus.getDataArrivedCondition().signalAll();
-
-        if (req.getLeaderCommit() < raftStatus.getCommitIndex()) {
-            log.info("leader commitIndex less than local, maybe leader restart recently. leaderId={}, leaderTerm={}, leaderCommitIndex={}, localCommitIndex={}, groupId={}",
-                    req.getLeaderId(), req.getTerm(), req.getLeaderCommit(), raftStatus.getCommitIndex(), raftStatus.getGroupId());
-        }
-        if (req.getLeaderCommit() > raftStatus.getLeaderCommit()) {
-            raftStatus.setLeaderCommit(req.getLeaderCommit());
-        }
 
         // success response write in CommitManager fiber
         return Fiber.frameReturn();

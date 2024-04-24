@@ -120,23 +120,9 @@ public class Raft3Benchmark extends BenchBase {
         raftFactories[2] = p3.getRight();
 
         for (RaftServer s : raftServers) {
-            s.getReadyFuture().get();
+            s.getAllGroupReadyFuture().get(10, TimeUnit.SECONDS);
         }
-
         log.info("raft servers started");
-
-        // wait election
-        LOOP: while (true) {
-            for (RaftServer s : raftServers) {
-                if (s.getRaftGroup(GROUP_ID).isLeader()) {
-                    break LOOP;
-                }
-            }
-            //noinspection BusyWait
-            Thread.sleep(10);
-        }
-
-        log.info("begin init raft client");
 
         client = new KvClient(new NioClientConfig());
         client.start();

@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.bench;
 
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
+
 import java.text.DecimalFormat;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -24,6 +27,7 @@ import java.util.concurrent.atomic.LongAdder;
  * @author huangli
  */
 public abstract class BenchBase {
+    private static final DtLog log = DtLogs.getLogger(BenchBase.class);
     protected static final int STATE_WARMUP = 0;
     protected static final int STATE_TEST = 1;
     protected static final int STATE_BEFORE_SHUTDOWN = 2;
@@ -53,40 +57,44 @@ public abstract class BenchBase {
     }
 
     public void start() throws Exception {
-        init();
-        Thread[] threads = new Thread[threadCount];
-        for (int i = 0; i < threadCount; i++) {
-            int threadIndex = i;
-            threads[i] = new Thread(() -> run(threadIndex));
-            threads[i].setName("BenchThread" + i);
-            threads[i].start();
+        try {
+            init();
+            Thread[] threads = new Thread[threadCount];
+            for (int i = 0; i < threadCount; i++) {
+                int threadIndex = i;
+                threads[i] = new Thread(() -> run(threadIndex));
+                threads[i].setName("BenchThread" + i);
+                threads[i].start();
+            }
+            Thread.sleep(warmupTime);
+            state.set(STATE_TEST);
+
+            Thread.sleep(testTime);
+            state.set(STATE_BEFORE_SHUTDOWN);
+
+            for (Thread t : threads) {
+                t.join();
+            }
+            shutdown();
+            state.set(STATE_AFTER_SHUTDOWN);
+
+            long sc = successCount.sum();
+            long fc = failCount.sum();
+
+            double ops = sc * 1.0 / testTime * 1000;
+            System.out.println("success sc:" + sc + ", ops=" + new DecimalFormat(",###").format(ops));
+
+            ops = fc * 1.0 / testTime * 1000;
+            System.out.println("fail sc:" + fc + ", ops=" + new DecimalFormat(",###").format(ops));
+
+            if (LOG_RT) {
+                System.out.printf("Max time: %,d ns%n", maxNanos.longValue());
+                System.out.printf("Avg time: %,d ns%n", totalNanos.sum() / (sc + fc));
+            }
+        } catch (Exception e) {
+            log.error("", e);
+            System.exit(1);
         }
-        Thread.sleep(warmupTime);
-        state.set(STATE_TEST);
-
-        Thread.sleep(testTime);
-        state.set(STATE_BEFORE_SHUTDOWN);
-
-        for (Thread t : threads) {
-            t.join();
-        }
-        shutdown();
-        state.set(STATE_AFTER_SHUTDOWN);
-
-        long sc = successCount.sum();
-        long fc = failCount.sum();
-
-        double ops = sc * 1.0 / testTime * 1000;
-        System.out.println("success sc:" + sc + ", ops=" + new DecimalFormat(",###").format(ops));
-
-        ops = fc * 1.0 / testTime * 1000;
-        System.out.println("fail sc:" + fc + ", ops=" + new DecimalFormat(",###").format(ops));
-
-        if (LOG_RT) {
-            System.out.printf("Max time: %,d ns%n", maxNanos.longValue());
-            System.out.printf("Avg time: %,d ns%n", totalNanos.sum() / (sc + fc));
-        }
-
     }
 
     public void run(int threadIndex) {
