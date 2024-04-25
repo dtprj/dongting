@@ -91,11 +91,7 @@ public class LinearTaskRunner {
 
         private FrameCallResult afterTakeAll(Void unused) {
             if (raftStatus.getTransferLeaderCondition() != null) {
-                for (RaftTask t : list) {
-                    taskChannel.offer(t);
-                }
-                list.clear();
-                raftStatus.getTransferLeaderCondition().await(this);
+                raftStatus.getTransferLeaderCondition().await(this::afterTakeAll);
             }
             if (!list.isEmpty()) {
                 raftExec(list);

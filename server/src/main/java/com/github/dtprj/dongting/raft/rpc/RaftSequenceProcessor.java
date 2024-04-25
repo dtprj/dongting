@@ -73,6 +73,9 @@ public abstract class RaftSequenceProcessor<T> extends AbstractRaftGroupProcesso
         }
 
         private FrameCallResult resume(ReqInfoEx<T> o) {
+            if (o == null) {
+                return Fiber.resume(null, this);
+            }
             current = o;
             return Fiber.call(processInFiberGroup(o), this);
         }

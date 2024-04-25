@@ -361,10 +361,12 @@ class GroupRunnerFiberFrame extends FiberFrame<Void> {
     }
 
     private FrameCallResult afterTake(Runnable r) {
-        try {
-            r.run();
-        } catch (Throwable e) {
-            log.error("callback error", e);
+        if (r != null) {
+            try {
+                r.run();
+            } catch (Throwable e) {
+                log.error("callback error", e);
+            }
         }
         return Fiber.resume(null, this);
     }
