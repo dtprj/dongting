@@ -62,10 +62,17 @@ public class FiberChannel<T> {
         }
     }
 
+    /**
+     * take from channel, may invoke resumePoint with null value.
+     */
     public FrameCallResult take(FrameCall<T> resumePoint) {
         return take(-1, resumePoint);
     }
 
+    /**
+     * take from channel, may invoke resumePoint with null value.
+     * @param millis timeout in milliseconds
+     */
     public FrameCallResult take(long millis, FrameCall<T> resumePoint) {
         groupOfConsumer.checkGroup();
         T data = queue.removeFirst();
@@ -73,31 +80,46 @@ public class FiberChannel<T> {
             return Fiber.resume(data, resumePoint);
         } else {
             if (millis > 0) {
-                return notEmptyCondition.await(millis, noUseVoid -> take(resumePoint));
+                return notEmptyCondition.await(millis, noUseVoid -> afterTake(resumePoint));
             } else {
-                return notEmptyCondition.await(noUseVoid -> take(resumePoint));
+                return notEmptyCondition.await(noUseVoid -> afterTake(resumePoint));
             }
         }
     }
 
+    private FrameCallResult afterTake(FrameCall<T> resumePoint) {
+        return Fiber.resume(queue.removeFirst(), resumePoint);
+    }
+
+    /**
+     * take all elements from channel into given collection, may invoke resumePoint with empty collection.
+     */
     public FrameCallResult takeAll(Collection<T> c, FrameCall<Void> resumePoint) {
         return takeAll(-1, c, resumePoint);
     }
 
+    /**
+     * take all elements from channel into given collection, may invoke resumePoint with empty collection.
+     * @param millis timeout in milliseconds
+     */
     public FrameCallResult takeAll(long millis, Collection<T> c, FrameCall<Void> resumePoint) {
         groupOfConsumer.checkGroup();
         if (queue.size() > 0) {
-            T data;
-            while ((data = queue.removeFirst()) != null) {
-                c.add(data);
-            }
-            return Fiber.resume(null, resumePoint);
+            return afterTakeAll(c, resumePoint);
         } else {
             if (millis > 0) {
-                return notEmptyCondition.await(millis, noUseVoid -> takeAll(c, resumePoint));
+                return notEmptyCondition.await(millis, noUseVoid -> afterTakeAll(c, resumePoint));
             } else {
-                return notEmptyCondition.await(noUseVoid -> takeAll(c, resumePoint));
+                return notEmptyCondition.await(noUseVoid -> afterTakeAll(c, resumePoint));
             }
         }
+    }
+
+    private FrameCallResult afterTakeAll(Collection<T> c, FrameCall<Void> resumePoint) {
+        T data;
+        while ((data = queue.removeFirst()) != null) {
+            c.add(data);
+        }
+        return Fiber.resume(null, resumePoint);
     }
 }
