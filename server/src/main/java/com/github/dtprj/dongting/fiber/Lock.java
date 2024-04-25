@@ -25,11 +25,7 @@ public abstract class Lock extends WaitSource {
 
     public abstract FrameCallResult lock(FrameCall<Void> resumePoint);
 
-    public abstract FrameCallResult lock(String reason, FrameCall<Void> resumePoint);
-
     public abstract FrameCallResult tryLock(long millis, FrameCall<Boolean> resumePoint);
-
-    public abstract FrameCallResult tryLock(long millis, String reason, FrameCall<Boolean> resumePoint);
 
     public abstract boolean tryLock();
 

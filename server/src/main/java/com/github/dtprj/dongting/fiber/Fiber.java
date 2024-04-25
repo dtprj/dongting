@@ -80,31 +80,19 @@ public class Fiber extends WaitSource {
     }
 
     public static FrameCallResult sleep(long millis, FrameCall<Void> resumePoint) {
-        return sleep(millis, "sleep", resumePoint);
-    }
-
-    public static FrameCallResult sleep(long millis, String reason, FrameCall<Void> resumePoint) {
         DtUtil.checkPositive(millis, "millis");
-        Dispatcher.sleep(millis, resumePoint, reason);
+        Dispatcher.sleep(millis, resumePoint, "sleep");
         return FrameCallResult.SUSPEND;
     }
 
     public static FrameCallResult sleepUntilShouldStop(long millis, FrameCall<Void> resumePoint) {
-        return sleepUntilShouldStop(millis, "sleepUntilShouldStop", resumePoint);
-    }
-
-    public static FrameCallResult sleepUntilShouldStop(long millis, String reason, FrameCall<Void> resumePoint) {
         DtUtil.checkPositive(millis, "millis");
-        Dispatcher.sleepUntilShouldStop(millis, resumePoint, reason);
+        Dispatcher.sleepUntilShouldStop(millis, resumePoint, "sleepUntilShouldStop");
         return FrameCallResult.SUSPEND;
     }
 
     public static FrameCallResult yield(FrameCall<Void> resumePoint) {
-        return Fiber.yield("yield", resumePoint);
-    }
-
-    public static FrameCallResult yield(String reason, FrameCall<Void> resumePoint) {
-        Dispatcher.yield(resumePoint, reason);
+        Dispatcher.yield(resumePoint, "yield");
         return FrameCallResult.RETURN;
     }
 
