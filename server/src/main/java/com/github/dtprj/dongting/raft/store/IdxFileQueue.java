@@ -192,17 +192,16 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     @Override
     public FiberFrame<Void> waitFlush() {
-        needFlushCondition.signal();
         // block until flush done
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                return flushDoneCondition.await(this::afterFlush);
-            }
-
-            private FrameCallResult afterFlush(Void unused) {
+                removeHead();
                 if (shouldFlush()) {
                     needFlushCondition.signal();
+                    if (cache.size() > maxCacheItems) {
+                        return flushDoneCondition.await(1000, this);
+                    }
                 }
                 return Fiber.frameReturn();
             }
