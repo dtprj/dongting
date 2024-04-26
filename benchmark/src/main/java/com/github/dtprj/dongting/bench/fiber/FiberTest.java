@@ -36,7 +36,7 @@ public class FiberTest extends BenchBase {
     private final FiberChannel<Object> channel = group.newChannel();
 
     public static void main(String[] args) throws Exception {
-        new FiberTest(1, 9000, 1000).start();
+        new FiberTest(1, 1000, 1000).start();
     }
 
     public FiberTest(int threadCount, long testTime, long warmupTime) {

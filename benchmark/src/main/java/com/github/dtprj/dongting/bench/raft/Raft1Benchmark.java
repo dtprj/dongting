@@ -59,6 +59,7 @@ public class Raft1Benchmark extends BenchBase {
 
     public static void main(String[] args) throws Exception {
         Raft1Benchmark benchmark = new Raft1Benchmark(1, 1000, 200);
+        benchmark.setLogRt(true);
         benchmark.start();
     }
 

@@ -52,6 +52,7 @@ public class RpcBenchmark extends BenchBase {
 
     public static void main(String[] args) throws Exception {
         RpcBenchmark benchmark = new RpcBenchmark(1, 1000, 200, Commands.CMD_PING);
+        benchmark.setLogRt(true);
         benchmark.start();
     }
 

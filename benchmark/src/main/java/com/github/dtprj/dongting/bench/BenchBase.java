@@ -40,7 +40,7 @@ public abstract class BenchBase {
     private final LongAdder successCount = new LongAdder();
     private final LongAdder failCount = new LongAdder();
 
-    private static final boolean LOG_RT = true;
+    private boolean logRt = false;
     private final LongAdder totalNanos = new LongAdder();
     private final AtomicLong maxNanos = new AtomicLong();
 
@@ -87,7 +87,7 @@ public abstract class BenchBase {
             ops = fc * 1.0 / testTime * 1000;
             System.out.println("fail sc:" + fc + ", ops=" + new DecimalFormat(",###").format(ops));
 
-            if (LOG_RT) {
+            if (logRt) {
                 System.out.printf("Max time: %,d ns%n", maxNanos.longValue());
                 System.out.printf("Avg time: %,d ns%n", totalNanos.sum() / (sc + fc));
             }
@@ -101,7 +101,7 @@ public abstract class BenchBase {
         int s;
         while ((s = state.getOpaque()) < STATE_BEFORE_SHUTDOWN) {
             long startTime = 0;
-            if (LOG_RT && s == 1) {
+            if (logRt && s == STATE_TEST) {
                 startTime = System.nanoTime();
             }
             try {
@@ -115,7 +115,7 @@ public abstract class BenchBase {
     public abstract void test(int threadIndex, long startTime, int state);
 
     protected void logRt(long startTime, int state) {
-        if (LOG_RT && state == STATE_TEST) {
+        if (logRt && state == STATE_TEST) {
             long x = System.nanoTime() - startTime;
             while (x > maxNanos.longValue()) {
                 maxNanos.compareAndSet(maxNanos.longValue(), x);
@@ -134,5 +134,9 @@ public abstract class BenchBase {
         if (state == STATE_TEST) {
             failCount.increment();
         }
+    }
+
+    public void setLogRt(boolean logRt) {
+        this.logRt = logRt;
     }
 }

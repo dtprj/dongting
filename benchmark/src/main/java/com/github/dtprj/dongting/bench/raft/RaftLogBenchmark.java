@@ -68,6 +68,7 @@ public class RaftLogBenchmark extends RpcBenchmark {
     public static void main(String[] args) throws Exception {
         RpcBenchmark benchmark = new RaftLogBenchmark(1, 1000, 200,
                 BenchRaftLogProcessor.COMMAND);
+        benchmark.setLogRt(true);
         benchmark.start();
     }
 

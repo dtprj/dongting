@@ -36,7 +36,7 @@ public class ChannelCrossThreadTest extends BenchBase {
     private final FiberChannel<Object> channel = group.newChannel();
 
     public static void main(String[] args) throws Exception {
-        new ChannelCrossThreadTest(1, 500, 100).start();
+        new ChannelCrossThreadTest(1, 1000, 500).start();
     }
 
     public ChannelCrossThreadTest(int threadCount, long testTime, long warmupTime) {
