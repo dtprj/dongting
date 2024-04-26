@@ -167,8 +167,8 @@ public class ApplyManager {
         if (raftStatus.getGroupReadyFuture() != null && index >= raftStatus.getGroupReadyIndex()) {
             raftStatus.getGroupReadyFuture().complete(null);
             raftStatus.setGroupReadyFuture(null);
-            log.info("mark group ready future complete: groupId={}, groupReadyIndex={}",
-                    raftStatus.getGroupId(), raftStatus.getGroupReadyIndex());
+            log.info("{} mark group ready future complete: groupId={}, groupReadyIndex={}",
+                    raftStatus.getRole(), raftStatus.getGroupId(), raftStatus.getGroupReadyIndex());
         }
 
         if (configChange) {
