@@ -221,7 +221,7 @@ public class DefaultRaftLog implements RaftLog {
         FiberFuture<Void> f1 = idxFiles.close();
         FiberFuture<Void> f2 = logFiles.close();
         // delete fiber is daemon
-        return FiberFuture.allOf(f1, f2);
+        return FiberFuture.allOf("closeDefaultRaftLog", f1, f2);
     }
 
     private class DeleteFiberFrame extends FiberFrame<Void> {

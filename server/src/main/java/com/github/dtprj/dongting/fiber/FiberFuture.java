@@ -37,8 +37,13 @@ public class FiberFuture<T> extends WaitSource {
 
     private Callback<T> callbackHead;
 
-    FiberFuture(FiberGroup group) {
-        super(group);
+    FiberFuture(String name, FiberGroup group) {
+        super(name, group);
+    }
+
+    @Override
+    public String toString() {
+        return "Future:" + name + "@" + Integer.toHexString(hashCode());
     }
 
     @Override
@@ -258,8 +263,8 @@ public class FiberFuture<T> extends WaitSource {
      * NOTICE: if the future is complete exceptionally, the converter WILL NOT be called,
      * and the new future will be complete exceptionally with the same exception.
      */
-    public <T2> FiberFuture<T2> convert(Function<T, T2> converter) {
-        FiberFuture<T2> newFuture = new FiberFuture<>(fiberGroup);
+    public <T2> FiberFuture<T2> convert(String name, Function<T, T2> converter) {
+        FiberFuture<T2> newFuture = new FiberFuture<>(name, fiberGroup);
         registerCallback((r, ex) -> {
             if (ex != null) {
                 newFuture.complete0(null, ex);
@@ -273,8 +278,8 @@ public class FiberFuture<T> extends WaitSource {
     /**
      * this method should call in dispatcher thread
      */
-    public <T2> FiberFuture<T2> convertWithHandle(BiFunction<T, Throwable, T2> converter) {
-        FiberFuture<T2> newFuture = new FiberFuture<>(fiberGroup);
+    public <T2> FiberFuture<T2> convertWithHandle(String name, BiFunction<T, Throwable, T2> converter) {
+        FiberFuture<T2> newFuture = new FiberFuture<>(name, fiberGroup);
         registerCallback((r, ex) -> {
             try {
                 T2 t2 = converter.apply(r, ex);
@@ -286,9 +291,9 @@ public class FiberFuture<T> extends WaitSource {
         return newFuture;
     }
 
-    public static FiberFuture<Void> allOf(FiberFuture<?>... futures) {
+    public static FiberFuture<Void> allOf(String name, FiberFuture<?>... futures) {
         FiberGroup g = FiberGroup.currentGroup();
-        FiberFuture<Void> newFuture = g.newFuture();
+        FiberFuture<Void> newFuture = g.newFuture(name);
         Fiber f = new Fiber("wait-all-future", g, new FiberFrame<Void>() {
             private int i;
 
@@ -317,14 +322,14 @@ public class FiberFuture<T> extends WaitSource {
     }
 
     public static <T> FiberFuture<T> failedFuture(FiberGroup group, Throwable ex) {
-        FiberFuture<T> f = new FiberFuture<>(group);
+        FiberFuture<T> f = new FiberFuture<>("FailedFuture", group);
         f.done = true;
         f.execEx = ex;
         return f;
     }
 
     public static <T> FiberFuture<T> completedFuture(FiberGroup group, T result) {
-        FiberFuture<T> f = new FiberFuture<>(group);
+        FiberFuture<T> f = new FiberFuture<>("CompletedFuture", group);
         f.done = true;
         f.execResult = result;
         return f;

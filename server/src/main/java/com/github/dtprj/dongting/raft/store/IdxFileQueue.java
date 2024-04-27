@@ -438,7 +438,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         } else {
             f = FiberFuture.completedFuture(groupConfig.getFiberGroup(), null);
         }
-        return f.convertWithHandle((v, ex) -> {
+        return f.convertWithHandle("closeIdxFileQueue", (v, ex) -> {
             if (ex != null) {
                 log.error("close idx file queue failed", ex);
             }

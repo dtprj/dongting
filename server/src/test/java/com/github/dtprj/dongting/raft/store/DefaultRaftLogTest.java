@@ -98,7 +98,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             public FrameCallResult execute(Void input) {
                 FiberFuture<Void> f1 = raftLog.close();
                 FiberFuture<Void> f2 = statusManager.close();
-                return FiberFuture.allOf(f1, f2).await(this::justReturn);
+                return FiberFuture.allOf("close", f1, f2).await(this::justReturn);
             }
         });
     }

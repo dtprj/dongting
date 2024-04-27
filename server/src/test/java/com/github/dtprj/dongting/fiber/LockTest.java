@@ -29,34 +29,34 @@ public class LockTest extends AbstractFiberTest {
 
     @Test
     public void testTryLock1() throws Exception {
-        FiberLock lock1 = fiberGroup.newLock();
-        FiberLock lock2 = fiberGroup.newLock();
+        FiberLock lock1 = fiberGroup.newLock("noName");
+        FiberLock lock2 = fiberGroup.newLock("noName");
         testTryLock(new Lock[]{lock1, lock2}, new boolean[]{true, true});
     }
 
     @Test
     public void testTryLock2() throws Exception {
-        FiberLock lock = fiberGroup.newLock();
+        FiberLock lock = fiberGroup.newLock("noName");
         testTryLock(new Lock[]{lock, lock}, new boolean[]{true, false});
     }
 
     @Test
     public void testTryLock3() throws Exception {
-        FiberLock lock = fiberGroup.newLock();
+        FiberLock lock = fiberGroup.newLock("noName");
         FiberReadLock readLock = lock.readLock();
         testTryLock(new Lock[]{lock, readLock}, new boolean[]{true, false});
     }
 
     @Test
     public void testTryLock4() throws Exception {
-        FiberLock lock = fiberGroup.newLock();
+        FiberLock lock = fiberGroup.newLock("noName");
         FiberReadLock readLock = lock.readLock();
         testTryLock(new Lock[]{readLock, lock}, new boolean[]{true, false});
     }
 
     @Test
     public void testTryLock5() throws Exception {
-        FiberLock lock = fiberGroup.newLock();
+        FiberLock lock = fiberGroup.newLock("noName");
         FiberReadLock readLock = lock.readLock();
         testTryLock(new Lock[]{readLock, readLock, lock}, new boolean[]{true, true, false});
     }
@@ -116,7 +116,7 @@ public class LockTest extends AbstractFiberTest {
                 // test re-entry
                 return Fiber.resume(null, this);
             }
-            future = getFiberGroup().newFuture();
+            future = getFiberGroup().newFuture("noName");
             ownerFiber = getFiber();
             return future.await(this::resume2);
         }
@@ -147,7 +147,7 @@ public class LockTest extends AbstractFiberTest {
 
     @Test
     public void testLock1() {
-        FiberLock lock = fiberGroup.newLock();
+        FiberLock lock = fiberGroup.newLock("noName");
         for (int lockType = 1; lockType <= 2; lockType++) {
             TestLockFrame f1 = new TestLockFrame(lock, lockType);
             TestLockFrame f2 = new TestLockFrame(lock, lockType);
@@ -163,7 +163,7 @@ public class LockTest extends AbstractFiberTest {
 
     @Test
     public void testLock2() {
-        FiberLock lock = fiberGroup.newLock();
+        FiberLock lock = fiberGroup.newLock("noName");
         FiberReadLock readLock = lock.readLock();
         for (int lockType = 1; lockType <= 2; lockType++) {
             TestLockFrame f1 = new TestLockFrame(lock, lockType);
@@ -180,7 +180,7 @@ public class LockTest extends AbstractFiberTest {
 
     @Test
     public void testLock3() {
-        FiberLock lock = fiberGroup.newLock();
+        FiberLock lock = fiberGroup.newLock("noName");
         FiberReadLock readLock = lock.readLock();
         for (int lockType = 1; lockType <= 2; lockType++) {
             TestLockFrame f1 = new TestLockFrame(readLock, lockType);
@@ -197,7 +197,7 @@ public class LockTest extends AbstractFiberTest {
 
     @Test
     public void testLock4() {
-        FiberLock lock = fiberGroup.newLock();
+        FiberLock lock = fiberGroup.newLock("noName");
         FiberReadLock readLock = lock.readLock();
         for (int lockType = 1; lockType <= 2; lockType++) {
             TestLockFrame f1 = new TestLockFrame(readLock, lockType);
@@ -218,7 +218,7 @@ public class LockTest extends AbstractFiberTest {
 
     @Test
     public void testTimeTryLockFail() {
-        FiberLock lock = fiberGroup.newLock();
+        FiberLock lock = fiberGroup.newLock("noName");
         fiberGroup.fireFiber("f1", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {

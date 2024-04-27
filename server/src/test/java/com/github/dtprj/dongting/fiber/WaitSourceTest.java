@@ -33,7 +33,7 @@ public class WaitSourceTest {
     public void setUp() {
         Dispatcher dispatcher = new Dispatcher("name");
         FiberGroup group = new FiberGroup("g", dispatcher);
-        future = group.newFuture();
+        future = group.newFuture("noName");
         f1 = new Fiber("f1", group, new EmptyFiberFrame());
         f2 = new Fiber("f2", group, new EmptyFiberFrame());
         f3 = new Fiber("f3", group, new EmptyFiberFrame());

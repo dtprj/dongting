@@ -226,7 +226,7 @@ public class NodeManager extends AbstractLifeCircle {
     }
 
     public FiberFuture<Void> checkLeaderPrepare(Set<Integer> memberIds, Set<Integer> observerIds) {
-        return runInScheduleThread(() -> {
+        return runInScheduleThread("checkLeaderPrepare", () -> {
             checkNodeIdSet(memberIds);
             checkNodeIdSet(observerIds);
             return null;
@@ -246,8 +246,8 @@ public class NodeManager extends AbstractLifeCircle {
         return memberNodes;
     }
 
-    private <T> FiberFuture<T> runInScheduleThread(Supplier<T> supplier) {
-        FiberFuture<T> f = FiberGroup.currentGroup().newFuture();
+    private <T> FiberFuture<T> runInScheduleThread(String futureName, Supplier<T> supplier) {
+        FiberFuture<T> f = FiberGroup.currentGroup().newFuture(futureName);
         RaftUtil.SCHEDULED_SERVICE.execute(() -> {
             try {
                 f.fireComplete(supplier.get());
@@ -262,7 +262,7 @@ public class NodeManager extends AbstractLifeCircle {
                                            Set<Integer> oldPreparedMemberIds, Set<Integer> oldPreparedObserverIds,
                                            Set<Integer> newMemberIds, Set<Integer> newObserverIds,
                                            Set<Integer> newPreparedMemberIds, Set<Integer> newPreparedObserverIds) {
-        return runInScheduleThread(() -> {
+        return runInScheduleThread("appleConfigInSchedule", () -> {
             checkNodeIdSet(oldMemberIds);
             checkNodeIdSet(oldObserverIds);
             checkNodeIdSet(oldPreparedMemberIds);

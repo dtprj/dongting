@@ -130,16 +130,16 @@ public class FiberGroup {
         return new FiberCondition(name, this);
     }
 
-    public <T> FiberFuture<T> newFuture() {
-        return new FiberFuture<>(this);
+    public <T> FiberFuture<T> newFuture(String name) {
+        return new FiberFuture<>(name, this);
     }
 
     public <T> FiberChannel<T> newChannel() {
         return new FiberChannel<>(this);
     }
 
-    public FiberLock newLock() {
-        return new FiberLock(this);
+    public FiberLock newLock(String name) {
+        return new FiberLock(name, this);
     }
 
     void checkGroup() {

@@ -19,12 +19,14 @@ package com.github.dtprj.dongting.fiber;
  * @author huangli
  */
 abstract class WaitSource {
+    protected String name;
     private Fiber lastWaiter;
     Fiber firstWaiter;
     protected final FiberGroup fiberGroup;
 
-    public WaitSource(FiberGroup group) {
+    public WaitSource(String name, FiberGroup group) {
         this.fiberGroup = group;
+        this.name = name;
     }
 
     protected void prepare(Fiber waitFiber, boolean timeout){
@@ -135,5 +137,9 @@ abstract class WaitSource {
 
     public FiberGroup getGroup() {
         return fiberGroup;
+    }
+
+    public String getName() {
+        return name;
     }
 }

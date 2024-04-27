@@ -19,8 +19,13 @@ package com.github.dtprj.dongting.fiber;
  * @author huangli
  */
 public abstract class Lock extends WaitSource {
-    public Lock(FiberGroup group) {
-        super(group);
+    public Lock(String name, FiberGroup group) {
+        super(name, group);
+    }
+
+    @Override
+    public String toString() {
+        return "Lock:" + name + "@" + Integer.toHexString(hashCode());
     }
 
     public abstract FrameCallResult lock(FrameCall<Void> resumePoint);

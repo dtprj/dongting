@@ -24,7 +24,6 @@ import com.github.dtprj.dongting.log.DtLogs;
  */
 public class Fiber extends WaitSource {
     private static final DtLog log = DtLogs.getLogger(Fiber.class);
-    protected final String name;
     protected final boolean daemon;
 
     long id;
@@ -57,7 +56,7 @@ public class Fiber extends WaitSource {
     }
 
     public Fiber(String name, FiberGroup fiberGroup, FiberFrame<Void> entryFrame, boolean daemon) {
-        super(fiberGroup);
+        super(name, fiberGroup);
         this.name = name;
         this.stackTop = entryFrame;
         this.daemon = daemon;
@@ -166,7 +165,7 @@ public class Fiber extends WaitSource {
             return FiberFuture.completedFuture(fiberGroup, null);
         }
         Fiber waitSource = this;
-        FiberFuture<Void> fu = fiberGroup.newFuture();
+        FiberFuture<Void> fu = fiberGroup.newFuture("join-" + this);
         FiberFrame<Void> entryFrame = new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
@@ -224,16 +223,12 @@ public class Fiber extends WaitSource {
         scheduleNanoTime = 0;
     }
 
-    public String getName() {
-        return name;
-    }
-
     public FiberGroup getFiberGroup() {
         return fiberGroup;
     }
 
     @Override
     public String toString() {
-        return "Fiber " + name;
+        return "Fiber:" + name + "@" + Integer.toHexString(hashCode());
     }
 }

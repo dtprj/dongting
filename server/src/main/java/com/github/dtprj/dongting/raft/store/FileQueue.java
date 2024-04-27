@@ -81,7 +81,7 @@ abstract class FileQueue {
         this.fileLenShiftBits = BitUtil.zeroCountOfBinary(fileSize);
 
         FiberGroup g = groupConfig.getFiberGroup();
-        this.allocateLock = g.newLock();
+        this.allocateLock = g.newLock("allocFile");
     }
 
     protected final long getFileSize() {
@@ -172,7 +172,7 @@ abstract class FileQueue {
 
     private FiberFrame<Void> allocateSync(boolean retry) {
         long[] retryInterval = retry ? groupConfig.getIoRetryInterval() : null;
-        allocateFuture = groupConfig.getFiberGroup().newFuture();
+        allocateFuture = groupConfig.getFiberGroup().newFuture("allocFileSync");
         return new RetryFrame<>(new AllocateFrame(), retryInterval, true) {
             @Override
             protected FrameCallResult doFinally() {
@@ -184,8 +184,8 @@ abstract class FileQueue {
     }
 
     private void allocateAsync() {
-        allocateFuture = groupConfig.getFiberGroup().newFuture();
-        Fiber f = new Fiber("allocate-file", groupConfig.getFiberGroup(), new FiberFrame<>() {
+        allocateFuture = groupConfig.getFiberGroup().newFuture("allocFileAsync");
+        Fiber f = new Fiber("allocateFile", groupConfig.getFiberGroup(), new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return Fiber.call(new AllocateFrame(), this::justReturn);
@@ -219,7 +219,7 @@ abstract class FileQueue {
             fileStartPos = queueEndPosition;
             String fileName = String.format("%020d", fileStartPos);
             file = new File(dir, fileName);
-            FiberFuture<Void> createFileFuture = getFiberGroup().newFuture();
+            FiberFuture<Void> createFileFuture = getFiberGroup().newFuture("createFile");
             ioExecutor.execute(() -> {
                 long startTime = System.currentTimeMillis();
                 try {
@@ -277,7 +277,7 @@ abstract class FileQueue {
 
         @Override
         public FrameCallResult execute(Void input) {
-            FiberFuture<Void> deleteFuture = groupConfig.getFiberGroup().newFuture();
+            FiberFuture<Void> deleteFuture = groupConfig.getFiberGroup().newFuture("deleteFile");
             try {
                 ioExecutor.execute(() -> {
                     try {

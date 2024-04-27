@@ -44,7 +44,7 @@ public class ForceFrame extends FiberFrame<Void> {
 
     @Override
     public final FrameCallResult execute(Void input) throws Throwable {
-        FiberFuture<Void> f = getFiberGroup().newFuture();
+        FiberFuture<Void> f = getFiberGroup().newFuture("forceFile");
         ioExecutor.execute(() -> {
             try {
                 channel.force(meta);

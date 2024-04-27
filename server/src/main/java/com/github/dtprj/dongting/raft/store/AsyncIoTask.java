@@ -71,7 +71,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         this.dtFile = dtFile;
         this.retryForever = retryForever;
         this.cancelRetryIndicator = cancelRetryIndicator;
-        this.future = fiberGroup.newFuture();
+        this.future = fiberGroup.newFuture("asyncIoTaskFuture");
     }
 
     public FiberFuture<Void> read(ByteBuffer ioBuffer, long filePos) {

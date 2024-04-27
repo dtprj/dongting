@@ -25,9 +25,9 @@ public class FiberLock extends Lock {
     int heldCount;
     private final FiberReadLock readLock;
 
-    FiberLock(FiberGroup fiberGroup) {
-        super(fiberGroup);
-        this.readLock = new FiberReadLock(fiberGroup, this);
+    FiberLock(String name, FiberGroup fiberGroup) {
+        super(name, fiberGroup);
+        this.readLock = new FiberReadLock(name, fiberGroup, this);
     }
 
     private boolean shouldWait(Fiber currentFiber) {

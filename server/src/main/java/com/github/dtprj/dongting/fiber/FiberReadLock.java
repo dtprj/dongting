@@ -25,8 +25,8 @@ public class FiberReadLock extends Lock {
     int heldCount;
     private final FiberLock writeLock;
 
-    public FiberReadLock(FiberGroup group, FiberLock writeLock) {
-        super(group);
+    public FiberReadLock(String name, FiberGroup group, FiberLock writeLock) {
+        super(name, group);
         this.writeLock = writeLock;
     }
 

@@ -67,7 +67,7 @@ public class FileSnapshot extends Snapshot {
         if (filePos >= fileSize) {
             return FiberFuture.completedFuture(fiberGroup, null);
         }
-        FiberFuture<RefBuffer> result = fiberGroup.newFuture();
+        FiberFuture<RefBuffer> result = fiberGroup.newFuture("readNext");
 
         AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
         headerBuffer.clear();

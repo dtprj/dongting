@@ -111,7 +111,7 @@ class LogAppender {
         } else {
             f2 = FiberFuture.completedFuture(groupConfig.getFiberGroup(), null);
         }
-        return FiberFuture.allOf(f1, f2);
+        return FiberFuture.allOf("closeLogAppender", f1, f2);
     }
 
     private class WriteFiberFrame extends FiberFrame<Void> {
