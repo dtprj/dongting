@@ -156,11 +156,11 @@ public class FiberGroup {
 
     void start(Fiber f, boolean addFirst) {
         if (f.fiberGroup.finished) {
-            log.warn("group finished, ignore fiber start: {}", f.getFiberName());
+            log.warn("group finished, ignore fiber start: {}", f.getName());
             return;
         }
         if (f.started) {
-            BugLog.getLog().error("fiber already started: {}", f.getFiberName());
+            BugLog.getLog().error("fiber already started: {}", f.getName());
             return;
         }
         f.started = true;
@@ -182,17 +182,17 @@ public class FiberGroup {
             removed = normalFibers.remove(f.id) != null;
         }
         if (!removed) {
-            BugLog.getLog().error("fiber is not in set: {}", f.getFiberName());
+            BugLog.getLog().error("fiber is not in set: {}", f.getName());
         }
     }
 
     void tryMakeFiberReady(Fiber f, boolean addFirst) {
         if (finished) {
-            log.warn("group finished, ignore makeReady: {}", f.getFiberName());
+            log.warn("group finished, ignore makeReady: {}", f.getName());
             return;
         }
         if (f.finished) {
-            log.warn("fiber already finished, ignore makeReady: {}", f.getFiberName());
+            log.warn("fiber already finished, ignore makeReady: {}", f.getName());
             return;
         }
         if (!f.ready) {
@@ -327,7 +327,7 @@ public class FiberGroup {
     }
 
     private void concatFiberName(StringBuilder sb, Fiber f) {
-        sb.append(f.getFiberName()).append("(").append(Integer.toHexString(f.hashCode())).append(")");
+        sb.append(f.getName()).append("(").append(Integer.toHexString(f.hashCode())).append(")");
         if (f.lastWaitFor != null) {
             sb.append(", lastWaitFor=").append(f.lastWaitFor);
         }

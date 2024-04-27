@@ -164,7 +164,7 @@ public class Dispatcher extends AbstractLifeCircle {
             scheduleQueue.poll();
             if (f.fiberGroup.finished) {
                 if (!f.daemon) {
-                    BugLog.getLog().error("group finished, but suspend fiber is not daemon: {}", f.getFiberName());
+                    BugLog.getLog().error("group finished, but suspend fiber is not daemon: {}", f.getName());
                 }
                 continue;
             }
@@ -244,10 +244,10 @@ public class Dispatcher extends AbstractLifeCircle {
                 currentFrame = fiber.stackTop;
             }
             if (fatalError != null) {
-                log.error("fiber execute error, group={}, fiber={}", g.getName(), fiber.getFiberName(), fatalError);
+                log.error("fiber execute error, group={}, fiber={}", g.getName(), fiber.getName(), fatalError);
             }
             if (fiber.inputEx != null) {
-                log.error("fiber execute error, group={}, fiber={}", g.getName(), fiber.getFiberName(), fiber.inputEx);
+                log.error("fiber execute error, group={}, fiber={}", g.getName(), fiber.getName(), fiber.inputEx);
             }
             fiber.finished = true;
             fiber.ready = false;
