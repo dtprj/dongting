@@ -212,7 +212,6 @@ public class Dispatcher extends AbstractLifeCircle {
     private void execFiber(FiberGroup g, Fiber fiber) {
         try {
             g.currentFiber = fiber;
-            fiber.lastWaitFor = null;
             FiberFrame currentFrame = fiber.stackTop;
             while (currentFrame != null) {
                 execFrame(fiber, currentFrame);
@@ -339,12 +338,12 @@ public class Dispatcher extends AbstractLifeCircle {
         currentFrame.resumePoint = resumePoint;
     }
 
-    static FrameCallResult awaitOn(WaitSource c, long millis, FrameCall resumePoint, String reason) {
+    static FrameCallResult awaitOn(WaitSource c, long millis, FrameCall resumePoint) {
         Fiber fiber = getCurrentFiberAndCheck(c.fiberGroup);
-        return awaitOn(fiber, c, millis, resumePoint, reason);
+        return awaitOn(fiber, c, millis, resumePoint);
     }
 
-    static FrameCallResult awaitOn(Fiber fiber, WaitSource c, long millis, FrameCall resumePoint, String reason) {
+    static FrameCallResult awaitOn(Fiber fiber, WaitSource c, long millis, FrameCall resumePoint) {
         checkInterrupt(fiber);
         checkReentry(fiber);
         FiberFrame currentFrame = fiber.stackTop;
@@ -352,13 +351,12 @@ public class Dispatcher extends AbstractLifeCircle {
         fiber.source = c;
         fiber.scheduleTimeoutMillis = millis;
         fiber.ready = false;
-        fiber.lastWaitFor = reason;
         fiber.fiberGroup.dispatcher.addToScheduleQueue(millis, fiber);
         c.addWaiter(fiber);
         return FrameCallResult.SUSPEND;
     }
 
-    static void sleep(long millis, FrameCall<Void> resumePoint, String reason) {
+    static void sleep(long millis, FrameCall<Void> resumePoint) {
         Fiber fiber = getCurrentFiberAndCheck(null);
         checkInterrupt(fiber);
         checkReentry(fiber);
@@ -366,11 +364,10 @@ public class Dispatcher extends AbstractLifeCircle {
         currentFrame.resumePoint = resumePoint;
         fiber.scheduleTimeoutMillis = millis;
         fiber.ready = false;
-        fiber.lastWaitFor = reason;
         fiber.fiberGroup.dispatcher.addToScheduleQueue(millis, fiber);
     }
 
-    static void sleepUntilShouldStop(long millis, FrameCall<Void> resumePoint, String reason) {
+    static void sleepUntilShouldStop(long millis, FrameCall<Void> resumePoint) {
         Fiber fiber = getCurrentFiberAndCheck(null);
         checkInterrupt(fiber);
         checkReentry(fiber);
@@ -381,19 +378,17 @@ public class Dispatcher extends AbstractLifeCircle {
         if (g.isShouldStopPlain()) {
             return;
         }
-        fiber.lastWaitFor = reason;
         fiber.source = g.shouldStopCondition;
         g.shouldStopCondition.addWaiter(fiber);
         fiber.ready = false;
         fiber.fiberGroup.dispatcher.addToScheduleQueue(millis, fiber);
     }
 
-    static void yield(FrameCall<Void> resumePoint, String reason) {
+    static void yield(FrameCall<Void> resumePoint) {
         Fiber fiber = getCurrentFiberAndCheck(null);
         checkReentry(fiber);
         FiberFrame currentFrame = fiber.stackTop;
         currentFrame.resumePoint = resumePoint;
-        fiber.lastWaitFor = reason;
         fiber.ready = false;
     }
 

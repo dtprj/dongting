@@ -53,11 +53,11 @@ public class FiberCondition extends WaitSource {
     }
 
     public FrameCallResult await(FrameCall<Void> resumePoint) {
-        return Dispatcher.awaitOn(this, -1, resumePoint, "waitCondition");
+        return Dispatcher.awaitOn(this, -1, resumePoint);
     }
 
     public FrameCallResult await(long millis, FrameCall<Void> resumePoint) {
         DtUtil.checkPositive(millis, "millis");
-        return Dispatcher.awaitOn(this, millis, resumePoint, "timeWaitCondition");
+        return Dispatcher.awaitOn(this, millis, resumePoint);
     }
 }

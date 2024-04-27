@@ -49,7 +49,6 @@ public class Fiber extends WaitSource {
     Throwable inputEx;
 
     boolean signalInThisRound;
-    String lastWaitFor;
 
     public Fiber(String name, FiberGroup fiberGroup, FiberFrame<Void> entryFrame) {
         this(name, fiberGroup, entryFrame, false);
@@ -80,18 +79,18 @@ public class Fiber extends WaitSource {
 
     public static FrameCallResult sleep(long millis, FrameCall<Void> resumePoint) {
         DtUtil.checkPositive(millis, "millis");
-        Dispatcher.sleep(millis, resumePoint, "sleep");
+        Dispatcher.sleep(millis, resumePoint);
         return FrameCallResult.SUSPEND;
     }
 
     public static FrameCallResult sleepUntilShouldStop(long millis, FrameCall<Void> resumePoint) {
         DtUtil.checkPositive(millis, "millis");
-        Dispatcher.sleepUntilShouldStop(millis, resumePoint, "sleepUntilShouldStop");
+        Dispatcher.sleepUntilShouldStop(millis, resumePoint);
         return FrameCallResult.SUSPEND;
     }
 
     public static FrameCallResult yield(FrameCall<Void> resumePoint) {
-        Dispatcher.yield(resumePoint, "yield");
+        Dispatcher.yield(resumePoint);
         return FrameCallResult.RETURN;
     }
 
@@ -147,7 +146,7 @@ public class Fiber extends WaitSource {
         if (finished) {
             return Fiber.resume(null, resumePoint);
         }
-        return Dispatcher.awaitOn(currentFiber, this, -1, resumePoint, "join");
+        return Dispatcher.awaitOn(currentFiber, this, -1, resumePoint);
     }
 
     public FrameCallResult join(long millis, FrameCall<Boolean> resumePoint) {
@@ -156,7 +155,7 @@ public class Fiber extends WaitSource {
         if (finished) {
             return Fiber.resume(Boolean.TRUE, resumePoint);
         }
-        return Dispatcher.awaitOn(currentFiber, this, millis, resumePoint, "join");
+        return Dispatcher.awaitOn(currentFiber, this, millis, resumePoint);
     }
 
     public FiberFuture<Void> join() {

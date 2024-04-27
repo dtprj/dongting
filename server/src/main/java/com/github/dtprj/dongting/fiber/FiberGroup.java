@@ -331,9 +331,6 @@ public class FiberGroup {
 
     private void concatFiberName(StringBuilder sb, Fiber f) {
         sb.append(f.getName()).append("(").append(Integer.toHexString(f.hashCode())).append(")");
-        if (f.lastWaitFor != null) {
-            sb.append(", lastWaitFor=").append(f.lastWaitFor);
-        }
     }
 
     public Dispatcher getDispatcher() {

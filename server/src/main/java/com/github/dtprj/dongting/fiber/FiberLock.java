@@ -61,7 +61,7 @@ public class FiberLock extends Lock {
     public FrameCallResult lock(FrameCall<Void> resumePoint) {
         Fiber fiber = Dispatcher.getCurrentFiberAndCheck(fiberGroup);
         if (shouldWait(fiber)) {
-            return Dispatcher.awaitOn(fiber, this, -1, resumePoint, "waitLock");
+            return Dispatcher.awaitOn(fiber, this, -1, resumePoint);
         } else {
             updateOwnerAndHeldCount(fiber);
             return Fiber.resume(null, resumePoint);
@@ -73,7 +73,7 @@ public class FiberLock extends Lock {
         DtUtil.checkPositive(millis, "millis");
         Fiber fiber = Dispatcher.getCurrentFiberAndCheck(fiberGroup);
         if (shouldWait(fiber)) {
-            return Dispatcher.awaitOn(fiber, this, millis, resumePoint, "timeWaitLock");
+            return Dispatcher.awaitOn(fiber, this, millis, resumePoint);
         } else {
             updateOwnerAndHeldCount(fiber);
             return Fiber.resume(Boolean.TRUE, resumePoint);

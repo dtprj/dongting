@@ -181,7 +181,7 @@ public class FiberFuture<T> extends WaitSource {
                 return Fiber.resumeEx(execEx);
             }
         }
-        return Dispatcher.awaitOn(this, -1, resumePoint, "waitOnFuture");
+        return Dispatcher.awaitOn(this, -1, resumePoint);
     }
 
     public FrameCallResult await(long millis, FrameCall<T> resumePoint) {
@@ -193,7 +193,7 @@ public class FiberFuture<T> extends WaitSource {
                 return Fiber.resumeEx(execEx);
             }
         }
-        return Dispatcher.awaitOn(this, millis, resumePoint, "timeWaitOnFuture");
+        return Dispatcher.awaitOn(this, millis, resumePoint);
     }
 
     /**
