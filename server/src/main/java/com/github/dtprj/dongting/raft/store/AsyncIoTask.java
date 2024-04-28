@@ -50,7 +50,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     boolean write;
     private int position;
     private boolean flushMeta;
-    private Executor ioExecutor;
+    private Executor forceExecutor;
 
     private int retryCount = 0;
 
@@ -103,7 +103,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         return write(ioBuffer, filePos, ioExecutor, flushMeta);
     }
 
-    private FiberFuture<Void> write(ByteBuffer ioBuffer, long filePos, Executor ioExecutor, boolean syncMeta) {
+    private FiberFuture<Void> write(ByteBuffer ioBuffer, long filePos, Executor forceExecutor, boolean syncMeta) {
         if (this.ioBuffer != null) {
             future.completeExceptionally(new RaftException("io task can't reused"));
             return future;
@@ -112,7 +112,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         this.filePos = filePos;
         this.position = ioBuffer.position();
         this.write = true;
-        this.ioExecutor = ioExecutor;
+        this.forceExecutor = forceExecutor;
         this.flushMeta = syncMeta;
         exec(filePos);
         return future;
@@ -129,13 +129,13 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         };
     }
 
-    public FiberFrame<Void> lockWriteAndForce(ByteBuffer ioBuffer, long filePos, Executor ioExecutor, boolean flushMeta) {
+    public FiberFrame<Void> lockWriteAndForce(ByteBuffer ioBuffer, long filePos, Executor forceExecutor, boolean flushMeta) {
         // use read lock, so not block read operation.
         // because we never read file block that is being written.
         return new DoInLockFrame<>(dtFile.getLock().readLock()) {
             @Override
             protected FrameCallResult afterGetLock() {
-                return write(ioBuffer, filePos, ioExecutor, flushMeta).await(this::justReturn);
+                return write(ioBuffer, filePos, forceExecutor, flushMeta).await(this::justReturn);
             }
         };
     }
@@ -231,9 +231,9 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         if (ioBuffer.hasRemaining()) {
             int bytes = ioBuffer.position() - position;
             exec(filePos + bytes);
-        } else if (ioExecutor != null) {
+        } else if (forceExecutor != null) {
             try {
-                ioExecutor.execute(() -> {
+                forceExecutor.execute(() -> {
                     try {
                         doFlush();
                         fireComplete(null);
