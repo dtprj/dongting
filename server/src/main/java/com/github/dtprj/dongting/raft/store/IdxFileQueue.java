@@ -224,6 +224,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         LongLongSeqMap cache = this.cache;
         long maxCacheItems = this.maxCacheItems;
         long nextPersistIndex = this.nextPersistIndex;
+        // notice: we are not write no-commited logs to the idx file
         while (cache.size() >= maxCacheItems && cache.getFirstKey() < nextPersistIndex) {
             cache.remove();
         }
@@ -281,7 +282,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
         @Override
         public FrameCallResult execute(Void v) {
-            prepareBuffer(logFile);
+            boolean endOfFile = prepareBuffer(logFile);
 
             long startIndex = nextPersistIndex;
             long index = startIndex;
@@ -299,7 +300,12 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             AsyncIoTask currentWriteTask = new AsyncIoTask(getFiberGroup(), logFile,
                     groupConfig.getIoRetryInterval(), true);
             long filePos = indexToPos(startIndex) & fileLenMask;
-            FiberFrame<Void> f = currentWriteTask.lockWriteAndForce(buf, filePos, ioExecutor, false);
+            FiberFrame<Void> f;
+            if (endOfFile) {
+                f = currentWriteTask.lockWriteAndForce(buf, filePos, ioExecutor, false);
+            } else {
+                f = currentWriteTask.lockWrite(buf, filePos);
+            }
             return Fiber.call(f, notUsedVoid -> afterWrite(nextPersistIndexAfterWrite));
         }
 
@@ -323,7 +329,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             return Fiber.frameReturn();
         }
 
-        private void prepareBuffer(LogFile logFile) {
+        // return true if return buffer is reached end of file
+        private boolean prepareBuffer(LogFile logFile) {
             long startIdx = nextPersistIndex;
             long startIdxPos = indexToPos(startIdx);
             long lastIdx = Math.min(raftStatus.getCommitIndex(), cache.getLastKey());
@@ -339,6 +346,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             }
             buf = groupConfig.getDirectPool().borrow(len);
             buf.limit(len);
+            return logFile.endPos - startIdxPos == len;
         }
 
         @Override
