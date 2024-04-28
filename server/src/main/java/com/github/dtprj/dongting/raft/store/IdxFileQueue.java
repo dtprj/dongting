@@ -53,7 +53,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     private final int maxCacheItems;
 
-    private final int flushItems;
+    private final int flushThreshold;
     final LongLongSeqMap cache = new LongLongSeqMap(1024);
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
@@ -83,7 +83,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
 
         this.maxCacheItems = maxCacheItems;
-        this.flushItems = this.maxCacheItems / 2;
+        this.flushThreshold = this.maxCacheItems / 2;
         this.flushFiber = new Fiber("idxFlush-" + groupConfig.getGroupId(),
                 groupConfig.getFiberGroup(), new FlushLoopFrame());
         this.needFlushCondition = groupConfig.getFiberGroup().newCondition("IdxNeedFlush-" + groupConfig.getGroupId());
@@ -218,7 +218,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private boolean shouldFlush() {
         boolean timeout = ts.getNanoTime() - lastFlushNanos > FLUSH_INTERVAL_NANOS;
         long diff = getFlushDiff();
-        return (diff >= flushItems || (timeout && diff > 0)) && !raftStatus.isInstallSnapshot();
+        return (diff >= flushThreshold || (timeout && diff > 0)) && !raftStatus.isInstallSnapshot();
     }
 
     private void removeHead() {

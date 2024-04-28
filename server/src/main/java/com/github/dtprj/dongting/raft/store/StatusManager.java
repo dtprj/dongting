@@ -165,9 +165,9 @@ public class StatusManager {
         }
     }
 
-    public void persistAsync(boolean sync) {
+    public void persistAsync(boolean force) {
         requestUpdateVersion++;
-        if (sync) {
+        if (force) {
             lastNeedForceVersion = requestUpdateVersion;
         }
         needUpdateCondition.signal();
