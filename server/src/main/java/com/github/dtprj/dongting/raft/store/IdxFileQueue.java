@@ -47,6 +47,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     public static final int DEFAULT_ITEMS_PER_FILE = 1024 * 1024;
     public static final int DEFAULT_MAX_CACHE_ITEMS = 16 * 1024;
+    public static final int MAX_BATCH_ITEMS = 16 * 1024;
 
     private final StatusManager statusManager;
 
@@ -334,6 +335,9 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             long startIdx = nextPersistIndex;
             long startIdxPos = indexToPos(startIdx);
             long lastIdx = Math.min(raftStatus.getCommitIndex(), cache.getLastKey());
+            if (lastIdx - startIdx > MAX_BATCH_ITEMS) {
+                lastIdx = startIdx + MAX_BATCH_ITEMS;
+            }
             long lastIdxPos = indexToPos(lastIdx);
             long fileStartPos1 = startIdxPos & ~fileLenMask;
             long fileStartPos2 = lastIdxPos & ~fileLenMask;
