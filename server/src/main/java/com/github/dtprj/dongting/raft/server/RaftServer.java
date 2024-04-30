@@ -519,10 +519,12 @@ public class RaftServer extends AbstractLifeCircle {
             @Override
             public FrameCallResult execute(Void input) {
                 GroupComponents gc = g.getGroupComponents();
-                gc.getRaftLog().close();
                 gc.getApplyManager().close();
-                gc.getStatusManager().close();
-                return Fiber.frameReturn();
+                return gc.getRaftLog().close().await(this::afterRaftLogClose);
+            }
+
+            private FrameCallResult afterRaftLogClose(Void unused) {
+                return g.getGroupComponents().getStatusManager().close().await(this::justReturn);
             }
         });
 
