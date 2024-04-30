@@ -141,6 +141,21 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         };
     }
 
+    public FiberFrame<Void> lockForce(boolean flushMeta) {
+        this.force = true;
+        this.flushMeta = flushMeta;
+
+        // use read lock, so not block read operation.
+        // because we never read file block that is being written.
+        return new DoInLockFrame<>(dtFile.getLock().readLock()) {
+            @Override
+            protected FrameCallResult afterGetLock() {
+                submitForceTask();
+                return Fiber.frameReturn();
+            }
+        };
+    }
+
     protected void fireComplete(Throwable ex) {
         if (ex == null) {
             future.fireComplete(null);
@@ -249,7 +264,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
 
     private void submitForceTask() {
         try {
-            ExecutorService executor = groupConfig.getFiberGroup().getExecutor();
+            ExecutorService executor = groupConfig.getIoExecutor();
             executor.execute(() -> {
                 try {
                     doForce();
