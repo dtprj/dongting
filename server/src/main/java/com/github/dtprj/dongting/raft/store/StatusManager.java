@@ -64,7 +64,7 @@ public class StatusManager {
         File dir = FileUtil.ensureDir(groupConfig.getDataDir());
         File file = new File(dir, groupConfig.getStatusFile());
         FiberGroup fg = groupConfig.getFiberGroup();
-        this.statusFile = new StatusFile(file, groupConfig.getIoExecutor(), fg);
+        this.statusFile = new StatusFile(file, groupConfig);
         this.updateFiber = new Fiber("status-update-" + groupConfig.getGroupId(), fg, new UpdateFiberFrame());
         this.needUpdateCondition = fg.newCondition("StatusNeedUpdate" + groupConfig.getGroupId());
         this.updateDoneCondition = fg.newCondition("StatusUpdateDone" + groupConfig.getGroupId());

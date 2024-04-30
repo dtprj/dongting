@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import org.junit.jupiter.api.Test;
 
@@ -40,8 +41,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 @SuppressWarnings("resource")
 public class StatusFileTest extends BaseFiberTest {
-    private static void update(File file, Properties data) throws Exception {
-        StatusFile statusFile = new StatusFile(file, MockExecutors.ioExecutor(), fiberGroup);
+
+    private static RaftGroupConfigEx createGroupConfig() {
+        RaftGroupConfigEx groupConfig = new RaftGroupConfigEx(0, "1", "");
+        groupConfig.setFiberGroup(fiberGroup);
+        groupConfig.setIoExecutor(MockExecutors.ioExecutor());
+        return groupConfig;
+    }
+
+    private static void update(File file, Properties data, RaftGroupConfigEx groupConfig) throws Exception {
+        StatusFile statusFile = new StatusFile(file, groupConfig);
         CompletableFuture<Void> jdkFuture = new CompletableFuture<>();
         fiberGroup.fireFiber("f", new FiberFrame<>() {
             @Override
@@ -70,14 +79,15 @@ public class StatusFileTest extends BaseFiberTest {
 
     @Test
     public void testUpdateAndInit() throws Exception {
+        RaftGroupConfigEx groupConfig = createGroupConfig();
         File dir = TestDir.createTestDir(StatusFileTest.class.getSimpleName());
         File file = new File(dir, "status");
         Properties props = new Properties();
         props.setProperty("1", "100");
         props.setProperty("2", "200");
-        update(file, props);
+        update(file, props, groupConfig);
         {
-            StatusFile statusFile = new StatusFile(file, MockExecutors.ioExecutor(), fiberGroup);
+            StatusFile statusFile = new StatusFile(file, groupConfig);
             CompletableFuture<Void> jdkFuture = new CompletableFuture<>();
             fiberGroup.fireFiber("f", new FiberFrame<>() {
                 @Override
@@ -106,13 +116,14 @@ public class StatusFileTest extends BaseFiberTest {
             jdkFuture.get(1, TimeUnit.SECONDS);
         }
         {
-            StatusFile statusFile = new StatusFile(file, MockExecutors.ioExecutor(), fiberGroup);
+            StatusFile statusFile = new StatusFile(file, groupConfig);
             CompletableFuture<Void> jdkFuture = new CompletableFuture<>();
             fiberGroup.fireFiber("f", new FiberFrame<>() {
                 @Override
                 public FrameCallResult execute(Void input) {
                     return Fiber.call(statusFile.init(), this::afterInit);
                 }
+
                 private FrameCallResult afterInit(Void unused) {
                     assertEquals("100", statusFile.getProperties().getProperty("1"));
                     assertEquals("200", statusFile.getProperties().getProperty("2"));
@@ -120,6 +131,7 @@ public class StatusFileTest extends BaseFiberTest {
                     jdkFuture.complete(null);
                     return Fiber.frameReturn();
                 }
+
                 @Override
                 protected FrameCallResult doFinally() {
                     statusFile.close();
@@ -132,12 +144,13 @@ public class StatusFileTest extends BaseFiberTest {
 
     @Test
     public void testChecksumError() throws Exception {
+        RaftGroupConfigEx groupConfig = createGroupConfig();
         File dir = TestDir.createTestDir(StatusFileTest.class.getSimpleName());
         File file = new File(dir, "status");
         Properties props = new Properties();
         props.setProperty("1", "100");
         props.setProperty("2", "200");
-        update(file, props);
+        update(file, props, groupConfig);
 
         FileInputStream in = new FileInputStream(file);
         byte[] bs = in.readAllBytes();
@@ -154,18 +167,20 @@ public class StatusFileTest extends BaseFiberTest {
         fos.write(bs);
         fos.close();
 
-        StatusFile statusFile = new StatusFile(file, MockExecutors.ioExecutor(), fiberGroup);
+        StatusFile statusFile = new StatusFile(file, groupConfig);
         CompletableFuture<Throwable> jdkFuture = new CompletableFuture<>();
         fiberGroup.fireFiber("f", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return Fiber.call(statusFile.init(), this::justReturn);
             }
+
             @Override
             protected FrameCallResult handle(Throwable ex) {
                 jdkFuture.complete(ex);
                 return Fiber.frameReturn();
             }
+
             @Override
             protected FrameCallResult doFinally() {
                 statusFile.close();
@@ -177,23 +192,26 @@ public class StatusFileTest extends BaseFiberTest {
 
     @Test
     public void testFileLengthError() throws Exception {
+        RaftGroupConfigEx groupConfig = createGroupConfig();
         File dir = TestDir.createTestDir(StatusFileTest.class.getSimpleName());
         File file = new File(dir, "status");
         RandomAccessFile raf = new RandomAccessFile(file, "rw");
         raf.setLength(1);
         raf.close();
-        StatusFile statusFile = new StatusFile(file, MockExecutors.ioExecutor(), fiberGroup);
+        StatusFile statusFile = new StatusFile(file, groupConfig);
         CompletableFuture<Throwable> jdkFuture = new CompletableFuture<>();
         fiberGroup.fireFiber("f", new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 return Fiber.call(statusFile.init(), this::justReturn);
             }
+
             @Override
             protected FrameCallResult handle(Throwable ex) {
                 jdkFuture.complete(ex);
                 return Fiber.frameReturn();
             }
+
             @Override
             protected FrameCallResult doFinally() {
                 statusFile.close();

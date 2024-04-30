@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -38,7 +39,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Properties;
-import java.util.concurrent.ExecutorService;
 import java.util.zip.CRC32C;
 
 /**
@@ -54,8 +54,8 @@ public class StatusFile implements AutoCloseable {
     private static final int CONTENT_LENGTH = FILE_LENGTH - CONTENT_START_POS;
 
     private final File file;
-    private final ExecutorService ioExecutor;
     private final FiberGroup fiberGroup;
+    private final RaftGroupConfigEx groupConfig;
     private FileLock lock;
     private DtFile dtFile;
     private final byte[] data = new byte[FILE_LENGTH];
@@ -64,10 +64,10 @@ public class StatusFile implements AutoCloseable {
 
     private final Properties properties = new Properties();
 
-    public StatusFile(File file, ExecutorService ioExecutor, FiberGroup fiberGroup) {
+    public StatusFile(File file, RaftGroupConfigEx groupConfig) {
         this.file = file;
-        this.ioExecutor = ioExecutor;
-        this.fiberGroup = fiberGroup;
+        this.fiberGroup = groupConfig.getFiberGroup();
+        this.groupConfig = groupConfig;
     }
 
     public Properties getProperties() {
@@ -96,7 +96,7 @@ public class StatusFile implements AutoCloseable {
                     throw new RaftException("bad status file length: " + file.length());
                 }
                 ByteBuffer buf = ByteBuffer.wrap(initData);
-                AsyncIoTask task = new AsyncIoTask(fiberGroup, dtFile);
+                AsyncIoTask task = new AsyncIoTask(groupConfig, dtFile);
                 FiberFuture<Void> f = task.read(buf, 0);
                 return f.await(this::resumeAfterRead);
             }
@@ -146,9 +146,9 @@ public class StatusFile implements AutoCloseable {
             ByteBuffer buf = ByteBuffer.wrap(data);
 
             // retry in status manager
-            AsyncIoTask task = new AsyncIoTask(fiberGroup, dtFile);
+            AsyncIoTask task = new AsyncIoTask(groupConfig, dtFile);
             if (sync) {
-                return task.writeAndForce(buf, 0, ioExecutor, false);
+                return task.writeAndForce(buf, 0, false);
             } else {
                 return task.write(buf, 0);
             }

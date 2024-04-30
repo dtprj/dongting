@@ -69,7 +69,7 @@ public abstract class DefaultRaftFactory extends AbstractLifeCircle implements R
 
     @Override
     public SnapshotManager createSnapshotManager(RaftGroupConfigEx groupConfig) {
-        return new DefaultSnapshotManager(groupConfig, ioExecutor);
+        return new DefaultSnapshotManager(groupConfig);
     }
 
     @Override

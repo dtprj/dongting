@@ -301,13 +301,12 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
             long nextPersistIndexAfterWrite = index;
 
-            AsyncIoTask currentWriteTask = new AsyncIoTask(getFiberGroup(), logFile,
-                    groupConfig.getIoRetryInterval(), true);
+            AsyncIoTask currentWriteTask = new AsyncIoTask(groupConfig, logFile,true, true);
             long filePos = indexToPos(startIndex) & fileLenMask;
             FiberFrame<Void> f;
             boolean updateStatusFile;
             if (endOfFile || closed || ts.getNanoTime() - lastUpdateStatusNanos > FLUSH_INTERVAL_NANOS) {
-                f = currentWriteTask.lockWriteAndForce(buf, filePos, ioExecutor, false);
+                f = currentWriteTask.lockWriteAndForce(buf, filePos, false);
                 updateStatusFile = true;
             } else {
                 f = currentWriteTask.lockWrite(buf, filePos);
@@ -399,7 +398,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             @Override
             public FrameCallResult execute(Void v) {
                 long filePos = pos & fileLenMask;
-                AsyncIoTask t = new AsyncIoTask(getFiberGroup(), lf);
+                AsyncIoTask t = new AsyncIoTask(groupConfig, lf);
                 return Fiber.call(t.lockRead(buffer, filePos), this::afterLoad);
             }
 

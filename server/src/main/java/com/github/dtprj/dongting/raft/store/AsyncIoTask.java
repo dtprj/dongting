@@ -19,17 +19,17 @@ import com.github.dtprj.dongting.fiber.DoInLockFrame;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
-import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.CompletionHandler;
 import java.util.Objects;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 
 /**
@@ -39,39 +39,40 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     private static final DtLog log = DtLogs.getLogger(AsyncIoTask.class);
     private final DtFile dtFile;
     private final Supplier<Boolean> cancelRetryIndicator;
-    private final FiberGroup fiberGroup;
-    private final long[] retryInterval;
+    private final RaftGroupConfigEx groupConfig;
     private final FiberFuture<Void> future;
 
+    private final boolean retry;
     private final boolean retryForever;
 
     private ByteBuffer ioBuffer;
     private long filePos;
-    boolean write;
     private int position;
+
+    private boolean write;
+    private boolean force;
     private boolean flushMeta;
-    private Executor forceExecutor;
 
     private int retryCount = 0;
 
-    public AsyncIoTask(FiberGroup fiberGroup, DtFile dtFile) {
-        this(fiberGroup, dtFile, null, false, null);
+    public AsyncIoTask(RaftGroupConfigEx groupConfig, DtFile dtFile) {
+        this(groupConfig, dtFile, false, false, null);
     }
 
-    public AsyncIoTask(FiberGroup fiberGroup, DtFile dtFile, long[] retryInterval, boolean retryForever) {
-        this(fiberGroup, dtFile, retryInterval, retryForever, null);
+    public AsyncIoTask(RaftGroupConfigEx groupConfig, DtFile dtFile, boolean retry, boolean retryForever) {
+        this(groupConfig, dtFile, retry, retryForever, null);
     }
 
-    public AsyncIoTask(FiberGroup fiberGroup, DtFile dtFile, long[] retryInterval, boolean retryForever,
+    public AsyncIoTask(RaftGroupConfigEx groupConfig, DtFile dtFile, boolean retry, boolean retryForever,
                        Supplier<Boolean> cancelRetryIndicator) {
-        Objects.requireNonNull(fiberGroup);
+        Objects.requireNonNull(groupConfig.getFiberGroup());
         Objects.requireNonNull(dtFile);
-        this.retryInterval = retryInterval;
-        this.fiberGroup = fiberGroup;
+        this.groupConfig = groupConfig;
         this.dtFile = dtFile;
+        this.retry = retry;
         this.retryForever = retryForever;
         this.cancelRetryIndicator = cancelRetryIndicator;
-        this.future = fiberGroup.newFuture("asyncIoTaskFuture");
+        this.future = groupConfig.getFiberGroup().newFuture("asyncIoTaskFuture");
     }
 
     public FiberFuture<Void> read(ByteBuffer ioBuffer, long filePos) {
@@ -96,14 +97,14 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     }
 
     public FiberFuture<Void> write(ByteBuffer ioBuffer, long filePos) {
-        return write(ioBuffer, filePos, null, false);
+        return write(ioBuffer, filePos, false, false);
     }
 
-    public FiberFuture<Void> writeAndForce(ByteBuffer ioBuffer, long filePos, Executor ioExecutor, boolean flushMeta) {
-        return write(ioBuffer, filePos, ioExecutor, flushMeta);
+    public FiberFuture<Void> writeAndForce(ByteBuffer ioBuffer, long filePos, boolean flushMeta) {
+        return write(ioBuffer, filePos, true, flushMeta);
     }
 
-    private FiberFuture<Void> write(ByteBuffer ioBuffer, long filePos, Executor forceExecutor, boolean syncMeta) {
+    private FiberFuture<Void> write(ByteBuffer ioBuffer, long filePos, boolean force, boolean syncMeta) {
         if (this.ioBuffer != null) {
             future.completeExceptionally(new RaftException("io task can't reused"));
             return future;
@@ -112,7 +113,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         this.filePos = filePos;
         this.position = ioBuffer.position();
         this.write = true;
-        this.forceExecutor = forceExecutor;
+        this.force = force;
         this.flushMeta = syncMeta;
         exec(filePos);
         return future;
@@ -124,18 +125,18 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         return new DoInLockFrame<>(dtFile.getLock().readLock()) {
             @Override
             protected FrameCallResult afterGetLock() {
-                return write(ioBuffer, filePos, null, false).await(this::justReturn);
+                return write(ioBuffer, filePos).await(this::justReturn);
             }
         };
     }
 
-    public FiberFrame<Void> lockWriteAndForce(ByteBuffer ioBuffer, long filePos, Executor forceExecutor, boolean flushMeta) {
+    public FiberFrame<Void> lockWriteAndForce(ByteBuffer ioBuffer, long filePos, boolean flushMeta) {
         // use read lock, so not block read operation.
         // because we never read file block that is being written.
         return new DoInLockFrame<>(dtFile.getLock().readLock()) {
             @Override
             protected FrameCallResult afterGetLock() {
-                return write(ioBuffer, filePos, forceExecutor, flushMeta).await(this::justReturn);
+                return write(ioBuffer, filePos, true, flushMeta).await(this::justReturn);
             }
         };
     }
@@ -149,7 +150,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     }
 
     private void retry(Throwable ioEx) {
-        if (retryInterval == null || retryInterval.length == 0) {
+        if (!retry) {
             fireComplete(ioEx);
             return;
         }
@@ -158,6 +159,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
             return;
         }
         long sleepTime;
+        long[] retryInterval = groupConfig.getIoRetryInterval();
         if (retryCount >= retryInterval.length) {
             if (retryForever) {
                 sleepTime = retryInterval[retryInterval.length - 1];
@@ -170,7 +172,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
             sleepTime = retryInterval[retryCount++];
         }
 
-        Fiber retryFiber = new Fiber("io-retry-fiber", fiberGroup, new FiberFrame<>() {
+        Fiber retryFiber = new Fiber("io-retry-fiber", groupConfig.getFiberGroup(), new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 log.warn("io error, retry after {} ms", sleepTime, ioEx);
@@ -198,11 +200,11 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
                 return Fiber.frameReturn();
             }
         });
-        fiberGroup.fireFiber(retryFiber);
+        groupConfig.getFiberGroup().fireFiber(retryFiber);
     }
 
     private boolean shouldCancelRetry() {
-        if (fiberGroup.isShouldStop()) {
+        if (groupConfig.getFiberGroup().isShouldStop()) {
             // if fiber group is stopped, ignore cancelIndicator and retryForever
             return true;
         }
@@ -237,7 +239,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
             exec(filePos + bytes);
         } else {
             ioBuffer = null;
-            if (forceExecutor != null) {
+            if (force) {
                 submitForceTask();
             } else {
                 fireComplete(null);
@@ -247,13 +249,14 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
 
     private void submitForceTask() {
         try {
-            forceExecutor.execute(() -> {
+            ExecutorService executor = groupConfig.getFiberGroup().getExecutor();
+            executor.execute(() -> {
                 try {
                     doForce();
                     fireComplete(null);
                 } catch (Throwable e) {
                     // retry should run in fiber dispatcher thread
-                    fiberGroup.getExecutor().submit(() -> retry(e));
+                    executor.execute(() -> retry(e));
                 }
             });
         } catch (Throwable e) {

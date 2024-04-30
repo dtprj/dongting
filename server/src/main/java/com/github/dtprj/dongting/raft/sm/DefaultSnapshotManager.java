@@ -77,9 +77,9 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
     private SaveFrame currentSaveTask;
 
-    public DefaultSnapshotManager(RaftGroupConfigEx groupConfig, ExecutorService ioExecutor) {
+    public DefaultSnapshotManager(RaftGroupConfigEx groupConfig) {
         this.groupConfig = groupConfig;
-        this.ioExecutor = ioExecutor;
+        this.ioExecutor = groupConfig.getIoExecutor();
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
     }
 
@@ -135,7 +135,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
                 }
             }
 
-            this.snapshotIdxFile = new StatusFile(lastDataFile, ioExecutor, getFiberGroup());
+            this.snapshotIdxFile = new StatusFile(lastDataFile, groupConfig);
 
             return Fiber.call(snapshotIdxFile.init(), this::afterStatusFileInit);
         }
@@ -280,7 +280,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         private FrameCallResult write(ByteBuffer buf, FrameCall<Void> resumePoint) {
-            AsyncIoTask writeTask = new AsyncIoTask(getFiberGroup(), newDataFile);
+            AsyncIoTask writeTask = new AsyncIoTask(groupConfig, newDataFile);
             long newWritePos = currentWritePos + buf.remaining();
             FiberFuture<Void> writeFuture = writeTask.write(buf, currentWritePos);
             currentWritePos = newWritePos;
@@ -334,7 +334,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             }
             log.info("snapshot data file write success: {}", newDataFile.getFile().getPath());
 
-            statusFile = new StatusFile(newIdxFile, ioExecutor, getFiberGroup());
+            statusFile = new StatusFile(newIdxFile, groupConfig);
             statusFile.init();
             SnapshotInfo si = readSnapshot.getSnapshotInfo();
             Properties p = statusFile.getProperties();

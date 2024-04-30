@@ -217,7 +217,7 @@ class FileLogLoader implements RaftLog.LogIterator {
             }
             bufferStartPos = pos - buf.position();
             bufferEndPos = pos + buf.remaining();
-            AsyncIoTask t = new AsyncIoTask(getFiberGroup(), logFile);
+            AsyncIoTask t = new AsyncIoTask(groupConfig, logFile);
             return Fiber.call(t.lockRead(buf, fileStartPos), this::resumeAfterLoad);
         }
 

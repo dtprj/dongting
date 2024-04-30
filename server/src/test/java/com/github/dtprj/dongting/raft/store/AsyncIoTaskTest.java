@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -47,6 +48,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
     private static File dir;
     private File file;
     private DtFile dtFile;
+    private RaftGroupConfigEx groupConfig;
 
     @BeforeAll
     public static void setupDir() {
@@ -70,6 +72,10 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         s.add(StandardOpenOption.READ);
         AsynchronousFileChannel channel = AsynchronousFileChannel.open(file.toPath(), s, fiberGroup.getExecutor());
         dtFile = new DtFile(file, channel, fiberGroup);
+        groupConfig = new RaftGroupConfigEx(0, "1", "");
+        groupConfig.setIoExecutor(MockExecutors.ioExecutor());
+        groupConfig.setIoRetryInterval(new long[]{1});
+        groupConfig.setFiberGroup(fiberGroup);
     }
 
     @SuppressWarnings("ResultOfMethodCallIgnored")
@@ -88,19 +94,19 @@ public class AsyncIoTaskTest extends BaseFiberTest {
 
             @Override
             public FrameCallResult execute(Void input) {
-                AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
+                AsyncIoTask t = new AsyncIoTask(groupConfig, dtFile);
                 return t.write(buf, 0).await(1000, this::resume1);
             }
 
             private FrameCallResult resume1(Void unused) {
                 buf = ByteBuffer.allocate(768);
-                AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
+                AsyncIoTask t = new AsyncIoTask(groupConfig, dtFile);
                 return t.read(buf, 0).await(1000, this::resume2);
             }
 
             private FrameCallResult resume2(Void unused) {
                 buf.clear();
-                AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
+                AsyncIoTask t = new AsyncIoTask(groupConfig, dtFile);
                 return t.read(buf, 512).await(1000, this::resume3);
             }
 
@@ -158,31 +164,31 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                AsyncIoTask wt = new AsyncIoTask(fiberGroup, dtFile);
-                return wt.writeAndForce(buf, 0, MockExecutors.ioExecutor(), false)
+                AsyncIoTask wt = new AsyncIoTask(groupConfig, dtFile);
+                return wt.writeAndForce(buf, 0, false)
                         .await(1000, this::justReturn);
             }
         });
 
         // fail on first read
-        assertReadSuccess(() -> new ReadFailTask(1, new long[]{1}, false, null));
+        assertReadSuccess(() -> new ReadFailTask(1, true, false, null));
 
         // fail twice, so retry failed
-        assertReadFail(() -> new ReadFailTask(2, new long[]{1}, false, null));
+        assertReadFail(() -> new ReadFailTask(2, true, false, null));
 
         // fail twice but retry forever
-        assertReadSuccess(() -> new ReadFailTask(2, new long[]{1}, true, () -> false));
+        assertReadSuccess(() -> new ReadFailTask(2, true, true, () -> false));
 
         // fail, cancel indicator return true
-        assertReadFail(() -> new ReadFailTask(2, new long[]{1}, true, () -> true));
+        assertReadFail(() -> new ReadFailTask(2, true, true, () -> true));
 
         // fail, cancel indicator return true
         AtomicInteger cancelIndicatorCount = new AtomicInteger();
-        assertReadFail(() -> new ReadFailTask(2, new long[]{1}, true,
+        assertReadFail(() -> new ReadFailTask(2, true, true,
                 () -> cancelIndicatorCount.getAndIncrement() == 1));
 
         // no retry
-        assertReadFail(() -> new ReadFailTask(2, null, false, null));
+        assertReadFail(() -> new ReadFailTask(2, false, false, null));
     }
 
     private class ReadFailTask extends AsyncIoTask {
@@ -190,9 +196,9 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         private int count;
         IOException ex = new IOException("mock error");
 
-        public ReadFailTask(int failCount, long[] retryInterval,
+        public ReadFailTask(int failCount, boolean retry,
                             boolean retryForever, Supplier<Boolean> cancelIndicator) {
-            super(fiberGroup, dtFile, retryInterval, retryForever, cancelIndicator);
+            super(groupConfig, dtFile, retry, retryForever, cancelIndicator);
             this.failCount = failCount;
         }
 
@@ -214,8 +220,8 @@ public class AsyncIoTaskTest extends BaseFiberTest {
             public FrameCallResult execute(Void input) {
                 ByteBuffer buf = ByteBuffer.allocate(1);
                 // fail on first write
-                FlushFailTask t = new FlushFailTask(1, new long[]{1}, false, () -> false);
-                return t.writeAndForce(buf, 0, MockExecutors.ioExecutor(), false)
+                FlushFailTask t = new FlushFailTask(1, true, false, () -> false);
+                return t.writeAndForce(buf, 0, false)
                         .await(1000, this::justReturn);
             }
         });
@@ -227,9 +233,9 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         private int count;
         IOException ex = new IOException("mock error");
 
-        public FlushFailTask(int failCount, long[] retryInterval, boolean retryForever,
+        public FlushFailTask(int failCount, boolean retry, boolean retryForever,
                              Supplier<Boolean> cancelIndicator) {
-            super(fiberGroup, dtFile, retryInterval, retryForever, cancelIndicator);
+            super(groupConfig, dtFile, retry, retryForever, cancelIndicator);
             this.failCount = failCount;
         }
 

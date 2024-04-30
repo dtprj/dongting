@@ -18,12 +18,12 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
-import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.nio.ByteBuffer;
 import java.util.zip.CRC32C;
@@ -45,12 +45,12 @@ class Restorer {
 
 
     private final CRC32C crc32c = new CRC32C();
+    private final RaftGroupConfigEx groupConfig;
     private final IdxOps idxOps;
     private final LogFileQueue logFileQueue;
     private final long restoreIndex;
     private final long restoreStartPos;
     private final long firstValidPos;
-    private final FiberGroup fiberGroup = FiberGroup.currentGroup();
 
     private boolean restoreIndexChecked;
     private final LogHeader header = new LogHeader();
@@ -64,8 +64,9 @@ class Restorer {
 
     int restoreCount;
 
-    public Restorer(IdxOps idxOps, LogFileQueue logFileQueue, long restoreIndex,
+    public Restorer(RaftGroupConfigEx groupConfig, IdxOps idxOps, LogFileQueue logFileQueue, long restoreIndex,
                     long restoreStartPos, long firstValidPos) {
+        this.groupConfig = groupConfig;
         this.idxOps = idxOps;
         this.logFileQueue = logFileQueue;
         this.restoreIndex = restoreIndex;
@@ -106,7 +107,7 @@ class Restorer {
             } else {
                 firstItemPos = 0;
             }
-            AsyncIoTask task = new AsyncIoTask(fiberGroup, lf);
+            AsyncIoTask task = new AsyncIoTask(groupConfig, lf);
             return task.read(buffer, firstItemPos).await(v -> afterReadFirstItemHeader(firstItemPos));
         }
 
@@ -156,8 +157,8 @@ class Restorer {
 
         private FrameCallResult loopRestoreFileBlock() {
             if (readPos < logFileQueue.fileLength()) { // loop begin
-                RaftUtil.checkStop(fiberGroup);
-                AsyncIoTask task = new AsyncIoTask(getFiberGroup(), lf);
+                RaftUtil.checkStop(getFiberGroup());
+                AsyncIoTask task = new AsyncIoTask(groupConfig, lf);
                 long fileRest = logFileQueue.fileLength() - readPos;
                 if (buffer.remaining() > fileRest) {
                     buffer.limit(buffer.position() + (int) fileRest);

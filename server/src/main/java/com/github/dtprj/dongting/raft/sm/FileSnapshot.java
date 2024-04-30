@@ -41,6 +41,7 @@ public class FileSnapshot extends Snapshot {
     static final int MAX_BLOCK_SIZE = 1024 * 1024 * 1024;
 
     private final DtFile dtFile;
+    private final RaftGroupConfigEx groupConfig;
     private final FiberGroup fiberGroup;
     private final ByteBuffer headerBuffer = ByteBuffer.allocate(8);
     private final long fileSize;
@@ -52,6 +53,7 @@ public class FileSnapshot extends Snapshot {
     public FileSnapshot(RaftGroupConfigEx groupConfig, SnapshotInfo si, File dataFile) throws IOException {
         super(si);
         this.fiberGroup = groupConfig.getFiberGroup();
+        this.groupConfig = groupConfig;
         this.fileSize = dataFile.length();
         this.directRefBufferFactory = new RefBufferFactory(groupConfig.getDirectPool(), 0);
 
@@ -69,7 +71,7 @@ public class FileSnapshot extends Snapshot {
         }
         FiberFuture<RefBuffer> result = fiberGroup.newFuture("readNext");
 
-        AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
+        AsyncIoTask t = new AsyncIoTask(groupConfig, dtFile);
         headerBuffer.clear();
         FiberFuture<Void> fu = t.read(headerBuffer, filePos);
         fu.registerCallback((v, ex) -> {
@@ -98,7 +100,7 @@ public class FileSnapshot extends Snapshot {
 
         RefBuffer refBuffer = directRefBufferFactory.create(size);
         refBuffer.getBuffer().limit(size);
-        AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
+        AsyncIoTask t = new AsyncIoTask(groupConfig, dtFile);
 
         t.read(refBuffer.getBuffer(), filePos).registerCallback((v, ex) -> {
             if (ex != null) {

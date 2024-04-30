@@ -43,6 +43,7 @@ class LogFileQueue extends FileQueue {
     public static final long DEFAULT_LOG_FILE_SIZE = 1024 * 1024 * 1024;
     public static final int MAX_WRITE_BUFFER_SIZE = 128 * 1024;
 
+    private final RaftGroupConfigEx groupConfig;
     private final FiberGroup fiberGroup;
 
     protected final RefBufferFactory heapPool;
@@ -61,6 +62,7 @@ class LogFileQueue extends FileQueue {
 
     public LogFileQueue(File dir, RaftGroupConfigEx groupConfig, IdxOps idxOps, long fileSize) {
         super(dir, groupConfig, fileSize);
+        this.groupConfig = groupConfig;
         this.idxOps = idxOps;
         this.ts = groupConfig.getTs();
         this.fiberGroup = groupConfig.getFiberGroup();
@@ -76,7 +78,7 @@ class LogFileQueue extends FileQueue {
 
     public FiberFrame<Integer> restore(long restoreIndex, long restoreStartPos, long firstValidPos) {
         log.info("start restore from {}, {}", restoreIndex, restoreStartPos);
-        Restorer restorer = new Restorer(idxOps, this, restoreIndex, restoreStartPos, firstValidPos);
+        Restorer restorer = new Restorer(groupConfig, idxOps, this, restoreIndex, restoreStartPos, firstValidPos);
         if (queue.size() == 0) {
             tryAllocateAsync(0);
             initLogAppender(1, 0);
@@ -225,7 +227,7 @@ class LogFileQueue extends FileQueue {
 
     public FiberFrame<Pair<Integer, Long>> tryFindMatchPos(int suggestTerm, long suggestIndex,
                                                            Supplier<Boolean> cancelIndicator) {
-        return new MatchPosFinder(queue, idxOps, cancelIndicator,
+        return new MatchPosFinder(groupConfig, queue, idxOps, cancelIndicator,
                 fileLenMask, suggestTerm, suggestIndex, raftStatus.getLastLogIndex());
     }
 
@@ -246,7 +248,7 @@ class LogFileQueue extends FileQueue {
             @Override
             public FrameCallResult execute(Void input) {
                 long filePos = filePos(pos);
-                AsyncIoTask task = new AsyncIoTask(fiberGroup, f);
+                AsyncIoTask task = new AsyncIoTask(groupConfig, f);
                 return Fiber.call(task.lockRead(buf, filePos), this::afterLoadHeader);
             }
 

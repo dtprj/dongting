@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.nio.ByteBuffer;
 import java.util.function.Supplier;
@@ -35,6 +36,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
     private final int suggestTerm;
     private final long suggestIndex;
     private final long lastLogIndex;
+    private final RaftGroupConfigEx groupConfig;
     private final IndexedQueue<LogFile> queue;
     private final IdxOps idxOps;
     private final long fileLenMask;
@@ -47,8 +49,9 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
     private long midIndex;
     private ByteBuffer buf;//no need release
 
-    MatchPosFinder(IndexedQueue<LogFile> queue, IdxOps idxOps, Supplier<Boolean> cancel, long fileLenMask,
+    MatchPosFinder(RaftGroupConfigEx groupConfig, IndexedQueue<LogFile> queue, IdxOps idxOps, Supplier<Boolean> cancel, long fileLenMask,
                    int suggestTerm, long suggestIndex, long lastLogIndex) {
+        this.groupConfig = groupConfig;
         this.queue = queue;
         this.idxOps = idxOps;
         this.cancel = cancel;
@@ -133,7 +136,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
             throw new RaftException(new RaftException("pos >= logFile.endPos"));
         }
 
-        AsyncIoTask task = new AsyncIoTask(getFiberGroup(), logFile);
+        AsyncIoTask task = new AsyncIoTask(groupConfig, logFile);
         buf.clear();
         FiberFrame<Void> f = task.lockRead(buf, pos & fileLenMask);
         return Fiber.call(f, this::headerLoadComplete);

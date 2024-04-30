@@ -57,7 +57,6 @@ class LogAppender {
     private final CRC32C crc32c = new CRC32C();
     private final EncodeContext encodeContext;
     private final long fileLenMask;
-    private final FiberGroup fiberGroup;
 
     // update before write operation issued
     long nextPersistIndex = -1;
@@ -83,7 +82,7 @@ class LogAppender {
         this.groupConfig = groupConfig;
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
         this.cache = raftStatus.getTailCache();
-        this.fiberGroup = groupConfig.getFiberGroup();
+        FiberGroup fiberGroup = groupConfig.getFiberGroup();
         WriteFiberFrame writeFiberFrame = new WriteFiberFrame();
         this.appendFiber = new Fiber("append-" + groupConfig.getGroupId(), fiberGroup, writeFiberFrame);
         this.writeStopIndicator = logFileQueue::isClosed;
@@ -303,8 +302,8 @@ class LogAppender {
         private ByteBuffer doWrite(LogFile file, ByteBuffer buffer) {
             buffer.flip();
             int bytes = buffer.remaining();
-            long[] retry = (logFileQueue.initialized && !logFileQueue.isClosed()) ? groupConfig.getIoRetryInterval() : null;
-            WriteTask task = new WriteTask(fiberGroup, file, retry, true, writeStopIndicator);
+            boolean retry = logFileQueue.initialized && !logFileQueue.isClosed();
+            WriteTask task = new WriteTask(groupConfig, file, retry, true, writeStopIndicator);
             if (lastItem != null) {
                 task.lastTerm = lastItem.getTerm();
                 task.lastIndex = lastItem.getIndex();
@@ -377,9 +376,9 @@ class LogAppender {
 
         WriteTask nextNeedSyncTask;
 
-        public WriteTask(FiberGroup fiberGroup, DtFile dtFile,
-                         long[] retryInterval, boolean retryForever, Supplier<Boolean> cancelIndicator) {
-            super(fiberGroup, dtFile, retryInterval, retryForever, cancelIndicator);
+        public WriteTask(RaftGroupConfigEx groupConfig, DtFile dtFile,
+                         boolean retry, boolean retryForever, Supplier<Boolean> cancelIndicator) {
+            super(groupConfig, dtFile, retry, retryForever, cancelIndicator);
         }
     }
 
