@@ -253,7 +253,6 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
             int bytes = ioBuffer.position() - position;
             exec(filePos + bytes);
         } else {
-            ioBuffer = null;
             if (force) {
                 submitForceTask();
             } else {
