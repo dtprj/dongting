@@ -70,9 +70,18 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         config.setHeapPool(new RefBufferFactory(TwoLevelPool.getDefaultFactory().apply(config.getTs(), false), 0));
 
         raftStatus.setTailCache(new TailCache(config, raftStatus));
-        statusManager = new StatusManager(config);
-        statusManager.initStatusFile();
         config.setRaftStatus(raftStatus);
+        statusManager = new StatusManager(config);
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                return Fiber.call(statusManager.initStatusFile(), this::resume);
+            }
+
+            private FrameCallResult resume(Void v) {
+                return Fiber.frameReturn();
+            }
+        });
 
         raftLog = new DefaultRaftLog(config, statusManager, null,1);
         raftLog.idxItemsPerFile = 8;
