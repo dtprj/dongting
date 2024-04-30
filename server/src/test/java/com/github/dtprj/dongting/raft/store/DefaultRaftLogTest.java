@@ -85,7 +85,8 @@ public class DefaultRaftLogTest extends BaseFiberTest {
 
         raftLog = new DefaultRaftLog(config, statusManager, null,1);
         raftLog.idxItemsPerFile = 8;
-        raftLog.idxMaxCacheItems = 4;
+        config.setIdxFlushThreshold(4);
+        config.setIdxFlushThreshold(2);
         raftLog.logFileSize = 1024;
         doInFiber(new FiberFrame<>() {
             @Override

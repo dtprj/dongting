@@ -35,6 +35,8 @@ public class RaftGroupConfig {
     private int maxPendingWrites = 10000;
     private long maxPendingWriteBytes = 256 * 1024 * 1024;
 
+    private int idxCacheSize = 16 * 1024;
+    private int idxFlushThreshold = 8 * 1024;
 
     public RaftGroupConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         this.groupId = groupId;
@@ -132,5 +134,21 @@ public class RaftGroupConfig {
 
     public void setStaticConfig(boolean staticConfig) {
         this.staticConfig = staticConfig;
+    }
+
+    public int getIdxCacheSize() {
+        return idxCacheSize;
+    }
+
+    public void setIdxCacheSize(int idxCacheSize) {
+        this.idxCacheSize = idxCacheSize;
+    }
+
+    public int getIdxFlushThreshold() {
+        return idxFlushThreshold;
+    }
+
+    public void setIdxFlushThreshold(int idxFlushThreshold) {
+        this.idxFlushThreshold = idxFlushThreshold;
     }
 }

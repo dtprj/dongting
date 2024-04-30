@@ -46,7 +46,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     static final String KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT = "nextPosAfterInstallSnapshot";
 
     public static final int DEFAULT_ITEMS_PER_FILE = 1024 * 1024;
-    public static final int DEFAULT_MAX_CACHE_ITEMS = 16 * 1024;
     public static final int MAX_BATCH_ITEMS = 16 * 1024;
 
     private final StatusManager statusManager;
@@ -54,7 +53,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private final int maxCacheItems;
 
     private final int flushThreshold;
-    final LongLongSeqMap cache = new LongLongSeqMap(1024);
+    final LongLongSeqMap cache;
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
 
@@ -73,8 +72,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     private boolean closed;
 
-    public IdxFileQueue(File dir, StatusManager statusManager, RaftGroupConfigEx groupConfig,
-                        int itemsPerFile, int maxCacheItems) {
+    public IdxFileQueue(File dir, StatusManager statusManager, RaftGroupConfigEx groupConfig, int itemsPerFile) {
         super(dir, groupConfig, (long) ITEM_LEN * itemsPerFile);
         if (BitUtil.nextHighestPowerOfTwo(itemsPerFile) != itemsPerFile) {
             throw new IllegalArgumentException("itemsPerFile not power of 2: " + itemsPerFile);
@@ -85,8 +83,9 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         this.lastUpdateStatusNanos = ts.getNanoTime();
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
 
-        this.maxCacheItems = maxCacheItems;
-        this.flushThreshold = this.maxCacheItems / 2;
+        this.maxCacheItems = groupConfig.getIdxCacheSize();
+        this.flushThreshold = groupConfig.getIdxFlushThreshold();
+        this.cache = new LongLongSeqMap(maxCacheItems);
         this.flushFiber = new Fiber("idxFlush-" + groupConfig.getGroupId(),
                 groupConfig.getFiberGroup(), new FlushLoopFrame());
         this.needFlushCondition = groupConfig.getFiberGroup().newCondition("IdxNeedFlush-" + groupConfig.getGroupId());
