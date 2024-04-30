@@ -234,9 +234,9 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         }
 
         @Override
-        protected void doFlush() throws IOException {
+        protected void doForce() throws IOException {
             if (count++ == failCount) {
-                super.doFlush();
+                super.doForce();
             } else {
                 throw ex;
             }

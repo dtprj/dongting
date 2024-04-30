@@ -182,8 +182,12 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
                     fireComplete(ioEx);
                     return Fiber.frameReturn();
                 }
-                ioBuffer.position(position);
-                exec(filePos);
+                if (ioBuffer == null) {
+                    submitForceTask();
+                } else {
+                    ioBuffer.position(position);
+                    exec(filePos);
+                }
                 return Fiber.frameReturn();
             }
 
@@ -231,22 +235,29 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         if (ioBuffer.hasRemaining()) {
             int bytes = ioBuffer.position() - position;
             exec(filePos + bytes);
-        } else if (forceExecutor != null) {
-            try {
-                forceExecutor.execute(() -> {
-                    try {
-                        doFlush();
-                        fireComplete(null);
-                    } catch (Throwable e) {
-                        // retry should run in fiber dispatcher thread
-                        fiberGroup.getExecutor().submit(() -> retry(e));
-                    }
-                });
-            } catch (Throwable e) {
-                retry(e);
-            }
         } else {
-            fireComplete(null);
+            ioBuffer = null;
+            if (forceExecutor != null) {
+                submitForceTask();
+            } else {
+                fireComplete(null);
+            }
+        }
+    }
+
+    private void submitForceTask() {
+        try {
+            forceExecutor.execute(() -> {
+                try {
+                    doForce();
+                    fireComplete(null);
+                } catch (Throwable e) {
+                    // retry should run in fiber dispatcher thread
+                    fiberGroup.getExecutor().submit(() -> retry(e));
+                }
+            });
+        } catch (Throwable e) {
+            retry(e);
         }
     }
 
@@ -263,7 +274,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     }
 
     // this method set to protected for mock error in unit test
-    protected void doFlush() throws IOException {
+    protected void doForce() throws IOException {
         dtFile.getChannel().force(flushMeta);
     }
 
