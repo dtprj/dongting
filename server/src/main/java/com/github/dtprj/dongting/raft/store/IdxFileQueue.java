@@ -65,6 +65,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private long lastFlushNanos;
     private static final long FLUSH_INTERVAL_NANOS = 15L * 1000 * 1000 * 1000;
 
+    private long lastUpdateStatusNanos;
+
     private final Fiber flushFiber;
     private final FiberCondition needFlushCondition;
     private final FiberCondition flushDoneCondition;
@@ -80,6 +82,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         this.statusManager = statusManager;
         this.ts = groupConfig.getTs();
         this.lastFlushNanos = ts.getNanoTime();
+        this.lastUpdateStatusNanos = ts.getNanoTime();
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
 
         this.maxCacheItems = maxCacheItems;
@@ -238,7 +241,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         @Override
         public FrameCallResult execute(Void input) {
             if (closed) {
-                if (!lastFlushTriggered || getFlushDiff() <= 0) {
+                if (lastFlushTriggered) {
                     log.info("idx flush fiber exit, groupId={}", groupConfig.getGroupId());
                     return Fiber.frameReturn();
                 } else {
@@ -255,8 +258,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         }
 
         private FrameCallResult afterPosReady(Void v) {
-            if (!shouldFlush()) {
-                return needFlushCondition.await(this);
+            if (raftStatus.isInstallSnapshot()) {
+                return needFlushCondition.await(1000, this);
             }
             LogFile logFile = getLogFile(indexToPos(nextPersistIndex));
             if (logFile.shouldDelete()) {
@@ -302,27 +305,32 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                     groupConfig.getIoRetryInterval(), true);
             long filePos = indexToPos(startIndex) & fileLenMask;
             FiberFrame<Void> f;
-            if (endOfFile) {
+            boolean updateStatusFile;
+            if (endOfFile || closed || ts.getNanoTime() - lastUpdateStatusNanos > FLUSH_INTERVAL_NANOS) {
                 f = currentWriteTask.lockWriteAndForce(buf, filePos, ioExecutor, false);
+                updateStatusFile = true;
             } else {
                 f = currentWriteTask.lockWrite(buf, filePos);
+                updateStatusFile = false;
             }
-            return Fiber.call(f, notUsedVoid -> afterWrite(nextPersistIndexAfterWrite));
+            return Fiber.call(f, notUsedVoid -> afterWrite(nextPersistIndexAfterWrite, updateStatusFile));
         }
 
-        private FrameCallResult afterWrite(long nextPersistIndexAfterWrite) {
-            nextPersistIndex = nextPersistIndexAfterWrite;
-            long persistedIndex = nextPersistIndex - 1;
+        private FrameCallResult afterWrite(long nextPersistIndexAfterWrite, boolean updateStatusFile) {
             removeHead();
+            nextPersistIndex = nextPersistIndexAfterWrite;
+            if (updateStatusFile) {
+                lastUpdateStatusNanos = ts.getNanoTime();
 
-            statusManager.getProperties().setProperty(KEY_PERSIST_IDX_INDEX, String.valueOf(persistedIndex));
-            if (closed) {
+                long persistedIndex = nextPersistIndex - 1;
+
+                statusManager.getProperties().setProperty(KEY_PERSIST_IDX_INDEX, String.valueOf(persistedIndex));
                 statusManager.persistAsync(true);
-                return statusManager.waitForce(this::afterStatusPersist);
-            } else {
-                statusManager.persistAsync(false);
-                return afterStatusPersist(null);
+                if (closed) {
+                    return statusManager.waitForce(this::afterStatusPersist);
+                }
             }
+            return this.afterStatusPersist(null);
         }
 
         private FrameCallResult afterStatusPersist(Void unused) {
