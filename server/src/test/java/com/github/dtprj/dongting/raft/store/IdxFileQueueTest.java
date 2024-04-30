@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -99,6 +100,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
             public FrameCallResult execute(Void input) throws Throwable {
                 return Fiber.call(idxFileQueue.initRestorePos(), this::resume);
             }
+
             private FrameCallResult resume(Pair<Long, Long> longLongPair) {
                 idxFileQueue.setInitialized(true);
                 for (int i = 1; i <= 10; i++) {
@@ -117,6 +119,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
             public FrameCallResult execute(Void input) throws Throwable {
                 return Fiber.call(idxFileQueue.initRestorePos(), this::resume);
             }
+
             private FrameCallResult resume(Pair<Long, Long> longLongPair) {
                 idxFileQueue.setInitialized(true);
                 for (int i = 1; i <= 30; i++) {
@@ -126,10 +129,12 @@ public class IdxFileQueueTest extends BaseFiberTest {
                 raftStatus.setCommitIndex(30);
                 return waitFlush(null);
             }
+
             private FrameCallResult waitFlush(Void unused) {
-                if (idxFileQueue.cache.size() > 4) {
-                    return Fiber.sleepUntilShouldStop(1, this::waitFlush);
+                if (idxFileQueue.needWaitFlush()) {
+                    return Fiber.call(idxFileQueue.waitFlush(), this::waitFlush);
                 } else {
+                    Assertions.assertTrue(idxFileQueue.cache.size() <= 4);
                     return Fiber.frameReturn();
                 }
             }
@@ -143,6 +148,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
             public FrameCallResult execute(Void input) throws Throwable {
                 return Fiber.call(idxFileQueue.initRestorePos(), this::resume);
             }
+
             private FrameCallResult resume(Pair<Long, Long> longLongPair) {
                 idxFileQueue.setInitialized(true);
                 assertThrows(RaftException.class, () -> idxFileQueue.put(10, 1000));
@@ -159,6 +165,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
             public FrameCallResult execute(Void input) throws Throwable {
                 return Fiber.call(idxFileQueue.initRestorePos(), this::resume);
             }
+
             private FrameCallResult resume(Pair<Long, Long> longLongPair) {
                 idxFileQueue.setInitialized(true);
                 for (int i = 1; i <= 10; i++) {
@@ -182,7 +189,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
 
         @Override
         public FrameCallResult execute(Void input) {
-            return idxFileQueue.loadLogPos(index, this:: resume);
+            return idxFileQueue.loadLogPos(index, this::resume);
         }
 
         private FrameCallResult resume(Long result) {
@@ -200,6 +207,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
             public FrameCallResult execute(Void input) throws Throwable {
                 return Fiber.call(idxFileQueue.initRestorePos(), this::resume);
             }
+
             private FrameCallResult resume(Pair<Long, Long> longLongPair) {
                 for (int i = 1; i <= 10; i++) {
                     idxFileQueue.put(i, i * 100);
@@ -233,6 +241,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
             public FrameCallResult execute(Void input) throws Throwable {
                 return Fiber.call(idxFileQueue.initRestorePos(), this::resume);
             }
+
             private FrameCallResult resume(Pair<Long, Long> longLongPair) {
                 idxFileQueue.setInitialized(true);
                 for (int i = 1; i <= 30; i++) {
@@ -243,6 +252,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
             }
 
             long checkIndex = 1;
+
             private FrameCallResult checkPos(Void v) {
                 if (checkIndex > 30) {
                     // wait other fiber allocate & flush
@@ -351,16 +361,16 @@ public class IdxFileQueueTest extends BaseFiberTest {
 
             private FrameCallResult afterDelete(Void unused) {
                 assertEquals(idxFileQueue.indexToPos(8), idxFileQueue.queueStartPosition);
+                return idxFileQueue.close().await(this::afterIdxClose);
+            }
+
+            private FrameCallResult afterIdxClose(Void unused) {
                 statusManager.getProperties().setProperty(IdxFileQueue.KEY_PERSIST_IDX_INDEX, "2");
                 statusManager.persistAsync(false);
-                return statusManager.waitForce(this::afterPersist);
+                return statusManager.waitForce(this::afterUpdateStatus);
             }
 
-            private FrameCallResult afterPersist(Void unused) {
-                return idxFileQueue.close().await(this::afterFlushFinish);
-            }
-
-            private FrameCallResult afterFlushFinish(Void unused) {
+            private FrameCallResult afterUpdateStatus(Void unused) {
                 return statusManager.close().await(this::justReturn);
             }
         });

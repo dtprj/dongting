@@ -286,6 +286,16 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
         @Override
         public FrameCallResult execute(Void v) {
+            AsyncIoTask currentWriteTask = new AsyncIoTask(groupConfig, logFile, true, true);
+            if (getFlushDiff() <= 0) {
+                if (closed) {
+                    return Fiber.call(currentWriteTask.lockForce(false),
+                            noUseVoid -> afterFlush(nextPersistIndex, true));
+                } else {
+                    BugLog.getLog().error("no data to flush");
+                    return Fiber.frameReturn();
+                }
+            }
             boolean endOfFile = prepareBuffer(logFile);
 
             long startIndex = nextPersistIndex;
@@ -301,7 +311,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
             long nextPersistIndexAfterWrite = index;
 
-            AsyncIoTask currentWriteTask = new AsyncIoTask(groupConfig, logFile,true, true);
             long filePos = indexToPos(startIndex) & fileLenMask;
             FiberFrame<Void> f;
             boolean updateStatusFile;
@@ -312,10 +321,10 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 f = currentWriteTask.lockWrite(buf, filePos);
                 updateStatusFile = false;
             }
-            return Fiber.call(f, notUsedVoid -> afterWrite(nextPersistIndexAfterWrite, updateStatusFile));
+            return Fiber.call(f, notUsedVoid -> afterFlush(nextPersistIndexAfterWrite, updateStatusFile));
         }
 
-        private FrameCallResult afterWrite(long nextPersistIndexAfterWrite, boolean updateStatusFile) {
+        private FrameCallResult afterFlush(long nextPersistIndexAfterWrite, boolean updateStatusFile) {
             removeHead();
             nextPersistIndex = nextPersistIndexAfterWrite;
             if (updateStatusFile) {
@@ -326,14 +335,9 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 statusManager.getProperties().setProperty(KEY_PERSIST_IDX_INDEX, String.valueOf(persistedIndex));
                 statusManager.persistAsync(true);
                 if (closed) {
-                    return statusManager.waitForce(this::afterStatusPersist);
+                    return statusManager.waitForce(this::justReturn);
                 }
             }
-            return this.afterStatusPersist(null);
-        }
-
-        private FrameCallResult afterStatusPersist(Void unused) {
-            flushDoneCondition.signal();
             return Fiber.frameReturn();
         }
 
@@ -365,7 +369,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             if (buf != null) {
                 groupConfig.getDirectPool().release(buf);
             }
-            return super.doFinally();
+            flushDoneCondition.signalAll();
+            return Fiber.frameReturn();
         }
     }
 
