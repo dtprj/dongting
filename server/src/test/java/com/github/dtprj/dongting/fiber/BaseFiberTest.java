@@ -17,6 +17,8 @@ package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.RunnableEx;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 
@@ -33,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @author huangli
  */
 public class BaseFiberTest {
+    private static final DtLog log = DtLogs.getLogger(BaseFiberTest.class);
     protected static Dispatcher dispatcher;
     protected static FiberGroup fiberGroup;
 
@@ -85,6 +88,7 @@ public class BaseFiberTest {
         try {
             f.get(5, TimeUnit.SECONDS);
         } catch (TimeoutException e) {
+            log.error("doInFiber timeout(5s)", e);
             fiberGroup.fireLogGroupInfo("doInFiber timeout(5s)");
             throw e;
         }
@@ -109,6 +113,7 @@ public class BaseFiberTest {
         try {
             f.get(5, TimeUnit.SECONDS);
         } catch (TimeoutException e) {
+            log.error("doInFiber timeout(5s)", e);
             fiberGroup.fireLogGroupInfo("doInFiber timeout(5s)");
             throw e;
         }
