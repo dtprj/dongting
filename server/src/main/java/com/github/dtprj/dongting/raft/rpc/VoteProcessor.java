@@ -123,7 +123,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
                 StatusManager statusManager = reqInfo.getRaftGroup().getGroupComponents().getStatusManager();
                 statusManager.persistAsync(true);
                 int expectTerm = raftStatus.getCurrentTerm();
-                return statusManager.waitForce(v -> postProcessVote(expectTerm));
+                return statusManager.waitUpdateFinish(v -> postProcessVote(expectTerm));
             } else {
                 return postProcessVote(raftStatus.getCurrentTerm());
             }

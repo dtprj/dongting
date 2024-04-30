@@ -366,7 +366,7 @@ public class VoteManager {
 
             statusManager.persistAsync(true);
             int voteIdBeforePersist = currentVoteId;
-            return statusManager.waitForce(v -> afterStartVotePersist(voter, voteIdBeforePersist));
+            return statusManager.waitUpdateFinish(v -> afterStartVotePersist(voter, voteIdBeforePersist));
         }
 
         private FrameCallResult afterStartVotePersist(Set<RaftMember> voter, int oldVoteId) {

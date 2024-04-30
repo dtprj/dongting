@@ -173,15 +173,15 @@ public class StatusManager {
         needUpdateCondition.signal();
     }
 
-    public FrameCallResult waitForce(FrameCall<Void> resumePoint) {
-        return waitForce(requestUpdateVersion, resumePoint);
+    public FrameCallResult waitUpdateFinish(FrameCall<Void> resumePoint) {
+        return waitUpdateFinish(requestUpdateVersion, resumePoint);
     }
 
-    private FrameCallResult waitForce(long version, FrameCall<Void> resumePoint) {
+    private FrameCallResult waitUpdateFinish(long version, FrameCall<Void> resumePoint) {
         if (finishedUpdateVersion >= version) {
             return Fiber.resume(null, resumePoint);
         }
-        return updateDoneCondition.await(1000, v -> waitForce(version, resumePoint));
+        return updateDoneCondition.await(1000, v -> waitUpdateFinish(version, resumePoint));
     }
 
     public Properties getProperties() {

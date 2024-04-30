@@ -336,7 +336,7 @@ public class ApplyManager {
         public FrameCallResult execute(Void input) {
             StatusManager statusManager = gc.getStatusManager();
             statusManager.persistAsync(true);
-            return statusManager.waitForce(this::afterPersist);
+            return statusManager.waitUpdateFinish(this::afterPersist);
         }
 
         private FrameCallResult afterPersist(Void unused) {

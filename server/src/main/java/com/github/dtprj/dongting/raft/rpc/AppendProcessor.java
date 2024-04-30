@@ -201,7 +201,7 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
                 gc.getVoteManager().cancelVote();
                 RaftUtil.incrTerm(remoteTerm, raftStatus, leaderId);
                 gc.getStatusManager().persistAsync(true);
-                return gc.getStatusManager().waitForce(this);
+                return gc.getStatusManager().waitUpdateFinish(this);
             } else {
                 log.info("receive {} request with a smaller term, ignore, remoteTerm={}, localTerm={}",
                         appendType, remoteTerm, localTerm);

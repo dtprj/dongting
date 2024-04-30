@@ -165,7 +165,7 @@ public class DefaultRaftLog implements RaftLog {
             public FrameCallResult execute(Void input) {
                 raftStatus.setInstallSnapshot(true);
                 statusManager.persistAsync(true);
-                return statusManager.waitForce(this::afterPersist);
+                return statusManager.waitUpdateFinish(this::afterPersist);
             }
 
             private FrameCallResult afterPersist(Void unused) {
@@ -211,7 +211,7 @@ public class DefaultRaftLog implements RaftLog {
                 statusManager.getProperties().setProperty(KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, String.valueOf(nextLogIndex));
                 statusManager.getProperties().setProperty(KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT, String.valueOf(nextLogPos));
                 statusManager.persistAsync(true);
-                return statusManager.waitForce(this::justReturn);
+                return statusManager.waitUpdateFinish(this::justReturn);
             }
         };
     }
