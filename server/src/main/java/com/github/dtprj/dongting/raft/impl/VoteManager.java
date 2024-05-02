@@ -260,6 +260,7 @@ public class VoteManager {
                 return Fiber.sleep(INTERVAL, this::loop);
             }
             if (timeout) {
+                log.info("elect timer timeout, groupId={}, term={}", groupId, raftStatus.getCurrentTerm());
                 if (RaftUtil.writeNotFinished(raftStatus)) {
                     return RaftUtil.waitWriteFinish(raftStatus, this::loop);
                 }
