@@ -179,6 +179,7 @@ public class LinearTaskRunner {
                 }
                 raftStatus.setLastLogIndex(newIndex);
                 raftStatus.setLastLogTerm(currentTerm);
+                RaftUtil.resetElectTimer(raftStatus);
             } else {
                 // read task, no LogItem, release res in execRead
                 if (newIndex <= raftStatus.getLastApplied()) {
