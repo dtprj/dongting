@@ -126,9 +126,11 @@ public class IdxFileQueueTest extends BaseFiberTest {
                 idxFileQueue.setInitialized(true);
                 for (int i = 1; i <= 30; i++) {
                     raftStatus.setCommitIndex(i - 1);
+                    raftStatus.setLastForceLogIndex(i - 1);
                     idxFileQueue.put(i, i * 100);
                 }
                 raftStatus.setCommitIndex(30);
+                raftStatus.setLastForceLogIndex(30);
                 return waitFlush(null);
             }
 
@@ -172,6 +174,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
                 idxFileQueue.setInitialized(true);
                 for (int i = 1; i <= 10; i++) {
                     raftStatus.setCommitIndex(i - 1);
+                    raftStatus.setLastForceLogIndex(i - 1);
                     idxFileQueue.put(i, i * 100);
                 }
                 assertThrows(RaftException.class, () -> idxFileQueue.put(5, 500));
@@ -228,6 +231,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
                 }
 
                 raftStatus.setCommitIndex(3);
+                raftStatus.setLastForceLogIndex(3);
                 assertThrows(RaftException.class, () -> idxFileQueue.truncateTail(3));
                 assertThrows(RaftException.class, () -> idxFileQueue.truncateTail(5));
                 idxFileQueue.truncateTail(4);
@@ -248,6 +252,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
                 idxFileQueue.setInitialized(true);
                 for (int i = 1; i <= 30; i++) {
                     raftStatus.setCommitIndex(i - 1);
+                    raftStatus.setLastForceLogIndex(i - 1);
                     idxFileQueue.put(i, i * 100);
                 }
                 return checkPos(null);
@@ -301,6 +306,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
                 idxFileQueue.setInitialized(true);
                 for (int i = 1; i <= 30; i++) {
                     raftStatus.setCommitIndex(i - 1);
+                    raftStatus.setLastForceLogIndex(i - 1);
                     idxFileQueue.put(i, i * 100);
                 }
                 return waitFlush(null);
@@ -348,6 +354,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
                 idxFileQueue.setInitialized(true);
                 for (int i = 1; i <= 30; i++) {
                     raftStatus.setCommitIndex(i - 1);
+                    raftStatus.setLastForceLogIndex(i - 1);
                     idxFileQueue.put(i, i * 100);
                 }
                 return waitFlush(null);

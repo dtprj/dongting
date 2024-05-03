@@ -57,6 +57,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private final Timestamp ts;
     private final RaftStatusImpl raftStatus;
 
+    private long persistedIndexInStatusFile;
     private long nextPersistIndex;
     private long nextIndex;
     private long firstIndex;
@@ -97,8 +98,9 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         this.firstIndex = posToIndex(queueStartPosition);
         long firstValidIndex = Long.parseLong(statusManager.getProperties()
                 .getProperty(KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, "0"));
-        long restoreIndex = Long.parseLong(statusManager.getProperties()
+        this.persistedIndexInStatusFile = Long.parseLong(statusManager.getProperties()
                 .getProperty(KEY_PERSIST_IDX_INDEX, "0"));
+        long restoreIndex = persistedIndexInStatusFile;
 
         log.info("load raft status file. firstIndex={}, {}={}, {}={}", firstIndex, KEY_PERSIST_IDX_INDEX, restoreIndex,
                 KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, firstValidIndex);
@@ -327,14 +329,15 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             removeHead();
             nextPersistIndex = nextPersistIndexAfterWrite;
             if (updateStatusFile) {
-                lastUpdateStatusNanos = ts.getNanoTime();
-
-                long persistedIndex = nextPersistIndex - 1;
-
-                statusManager.getProperties().setProperty(KEY_PERSIST_IDX_INDEX, String.valueOf(persistedIndex));
-                statusManager.persistAsync(true);
-                if (closed) {
-                    return statusManager.waitUpdateFinish(this::justReturn);
+                // if we set syncForce to false, nextPersistIndex - 1 (committed) may less than lastForceLogIndex
+                long persistedIndex = Math.min(nextPersistIndex - 1, raftStatus.getLastForceLogIndex());
+                if (persistedIndex > persistedIndexInStatusFile) {
+                    lastUpdateStatusNanos = ts.getNanoTime();
+                    statusManager.getProperties().setProperty(KEY_PERSIST_IDX_INDEX, String.valueOf(persistedIndex));
+                    statusManager.persistAsync(true);
+                    if (closed) {
+                        return statusManager.waitUpdateFinish(this::justReturn);
+                    }
                 }
             }
             return Fiber.frameReturn();
