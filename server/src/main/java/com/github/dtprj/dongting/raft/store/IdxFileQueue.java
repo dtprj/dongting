@@ -189,7 +189,14 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     public boolean needWaitFlush() {
         removeHead();
         if (cache.size() > maxCacheItems && shouldFlush()) {
-            log.warn("cache size exceed {}, current cache size is {}", maxCacheItems, cache.size());
+            long first = cache.getFirstKey();
+            long last = cache.getLastKey();
+            log.warn("group {} cache size exceed {}({}), may cause block. cache from {} to {}, commitIndex={}(diff={}), " +
+                            "lastWriteIndex={}(diff={}), lastForceIndex={}(diff={}), ",
+                    raftStatus.getGroupId(), maxCacheItems, cache.size(), first, last,
+                    raftStatus.getCommitIndex(), (last - raftStatus.getCommitIndex()),
+                    raftStatus.getLastWriteLogIndex(), (last - raftStatus.getLastWriteLogIndex()),
+                    raftStatus.getLastForceLogIndex(), (last - raftStatus.getLastForceLogIndex()));
             return true;
         }
         return false;
