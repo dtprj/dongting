@@ -35,7 +35,7 @@ public class RaftGroupConfig {
     private int maxPendingWrites = 10000;
     private long maxPendingWriteBytes = 256 * 1024 * 1024;
 
-    private int idxCacheSize = 16 * 1024;
+    private int idxCacheSize = 64 * 1024;
     private int idxFlushThreshold = 8 * 1024;
 
     private boolean ioCallbackUseGroupExecutor = true;
