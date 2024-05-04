@@ -113,7 +113,9 @@ abstract class FileQueue {
                 HashSet<OpenOption> openOptions = new HashSet<>();
                 openOptions.add(StandardOpenOption.READ);
                 openOptions.add(StandardOpenOption.WRITE);
-                AsynchronousFileChannel channel = AsynchronousFileChannel.open(f.toPath(), openOptions, groupConfig.getFiberGroup().getExecutor());
+                ExecutorService executor = groupConfig.isIoCallbackUseGroupExecutor() ?
+                        groupConfig.getFiberGroup().getExecutor() : ioExecutor;
+                AsynchronousFileChannel channel = AsynchronousFileChannel.open(f.toPath(), openOptions, executor);
                 queue.addLast(new LogFile(startPos, startPos + getFileSize(), channel,
                         f, groupConfig.getFiberGroup()));
                 count++;
@@ -231,7 +233,9 @@ abstract class FileQueue {
                     openOptions.add(StandardOpenOption.READ);
                     openOptions.add(StandardOpenOption.WRITE);
                     openOptions.add(StandardOpenOption.CREATE);
-                    channel = AsynchronousFileChannel.open(file.toPath(), openOptions, groupConfig.getFiberGroup().getExecutor());
+                    ExecutorService executor = groupConfig.isIoCallbackUseGroupExecutor() ?
+                            groupConfig.getFiberGroup().getExecutor() : ioExecutor;
+                    channel = AsynchronousFileChannel.open(file.toPath(), openOptions, executor);
                     long time = System.currentTimeMillis() - startTime;
                     createFileFuture.fireComplete(null);
                     log.info("allocate file done, cost {} ms: {}", time, file.getPath());
