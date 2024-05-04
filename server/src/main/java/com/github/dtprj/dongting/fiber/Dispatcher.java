@@ -54,6 +54,9 @@ public class Dispatcher extends AbstractLifeCircle {
     private volatile boolean shouldStop = false;
     private final static VarHandle SHOULD_STOP;
 
+    private long runCount;
+    private long runTimeNanos;
+
     static {
         try {
             MethodHandles.Lookup l = MethodHandles.lookup();
@@ -121,7 +124,7 @@ public class Dispatcher extends AbstractLifeCircle {
             }
             shareQueue.shutdown();
             runImpl(localData);
-            log.info("fiber dispatcher exit: {}", thread.getName());
+            log.info("fiber dispatcher exit: {}, avgLoopNanos={}", thread.getName(), runTimeNanos/runCount);
         } catch (Throwable e) {
             SHOULD_STOP.setVolatile(this, true);
             log.info("fiber dispatcher exit exceptionally: {}", thread.getName(), e);
@@ -130,6 +133,7 @@ public class Dispatcher extends AbstractLifeCircle {
 
     private void runImpl(ArrayList<FiberQueueTask> localData) {
         pollAndRefreshTs(ts, localData);
+        long n = ts.getNanoTime();
         processScheduleFibers();
         for (int len = localData.size(), i = 0; i < len; i++) {
             try {
@@ -151,6 +155,10 @@ public class Dispatcher extends AbstractLifeCircle {
         if (!finishedGroups.isEmpty()) {
             groups.removeAll(finishedGroups);
         }
+        ts.refresh(0);
+        n = ts.getNanoTime() - n;
+        runCount++;
+        runTimeNanos += n;
     }
 
     private void processScheduleFibers() {
@@ -483,6 +491,7 @@ public class Dispatcher extends AbstractLifeCircle {
                 }
                 if (t > 0) {
                     FiberQueueTask o = shareQueue.poll(Math.min(t, pollTimeout), TimeUnit.NANOSECONDS);
+                    ts.refresh(0);
                     if (o != null) {
                         localData.add(o);
                     }
@@ -491,7 +500,6 @@ public class Dispatcher extends AbstractLifeCircle {
                 }
             }
 
-            ts.refresh(1);
             poll = ts.getNanoTime() - oldNanos > 2_000_000 || localData.isEmpty();
         } catch (InterruptedException e) {
             log.info("fiber dispatcher receive interrupt signal");
