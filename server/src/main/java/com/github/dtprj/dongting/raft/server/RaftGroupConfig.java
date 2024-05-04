@@ -38,7 +38,7 @@ public class RaftGroupConfig {
     private int idxCacheSize = 64 * 1024;
     private int idxFlushThreshold = 8 * 1024;
 
-    private boolean ioCallbackUseGroupExecutor = true;
+    private boolean ioCallbackUseGroupExecutor = false;
 
     public RaftGroupConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         this.groupId = groupId;
