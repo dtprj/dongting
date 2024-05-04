@@ -100,7 +100,7 @@ public class RaftServer extends AbstractLifeCircle {
     private final CompletableFuture<Void> allMemberReadyFuture = new CompletableFuture<>();
     private final CompletableFuture<Void> allGroupReadyFuture = new CompletableFuture<>();
 
-    private final List<RaftSequenceProcessor<?>> raftSequenceProcessors = new ArrayList<>();
+    private final Set<RaftSequenceProcessor<?>> raftSequenceProcessors = new HashSet<>();
 
     public RaftServer(RaftServerConfig serverConfig, List<RaftGroupConfig> groupConfig, RaftFactory raftFactory) {
         Objects.requireNonNull(serverConfig);

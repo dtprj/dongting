@@ -35,7 +35,7 @@ import com.github.dtprj.dongting.raft.sm.SnapshotManager;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.time.Duration;
-import java.util.List;
+import java.util.Set;
 
 /**
  * @author huangli
@@ -46,9 +46,9 @@ public class InitFiberFrame extends FiberFrame<Void> {
     private final GroupComponents gc;
     private final RaftStatusImpl raftStatus;
     private final RaftGroupConfigEx groupConfig;
-    private final List<RaftSequenceProcessor<?>> raftSequenceProcessors;
+    private final Set<RaftSequenceProcessor<?>> raftSequenceProcessors;
 
-    public InitFiberFrame(GroupComponents gc, List<RaftSequenceProcessor<?>> raftSequenceProcessors) {
+    public InitFiberFrame(GroupComponents gc, Set<RaftSequenceProcessor<?>> raftSequenceProcessors) {
         this.gc = gc;
         this.raftStatus = gc.getRaftStatus();
         this.groupConfig = gc.getGroupConfig();
