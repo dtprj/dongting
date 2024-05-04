@@ -40,7 +40,8 @@ public class FiberGroup {
     final CompletableFuture<Void> shutdownFuture = new CompletableFuture<>();
 
     final IndexedQueue<Fiber> readyFibers = new IndexedQueue<>(64);
-    final IndexedQueue<Fiber> readyFibersNextRound = new IndexedQueue<>(16);
+    final IndexedQueue<Fiber> readyFibersNextRound1 = new IndexedQueue<>(16);
+    final IndexedQueue<Fiber> readyFibersNextRound2 = new IndexedQueue<>(16);
     private final LongObjMap<Fiber> normalFibers = new LongObjMap<>(32, 0.6f);
     private final LongObjMap<Fiber> daemonFibers = new LongObjMap<>(32, 0.6f);
 
@@ -199,9 +200,9 @@ public class FiberGroup {
             f.ready = true;
             if (f.signalInThisRound) {
                 if (addFirst) {
-                    readyFibersNextRound.addFirst(f);
+                    readyFibersNextRound1.addLast(f);
                 } else {
-                    readyFibersNextRound.addLast(f);
+                    readyFibersNextRound2.addLast(f);
                 }
             } else {
                 if (addFirst) {
@@ -225,7 +226,7 @@ public class FiberGroup {
     void updateFinishStatus() {
         boolean ss = (boolean) SHOULD_STOP.get(this);
         if (ss && !finished) {
-            if (normalFibers.size() > 0 || readyFibersNextRound.size() > 0) {
+            if (normalFibers.size() > 0 || readyFibersNextRound1.size() > 0 || readyFibersNextRound2.size() > 0) {
                 return;
             }
             if (sysChannel.queue.size() > 0) {
@@ -294,14 +295,15 @@ public class FiberGroup {
         StringBuilder sb = new StringBuilder(256);
         sb.append(msg).append("\ngroup ").append(name)
                 .append(", ready=").append(readyFibers.size())
-                .append(", readyNext=").append(readyFibersNextRound.size())
+                .append(", readyNext=").append(readyFibersNextRound1.size() + readyFibersNextRound2.size())
                 .append(", normal=").append(normalFibers.size())
                 .append(", daemon=").append(daemonFibers.size())
                 .append("\n")
                 .append("--------------------------------------------------\n")
                 .append("readyFibers:\n");
         concatReadyFibers(readyFibers, sb);
-        concatReadyFibers(readyFibersNextRound, sb);
+        concatReadyFibers(readyFibersNextRound1, sb);
+        concatReadyFibers(readyFibersNextRound2, sb);
         sb.append("--------------------------------------------------\n");
         sb.append("normalFibers:\n");
         normalFibers.forEach((key, f) -> {

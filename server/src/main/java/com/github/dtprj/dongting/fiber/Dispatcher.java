@@ -124,7 +124,7 @@ public class Dispatcher extends AbstractLifeCircle {
             }
             shareQueue.shutdown();
             runImpl(localData);
-            log.info("fiber dispatcher exit: {}, avgLoopNanos={}", thread.getName(), runTimeNanos/runCount);
+            log.info("fiber dispatcher exit: {}, avgLoopNanos={}", thread.getName(), runTimeNanos / runCount);
         } catch (Throwable e) {
             SHOULD_STOP.setVolatile(this, true);
             log.info("fiber dispatcher exit exceptionally: {}", thread.getName(), e);
@@ -190,10 +190,18 @@ public class Dispatcher extends AbstractLifeCircle {
         thread.currentGroup = g;
         try {
             IndexedQueue<Fiber> readyQueue = g.readyFibers;
-            IndexedQueue<Fiber> nextQueue = g.readyFibersNextRound;
-            if (nextQueue.size() > 0) {
-                for (int i = 0, size = nextQueue.size(); i < size; i++) {
-                    Fiber f = nextQueue.removeFirst();
+            IndexedQueue<Fiber> nextQueue1 = g.readyFibersNextRound1;
+            IndexedQueue<Fiber> nextQueue2 = g.readyFibersNextRound2;
+            if (nextQueue1.size() > 0) {
+                for (int i = 0, size = nextQueue1.size(); i < size; i++) {
+                    Fiber f = nextQueue1.removeFirst();
+                    f.signalInThisRound = false;
+                    readyQueue.addFirst(f);
+                }
+            }
+            if (nextQueue2.size() > 0) {
+                for (int i = 0, size = nextQueue2.size(); i < size; i++) {
+                    Fiber f = nextQueue2.removeFirst();
                     f.signalInThisRound = false;
                     readyQueue.addLast(f);
                 }
@@ -210,7 +218,7 @@ public class Dispatcher extends AbstractLifeCircle {
                 finishedGroups.add(g);
                 g.ready = false;
             } else {
-                g.ready = readyQueue.size() > 0 || nextQueue.size() > 0;
+                g.ready = readyQueue.size() > 0 || nextQueue1.size() > 0 || nextQueue2.size() > 0;
             }
         } finally {
             thread.currentGroup = null;
@@ -231,7 +239,7 @@ public class Dispatcher extends AbstractLifeCircle {
                         // yield
                         fiber.cleanSchedule();
                         fiber.ready = true;
-                        fiber.fiberGroup.readyFibersNextRound.addLast(fiber);
+                        fiber.fiberGroup.readyFibersNextRound2.addLast(fiber);
                     }
                     return;
                 }
