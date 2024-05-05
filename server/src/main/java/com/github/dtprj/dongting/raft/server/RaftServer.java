@@ -297,6 +297,11 @@ public class RaftServer extends AbstractLifeCircle {
         rgcEx.setMaxPendingWrites(rgc.getMaxPendingWrites());
         rgcEx.setMaxPendingWriteBytes(rgc.getMaxPendingWriteBytes());
 
+        rgcEx.setIdxCacheSize(rgc.getIdxCacheSize());
+        rgcEx.setIdxFlushThreshold(rgc.getIdxFlushThreshold());
+
+        rgcEx.setIoCallbackUseGroupExecutor(rgc.isIoCallbackUseGroupExecutor());
+
         rgcEx.setTs(raftStatus.getTs());
         rgcEx.setHeapPool(createHeapPoolFactory(fiberGroup));
         rgcEx.setDirectPool(serverConfig.getPoolFactory().apply(raftStatus.getTs(), true));
