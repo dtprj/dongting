@@ -285,21 +285,18 @@ class RepFrame extends AbstractRepFrame {
         if (first != null && !first.getInput().isReadOnly()) {
             closeIterator();
             long sizeLimit = groupConfig.getSingleReplicateLimit();
-            while (limit > 0) {
-                ArrayList<LogItem> items = new ArrayList<>(limit);
-                long size = 0;
-                for (int i = 0; i < limit; i++) {
-                    LogItem li = raftStatus.getTailCache().get(nextIndex + i).getItem();
-                    size += li.getActualBodySize();
-                    if (size > sizeLimit && i != 0) {
-                        break;
-                    }
-                    li.retain();
-                    items.add(li);
+            ArrayList<LogItem> items = new ArrayList<>(limit);
+            long size = 0;
+            for (int i = 0; i < limit; i++) {
+                LogItem li = raftStatus.getTailCache().get(nextIndex + i).getItem();
+                size += li.getActualBodySize();
+                if (size > sizeLimit && i != 0) {
+                    break;
                 }
-                limit -= items.size();
-                sendAppendRequest(member, items);
+                li.retain();
+                items.add(li);
             }
+            sendAppendRequest(member, items);
             return Fiber.resume(null, this);
         } else {
             if (replicateIterator == null) {
