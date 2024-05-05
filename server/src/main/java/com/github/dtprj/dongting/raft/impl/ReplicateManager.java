@@ -99,11 +99,11 @@ public class ReplicateManager {
             if (m.getReplicateFiber() == null || m.getReplicateFiber().isFinished()) {
                 Fiber f;
                 if (m.isInstallSnapshot()) {
-                    InstallFrame ff = new InstallFrame(this, m);
+                    LeaderInstallFrame ff = new LeaderInstallFrame(this, m);
                     f = new Fiber("install-" + m.getNode().getNodeId() + "-" + m.getReplicateEpoch(),
                             groupConfig.getFiberGroup(), ff, true);
                 } else {
-                    RepFrame ff = new RepFrame(this, commitManager, m);
+                    LeaderRepFrame ff = new LeaderRepFrame(this, commitManager, m);
                     f = new Fiber("replicate-" + m.getNode().getNodeId() + "-" + m.getReplicateEpoch(),
                             groupConfig.getFiberGroup(), ff, true);
                 }
@@ -127,8 +127,8 @@ public class ReplicateManager {
 
 }
 
-abstract class AbstractRepFrame extends FiberFrame<Void> {
-    private static final DtLog log = DtLogs.getLogger(AbstractRepFrame.class);
+abstract class AbstractLeaderRepFrame extends FiberFrame<Void> {
+    private static final DtLog log = DtLogs.getLogger(AbstractLeaderRepFrame.class);
     private final int replicateEpoch;
     protected final RaftStatusImpl raftStatus;
     protected final FiberCondition repCondition;
@@ -139,7 +139,7 @@ abstract class AbstractRepFrame extends FiberFrame<Void> {
     protected static final PbNoCopyDecoder<AppendRespCallback> APPEND_RESP_DECODER =
             new PbNoCopyDecoder<>(c -> new AppendRespCallback());
 
-    public AbstractRepFrame(ReplicateManager replicateManager, RaftMember member) {
+    public AbstractLeaderRepFrame(ReplicateManager replicateManager, RaftMember member) {
         this.groupId = replicateManager.groupId;
         this.member = member;
         RaftGroupConfigEx groupConfig = replicateManager.groupConfig;
@@ -184,8 +184,8 @@ abstract class AbstractRepFrame extends FiberFrame<Void> {
 
 }
 
-class RepFrame extends AbstractRepFrame {
-    private static final DtLog log = DtLogs.getLogger(RepFrame.class);
+class LeaderRepFrame extends AbstractLeaderRepFrame {
+    private static final DtLog log = DtLogs.getLogger(LeaderRepFrame.class);
     private static final long WAIT_CONDITION_TIMEOUT = 1000;
 
     private final RaftGroupConfigEx groupConfig;
@@ -205,7 +205,7 @@ class RepFrame extends AbstractRepFrame {
 
     private RaftLog.LogIterator replicateIterator;
 
-    public RepFrame(ReplicateManager replicateManager, CommitManager commitManager, RaftMember member) {
+    public LeaderRepFrame(ReplicateManager replicateManager, CommitManager commitManager, RaftMember member) {
         super(replicateManager, member);
         this.groupConfig = replicateManager.groupConfig;
         this.serverConfig = replicateManager.serverConfig;
@@ -468,7 +468,7 @@ class RepFrame extends AbstractRepFrame {
             member.setInstallSnapshot(true);
             return;
         }
-        FiberFrame<Void> ff = new FindMatchPosFrame(replicateManager, member,
+        FiberFrame<Void> ff = new LeaderFindMatchPosFrame(replicateManager, member,
                 body.getSuggestTerm(), body.getSuggestIndex());
         Fiber f = new Fiber("find-match-pos-" + member.getNode().getNodeId()
                 + "-" + member.getReplicateEpoch(), groupConfig.getFiberGroup(), ff, true);
@@ -500,13 +500,13 @@ class RepFrame extends AbstractRepFrame {
 
 }
 
-class FindMatchPosFrame extends AbstractRepFrame {
-    private static final DtLog log = DtLogs.getLogger(FindMatchPosFrame.class);
+class LeaderFindMatchPosFrame extends AbstractLeaderRepFrame {
+    private static final DtLog log = DtLogs.getLogger(LeaderFindMatchPosFrame.class);
     private final ReplicateManager replicateManager;
     private final int suggestTerm;
     private final long suggestIndex;
 
-    public FindMatchPosFrame(ReplicateManager replicateManager, RaftMember member, int suggestTerm, long suggestIndex) {
+    public LeaderFindMatchPosFrame(ReplicateManager replicateManager, RaftMember member, int suggestTerm, long suggestIndex) {
         super(replicateManager, member);
         this.replicateManager = replicateManager;
         this.suggestTerm = suggestTerm;
@@ -551,8 +551,8 @@ class FindMatchPosFrame extends AbstractRepFrame {
     }
 }
 
-class InstallFrame extends AbstractRepFrame {
-    private static final DtLog log = DtLogs.getLogger(InstallFrame.class);
+class LeaderInstallFrame extends AbstractLeaderRepFrame {
+    private static final DtLog log = DtLogs.getLogger(LeaderInstallFrame.class);
 
     private final RaftLog raftLog;
     private final StateMachine stateMachine;
@@ -571,7 +571,7 @@ class InstallFrame extends AbstractRepFrame {
 
     long pendingBytes;
 
-    public InstallFrame(ReplicateManager replicateManager, RaftMember member) {
+    public LeaderInstallFrame(ReplicateManager replicateManager, RaftMember member) {
         super(replicateManager, member);
         this.stateMachine = replicateManager.stateMachine;
         this.raftLog = replicateManager.raftLog;
