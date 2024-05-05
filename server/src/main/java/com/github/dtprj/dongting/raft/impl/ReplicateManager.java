@@ -384,6 +384,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             incrementEpoch();
             repCondition.signalAll();
 
+            ex = DtUtil.rootCause(ex);
             boolean warn = false;
             if (ex instanceof NetCodeException) {
                 int c = ((NetCodeException) ex).getCode();
