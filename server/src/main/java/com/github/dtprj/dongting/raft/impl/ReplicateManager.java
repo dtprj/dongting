@@ -246,6 +246,9 @@ class RepFrame extends AbstractRepFrame {
         if (shouldStopReplicate()) {
             return Fiber.frameReturn();
         }
+        if (pendingItems >= maxReplicateItems) {
+            return repCondition.await(WAIT_CONDITION_TIMEOUT, this);
+        }
         if (pendingBytes >= maxReplicateBytes) {
             return repCondition.await(WAIT_CONDITION_TIMEOUT, this);
         }
@@ -271,7 +274,7 @@ class RepFrame extends AbstractRepFrame {
 
         // flow control
         int rest = maxReplicateItems - pendingItems;
-        if (rest <= restItemsToStartReplicate) {
+        if (pendingItems == 0 && rest <= restItemsToStartReplicate) {
             // avoid silly window syndrome
             return repCondition.await(WAIT_CONDITION_TIMEOUT, this);
         }
