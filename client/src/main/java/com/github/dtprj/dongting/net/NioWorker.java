@@ -100,7 +100,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.readBufferTimeoutNanos = config.getReadBufferTimeout() * 1000 * 1000;
 
         this.channels = new IntObjMap<>();
-        this.ioWorkerQueue = new IoWorkerQueue(this);
+        this.ioWorkerQueue = new IoWorkerQueue(this, config, timestamp);
         if (client == null) {
             this.channelsList = null;
         } else {

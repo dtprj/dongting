@@ -73,6 +73,9 @@ public class RpcBenchmark extends BenchBase {
 
         NioClientConfig clientConfig = new NioClientConfig();
         clientConfig.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
+
+        // clientConfig.setPerfCallback(new RpcPerfCallback(true));
+
         client = new NioClient(clientConfig);
         client.start();
         client.waitStart();
@@ -93,6 +96,11 @@ public class RpcBenchmark extends BenchBase {
         // TwoLevelPool heap = (TwoLevelPool) TwoLevelPool.getDefaultFactory().apply(new Timestamp(), false);
         // log.info("global direct pool stats: {}", direct.getLargePool().formatStat());
         // log.info("global heap pool stats: {}", heap.getLargePool().formatStat());
+
+        RpcPerfCallback c = (RpcPerfCallback) client.getConfig().getPerfCallback();
+        if (c != null) {
+            c.printStats();
+        }
     }
 
     @Override
@@ -124,7 +132,7 @@ public class RpcBenchmark extends BenchBase {
         } catch (Exception e) {
             fail(state);
         } finally {
-            if(SYNC) {
+            if (SYNC) {
                 logRt(startTime, state);
             }
         }

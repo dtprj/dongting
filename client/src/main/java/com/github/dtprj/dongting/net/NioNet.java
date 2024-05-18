@@ -21,11 +21,10 @@ import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtThreadFactory;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -57,7 +56,7 @@ public abstract class NioNet extends AbstractLifeCircle {
     /**
      * register processor use default executor.
      */
-    public void register(int cmd, ReqProcessor processor) {
+    public void register(int cmd, ReqProcessor<?> processor) {
         if (status != STATUS_NOT_START) {
             throw new DtException("processor should register before start");
         }
@@ -68,7 +67,7 @@ public abstract class NioNet extends AbstractLifeCircle {
     /**
      * register processor use specific executor, if executorService is null, run in io thread.
      */
-    public void register(int cmd, ReqProcessor processor, Executor executor) {
+    public void register(int cmd, ReqProcessor<?> processor, Executor executor) {
         if (status != STATUS_NOT_START) {
             throw new DtException("processor should register before start");
         }
@@ -88,7 +87,18 @@ public abstract class NioNet extends AbstractLifeCircle {
             }
 
             if (this.semaphore != null) {
-                acquire = this.semaphore.tryAcquire(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+                long t = 0;
+                PerfCallback c = config.getPerfCallback();
+                if (c != null) {
+                    t = c.takeTime(PerfCallback.PERF_RPC_ACQUIRE, null);
+                }
+                try {
+                    acquire = this.semaphore.tryAcquire(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+                } finally {
+                    if (c != null) {
+                        c.callDuration(PerfCallback.PERF_RPC_ACQUIRE, t, null);
+                    }
+                }
                 if (!acquire) {
                     return DtUtil.failedFuture(new NetTimeoutException(
                             "too many pending requests, client wait permit timeout in "
@@ -172,22 +182,6 @@ public abstract class NioNet extends AbstractLifeCircle {
                     }
                 }
             }
-        }
-    }
-
-    public static List<HostPort> parseServers(String serversList) {
-        String[] servers = serversList.split(";");
-        if (servers.length == 0) {
-            throw new IllegalArgumentException("servers list is empty");
-        }
-        try {
-            List<HostPort> list = new ArrayList<>();
-            for (String hostPortStr : servers) {
-                list.add(parseHostPort(hostPortStr));
-            }
-            return list;
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("bad servers list: " + serversList);
         }
     }
 

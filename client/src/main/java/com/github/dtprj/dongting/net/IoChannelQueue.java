@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -90,7 +91,10 @@ class IoChannelQueue {
             return;
         }
 
-        ArrayDeque<WriteData> subQueue = this.subQueue;
+        PerfCallback c = config.getPerfCallback();
+        if (c != null) {
+            writeData.time = c.takeTime(PerfCallback.PERF_RPC_CHANNEL_QUEUE, workerStatus.getTs());
+        }
         subQueue.addLast(writeData);
 
         // the subQueueBytes is not accurate
@@ -151,10 +155,14 @@ class IoChannelQueue {
 
         WriteData wd = this.lastWriteData;
         try {
+            PerfCallback c = config.getPerfCallback();
             while (!subQueue.isEmpty() || wd != null) {
                 int encodeResult;
                 if (wd == null) {
                     wd = subQueue.pollFirst();
+                    if (c != null) {
+                        c.callDuration(PerfCallback.PERF_RPC_CHANNEL_QUEUE, wd.time, workerStatus.getTs());
+                    }
                     encodeResult = encode(buf, wd, roundTime);
                 } else {
                     encodeResult = doEncode(buf, wd);

@@ -34,6 +34,8 @@ final class WriteData {
 
     private int estimateSize;
 
+    long time;
+
     // for request
     public WriteData(Peer peer, WriteFrame data, DtTime timeout,
                      CompletableFuture<ReadFrame<?>> future, Decoder<?> respDecoder) {

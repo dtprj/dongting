@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
+import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.Timestamp;
 
 import java.util.function.BiFunction;
@@ -45,6 +46,8 @@ public abstract class NioConfig {
     private long readBufferTimeout = 200;
 
     private boolean finishPendingImmediatelyWhenChannelClose = false;
+
+    private PerfCallback perfCallback;
 
     public int getBizThreads() {
         return bizThreads;
@@ -148,5 +151,13 @@ public abstract class NioConfig {
 
     public void setFinishPendingImmediatelyWhenChannelClose(boolean finishPendingImmediatelyWhenChannelClose) {
         this.finishPendingImmediatelyWhenChannelClose = finishPendingImmediatelyWhenChannelClose;
+    }
+
+    public PerfCallback getPerfCallback() {
+        return perfCallback;
+    }
+
+    public void setPerfCallback(PerfCallback perfCallback) {
+        this.perfCallback = perfCallback;
     }
 }

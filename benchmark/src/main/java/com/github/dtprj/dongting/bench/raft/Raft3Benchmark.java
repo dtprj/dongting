@@ -51,7 +51,7 @@ public class Raft3Benchmark extends BenchBase {
     private static final int GROUP_ID = 0;
 
     private static final boolean SYNC = false;
-    private static final int DATA_LEN = 128;
+    private static final int DATA_LEN = 64000;
     private static final byte[] DATA = new byte[DATA_LEN];
 
     private final RaftServer[] raftServers = new RaftServer[3];
@@ -59,7 +59,7 @@ public class Raft3Benchmark extends BenchBase {
     private KvClient client;
 
     public static void main(String[] args) throws Exception {
-        Raft3Benchmark benchmark = new Raft3Benchmark(1, 1000, 200);
+        Raft3Benchmark benchmark = new Raft3Benchmark(1, 20000, 200);
         benchmark.setLogRt(true);
         benchmark.start();
     }
@@ -78,7 +78,7 @@ public class Raft3Benchmark extends BenchBase {
 
         RaftGroupConfig groupConfig = new RaftGroupConfig(GROUP_ID, nodeIdOfMembers, "");
         groupConfig.setDataDir(DATA_DIR + "-" + nodeId);
-        groupConfig.setSyncForce(true);
+        groupConfig.setSyncForce(false);
 
         DefaultRaftFactory raftFactory = new DefaultRaftFactory(serverConfig) {
             @Override
@@ -125,7 +125,9 @@ public class Raft3Benchmark extends BenchBase {
         }
         log.info("raft servers started");
 
-        client = new KvClient(new NioClientConfig());
+        NioClientConfig nioClientConfig = new NioClientConfig();
+        nioClientConfig.setMaxOutRequests(1000);
+        client = new KvClient(nioClientConfig);
         client.start();
         RaftNode n1 = new RaftNode(1, new HostPort("127.0.0.1", 5001));
         RaftNode n2 = new RaftNode(2, new HostPort("127.0.0.1", 5002));
