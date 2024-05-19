@@ -33,7 +33,7 @@ public class RpcPerfCallback extends PerfCallback {
     }
 
     @Override
-    protected boolean accept(int perfType) {
+    public boolean accept(int perfType) {
         return true;
     }
 

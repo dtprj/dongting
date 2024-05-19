@@ -43,7 +43,6 @@ public abstract class NioConfig {
     private BiFunction<Timestamp, Boolean, ByteBufferPool> poolFactory = TwoLevelPool.getDefaultFactory();
 
     private int readBufferSize = 128 * 1024;
-    private long readBufferTimeout = 200;
 
     private boolean finishPendingImmediatelyWhenChannelClose = false;
 
@@ -135,14 +134,6 @@ public abstract class NioConfig {
 
     public void setReadBufferSize(int readBufferSize) {
         this.readBufferSize = readBufferSize;
-    }
-
-    public long getReadBufferTimeout() {
-        return readBufferTimeout;
-    }
-
-    public void setReadBufferTimeout(long readBufferTimeout) {
-        this.readBufferTimeout = readBufferTimeout;
     }
 
     public boolean isFinishPendingImmediatelyWhenChannelClose() {

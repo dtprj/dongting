@@ -22,11 +22,17 @@ public abstract class PerfCallback {
     public static final int RPC_ACQUIRE = 1;
     public static final int RPC_WORKER_QUEUE = 2;
     public static final int RPC_CHANNEL_QUEUE = 3;
+    public static final int RPC_WORKER_SEL = 4;
+    public static final int RPC_WORKER_WORK = 5;
 
     protected final boolean useNanos;
 
     public PerfCallback(boolean useNanos) {
         this.useNanos = useNanos;
+    }
+
+    public boolean isUseNanos() {
+        return useNanos;
     }
 
     public final long takeTime(int perfType) {
@@ -77,6 +83,6 @@ public abstract class PerfCallback {
 
     protected abstract void duration(int perfType, long costTime);
 
-    protected abstract boolean accept(int perfType);
+    public abstract boolean accept(int perfType);
 
 }

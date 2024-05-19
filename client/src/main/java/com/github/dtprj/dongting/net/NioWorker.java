@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.common.Pair;
+import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -87,7 +88,11 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private ByteBuffer readBuffer;
     private long readBufferUseTime;
-    private final long readBufferTimeoutNanos;
+
+    private final long cleanIntervalNanos;
+    private long lastCleanNanos;
+
+    private final PerfCallback perfCallback;
 
     private final ArrayList<Pair<Long, WriteData>> tempSortList = new ArrayList<>();
 
@@ -97,7 +102,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.client = client;
         this.thread = new DtThread(this, workerName);
         this.workerName = workerName;
-        this.readBufferTimeoutNanos = config.getReadBufferTimeout() * 1000 * 1000;
+        this.cleanIntervalNanos = config.getCleanInterval() * 1000 * 1000;
+        this.perfCallback = config.getPerfCallback();
 
         this.channels = new IntObjMap<>();
         this.ioWorkerQueue = new IoWorkerQueue(this, config);
@@ -121,24 +127,11 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     @Override
     public void run() {
-        long cleanIntervalNanos = config.getCleanInterval() * 1000 * 1000;
-        long lastCleanNano = System.nanoTime();
         Selector selector = this.selector;
         Timestamp ts = this.timestamp;
+        ts.refresh();
         while (this.status <= STATUS_PREPARE_STOP) {
-            try {
-                run0(selector, ts);
-                if (cleanIntervalNanos <= 0 || ts.getNanoTime() - lastCleanNano > cleanIntervalNanos) {
-                    // TODO shrink channels map if the it's internal array is too large
-                    cleanTimeoutReq(ts);
-                    cleanTimeoutConnect(ts);
-                    directPool.clean();
-                    heapPool.clean();
-                    lastCleanNano = ts.getNanoTime();
-                }
-            } catch (Throwable e) {
-                log.error("NioWorker loop exception", e);
-            }
+            run0(selector, ts);
         }
         try {
             ioWorkerQueue.close();
@@ -177,6 +170,70 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
+    private void run0(Selector selector, Timestamp ts) {
+        long workStartTime = 0;
+        try {
+            boolean selOk;
+            try {
+                selOk = sel(selector, ts);
+            } finally {
+                workStartTime = workBegin(ts);
+            }
+            if (selOk) {
+                ioWorkerQueue.dispatchActions();
+                Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
+                while (iterator.hasNext()) {
+                    SelectionKey key = iterator.next();
+                    processOneSelectionKey(key, status, ts);
+                    iterator.remove();
+                }
+            }
+            if (status == STATUS_PREPARE_STOP) {
+                ioWorkerQueue.dispatchActions();
+                if (workerStatus.getFramesToWrite() == 0 && pendingOutgoingRequests.size() == 0) {
+                    prepareStopFuture.complete(null);
+                }
+            }
+            if (ts.getNanoTime() - lastCleanNanos > cleanIntervalNanos || cleanIntervalNanos <= 0) {
+                cleanReadBuffer(ts);
+                // TODO shrink channels map if the it's internal array is too large
+                cleanTimeoutReq(ts);
+                cleanTimeoutConnect(ts);
+                directPool.clean();
+                heapPool.clean();
+                lastCleanNanos = ts.getNanoTime();
+            }
+        } catch (Throwable e) {
+            log.error("NioWorker loop exception", e);
+        } finally {
+            workEnd(ts, workStartTime);
+        }
+    }
+
+    private long workBegin(Timestamp ts) {
+        PerfCallback c = perfCallback;
+        if (c != null) {
+            return c.takeTime(PerfCallback.RPC_WORKER_WORK, ts);
+        }
+        return 0;
+    }
+
+    private void workEnd(Timestamp ts, long startTime) {
+        PerfCallback c = perfCallback;
+        if (c != null) {
+            boolean acceptSel = c.accept(PerfCallback.RPC_WORKER_SEL);
+            boolean acceptWork = c.accept(PerfCallback.RPC_WORKER_WORK);
+            if (c.isUseNanos() && (acceptSel || acceptWork)) {
+                ts.refresh();
+            } else {
+                ts.refresh(1);
+            }
+            if (acceptWork) {
+                c.callDuration(PerfCallback.RPC_WORKER_WORK, startTime, ts);
+            }
+        }
+    }
+
     private int compare(Pair<Long, ?> a, Pair<Long, ?> b) {
         // we only need keep order in same connection, so we only use lower 32 bits.
         // the lower 32 bits may overflow, so we use subtraction to compare, can't use < or >
@@ -202,24 +259,39 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    private void run0(Selector selector, Timestamp roundTime) {
-        if (!select(selector, config.getSelectTimeout())) {
-            roundTime.refresh(1);
-            return;
+    private boolean sel(Selector selector, Timestamp ts) {
+        PerfCallback c = perfCallback;
+        long start = 0;
+        boolean acceptSel = c != null && c.accept(PerfCallback.RPC_WORKER_SEL);
+        if (acceptSel) {
+            start = c.takeTime(PerfCallback.RPC_WORKER_SEL, ts);
         }
-        roundTime.refresh(1);
-        ioWorkerQueue.dispatchActions();
-        Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
-        while (iterator.hasNext()) {
-            SelectionKey key = iterator.next();
-            processOneSelectionKey(key, status, roundTime);
-            iterator.remove();
-        }
-        cleanReadBuffer(roundTime);
-        if (status == STATUS_PREPARE_STOP) {
-            ioWorkerQueue.dispatchActions();
-            if (workerStatus.getFramesToWrite() == 0 && pendingOutgoingRequests.size() == 0) {
-                prepareStopFuture.complete(null);
+        try {
+            long selectTimeoutMillis = config.getSelectTimeout();
+            if (selectTimeoutMillis > 0) {
+                selector.select(selectTimeoutMillis);
+            } else {
+                // for unit test find more problem
+                selector.select();
+            }
+            return true;
+        } catch (Exception e) {
+            log.error("select failed: {}", workerName, e);
+            return false;
+        } finally {
+            notified.lazySet(0);
+            if (c == null) {
+                ts.refresh(1);
+            } else {
+                boolean acceptWork = c.accept(PerfCallback.RPC_WORKER_WORK);
+                if (c.isUseNanos() && (acceptSel || acceptWork)) {
+                    ts.refresh();
+                } else {
+                    ts.refresh(1);
+                }
+                if (acceptSel) {
+                    c.callDuration(PerfCallback.RPC_WORKER_SEL, start, ts);
+                }
             }
         }
     }
@@ -236,7 +308,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private void cleanReadBuffer(Timestamp roundTime) {
         ByteBuffer readBuffer = this.readBuffer;
-        if (readBuffer != null && roundTime.getNanoTime() - readBufferUseTime > readBufferTimeoutNanos) {
+        if (readBuffer != null && roundTime.getNanoTime() - readBufferUseTime > cleanIntervalNanos) {
             // recover to big endian
             readBuffer.order(ByteOrder.BIG_ENDIAN);
             directPool.release(readBuffer);
@@ -300,23 +372,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 log.warn("{} error, channel will close: {}", stage, e);
             }
             closeChannelBySelKey(key);
-        }
-    }
-
-    private boolean select(Selector selector, long selectTimeoutMillis) {
-        try {
-            if (selectTimeoutMillis > 0) {
-                selector.select(selectTimeoutMillis);
-            } else {
-                // for unit test find more problem
-                selector.select();
-            }
-            return true;
-        } catch (Exception e) {
-            log.error("select failed: {}", workerName, e);
-            return false;
-        } finally {
-            notified.lazySet(0);
         }
     }
 
