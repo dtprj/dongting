@@ -192,7 +192,7 @@ public class TimeoutTest {
                         latch1.countDown();
                         try {
                             latch2.await();
-                            server.workers[0].workerStatus.getTs().refresh(0);
+                            server.workers[0].workerStatus.getTs().refresh();
                         } catch (InterruptedException e) {
                             throw new RuntimeException(e);
                         }

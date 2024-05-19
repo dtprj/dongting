@@ -74,7 +74,7 @@ public class RpcBenchmark extends BenchBase {
         NioClientConfig clientConfig = new NioClientConfig();
         clientConfig.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
 
-        // clientConfig.setPerfCallback(new RpcPerfCallback(true));
+        clientConfig.setPerfCallback(new RpcPerfCallback(true));
 
         client = new NioClient(clientConfig);
         client.start();

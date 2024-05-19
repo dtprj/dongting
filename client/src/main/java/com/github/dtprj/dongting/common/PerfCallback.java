@@ -41,7 +41,7 @@ public abstract class PerfCallback {
             if (ts == null) {
                 return System.nanoTime();
             } else {
-                ts.refresh(0);
+                ts.refresh();
                 return ts.getNanoTime();
             }
         } else {

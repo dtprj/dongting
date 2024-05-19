@@ -155,7 +155,7 @@ public class Dispatcher extends AbstractLifeCircle {
         if (!finishedGroups.isEmpty()) {
             groups.removeAll(finishedGroups);
         }
-        ts.refresh(0);
+        ts.refresh();
         n = ts.getNanoTime() - n;
         runCount++;
         runTimeNanos += n;
@@ -499,7 +499,7 @@ public class Dispatcher extends AbstractLifeCircle {
                 }
                 if (t > 0) {
                     FiberQueueTask o = shareQueue.poll(Math.min(t, pollTimeout), TimeUnit.NANOSECONDS);
-                    ts.refresh(0);
+                    ts.refresh();
                     if (o != null) {
                         localData.add(o);
                     }

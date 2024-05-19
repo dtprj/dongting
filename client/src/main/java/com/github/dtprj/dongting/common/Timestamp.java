@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.common;
 
+import com.github.dtprj.dongting.log.BugLog;
+
 /**
  * @author huangli
  */
@@ -41,21 +43,31 @@ public class Timestamp {
     }
 
     public boolean refresh(long millisDiff) {
+        DtUtil.checkPositive(millisDiff, "millisDiff");
         long t = System.currentTimeMillis();
         long old = this.wallClockMillis;
         if (t - old >= millisDiff || t < old) {
-            long newNano = System.nanoTime();
-            if (newNano - this.nanoTime < 0) {
-                // assert false, nanoTime() should not go back
-                return false;
-            } else {
-                this.wallClockMillis = t;
-                this.nanoTime = System.nanoTime();
-                return true;
-            }
+            return update(t);
         } else {
             return false;
         }
+    }
+
+    private boolean update(long millis) {
+        long newNano = System.nanoTime();
+        if (newNano - this.nanoTime < 0) {
+            // assert false, nanoTime() should not go back
+            BugLog.getLog().error("nanoTime go back, old=" + this.nanoTime + ", new=" + newNano);
+            return false;
+        } else {
+            this.wallClockMillis = millis;
+            this.nanoTime = newNano;
+            return true;
+        }
+    }
+
+    public void refresh() {
+        update(System.currentTimeMillis());
     }
 
     public void updateForUnitTest(long nanoTime, long wallClockMillis) {
