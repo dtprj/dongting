@@ -183,6 +183,7 @@ public class SimpleByteBufferPool extends ByteBufferPool {
     public void release(ByteBuffer buf) {
         if (threadSafe) {
             synchronized (this) {
+                ts.refresh(1);
                 release0(buf);
             }
         } else {
@@ -234,6 +235,12 @@ public class SimpleByteBufferPool extends ByteBufferPool {
         long expireNanos = ts.getNanoTime() - this.timeoutNanos;
         for (FixSizeBufferPool pool : pools) {
             pool.clean(expireNanos);
+        }
+    }
+
+    public void cleanAll() {
+        for (FixSizeBufferPool pool : pools) {
+            pool.cleanAll();
         }
     }
 

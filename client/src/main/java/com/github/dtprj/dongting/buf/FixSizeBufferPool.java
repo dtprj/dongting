@@ -119,4 +119,16 @@ class FixSizeBufferPool {
             }
         }
     }
+
+    public void cleanAll() {
+        if (!direct) {
+            return;
+        }
+        IndexedQueue<ByteBuffer> stack = this.bufferStack;
+        int size = stack.size();
+        for (int i = 0; i < size; i++) {
+            ByteBuffer buf = stack.removeFirst();
+            SimpleByteBufferPool.VF.releaseDirectBuffer(buf);
+        }
+    }
 }

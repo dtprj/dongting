@@ -16,9 +16,9 @@
 package com.github.dtprj.dongting.bench.raft;
 
 import com.github.dtprj.dongting.bench.rpc.RpcBenchmark;
+import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
-import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.RefBufferDecoder;
@@ -125,8 +125,8 @@ public class RaftLogBenchmark extends RpcBenchmark {
             groupConfig.setDataDir(DATA_DIR);
             groupConfig.setIoExecutor(MockExecutors.ioExecutor());
             groupConfig.setTs(dispatcher.getTs());
-            groupConfig.setDirectPool(TwoLevelPool.getDefaultFactory().apply(groupConfig.getTs(), true));
-            groupConfig.setHeapPool(new RefBufferFactory(TwoLevelPool.getDefaultFactory().apply(groupConfig.getTs(), false), 128));
+            groupConfig.setDirectPool(new DefaultPoolFactory().createPool(groupConfig.getTs(), true));
+            groupConfig.setHeapPool(new RefBufferFactory(new DefaultPoolFactory().createPool(groupConfig.getTs(), false), 128));
             groupConfig.setRaftStatus(raftStatus);
             groupConfig.setCodecFactory(new RaftCodecFactory() {
                 @Override

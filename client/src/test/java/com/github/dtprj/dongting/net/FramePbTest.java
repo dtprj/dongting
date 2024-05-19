@@ -3,7 +3,7 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.TwoLevelPool;
+import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.codec.DtFrame;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.DtThread;
@@ -116,7 +116,7 @@ public class FramePbTest {
         buf.flip();
 
         WorkerStatus workerStatus = new WorkerStatus();
-        workerStatus.setHeapPool(TwoLevelPool.getDefaultFactory().apply(new Timestamp(), false));
+        workerStatus.setHeapPool(new DefaultPoolFactory().createPool(new Timestamp(), false));
 
         DtChannel dtc = new DtChannel(new NioStatus(null), workerStatus,
                 new NioClientConfig(), SocketChannel.open(), 0) {

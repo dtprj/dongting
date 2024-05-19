@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
-import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.common.RunnableEx;
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
@@ -111,8 +111,8 @@ public class LogFileQueueTest extends BaseFiberTest {
         config.setIoExecutor(MockExecutors.ioExecutor());
         config.setFiberGroup(fiberGroup);
         config.setTs(raftStatus.getTs());
-        config.setDirectPool(TwoLevelPool.getDefaultFactory().apply(config.getTs(), true));
-        config.setHeapPool(new RefBufferFactory(TwoLevelPool.getDefaultFactory().apply(config.getTs(), false), 0));
+        config.setDirectPool(new DefaultPoolFactory().createPool(config.getTs(), true));
+        config.setHeapPool(new RefBufferFactory(new DefaultPoolFactory().createPool(config.getTs(), false), 0));
         config.setRaftStatus(raftStatus);
 
         tailCache = new TailCache(config, raftStatus);

@@ -15,11 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.TwoLevelPool;
-import com.github.dtprj.dongting.common.Timestamp;
-
-import java.util.function.BiFunction;
+import com.github.dtprj.dongting.buf.DefaultPoolFactory;
+import com.github.dtprj.dongting.buf.PoolFactory;
 
 /**
  * @author huangli
@@ -39,7 +36,7 @@ public class RaftServerConfig {
 
     private int ioThreads = Math.max(Runtime.getRuntime().availableProcessors() * 5, 30);
 
-    private BiFunction<Timestamp, Boolean, ByteBufferPool> poolFactory = TwoLevelPool.getDefaultFactory();
+    private PoolFactory poolFactory = new DefaultPoolFactory();
 
     public String getServers() {
         return servers;
@@ -113,11 +110,11 @@ public class RaftServerConfig {
         this.checkSelf = checkSelf;
     }
 
-    public BiFunction<Timestamp, Boolean, ByteBufferPool> getPoolFactory() {
+    public PoolFactory getPoolFactory() {
         return poolFactory;
     }
 
-    public void setPoolFactory(BiFunction<Timestamp, Boolean, ByteBufferPool> poolFactory) {
+    public void setPoolFactory(PoolFactory poolFactory) {
         this.poolFactory = poolFactory;
     }
 

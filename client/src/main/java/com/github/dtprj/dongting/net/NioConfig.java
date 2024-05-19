@@ -15,12 +15,9 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.TwoLevelPool;
+import com.github.dtprj.dongting.buf.DefaultPoolFactory;
+import com.github.dtprj.dongting.buf.PoolFactory;
 import com.github.dtprj.dongting.common.PerfCallback;
-import com.github.dtprj.dongting.common.Timestamp;
-
-import java.util.function.BiFunction;
 
 /**
  * @author huangli
@@ -40,7 +37,7 @@ public abstract class NioConfig {
     private int maxFrameSize = 5 * 1024 * 1024;
     private int maxBodySize = 4 * 1024 * 1024;
 
-    private BiFunction<Timestamp, Boolean, ByteBufferPool> poolFactory = TwoLevelPool.getDefaultFactory();
+    private PoolFactory poolFactory = new DefaultPoolFactory();
 
     private int readBufferSize = 128 * 1024;
 
@@ -104,11 +101,11 @@ public abstract class NioConfig {
         this.maxInBytes = maxInBytes;
     }
 
-    public BiFunction<Timestamp, Boolean, ByteBufferPool> getPoolFactory() {
+    public PoolFactory getPoolFactory() {
         return poolFactory;
     }
 
-    public void setPoolFactory(BiFunction<Timestamp, Boolean, ByteBufferPool> poolFactory) {
+    public void setPoolFactory(PoolFactory poolFactory) {
         this.poolFactory = poolFactory;
     }
 

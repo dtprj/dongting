@@ -113,8 +113,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             this.channelsList = new ArrayList<>();
         }
 
-        this.directPool = config.getPoolFactory().apply(timestamp, true);
-        this.heapPool = config.getPoolFactory().apply(timestamp, false);
+        this.directPool = config.getPoolFactory().createPool(timestamp, true);
+        this.heapPool = config.getPoolFactory().createPool(timestamp, false);
 
         workerStatus = new WorkerStatus();
         workerStatus.setIoQueue(ioWorkerQueue);
@@ -155,6 +155,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             if (readBuffer != null) {
                 releaseReadBuffer();
             }
+
+            config.getPoolFactory().destroyPool(directPool);
+            config.getPoolFactory().destroyPool(heapPool);
 
             log.info("worker thread [{}] finished.\n" +
                             "markReadCount={}, markWriteCount={}\n" +

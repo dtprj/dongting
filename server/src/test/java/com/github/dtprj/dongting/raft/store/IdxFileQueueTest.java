@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.buf.TwoLevelPool;
+import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -63,7 +63,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
         c.setTs(raftStatus.getTs());
         c.setFiberGroup(fiberGroup);
         c.setDataDir(dir.getAbsolutePath());
-        c.setDirectPool(TwoLevelPool.getDefaultFactory().apply(c.getTs(), true));
+        c.setDirectPool(new DefaultPoolFactory().createPool(c.getTs(), true));
         statusManager = new StatusManager(c);
         doInFiber(new FiberFrame<>() {
             @Override

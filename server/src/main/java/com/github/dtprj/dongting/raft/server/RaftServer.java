@@ -192,9 +192,6 @@ public class RaftServer extends AbstractLifeCircle {
             }
             RaftGroupImpl g = createRaftGroup(serverConfig, allNodeIds, rgc);
             raftGroups.put(rgc.getGroupId(), g);
-            CompletableFuture<Void> f = g.getFiberGroup().getShutdownFuture()
-                    .thenRun(() -> raftGroups.remove(rgc.getGroupId()));
-            g.setShutdownFuture(f);
         }
     }
 
@@ -277,7 +274,14 @@ public class RaftServer extends AbstractLifeCircle {
             gc.getProcessorChannels().put(processor.getTypeId(), channel);
         }
 
-        return new RaftGroupImpl(gc);
+        RaftGroupImpl g = new RaftGroupImpl(gc);
+        CompletableFuture<Void> f = g.getFiberGroup().getShutdownFuture().thenRun(() -> {
+            raftGroups.remove(g.getGroupId());
+            serverConfig.getPoolFactory().destroyPool(rgcEx.getHeapPool().getPool());
+            serverConfig.getPoolFactory().destroyPool(rgcEx.getDirectPool());
+        });
+        g.setShutdownFuture(f);
+        return g;
     }
 
     private RaftGroupConfigEx createGroupConfigEx(RaftGroupConfig rgc, RaftStatusImpl raftStatus,
@@ -304,7 +308,7 @@ public class RaftServer extends AbstractLifeCircle {
 
         rgcEx.setTs(raftStatus.getTs());
         rgcEx.setHeapPool(createHeapPoolFactory(fiberGroup));
-        rgcEx.setDirectPool(serverConfig.getPoolFactory().apply(raftStatus.getTs(), true));
+        rgcEx.setDirectPool(serverConfig.getPoolFactory().createPool(raftStatus.getTs(), true));
         rgcEx.setRaftStatus(raftStatus);
         rgcEx.setIoExecutor(raftFactory.createIoExecutor());
         rgcEx.setFiberGroup(fiberGroup);
@@ -316,7 +320,7 @@ public class RaftServer extends AbstractLifeCircle {
         ExecutorService executorService = fiberGroup.getExecutor();
         Dispatcher dispatcher = fiberGroup.getDispatcher();
 
-        TwoLevelPool heapPool = (TwoLevelPool) serverConfig.getPoolFactory().apply(dispatcher.getTs(), false);
+        TwoLevelPool heapPool = (TwoLevelPool) serverConfig.getPoolFactory().createPool(dispatcher.getTs(), false);
         TwoLevelPool releaseSafePool = heapPool.toReleaseInOtherThreadInstance(dispatcher.getThread(), byteBuffer -> {
             if (byteBuffer != null) {
                 executorService.execute(() -> heapPool.release(byteBuffer));
@@ -533,7 +537,7 @@ public class RaftServer extends AbstractLifeCircle {
             }
         });
 
-        // the group shutdown is not finished, but it's ok to call afterGroupShutdown
+        // the group shutdown is not finished, but it's ok to call afterGroupShutdown(to shutdown dispatcher)
         raftFactory.afterGroupShutdown(fiberGroup, timeout);
 
         return g.getShutdownFuture();
