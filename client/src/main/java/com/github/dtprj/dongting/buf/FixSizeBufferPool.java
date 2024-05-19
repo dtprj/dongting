@@ -113,6 +113,9 @@ class FixSizeBufferPool {
                 break;
             } else {
                 stack.removeFirst();
+                if (direct) {
+                    SimpleByteBufferPool.VF.releaseDirectBuffer(buf);
+                }
             }
         }
     }
