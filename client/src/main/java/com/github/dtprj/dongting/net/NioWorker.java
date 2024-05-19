@@ -152,6 +152,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             if (client != null) {
                 client.cleanWaitConnectReq(null);
             }
+            if (readBuffer != null) {
+                releaseReadBuffer();
+            }
 
             log.info("worker thread [{}] finished.\n" +
                             "markReadCount={}, markWriteCount={}\n" +
@@ -195,7 +198,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 }
             }
             if (ts.getNanoTime() - lastCleanNanos > cleanIntervalNanos || cleanIntervalNanos <= 0) {
-                cleanReadBuffer(ts);
+                if (readBuffer != null && ts.getNanoTime() - readBufferUseTime > cleanIntervalNanos) {
+                    releaseReadBuffer();
+                }
                 // TODO shrink channels map if the it's internal array is too large
                 cleanTimeoutReq(ts);
                 cleanTimeoutConnect(ts);
@@ -306,15 +311,12 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         readBufferUseTime = roundTime.getNanoTime();
     }
 
-    private void cleanReadBuffer(Timestamp roundTime) {
-        ByteBuffer readBuffer = this.readBuffer;
-        if (readBuffer != null && roundTime.getNanoTime() - readBufferUseTime > cleanIntervalNanos) {
-            // recover to big endian
-            readBuffer.order(ByteOrder.BIG_ENDIAN);
-            directPool.release(readBuffer);
-            this.readBuffer = null;
-            readBufferUseTime = 0;
-        }
+    private void releaseReadBuffer() {
+        // recover to big endian
+        readBuffer.order(ByteOrder.BIG_ENDIAN);
+        directPool.release(readBuffer);
+        this.readBuffer = null;
+        readBufferUseTime = 0;
     }
 
     private void processOneSelectionKey(SelectionKey key, int status, Timestamp roundTime) {
