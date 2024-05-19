@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.PerfCallback;
-import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
@@ -34,19 +33,18 @@ class IoWorkerQueue {
     private final MpscLinkedQueue<Object> queue = MpscLinkedQueue.newInstance();
     private final NioWorker worker;
     private final NioConfig config;
+    private final PerfCallback perfCallback;
     private int invokeIndex;
-    private final Timestamp ts;
 
-    public IoWorkerQueue(NioWorker worker, NioConfig config, Timestamp ts) {
+    public IoWorkerQueue(NioWorker worker, NioConfig config) {
         this.worker = worker;
         this.config = config;
-        this.ts = ts;
+        this.perfCallback = config.getPerfCallback();
     }
 
     public void writeFromBizThread(WriteData data) {
-        PerfCallback c = config.getPerfCallback();
-        if (c != null) {
-            data.time = c.takeTime(PerfCallback.PERF_RPC_WORKER_QUEUE, null);
+        if (perfCallback != null) {
+            data.time = perfCallback.takeTime(PerfCallback.RPC_WORKER_QUEUE);
         }
         if (!queue.offer(data)) {
             if (data.getFuture() != null) {
@@ -74,9 +72,8 @@ class IoWorkerQueue {
     }
 
     private void processWriteData(WriteData wo) {
-        PerfCallback c = config.getPerfCallback();
-        if (c != null) {
-            c.callDuration(PerfCallback.PERF_RPC_WORKER_QUEUE, wo.time, ts);
+        if (perfCallback != null) {
+            perfCallback.callDuration(PerfCallback.RPC_WORKER_QUEUE, wo.time);
         }
         WriteFrame frame = wo.getData();
         Peer peer = wo.getPeer();

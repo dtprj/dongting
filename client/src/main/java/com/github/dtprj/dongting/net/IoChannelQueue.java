@@ -57,12 +57,15 @@ class IoChannelQueue {
     private WriteData lastWriteData;
     private final EncodeContext encodeContext;
 
+    private final PerfCallback perfCallback;
+
     public IoChannelQueue(NioConfig config, WorkerStatus workerStatus, DtChannel dtc, RefBufferFactory heapPool) {
         this.config = config;
         this.directPool = workerStatus.getDirectPool();
         this.workerStatus = workerStatus;
         this.dtc = dtc;
         this.encodeContext = new EncodeContext(heapPool);
+        this.perfCallback = config.getPerfCallback();
     }
 
     public void setRegisterForWrite(Runnable registerForWrite) {
@@ -91,9 +94,8 @@ class IoChannelQueue {
             return;
         }
 
-        PerfCallback c = config.getPerfCallback();
-        if (c != null) {
-            writeData.time = c.takeTime(PerfCallback.PERF_RPC_CHANNEL_QUEUE, workerStatus.getTs());
+        if (perfCallback != null) {
+            writeData.time = perfCallback.takeTime(PerfCallback.RPC_CHANNEL_QUEUE);
         }
         subQueue.addLast(writeData);
 
@@ -155,13 +157,13 @@ class IoChannelQueue {
 
         WriteData wd = this.lastWriteData;
         try {
-            PerfCallback c = config.getPerfCallback();
+            PerfCallback c = perfCallback;
             while (!subQueue.isEmpty() || wd != null) {
                 int encodeResult;
                 if (wd == null) {
                     wd = subQueue.pollFirst();
                     if (c != null) {
-                        c.callDuration(PerfCallback.PERF_RPC_CHANNEL_QUEUE, wd.time, workerStatus.getTs());
+                        c.callDuration(PerfCallback.RPC_CHANNEL_QUEUE, wd.time);
                     }
                     encodeResult = encode(buf, wd, roundTime);
                 } else {

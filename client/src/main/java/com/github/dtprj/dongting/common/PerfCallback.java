@@ -19,9 +19,9 @@ package com.github.dtprj.dongting.common;
  * @author huangli
  */
 public abstract class PerfCallback {
-    public static final int PERF_RPC_ACQUIRE = 1;
-    public static final int PERF_RPC_WORKER_QUEUE = 2;
-    public static final int PERF_RPC_CHANNEL_QUEUE = 3;
+    public static final int RPC_ACQUIRE = 1;
+    public static final int RPC_WORKER_QUEUE = 2;
+    public static final int RPC_CHANNEL_QUEUE = 3;
 
     protected final boolean useNanos;
 
@@ -29,28 +29,33 @@ public abstract class PerfCallback {
         this.useNanos = useNanos;
     }
 
-    public long takeTime(int perfType, Timestamp ts) {
+    public final long takeTime(int perfType) {
         if (!accept(perfType)) {
             return 0;
         }
-        return takeTime(ts);
+        return takeTime0();
     }
 
-    protected long takeTime(Timestamp ts) {
+    public final long takeTime(int perfType, Timestamp ts) {
+        if (!accept(perfType)) {
+            return 0;
+        }
+        return takeTime0(ts);
+    }
+
+    private long takeTime0() {
         if (useNanos) {
-            if (ts == null) {
-                return System.nanoTime();
-            } else {
-                ts.refresh();
-                return ts.getNanoTime();
-            }
+            return System.nanoTime();
         } else {
-            if (ts == null) {
-                return System.currentTimeMillis();
-            } else {
-                ts.refresh(1);
-                return ts.getWallClockMillis();
-            }
+            return System.currentTimeMillis();
+        }
+    }
+
+    private long takeTime0(Timestamp ts) {
+        if (useNanos) {
+            return ts.getNanoTime();
+        } else {
+            return ts.getWallClockMillis();
         }
     }
 
@@ -58,7 +63,15 @@ public abstract class PerfCallback {
         if (!accept(perfType)) {
             return;
         }
-        long costTime = takeTime(ts) - start;
+        long costTime = takeTime0(ts) - start;
+        duration(perfType, costTime);
+    }
+
+    public final void callDuration(int perfType, long start) {
+        if (!accept(perfType)) {
+            return;
+        }
+        long costTime = takeTime0() - start;
         duration(perfType, costTime);
     }
 

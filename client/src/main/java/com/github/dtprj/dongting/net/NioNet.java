@@ -43,11 +43,13 @@ public abstract class NioNet extends AbstractLifeCircle {
     final Semaphore semaphore;
     final NioStatus nioStatus;
     protected volatile ExecutorService bizExecutor;
+    private final PerfCallback perfCallback;
 
     public NioNet(NioConfig config) {
         this.config = config;
         this.nioStatus = new NioStatus(config.getMaxInBytes() > 0 ? new AtomicLong(0) : null);
         this.semaphore = config.getMaxOutRequests() > 0 ? new Semaphore(config.getMaxOutRequests()) : null;
+        this.perfCallback = config.getPerfCallback();
         if (config.getMaxFrameSize() < config.getMaxBodySize() + 128 * 1024) {
             throw new IllegalArgumentException("maxFrameSize should greater than maxBodySize plus 128KB.");
         }
@@ -88,15 +90,15 @@ public abstract class NioNet extends AbstractLifeCircle {
 
             if (this.semaphore != null) {
                 long t = 0;
-                PerfCallback c = config.getPerfCallback();
+                PerfCallback c = perfCallback;
                 if (c != null) {
-                    t = c.takeTime(PerfCallback.PERF_RPC_ACQUIRE, null);
+                    t = c.takeTime(PerfCallback.RPC_ACQUIRE);
                 }
                 try {
                     acquire = this.semaphore.tryAcquire(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
                 } finally {
                     if (c != null) {
-                        c.callDuration(PerfCallback.PERF_RPC_ACQUIRE, t, null);
+                        c.callDuration(PerfCallback.RPC_ACQUIRE, t);
                     }
                 }
                 if (!acquire) {
