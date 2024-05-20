@@ -20,8 +20,6 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.RefBufferDecoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.PerfCallback;
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.ByteBufferWriteFrame;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.HostPort;
@@ -41,7 +39,6 @@ import java.util.concurrent.TimeUnit;
  * @author huangli
  */
 public class RpcBenchmark extends BenchBase {
-    private static final DtLog log = DtLogs.getLogger(RpcBenchmark.class);
     private NioServer server;
     private NioClient client;
     private final int cmd;
@@ -68,6 +65,7 @@ public class RpcBenchmark extends BenchBase {
         serverConfig.setIoThreads(1);
         serverConfig.setBizThreads(0);
         serverConfig.setPort(9000);
+        //serverConfig.setPerfCallback(new RpcPerfCallback(true, "server_"));
         server = new NioServer(serverConfig);
         registerProcessor(server);
         server.start();
@@ -75,7 +73,7 @@ public class RpcBenchmark extends BenchBase {
         NioClientConfig clientConfig = new NioClientConfig();
         clientConfig.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
 
-        clientConfig.setPerfCallback(new RpcPerfCallback(true));
+        //clientConfig.setPerfCallback(new RpcPerfCallback(true, "client_"));
 
         client = new NioClient(clientConfig);
         client.start();
@@ -100,7 +98,15 @@ public class RpcBenchmark extends BenchBase {
 
         PerfCallback c = client.getConfig().getPerfCallback();
         if (c instanceof RpcPerfCallback) {
+            System.out.println("-----------------------client rpc stats----------------------");
             ((RpcPerfCallback) c).printStats();
+            System.out.println("-------------------------------------------------------------");
+        }
+        c = server.getConfig().getPerfCallback();
+        if (c instanceof RpcPerfCallback) {
+            System.out.println("-----------------------server rpc stats----------------------");
+            ((RpcPerfCallback) c).printStats();
+            System.out.println("-------------------------------------------------------------");
         }
     }
 
