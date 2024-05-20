@@ -94,9 +94,7 @@ class IoChannelQueue {
             return;
         }
 
-        if (perfCallback != null) {
-            writeData.time = perfCallback.takeTime(PerfCallback.D_RPC_CHANNEL_QUEUE);
-        }
+        writeData.time = perfCallback.takeTime(PerfCallback.D_RPC_CHANNEL_QUEUE);
         subQueue.addLast(writeData);
 
         // the subQueueBytes is not accurate
@@ -157,14 +155,11 @@ class IoChannelQueue {
 
         WriteData wd = this.lastWriteData;
         try {
-            PerfCallback c = perfCallback;
             while (!subQueue.isEmpty() || wd != null) {
                 int encodeResult;
                 if (wd == null) {
                     wd = subQueue.pollFirst();
-                    if (c != null) {
-                        c.callDuration(PerfCallback.D_RPC_CHANNEL_QUEUE, wd.time);
-                    }
+                    perfCallback.callDuration(PerfCallback.D_RPC_CHANNEL_QUEUE, wd.time);
                     encodeResult = encode(buf, wd, roundTime);
                 } else {
                     encodeResult = doEncode(buf, wd);
@@ -231,7 +226,7 @@ class IoChannelQueue {
             if (request) {
                 String msg = "timeout before send: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
                 log.warn("request timeout before send: {}ms, cmd={}, seq={}, channel={}",
-                        t.getTimeout(TimeUnit.MILLISECONDS), f.getCommand() ,f.getSeq(), wd.getDtc().getChannel());
+                        t.getTimeout(TimeUnit.MILLISECONDS), f.getCommand(), f.getSeq(), wd.getDtc().getChannel());
                 if (wd.getFuture() != null) {
                     wd.getFuture().completeExceptionally(new NetTimeoutException(msg));
                 }

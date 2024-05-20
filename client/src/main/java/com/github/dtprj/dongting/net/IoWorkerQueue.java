@@ -41,9 +41,7 @@ class IoWorkerQueue {
     }
 
     public void writeFromBizThread(WriteData data) {
-        if (perfCallback != null) {
-            data.time = perfCallback.takeTime(PerfCallback.D_RPC_WORKER_QUEUE);
-        }
+        data.time = perfCallback.takeTime(PerfCallback.D_RPC_WORKER_QUEUE);
         if (!queue.offer(data)) {
             if (data.getFuture() != null) {
                 data.getFuture().completeExceptionally(new NetException("IoQueue closed"));
@@ -70,9 +68,7 @@ class IoWorkerQueue {
     }
 
     private void processWriteData(WriteData wo) {
-        if (perfCallback != null) {
-            perfCallback.callDuration(PerfCallback.D_RPC_WORKER_QUEUE, wo.time);
-        }
+        perfCallback.callDuration(PerfCallback.D_RPC_WORKER_QUEUE, wo.time);
         WriteFrame frame = wo.getData();
         Peer peer = wo.getPeer();
         if (peer != null) {

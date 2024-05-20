@@ -35,7 +35,7 @@ public abstract class PerfCallback {
         this.useNanos = useNanos;
     }
 
-    public boolean isUseNanos() {
+    public final boolean isUseNanos() {
         return useNanos;
     }
 

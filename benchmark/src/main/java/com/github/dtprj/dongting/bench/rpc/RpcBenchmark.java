@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.bench.BenchBase;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.RefBufferDecoder;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.ByteBufferWriteFrame;
@@ -74,7 +75,7 @@ public class RpcBenchmark extends BenchBase {
         NioClientConfig clientConfig = new NioClientConfig();
         clientConfig.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
 
-        clientConfig.setPerfCallback(new RpcPerfCallback(true));
+        //clientConfig.setPerfCallback(new RpcPerfCallback(true));
 
         client = new NioClient(clientConfig);
         client.start();
@@ -97,9 +98,9 @@ public class RpcBenchmark extends BenchBase {
         // log.info("global direct pool stats: {}", direct.getLargePool().formatStat());
         // log.info("global heap pool stats: {}", heap.getLargePool().formatStat());
 
-        RpcPerfCallback c = (RpcPerfCallback) client.getConfig().getPerfCallback();
-        if (c != null) {
-            c.printStats();
+        PerfCallback c = client.getConfig().getPerfCallback();
+        if (c instanceof RpcPerfCallback) {
+            ((RpcPerfCallback) c).printStats();
         }
     }
 

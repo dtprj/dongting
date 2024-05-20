@@ -170,7 +170,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             try {
                 selOk = sel(selector, ts);
             } finally {
-                workStartTime = workBegin(ts);
+                workStartTime = perfCallback.takeTime(PerfCallback.D_RPC_WORKER_WORK, ts);
             }
             if (selOk) {
                 ioWorkerQueue.dispatchActions();
@@ -205,27 +205,17 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    private long workBegin(Timestamp ts) {
-        PerfCallback c = perfCallback;
-        if (c != null) {
-            return c.takeTime(PerfCallback.D_RPC_WORKER_WORK, ts);
-        }
-        return 0;
-    }
-
     private void workEnd(Timestamp ts, long startTime) {
         PerfCallback c = perfCallback;
-        if (c != null) {
-            boolean acceptSel = c.accept(PerfCallback.D_RPC_WORKER_SEL);
-            boolean acceptWork = c.accept(PerfCallback.D_RPC_WORKER_WORK);
-            if (c.isUseNanos() && (acceptSel || acceptWork)) {
-                ts.refresh();
-            } else {
-                ts.refresh(1);
-            }
-            if (acceptWork) {
-                c.callDuration(PerfCallback.D_RPC_WORKER_WORK, startTime, 0, ts);
-            }
+        boolean acceptSel = c.accept(PerfCallback.D_RPC_WORKER_SEL);
+        boolean acceptWork = c.accept(PerfCallback.D_RPC_WORKER_WORK);
+        if (c.isUseNanos() && (acceptSel || acceptWork)) {
+            ts.refresh();
+        } else {
+            ts.refresh(1);
+        }
+        if (acceptWork) {
+            c.callDuration(PerfCallback.D_RPC_WORKER_WORK, startTime, 0, ts);
         }
     }
 
@@ -257,7 +247,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private boolean sel(Selector selector, Timestamp ts) {
         PerfCallback c = perfCallback;
         long start = 0;
-        boolean acceptSel = c != null && c.accept(PerfCallback.D_RPC_WORKER_SEL);
+        boolean acceptSel = c.accept(PerfCallback.D_RPC_WORKER_SEL);
         if (acceptSel) {
             start = c.takeTime(PerfCallback.D_RPC_WORKER_SEL, ts);
         }
@@ -275,18 +265,14 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             return false;
         } finally {
             notified.lazySet(0);
-            if (c == null) {
-                ts.refresh(1);
+            boolean acceptWork = c.accept(PerfCallback.D_RPC_WORKER_WORK);
+            if (c.isUseNanos() && (acceptSel || acceptWork)) {
+                ts.refresh();
             } else {
-                boolean acceptWork = c.accept(PerfCallback.D_RPC_WORKER_WORK);
-                if (c.isUseNanos() && (acceptSel || acceptWork)) {
-                    ts.refresh();
-                } else {
-                    ts.refresh(1);
-                }
-                if (acceptSel) {
-                    c.callDuration(PerfCallback.D_RPC_WORKER_SEL, start, 0, ts);
-                }
+                ts.refresh(1);
+            }
+            if (acceptSel) {
+                c.callDuration(PerfCallback.D_RPC_WORKER_SEL, start, 0, ts);
             }
         }
     }

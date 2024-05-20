@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.buf.PoolFactory;
+import com.github.dtprj.dongting.common.NoopPerfCallback;
 import com.github.dtprj.dongting.common.PerfCallback;
 
 /**
@@ -43,7 +44,7 @@ public abstract class NioConfig {
 
     private boolean finishPendingImmediatelyWhenChannelClose = false;
 
-    private PerfCallback perfCallback;
+    private PerfCallback perfCallback = new NoopPerfCallback();
 
     public int getBizThreads() {
         return bizThreads;
