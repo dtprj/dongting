@@ -32,13 +32,11 @@ class IoWorkerQueue {
     private static final DtLog log = DtLogs.getLogger(IoWorkerQueue.class);
     private final MpscLinkedQueue<Object> queue = MpscLinkedQueue.newInstance();
     private final NioWorker worker;
-    private final NioConfig config;
     private final PerfCallback perfCallback;
     private int invokeIndex;
 
     public IoWorkerQueue(NioWorker worker, NioConfig config) {
         this.worker = worker;
-        this.config = config;
         this.perfCallback = config.getPerfCallback();
     }
 
