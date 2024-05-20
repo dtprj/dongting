@@ -56,13 +56,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 class NioWorker extends AbstractLifeCircle implements Runnable {
     private static final DtLog log = DtLogs.getLogger(NioWorker.class);
 
-    private int statMarkReadCount;
-    private int statMarkWriteCount;
-    private int statWriteCount;
-    private long statWriteBytes;
-    private int statReadCount;
-    private long statReadBytes;
-
     private final String workerName;
     private final DtThread thread;
     private final NioStatus nioStatus;
@@ -159,13 +152,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             config.getPoolFactory().destroyPool(directPool);
             config.getPoolFactory().destroyPool(heapPool);
 
-            log.info("worker thread [{}] finished.\n" +
-                            "markReadCount={}, markWriteCount={}\n" +
-                            "readCount={}, readBytes={}, avgReadBytes={}\n" +
-                            "writeCount={}, writeBytes={}, avgWriteBytes={}",
-                    workerName, statMarkReadCount, statMarkWriteCount,
-                    statReadCount, statReadBytes, statReadCount == 0 ? 0 : statReadBytes / statReadCount,
-                    statWriteCount, statWriteBytes, statWriteCount == 0 ? 0 : statWriteBytes / statWriteCount);
+            log.info("worker thread [{}] finished.");
             if (log.isDebugEnabled()) {
                 log.debug("direct pool stat: {}\nheap pool stat: {}", directPool.formatStat(), heapPool.formatStat());
             } else if (DtUtil.DEBUG) {
@@ -340,15 +327,15 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             stage = "process socket read";
             DtChannel dtc = (DtChannel) key.attachment();
             if (key.isReadable()) {
-                statReadCount++;
                 prepareReadBuffer(roundTime);
+                long startTime = perfCallback.takeTime(PerfCallback.D_RPC_READ);
                 int readCount = sc.read(readBuffer);
                 if (readCount == -1) {
                     // log.info("socket read to end, remove it: {}", key.channel());
                     closeChannelBySelKey(key);
                     return;
                 }
-                statReadBytes += readCount;
+                perfCallback.callDuration(PerfCallback.D_RPC_READ, startTime, readCount);
                 readBuffer.flip();
                 dtc.afterRead(status == STATUS_RUNNING, readBuffer);
             }
@@ -358,16 +345,16 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 ByteBuffer buf = subQueue.getWriteBuffer(roundTime);
                 if (buf != null) {
                     subQueue.setWriting(true);
+                    long startTime = perfCallback.takeTime(PerfCallback.D_RPC_WRITE);
                     int x = buf.remaining();
                     sc.write(buf);
                     x = x - buf.remaining();
-                    statWriteBytes += x;
-                    statWriteCount++;
+                    perfCallback.callDuration(PerfCallback.D_RPC_WRITE, startTime, x);
                 } else {
                     // no data to write
                     subQueue.setWriting(false);
                     key.interestOps(SelectionKey.OP_READ);
-                    statMarkReadCount++;
+                    perfCallback.callCount(PerfCallback.C_RPC_MARK_READ);
                 }
             }
         } catch (Exception e) {
@@ -422,8 +409,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
         @Override
         public void run() {
-            statMarkWriteCount++;
             key.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+            perfCallback.callCount(PerfCallback.C_RPC_MARK_WRITE);
         }
     }
 

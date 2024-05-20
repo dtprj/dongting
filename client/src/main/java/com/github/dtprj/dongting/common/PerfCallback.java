@@ -24,6 +24,10 @@ public abstract class PerfCallback {
     public static final int D_RPC_CHANNEL_QUEUE = 3;
     public static final int D_RPC_WORKER_SEL = 4;
     public static final int D_RPC_WORKER_WORK = 5;
+    public static final int C_RPC_MARK_READ = 6;
+    public static final int C_RPC_MARK_WRITE = 7;
+    public static final int D_RPC_READ = 8;
+    public static final int D_RPC_WRITE = 9;
 
     protected final boolean useNanos;
 
@@ -70,7 +74,7 @@ public abstract class PerfCallback {
             return;
         }
         long costTime = takeTime0(ts) - start;
-        duration(perfType, costTime, value);
+        onDuration(perfType, costTime, value);
     }
 
     public void callDuration(int perfType, long start) {
@@ -78,7 +82,7 @@ public abstract class PerfCallback {
             return;
         }
         long costTime = takeTime0() - start;
-        duration(perfType, costTime, 0);
+        onDuration(perfType, costTime, 0);
     }
 
     public void callDuration(int perfType, long start, long value) {
@@ -86,12 +90,27 @@ public abstract class PerfCallback {
             return;
         }
         long costTime = takeTime0() - start;
-        duration(perfType, costTime, value);
+        onDuration(perfType, costTime, value);
+    }
+
+    public void callCount(int perfType, long value) {
+        if (!accept(perfType)) {
+            return;
+        }
+        onCount(perfType, value);
+    }
+
+    public void callCount(int perfType) {
+        if (!accept(perfType)) {
+            return;
+        }
+        onCount(perfType, 1);
     }
 
     public abstract boolean accept(int perfType);
 
-    public abstract void duration(int perfType, long costTime, long value);
+    public abstract void onDuration(int perfType, long costTime, long value);
 
-    public abstract void count(int perfType, long value);
+    public abstract void onCount(int perfType, long value);
+
 }

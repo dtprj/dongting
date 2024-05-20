@@ -17,16 +17,18 @@ package com.github.dtprj.dongting.bench.rpc;
 
 import com.github.dtprj.dongting.common.PerfCallback;
 
+import java.util.concurrent.atomic.LongAdder;
+
 /**
  * @author huangli
  */
 public class RpcPerfCallback extends PerfCallback {
-    private long rpcAcquireCount;
-    private long rpcAcquireTime;
-    private long rpcWorkerQueueCount;
-    private long rpcWorkerQueueTime;
-    private long rpcChannelQueueCount;
-    private long rpcChannelQueueTime;
+    private final LongAdder rpcAcquireCount = new LongAdder();
+    private final LongAdder rpcAcquireTime = new LongAdder();
+    private final LongAdder rpcWorkerQueueCount = new LongAdder();
+    private final LongAdder rpcWorkerQueueTime = new LongAdder();
+    private final LongAdder rpcChannelQueueCount = new LongAdder();
+    private final LongAdder rpcChannelQueueTime = new LongAdder();
 
     public RpcPerfCallback(boolean useNanos) {
         super(useNanos);
@@ -38,32 +40,31 @@ public class RpcPerfCallback extends PerfCallback {
     }
 
     @Override
-    public void duration(int perfType, long costTime, long value) {
+    public void onDuration(int perfType, long costTime, long value) {
         switch (perfType) {
             case PerfCallback.D_RPC_ACQUIRE:
-                rpcAcquireCount++;
-                rpcAcquireTime += costTime;
+                rpcAcquireCount.increment();
+                rpcAcquireTime.add(costTime);
                 break;
             case PerfCallback.D_RPC_WORKER_QUEUE:
-                rpcWorkerQueueCount++;
-                rpcWorkerQueueTime += costTime;
+                rpcWorkerQueueCount.increment();
+                rpcWorkerQueueTime.add(costTime);
                 break;
             case PerfCallback.D_RPC_CHANNEL_QUEUE:
-                rpcChannelQueueCount++;
-                rpcChannelQueueTime += costTime;
+                rpcChannelQueueCount.increment();
+                rpcChannelQueueTime.add(costTime);
                 break;
         }
     }
 
     @Override
-    public void count(int perfType, long value) {
-
+    public void onCount(int perfType, long value) {
     }
 
     public void printStats() {
-        print("rpcAcquireCount", rpcAcquireCount, rpcAcquireTime);
-        print("rpcWorkerQueueCount", rpcWorkerQueueCount, rpcWorkerQueueTime);
-        print("rpcChannelQueueCount", rpcChannelQueueCount, rpcChannelQueueTime);
+        print("rpcAcquire", rpcAcquireCount.sum(), rpcAcquireTime.sum());
+        print("rpcWorkerQueue", rpcWorkerQueueCount.sum(), rpcWorkerQueueTime.sum());
+        print("rpcChannelQueue", rpcChannelQueueCount.sum(), rpcChannelQueueTime.sum());
     }
 
     protected void print(String name, long count, long totalTime) {
@@ -72,9 +73,9 @@ public class RpcPerfCallback extends PerfCallback {
         }
         double avg = 1.0 * totalTime / count;
         if (useNanos) {
-            System.out.printf("%s: %d, avg: %,.1fus\n", name, count, avg / 1000);
+            System.out.printf("%s: %d, avgTime: %,.3fus\n", name, count, avg / 1000);
         } else {
-            System.out.printf("%s: %d, avg: %.1fms\n", name, count, avg);
+            System.out.printf("%s: %d, avgTime: %.1fms\n", name, count, avg);
         }
     }
 }
