@@ -19,11 +19,11 @@ package com.github.dtprj.dongting.common;
  * @author huangli
  */
 public abstract class PerfCallback {
-    public static final int RPC_ACQUIRE = 1;
-    public static final int RPC_WORKER_QUEUE = 2;
-    public static final int RPC_CHANNEL_QUEUE = 3;
-    public static final int RPC_WORKER_SEL = 4;
-    public static final int RPC_WORKER_WORK = 5;
+    public static final int D_RPC_ACQUIRE = 1;
+    public static final int D_RPC_WORKER_QUEUE = 2;
+    public static final int D_RPC_CHANNEL_QUEUE = 3;
+    public static final int D_RPC_WORKER_SEL = 4;
+    public static final int D_RPC_WORKER_WORK = 5;
 
     protected final boolean useNanos;
 
@@ -35,14 +35,14 @@ public abstract class PerfCallback {
         return useNanos;
     }
 
-    public final long takeTime(int perfType) {
+    public long takeTime(int perfType) {
         if (!accept(perfType)) {
             return 0;
         }
         return takeTime0();
     }
 
-    public final long takeTime(int perfType, Timestamp ts) {
+    public long takeTime(int perfType, Timestamp ts) {
         if (!accept(perfType)) {
             return 0;
         }
@@ -65,24 +65,33 @@ public abstract class PerfCallback {
         }
     }
 
-    public final void callDuration(int perfType, long start, Timestamp ts) {
+    public void callDuration(int perfType, long start, long value, Timestamp ts) {
         if (!accept(perfType)) {
             return;
         }
         long costTime = takeTime0(ts) - start;
-        duration(perfType, costTime);
+        duration(perfType, costTime, value);
     }
 
-    public final void callDuration(int perfType, long start) {
+    public void callDuration(int perfType, long start) {
         if (!accept(perfType)) {
             return;
         }
         long costTime = takeTime0() - start;
-        duration(perfType, costTime);
+        duration(perfType, costTime, 0);
     }
 
-    protected abstract void duration(int perfType, long costTime);
+    public void callDuration(int perfType, long start, long value) {
+        if (!accept(perfType)) {
+            return;
+        }
+        long costTime = takeTime0() - start;
+        duration(perfType, costTime, value);
+    }
 
     public abstract boolean accept(int perfType);
 
+    public abstract void duration(int perfType, long costTime, long value);
+
+    public abstract void count(int perfType, long value);
 }

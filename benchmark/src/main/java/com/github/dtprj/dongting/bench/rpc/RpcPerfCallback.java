@@ -38,21 +38,26 @@ public class RpcPerfCallback extends PerfCallback {
     }
 
     @Override
-    protected void duration(int perfType, long costTime) {
+    public void duration(int perfType, long costTime, long value) {
         switch (perfType) {
-            case PerfCallback.RPC_ACQUIRE:
+            case PerfCallback.D_RPC_ACQUIRE:
                 rpcAcquireCount++;
                 rpcAcquireTime += costTime;
                 break;
-            case PerfCallback.RPC_WORKER_QUEUE:
+            case PerfCallback.D_RPC_WORKER_QUEUE:
                 rpcWorkerQueueCount++;
                 rpcWorkerQueueTime += costTime;
                 break;
-            case PerfCallback.RPC_CHANNEL_QUEUE:
+            case PerfCallback.D_RPC_CHANNEL_QUEUE:
                 rpcChannelQueueCount++;
                 rpcChannelQueueTime += costTime;
                 break;
         }
+    }
+
+    @Override
+    public void count(int perfType, long value) {
+
     }
 
     public void printStats() {

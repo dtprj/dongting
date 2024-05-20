@@ -95,7 +95,7 @@ class IoChannelQueue {
         }
 
         if (perfCallback != null) {
-            writeData.time = perfCallback.takeTime(PerfCallback.RPC_CHANNEL_QUEUE);
+            writeData.time = perfCallback.takeTime(PerfCallback.D_RPC_CHANNEL_QUEUE);
         }
         subQueue.addLast(writeData);
 
@@ -163,7 +163,7 @@ class IoChannelQueue {
                 if (wd == null) {
                     wd = subQueue.pollFirst();
                     if (c != null) {
-                        c.callDuration(PerfCallback.RPC_CHANNEL_QUEUE, wd.time);
+                        c.callDuration(PerfCallback.D_RPC_CHANNEL_QUEUE, wd.time);
                     }
                     encodeResult = encode(buf, wd, roundTime);
                 } else {
