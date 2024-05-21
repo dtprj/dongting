@@ -18,10 +18,13 @@ package com.github.dtprj.dongting.fiber;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IndexedQueue;
+import com.github.dtprj.dongting.common.NoopPerfCallback;
+import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.PerfConsts;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -36,6 +39,8 @@ import java.util.concurrent.TimeUnit;
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class Dispatcher extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(Dispatcher.class);
+
+    final PerfCallback perfCallback;
 
     final FiberQueue shareQueue = new FiberQueue();
     private final ArrayList<FiberGroup> groups = new ArrayList<>();
@@ -54,9 +59,6 @@ public class Dispatcher extends AbstractLifeCircle {
     private volatile boolean shouldStop = false;
     private final static VarHandle SHOULD_STOP;
 
-    private long runCount;
-    private long runTimeNanos;
-
     static {
         try {
             MethodHandles.Lookup l = MethodHandles.lookup();
@@ -72,7 +74,12 @@ public class Dispatcher extends AbstractLifeCircle {
     private DtTime stopTimeout;
 
     public Dispatcher(String name) {
-        thread = new DispatcherThread(this::run, name);
+        this(name, NoopPerfCallback.INSTANCE);
+    }
+
+    public Dispatcher(String name, PerfCallback perfCallback) {
+        this.thread = new DispatcherThread(this::run, name);
+        this.perfCallback = perfCallback;
     }
 
     public CompletableFuture<Void> startGroup(FiberGroup fiberGroup) {
@@ -111,6 +118,7 @@ public class Dispatcher extends AbstractLifeCircle {
     private void run() {
         try {
             ArrayList<FiberQueueTask> localData = new ArrayList<>(64);
+            ts.refresh();
             while (!isShouldStopPlain() || !groups.isEmpty()) {
                 runImpl(localData);
                 if (isShouldStopPlain() && stopTimeout != null && stopTimeout.isTimeout(ts)) {
@@ -124,7 +132,7 @@ public class Dispatcher extends AbstractLifeCircle {
             }
             shareQueue.shutdown();
             runImpl(localData);
-            log.info("fiber dispatcher exit: {}, avgLoopNanos={}", thread.getName(), runTimeNanos / runCount);
+            log.info("fiber dispatcher exit: {}", thread.getName());
         } catch (Throwable e) {
             SHOULD_STOP.setVolatile(this, true);
             log.info("fiber dispatcher exit exceptionally: {}", thread.getName(), e);
@@ -132,8 +140,9 @@ public class Dispatcher extends AbstractLifeCircle {
     }
 
     private void runImpl(ArrayList<FiberQueueTask> localData) {
-        pollAndRefreshTs(ts, localData);
-        long n = ts.getNanoTime();
+        fill(ts, localData);
+        PerfCallback c = perfCallback;
+        long start = c.takeTime(PerfConsts.FIBER_D_WORK, ts);
         processScheduleFibers();
         for (int len = localData.size(), i = 0; i < len; i++) {
             try {
@@ -155,10 +164,13 @@ public class Dispatcher extends AbstractLifeCircle {
         if (!finishedGroups.isEmpty()) {
             groups.removeAll(finishedGroups);
         }
-        ts.refresh();
-        n = ts.getNanoTime() - n;
-        runCount++;
-        runTimeNanos += n;
+
+        if (c.isUseNanos() && (c.accept(PerfConsts.FIBER_D_WORK) || c.accept(PerfConsts.FIBER_D_POLL))) {
+            ts.refresh();
+        } else {
+            ts.refresh(1);
+        }
+        perfCallback.callDuration(PerfConsts.FIBER_D_WORK, start, 0, ts);
     }
 
     private void processScheduleFibers() {
@@ -485,7 +497,7 @@ public class Dispatcher extends AbstractLifeCircle {
         }
     }
 
-    private void pollAndRefreshTs(Timestamp ts, ArrayList<FiberQueueTask> localData) {
+    private void fill(Timestamp ts, ArrayList<FiberQueueTask> localData) {
         try {
             long oldNanos = ts.getNanoTime();
 
@@ -498,8 +510,15 @@ public class Dispatcher extends AbstractLifeCircle {
                     t = f.scheduleNanoTime - oldNanos;
                 }
                 if (t > 0) {
+                    PerfCallback c = perfCallback;
+                    long startTime = c.takeTime(PerfConsts.FIBER_D_POLL, ts);
                     FiberQueueTask o = shareQueue.poll(Math.min(t, pollTimeout), TimeUnit.NANOSECONDS);
-                    ts.refresh();
+                    if (c.isUseNanos() && (c.accept(PerfConsts.FIBER_D_WORK) || c.accept(PerfConsts.FIBER_D_POLL))) {
+                        ts.refresh();
+                    } else {
+                        ts.refresh(1);
+                    }
+                    c.callDuration(PerfConsts.FIBER_D_POLL, startTime, 0, ts);
                     if (o != null) {
                         localData.add(o);
                     }

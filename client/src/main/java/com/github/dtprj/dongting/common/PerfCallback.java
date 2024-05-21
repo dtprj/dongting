@@ -15,10 +15,12 @@
  */
 package com.github.dtprj.dongting.common;
 
+import com.github.dtprj.dongting.net.PerfConsts;
+
 /**
  * @author huangli
  */
-public abstract class PerfCallback {
+public abstract class PerfCallback implements PerfConsts {
 
     protected final boolean useNanos;
 

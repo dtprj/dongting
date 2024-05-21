@@ -28,4 +28,7 @@ public interface PerfConsts {
     int RPC_C_MARK_WRITE = 7;
     int RPC_D_READ = 8;
     int RPC_D_WRITE = 9;
+
+    int FIBER_D_POLL = 100;
+    int FIBER_D_WORK = 101;
 }

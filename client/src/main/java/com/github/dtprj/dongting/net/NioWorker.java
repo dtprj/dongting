@@ -214,9 +214,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         } else {
             ts.refresh(1);
         }
-        if (acceptWork) {
-            c.callDuration(PerfConsts.RPC_D_WORKER_WORK, startTime, 0, ts);
-        }
+        c.callDuration(PerfConsts.RPC_D_WORKER_WORK, startTime, 0, ts);
     }
 
     private int compare(Pair<Long, ?> a, Pair<Long, ?> b) {
@@ -246,11 +244,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private boolean sel(Selector selector, Timestamp ts) {
         PerfCallback c = perfCallback;
-        long start = 0;
-        boolean acceptSel = c.accept(PerfConsts.RPC_D_WORKER_SEL);
-        if (acceptSel) {
-            start = c.takeTime(PerfConsts.RPC_D_WORKER_SEL, ts);
-        }
+        long start = c.takeTime(PerfConsts.RPC_D_WORKER_SEL, ts);
         try {
             long selectTimeoutMillis = config.getSelectTimeout();
             if (selectTimeoutMillis > 0) {
@@ -266,14 +260,13 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         } finally {
             notified.lazySet(0);
             boolean acceptWork = c.accept(PerfConsts.RPC_D_WORKER_WORK);
+            boolean acceptSel = c.accept(PerfConsts.RPC_D_WORKER_SEL);
             if (c.isUseNanos() && (acceptSel || acceptWork)) {
                 ts.refresh();
             } else {
                 ts.refresh(1);
             }
-            if (acceptSel) {
-                c.callDuration(PerfConsts.RPC_D_WORKER_SEL, start, 0, ts);
-            }
+            c.callDuration(PerfConsts.RPC_D_WORKER_SEL, start, 0, ts);
         }
     }
 

@@ -44,7 +44,7 @@ public abstract class NioConfig {
 
     private boolean finishPendingImmediatelyWhenChannelClose = false;
 
-    private PerfCallback perfCallback = new NoopPerfCallback();
+    private PerfCallback perfCallback = NoopPerfCallback.INSTANCE;
 
     public int getBizThreads() {
         return bizThreads;

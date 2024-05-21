@@ -19,7 +19,10 @@ package com.github.dtprj.dongting.common;
  * @author huangli
  */
 public final class NoopPerfCallback extends PerfCallback {
-    public NoopPerfCallback() {
+
+    public static final NoopPerfCallback INSTANCE = new NoopPerfCallback();
+
+    private NoopPerfCallback() {
         super(false);
     }
 
