@@ -170,7 +170,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             try {
                 selOk = sel(selector, ts);
             } finally {
-                workStartTime = perfCallback.takeTime(PerfCallback.D_RPC_WORKER_WORK, ts);
+                workStartTime = perfCallback.takeTime(PerfConsts.RPC_D_WORKER_WORK, ts);
             }
             if (selOk) {
                 ioWorkerQueue.dispatchActions();
@@ -207,15 +207,15 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private void workEnd(Timestamp ts, long startTime) {
         PerfCallback c = perfCallback;
-        boolean acceptSel = c.accept(PerfCallback.D_RPC_WORKER_SEL);
-        boolean acceptWork = c.accept(PerfCallback.D_RPC_WORKER_WORK);
+        boolean acceptSel = c.accept(PerfConsts.RPC_D_WORKER_SEL);
+        boolean acceptWork = c.accept(PerfConsts.RPC_D_WORKER_WORK);
         if (c.isUseNanos() && (acceptSel || acceptWork)) {
             ts.refresh();
         } else {
             ts.refresh(1);
         }
         if (acceptWork) {
-            c.callDuration(PerfCallback.D_RPC_WORKER_WORK, startTime, 0, ts);
+            c.callDuration(PerfConsts.RPC_D_WORKER_WORK, startTime, 0, ts);
         }
     }
 
@@ -247,9 +247,9 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private boolean sel(Selector selector, Timestamp ts) {
         PerfCallback c = perfCallback;
         long start = 0;
-        boolean acceptSel = c.accept(PerfCallback.D_RPC_WORKER_SEL);
+        boolean acceptSel = c.accept(PerfConsts.RPC_D_WORKER_SEL);
         if (acceptSel) {
-            start = c.takeTime(PerfCallback.D_RPC_WORKER_SEL, ts);
+            start = c.takeTime(PerfConsts.RPC_D_WORKER_SEL, ts);
         }
         try {
             long selectTimeoutMillis = config.getSelectTimeout();
@@ -265,14 +265,14 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             return false;
         } finally {
             notified.lazySet(0);
-            boolean acceptWork = c.accept(PerfCallback.D_RPC_WORKER_WORK);
+            boolean acceptWork = c.accept(PerfConsts.RPC_D_WORKER_WORK);
             if (c.isUseNanos() && (acceptSel || acceptWork)) {
                 ts.refresh();
             } else {
                 ts.refresh(1);
             }
             if (acceptSel) {
-                c.callDuration(PerfCallback.D_RPC_WORKER_SEL, start, 0, ts);
+                c.callDuration(PerfConsts.RPC_D_WORKER_SEL, start, 0, ts);
             }
         }
     }
@@ -314,14 +314,14 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             DtChannel dtc = (DtChannel) key.attachment();
             if (key.isReadable()) {
                 prepareReadBuffer(roundTime);
-                long startTime = perfCallback.takeTime(PerfCallback.D_RPC_READ);
+                long startTime = perfCallback.takeTime(PerfConsts.RPC_D_READ);
                 int readCount = sc.read(readBuffer);
                 if (readCount == -1) {
                     // log.info("socket read to end, remove it: {}", key.channel());
                     closeChannelBySelKey(key);
                     return;
                 }
-                perfCallback.callDuration(PerfCallback.D_RPC_READ, startTime, readCount);
+                perfCallback.callDuration(PerfConsts.RPC_D_READ, startTime, readCount);
                 readBuffer.flip();
                 dtc.afterRead(status == STATUS_RUNNING, readBuffer);
             }
@@ -331,16 +331,16 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 ByteBuffer buf = subQueue.getWriteBuffer(roundTime);
                 if (buf != null) {
                     subQueue.setWriting(true);
-                    long startTime = perfCallback.takeTime(PerfCallback.D_RPC_WRITE);
+                    long startTime = perfCallback.takeTime(PerfConsts.RPC_D_WRITE);
                     int x = buf.remaining();
                     sc.write(buf);
                     x = x - buf.remaining();
-                    perfCallback.callDuration(PerfCallback.D_RPC_WRITE, startTime, x);
+                    perfCallback.callDuration(PerfConsts.RPC_D_WRITE, startTime, x);
                 } else {
                     // no data to write
                     subQueue.setWriting(false);
                     key.interestOps(SelectionKey.OP_READ);
-                    perfCallback.callCount(PerfCallback.C_RPC_MARK_READ);
+                    perfCallback.callCount(PerfConsts.RPC_C_MARK_READ);
                 }
             }
         } catch (Exception e) {
@@ -396,7 +396,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         @Override
         public void run() {
             key.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
-            perfCallback.callCount(PerfCallback.C_RPC_MARK_WRITE);
+            perfCallback.callCount(PerfConsts.RPC_C_MARK_WRITE);
         }
     }
 

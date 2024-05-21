@@ -89,11 +89,11 @@ public abstract class NioNet extends AbstractLifeCircle {
             }
 
             if (this.semaphore != null) {
-                long t = perfCallback.takeTime(PerfCallback.D_RPC_ACQUIRE);
+                long t = perfCallback.takeTime(PerfConsts.RPC_D_ACQUIRE);
                 try {
                     acquire = this.semaphore.tryAcquire(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
                 } finally {
-                    perfCallback.callDuration(PerfCallback.D_RPC_ACQUIRE, t);
+                    perfCallback.callDuration(PerfConsts.RPC_D_ACQUIRE, t);
                 }
                 if (!acquire) {
                     return DtUtil.failedFuture(new NetTimeoutException(

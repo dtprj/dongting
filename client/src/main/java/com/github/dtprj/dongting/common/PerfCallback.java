@@ -19,15 +19,6 @@ package com.github.dtprj.dongting.common;
  * @author huangli
  */
 public abstract class PerfCallback {
-    public static final int D_RPC_ACQUIRE = 1;
-    public static final int D_RPC_WORKER_QUEUE = 2;
-    public static final int D_RPC_CHANNEL_QUEUE = 3;
-    public static final int D_RPC_WORKER_SEL = 4;
-    public static final int D_RPC_WORKER_WORK = 5;
-    public static final int C_RPC_MARK_READ = 6;
-    public static final int C_RPC_MARK_WRITE = 7;
-    public static final int D_RPC_READ = 8;
-    public static final int D_RPC_WRITE = 9;
 
     protected final boolean useNanos;
 

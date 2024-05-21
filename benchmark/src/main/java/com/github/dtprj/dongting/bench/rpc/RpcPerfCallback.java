@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.bench.rpc;
 
-import com.github.dtprj.dongting.common.PerfCallback;
+import com.github.dtprj.dongting.net.PerfConsts;
 import io.prometheus.client.Summary;
 
 import java.util.concurrent.atomic.LongAdder;
@@ -58,26 +58,26 @@ public class RpcPerfCallback extends SimplePerfCallback {
     @Override
     public void onDuration(int perfType, long costTime, long value) {
         switch (perfType) {
-            case PerfCallback.D_RPC_ACQUIRE:
+            case PerfConsts.RPC_D_ACQUIRE:
                 rpcAcquire.observe(costTime);
                 break;
-            case PerfCallback.D_RPC_WORKER_QUEUE:
+            case PerfConsts.RPC_D_WORKER_QUEUE:
                 rpcWorkerQueue.observe(costTime);
                 break;
-            case PerfCallback.D_RPC_CHANNEL_QUEUE:
+            case PerfConsts.RPC_D_CHANNEL_QUEUE:
                 rpcChannelQueue.observe(costTime);
                 break;
-            case PerfCallback.D_RPC_WORKER_SEL:
+            case PerfConsts.RPC_D_WORKER_SEL:
                 rpcWorkerSel.observe(costTime);
                 break;
-            case PerfCallback.D_RPC_WORKER_WORK:
+            case PerfConsts.RPC_D_WORKER_WORK:
                 rpcWorkerWork.observe(costTime);
                 break;
-            case PerfCallback.D_RPC_READ:
+            case PerfConsts.RPC_D_READ:
                 rpcReadTime.observe(costTime);
                 rpcReadBytes.observe(value);
                 break;
-            case PerfCallback.D_RPC_WRITE:
+            case PerfConsts.RPC_D_WRITE:
                 rpcWriteTime.observe(costTime);
                 rpcWriteBytes.observe(value);
                 break;
@@ -87,10 +87,10 @@ public class RpcPerfCallback extends SimplePerfCallback {
     @Override
     public void onCount(int perfType, long value) {
         switch (perfType) {
-            case PerfCallback.C_RPC_MARK_READ:
+            case PerfConsts.RPC_C_MARK_READ:
                 rpcMarkRead.add(value);
                 break;
-            case PerfCallback.C_RPC_MARK_WRITE:
+            case PerfConsts.RPC_C_MARK_WRITE:
                 rpcMarkWrite.add(value);
                 break;
         }
@@ -110,7 +110,7 @@ public class RpcPerfCallback extends SimplePerfCallback {
         printCount("rpc_mark_read", rpcMarkRead);
         printCount("rpc_mark_write", rpcMarkWrite);
 
-        if (accept(PerfCallback.D_RPC_WORKER_SEL) && accept(PerfCallback.D_RPC_WORKER_WORK)) {
+        if (accept(PerfConsts.RPC_D_WORKER_SEL) && accept(PerfConsts.RPC_D_WORKER_WORK)) {
             double total = rpcWorkerSel.get().sum + rpcWorkerWork.get().sum;
             double work = rpcWorkerWork.get().sum / total;
             System.out.printf("worker thread utilization rate: %.2f%%\n", work * 100);
