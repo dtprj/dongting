@@ -207,10 +207,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
     private void workEnd(Timestamp ts, long startTime) {
         PerfCallback c = perfCallback;
-        boolean acceptSel = c.accept(PerfConsts.RPC_D_WORKER_SEL);
-        boolean acceptWork = c.accept(PerfConsts.RPC_D_WORKER_WORK);
-        if (c.isUseNanos() && (acceptSel || acceptWork)) {
-            ts.refresh();
+        if (c.accept(PerfConsts.RPC_D_WORKER_SEL) || c.accept(PerfConsts.RPC_D_WORKER_WORK)) {
+            perfCallback.refresh(ts);
         } else {
             ts.refresh(1);
         }
@@ -259,10 +257,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             return false;
         } finally {
             notified.lazySet(0);
-            boolean acceptWork = c.accept(PerfConsts.RPC_D_WORKER_WORK);
-            boolean acceptSel = c.accept(PerfConsts.RPC_D_WORKER_SEL);
-            if (c.isUseNanos() && (acceptSel || acceptWork)) {
-                ts.refresh();
+            if (c.accept(PerfConsts.RPC_D_WORKER_WORK) || c.accept(PerfConsts.RPC_D_WORKER_SEL)) {
+                perfCallback.refresh(ts);
             } else {
                 ts.refresh(1);
             }

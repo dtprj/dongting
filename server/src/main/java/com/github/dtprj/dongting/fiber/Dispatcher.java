@@ -165,8 +165,8 @@ public class Dispatcher extends AbstractLifeCircle {
             groups.removeAll(finishedGroups);
         }
 
-        if (c.isUseNanos() && (c.accept(PerfConsts.FIBER_D_WORK) || c.accept(PerfConsts.FIBER_D_POLL))) {
-            ts.refresh();
+        if (c.accept(PerfConsts.FIBER_D_WORK) || c.accept(PerfConsts.FIBER_D_POLL)) {
+            perfCallback.refresh(ts);
         } else {
             ts.refresh(1);
         }
@@ -513,8 +513,8 @@ public class Dispatcher extends AbstractLifeCircle {
                     PerfCallback c = perfCallback;
                     long startTime = c.takeTime(PerfConsts.FIBER_D_POLL, ts);
                     FiberQueueTask o = shareQueue.poll(Math.min(t, pollTimeout), TimeUnit.NANOSECONDS);
-                    if (c.isUseNanos() && (c.accept(PerfConsts.FIBER_D_WORK) || c.accept(PerfConsts.FIBER_D_POLL))) {
-                        ts.refresh();
+                    if (c.accept(PerfConsts.FIBER_D_WORK) || c.accept(PerfConsts.FIBER_D_POLL)) {
+                        perfCallback.refresh(ts);
                     } else {
                         ts.refresh(1);
                     }

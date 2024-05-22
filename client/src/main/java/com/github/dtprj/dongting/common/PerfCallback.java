@@ -28,8 +28,12 @@ public abstract class PerfCallback implements PerfConsts {
         this.useNanos = useNanos;
     }
 
-    public final boolean isUseNanos() {
-        return useNanos;
+    public final void refresh(Timestamp ts) {
+        if (useNanos) {
+            ts.refresh();
+        } else {
+            ts.refresh(1);
+        }
     }
 
     public long takeTime(int perfType) {
