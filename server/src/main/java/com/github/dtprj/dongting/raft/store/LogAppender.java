@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
-import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.fiber.DoInLockFrame;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
@@ -62,7 +61,7 @@ class LogAppender {
     long nextPersistIndex = -1;
     long nextPersistPos = -1;
 
-    private final IndexedQueue<WriteTask> writeTaskQueue = new IndexedQueue<>(32);
+    private WriteTask writeTaskQueueHead;
     private WriteTask syncWriteTaskQueueHead;
 
     private final Fiber appendFiber;
@@ -312,7 +311,11 @@ class LogAppender {
             // no sync
             task.write(buffer, writeStartPosInFile);
 
-            writeTaskQueue.addLast(task);
+            if (writeTaskQueueHead == null) {
+                writeTaskQueueHead = task;
+            } else {
+                writeTaskQueueHead.nextNeedWriteTask = task;
+            }
 
             // tryLock() will success immediately since we lock the file in afterPosReady()
             file.getLock().readLock().tryLock();
@@ -341,12 +344,9 @@ class LogAppender {
 
         private void processWriteResult() {
             boolean needSignal = false;
-            while (writeTaskQueue.size() > 0) {
-                if (!writeTaskQueue.get(0).getFuture().isDone()) {
-                    break;
-                }
-
-                WriteTask wt = writeTaskQueue.removeFirst();
+            while (writeTaskQueueHead != null && writeTaskQueueHead.getFuture().isDone()) {
+                WriteTask wt = writeTaskQueueHead;
+                writeTaskQueueHead = wt.nextNeedWriteTask;
                 wt.getDtFile().getLock().readLock().unlock();
                 if (wt.getFuture().getEx() != null) {
                     throw Fiber.fatal(new RaftException("write error", wt.getFuture().getEx()));
@@ -374,6 +374,7 @@ class LogAppender {
         int lastTerm;
         long lastIndex;
 
+        WriteTask nextNeedWriteTask;
         WriteTask nextNeedSyncTask;
 
         public WriteTask(RaftGroupConfigEx groupConfig, DtFile dtFile,
@@ -449,7 +450,7 @@ class LogAppender {
 
     public boolean writeNotFinish() {
         return nextPersistIndex <= cache.getLastIndex()
-                || writeTaskQueue.size() > 0
+                || writeTaskQueueHead != null
                 || syncWriteTaskQueueHead != null;
     }
 
