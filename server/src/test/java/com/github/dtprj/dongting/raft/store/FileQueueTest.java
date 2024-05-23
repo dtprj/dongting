@@ -31,8 +31,7 @@ import java.io.File;
 import java.io.RandomAccessFile;
 import java.util.function.Predicate;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -155,7 +154,10 @@ public class FileQueueTest extends BaseFiberTest {
             }
 
             private FrameCallResult resume(Void unused) {
-                assertEquals(3, fileQueue.queue.size());
+                assertNotNull(fileQueue.getLogFile(0));
+                assertNotNull(fileQueue.getLogFile(1024));
+                assertNotNull(fileQueue.getLogFile(2048));
+
                 Predicate<LogFile> p = lf -> {
                     String n = lf.getFile().getName();
                     return n.endsWith("0000") || n.endsWith("1024");
@@ -164,7 +166,9 @@ public class FileQueueTest extends BaseFiberTest {
             }
 
             private FrameCallResult resume2(Void unused) {
-                assertEquals(1, fileQueue.queue.size());
+                assertNull(fileQueue.getLogFile(0));
+                assertNull(fileQueue.getLogFile(1024));
+                assertNotNull(fileQueue.getLogFile(2048));
                 return Fiber.frameReturn();
             }
         });

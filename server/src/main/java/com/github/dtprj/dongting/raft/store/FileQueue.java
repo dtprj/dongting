@@ -143,6 +143,9 @@ abstract class FileQueue {
     }
 
     protected LogFile getLogFile(long filePos) {
+        if (filePos < queueStartPosition || filePos >= queueEndPosition) {
+            return null;
+        }
         int index = (int) ((filePos - queueStartPosition) >>> fileLenShiftBits);
         return queue.get(index);
     }
@@ -171,6 +174,7 @@ abstract class FileQueue {
                         return Fiber.call(allocateSync(retry), this);
                     }
                 } else {
+                    tryAllocateAsync(pos);
                     return Fiber.frameReturn();
                 }
             }

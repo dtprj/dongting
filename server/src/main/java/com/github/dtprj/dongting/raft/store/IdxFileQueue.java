@@ -179,7 +179,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         }
         cache.put(itemIndex, dataPosition);
         nextIndex = itemIndex + 1;
-        tryAllocateAsync(indexToPos(nextIndex));
         if (shouldFlush()) {
             needFlushCondition.signal();
         }
