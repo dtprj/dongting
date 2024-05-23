@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
+import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.fiber.DoInLockFrame;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
@@ -28,6 +29,7 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.PerfConsts;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
@@ -62,7 +64,7 @@ class LogAppender {
     long nextPersistPos = -1;
 
     private WriteTask writeTaskQueueHead;
-    private WriteTask syncWriteTaskQueueHead;
+    private WriteTask syncTaskQueueHead;
 
     private final Fiber appendFiber;
 
@@ -72,6 +74,9 @@ class LogAppender {
     private final Supplier<Boolean> writeStopIndicator;
 
     private final RaftStatusImpl raftStatus;
+
+    private final PerfCallback perfCallback;
+    private long roundStartTime;
 
     LogAppender(IdxOps idxOps, LogFileQueue logFileQueue, RaftGroupConfigEx groupConfig) {
         this.idxOps = idxOps;
@@ -87,6 +92,7 @@ class LogAppender {
         this.writeStopIndicator = logFileQueue::isClosed;
         this.fsyncFiber = new Fiber("fsync-" + groupConfig.getGroupId(), fiberGroup, new SyncLoopFrame());
         this.needFsyncCondition = fiberGroup.newCondition("NeedFsync-" + groupConfig.getGroupId());
+        this.perfCallback = groupConfig.getPerfCallback();
     }
 
     public void startFiber() {
@@ -133,6 +139,7 @@ class LogAppender {
             if (logFileQueue.isClosed()) {
                 return Fiber.frameReturn();
             }
+            roundStartTime = perfCallback.takeTime(PerfConsts.RAFT_D_LOG_WRITE_FIBER_ROUND);
             processWriteResult();
             TailCache tailCache = LogAppender.this.cache;
             long nextPersistIndex = LogAppender.this.nextPersistIndex;
@@ -232,6 +239,7 @@ class LogAppender {
                 nextPersistPos = next;
             }
             file.getLock().readLock().unlock();
+            perfCallback.callDuration(PerfConsts.RAFT_D_LOG_WRITE_FIBER_ROUND, roundStartTime);
             // continue loop
             return Fiber.resume(null, this);
         }
@@ -303,11 +311,13 @@ class LogAppender {
             int bytes = buffer.remaining();
             boolean retry = logFileQueue.initialized && !logFileQueue.isClosed();
             WriteTask task = new WriteTask(groupConfig, file, retry, true, writeStopIndicator);
+            task.bytes = bytes;
             if (lastItem != null) {
                 task.lastTerm = lastItem.getTerm();
                 task.lastIndex = lastItem.getIndex();
             }
 
+            long startTime = perfCallback.takeTime(PerfConsts.RAFT_D_LOG_WRITE);
             // no sync
             task.write(buffer, writeStartPosInFile);
 
@@ -322,6 +332,7 @@ class LogAppender {
             task.getFuture().registerCallback((r, ex) -> {
                 // release lock in processWriteResult() since we should unlock in same fiber.
                 // unlock in processWriteResult
+                perfCallback.callDuration(PerfConsts.RAFT_D_LOG_WRITE, startTime, bytes);
                 groupConfig.getDirectPool().release(task.getIoBuffer());
                 raftStatus.getDataArrivedCondition().signal(appendFiber);
             });
@@ -354,10 +365,10 @@ class LogAppender {
                 if (wt.lastTerm > 0) {
                     raftStatus.setLastWriteLogIndex(wt.lastIndex);
                     needSignal = true;
-                    if (syncWriteTaskQueueHead == null) {
-                        syncWriteTaskQueueHead = wt;
+                    if (syncTaskQueueHead == null) {
+                        syncTaskQueueHead = wt;
                     } else {
-                        syncWriteTaskQueueHead.nextNeedSyncTask = wt;
+                        syncTaskQueueHead.nextNeedSyncTask = wt;
                     }
                 }
             }
@@ -374,6 +385,8 @@ class LogAppender {
         int lastTerm;
         long lastIndex;
 
+        int bytes;
+
         WriteTask nextNeedWriteTask;
         WriteTask nextNeedSyncTask;
 
@@ -389,34 +402,41 @@ class LogAppender {
             if (logFileQueue.isClosed()) {
                 return Fiber.frameReturn();
             }
-            if (syncWriteTaskQueueHead == null) {
+            if (syncTaskQueueHead == null) {
                 return needFsyncCondition.await(this);
             } else {
-                WriteTask task = syncWriteTaskQueueHead;
+                long perfStartTime = perfCallback.takeTime(PerfConsts.RAFT_D_LOG_SYNC);
+                WriteTask task = syncTaskQueueHead;
+                long bytes = task.bytes;
                 while (task.nextNeedSyncTask != null) {
                     if (task.getDtFile() == task.nextNeedSyncTask.getDtFile()) {
                         task = task.nextNeedSyncTask;
+                        bytes += task.bytes;
                     } else {
                         break;
                     }
                 }
-                return Fiber.call(new LockThenSyncFrame(task), this);
+                return Fiber.call(new LockThenSyncFrame(task, perfStartTime, bytes), this);
             }
         }
     }
 
     private class LockThenSyncFrame extends DoInLockFrame<Void> {
         private final WriteTask task;
+        private final long perfStartTime;
+        private final long bytes;
 
-        public LockThenSyncFrame(WriteTask task) {
+        public LockThenSyncFrame(WriteTask task, long perfStartTime, long bytes) {
             // use read lock, no block read operations
             super(task.getDtFile().getLock().readLock());
             this.task = task;
+            this.perfStartTime = perfStartTime;
+            this.bytes = bytes;
         }
 
         @Override
         protected FrameCallResult afterGetLock() {
-            RetryFrame<Void> rf = new RetryFrame<>(new SyncFrame(task),
+            RetryFrame<Void> rf = new RetryFrame<>(new SyncFrame(task, perfStartTime, bytes),
                     groupConfig.getIoRetryInterval(), false);
             return Fiber.call(rf, this::justReturn);
         }
@@ -425,17 +445,22 @@ class LogAppender {
     private class SyncFrame extends ForceFrame {
 
         private final WriteTask task;
+        private final long perfStartTime;
+        private final long bytes;
 
-        public SyncFrame(WriteTask task) {
+        public SyncFrame(WriteTask task, long perfStartTime, long bytes) {
             super(task.getDtFile().getChannel(), groupConfig.getIoExecutor(), false);
             this.task = task;
+            this.perfStartTime = perfStartTime;
+            this.bytes = bytes;
         }
 
         @Override
         protected FrameCallResult afterForce(Void unused) {
-            WriteTask head = syncWriteTaskQueueHead;
+            perfCallback.callDuration(PerfConsts.RAFT_D_LOG_SYNC, perfStartTime, bytes);
+            WriteTask head = syncTaskQueueHead;
             if (head != null && head.lastIndex <= task.lastIndex) {
-                syncWriteTaskQueueHead = head.nextNeedSyncTask;
+                syncTaskQueueHead = head.nextNeedSyncTask;
                 raftStatus.setLastForceLogIndex(head.lastIndex);
                 raftStatus.getLogForceFinishCondition().signalAll();
             }
@@ -451,7 +476,7 @@ class LogAppender {
     public boolean writeNotFinish() {
         return nextPersistIndex <= cache.getLastIndex()
                 || writeTaskQueueHead != null
-                || syncWriteTaskQueueHead != null;
+                || syncTaskQueueHead != null;
     }
 
 }

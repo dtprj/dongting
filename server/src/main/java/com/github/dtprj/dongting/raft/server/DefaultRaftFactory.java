@@ -74,7 +74,8 @@ public abstract class DefaultRaftFactory extends AbstractLifeCircle implements R
 
     @Override
     public FiberGroup createFiberGroup(RaftGroupConfig groupConfig) {
-        Dispatcher dispatcher = new Dispatcher("raft-dispatcher-" + groupConfig.getGroupId());
+        Dispatcher dispatcher = new Dispatcher("raft-dispatcher-"
+                + groupConfig.getGroupId(), groupConfig.getPerfCallback());
         dispatcher.start();
         return new FiberGroup("group-" + groupConfig.getGroupId(), dispatcher);
     }

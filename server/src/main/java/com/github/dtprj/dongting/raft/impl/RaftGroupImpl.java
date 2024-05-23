@@ -17,11 +17,13 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.FlowControlException;
+import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.PerfConsts;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
@@ -53,6 +55,8 @@ public class RaftGroupImpl extends RaftGroup {
     private final GroupComponents gc;
     private CompletableFuture<Void> shutdownFuture;
 
+    private final PerfCallback perfCallback;
+
     public RaftGroupImpl(GroupComponents gc) {
         this.gc = gc;
         this.groupId = gc.getGroupConfig().getGroupId();
@@ -62,6 +66,7 @@ public class RaftGroupImpl extends RaftGroup {
         this.serverStat = gc.getServerStat();
         this.stateMachine = gc.getStateMachine();
         this.fiberGroup = gc.getFiberGroup();
+        this.perfCallback = gc.getGroupConfig().getPerfCallback();
     }
 
     @Override
@@ -84,6 +89,7 @@ public class RaftGroupImpl extends RaftGroup {
     @SuppressWarnings({"rawtypes", "unchecked"})
     public CompletableFuture<RaftOutput> submitLinearTask(RaftInput input) {
         Objects.requireNonNull(input);
+        input.setPerfTime(perfCallback.takeTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY));
         if (fiberGroup.isShouldStop()) {
             RaftUtil.release(input);
             return CompletableFuture.failedFuture(new RaftException("raft group thread is stop"));

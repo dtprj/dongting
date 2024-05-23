@@ -32,6 +32,9 @@ public final class RaftInput {
     private final boolean headReleasable;
     private final boolean bodyReleasable;
 
+    // this field is reused
+    private long perfTime;
+
     public RaftInput(int bizType, Encodable header, Encodable body, DtTime deadline) {
         if (bizType < 0 || bizType > 127) {
             // we use 1 byte to store bizType in raft log
@@ -84,5 +87,13 @@ public final class RaftInput {
 
     public boolean isBodyReleasable() {
         return bodyReleasable;
+    }
+
+    public long getPerfTime() {
+        return perfTime;
+    }
+
+    public void setPerfTime(long perfTime) {
+        this.perfTime = perfTime;
     }
 }

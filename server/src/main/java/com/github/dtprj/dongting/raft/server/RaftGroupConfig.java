@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
+import com.github.dtprj.dongting.common.NoopPerfCallback;
+import com.github.dtprj.dongting.common.PerfCallback;
+
 /**
  * @author huangli
  */
@@ -39,6 +42,8 @@ public class RaftGroupConfig {
     private int idxFlushThreshold = 8 * 1024;
 
     private boolean ioCallbackUseGroupExecutor = false;
+
+    private PerfCallback perfCallback = NoopPerfCallback.INSTANCE;
 
     public RaftGroupConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         this.groupId = groupId;
@@ -160,5 +165,13 @@ public class RaftGroupConfig {
 
     public void setIoCallbackUseGroupExecutor(boolean ioCallbackUseGroupExecutor) {
         this.ioCallbackUseGroupExecutor = ioCallbackUseGroupExecutor;
+    }
+
+    public PerfCallback getPerfCallback() {
+        return perfCallback;
+    }
+
+    public void setPerfCallback(PerfCallback perfCallback) {
+        this.perfCallback = perfCallback;
     }
 }

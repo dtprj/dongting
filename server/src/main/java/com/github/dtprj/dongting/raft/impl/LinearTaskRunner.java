@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberChannel;
@@ -23,6 +24,7 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.PerfConsts;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
@@ -57,12 +59,15 @@ public class LinearTaskRunner {
 
     private FiberChannel<RaftTask> taskChannel;
 
+    private final PerfCallback perfCallback;
+
     public LinearTaskRunner(GroupComponents gc) {
         this.gc = gc;
         this.serverConfig = gc.getServerConfig();
         this.groupConfig = gc.getGroupConfig();
         this.raftStatus = gc.getRaftStatus();
         this.ts = raftStatus.getTs();
+        this.perfCallback = gc.getGroupConfig().getPerfCallback();
     }
 
     public void postInit() {
@@ -125,7 +130,6 @@ public class LinearTaskRunner {
         }
     }
 
-    @SuppressWarnings("ForLoopReplaceableByForEach")
     public void raftExec(List<RaftTask> inputs) {
         RaftStatusImpl raftStatus = this.raftStatus;
         if (raftStatus.getRole() != RaftRole.leader) {
@@ -143,9 +147,10 @@ public class LinearTaskRunner {
         int oldTerm = raftStatus.getLastLogTerm();
         int currentTerm = raftStatus.getCurrentTerm();
         int writeCount = 0;
-        for (int i = 0; i < inputs.size(); i++) {
+        for (int len = inputs.size(), i = 0; i < len; i++) {
             RaftTask rt = inputs.get(i);
             RaftInput input = rt.getInput();
+            perfCallback.callDuration(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY, input.getPerfTime());
 
             if (input.getDeadline() != null && input.getDeadline().isTimeout(ts)) {
                 RaftUtil.release(input);

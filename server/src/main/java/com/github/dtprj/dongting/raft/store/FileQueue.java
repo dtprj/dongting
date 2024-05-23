@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.fiber.FiberLock;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.PerfConsts;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -162,6 +163,7 @@ abstract class FileQueue {
                         // resume on this method
                         return allocateFuture.await(this);
                     } else {
+                        groupConfig.getPerfCallback().callCount(PerfConsts.RAFT_C_POS_NOT_READY);
                         boolean retry = initialized && !isGroupShouldStopPlain();
                         return Fiber.call(allocateSync(retry), this);
                     }
