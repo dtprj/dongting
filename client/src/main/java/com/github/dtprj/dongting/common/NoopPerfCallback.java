@@ -35,23 +35,23 @@ public final class NoopPerfCallback extends PerfCallback {
     }
 
     @Override
-    public void callCount(int perfType) {
+    public void fireCount(int perfType) {
     }
 
     @Override
-    public void callCount(int perfType, long value) {
+    public void fireCount(int perfType, long value) {
     }
 
     @Override
-    public void callDuration(int perfType, long start) {
+    public void fireDuration(int perfType, long startTime) {
     }
 
     @Override
-    public void callDuration(int perfType, long start, long value) {
+    public void fireDuration(int perfType, long startTime, long value) {
     }
 
     @Override
-    public void callDuration(int perfType, long start, long value, Timestamp ts) {
+    public void fireDuration(int perfType, long startTime, long value, Timestamp ts) {
     }
 
     @Override
@@ -60,10 +60,7 @@ public final class NoopPerfCallback extends PerfCallback {
     }
 
     @Override
-    public void onDuration(int perfType, long costTime, long value) {
+    public void onEvent(int perfType, long costTime, long value) {
     }
 
-    @Override
-    public void onCount(int perfType, long value) {
-    }
 }

@@ -68,7 +68,7 @@ class IoWorkerQueue {
     }
 
     private void processWriteData(WriteData wo) {
-        perfCallback.callDuration(PerfConsts.RPC_D_WORKER_QUEUE, wo.time);
+        perfCallback.fireDuration(PerfConsts.RPC_D_WORKER_QUEUE, wo.time);
         WriteFrame frame = wo.getData();
         Peer peer = wo.getPeer();
         if (peer != null) {

@@ -66,48 +66,46 @@ public abstract class PerfCallback implements PerfConsts {
         }
     }
 
-    public void callDuration(int perfType, long start, long value, Timestamp ts) {
+    public void fireDuration(int perfType, long startTime, long value, Timestamp ts) {
         if (!accept(perfType)) {
             return;
         }
-        long costTime = takeTime0(ts) - start;
-        onDuration(perfType, costTime, value);
+        long costTime = takeTime0(ts) - startTime;
+        onEvent(perfType, costTime, value);
     }
 
-    public void callDuration(int perfType, long start) {
+    public void fireDuration(int perfType, long startTime) {
         if (!accept(perfType)) {
             return;
         }
-        long costTime = takeTime0() - start;
-        onDuration(perfType, costTime, 0);
+        long costTime = takeTime0() - startTime;
+        onEvent(perfType, costTime, 1);
     }
 
-    public void callDuration(int perfType, long start, long value) {
+    public void fireDuration(int perfType, long startTime, long value) {
         if (!accept(perfType)) {
             return;
         }
-        long costTime = takeTime0() - start;
-        onDuration(perfType, costTime, value);
+        long costTime = takeTime0() - startTime;
+        onEvent(perfType, costTime, value);
     }
 
-    public void callCount(int perfType, long value) {
+    public void fireCount(int perfType, long value) {
         if (!accept(perfType)) {
             return;
         }
-        onCount(perfType, value);
+        onEvent(perfType, 0, value);
     }
 
-    public void callCount(int perfType) {
+    public void fireCount(int perfType) {
         if (!accept(perfType)) {
             return;
         }
-        onCount(perfType, 1);
+        onEvent(perfType, 0, 1);
     }
 
     public abstract boolean accept(int perfType);
 
-    public abstract void onDuration(int perfType, long costTime, long value);
-
-    public abstract void onCount(int perfType, long value);
+    public abstract void onEvent(int perfType, long costTime, long value);
 
 }

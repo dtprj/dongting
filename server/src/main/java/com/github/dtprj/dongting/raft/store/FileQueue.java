@@ -163,7 +163,7 @@ abstract class FileQueue {
                         // resume on this method
                         return allocateFuture.await(this);
                     } else {
-                        groupConfig.getPerfCallback().callCount(PerfConsts.RAFT_C_POS_NOT_READY);
+                        groupConfig.getPerfCallback().fireCount(PerfConsts.RAFT_C_POS_NOT_READY);
                         boolean retry = initialized && !isGroupShouldStopPlain();
                         return Fiber.call(allocateSync(retry), this);
                     }

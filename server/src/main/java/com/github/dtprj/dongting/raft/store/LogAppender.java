@@ -239,7 +239,7 @@ class LogAppender {
                 nextPersistPos = next;
             }
             file.getLock().readLock().unlock();
-            perfCallback.callDuration(PerfConsts.RAFT_D_LOG_WRITE_FIBER_ROUND, roundStartTime);
+            perfCallback.fireDuration(PerfConsts.RAFT_D_LOG_WRITE_FIBER_ROUND, roundStartTime);
             // continue loop
             return Fiber.resume(null, this);
         }
@@ -332,7 +332,7 @@ class LogAppender {
             task.getFuture().registerCallback((r, ex) -> {
                 // release lock in processWriteResult() since we should unlock in same fiber.
                 // unlock in processWriteResult
-                perfCallback.callDuration(PerfConsts.RAFT_D_LOG_WRITE, startTime, bytes);
+                perfCallback.fireDuration(PerfConsts.RAFT_D_LOG_WRITE, startTime, bytes);
                 groupConfig.getDirectPool().release(task.getIoBuffer());
                 raftStatus.getDataArrivedCondition().signal(appendFiber);
             });
@@ -457,7 +457,7 @@ class LogAppender {
 
         @Override
         protected FrameCallResult afterForce(Void unused) {
-            perfCallback.callDuration(PerfConsts.RAFT_D_LOG_SYNC, perfStartTime, bytes);
+            perfCallback.fireDuration(PerfConsts.RAFT_D_LOG_SYNC, perfStartTime, bytes);
             WriteTask head = syncTaskQueueHead;
             if (head != null && head.lastIndex <= task.lastIndex) {
                 syncTaskQueueHead = head.nextNeedSyncTask;

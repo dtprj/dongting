@@ -212,7 +212,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         } else {
             ts.refresh(1);
         }
-        c.callDuration(PerfConsts.RPC_D_WORKER_WORK, startTime, 0, ts);
+        c.fireDuration(PerfConsts.RPC_D_WORKER_WORK, startTime, 0, ts);
     }
 
     private int compare(Pair<Long, ?> a, Pair<Long, ?> b) {
@@ -262,7 +262,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             } else {
                 ts.refresh(1);
             }
-            c.callDuration(PerfConsts.RPC_D_WORKER_SEL, start, 0, ts);
+            c.fireDuration(PerfConsts.RPC_D_WORKER_SEL, start, 0, ts);
         }
     }
 
@@ -310,7 +310,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     closeChannelBySelKey(key);
                     return;
                 }
-                perfCallback.callDuration(PerfConsts.RPC_D_READ, startTime, readCount);
+                perfCallback.fireDuration(PerfConsts.RPC_D_READ, startTime, readCount);
                 readBuffer.flip();
                 dtc.afterRead(status == STATUS_RUNNING, readBuffer);
             }
@@ -324,12 +324,12 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     int x = buf.remaining();
                     sc.write(buf);
                     x = x - buf.remaining();
-                    perfCallback.callDuration(PerfConsts.RPC_D_WRITE, startTime, x);
+                    perfCallback.fireDuration(PerfConsts.RPC_D_WRITE, startTime, x);
                 } else {
                     // no data to write
                     subQueue.setWriting(false);
                     key.interestOps(SelectionKey.OP_READ);
-                    perfCallback.callCount(PerfConsts.RPC_C_MARK_READ);
+                    perfCallback.fireCount(PerfConsts.RPC_C_MARK_READ);
                 }
             }
         } catch (Exception e) {
@@ -385,7 +385,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         @Override
         public void run() {
             key.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
-            perfCallback.callCount(PerfConsts.RPC_C_MARK_WRITE);
+            perfCallback.fireCount(PerfConsts.RPC_C_MARK_WRITE);
         }
     }
 
