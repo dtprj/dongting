@@ -1,5 +1,6 @@
 module dongting.server {
     requires transitive dongting.client;
+    requires jdk.jfr;
 
     exports com.github.dtprj.dongting.fiber;
     exports com.github.dtprj.dongting.raft.server;

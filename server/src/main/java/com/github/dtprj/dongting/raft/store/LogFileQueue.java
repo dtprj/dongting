@@ -61,7 +61,7 @@ class LogFileQueue extends FileQueue {
     int maxWriteBufferSize = MAX_WRITE_BUFFER_SIZE;
 
     public LogFileQueue(File dir, RaftGroupConfigEx groupConfig, IdxOps idxOps, long fileSize) {
-        super(dir, groupConfig, fileSize);
+        super(dir, groupConfig, fileSize, true);
         this.groupConfig = groupConfig;
         this.idxOps = idxOps;
         this.ts = groupConfig.getTs();

@@ -62,6 +62,7 @@ abstract class FileQueue {
     protected final long fileSize;
     protected final long fileLenMask;
     protected final int fileLenShiftBits;
+    private final boolean mainLogFile;
 
     protected long queueStartPosition;
     protected long queueEndPosition;
@@ -71,7 +72,7 @@ abstract class FileQueue {
 
     protected boolean initialized;
 
-    public FileQueue(File dir, RaftGroupConfigEx groupConfig, long fileSize) {
+    public FileQueue(File dir, RaftGroupConfigEx groupConfig, long fileSize, boolean mainLogFile) {
         this.dir = dir;
         this.ioExecutor = groupConfig.getIoExecutor();
         this.groupConfig = groupConfig;
@@ -80,6 +81,7 @@ abstract class FileQueue {
         this.fileSize = fileSize;
         this.fileLenMask = fileSize - 1;
         this.fileLenShiftBits = BitUtil.zeroCountOfBinary(fileSize);
+        this.mainLogFile = mainLogFile;
 
         FiberGroup g = groupConfig.getFiberGroup();
         this.allocateLock = g.newLock("allocFile");
@@ -163,7 +165,8 @@ abstract class FileQueue {
                         // resume on this method
                         return allocateFuture.await(this);
                     } else {
-                        groupConfig.getPerfCallback().fireCount(PerfConsts.RAFT_C_POS_NOT_READY);
+                        int perfType = mainLogFile ? PerfConsts.RAFT_C_LOG_POS_NOT_READY : PerfConsts.RAFT_C_IDX_POS_NOT_READY;
+                        groupConfig.getPerfCallback().fireCount(perfType);
                         boolean retry = initialized && !isGroupShouldStopPlain();
                         return Fiber.call(allocateSync(retry), this);
                     }
@@ -210,9 +213,13 @@ abstract class FileQueue {
 
         private File file;
         private AsynchronousFileChannel channel;
+        private final int perfType;
+        private final long perfStartTime;
 
         public AllocateFrame() {
             super(allocateLock);
+            this.perfType = mainLogFile ? PerfConsts.RAFT_D_LOG_FILE_ALLOC : PerfConsts.RAFT_D_IDX_FILE_ALLOC;
+            this.perfStartTime = groupConfig.getPerfCallback().takeTime(perfType);
         }
 
         @Override
@@ -251,6 +258,7 @@ abstract class FileQueue {
         }
 
         private FrameCallResult afterCreateFile(Void v) {
+            groupConfig.getPerfCallback().fireDuration(perfType, perfStartTime);
             LogFile logFile = new LogFile(fileStartPos, fileStartPos + getFileSize(), channel,
                     file, getFiberGroup());
             queue.addLast(logFile);

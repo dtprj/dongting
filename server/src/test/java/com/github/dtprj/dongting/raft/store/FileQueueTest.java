@@ -55,7 +55,7 @@ public class FileQueueTest extends BaseFiberTest {
 
     private static class MockFileQueue extends FileQueue {
         public MockFileQueue(File dir, RaftGroupConfigEx groupConfig, long fileSize) {
-            super(dir, groupConfig, fileSize);
+            super(dir, groupConfig, fileSize, false);
         }
     }
 
