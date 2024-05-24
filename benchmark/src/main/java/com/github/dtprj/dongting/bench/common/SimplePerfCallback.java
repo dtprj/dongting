@@ -13,7 +13,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.bench.rpc;
+package com.github.dtprj.dongting.bench.common;
 
 import com.github.dtprj.dongting.common.PerfCallback;
 import io.prometheus.client.SimpleCollector;

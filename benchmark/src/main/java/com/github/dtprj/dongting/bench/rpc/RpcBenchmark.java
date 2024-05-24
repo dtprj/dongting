@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.bench.rpc;
 
-import com.github.dtprj.dongting.bench.BenchBase;
+import com.github.dtprj.dongting.bench.common.BenchBase;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.RefBufferDecoder;
 import com.github.dtprj.dongting.common.DtTime;

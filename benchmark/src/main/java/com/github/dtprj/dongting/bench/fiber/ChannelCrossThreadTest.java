@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.bench.fiber;
 
-import com.github.dtprj.dongting.bench.BenchBase;
+import com.github.dtprj.dongting.bench.common.BenchBase;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.fiber.Dispatcher;
 import com.github.dtprj.dongting.fiber.Fiber;

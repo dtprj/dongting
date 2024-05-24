@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.bench.rpc;
 
+import com.github.dtprj.dongting.bench.common.SimplePerfCallback;
 import com.github.dtprj.dongting.net.PerfConsts;
 import io.prometheus.client.Summary;
 

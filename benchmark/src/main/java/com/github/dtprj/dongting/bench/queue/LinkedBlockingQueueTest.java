@@ -3,7 +3,7 @@
  */
 package com.github.dtprj.dongting.bench.queue;
 
-import com.github.dtprj.dongting.bench.BenchBase;
+import com.github.dtprj.dongting.bench.common.BenchBase;
 
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
