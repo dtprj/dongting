@@ -196,7 +196,6 @@ class LogAppender {
                  nextPersistIndex <= lastIndex; ) {
                 RaftTask rt = cache.get(nextPersistIndex);
                 LogItem li = rt.getItem();
-                li.calcHeaderBodySize();
                 int len = LogHeader.computeTotalLen(0, li.getActualHeaderSize(),
                         li.getActualBodySize());
                 if (len <= fileRestBytes) {

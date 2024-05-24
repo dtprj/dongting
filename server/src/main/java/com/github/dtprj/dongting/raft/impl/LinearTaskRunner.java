@@ -173,6 +173,8 @@ public class LinearTaskRunner {
                 item.setHeader(input.getHeader());
                 item.setBody(input.getBody());
 
+                item.calcHeaderBodySize();
+
                 rt.setItem(item);
 
                 writeCount++;

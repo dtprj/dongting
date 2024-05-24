@@ -138,6 +138,7 @@ public class AppendReqWriteFrameTest {
             if (addBody) {
                 log.setBody(createBytes(20));
             }
+            log.calcHeaderBodySize();
             logs.add(log);
         }
         return f;

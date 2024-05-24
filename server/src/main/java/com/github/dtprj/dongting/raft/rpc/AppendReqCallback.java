@@ -248,7 +248,6 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                 }
                 if (end) {
                     resetDecoder();
-                    item.setActualHeaderSize(len);
                     item.setHeader(result);
                 }
             } else if (index == 8) {
@@ -268,7 +267,6 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                 }
                 if (end) {
                     resetDecoder();
-                    item.setActualBodySize(len);
                     item.setBody(result);
                 }
             }

@@ -354,8 +354,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         long reqNanos = raftStatus.getTs().getNanoTime();
 
         long bytes = 0;
-        //noinspection ForLoopReplaceableByForEach
-        for (int i = 0; i < items.size(); i++) {
+        for (int size = items.size(), i = 0; i < size; i++) {
             LogItem item = items.get(i);
             bytes += item.getActualBodySize();
         }

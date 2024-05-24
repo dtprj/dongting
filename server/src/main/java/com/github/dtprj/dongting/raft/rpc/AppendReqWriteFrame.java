@@ -95,7 +95,6 @@ public class AppendReqWriteFrame extends WriteFrame {
         if (itemSize > 0) {
             return itemSize;
         }
-        item.calcHeaderBodySize();
         int itemHeaderSize = PbUtil.accurateUnsignedIntSize(1, item.getType())
                 + PbUtil.accurateUnsignedIntSize(2, item.getBizType())
                 + PbUtil.accurateUnsignedIntSize(3, item.getTerm())
