@@ -150,7 +150,9 @@ public class LinearTaskRunner {
         for (int len = inputs.size(), i = 0; i < len; i++) {
             RaftTask rt = inputs.get(i);
             RaftInput input = rt.getInput();
-            perfCallback.fireTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY, input.getPerfTime());
+            if (input.getPerfTime() != 0) {
+                perfCallback.fireTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY, input.getPerfTime());
+            }
 
             if (input.getDeadline() != null && input.getDeadline().isTimeout(ts)) {
                 RaftUtil.release(input);

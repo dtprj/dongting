@@ -123,6 +123,7 @@ class LogAppender {
         // 4 temp status fields, should reset in writeData()
         private final ArrayList<LogItem> items = new ArrayList<>(32);
         private LogItem lastItem;
+        private int perfCount;
         private long writeStartPosInFile;
         private int bytesToWrite;
 
@@ -189,6 +190,7 @@ class LogAppender {
             ArrayList<LogItem> items = this.items;
             items.clear();
             lastItem = null;
+            perfCount = 0;
 
             boolean writeEndHeader = false;
             boolean rollNextFile = false;
@@ -279,6 +281,7 @@ class LogAppender {
                 idxOps.put(li.getIndex(), dataPos);
                 dataPos += len;
                 lastItem = li;
+                perfCount++;
             }
             return buffer;
         }
@@ -320,7 +323,7 @@ class LogAppender {
             if (lastItem != null) {
                 task.lastTerm = lastItem.getTerm();
                 task.lastIndex = lastItem.getIndex();
-                task.perfItemCount++;
+                task.perfItemCount = perfCount;
             }
 
             long startTime = perfCallback.takeTime(PerfConsts.RAFT_D_LOG_WRITE);
@@ -346,6 +349,7 @@ class LogAppender {
             writeStartPosInFile += bytes;
             bytesToWrite -= bytes;
             lastItem = null;
+            perfCount = 0;
 
             return borrowBuffer(bytesToWrite);
         }
