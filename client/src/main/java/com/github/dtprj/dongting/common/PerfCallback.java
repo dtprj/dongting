@@ -66,46 +66,46 @@ public abstract class PerfCallback implements PerfConsts {
         }
     }
 
-    public void fireDuration(int perfType, long startTime, long value, Timestamp ts) {
+    public void fireTime(int perfType, long startTime, int count, long sum, Timestamp ts) {
         if (!accept(perfType)) {
             return;
         }
         long costTime = takeTime0(ts) - startTime;
-        onEvent(perfType, costTime, value);
+        onEvent(perfType, costTime, count, sum);
     }
 
-    public void fireDuration(int perfType, long startTime) {
+    public void fireTime(int perfType, long startTime) {
         if (!accept(perfType)) {
             return;
         }
         long costTime = takeTime0() - startTime;
-        onEvent(perfType, costTime, 1);
+        onEvent(perfType, costTime, 1, 0);
     }
 
-    public void fireDuration(int perfType, long startTime, long value) {
+    public void fireTime(int perfType, long startTime, int count, long sum) {
         if (!accept(perfType)) {
             return;
         }
         long costTime = takeTime0() - startTime;
-        onEvent(perfType, costTime, value);
+        onEvent(perfType, costTime, count, sum);
     }
 
-    public void fireCount(int perfType, long value) {
+    public void fire(int perfType, int count, long sum) {
         if (!accept(perfType)) {
             return;
         }
-        onEvent(perfType, 0, value);
+        onEvent(perfType, 0, count, sum);
     }
 
-    public void fireCount(int perfType) {
+    public void fire(int perfType) {
         if (!accept(perfType)) {
             return;
         }
-        onEvent(perfType, 0, 1);
+        onEvent(perfType, 0, 1, 0);
     }
 
     public abstract boolean accept(int perfType);
 
-    public abstract void onEvent(int perfType, long costTime, long value);
+    public abstract void onEvent(int perfType, long costTime, int count, long sum);
 
 }

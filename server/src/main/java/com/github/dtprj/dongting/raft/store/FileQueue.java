@@ -178,7 +178,7 @@ abstract class FileQueue {
                     }
                 } else {
                     if (block) {
-                        groupConfig.getPerfCallback().fireDuration(getPerfType(), blockPerfStartTime);
+                        groupConfig.getPerfCallback().fireTime(getPerfType(), blockPerfStartTime);
                     }
                     tryAllocateAsync(pos);
                     return Fiber.frameReturn();
@@ -272,7 +272,7 @@ abstract class FileQueue {
         }
 
         private FrameCallResult afterCreateFile(Void v) {
-            groupConfig.getPerfCallback().fireDuration(perfType, perfStartTime);
+            groupConfig.getPerfCallback().fireTime(perfType, perfStartTime);
             LogFile logFile = new LogFile(fileStartPos, fileStartPos + getFileSize(), channel,
                     file, getFiberGroup());
             queue.addLast(logFile);

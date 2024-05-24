@@ -212,7 +212,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         } else {
             ts.refresh(1);
         }
-        c.fireDuration(PerfConsts.RPC_D_WORKER_WORK, startTime, 0, ts);
+        c.fireTime(PerfConsts.RPC_D_WORKER_WORK, startTime, 1, 0, ts);
     }
 
     private int compare(Pair<Long, ?> a, Pair<Long, ?> b) {
@@ -262,7 +262,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             } else {
                 ts.refresh(1);
             }
-            c.fireDuration(PerfConsts.RPC_D_WORKER_SEL, start, 0, ts);
+            c.fireTime(PerfConsts.RPC_D_WORKER_SEL, start, 1, 0, ts);
         }
     }
 
@@ -304,13 +304,13 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             if (key.isReadable()) {
                 prepareReadBuffer(roundTime);
                 long startTime = perfCallback.takeTime(PerfConsts.RPC_D_READ);
-                int readCount = sc.read(readBuffer);
-                if (readCount == -1) {
+                int readBytes = sc.read(readBuffer);
+                if (readBytes == -1) {
                     // log.info("socket read to end, remove it: {}", key.channel());
                     closeChannelBySelKey(key);
                     return;
                 }
-                perfCallback.fireDuration(PerfConsts.RPC_D_READ, startTime, readCount);
+                perfCallback.fireTime(PerfConsts.RPC_D_READ, startTime, 1, readBytes);
                 readBuffer.flip();
                 dtc.afterRead(status == STATUS_RUNNING, readBuffer);
             }
@@ -324,12 +324,12 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                     int x = buf.remaining();
                     sc.write(buf);
                     x = x - buf.remaining();
-                    perfCallback.fireDuration(PerfConsts.RPC_D_WRITE, startTime, x);
+                    perfCallback.fireTime(PerfConsts.RPC_D_WRITE, startTime, 1, x);
                 } else {
                     // no data to write
                     subQueue.setWriting(false);
                     key.interestOps(SelectionKey.OP_READ);
-                    perfCallback.fireCount(PerfConsts.RPC_C_MARK_READ);
+                    perfCallback.fire(PerfConsts.RPC_C_MARK_READ);
                 }
             }
         } catch (Exception e) {
@@ -385,7 +385,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         @Override
         public void run() {
             key.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
-            perfCallback.fireCount(PerfConsts.RPC_C_MARK_WRITE);
+            perfCallback.fire(PerfConsts.RPC_C_MARK_WRITE);
         }
     }
 

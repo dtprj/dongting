@@ -163,7 +163,7 @@ class LogAppender {
         }
 
         private FrameCallResult afterIdxReady(long perfStartTime) {
-            perfCallback.fireDuration(PerfConsts.RAFT_D_IDX_BLOCK, perfStartTime);
+            perfCallback.fireTime(PerfConsts.RAFT_D_IDX_BLOCK, perfStartTime);
             return Fiber.resume(null, this);
         }
 
@@ -245,7 +245,7 @@ class LogAppender {
                 nextPersistPos = next;
             }
             file.getLock().readLock().unlock();
-            perfCallback.fireDuration(PerfConsts.RAFT_D_LOG_WRITE_FIBER_ROUND, roundStartTime);
+            perfCallback.fireTime(PerfConsts.RAFT_D_LOG_WRITE_FIBER_ROUND, roundStartTime);
             // continue loop
             return Fiber.resume(null, this);
         }
@@ -268,7 +268,7 @@ class LogAppender {
                     if (!buffer.hasRemaining()) {
                         buffer = doWrite(file, buffer);
                     }
-                    buffer = encodeData(li.getActualHeaderSize(), li.getHeader() , buffer, file);
+                    buffer = encodeData(li.getActualHeaderSize(), li.getHeader(), buffer, file);
                 }
                 if (li.getActualBodySize() > 0) {
                     if (!buffer.hasRemaining()) {
@@ -321,6 +321,7 @@ class LogAppender {
             if (lastItem != null) {
                 task.lastTerm = lastItem.getTerm();
                 task.lastIndex = lastItem.getIndex();
+                task.perfItemCount++;
             }
 
             long startTime = perfCallback.takeTime(PerfConsts.RAFT_D_LOG_WRITE);
@@ -338,7 +339,7 @@ class LogAppender {
             task.getFuture().registerCallback((r, ex) -> {
                 // release lock in processWriteResult() since we should unlock in same fiber.
                 // unlock in processWriteResult
-                perfCallback.fireDuration(PerfConsts.RAFT_D_LOG_WRITE, startTime, bytes);
+                perfCallback.fireTime(PerfConsts.RAFT_D_LOG_WRITE, startTime, task.perfItemCount, bytes);
                 groupConfig.getDirectPool().release(task.getIoBuffer());
                 raftStatus.getDataArrivedCondition().signal(appendFiber);
             });
@@ -390,6 +391,7 @@ class LogAppender {
     static class WriteTask extends AsyncIoTask {
         int lastTerm;
         long lastIndex;
+        int perfItemCount;
 
         int bytes;
 
@@ -414,15 +416,17 @@ class LogAppender {
                 long perfStartTime = perfCallback.takeTime(PerfConsts.RAFT_D_LOG_SYNC);
                 WriteTask task = syncTaskQueueHead;
                 long bytes = task.bytes;
+                int count = task.perfItemCount;
                 while (task.nextNeedSyncTask != null) {
                     if (task.getDtFile() == task.nextNeedSyncTask.getDtFile()) {
                         task = task.nextNeedSyncTask;
                         bytes += task.bytes;
+                        count += task.perfItemCount;
                     } else {
                         break;
                     }
                 }
-                return Fiber.call(new LockThenSyncFrame(task, perfStartTime, bytes), this);
+                return Fiber.call(new LockThenSyncFrame(task, perfStartTime, count, bytes), this);
             }
         }
     }
@@ -430,19 +434,21 @@ class LogAppender {
     private class LockThenSyncFrame extends DoInLockFrame<Void> {
         private final WriteTask task;
         private final long perfStartTime;
+        private final int count;
         private final long bytes;
 
-        public LockThenSyncFrame(WriteTask task, long perfStartTime, long bytes) {
+        public LockThenSyncFrame(WriteTask task, long perfStartTime, int count, long bytes) {
             // use read lock, no block read operations
             super(task.getDtFile().getLock().readLock());
             this.task = task;
             this.perfStartTime = perfStartTime;
+            this.count = count;
             this.bytes = bytes;
         }
 
         @Override
         protected FrameCallResult afterGetLock() {
-            RetryFrame<Void> rf = new RetryFrame<>(new SyncFrame(task, perfStartTime, bytes),
+            RetryFrame<Void> rf = new RetryFrame<>(new SyncFrame(task, perfStartTime, count, bytes),
                     groupConfig.getIoRetryInterval(), false);
             return Fiber.call(rf, this::justReturn);
         }
@@ -452,18 +458,20 @@ class LogAppender {
 
         private final WriteTask task;
         private final long perfStartTime;
+        private final int count;
         private final long bytes;
 
-        public SyncFrame(WriteTask task, long perfStartTime, long bytes) {
+        public SyncFrame(WriteTask task, long perfStartTime, int count, long bytes) {
             super(task.getDtFile().getChannel(), groupConfig.getIoExecutor(), false);
             this.task = task;
             this.perfStartTime = perfStartTime;
+            this.count = count;
             this.bytes = bytes;
         }
 
         @Override
         protected FrameCallResult afterForce(Void unused) {
-            perfCallback.fireDuration(PerfConsts.RAFT_D_LOG_SYNC, perfStartTime, bytes);
+            perfCallback.fireTime(PerfConsts.RAFT_D_LOG_SYNC, perfStartTime, count, bytes);
             WriteTask head = syncTaskQueueHead;
             if (head != null && head.lastIndex <= task.lastIndex) {
                 syncTaskQueueHead = head.nextNeedSyncTask;

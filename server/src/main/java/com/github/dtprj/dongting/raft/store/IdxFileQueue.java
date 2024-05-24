@@ -333,7 +333,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             int perfType = updateStatusFile ? PerfConsts.RAFT_D_IDX_WRITE_AND_FORCE : PerfConsts.RAFT_D_IDX_WRITE;
             long perfStartTime = groupConfig.getPerfCallback().takeTime(perfType);
             return Fiber.call(f, notUsedVoid -> {
-                groupConfig.getPerfCallback().fireDuration(perfType, perfStartTime, bytes);
+                groupConfig.getPerfCallback().fireTime(perfType, perfStartTime, bytes >>> 3, bytes);
                 return afterFlush(nextPersistIndexAfterWrite, updateStatusFile);
             });
         }

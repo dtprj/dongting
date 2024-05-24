@@ -170,7 +170,7 @@ public class Dispatcher extends AbstractLifeCircle {
         } else {
             ts.refresh(1);
         }
-        perfCallback.fireDuration(PerfConsts.FIBER_D_WORK, start, 0, ts);
+        perfCallback.fireTime(PerfConsts.FIBER_D_WORK, start, 1, 0, ts);
     }
 
     private void processScheduleFibers() {
@@ -518,7 +518,7 @@ public class Dispatcher extends AbstractLifeCircle {
                     } else {
                         ts.refresh(1);
                     }
-                    c.fireDuration(PerfConsts.FIBER_D_POLL, startTime, 0, ts);
+                    c.fireTime(PerfConsts.FIBER_D_POLL, startTime, 1, 0, ts);
                     if (o != null) {
                         localData.add(o);
                     }

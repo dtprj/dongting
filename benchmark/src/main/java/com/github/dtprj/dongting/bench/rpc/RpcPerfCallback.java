@@ -56,7 +56,7 @@ public class RpcPerfCallback extends SimplePerfCallback {
     }
 
     @Override
-    public void onEvent(int perfType, long costTime, long value) {
+    public void onEvent(int perfType, long costTime, int count, long sum) {
         switch (perfType) {
             case PerfConsts.RPC_D_ACQUIRE:
                 rpcAcquire.observe(costTime);
@@ -75,17 +75,17 @@ public class RpcPerfCallback extends SimplePerfCallback {
                 break;
             case PerfConsts.RPC_D_READ:
                 rpcReadTime.observe(costTime);
-                rpcReadBytes.observe(value);
+                rpcReadBytes.observe(sum);
                 break;
             case PerfConsts.RPC_D_WRITE:
                 rpcWriteTime.observe(costTime);
-                rpcWriteBytes.observe(value);
+                rpcWriteBytes.observe(sum);
                 break;
             case PerfConsts.RPC_C_MARK_READ:
-                rpcMarkRead.add(value);
+                rpcMarkRead.add(count);
                 break;
             case PerfConsts.RPC_C_MARK_WRITE:
-                rpcMarkWrite.add(value);
+                rpcMarkWrite.add(count);
                 break;
         }
     }

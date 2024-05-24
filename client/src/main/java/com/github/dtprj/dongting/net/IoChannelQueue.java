@@ -159,7 +159,7 @@ class IoChannelQueue {
                 int encodeResult;
                 if (wd == null) {
                     wd = subQueue.pollFirst();
-                    perfCallback.fireDuration(PerfConsts.RPC_D_CHANNEL_QUEUE, wd.time);
+                    perfCallback.fireTime(PerfConsts.RPC_D_CHANNEL_QUEUE, wd.time);
                     encodeResult = encode(buf, wd, roundTime);
                 } else {
                     encodeResult = doEncode(buf, wd);
