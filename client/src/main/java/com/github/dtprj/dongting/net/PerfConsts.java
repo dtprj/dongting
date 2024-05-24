@@ -36,11 +36,11 @@ public interface PerfConsts {
     int RAFT_D_LOG_WRITE_FIBER_ROUND = 201;
     int RAFT_D_LOG_WRITE = 202;
     int RAFT_D_LOG_SYNC = 203;
-    int RAFT_C_IDX_POS_NOT_READY = 204;
-    int RAFT_C_LOG_POS_NOT_READY = 205;
+    int RAFT_D_IDX_POS_NOT_READY = 204;
+    int RAFT_D_LOG_POS_NOT_READY = 205;
     int RAFT_D_IDX_FILE_ALLOC = 206;
     int RAFT_D_LOG_FILE_ALLOC = 207;
-    int RAFT_C_IDX_BLOCK = 208;
+    int RAFT_D_IDX_BLOCK = 208;
     int RAFT_D_IDX_WRITE = 209;
     int RAFT_D_IDX_WRITE_AND_FORCE = 210;
 }

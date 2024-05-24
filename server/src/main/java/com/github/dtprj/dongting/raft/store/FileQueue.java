@@ -161,6 +161,9 @@ abstract class FileQueue {
 
     protected FiberFrame<Void> ensureWritePosReady(long pos) {
         return new FiberFrame<>() {
+            boolean block;
+            long blockPerfStartTime;
+
             @Override
             public FrameCallResult execute(Void input) {
                 if (pos >= queueEndPosition) {
@@ -168,15 +171,22 @@ abstract class FileQueue {
                         // resume on this method
                         return allocateFuture.await(this);
                     } else {
-                        int perfType = mainLogFile ? PerfConsts.RAFT_C_LOG_POS_NOT_READY : PerfConsts.RAFT_C_IDX_POS_NOT_READY;
-                        groupConfig.getPerfCallback().fireCount(perfType);
+                        block = true;
+                        blockPerfStartTime = groupConfig.getPerfCallback().takeTime(getPerfType());
                         boolean retry = initialized && !isGroupShouldStopPlain();
                         return Fiber.call(allocateSync(retry), this);
                     }
                 } else {
+                    if (block) {
+                        groupConfig.getPerfCallback().fireDuration(getPerfType(), blockPerfStartTime);
+                    }
                     tryAllocateAsync(pos);
                     return Fiber.frameReturn();
                 }
+            }
+
+            private int getPerfType() {
+                return mainLogFile ? PerfConsts.RAFT_D_LOG_POS_NOT_READY : PerfConsts.RAFT_D_IDX_POS_NOT_READY;
             }
         };
     }

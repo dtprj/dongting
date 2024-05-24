@@ -150,8 +150,8 @@ class LogAppender {
                     throw Fiber.fatal(new RaftException("nextPersistIndex<tailCache.getFirstIndex()"));
                 }
                 if (idxOps.needWaitFlush()) {
-                    perfCallback.fireCount(PerfConsts.RAFT_C_IDX_BLOCK);
-                    return Fiber.call(idxOps.waitFlush(), this);
+                    long start = perfCallback.takeTime(PerfConsts.RAFT_D_IDX_BLOCK);
+                    return Fiber.call(idxOps.waitFlush(), v -> afterIdxReady(start));
                 }
                 if (logFileQueue.isClosed()) {
                     return Fiber.frameReturn();
@@ -160,6 +160,11 @@ class LogAppender {
             } else {
                 return raftStatus.getDataArrivedCondition().await(this);
             }
+        }
+
+        private FrameCallResult afterIdxReady(long perfStartTime) {
+            perfCallback.fireDuration(PerfConsts.RAFT_D_IDX_BLOCK, perfStartTime);
+            return Fiber.resume(null, this);
         }
 
         private FrameCallResult afterPosReady(Void unused) {
