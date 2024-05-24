@@ -36,8 +36,10 @@ import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -55,6 +57,7 @@ public class Raft3Benchmark extends BenchBase {
     private static final byte[] DATA = new byte[DATA_LEN];
 
     private final RaftServer[] raftServers = new RaftServer[3];
+    private final List<RaftGroupConfig> groupConfigs = new ArrayList<>();
     private final DefaultRaftFactory[] raftFactories = new DefaultRaftFactory[3];
     private KvClient client;
 
@@ -79,6 +82,10 @@ public class Raft3Benchmark extends BenchBase {
         RaftGroupConfig groupConfig = new RaftGroupConfig(GROUP_ID, nodeIdOfMembers, "");
         groupConfig.setDataDir(DATA_DIR + "-" + nodeId);
         groupConfig.setSyncForce(false);
+
+        // groupConfig.setPerfCallback(new RaftPerfCallback(true, "node" + nodeId + "_"));
+
+        groupConfigs.add(groupConfig);
 
         DefaultRaftFactory raftFactory = new DefaultRaftFactory(serverConfig) {
             @Override
@@ -140,6 +147,14 @@ public class Raft3Benchmark extends BenchBase {
 
     @Override
     public void shutdown() {
+        for (RaftGroupConfig config : groupConfigs) {
+            if (config.getPerfCallback() instanceof RaftPerfCallback) {
+                System.out.println("----------------------- raft perf stats----------------------");
+                ((RaftPerfCallback) config.getPerfCallback()).printStats();
+                System.out.println("-------------------------------------------------------------");
+            }
+        }
+
         DtTime timeout = new DtTime(3, TimeUnit.SECONDS);
         DtUtil.stop(timeout, client);
         DtUtil.stop(timeout, raftServers);

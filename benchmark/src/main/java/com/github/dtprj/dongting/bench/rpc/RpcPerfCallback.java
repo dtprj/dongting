@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.bench.rpc;
 
 import com.github.dtprj.dongting.bench.common.SimplePerfCallback;
-import com.github.dtprj.dongting.net.PerfConsts;
 import io.prometheus.client.Summary;
 
 import java.util.concurrent.atomic.LongAdder;
@@ -59,33 +58,33 @@ public class RpcPerfCallback extends SimplePerfCallback {
     @Override
     public void onEvent(int perfType, long costTime, int count, long sum) {
         switch (perfType) {
-            case PerfConsts.RPC_D_ACQUIRE:
+            case RPC_D_ACQUIRE:
                 rpcAcquire.observe(costTime);
                 break;
-            case PerfConsts.RPC_D_WORKER_QUEUE:
+            case RPC_D_WORKER_QUEUE:
                 rpcWorkerQueue.observe(costTime);
                 break;
-            case PerfConsts.RPC_D_CHANNEL_QUEUE:
+            case RPC_D_CHANNEL_QUEUE:
                 rpcChannelQueue.observe(costTime);
                 break;
-            case PerfConsts.RPC_D_WORKER_SEL:
+            case RPC_D_WORKER_SEL:
                 rpcWorkerSel.observe(costTime);
                 break;
-            case PerfConsts.RPC_D_WORKER_WORK:
+            case RPC_D_WORKER_WORK:
                 rpcWorkerWork.observe(costTime);
                 break;
-            case PerfConsts.RPC_D_READ:
+            case RPC_D_READ:
                 rpcReadTime.observe(costTime);
                 rpcReadBytes.observe(sum);
                 break;
-            case PerfConsts.RPC_D_WRITE:
+            case RPC_D_WRITE:
                 rpcWriteTime.observe(costTime);
                 rpcWriteBytes.observe(sum);
                 break;
-            case PerfConsts.RPC_C_MARK_READ:
+            case RPC_C_MARK_READ:
                 rpcMarkRead.add(count);
                 break;
-            case PerfConsts.RPC_C_MARK_WRITE:
+            case RPC_C_MARK_WRITE:
                 rpcMarkWrite.add(count);
                 break;
         }
@@ -105,7 +104,7 @@ public class RpcPerfCallback extends SimplePerfCallback {
         printCount("rpc_mark_read", rpcMarkRead);
         printCount("rpc_mark_write", rpcMarkWrite);
 
-        if (accept(PerfConsts.RPC_D_WORKER_SEL) && accept(PerfConsts.RPC_D_WORKER_WORK)) {
+        if (accept(RPC_D_WORKER_SEL) && accept(RPC_D_WORKER_WORK)) {
             double total = rpcWorkerSel.get().sum + rpcWorkerWork.get().sum;
             double work = rpcWorkerWork.get().sum / total;
             System.out.printf("worker thread utilization rate: %.2f%%\n", work * 100);

@@ -306,6 +306,8 @@ public class RaftServer extends AbstractLifeCircle {
 
         rgcEx.setIoCallbackUseGroupExecutor(rgc.isIoCallbackUseGroupExecutor());
 
+        rgcEx.setPerfCallback(rgc.getPerfCallback());
+
         rgcEx.setTs(raftStatus.getTs());
         rgcEx.setHeapPool(createHeapPoolFactory(fiberGroup));
         rgcEx.setDirectPool(serverConfig.getPoolFactory().createPool(raftStatus.getTs(), true));

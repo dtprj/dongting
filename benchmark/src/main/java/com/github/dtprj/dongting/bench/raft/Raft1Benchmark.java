@@ -54,6 +54,7 @@ public class Raft1Benchmark extends BenchBase {
     private static final byte[] DATA = new byte[DATA_LEN];
 
     private RaftServer raftServer;
+    private RaftGroupConfig groupConfig;
     private DefaultRaftFactory raftFactory;
     private KvClient client;
 
@@ -76,9 +77,11 @@ public class Raft1Benchmark extends BenchBase {
         serverConfig.setReplicatePort(REPLICATE_PORT);
         serverConfig.setServicePort(SERVICE_PORT);
 
-        RaftGroupConfig groupConfig = new RaftGroupConfig(GROUP_ID, String.valueOf(NODE_ID), "");
+        groupConfig = new RaftGroupConfig(GROUP_ID, String.valueOf(NODE_ID), "");
         groupConfig.setDataDir(DATA_DIR);
         groupConfig.setSyncForce(true);
+
+        // groupConfig.setPerfCallback(new RaftPerfCallback(true, ""));
 
         raftFactory = new DefaultRaftFactory(serverConfig) {
             @Override
@@ -106,6 +109,11 @@ public class Raft1Benchmark extends BenchBase {
 
     @Override
     public void shutdown() {
+        if (groupConfig.getPerfCallback() instanceof RaftPerfCallback) {
+            System.out.println("----------------------- raft perf stats----------------------");
+            ((RaftPerfCallback) groupConfig.getPerfCallback()).printStats();
+            System.out.println("-------------------------------------------------------------");
+        }
         DtUtil.stop(new DtTime(3, TimeUnit.SECONDS), client, raftServer, raftFactory);
     }
 
