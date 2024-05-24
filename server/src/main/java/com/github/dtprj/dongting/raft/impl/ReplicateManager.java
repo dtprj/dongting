@@ -20,6 +20,8 @@ import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
+import com.github.dtprj.dongting.common.PerfCallback;
+import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -32,6 +34,7 @@ import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.NioClient;
+import com.github.dtprj.dongting.net.PerfConsts;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.AppendReqWriteFrame;
@@ -204,11 +207,15 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
     private boolean multiAppend;
 
     private RaftLog.LogIterator replicateIterator;
+    private final Timestamp ts;
+    private final PerfCallback perfCallback;
 
     public LeaderRepFrame(ReplicateManager replicateManager, CommitManager commitManager, RaftMember member) {
         super(replicateManager, member);
         this.groupConfig = replicateManager.groupConfig;
         this.serverConfig = replicateManager.serverConfig;
+        this.ts = groupConfig.getTs();
+        this.perfCallback = groupConfig.getPerfCallback();
 
         this.raftLog = replicateManager.raftLog;
         this.client = replicateManager.client;
@@ -345,13 +352,12 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
 
         member.setNextIndex(prevLogIndex + 1 + items.size());
 
-        DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
+        long reqNanos = ts.getNanoTime();
+        DtTime timeout = new DtTime(reqNanos, serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
+        long perfStartTime = perfCallback.takeTime(PerfConsts.RAFT_D_REPLICATE_RPC);
         // release in AppendReqWriteFrame
         CompletableFuture<ReadFrame<AppendRespCallback>> f = client.sendRequest(member.getNode().getPeer(),
                 req, APPEND_RESP_DECODER, timeout);
-
-        // the time refresh happens before this line
-        long reqNanos = raftStatus.getTs().getNanoTime();
 
         long bytes = 0;
         for (int size = items.size(), i = 0; i < size; i++) {
@@ -364,12 +370,13 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
 
         long finalBytes = bytes;
         f.whenCompleteAsync((rf, ex) -> afterAppendRpc(rf, ex, prevLogIndex,
-                        firstItem.getPrevLogTerm(), reqNanos, items.size(), finalBytes),
+                        firstItem.getPrevLogTerm(), reqNanos, items.size(), finalBytes, perfStartTime),
                 getFiberGroup().getExecutor());
     }
 
-    void afterAppendRpc(ReadFrame<AppendRespCallback> rf, Throwable ex,
-                        long prevLogIndex, int prevLogTerm, long reqNanos, int itemCount, long bytes) {
+    void afterAppendRpc(ReadFrame<AppendRespCallback> rf, Throwable ex, long prevLogIndex, int prevLogTerm,
+                        long reqNanos, int itemCount, long bytes, long perfStartTime) {
+        perfCallback.fireTime(PerfConsts.RAFT_D_REPLICATE_RPC, perfStartTime, itemCount, bytes);
         if (epochChange()) {
             log.info("receive outdated append result, replicateEpoch not match. ignore.");
             return;
