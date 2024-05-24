@@ -28,6 +28,7 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.PerfConsts;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -315,6 +316,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 buf.putLong(value);
             }
             buf.flip();
+            int bytes = buf.remaining();
 
             long nextPersistIndexAfterWrite = index;
 
@@ -328,7 +330,12 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 f = currentWriteTask.lockWrite(buf, filePos);
                 updateStatusFile = false;
             }
-            return Fiber.call(f, notUsedVoid -> afterFlush(nextPersistIndexAfterWrite, updateStatusFile));
+            int perfType = updateStatusFile ? PerfConsts.RAFT_D_IDX_WRITE_AND_FORCE : PerfConsts.RAFT_D_IDX_WRITE;
+            long perfStartTime = groupConfig.getPerfCallback().takeTime(perfType);
+            return Fiber.call(f, notUsedVoid -> {
+                groupConfig.getPerfCallback().fireDuration(perfType, perfStartTime, bytes);
+                return afterFlush(nextPersistIndexAfterWrite, updateStatusFile);
+            });
         }
 
         private FrameCallResult afterFlush(long nextPersistIndexAfterWrite, boolean updateStatusFile) {

@@ -150,6 +150,7 @@ class LogAppender {
                     throw Fiber.fatal(new RaftException("nextPersistIndex<tailCache.getFirstIndex()"));
                 }
                 if (idxOps.needWaitFlush()) {
+                    perfCallback.fireCount(PerfConsts.RAFT_C_IDX_BLOCK);
                     return Fiber.call(idxOps.waitFlush(), this);
                 }
                 if (logFileQueue.isClosed()) {
