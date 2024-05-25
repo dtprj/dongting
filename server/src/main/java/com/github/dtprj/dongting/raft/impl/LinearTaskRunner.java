@@ -146,7 +146,7 @@ public class LinearTaskRunner {
 
         int oldTerm = raftStatus.getLastLogTerm();
         int currentTerm = raftStatus.getCurrentTerm();
-        int writeCount = 0;
+        boolean hasWrite = false;
         for (int len = inputs.size(), i = 0; i < len; i++) {
             RaftTask rt = inputs.get(i);
             RaftInput input = rt.getInput();
@@ -179,16 +179,13 @@ public class LinearTaskRunner {
 
                 rt.setItem(item);
 
-                writeCount++;
+                hasWrite = true;
                 try {
                     tailCache.put(newIndex, rt);
                     // successful change owner to TailCache and release in TailCache.release(RaftTask)
                 } catch (RuntimeException | Error e) {
                     item.release();
                 }
-                raftStatus.setLastLogIndex(newIndex);
-                raftStatus.setLastLogTerm(currentTerm);
-                RaftUtil.resetElectTimer(raftStatus);
             } else {
                 // read task, no LogItem, release res in execRead
                 if (newIndex <= raftStatus.getLastApplied()) {
@@ -204,11 +201,13 @@ public class LinearTaskRunner {
             }
         }
 
-        if (writeCount == 0) {
-            return;
-        }
+        if (hasWrite) {
+            raftStatus.setLastLogIndex(newIndex);
+            raftStatus.setLastLogTerm(currentTerm);
+            RaftUtil.resetElectTimer(raftStatus);
 
-        raftStatus.getDataArrivedCondition().signalAll();
+            raftStatus.getDataArrivedCondition().signalAll();
+        }
     }
 
     public void sendHeartBeat() {
