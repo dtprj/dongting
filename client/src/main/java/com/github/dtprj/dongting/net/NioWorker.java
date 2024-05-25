@@ -152,7 +152,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             config.getPoolFactory().destroyPool(directPool);
             config.getPoolFactory().destroyPool(heapPool);
 
-            log.info("worker thread [{}] finished.");
+            log.info("worker thread [{}] finished.", thread.getName());
             if (log.isDebugEnabled()) {
                 log.debug("direct pool stat: {}\nheap pool stat: {}", directPool.formatStat(), heapPool.formatStat());
             } else if (DtUtil.DEBUG) {
