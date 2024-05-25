@@ -226,7 +226,7 @@ public class FiberGroup {
     void updateFinishStatus() {
         boolean ss = (boolean) SHOULD_STOP.get(this);
         if (ss && !finished) {
-            if (normalFibers.size() > 0 || readyFibersNextRound1.size() > 0 || readyFibersNextRound2.size() > 0) {
+            if (normalFibers.size() > 0) {
                 return;
             }
             if (sysChannel.queue.size() > 0) {
