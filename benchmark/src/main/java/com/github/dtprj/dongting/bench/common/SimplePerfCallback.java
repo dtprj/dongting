@@ -59,7 +59,7 @@ public abstract class SimplePerfCallback extends PerfCallback {
 
     protected void printValue(Summary summary) {
         Summary.Child.Value value = summary.get();
-        if (value.count == 0) {
+        if (value.count == 0 || value.sum == 0) {
             return;
         }
         double avg = value.sum / value.count;

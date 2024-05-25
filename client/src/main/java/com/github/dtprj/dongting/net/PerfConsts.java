@@ -19,6 +19,8 @@ package com.github.dtprj.dongting.net;
  * @author huangli
  */
 public interface PerfConsts {
+    int PERF_DEBUG = -1;
+
     int RPC_D_ACQUIRE = 1;
     int RPC_D_WORKER_QUEUE = 2;
     int RPC_D_CHANNEL_QUEUE = 3;
