@@ -107,7 +107,7 @@ public class RpcPerfCallback extends SimplePerfCallback {
         if (accept(RPC_D_WORKER_SEL) && accept(RPC_D_WORKER_WORK)) {
             double total = rpcWorkerSel.get().sum + rpcWorkerWork.get().sum;
             double work = rpcWorkerWork.get().sum / total;
-            System.out.printf("worker thread utilization rate: %.2f%%\n", work * 100);
+            log.info(String.format("worker thread utilization rate: %.2f%%\n", work * 100));
         }
     }
 

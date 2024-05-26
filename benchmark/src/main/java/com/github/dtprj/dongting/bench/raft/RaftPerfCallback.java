@@ -177,7 +177,7 @@ public class RaftPerfCallback extends SimplePerfCallback {
         if (accept(FIBER_D_POLL) && accept(FIBER_D_WORK)) {
             double total = fiberPoll.get().sum + fiberWork.get().sum;
             double work = fiberWork.get().sum / total;
-            System.out.printf("fiber thread utilization rate: %.2f%%\n", work * 100);
+            log.info(String.format("fiber thread utilization rate: %.2f%%", work * 100));
         }
     }
 

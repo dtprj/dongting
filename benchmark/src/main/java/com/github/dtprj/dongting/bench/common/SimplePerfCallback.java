@@ -16,6 +16,8 @@
 package com.github.dtprj.dongting.bench.common;
 
 import com.github.dtprj.dongting.common.PerfCallback;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import io.prometheus.client.SimpleCollector;
 import io.prometheus.client.Summary;
 
@@ -27,6 +29,8 @@ import java.util.concurrent.atomic.LongAdder;
  * @author huangli
  */
 public abstract class SimplePerfCallback extends PerfCallback {
+    protected static final DtLog log = DtLogs.getLogger(SimplePerfCallback.class);
+
     public SimplePerfCallback(boolean useNanos) {
         super(useNanos);
     }
@@ -48,13 +52,15 @@ public abstract class SimplePerfCallback extends PerfCallback {
         }
         double avg = value.sum / value.count;
         SortedMap<Double, Double> q = value.quantiles;
+        String s;
         if (useNanos) {
-            System.out.printf("%s: %,.0f, avg: %,.3fus, p99: %,.3fus, max: %,.3fus, min: %,.3fus\n", getName(summary),
+            s = String.format("%s: %,.0f, avg: %,.3fus, p99: %,.3fus, max: %,.3fus, min: %,.3fus", getName(summary),
                     value.count, avg / 1000, q.get(0.99) / 1000, q.get(1.0) / 1000, q.get(0.0) / 1000);
         } else {
-            System.out.printf("%s: %,.0f, avg: %,.1fms, p99: %,.1fms, max: %,.1fms, min: %,.1fms\n", getName(summary),
+            s = String.format("%s: %,.0f, avg: %,.1fms, p99: %,.1fms, max: %,.1fms, min: %,.1fms", getName(summary),
                     value.count, avg, q.get(0.99), q.get(1.0), q.get(0.0));
         }
+        log.info(s);
     }
 
     protected void printValue(Summary summary) {
@@ -64,8 +70,9 @@ public abstract class SimplePerfCallback extends PerfCallback {
         }
         double avg = value.sum / value.count;
         SortedMap<Double, Double> q = value.quantiles;
-        System.out.printf("%s: %,.0f, avg: %,.1f, p99: %,.1f, max: %,.1f, min: %,.1f\n", getName(summary),
+        String s = String.format("%s: %,.0f, avg: %,.1f, p99: %,.1f, max: %,.1f, min: %,.1f", getName(summary),
                 value.count, avg, q.get(0.99), q.get(1.0), q.get(0.0));
+        log.info(s);
     }
 
     protected void printCount(String name, LongAdder counter) {
