@@ -505,14 +505,16 @@ public class Dispatcher extends AbstractLifeCircle {
                 shareQueue.drainTo(localData);
             } else {
                 Fiber f = scheduleQueue.peek();
-                long t = 0;
+                long t;
                 if (f != null) {
-                    t = f.scheduleNanoTime - oldNanos;
+                    t = Math.min(f.scheduleNanoTime - oldNanos, pollTimeout);
+                } else {
+                    t = pollTimeout;
                 }
-                if (t >= 0) {
+                if (t > 0) {
                     PerfCallback c = perfCallback;
                     long startTime = c.takeTime(PerfConsts.FIBER_D_POLL, ts);
-                    FiberQueueTask o = shareQueue.poll(Math.min(t, pollTimeout), TimeUnit.NANOSECONDS);
+                    FiberQueueTask o = shareQueue.poll(t, TimeUnit.NANOSECONDS);
                     if (c.accept(PerfConsts.FIBER_D_WORK) || c.accept(PerfConsts.FIBER_D_POLL)) {
                         perfCallback.refresh(ts);
                     } else {
