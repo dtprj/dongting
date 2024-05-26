@@ -509,7 +509,7 @@ public class Dispatcher extends AbstractLifeCircle {
                 if (f != null) {
                     t = f.scheduleNanoTime - oldNanos;
                 }
-                if (t > 0) {
+                if (t >= 0) {
                     PerfCallback c = perfCallback;
                     long startTime = c.takeTime(PerfConsts.FIBER_D_POLL, ts);
                     FiberQueueTask o = shareQueue.poll(Math.min(t, pollTimeout), TimeUnit.NANOSECONDS);
