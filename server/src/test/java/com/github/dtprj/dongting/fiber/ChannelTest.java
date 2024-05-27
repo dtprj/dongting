@@ -19,8 +19,11 @@ import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -112,5 +115,30 @@ public class ChannelTest extends AbstractFiberTest {
         TestUtil.waitUtil(finished::get);
         Assertions.assertTrue(r2.isEmpty());
         Assertions.assertNull(exRef.get());
+    }
+
+    @Test
+    public void testWakeup() throws Exception {
+        FiberChannel<Integer> channel = new FiberChannel<>(fiberGroup);
+        CountDownLatch latch1 = new CountDownLatch(1);
+        CountDownLatch latch2 = new CountDownLatch(1);
+        fiberGroup.fireFiber("f1", new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                latch1.countDown();
+                return channel.take(this::resume);
+            }
+
+            private FrameCallResult resume(Integer r) {
+                latch2.countDown();
+                return Fiber.frameReturn();
+            }
+        });
+        Assertions.assertTrue(latch1.await(1, TimeUnit.SECONDS));
+        Thread.sleep(1); // ensure fiber is in waiting state
+        long t = System.nanoTime();
+        channel.fireOffer(1);
+        Assertions.assertTrue(latch2.await(1, TimeUnit.SECONDS));
+        Assertions.assertTrue(System.nanoTime() - t < Duration.ofMillis(10).toNanos());
     }
 }
