@@ -40,6 +40,7 @@ public abstract class SimplePerfCallback extends PerfCallback {
                 .name(name)
                 .help(name)
                 .quantile(0.0, 0.0)
+                .quantile(0.5, 0.02)
                 .quantile(0.99, 0.003)
                 .quantile(1.0, 0.0)
                 .register();
@@ -54,11 +55,12 @@ public abstract class SimplePerfCallback extends PerfCallback {
         SortedMap<Double, Double> q = value.quantiles;
         String s;
         if (useNanos) {
-            s = String.format("%s: %,.0f, avg: %,.3fus, p99: %,.3fus, max: %,.3fus, min: %,.3fus", getName(summary),
-                    value.count, avg / 1000, q.get(0.99) / 1000, q.get(1.0) / 1000, q.get(0.0) / 1000);
+            s = String.format("%s: %,.0f, avg: %,.3fus, p50: %,.3fus, p99: %,.3fus, max: %,.3fus, min: %,.3fus",
+                    getName(summary), value.count, avg / 1000, q.get(0.5) / 1000,
+                    q.get(0.99) / 1000, q.get(1.0) / 1000, q.get(0.0) / 1000);
         } else {
-            s = String.format("%s: %,.0f, avg: %,.1fms, p99: %,.1fms, max: %,.1fms, min: %,.1fms", getName(summary),
-                    value.count, avg, q.get(0.99), q.get(1.0), q.get(0.0));
+            s = String.format("%s: %,.0f, avg: %,.1fms, p50: %,.1fms, p99: %,.1fms, max: %,.1fms, min: %,.1fms",
+                    getName(summary), value.count, avg, q.get(0.5), q.get(0.99), q.get(1.0), q.get(0.0));
         }
         log.info(s);
     }
@@ -70,8 +72,8 @@ public abstract class SimplePerfCallback extends PerfCallback {
         }
         double avg = value.sum / value.count;
         SortedMap<Double, Double> q = value.quantiles;
-        String s = String.format("%s: %,.0f, avg: %,.1f, p99: %,.1f, max: %,.1f, min: %,.1f", getName(summary),
-                value.count, avg, q.get(0.99), q.get(1.0), q.get(0.0));
+        String s = String.format("%s: %,.0f, avg: %,.1f, p50: %,.1f, p99: %,.1f, max: %,.1f, min: %,.1f",
+                getName(summary), value.count, avg, q.get(0.5), q.get(0.99), q.get(1.0), q.get(0.0));
         log.info(s);
     }
 
