@@ -326,9 +326,10 @@ class LogAppender {
                 task.perfItemCount = perfCount;
             }
 
-            long startTime = perfCallback.takeTime(PerfConsts.RAFT_D_LOG_WRITE);
+            long startTime = perfCallback.takeTime(PerfConsts.RAFT_D_LOG_WRITE1);
             // no sync
             task.write(buffer, writeStartPosInFile);
+            perfCallback.fireTime(PerfConsts.RAFT_D_LOG_WRITE1, startTime, task.perfItemCount, bytes);
 
             if (writeTaskQueueHead == null) {
                 writeTaskQueueHead = task;
@@ -341,7 +342,7 @@ class LogAppender {
             task.getFuture().registerCallback((r, ex) -> {
                 // release lock in processWriteResult() since we should unlock in same fiber.
                 // unlock in processWriteResult
-                perfCallback.fireTime(PerfConsts.RAFT_D_LOG_WRITE, startTime, task.perfItemCount, bytes);
+                perfCallback.fireTime(PerfConsts.RAFT_D_LOG_WRITE2, startTime, task.perfItemCount, bytes);
                 groupConfig.getDirectPool().release(task.getIoBuffer());
                 raftStatus.getDataArrivedCondition().signal(appendFiber);
             });

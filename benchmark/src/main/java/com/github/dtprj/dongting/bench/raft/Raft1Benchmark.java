@@ -109,12 +109,12 @@ public class Raft1Benchmark extends BenchBase {
 
     @Override
     public void shutdown() {
+        DtUtil.stop(new DtTime(3, TimeUnit.SECONDS), client, raftServer, raftFactory);
         if (groupConfig.getPerfCallback() instanceof RaftPerfCallback) {
             System.out.println("----------------------- raft perf stats----------------------");
             ((RaftPerfCallback) groupConfig.getPerfCallback()).printStats();
             System.out.println("-------------------------------------------------------------");
         }
-        DtUtil.stop(new DtTime(3, TimeUnit.SECONDS), client, raftServer, raftFactory);
     }
 
     @Override
