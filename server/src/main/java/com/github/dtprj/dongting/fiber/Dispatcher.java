@@ -59,6 +59,8 @@ public class Dispatcher extends AbstractLifeCircle {
     private volatile boolean shouldStop = false;
     private final static VarHandle SHOULD_STOP;
 
+    int round;
+
     static {
         try {
             MethodHandles.Lookup l = MethodHandles.lookup();
@@ -129,6 +131,7 @@ public class Dispatcher extends AbstractLifeCircle {
                     }
                     stopTimeout = null;
                 }
+                round++;
             }
             shareQueue.shutdown();
             runImpl(localData);
@@ -194,7 +197,7 @@ public class Dispatcher extends AbstractLifeCircle {
                 f.source = null;
             }
             f.cleanSchedule();
-            f.fiberGroup.tryMakeFiberReady(f, true);
+            f.fiberGroup.tryMakeFiberReady(f, false);
         }
     }
 
@@ -207,14 +210,12 @@ public class Dispatcher extends AbstractLifeCircle {
             if (nextQueue1.size() > 0) {
                 for (int i = 0, size = nextQueue1.size(); i < size; i++) {
                     Fiber f = nextQueue1.removeFirst();
-                    f.signalInThisRound = false;
                     readyQueue.addFirst(f);
                 }
             }
             if (nextQueue2.size() > 0) {
                 for (int i = 0, size = nextQueue2.size(); i < size; i++) {
                     Fiber f = nextQueue2.removeFirst();
-                    f.signalInThisRound = false;
                     readyQueue.addLast(f);
                 }
             }

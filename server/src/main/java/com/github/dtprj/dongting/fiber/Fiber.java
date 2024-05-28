@@ -25,6 +25,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 public class Fiber extends WaitSource {
     private static final DtLog log = DtLogs.getLogger(Fiber.class);
     protected final boolean daemon;
+    final int signalCountInEachRound;
 
     long id;
 
@@ -48,17 +49,24 @@ public class Fiber extends WaitSource {
     Object inputObj;
     Throwable inputEx;
 
-    boolean signalInThisRound;
+    int round;
+    int signalCountInCurrentRound;
 
     public Fiber(String name, FiberGroup fiberGroup, FiberFrame<Void> entryFrame) {
-        this(name, fiberGroup, entryFrame, false);
+        this(name, fiberGroup, entryFrame, false, 1);
     }
 
     public Fiber(String name, FiberGroup fiberGroup, FiberFrame<Void> entryFrame, boolean daemon) {
+        this(name, fiberGroup, entryFrame, daemon, 1);
+    }
+
+    public Fiber(String name, FiberGroup fiberGroup, FiberFrame<Void> entryFrame, boolean daemon,
+                 int signalCountInEachRound) {
         super(name, fiberGroup);
-        this.name = name;
         this.stackTop = entryFrame;
         this.daemon = daemon;
+        this.signalCountInEachRound = signalCountInEachRound;
+        this.signalCountInCurrentRound = signalCountInEachRound;
         entryFrame.init(this);
     }
 

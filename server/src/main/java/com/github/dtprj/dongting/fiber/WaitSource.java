@@ -19,7 +19,7 @@ package com.github.dtprj.dongting.fiber;
  * @author huangli
  */
 abstract class WaitSource {
-    protected String name;
+    protected final String name;
     private Fiber lastWaiter;
     Fiber firstWaiter;
     protected final FiberGroup fiberGroup;
@@ -122,7 +122,6 @@ abstract class WaitSource {
         f.source = null;
         f.cleanSchedule();
         fiberGroup.tryMakeFiberReady(f, addFirst);
-        f.signalInThisRound = true;
     }
 
     void signalAll0(boolean addFirst) {
