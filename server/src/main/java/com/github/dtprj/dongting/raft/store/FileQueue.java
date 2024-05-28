@@ -331,7 +331,7 @@ abstract class FileQueue {
             if (queue.size() > 1) {
                 queue.removeFirst();
             }
-            if (queue.size() > 1) {
+            if (queue.size() >= 1) {
                 queueStartPosition = queue.get(0).startPos;
             } else {
                 queueStartPosition = 0;
