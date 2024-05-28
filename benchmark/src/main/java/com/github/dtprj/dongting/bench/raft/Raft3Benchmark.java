@@ -81,7 +81,7 @@ public class Raft3Benchmark extends BenchBase {
 
         RaftGroupConfig groupConfig = new RaftGroupConfig(GROUP_ID, nodeIdOfMembers, "");
         groupConfig.setDataDir(DATA_DIR + "-" + nodeId);
-        groupConfig.setSyncForce(false);
+        groupConfig.setSyncForce(true);
 
         // groupConfig.setPerfCallback(new RaftPerfCallback(true, "node" + nodeId + "_"));
 
@@ -96,7 +96,7 @@ public class Raft3Benchmark extends BenchBase {
             @Override
             public FiberGroup createFiberGroup(RaftGroupConfig groupConfig) {
                 // we start 3 node in same jvm, so use node id as part of dispatcher name
-                Dispatcher dispatcher = new Dispatcher("node-" + nodeId);
+                Dispatcher dispatcher = new Dispatcher("node-" + nodeId, groupConfig.getPerfCallback());
                 dispatcher.start();
                 return new FiberGroup("group-" + GROUP_ID + "-node-" + nodeId, dispatcher);
             }
@@ -147,6 +147,11 @@ public class Raft3Benchmark extends BenchBase {
 
     @Override
     public void shutdown() {
+        DtTime timeout = new DtTime(3, TimeUnit.SECONDS);
+        DtUtil.stop(timeout, client);
+        DtUtil.stop(timeout, raftServers);
+        DtUtil.stop(timeout, raftFactories);
+
         for (RaftGroupConfig config : groupConfigs) {
             if (config.getPerfCallback() instanceof RaftPerfCallback) {
                 System.out.println("----------------------- raft perf stats----------------------");
@@ -154,11 +159,6 @@ public class Raft3Benchmark extends BenchBase {
                 System.out.println("-------------------------------------------------------------");
             }
         }
-
-        DtTime timeout = new DtTime(3, TimeUnit.SECONDS);
-        DtUtil.stop(timeout, client);
-        DtUtil.stop(timeout, raftServers);
-        DtUtil.stop(timeout, raftFactories);
     }
 
     @Override
