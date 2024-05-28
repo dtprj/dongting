@@ -151,7 +151,7 @@ public class FiberGroup {
 
     void startGroupRunnerFiber() {
         GroupRunnerFiberFrame frame = new GroupRunnerFiberFrame(sysChannel);
-        Fiber f = new Fiber("group-runner", this, frame, true);
+        Fiber f = new Fiber("group-runner", this, frame, true, 100);
         start(f, false);
     }
 

@@ -76,7 +76,8 @@ public class LinearTaskRunner {
 
     public void init(FiberChannel<RaftTask> taskChannel) {
         this.taskChannel = taskChannel;
-        Fiber f = new Fiber("linearTaskRunner", groupConfig.getFiberGroup(), new RunnerFrame(), true);
+        Fiber f = new Fiber("linearTaskRunner", groupConfig.getFiberGroup(),
+                new RunnerFrame(), true, 10);
         f.start();
     }
 
