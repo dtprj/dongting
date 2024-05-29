@@ -36,10 +36,10 @@ public class LogItem extends RefCount {
     private long timestamp;
 
     private Encodable body;
-    private int actualBodySize;
+    private int actualBodySize = -1;
 
     private Encodable header;
-    private int actualHeaderSize;
+    private int actualHeaderSize = -1;
 
     private int pbHeaderSize;
     private int pbItemSize;
@@ -59,13 +59,18 @@ public class LogItem extends RefCount {
         body = null;
     }
 
-    public void calcHeaderBodySize() {
-        if (actualHeaderSize == 0) {
+    public int getActualHeaderSize() {
+        if (actualHeaderSize == -1) {
             actualHeaderSize = header == null ? 0 : header.actualSize();
         }
-        if (actualBodySize == 0) {
+        return actualHeaderSize;
+    }
+
+    public int getActualBodySize() {
+        if (actualBodySize == -1) {
             actualBodySize = body == null ? 0 : body.actualSize();
         }
+        return actualBodySize;
     }
 
     public int getType() {
@@ -108,10 +113,6 @@ public class LogItem extends RefCount {
         this.body = body;
     }
 
-    public int getActualBodySize() {
-        return actualBodySize;
-    }
-
     public void setActualBodySize(int actualBodySize) {
         this.actualBodySize = actualBodySize;
     }
@@ -138,10 +139,6 @@ public class LogItem extends RefCount {
 
     public void setHeader(Encodable header) {
         this.header = header;
-    }
-
-    public int getActualHeaderSize() {
-        return actualHeaderSize;
     }
 
     public void setActualHeaderSize(int actualHeaderSize) {

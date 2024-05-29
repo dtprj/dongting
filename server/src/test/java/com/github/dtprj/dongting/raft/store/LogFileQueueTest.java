@@ -183,7 +183,6 @@ public class LogFileQueueTest extends BaseFiberTest {
         }
         item.setBody(new ByteArrayEncoder(bs));
 
-        item.calcHeaderBodySize();
         return item;
     }
 
