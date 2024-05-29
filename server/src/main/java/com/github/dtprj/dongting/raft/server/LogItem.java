@@ -36,9 +36,11 @@ public class LogItem extends RefCount {
     private long timestamp;
 
     private Encodable body;
+    private boolean bodyIsRefCount;
     private int actualBodySize = -1;
 
     private Encodable header;
+    private boolean headerIsRefCount;
     private int actualHeaderSize = -1;
 
     private int pbHeaderSize;
@@ -49,14 +51,34 @@ public class LogItem extends RefCount {
 
     @Override
     protected void doClean() {
-        if (header instanceof RefCount) {
+        if (headerIsRefCount) {
             ((RefCount) header).release();
         }
         header = null;
-        if (body instanceof RefCount) {
+        if (bodyIsRefCount) {
             ((RefCount) body).release();
         }
         body = null;
+    }
+
+    public void setHeader(Encodable header, boolean refCount) {
+        this.header = header;
+        this.headerIsRefCount = refCount;
+    }
+
+    public void setBody(Encodable body, boolean refCount) {
+        this.body = body;
+        this.bodyIsRefCount = refCount;
+    }
+
+    public void setHeader(Encodable header) {
+        this.header = header;
+        this.headerIsRefCount = header instanceof RefCount;
+    }
+
+    public void setBody(Encodable body) {
+        this.body = body;
+        this.bodyIsRefCount = body instanceof RefCount;
     }
 
     public int getActualHeaderSize() {
@@ -109,10 +131,6 @@ public class LogItem extends RefCount {
         return body;
     }
 
-    public void setBody(Encodable body) {
-        this.body = body;
-    }
-
     public void setActualBodySize(int actualBodySize) {
         this.actualBodySize = actualBodySize;
     }
@@ -135,10 +153,6 @@ public class LogItem extends RefCount {
 
     public Encodable getHeader() {
         return header;
-    }
-
-    public void setHeader(Encodable header) {
-        this.header = header;
     }
 
     public void setActualHeaderSize(int actualHeaderSize) {
