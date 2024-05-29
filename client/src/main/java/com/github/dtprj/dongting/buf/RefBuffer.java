@@ -30,6 +30,7 @@ public class RefBuffer extends RefCount implements Encodable {
     private ByteBuffer buffer;
     private final ByteBufferPool pool;
     private final boolean direct;
+    private final int size;
 
     RefBuffer(boolean plain, ByteBufferPool pool, int requestSize, int threshold) {
         super(plain);
@@ -41,6 +42,7 @@ public class RefBuffer extends RefCount implements Encodable {
             this.buffer = pool.borrow(requestSize);
             this.pool = pool;
         }
+        this.size = this.buffer.remaining();
     }
 
     @Override
@@ -107,6 +109,6 @@ public class RefBuffer extends RefCount implements Encodable {
 
     @Override
     public int actualSize() {
-        return this.buffer == null ? 0 : this.buffer.remaining();
+        return size;
     }
 }

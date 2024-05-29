@@ -26,15 +26,16 @@ public class ByteBufferWriteFrame extends WriteFrame {
     private final ByteBuffer data;
     private int readBytes;
     private ByteBuffer srcCopy;
+    private final int size;
 
     public ByteBufferWriteFrame(ByteBuffer data) {
+        this.size = data == null ? 0 : data.remaining();
         this.data = data;
     }
 
     @Override
     protected int calcActualBodySize() {
-        ByteBuffer body = this.data;
-        return body == null ? 0 : body.remaining();
+        return size;
     }
 
     public static int copyFromHeapBuffer(ByteBuffer src, ByteBuffer dest, int readBytes) {
