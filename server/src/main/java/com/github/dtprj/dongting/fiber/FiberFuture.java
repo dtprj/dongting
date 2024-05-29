@@ -82,10 +82,6 @@ public class FiberFuture<T> extends WaitSource {
         completeExceptionally(new FiberCancelException());
     }
 
-    public boolean isCanceled() {
-        return execEx instanceof FiberCancelException;
-    }
-
     public void complete(T result) {
         fiberGroup.checkGroup();
         complete0(result, null);
