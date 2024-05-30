@@ -26,5 +26,9 @@ public interface SnapshotManager {
 
     FiberFrame<Snapshot> init();
 
-    void saveSnapshot(StateMachine stateMachine, CompletableFuture<Long> result);
+    FiberFrame<Long> saveSnapshot();
+
+    void startFiber();
+
+    CompletableFuture<Long> fireSaveSnapshot();
 }

@@ -132,7 +132,7 @@ public class Raft3Benchmark extends BenchBase {
         raftFactories[2] = p3.getRight();
 
         for (RaftServer s : raftServers) {
-            s.getAllGroupReadyFuture().get(10, TimeUnit.SECONDS);
+            s.getAllGroupReadyFuture().get(60, TimeUnit.SECONDS);
         }
         log.info("raft servers started");
 

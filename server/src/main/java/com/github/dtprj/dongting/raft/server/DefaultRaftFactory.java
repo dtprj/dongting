@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.sm.DefaultSnapshotManager;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 import com.github.dtprj.dongting.raft.sm.SnapshotManager;
+import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.DefaultRaftLog;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
@@ -68,8 +69,8 @@ public abstract class DefaultRaftFactory extends AbstractLifeCircle implements R
     }
 
     @Override
-    public SnapshotManager createSnapshotManager(RaftGroupConfigEx groupConfig) {
-        return new DefaultSnapshotManager(groupConfig);
+    public SnapshotManager createSnapshotManager(RaftGroupConfigEx groupConfig, StateMachine stateMachine) {
+        return new DefaultSnapshotManager(groupConfig, stateMachine);
     }
 
     @Override

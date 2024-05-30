@@ -45,6 +45,8 @@ public class RaftGroupConfig {
 
     private PerfCallback perfCallback = NoopPerfCallback.INSTANCE;
 
+    private long saveSnapshotMillis = 60 * 1000;
+
     public RaftGroupConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         this.groupId = groupId;
         this.nodeIdOfMembers = nodeIdOfMembers;
@@ -173,5 +175,13 @@ public class RaftGroupConfig {
 
     public void setPerfCallback(PerfCallback perfCallback) {
         this.perfCallback = perfCallback;
+    }
+
+    public long getSaveSnapshotMillis() {
+        return saveSnapshotMillis;
+    }
+
+    public void setSaveSnapshotMillis(long saveSnapshotMillis) {
+        this.saveSnapshotMillis = saveSnapshotMillis;
     }
 }

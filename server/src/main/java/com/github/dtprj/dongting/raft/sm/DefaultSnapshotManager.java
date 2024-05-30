@@ -18,9 +18,9 @@ package com.github.dtprj.dongting.raft.sm;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.fiber.Fiber;
+import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
-import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
@@ -69,18 +69,21 @@ public class DefaultSnapshotManager implements SnapshotManager {
     private final RaftGroupConfigEx groupConfig;
     private final ExecutorService ioExecutor;
     private final RaftStatusImpl raftStatus;
+    private final StateMachine stateMachine;
+
+    private final SaveSnapshotLoopFrame saveLoopFrame;
 
     private File snapshotDir;
 
     private File lastIdxFile;
     private File lastDataFile;
 
-    private SaveFrame currentSaveTask;
-
-    public DefaultSnapshotManager(RaftGroupConfigEx groupConfig) {
+    public DefaultSnapshotManager(RaftGroupConfigEx groupConfig, StateMachine stateMachine) {
         this.groupConfig = groupConfig;
         this.ioExecutor = groupConfig.getIoExecutor();
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
+        this.stateMachine = stateMachine;
+        this.saveLoopFrame = new SaveSnapshotLoopFrame();
     }
 
     @Override
@@ -171,24 +174,54 @@ public class DefaultSnapshotManager implements SnapshotManager {
     }
 
     @Override
-    public void saveSnapshot(StateMachine stateMachine, CompletableFuture<Long> result) {
-        if (currentSaveTask != null) {
-            log.warn("snapshot save task is running");
-            result.complete(-1L);
-            return;
-        }
-        currentSaveTask = new SaveFrame(stateMachine, result);
-        Fiber f = new Fiber("saveSnapshot", FiberGroup.currentGroup(), currentSaveTask);
+    public void startFiber() {
+        Fiber f = new Fiber("save-snapshot-" + groupConfig.getGroupId(), groupConfig.getFiberGroup(),
+                saveLoopFrame, true);
         f.start();
     }
 
-    private class SaveFrame extends FiberFrame<Void> {
-        private final StateMachine stateMachine;
-        private final CompletableFuture<Long> result;
+    class SaveSnapshotLoopFrame extends FiberFrame<Void> {
+
+        CompletableFuture<Long> future;
+        final FiberCondition saveSnapshotCond;
+
+        SaveSnapshotLoopFrame() {
+            this.saveSnapshotCond = groupConfig.getFiberGroup().newCondition("saveSnapshotLoop");
+        }
+
+        @Override
+        public FrameCallResult execute(Void input) throws Throwable {
+            future = null;
+            return saveSnapshotCond.await(groupConfig.getSaveSnapshotMillis(), this::doSave);
+        }
+
+        private FrameCallResult doSave(Void unused) {
+            if (future == null) {
+                future = new CompletableFuture<>();
+            }
+            FiberFrame<Long> f = saveSnapshot();
+            return Fiber.call(f, index -> Fiber.resume(null, this));
+        }
+    }
+
+    @Override
+    public CompletableFuture<Long> fireSaveSnapshot() {
+        if (saveLoopFrame.future == null) {
+            saveLoopFrame.future = new CompletableFuture<>();
+            saveLoopFrame.saveSnapshotCond.signal();
+        }
+        return saveLoopFrame.future;
+    }
+
+    @Override
+    public FiberFrame<Long> saveSnapshot() {
+        return new SaveFrame();
+    }
+
+    private class SaveFrame extends FiberFrame<Long> {
 
         private final long startTime = System.currentTimeMillis();
 
-        private final CompletableFuture<Long> future = new CompletableFuture<>();
         private final CRC32C crc32c = new CRC32C();
         private final ByteBuffer headerBuffer = ByteBuffer.allocate(8);
 
@@ -202,20 +235,16 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
         private long currentWritePos;
 
-        public SaveFrame(StateMachine stateMachine, CompletableFuture<Long> result) {
-            this.stateMachine = stateMachine;
-            this.result = result;
-        }
+        private boolean success;
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
-            result.completeExceptionally(ex);
+            log.error("save snapshot failed", ex);
             return Fiber.frameReturn();
         }
 
         @Override
         protected FrameCallResult doFinally() {
-            currentSaveTask = null;
             releaseReadBuffer();
             if (newDataFile != null && newDataFile.getChannel() != null) {
                 DtUtil.close(newDataFile.getChannel());
@@ -224,11 +253,13 @@ public class DefaultSnapshotManager implements SnapshotManager {
             if (readSnapshot != null) {
                 readSnapshot.close();
             }
-            if (future.isCompletedExceptionally() || future.isCancelled()) {
+            if (!success) {
                 if (newDataFile != null) {
                     deleteInIoExecutor(newDataFile.getFile());
                 }
-                deleteInIoExecutor(newIdxFile);
+                if (newIdxFile != null) {
+                    deleteInIoExecutor(newIdxFile);
+                }
             }
             return Fiber.frameReturn();
         }
@@ -255,13 +286,8 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         private boolean checkCancel() {
-            if (future.isCancelled()) {
-                log.info("snapshot save task is cancelled");
-                return true;
-            }
             if (isGroupShouldStopPlain()) {
                 log.info("snapshot save task is cancelled");
-                future.cancel(false);
                 return true;
             }
             if (raftStatus.isInstallSnapshot()) {
@@ -357,14 +383,15 @@ public class DefaultSnapshotManager implements SnapshotManager {
         private FrameCallResult finish2(Void unused) {
             log.info("snapshot status file write success: {}", newIdxFile.getPath());
 
-            future.complete(readSnapshot.getSnapshotInfo().getLastIncludedIndex());
-
             File oldIdxFile = lastIdxFile;
             File oldDataFile = lastDataFile;
             lastIdxFile = newIdxFile;
             lastDataFile = newDataFile.getFile();
+
+            success = true;
             deleteInIoExecutor(oldIdxFile);
             deleteInIoExecutor(oldDataFile);
+            setResult(readSnapshot.getSnapshotInfo().getLastIncludedIndex());
             return Fiber.frameReturn();
         }
 

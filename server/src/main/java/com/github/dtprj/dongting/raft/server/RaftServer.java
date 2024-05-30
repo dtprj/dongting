@@ -258,7 +258,7 @@ public class RaftServer extends AbstractLifeCircle {
         gc.setApplyManager(applyManager);
         gc.setNodeManager(nodeManager);
         gc.setServerStat(serverStat);
-        gc.setSnapshotManager(raftFactory.createSnapshotManager(rgcEx));
+        gc.setSnapshotManager(raftFactory.createSnapshotManager(rgcEx, stateMachine));
         gc.setStatusManager(statusManager);
         gc.setLinearTaskRunner(linearTaskRunner);
 
@@ -307,6 +307,8 @@ public class RaftServer extends AbstractLifeCircle {
         rgcEx.setIoCallbackUseGroupExecutor(rgc.isIoCallbackUseGroupExecutor());
 
         rgcEx.setPerfCallback(rgc.getPerfCallback());
+
+        rgcEx.setSaveSnapshotMillis(rgc.getSaveSnapshotMillis());
 
         rgcEx.setTs(raftStatus.getTs());
         rgcEx.setHeapPool(createHeapPoolFactory(fiberGroup));

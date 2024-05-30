@@ -99,7 +99,7 @@ public class Raft1Benchmark extends BenchBase {
         KvServerUtil.initKvServer(raftServer);
         raftServer.start();
 
-        raftServer.getAllGroupReadyFuture().get(5, TimeUnit.SECONDS);
+        raftServer.getAllGroupReadyFuture().get(60, TimeUnit.SECONDS);
         log.info("raft servers started");
 
         NioClientConfig nioClientConfig = new NioClientConfig();
