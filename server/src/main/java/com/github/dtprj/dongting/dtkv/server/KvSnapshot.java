@@ -59,8 +59,8 @@ class KvSnapshot extends Snapshot {
         }
 
         RefBuffer refBuffer = null;
-        Map.Entry<String, Value> en;
-        while ((en = iterator.next()) != null) {
+        while (iterator.hasNext()) {
+            Map.Entry<String, Value> en = iterator.next();
             Value value = en.getValue();
             while (value != null && value.getRaftIndex() > getSnapshotInfo().getLastIncludedIndex()) {
                 value = value.getPrevious();

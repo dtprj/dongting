@@ -361,7 +361,10 @@ public class DefaultSnapshotManager implements SnapshotManager {
             log.info("snapshot data file write success: {}", newDataFile.getFile().getPath());
 
             statusFile = new StatusFile(newIdxFile, groupConfig);
-            statusFile.init();
+            return Fiber.call(statusFile.init(), this::afterStatusFileInit);
+        }
+
+        private FrameCallResult afterStatusFileInit(Void unused) {
             SnapshotInfo si = readSnapshot.getSnapshotInfo();
             Properties p = statusFile.getProperties();
             p.setProperty(KEY_LAST_INDEX, String.valueOf(si.getLastIncludedIndex()));
