@@ -52,6 +52,8 @@ public class Raft1Benchmark extends BenchBase {
     private static final boolean SYNC = false;
     private static final int DATA_LEN = 128;
     private static final byte[] DATA = new byte[DATA_LEN];
+    private static final int CLIENT_MAX_OUT_REQUESTS = 2000;
+    private static final boolean PERF = false;
 
     private RaftServer raftServer;
     private RaftGroupConfig groupConfig;
@@ -81,7 +83,9 @@ public class Raft1Benchmark extends BenchBase {
         groupConfig.setDataDir(DATA_DIR);
         groupConfig.setSyncForce(true);
 
-        // groupConfig.setPerfCallback(new RaftPerfCallback(true, ""));
+        if (PERF) {
+            groupConfig.setPerfCallback(new RaftPerfCallback(true, ""));
+        }
 
         raftFactory = new DefaultRaftFactory(serverConfig) {
             @Override
@@ -98,7 +102,9 @@ public class Raft1Benchmark extends BenchBase {
         raftServer.getAllGroupReadyFuture().get(5, TimeUnit.SECONDS);
         log.info("raft servers started");
 
-        client = new KvClient(new NioClientConfig());
+        NioClientConfig nioClientConfig = new NioClientConfig();
+        nioClientConfig.setMaxOutRequests(CLIENT_MAX_OUT_REQUESTS);
+        client = new KvClient(nioClientConfig);
         client.start();
         RaftNode node = new RaftNode(NODE_ID, new HostPort("127.0.0.1", SERVICE_PORT));
         client.getRaftClient().addOrUpdateGroup(GROUP_ID, Collections.singletonList(node));
