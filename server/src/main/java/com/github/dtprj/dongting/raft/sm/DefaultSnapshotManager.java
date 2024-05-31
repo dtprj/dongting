@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
-import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -319,12 +318,12 @@ public class DefaultSnapshotManager implements SnapshotManager {
             return fu.await(this::whenReadFinish);
         }
 
-        private FrameCallResult write(ByteBuffer buf, FrameCall<Void> resumePoint) {
+        private FiberFuture<Void> write(ByteBuffer buf) {
             AsyncIoTask writeTask = new AsyncIoTask(groupConfig, newDataFile);
             long newWritePos = currentWritePos + buf.remaining();
             FiberFuture<Void> writeFuture = writeTask.write(buf, currentWritePos);
             currentWritePos = newWritePos;
-            return writeFuture.await(resumePoint);
+            return writeFuture;
         }
 
         private FrameCallResult whenReadFinish(RefBuffer rb) {
@@ -339,17 +338,14 @@ public class DefaultSnapshotManager implements SnapshotManager {
                 headerBuffer.clear();
                 headerBuffer.putInt(buffer.remaining());
                 headerBuffer.putInt((int) crc32c.getValue());
-                return write(headerBuffer, this::whenHeaderWriteFinish);
+                headerBuffer.flip();
+
+                FiberFuture<Void> f1 = write(headerBuffer);
+                FiberFuture<Void> f2 = write(readBuffer.getBuffer());
+                return FiberFuture.allOf("snapshot-write", f1, f2).await(this::whenWriteFinish);
             } else {
                 return finishDataFile();
             }
-        }
-
-        private FrameCallResult whenHeaderWriteFinish(Void unused) {
-            if (checkCancel()) {
-                return Fiber.frameReturn();
-            }
-            return write(readBuffer.getBuffer(), this::whenWriteFinish);
         }
 
         private FrameCallResult whenWriteFinish(Void unused) {
