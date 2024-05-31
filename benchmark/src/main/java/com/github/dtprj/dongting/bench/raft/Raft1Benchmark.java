@@ -54,6 +54,7 @@ public class Raft1Benchmark extends BenchBase {
     private static final byte[] DATA = new byte[DATA_LEN];
     private static final int CLIENT_MAX_OUT_REQUESTS = 2000;
     private static final boolean PERF = false;
+    private static final boolean SYNC_FORCE = true;
 
     private RaftServer raftServer;
     private RaftGroupConfig groupConfig;
@@ -61,7 +62,7 @@ public class Raft1Benchmark extends BenchBase {
     private KvClient client;
 
     public static void main(String[] args) throws Exception {
-        Raft1Benchmark benchmark = new Raft1Benchmark(1, 1000, 200);
+        Raft1Benchmark benchmark = new Raft1Benchmark(1, 10000, 200);
         benchmark.setLogRt(true);
         benchmark.start();
     }
@@ -81,7 +82,8 @@ public class Raft1Benchmark extends BenchBase {
 
         groupConfig = new RaftGroupConfig(GROUP_ID, String.valueOf(NODE_ID), "");
         groupConfig.setDataDir(DATA_DIR);
-        groupConfig.setSyncForce(true);
+        groupConfig.setSyncForce(SYNC_FORCE);
+        groupConfig.setSaveSnapshotMillis(1000);
 
         if (PERF) {
             groupConfig.setPerfCallback(new RaftPerfCallback(true, ""));
