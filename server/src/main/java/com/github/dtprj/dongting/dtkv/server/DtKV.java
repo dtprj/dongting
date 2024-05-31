@@ -117,25 +117,27 @@ public class DtKV implements StateMachine {
                 return FiberFuture.failedFuture(FiberGroup.currentGroup(), new IllegalStateException(
                         "current status error: " + kvStatus.status));
             }
-            ByteBuffer bb = data.getBuffer();
             KvImpl kvImpl = kvStatus.kvImpl;
-            ConcurrentSkipListMap<String, Value> map = kvImpl.getMap();
-            while (bb.hasRemaining()) {
-                long raftIndex = bb.getLong();
-                int keyLen = bb.getInt();
-                ByteBuffer keyBuf = heapPool.borrow(keyLen);
-                String key;
-                try {
-                    keyBuf.limit(keyLen);
-                    keyBuf.put(bb);
-                    key = new String(keyBuf.array(), 0, keyLen, StandardCharsets.UTF_8);
-                } finally {
-                    heapPool.release(keyBuf);
+            if (data != null && data.getBuffer() != null) {
+                ByteBuffer bb = data.getBuffer();
+                ConcurrentSkipListMap<String, Value> map = kvImpl.getMap();
+                while (bb.hasRemaining()) {
+                    long raftIndex = bb.getLong();
+                    int keyLen = bb.getInt();
+                    ByteBuffer keyBuf = heapPool.borrow(keyLen);
+                    String key;
+                    try {
+                        keyBuf.limit(keyLen);
+                        keyBuf.put(bb);
+                        key = new String(keyBuf.array(), 0, keyLen, StandardCharsets.UTF_8);
+                    } finally {
+                        heapPool.release(keyBuf);
+                    }
+                    int valueLen = bb.getInt();
+                    byte[] value = new byte[valueLen];
+                    bb.get(value);
+                    map.put(key, new Value(raftIndex, value));
                 }
-                int valueLen = bb.getInt();
-                byte[] value = new byte[valueLen];
-                bb.get(value);
-                map.put(key, new Value(raftIndex, value));
             }
             if (done) {
                 newStatus(KvStatus.RUNNING, kvImpl);

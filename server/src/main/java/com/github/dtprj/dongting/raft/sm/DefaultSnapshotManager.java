@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.sm;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -42,6 +43,7 @@ import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -54,6 +56,8 @@ import java.util.zip.CRC32C;
 public class DefaultSnapshotManager implements SnapshotManager {
 
     private static final DtLog log = DtLogs.getLogger(DefaultSnapshotManager.class);
+
+    private static final int KEEP = 2;
 
     private static final String DATA_SUFFIX = ".data";
     private static final String IDX_SUFFIX = ".idx";
@@ -75,8 +79,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
     private File snapshotDir;
 
-    private File lastIdxFile;
-    private File lastDataFile;
+    private final LinkedList<Pair<File, File>> snapshotFiles = new LinkedList<>();
 
     public DefaultSnapshotManager(RaftGroupConfigEx groupConfig, StateMachine stateMachine) {
         this.groupConfig = groupConfig;
@@ -99,8 +102,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         public FrameCallResult execute(Void input) {
             File dataDir = FileUtil.ensureDir(groupConfig.getDataDir());
             snapshotDir = FileUtil.ensureDir(dataDir, "snapshot");
-            File[] files = snapshotDir.listFiles(f -> f.isFile() &&
-                    (f.getName().endsWith(DATA_SUFFIX) || f.getName().endsWith(IDX_SUFFIX)));
+            File[] files = snapshotDir.listFiles(f -> f.isFile() && f.getName().endsWith(IDX_SUFFIX));
             if (files == null || files.length == 0) {
                 setResult(null);
                 return Fiber.frameReturn();
@@ -108,42 +110,34 @@ public class DefaultSnapshotManager implements SnapshotManager {
             Arrays.sort(files);
             for (int i = files.length - 1; i >= 0; i--) {
                 File f = files[i];
-                if (!f.getName().endsWith(IDX_SUFFIX)) {
-                    continue;
-                }
                 if (f.length() == 0) {
+                    deleteInIoExecutor(f);
                     continue;
                 }
                 String baseName = FileUtil.baseName(f);
-                File dataFile = new File(groupConfig.getDataDir(), baseName + DATA_SUFFIX);
+                File dataFile = new File(snapshotDir, baseName + DATA_SUFFIX);
                 if (dataFile.exists()) {
-                    lastIdxFile = f;
-                    lastDataFile = dataFile;
-                    break;
+                    snapshotFiles.addFirst(new Pair<>(f, dataFile));
                 } else {
                     log.error("missing data file: {}", f.getPath());
-                }
-            }
-            if (lastIdxFile == null) {
-                log.info("no saved snapshot found");
-                setResult(null);
-                return Fiber.frameReturn();
-            } else {
-                log.info("use snapshot: {}", lastDataFile.getPath());
-            }
-
-            for (File f : files) {
-                if (f != lastIdxFile && f != lastDataFile) {
                     deleteInIoExecutor(f);
                 }
             }
+            if (snapshotFiles.isEmpty()) {
+                log.info("no saved snapshot found");
+                setResult(null);
+                return Fiber.frameReturn();
+            }
 
-            this.snapshotIdxFile = new StatusFile(lastDataFile, groupConfig);
+            Pair<File, File> last = snapshotFiles.getLast();
+            log.info("use snapshot: {}", last.getRight());
 
-            return Fiber.call(snapshotIdxFile.init(), this::afterStatusFileInit);
+            this.snapshotIdxFile = new StatusFile(last.getLeft(), groupConfig);
+
+            return Fiber.call(snapshotIdxFile.init(), v -> afterStatusFileInit(last));
         }
 
-        private FrameCallResult afterStatusFileInit(Void unused) throws Exception {
+        private FrameCallResult afterStatusFileInit(Pair<File, File> last) throws Exception {
             Properties p = snapshotIdxFile.getProperties();
             long lastIndex = Long.parseLong(p.getProperty(KEY_LAST_INDEX));
             int lastTerm = Integer.parseInt(p.getProperty(KEY_LAST_TERM));
@@ -155,8 +149,8 @@ public class DefaultSnapshotManager implements SnapshotManager {
             SnapshotInfo si = new SnapshotInfo(lastIndex, lastTerm, members, observers, preparedMembers,
                     preparedObservers, lastConfigChangeIndex);
 
-            FileSnapshot s = new FileSnapshot(groupConfig, si, lastDataFile);
-            log.info("open snapshot file {}", lastDataFile);
+            FileSnapshot s = new FileSnapshot(groupConfig, si, last.getRight());
+            log.info("open snapshot file {}", last.getRight());
             setResult(s);
             return Fiber.frameReturn();
         }
@@ -185,12 +179,18 @@ public class DefaultSnapshotManager implements SnapshotManager {
         CompletableFuture<Long> future;
         final FiberCondition saveSnapshotCond;
 
+        @Override
+        protected FrameCallResult handle(Throwable ex) throws Throwable {
+            throw Fiber.fatal(ex);
+        }
+
         SaveSnapshotLoopFrame() {
             this.saveSnapshotCond = groupConfig.getFiberGroup().newCondition("saveSnapshotLoop");
         }
 
         @Override
         public FrameCallResult execute(Void input) throws Throwable {
+            deleteOldFiles();
             future = null;
             return saveSnapshotCond.await(groupConfig.getSaveSnapshotMillis(), this::doSave);
         }
@@ -200,7 +200,21 @@ public class DefaultSnapshotManager implements SnapshotManager {
                 future = new CompletableFuture<>();
             }
             FiberFrame<Long> f = saveSnapshot();
-            return Fiber.call(f, index -> Fiber.resume(null, this));
+            return Fiber.call(f, this::afterSave);
+        }
+
+        private FrameCallResult afterSave(Long raftIndex) {
+            future.complete(raftIndex);
+            deleteOldFiles();
+            return Fiber.resume(null, this);
+        }
+
+        private void deleteOldFiles() {
+            while (snapshotFiles.size() > KEEP) {
+                Pair<File, File> p = snapshotFiles.removeFirst();
+                deleteInIoExecutor(p.getLeft());
+                deleteInIoExecutor(p.getRight());
+            }
         }
     }
 
@@ -384,16 +398,9 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         private FrameCallResult finish2(Void unused) {
-            log.info("snapshot status file write success: {}", newIdxFile.getPath());
-
-            File oldIdxFile = lastIdxFile;
-            File oldDataFile = lastDataFile;
-            lastIdxFile = newIdxFile;
-            lastDataFile = newDataFile.getFile();
-
             success = true;
-            deleteInIoExecutor(oldIdxFile);
-            deleteInIoExecutor(oldDataFile);
+            log.info("snapshot status file write success: {}", newIdxFile.getPath());
+            snapshotFiles.addLast(new Pair<>(newIdxFile, newDataFile.getFile()));
             setResult(readSnapshot.getSnapshotInfo().getLastIncludedIndex());
             return Fiber.frameReturn();
         }
