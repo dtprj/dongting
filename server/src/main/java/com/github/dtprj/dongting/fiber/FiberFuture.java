@@ -197,6 +197,7 @@ public class FiberFuture<T> extends WaitSource {
      */
     public void registerCallback(FutureCallback<T> callback) {
         fiberGroup.checkGroup();
+        callback.future = this;
         if (done) {
             startCallbackFiber(callback);
         } else {
@@ -208,31 +209,25 @@ public class FiberFuture<T> extends WaitSource {
 
     public abstract static class FutureCallback<T> extends FiberFrame<Void> {
 
-        private final FiberFuture<T> future;
-
-        public FutureCallback(FiberFuture<T> future) {
-            this.future = future;
-        }
+        private FiberFuture<T> future;
 
         @Override
         public final FrameCallResult execute(Void input) throws Throwable {
-            if (future.execEx != null) {
-                throw future.execEx;
-            } else {
-                return afterCompleteSuccessfully(future.execResult);
-            }
+            return afterDone(future.execResult, future.execEx);
         }
 
-        protected abstract FrameCallResult afterCompleteSuccessfully(T t);
+        protected abstract FrameCallResult afterDone(T t, Throwable ex);
     }
 
     private void addCallback(Callback<T> c) {
         if (callbackHead == null) {
             callbackHead = c;
-            c.tail = c;
         } else {
-            callbackHead.tail.next = c;
-            callbackHead.tail = c;
+            Callback<T> last = callbackHead;
+            while (last.next != null) {
+                last = last.next;
+            }
+            last.next = c;
         }
     }
 
@@ -251,7 +246,6 @@ public class FiberFuture<T> extends WaitSource {
         FiberFrame<Void> frameCallback;
         BiConsumer<T, Throwable> simpleCallback;
         Callback<T> next;
-        Callback<T> tail;
     }
 
     /**
