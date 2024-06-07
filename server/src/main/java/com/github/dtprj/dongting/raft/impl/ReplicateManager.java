@@ -635,8 +635,10 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         ByteBufferPool p = groupConfig.getHeapPool().getPool();
         Supplier<ByteBuffer> bufferCreator = () -> p.borrow(groupConfig.getReplicateSnapshotBufferSize());
         Consumer<ByteBuffer> releaser = p::release;
-        SnapshotReader r = new SnapshotReader(snapshot, 2,
-                groupConfig.getReplicateSnapshotConcurrency(), this::readerCallback,
+
+        int readConcurrency = groupConfig.getSnapshotConcurrency();
+        int writeConcurrency = groupConfig.getReplicateSnapshotConcurrency();
+        SnapshotReader r = new SnapshotReader(snapshot, readConcurrency, writeConcurrency, this::readerCallback,
                 this::shouldStopReplicate, bufferCreator, releaser);
         return Fiber.call(r, this::afterReaderFinish);
     }

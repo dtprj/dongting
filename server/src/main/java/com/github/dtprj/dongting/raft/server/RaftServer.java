@@ -309,6 +309,7 @@ public class RaftServer extends AbstractLifeCircle {
         rgcEx.setPerfCallback(rgc.getPerfCallback());
 
         rgcEx.setSaveSnapshotMillis(rgc.getSaveSnapshotMillis());
+        rgcEx.setSnapshotConcurrency(rgc.getSnapshotConcurrency());
         rgcEx.setDiskSnapshotConcurrency(rgc.getDiskSnapshotConcurrency());
         rgcEx.setDiskSnapshotBufferSize(rgc.getDiskSnapshotBufferSize());
         rgcEx.setReplicateSnapshotConcurrency(rgc.getReplicateSnapshotConcurrency());

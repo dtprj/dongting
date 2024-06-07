@@ -46,10 +46,13 @@ public class RaftGroupConfig {
     private PerfCallback perfCallback = NoopPerfCallback.INSTANCE;
 
     private long saveSnapshotMillis = 60 * 1000;
+    // greater than 1 require state machine support
+    private int snapshotConcurrency = 1;
     private int diskSnapshotConcurrency = 4;
     private int diskSnapshotBufferSize = 64 * 1024;
     private int replicateSnapshotConcurrency = 4;
     private int replicateSnapshotBufferSize = 64 * 1024;
+
 
     public RaftGroupConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         this.groupId = groupId;
@@ -219,5 +222,13 @@ public class RaftGroupConfig {
 
     public void setReplicateSnapshotBufferSize(int replicateSnapshotBufferSize) {
         this.replicateSnapshotBufferSize = replicateSnapshotBufferSize;
+    }
+
+    public int getSnapshotConcurrency() {
+        return snapshotConcurrency;
+    }
+
+    public void setSnapshotConcurrency(int snapshotConcurrency) {
+        this.snapshotConcurrency = snapshotConcurrency;
     }
 }

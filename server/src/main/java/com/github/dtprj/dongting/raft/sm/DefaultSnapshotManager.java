@@ -246,7 +246,6 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
         private final CRC32C crc32c = new CRC32C();
 
-        private final int writeConcurrency = groupConfig.getDiskSnapshotConcurrency();
         private final int bufferSize = groupConfig.getDiskSnapshotBufferSize();
 
         private DtFile newDataFile;
@@ -311,7 +310,9 @@ public class DefaultSnapshotManager implements SnapshotManager {
             AsynchronousFileChannel channel = AsynchronousFileChannel.open(dataFile.toPath(), options, getFiberGroup().getExecutor());
             this.newDataFile = new DtFile(dataFile, channel, groupConfig.getFiberGroup());
 
-            SnapshotReader reader = new SnapshotReader(readSnapshot, 2, writeConcurrency,
+            int readConcurrency = groupConfig.getSnapshotConcurrency();
+            int writeConcurrency = groupConfig.getDiskSnapshotConcurrency();
+            SnapshotReader reader = new SnapshotReader(readSnapshot, readConcurrency , writeConcurrency,
                     this::writeCallback, this::checkCancel, this::createBuffer, this::releaseBuffer);
             return Fiber.call(reader, this::finishDataFile);
         }
@@ -444,8 +445,10 @@ class RecoverFiberFrame extends FiberFrame<Pair<Integer, Long>> {
 
     @Override
     public FrameCallResult execute(Void input) {
-        SnapshotReader reader = new SnapshotReader(snapshot, groupConfig.getDiskSnapshotConcurrency(),
-                2, this::apply, this::isGroupShouldStopPlain, bufferCreator, bufferReleaser);
+        int readConcurrency = groupConfig.getDiskSnapshotConcurrency();
+        int writeConcurrency = groupConfig.getSnapshotConcurrency();
+        SnapshotReader reader = new SnapshotReader(snapshot, readConcurrency, writeConcurrency, this::apply,
+                this::isGroupShouldStopPlain, bufferCreator, bufferReleaser);
         return Fiber.call(reader, this::finish1);
     }
 
