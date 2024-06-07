@@ -67,9 +67,10 @@ public class FileSnapshot extends Snapshot {
         if (rest < buffer.remaining()) {
             buffer.limit((int) rest);
         }
-        filePos += buffer.remaining();
         AsyncIoTask t = new AsyncIoTask(groupConfig, dtFile);
-        return t.read(buffer, filePos);
+        FiberFuture<Void> f = t.read(buffer, filePos);
+        filePos += buffer.remaining();
+        return f;
     }
 
     @Override
