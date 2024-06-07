@@ -70,6 +70,7 @@ class KvSnapshot extends Snapshot {
 
             if (encodeStatus.writeToBuffer(buffer)) {
                 encodeStatus.reset();
+                currentValue = null;
             } else {
                 // buffer is full
                 buffer.flip();

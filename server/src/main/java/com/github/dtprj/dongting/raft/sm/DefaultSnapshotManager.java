@@ -44,8 +44,8 @@ import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.Objects;
 import java.util.Properties;
@@ -260,7 +260,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         private boolean success;
         private boolean logCancel;
 
-        private final HashMap<ByteBuffer, ByteBuffer> bufferMap = new HashMap<>();
+        private final IdentityHashMap<ByteBuffer, ByteBuffer> bufferMap = new IdentityHashMap<>();
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
@@ -320,7 +320,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         private ByteBuffer createBuffer() {
             ByteBuffer full = groupConfig.getHeapPool().getPool().borrow(bufferSize);
             ByteBuffer sub = full.slice(4, full.capacity() - 8);
-            bufferMap.put(full, full);
+            bufferMap.put(sub, full);
             return sub;
         }
 
@@ -331,7 +331,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         private FiberFuture<Void> writeCallback(ByteBuffer buf) {
-            ByteBuffer full = bufferMap.get(buf);
+            ByteBuffer full = bufferMap.remove(buf);
             int size = buf.remaining();
             crc32c.reset();
             full.putInt(0, size);

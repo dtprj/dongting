@@ -81,7 +81,7 @@ class EncodeStatus {
                 }
                 // NOTICE: there is no break here
             case EncodeStatus.STATE_VALUE:
-                return writeBytesToBuffer(buffer, keyBytes);
+                return writeBytesToBuffer(buffer, valueBytes);
             default:
                 throw new IllegalStateException();
         }
