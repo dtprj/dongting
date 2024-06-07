@@ -142,6 +142,9 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     }
 
     public FiberFrame<Void> lockForce(boolean flushMeta) {
+        if (this.ioBuffer != null) {
+            throw new RaftException("io task can't reused");
+        }
         this.force = true;
         this.flushMeta = flushMeta;
 
@@ -160,7 +163,9 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         if (ex == null) {
             future.fireComplete(null);
         } else {
-            future.fireCompleteExceptionally(ex);
+            String op = ioBuffer == null ? "force" : write ? "write" : "read";
+            String s = op + " file=" + dtFile.getFile().getPath() + ", filePos=" + filePos + " fail. " + ex.getMessage();
+            future.fireCompleteExceptionally(new IOException(s, ex));
         }
     }
 

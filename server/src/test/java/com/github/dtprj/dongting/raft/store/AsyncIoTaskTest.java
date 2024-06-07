@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -38,8 +39,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * @author huangli
@@ -116,7 +117,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
 
             @Override
             protected FrameCallResult handle(Throwable ex) {
-                assertEquals("read end of file", ex.getMessage());
+                assertTrue(ex.getMessage().contains("read end of file"));
                 return Fiber.frameReturn();
             }
         });
@@ -150,7 +151,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
 
             @Override
             protected FrameCallResult handle(Throwable ex) {
-                assertSame(t.ex, ex);
+                assertSame(t.ex, DtUtil.rootCause(ex));
                 return Fiber.frameReturn();
             }
         });
