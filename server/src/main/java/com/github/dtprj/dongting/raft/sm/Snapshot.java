@@ -15,11 +15,11 @@
  */
 package com.github.dtprj.dongting.raft.sm;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
+import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -41,7 +41,7 @@ public abstract class Snapshot {
         return snapshotInfo;
     }
 
-    public abstract FiberFuture<RefBuffer> readNext();
+    public abstract FiberFuture<Void> readNext(ByteBuffer buffer);
 
     public void close() {
         if (!closed.compareAndSet(false, true)) {
@@ -55,8 +55,7 @@ public abstract class Snapshot {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof Snapshot) {
-            Snapshot other = (Snapshot) obj;
+        if (obj instanceof Snapshot other) {
             return id == other.id;
         }
         return false;

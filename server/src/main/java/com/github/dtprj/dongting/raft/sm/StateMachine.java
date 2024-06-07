@@ -15,9 +15,10 @@
  */
 package com.github.dtprj.dongting.raft.sm;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.raft.server.RaftInput;
+
+import java.nio.ByteBuffer;
 
 /**
  * All method defined in this class is called in raft thread except createEncoder/createDecoder method.
@@ -34,7 +35,8 @@ public interface StateMachine extends AutoCloseable, RaftCodecFactory {
     /**
      * this method is called in raft thread.
      */
-    FiberFuture<Void> installSnapshot(long lastIncludeIndex, int lastIncludeTerm, long offset, boolean done, RefBuffer data);
+    FiberFuture<Void> installSnapshot(long lastIncludeIndex, int lastIncludeTerm, long offset, boolean done,
+                                      ByteBuffer data);
 
     /**
      * this method is called in raft thread.

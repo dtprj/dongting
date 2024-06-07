@@ -15,19 +15,22 @@
  */
 package com.github.dtprj.dongting.raft.sm;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
+import com.github.dtprj.dongting.fiber.FiberCancelException;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
+import com.github.dtprj.dongting.raft.impl.SnapshotReader;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.store.AsyncIoTask;
 import com.github.dtprj.dongting.raft.store.DtFile;
@@ -41,12 +44,16 @@ import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.zip.CRC32C;
 
 /**
@@ -68,6 +75,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
     private static final String KEY_PREPARED_MEMBERS = "preparedMembers";
     private static final String KEY_PREPARED_OBSERVERS = "preparedObservers";
     private static final String KEY_LAST_CONFIG_CHANGE_INDEX = "lastConfigChangeIndex";
+    private static final String KEY_BUFFER_SIZE = "bufferSize";
 
     private final RaftGroupConfigEx groupConfig;
     private final ExecutorService ioExecutor;
@@ -145,14 +153,20 @@ public class DefaultSnapshotManager implements SnapshotManager {
             Set<Integer> preparedMembers = RaftUtil.strToIdSet(p.getProperty(KEY_PREPARED_MEMBERS));
             Set<Integer> preparedObservers = RaftUtil.strToIdSet(p.getProperty(KEY_PREPARED_OBSERVERS));
             long lastConfigChangeIndex = Long.parseLong(p.getProperty(KEY_LAST_CONFIG_CHANGE_INDEX));
+            int bufferSize = Integer.parseInt(p.getProperty(KEY_BUFFER_SIZE));
             SnapshotInfo si = new SnapshotInfo(lastIndex, lastTerm, members, observers, preparedMembers,
                     preparedObservers, lastConfigChangeIndex);
 
-            FileSnapshot s = new FileSnapshot(groupConfig, si, last.getRight());
+            FileSnapshot s = new FileSnapshot(groupConfig, si, last.getRight(), bufferSize);
             log.info("open snapshot file {}", last.getRight());
             setResult(s);
             return Fiber.frameReturn();
         }
+    }
+
+    @Override
+    public FiberFrame<Pair<Integer, Long>> recover(Snapshot snapshot) {
+        return new RecoverFiberFrame(groupConfig, stateMachine, (FileSnapshot) snapshot);
     }
 
     private void deleteInIoExecutor(File f) {
@@ -198,7 +212,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             if (future == null) {
                 future = new CompletableFuture<>();
             }
-            FiberFrame<Long> f = saveSnapshot();
+            FiberFrame<Long> f = new SaveFrame();
             return Fiber.call(f, this::afterSave);
         }
 
@@ -226,17 +240,14 @@ public class DefaultSnapshotManager implements SnapshotManager {
         return saveLoopFrame.future;
     }
 
-    @Override
-    public FiberFrame<Long> saveSnapshot() {
-        return new SaveFrame();
-    }
-
     private class SaveFrame extends FiberFrame<Long> {
 
         private final long startTime = System.currentTimeMillis();
 
         private final CRC32C crc32c = new CRC32C();
-        private final ByteBuffer headerBuffer = ByteBuffer.allocate(8);
+
+        private final int writeConcurrency = groupConfig.getDiskSnapshotConcurrency();
+        private final int bufferSize = groupConfig.getDiskSnapshotBufferSize();
 
         private DtFile newDataFile;
 
@@ -244,21 +255,26 @@ public class DefaultSnapshotManager implements SnapshotManager {
         private StatusFile statusFile;
 
         private Snapshot readSnapshot;
-        private RefBuffer readBuffer;
 
         private long currentWritePos;
 
         private boolean success;
+        private boolean logCancel;
+
+        private final HashMap<ByteBuffer, ByteBuffer> bufferMap = new HashMap<>();
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
-            log.error("save snapshot failed", ex);
+            if (ex instanceof FiberCancelException) {
+                log.warn("save snapshot task is cancelled");
+            } else {
+                log.error("save snapshot failed", ex);
+            }
             return Fiber.frameReturn();
         }
 
         @Override
         protected FrameCallResult doFinally() {
-            releaseReadBuffer();
             if (newDataFile != null && newDataFile.getChannel() != null) {
                 DtUtil.close(newDataFile.getChannel());
             }
@@ -295,68 +311,60 @@ public class DefaultSnapshotManager implements SnapshotManager {
             AsynchronousFileChannel channel = AsynchronousFileChannel.open(dataFile.toPath(), options, getFiberGroup().getExecutor());
             this.newDataFile = new DtFile(dataFile, channel, groupConfig.getFiberGroup());
 
-            return read();
+            SnapshotReader reader = new SnapshotReader(readSnapshot, 2, writeConcurrency,
+                    this::writeCallback, this::checkCancel, this::createBuffer, this::releaseBuffer);
+            return Fiber.call(reader, this::finishDataFile);
+        }
+
+        private ByteBuffer createBuffer() {
+            ByteBuffer full = groupConfig.getHeapPool().getPool().borrow(bufferSize);
+            ByteBuffer sub = full.slice(4, full.capacity() - 8);
+            bufferMap.put(full, full);
+            return sub;
+        }
+
+        private void releaseBuffer(ByteBuffer buf) {
+            ByteBuffer full = bufferMap.remove(buf);
+            Objects.requireNonNull(full);
+            groupConfig.getHeapPool().getPool().release(full);
+        }
+
+        private FiberFuture<Void> writeCallback(ByteBuffer buf) {
+            ByteBuffer full = bufferMap.get(buf);
+            int size = buf.remaining();
+            crc32c.reset();
+            full.putInt(0, size);
+            RaftUtil.updateCrc(crc32c, full, 0, size + 4);
+            full.putInt(size + 4, (int) crc32c.getValue());
+            full.position(0);
+            full.limit(size + 8);
+            AsyncIoTask writeTask = new AsyncIoTask(groupConfig, newDataFile);
+            long newWritePos = currentWritePos + full.remaining();
+            FiberFuture<Void> writeFuture = writeTask.write(full, currentWritePos);
+            currentWritePos = newWritePos;
+            writeFuture.registerCallback((v, ex) -> groupConfig.getHeapPool().getPool().release(full));
+            return writeFuture;
         }
 
         private boolean checkCancel() {
             if (isGroupShouldStopPlain()) {
-                log.info("snapshot save task is cancelled");
+                if (logCancel) {
+                    log.info("snapshot save task is cancelled");
+                    logCancel = true;
+                }
                 return true;
             }
             if (raftStatus.isInstallSnapshot()) {
-                log.warn("install snapshot, cancel save snapshot task");
+                if (logCancel) {
+                    log.warn("install snapshot, cancel save snapshot task");
+                    logCancel = true;
+                }
                 return true;
             }
             return false;
         }
 
-        private FrameCallResult read() {
-            if (checkCancel()) {
-                return Fiber.frameReturn();
-            }
-            FiberFuture<RefBuffer> fu = readSnapshot.readNext();
-            return fu.await(this::whenReadFinish);
-        }
-
-        private FiberFuture<Void> write(ByteBuffer buf) {
-            AsyncIoTask writeTask = new AsyncIoTask(groupConfig, newDataFile);
-            long newWritePos = currentWritePos + buf.remaining();
-            FiberFuture<Void> writeFuture = writeTask.write(buf, currentWritePos);
-            currentWritePos = newWritePos;
-            return writeFuture;
-        }
-
-        private FrameCallResult whenReadFinish(RefBuffer rb) {
-            this.readBuffer = rb;
-            if (checkCancel()) {
-                return Fiber.frameReturn();
-            }
-            if (rb != null && rb.getBuffer() != null && rb.getBuffer().hasRemaining()) {
-                ByteBuffer buffer = rb.getBuffer();
-                crc32c.reset();
-                RaftUtil.updateCrc(crc32c, buffer, buffer.position(), buffer.remaining());
-                headerBuffer.clear();
-                headerBuffer.putInt(buffer.remaining());
-                headerBuffer.putInt((int) crc32c.getValue());
-                headerBuffer.flip();
-
-                FiberFuture<Void> f1 = write(headerBuffer);
-                FiberFuture<Void> f2 = write(readBuffer.getBuffer());
-                return FiberFuture.allOf("snapshot-write", f1, f2).await(this::whenWriteFinish);
-            } else {
-                return finishDataFile();
-            }
-        }
-
-        private FrameCallResult whenWriteFinish(Void unused) {
-            if (checkCancel()) {
-                return Fiber.frameReturn();
-            }
-            releaseReadBuffer();
-            return read();
-        }
-
-        private FrameCallResult finishDataFile() {
+        private FrameCallResult finishDataFile(Void v) {
             if (checkCancel()) {
                 return Fiber.frameReturn();
             }
@@ -384,6 +392,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             p.setProperty(KEY_PREPARED_MEMBERS, RaftUtil.setToStr(si.getPreparedMembers()));
             p.setProperty(KEY_PREPARED_OBSERVERS, RaftUtil.setToStr(si.getPreparedObservers()));
             p.setProperty(KEY_LAST_CONFIG_CHANGE_INDEX, String.valueOf(si.getLastConfigChangeIndex()));
+            p.setProperty(KEY_BUFFER_SIZE, String.valueOf(bufferSize));
 
             // just for human reading
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
@@ -400,13 +409,77 @@ public class DefaultSnapshotManager implements SnapshotManager {
             setResult(readSnapshot.getSnapshotInfo().getLastIncludedIndex());
             return Fiber.frameReturn();
         }
-
-        private void releaseReadBuffer() {
-            if (readBuffer != null) {
-                readBuffer.release();
-                readBuffer = null;
-            }
-        }
     }
 
+}
+
+class RecoverFiberFrame extends FiberFrame<Pair<Integer, Long>> {
+
+    private final StateMachine stateMachine;
+    private final RaftGroupConfigEx groupConfig;
+    private final FileSnapshot snapshot;
+
+    private final Supplier<ByteBuffer> bufferCreator;
+    private final Consumer<ByteBuffer> bufferReleaser;
+
+    private final CRC32C crc32C = new CRC32C();
+
+    private long offset;
+
+    public RecoverFiberFrame(RaftGroupConfigEx groupConfig, StateMachine stateMachine, FileSnapshot snapshot) {
+        this.stateMachine = stateMachine;
+        this.groupConfig = groupConfig;
+        this.snapshot = snapshot;
+        this.bufferCreator = () -> groupConfig.getDirectPool().borrow(snapshot.getBufferSize());
+        this.bufferReleaser = buf -> groupConfig.getDirectPool().release(buf);
+    }
+
+    @Override
+    protected FrameCallResult doFinally() {
+        if (snapshot != null) {
+            snapshot.close();
+        }
+        return Fiber.frameReturn();
+    }
+
+    @Override
+    public FrameCallResult execute(Void input) {
+        SnapshotReader reader = new SnapshotReader(snapshot, groupConfig.getDiskSnapshotConcurrency(),
+                2, this::apply, this::isGroupShouldStopPlain, bufferCreator, bufferReleaser);
+        return Fiber.call(reader, this::finish1);
+    }
+
+    private FiberFuture<Void> apply(ByteBuffer buf) {
+        int size = buf.getInt();
+        if (size <= 0 || size > buf.capacity() - 8) {
+            bufferReleaser.accept(buf);
+            return FiberFuture.failedFuture(getFiberGroup(), new RaftException("invalid snapshot data size: " + size));
+        }
+        crc32C.reset();
+        RaftUtil.updateCrc(crc32C, buf,0, size + 4);
+        int crc = buf.getInt(size + 4);
+        if (crc != (int) crc32C.getValue()) {
+            bufferReleaser.accept(buf);
+            return FiberFuture.failedFuture(getFiberGroup(), new RaftException("snapshot data crc error"));
+        }
+        SnapshotInfo si = snapshot.getSnapshotInfo();
+        FiberFuture<Void> f = stateMachine.installSnapshot(si.getLastIncludedIndex(), si.getLastIncludedTerm(),
+                offset, false, buf);
+        offset += size;
+        f.registerCallback((v, ex) -> bufferReleaser.accept(buf));
+        return f;
+    }
+
+    private FrameCallResult finish1(Void v) {
+        SnapshotInfo si = snapshot.getSnapshotInfo();
+        FiberFuture<Void> f = stateMachine.installSnapshot(si.getLastIncludedIndex(), si.getLastIncludedTerm(),
+                offset, true, SimpleByteBufferPool.EMPTY_BUFFER);
+        return f.await(this::finish2);
+    }
+
+    private FrameCallResult finish2(Void v) {
+        SnapshotInfo si = snapshot.getSnapshotInfo();
+        setResult(new Pair<>(si.getLastIncludedTerm(), si.getLastIncludedIndex()));
+        return Fiber.frameReturn();
+    }
 }

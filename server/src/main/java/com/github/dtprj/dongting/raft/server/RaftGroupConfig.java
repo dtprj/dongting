@@ -46,6 +46,10 @@ public class RaftGroupConfig {
     private PerfCallback perfCallback = NoopPerfCallback.INSTANCE;
 
     private long saveSnapshotMillis = 60 * 1000;
+    private int diskSnapshotConcurrency = 4;
+    private int diskSnapshotBufferSize = 64 * 1024;
+    private int replicateSnapshotConcurrency = 4;
+    private int replicateSnapshotBufferSize = 64 * 1024;
 
     public RaftGroupConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         this.groupId = groupId;
@@ -183,5 +187,37 @@ public class RaftGroupConfig {
 
     public void setSaveSnapshotMillis(long saveSnapshotMillis) {
         this.saveSnapshotMillis = saveSnapshotMillis;
+    }
+
+    public int getDiskSnapshotConcurrency() {
+        return diskSnapshotConcurrency;
+    }
+
+    public void setDiskSnapshotConcurrency(int diskSnapshotConcurrency) {
+        this.diskSnapshotConcurrency = diskSnapshotConcurrency;
+    }
+
+    public int getDiskSnapshotBufferSize() {
+        return diskSnapshotBufferSize;
+    }
+
+    public void setDiskSnapshotBufferSize(int diskSnapshotBufferSize) {
+        this.diskSnapshotBufferSize = diskSnapshotBufferSize;
+    }
+
+    public int getReplicateSnapshotConcurrency() {
+        return replicateSnapshotConcurrency;
+    }
+
+    public void setReplicateSnapshotConcurrency(int replicateSnapshotConcurrency) {
+        this.replicateSnapshotConcurrency = replicateSnapshotConcurrency;
+    }
+
+    public int getReplicateSnapshotBufferSize() {
+        return replicateSnapshotBufferSize;
+    }
+
+    public void setReplicateSnapshotBufferSize(int replicateSnapshotBufferSize) {
+        this.replicateSnapshotBufferSize = replicateSnapshotBufferSize;
     }
 }

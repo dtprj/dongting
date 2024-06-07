@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.Encodable;
@@ -24,7 +22,6 @@ import com.github.dtprj.dongting.codec.StrEncoder;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
@@ -43,42 +40,30 @@ public class DtKV implements StateMachine {
     public static final int BIZ_TYPE_PUT = 1;
     public static final int BIZ_TYPE_REMOVE = 2;
 
-    private final RaftGroupConfigEx groupConfig;
-    private final ByteBufferPool heapPool;
-
     private final ArrayList<Snapshot> openSnapshots = new ArrayList<>();
     private long minOpenSnapshotIndex;
 
     private volatile KvStatus kvStatus = new KvStatus(KvStatus.RUNNING, new KvImpl(), 0);
+    private EncodeStatus encodeStatus;
 
-    public DtKV(RaftGroupConfigEx groupConfig) {
-        this.groupConfig = groupConfig;
-        this.heapPool = groupConfig.getHeapPool().getPool();
+    public DtKV() {
     }
 
     @Override
     public Decoder<? extends Encodable> createHeaderDecoder(int bizType) {
-        switch (bizType) {
-            case BIZ_TYPE_GET:
-            case BIZ_TYPE_REMOVE:
-            case BIZ_TYPE_PUT:
-                return StrEncoder.DECODER;
-            default:
-                throw new IllegalArgumentException("unknown bizType " + bizType);
-        }
+        return switch (bizType) {
+            case BIZ_TYPE_GET, BIZ_TYPE_REMOVE, BIZ_TYPE_PUT -> StrEncoder.DECODER;
+            default -> throw new IllegalArgumentException("unknown bizType " + bizType);
+        };
     }
 
     @Override
     public Decoder<? extends Encodable> createBodyDecoder(int bizType) {
-        switch (bizType) {
-            case BIZ_TYPE_GET:
-            case BIZ_TYPE_REMOVE:
-                return null;
-            case BIZ_TYPE_PUT:
-                return ByteArrayEncoder.DECODER;
-            default:
-                throw new IllegalArgumentException("unknown bizType " + bizType);
-        }
+        return switch (bizType) {
+            case BIZ_TYPE_GET, BIZ_TYPE_REMOVE -> null;
+            case BIZ_TYPE_PUT -> ByteArrayEncoder.DECODER;
+            default -> throw new IllegalArgumentException("unknown bizType " + bizType);
+        };
     }
 
     @Override
@@ -87,17 +72,15 @@ public class DtKV implements StateMachine {
         ensureRunning(kvStatus);
         StrEncoder key = (StrEncoder) input.getHeader();
         ByteArrayEncoder data = (ByteArrayEncoder) input.getBody();
-        switch (input.getBizType()) {
-            case BIZ_TYPE_GET:
-                return kvStatus.kvImpl.get(key.getStr());
-            case BIZ_TYPE_PUT:
+        return switch (input.getBizType()) {
+            case BIZ_TYPE_GET -> kvStatus.kvImpl.get(key.getStr());
+            case BIZ_TYPE_PUT -> {
                 kvStatus.kvImpl.put(index, key.getStr(), data.getData(), minOpenSnapshotIndex);
-                return null;
-            case BIZ_TYPE_REMOVE:
-                return kvStatus.kvImpl.remove(index, key.getStr(), minOpenSnapshotIndex);
-            default:
-                throw new IllegalArgumentException("unknown bizType " + input.getBizType());
-        }
+                yield null;
+            }
+            case BIZ_TYPE_REMOVE -> kvStatus.kvImpl.remove(index, key.getStr(), minOpenSnapshotIndex);
+            default -> throw new IllegalArgumentException("unknown bizType " + input.getBizType());
+        };
     }
 
     /**
@@ -109,38 +92,34 @@ public class DtKV implements StateMachine {
 
     @Override
     public FiberFuture<Void> installSnapshot(long lastIncludeIndex, int lastIncludeTerm, long offset,
-                                             boolean done, RefBuffer data) {
+                                             boolean done, ByteBuffer data) {
         try {
             if (offset == 0) {
                 newStatus(KvStatus.INSTALLING_SNAPSHOT, new KvImpl());
+                encodeStatus = new EncodeStatus();
             } else if (kvStatus.status != KvStatus.INSTALLING_SNAPSHOT) {
                 return FiberFuture.failedFuture(FiberGroup.currentGroup(), new IllegalStateException(
                         "current status error: " + kvStatus.status));
             }
             KvImpl kvImpl = kvStatus.kvImpl;
-            if (data != null && data.getBuffer() != null) {
-                ByteBuffer bb = data.getBuffer();
+            if (data != null && data.hasRemaining()) {
                 ConcurrentSkipListMap<String, Value> map = kvImpl.getMap();
-                while (bb.hasRemaining()) {
-                    long raftIndex = bb.getLong();
-                    int keyLen = bb.getInt();
-                    ByteBuffer keyBuf = heapPool.borrow(keyLen);
-                    String key;
-                    try {
-                        keyBuf.limit(keyLen);
-                        keyBuf.put(bb);
-                        key = new String(keyBuf.array(), 0, keyLen, StandardCharsets.UTF_8);
-                    } finally {
-                        heapPool.release(keyBuf);
+                while (data.hasRemaining()) {
+                    if (encodeStatus.readFromBuffer(data)) {
+                        long raftIndex = encodeStatus.raftIndex;
+                        // TODO keyBytes is temporary object, we should use a pool
+                        String key = new String(encodeStatus.keyBytes, StandardCharsets.UTF_8);
+                        byte[] value = encodeStatus.valueBytes;
+                        map.put(key, new Value(raftIndex, value));
+                        encodeStatus.reset();
+                    } else {
+                        break;
                     }
-                    int valueLen = bb.getInt();
-                    byte[] value = new byte[valueLen];
-                    bb.get(value);
-                    map.put(key, new Value(raftIndex, value));
                 }
             }
             if (done) {
                 newStatus(KvStatus.RUNNING, kvImpl);
+                encodeStatus = null;
             }
             return FiberFuture.completedFuture(FiberGroup.currentGroup(), null);
         } catch (Throwable ex) {
@@ -152,7 +131,7 @@ public class DtKV implements StateMachine {
     public Snapshot takeSnapshot(SnapshotInfo si) {
         KvStatus kvStatus = this.kvStatus;
         ensureRunning(kvStatus);
-        KvSnapshot snapshot = new KvSnapshot(si, () -> kvStatus, groupConfig.getHeapPool(), this::closeSnapshot);
+        KvSnapshot snapshot = new KvSnapshot(si, () -> kvStatus, this::closeSnapshot);
         openSnapshots.add(snapshot);
         updateMin();
         return snapshot;

@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -36,6 +36,7 @@ import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.PerfConsts;
 import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.AppendReqWriteFrame;
 import com.github.dtprj.dongting.raft.rpc.AppendRespCallback;
@@ -49,10 +50,13 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
@@ -567,16 +571,10 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
     private final RaftServerConfig serverConfig;
     private final NioClient client;
     private final ReplicateManager replicateManager;
-    private final long restBytesThreshold;
-
-    private boolean readFinish;
-    private boolean installFinish;
 
     private Snapshot snapshot;
     private long nextPosAfterInstallFinish;
     private long snapshotOffset;
-
-    long pendingBytes;
 
     public LeaderInstallFrame(ReplicateManager replicateManager, RaftMember member) {
         super(replicateManager, member);
@@ -586,7 +584,6 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         this.serverConfig = replicateManager.serverConfig;
         this.client = replicateManager.client;
         this.replicateManager = replicateManager;
-        this.restBytesThreshold = (long) (groupConfig.getMaxReplicateBytes() * 0.1);
     }
 
     @Override
@@ -627,39 +624,33 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         this.snapshot = snapshot;
         this.nextPosAfterInstallFinish = nextPos;
         // send the first request, no data
-        sendInstallSnapshotReq(member, null);
-        return repCondition.await(v -> installSnapshot());
+        FiberFuture<Void> f = sendInstallSnapshotReq(null, true, false);
+        return f.await(this::afterFirstReqFinished);
     }
 
-    private FrameCallResult installSnapshot() {
+    private FrameCallResult afterFirstReqFinished(Void unused) {
         if (shouldStopReplicate()) {
             return Fiber.frameReturn();
         }
-        if (installFinish) {
-            return Fiber.frameReturn();
-        }
-        if (readFinish || groupConfig.getMaxReplicateBytes() - pendingBytes <= restBytesThreshold) {
-            // wait rpc finish
-            return repCondition.await(1000, v -> installSnapshot());
-        }
-        FiberFuture<RefBuffer> ff = snapshot.readNext();
-        // TODO optimise performance, fiber blocked here
-        return ff.await(this::afterSnapshotRead);
+        ByteBufferPool p = groupConfig.getHeapPool().getPool();
+        Supplier<ByteBuffer> bufferCreator = () -> p.borrow(groupConfig.getReplicateSnapshotBufferSize());
+        Consumer<ByteBuffer> releaser = p::release;
+        SnapshotReader r = new SnapshotReader(snapshot, 2,
+                groupConfig.getReplicateSnapshotConcurrency(), this::readerCallback,
+                this::shouldStopReplicate, bufferCreator, releaser);
+        return Fiber.call(r, this::afterReaderFinish);
     }
 
-    private FrameCallResult afterSnapshotRead(RefBuffer rb) {
-        if (shouldStopReplicate()) {
-            if (rb != null) {
-                rb.release();
-            }
-            return Fiber.frameReturn();
-        }
-        // rb release in InstallReqWriteFrame.doClean()
-        sendInstallSnapshotReq(member, rb);
-        return installSnapshot();
+    private FiberFuture<Void> readerCallback(ByteBuffer buf) {
+        return sendInstallSnapshotReq(buf, false, false);
     }
 
-    private void sendInstallSnapshotReq(RaftMember member, RefBuffer data) {
+    private FrameCallResult afterReaderFinish(Void unused) {
+        return sendInstallSnapshotReq(null, false, true)
+                .await(this::justReturn);
+    }
+
+    private FiberFuture<Void> sendInstallSnapshotReq(ByteBuffer data, boolean start, boolean finish) {
         SnapshotInfo si = snapshot.getSnapshotInfo();
         InstallSnapshotReq req = new InstallSnapshotReq();
         req.groupId = groupId;
@@ -669,76 +660,68 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         req.lastIncludedTerm = si.getLastIncludedTerm();
         req.offset = snapshotOffset;
 
-        if (req.offset == 0 && data == null) {
+        if (start) {
             req.members = si.getMembers();
             req.observers = si.getObservers();
             req.preparedMembers = si.getPreparedMembers();
             req.preparedObservers = si.getPreparedObservers();
             req.lastConfigChangeIndex = si.getLastConfigChangeIndex();
         }
-
-        req.data = data;
-        req.done = data == null || data.getBuffer() == null || !data.getBuffer().hasRemaining();
-
-        if (req.done) {
+        if (finish) {
+            req.done = true;
             req.nextWritePos = nextPosAfterInstallFinish;
-            readFinish = true;
         }
+        req.data = data;
 
-        InstallSnapshotReq.InstallReqWriteFrame wf = new InstallSnapshotReq.InstallReqWriteFrame(req);
+        // data buffer released in WriteFrame
+        InstallSnapshotReq.InstallReqWriteFrame wf = new InstallSnapshotReq.InstallReqWriteFrame(
+                req, groupConfig.getHeapPool().getPool());
         wf.setCommand(Commands.RAFT_INSTALL_SNAPSHOT);
         DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
         CompletableFuture<ReadFrame<AppendRespCallback>> future = client.sendRequest(
                 member.getNode().getPeer(), wf, APPEND_RESP_DECODER, timeout);
-        int bytes = data == null ? 0 : data.getBuffer().remaining();
+        int bytes = data == null ? 0 : data.remaining();
         snapshotOffset += bytes;
-        future.whenCompleteAsync((rf, ex) -> afterInstallRpc(rf, ex, req.offset, bytes,
-                req.done, req.lastIncludedIndex), getFiberGroup().getExecutor());
+        FiberFuture<Void> f = getFiberGroup().newFuture("install-" + groupId + "-" + req.offset);
+        future.whenCompleteAsync((rf, ex) -> afterInstallRpc(rf, ex, req, f), getFiberGroup().getExecutor());
+        return f;
     }
 
-    void afterInstallRpc(ReadFrame<AppendRespCallback> rf, Throwable ex, long reqOffset,
-                         int reqBytes, boolean reqDone, long reqLastIncludedIndex) {
-        try {
-            if (epochChange()) {
-                log.info("epoch not match, ignore install snapshot response.");
-                return;
-            }
-            descPending(reqBytes);
-            if (ex != null) {
-                log.error("install snapshot fail, group={},remoteId={}", groupId, member.getNode().getNodeId(), ex);
-                incrementEpoch();
-                return;
-            }
-            AppendRespCallback respBody = rf.getBody();
-            if (!respBody.isSuccess()) {
-                log.error("install snapshot fail. remoteNode={}, groupId={}",
-                        member.getNode().getNodeId(), groupId);
-                incrementEpoch();
-                return;
-            }
-            if (replicateManager.checkTermFailed(respBody.getTerm())) {
-                return;
-            }
-            log.info("transfer snapshot data to member. nodeId={}, groupId={}, offset={}", member.getNode().getNodeId(), groupId, reqOffset);
-            if (reqDone) {
-                log.info("install snapshot for member finished success. nodeId={}, groupId={}",
-                        member.getNode().getNodeId(), groupId);
-                incrementEpoch();
-                setInstallFinish(true);
-                member.setInstallSnapshot(false);
-                member.setMatchIndex(reqLastIncludedIndex);
-                member.setNextIndex(reqLastIncludedIndex + 1);
-            }
-        } finally {
-            repCondition.signalAll();
+    private void afterInstallRpc(ReadFrame<AppendRespCallback> rf, Throwable ex,
+                                 InstallSnapshotReq req, FiberFuture<Void> f) {
+        if (epochChange()) {
+            f.completeExceptionally(new RaftCancelException("epoch not match, ignore install snapshot response."));
+            return;
         }
+        if (ex != null) {
+            incrementEpoch();
+            f.completeExceptionally(ex);
+            return;
+        }
+        AppendRespCallback respBody = rf.getBody();
+        if (!respBody.isSuccess()) {
+            incrementEpoch();
+            f.completeExceptionally(new RaftException("install snapshot fail. remoteNode="
+                    + member.getNode().getNodeId() + ", groupId=" + groupId));
+            return;
+        }
+        if (replicateManager.checkTermFailed(respBody.getTerm())) {
+            incrementEpoch();
+            f.completeExceptionally(new RaftException("remote node has larger term. remoteNode="
+                    + member.getNode().getNodeId() + ", groupId=" + groupId));
+            return;
+        }
+        log.info("transfer snapshot data to member. nodeId={}, groupId={}, offset={}",
+                member.getNode().getNodeId(), groupId, req.offset);
+        if (req.done) {
+            log.info("install snapshot for member finished success. nodeId={}, groupId={}",
+                    member.getNode().getNodeId(), groupId);
+            incrementEpoch();
+            member.setInstallSnapshot(false);
+            member.setMatchIndex(req.lastIncludedIndex);
+            member.setNextIndex(req.lastIncludedIndex + 1);
+        }
+        f.complete(null);
     }
 
-    public void setInstallFinish(boolean installFinish) {
-        this.installFinish = installFinish;
-    }
-
-    public void descPending(int reqBytes) {
-        this.pendingBytes -= reqBytes;
-    }
 }

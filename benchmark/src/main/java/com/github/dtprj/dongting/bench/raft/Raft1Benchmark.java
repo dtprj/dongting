@@ -92,7 +92,7 @@ public class Raft1Benchmark extends BenchBase {
         raftFactory = new DefaultRaftFactory(serverConfig) {
             @Override
             public StateMachine createStateMachine(RaftGroupConfigEx groupConfig) {
-                return new DtKV(groupConfig);
+                return new DtKV();
             }
         };
         raftFactory.start();

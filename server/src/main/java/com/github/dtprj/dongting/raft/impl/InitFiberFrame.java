@@ -15,12 +15,10 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberChannel;
 import com.github.dtprj.dongting.fiber.FiberFrame;
-import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
@@ -31,8 +29,6 @@ import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
-import com.github.dtprj.dongting.raft.sm.SnapshotManager;
-import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.time.Duration;
 import java.util.Set;
@@ -93,8 +89,30 @@ public class InitFiberFrame extends FiberFrame<Void> {
             log.info("install snapshot, skip recover, groupId={}", groupConfig.getGroupId());
             return initRaftFibers();
         } else {
-            return Fiber.call(new RecoverStateMachineFiberFrame(gc), this::afterRecoverStateMachine);
+            if (gc.getSnapshotManager() == null) {
+                return afterRecoverStateMachine(null);
+            }
+            FiberFrame<Snapshot> f = gc.getSnapshotManager().init();
+            return Fiber.call(f, this::afterSnapshotInit);
         }
+    }
+
+    private FrameCallResult afterSnapshotInit(Snapshot snapshot) {
+        if (snapshot == null) {
+            return afterRecoverStateMachine(null);
+        }
+        SnapshotInfo si = snapshot.getSnapshotInfo();
+        gc.getRaftStatus().setLastConfigChangeIndex(si.getLastConfigChangeIndex());
+
+        FiberFrame<Void> f = gc.getMemberManager().applyConfigFrame(
+                "state machine recover apply config change",
+                si.getMembers(), si.getObservers(), si.getPreparedMembers(), si.getPreparedObservers());
+        return Fiber.call(f, v -> afterApplyConfigChange(snapshot));
+    }
+
+    private FrameCallResult afterApplyConfigChange(Snapshot snapshot) {
+        FiberFrame<Pair<Integer, Long>> f = gc.getSnapshotManager().recover(snapshot);
+        return Fiber.call(f, this::afterRecoverStateMachine);
     }
 
     private FrameCallResult afterRecoverStateMachine(Pair<Integer, Long> snapshotResult) {
@@ -152,90 +170,4 @@ public class InitFiberFrame extends FiberFrame<Void> {
         return Fiber.frameReturn();
     }
 
-}
-
-class RecoverStateMachineFiberFrame extends FiberFrame<Pair<Integer, Long>> {
-
-    private final SnapshotManager snapshotManager;
-    private final StateMachine stateMachine;
-    private final GroupComponents gc;
-
-    private Snapshot snapshot;
-    private long offset;
-    private RefBuffer rb;
-
-    public RecoverStateMachineFiberFrame(GroupComponents gc) {
-        this.snapshotManager = gc.getSnapshotManager();
-        this.stateMachine = gc.getStateMachine();
-        this.gc = gc;
-    }
-
-    @Override
-    protected FrameCallResult doFinally() {
-        releaseReadBuffer();
-        if (snapshot != null) {
-            snapshot.close();
-        }
-        return Fiber.frameReturn();
-    }
-
-    @Override
-    public FrameCallResult execute(Void input) {
-        if (snapshotManager == null) {
-            setResult(null);
-            return Fiber.frameReturn();
-        }
-        return Fiber.call(snapshotManager.init(), this::afterSnapshotInit);
-    }
-
-    private FrameCallResult afterSnapshotInit(Snapshot snapshot) {
-        if (snapshot == null) {
-            setResult(null);
-            return Fiber.frameReturn();
-        }
-        this.snapshot = snapshot;
-
-        SnapshotInfo si = snapshot.getSnapshotInfo();
-        gc.getRaftStatus().setLastConfigChangeIndex(si.getLastConfigChangeIndex());
-
-        FiberFrame<Void> f = gc.getMemberManager().applyConfigFrame(
-                "state machine recover apply config change",
-                si.getMembers(), si.getObservers(), si.getPreparedMembers(), si.getPreparedObservers());
-        return Fiber.call(f, this::read);
-    }
-
-    private FrameCallResult read(Void v) {
-        RaftUtil.checkStop(getFiberGroup());
-        releaseReadBuffer();
-        FiberFuture<RefBuffer> f = snapshot.readNext();
-        return f.await(this::afterRead);
-    }
-
-    private FrameCallResult afterRead(RefBuffer rb) {
-        this.rb = rb;
-        RaftUtil.checkStop(getFiberGroup());
-        long count = rb == null ? 0 : rb.getBuffer() == null ? 0 : rb.getBuffer().remaining();
-        SnapshotInfo si = snapshot.getSnapshotInfo();
-        FiberFuture<Void> fu = stateMachine.installSnapshot(si.getLastIncludedIndex(),
-                si.getLastIncludedTerm(), offset, count == 0, rb);
-        offset += count;
-        if (count == 0) {
-            return fu.await(this::finish);
-        } else {
-            return fu.await(this::read);
-        }
-    }
-
-    private FrameCallResult finish(Void v) {
-        SnapshotInfo si = snapshot.getSnapshotInfo();
-        setResult(new Pair<>(si.getLastIncludedTerm(), si.getLastIncludedIndex()));
-        return Fiber.frameReturn();
-    }
-
-    private void releaseReadBuffer() {
-        if (rb != null) {
-            rb.release();
-            rb = null;
-        }
-    }
 }

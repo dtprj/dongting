@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -35,15 +33,17 @@ import java.util.function.Supplier;
  */
 class KvSnapshot extends Snapshot {
     private final Supplier<KvStatus> statusSupplier;
-    private final RefBufferFactory heapPool;
     private final Consumer<Snapshot> closeCallback;
     private final Iterator<Map.Entry<String, Value>> iterator;
     private final int epoch;
 
-    public KvSnapshot(SnapshotInfo si, Supplier<KvStatus> statusSupplier, RefBufferFactory heapPool, Consumer<Snapshot> closeCallback) {
+    private Value currentValue;
+
+    private final EncodeStatus encodeStatus = new EncodeStatus();
+
+    public KvSnapshot(SnapshotInfo si, Supplier<KvStatus> statusSupplier, Consumer<Snapshot> closeCallback) {
         super(si);
         this.statusSupplier = statusSupplier;
-        this.heapPool = heapPool;
         this.closeCallback = closeCallback;
         KvStatus kvStatus = statusSupplier.get();
         this.iterator = kvStatus.kvImpl.getMap().entrySet().iterator();
@@ -51,44 +51,48 @@ class KvSnapshot extends Snapshot {
     }
 
     @Override
-    public FiberFuture<RefBuffer> readNext() {
+    public FiberFuture<Void> readNext(ByteBuffer buffer) {
         FiberGroup fiberGroup = FiberGroup.currentGroup();
         KvStatus current = statusSupplier.get();
         if (current.status != KvStatus.RUNNING || current.epoch != epoch) {
             return FiberFuture.failedFuture(fiberGroup, new RaftException("the snapshot is expired"));
         }
 
-        RefBuffer refBuffer = null;
+        while (true) {
+            if (currentValue == null) {
+                nextValue();
+            }
+            if (currentValue == null) {
+                // no more data
+                buffer.flip();
+                return FiberFuture.completedFuture(fiberGroup, null);
+            }
+
+            if (encodeStatus.writeToBuffer(buffer)) {
+                encodeStatus.reset();
+            } else {
+                // buffer is full
+                buffer.flip();
+                return FiberFuture.completedFuture(fiberGroup, null);
+            }
+        }
+    }
+
+    private void nextValue() {
         while (iterator.hasNext()) {
             Map.Entry<String, Value> en = iterator.next();
             Value value = en.getValue();
             while (value != null && value.getRaftIndex() > getSnapshotInfo().getLastIncludedIndex()) {
                 value = value.getPrevious();
             }
-            if (value == null) {
-                continue;
+            if (value != null) {
+                String key = en.getKey();
+                encodeStatus.keyBytes = key.getBytes(StandardCharsets.UTF_8);
+                encodeStatus.valueBytes = value.getData();
+                encodeStatus.raftIndex = value.getRaftIndex();
+                currentValue = value;
             }
-            String key = en.getKey();
-            byte[] keyBytes = key.getBytes(StandardCharsets.UTF_8);
-            byte[] data = value.getData();
-            int len = 16 + keyBytes.length + data.length;
-            if (len < 0) {
-                return FiberFuture.failedFuture(fiberGroup, new RaftException("key + value overflow"));
-            }
-            if (refBuffer == null) {
-                refBuffer = heapPool.create(Math.min(128 * 1024, len));
-            }
-            ByteBuffer bb = refBuffer.getBuffer();
-            if (bb.remaining() < len) {
-                return FiberFuture.completedFuture(fiberGroup, refBuffer);
-            }
-            bb.putLong(value.getRaftIndex());
-            bb.putInt(keyBytes.length);
-            bb.put(keyBytes);
-            bb.putInt(data.length);
-            bb.put(data);
         }
-        return FiberFuture.completedFuture(fiberGroup, refBuffer);
     }
 
     @Override

@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.EncodeContext;
@@ -61,7 +61,7 @@ public class InstallSnapshotReq {
     public Set<Integer> preparedObservers;
     public long lastConfigChangeIndex;
 
-    public RefBuffer data;
+    public ByteBuffer data;
 
     public static class Callback extends PbCallback<InstallSnapshotReq> {
         private final InstallSnapshotReq result = new InstallSnapshotReq();
@@ -143,11 +143,11 @@ public class InstallSnapshotReq {
             boolean end = buf.remaining() >= len - currentPos;
             if (index == 15) {
                 if (currentPos == 0) {
-                    result.data = heapPool.create(len);
+                    result.data = heapPool.getPool().borrow(len);
                 }
-                result.data.getBuffer().put(buf);
+                result.data.put(buf);
                 if (end) {
-                    result.data.getBuffer().flip();
+                    result.data.flip();
                 }
             }
             return true;
@@ -162,12 +162,14 @@ public class InstallSnapshotReq {
     public static class InstallReqWriteFrame extends WriteFrame {
 
         private final InstallSnapshotReq req;
+        private final ByteBufferPool heapPool;
         private final int headerSize;
         private final int bufferSize;
         private boolean headerWritten = false;
 
-        public InstallReqWriteFrame(InstallSnapshotReq req) {
+        public InstallReqWriteFrame(InstallSnapshotReq req, ByteBufferPool heapPool) {
             this.req = req;
+            this.heapPool = heapPool;
             int x = PbUtil.accurateUnsignedIntSize(1, req.groupId)
                     + PbUtil.accurateUnsignedIntSize(2, req.term)
                     + PbUtil.accurateUnsignedIntSize(3, req.leaderId)
@@ -182,8 +184,8 @@ public class InstallSnapshotReq {
             x += calcFix32SetSize(12, req.preparedObservers);
             x += PbUtil.accurateFix64Size(13, req.lastConfigChangeIndex);
 
-            if (req.data != null && req.data.getBuffer().hasRemaining()) {
-                this.bufferSize = req.data.getBuffer().remaining();
+            if (req.data != null && req.data.hasRemaining()) {
+                this.bufferSize = req.data.remaining();
                 x += PbUtil.accurateLengthDelimitedSize(15, bufferSize);
             } else {
                 this.bufferSize = 0;
@@ -235,8 +237,8 @@ public class InstallSnapshotReq {
             if (bufferSize == 0) {
                 return true;
             }
-            dest.put(req.data.getBuffer());
-            return !req.data.getBuffer().hasRemaining();
+            dest.put(req.data);
+            return !req.data.hasRemaining();
         }
 
         private void writeSet(ByteBuffer buf, int index, Set<Integer> s) {
@@ -250,7 +252,8 @@ public class InstallSnapshotReq {
         @Override
         protected void doClean() {
             if (req.data != null) {
-                req.data.release();
+                heapPool.release(req.data);
+                req.data = null;
             }
         }
     }

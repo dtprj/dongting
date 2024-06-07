@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.sm;
 
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 
 import java.util.concurrent.CompletableFuture;
@@ -26,7 +27,7 @@ public interface SnapshotManager {
 
     FiberFrame<Snapshot> init();
 
-    FiberFrame<Long> saveSnapshot();
+    FiberFrame<Pair<Integer, Long>> recover(Snapshot snapshot);
 
     void startFiber();
 

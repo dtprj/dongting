@@ -32,6 +32,7 @@ import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.LinearTaskRunner;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
+import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
@@ -98,7 +99,8 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
         } else {
             InstallSnapshotReq req = (InstallSnapshotReq) f.getBody();
             if (req.data != null) {
-                req.data.release();
+                RaftGroupImpl g = (RaftGroupImpl) reqInfo.getRaftGroup();
+                g.getGroupComponents().getGroupConfig().getHeapPool().getPool().release(req.data);
             }
         }
     }
@@ -124,24 +126,16 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
     }
 
     public static String getAppendResultStr(int code) {
-        switch (code) {
-            case APPEND_SUCCESS:
-                return "CODE_SUCCESS";
-            case APPEND_LOG_NOT_MATCH:
-                return "CODE_LOG_NOT_MATCH";
-            case APPEND_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT:
-                return "CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT";
-            case APPEND_REQ_ERROR:
-                return "CODE_REQ_ERROR";
-            case APPEND_INSTALL_SNAPSHOT:
-                return "CODE_INSTALL_SNAPSHOT";
-            case APPEND_NOT_MEMBER_IN_GROUP:
-                return "CODE_NOT_MEMBER_IN_GROUP";
-            case APPEND_SERVER_ERROR:
-                return "CODE_SERVER_ERROR";
-            default:
-                return "CODE_UNKNOWN_" + code;
-        }
+        return switch (code) {
+            case APPEND_SUCCESS -> "CODE_SUCCESS";
+            case APPEND_LOG_NOT_MATCH -> "CODE_LOG_NOT_MATCH";
+            case APPEND_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT -> "CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT";
+            case APPEND_REQ_ERROR -> "CODE_REQ_ERROR";
+            case APPEND_INSTALL_SNAPSHOT -> "CODE_INSTALL_SNAPSHOT";
+            case APPEND_NOT_MEMBER_IN_GROUP -> "CODE_NOT_MEMBER_IN_GROUP";
+            case APPEND_SERVER_ERROR -> "CODE_SERVER_ERROR";
+            default -> "CODE_UNKNOWN_" + code;
+        };
     }
 
     @Override
@@ -433,9 +427,10 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
     @Override
     protected FrameCallResult doFinally() {
         InstallSnapshotReq req = reqInfo.getReqFrame().getBody();
-        reqInfo.getRaftGroup().getGroupComponents().getRaftStatus().copyShareStatus();
+        GroupComponents gc = reqInfo.getRaftGroup().getGroupComponents();
+        gc.getRaftStatus().copyShareStatus();
         if (req.data != null) {
-            req.data.release();
+            gc.getGroupConfig().getHeapPool().getPool().release(req.data);
         }
         return Fiber.frameReturn();
     }
@@ -474,18 +469,18 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
 
         FiberFrame<Void> f = mm.applyConfigFrame("install snapshot config change",
                 req.members, req.observers, req.preparedMembers, req.preparedObservers);
-        return Fiber.call(f, this::success);
+        return Fiber.call(f, v -> writeResp(null));
     }
 
     private FrameCallResult doInstall(RaftStatusImpl raftStatus, InstallSnapshotReq req) {
         boolean finish = req.done;
         FiberFuture<Void> f = gc.getStateMachine().installSnapshot(req.lastIncludedIndex,
                 req.lastIncludedTerm, req.offset, finish, req.data);
-        // fiber blocked, so can't process block concurrently
         if (finish) {
             return f.await(v -> finishInstall(req, raftStatus));
         } else {
-            return f.await(this::success);
+            f.registerCallback((v, ex) -> writeResp(ex));
+            return Fiber.frameReturn();
         }
     }
 
@@ -504,11 +499,15 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
 
         FiberFrame<Void> finishFrame = gc.getRaftLog().finishInstall(
                 req.lastIncludedIndex + 1, req.nextWritePos);
-        return Fiber.call(finishFrame, this::success);
+        return Fiber.call(finishFrame, v -> writeResp(null));
     }
 
-    private FrameCallResult success(Void v) {
-        return writeAppendResp(AppendProcessor.APPEND_SUCCESS, null);
+    private FrameCallResult writeResp(Throwable ex) {
+        if (ex == null) {
+            return writeAppendResp(AppendProcessor.APPEND_SUCCESS, null);
+        } else {
+            return writeAppendResp(AppendProcessor.APPEND_SERVER_ERROR, ex.toString());
+        }
     }
 }
 
