@@ -72,6 +72,8 @@ public class RaftStatusImpl extends RaftStatus {
 
     private long lastElectTime;
 
+    // lastApplied <= commitIndex (<= lastForceLogIndex <=) lastWriteLogIndex <= lastLogIndex
+    // IdxFiles.nextPersistIndex may less than lastApplied, since it's update asynchronously
     private long lastLogIndex;
     private int lastLogTerm;
     private long lastForceLogIndex;
