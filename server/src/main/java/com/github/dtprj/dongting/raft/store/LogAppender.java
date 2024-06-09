@@ -391,7 +391,6 @@ class LogAppender {
     }
 
 
-    @SuppressWarnings("FieldMayBeFinal")
     static class WriteTask extends AsyncIoTask {
         int lastTerm;
         long lastIndex;
@@ -409,6 +408,11 @@ class LogAppender {
     }
 
     private class SyncLoopFrame extends FiberFrame<Void> {
+        @Override
+        protected FrameCallResult handle(Throwable ex) {
+            throw Fiber.fatal(ex);
+        }
+
         @Override
         public FrameCallResult execute(Void input) {
             if (logFileQueue.isClosed()) {
