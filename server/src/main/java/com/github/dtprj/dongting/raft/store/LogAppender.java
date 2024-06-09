@@ -76,7 +76,6 @@ class LogAppender {
     private final RaftStatusImpl raftStatus;
 
     private final PerfCallback perfCallback;
-    private long roundStartTime;
 
     LogAppender(IdxOps idxOps, LogFileQueue logFileQueue, RaftGroupConfigEx groupConfig) {
         this.idxOps = idxOps;
@@ -140,7 +139,6 @@ class LogAppender {
             if (logFileQueue.isClosed()) {
                 return Fiber.frameReturn();
             }
-            roundStartTime = perfCallback.takeTime(PerfConsts.RAFT_D_LOG_WRITE_FIBER_ROUND);
             processWriteResult();
             TailCache tailCache = LogAppender.this.cache;
             long nextPersistIndex = LogAppender.this.nextPersistIndex;
@@ -184,6 +182,7 @@ class LogAppender {
         }
 
         private FrameCallResult encodeAndWriteItems(LogFile file) {
+            long roundStartTime = perfCallback.takeTime(PerfConsts.RAFT_D_ENCODE_AND_WRITE);
             // reset 4 status fields
             writeStartPosInFile = nextPersistPos & fileLenMask;
             bytesToWrite = 0;
@@ -246,7 +245,7 @@ class LogAppender {
                 nextPersistPos = next;
             }
             file.getLock().readLock().unlock();
-            perfCallback.fireTime(PerfConsts.RAFT_D_LOG_WRITE_FIBER_ROUND, roundStartTime);
+            perfCallback.fireTime(PerfConsts.RAFT_D_ENCODE_AND_WRITE, roundStartTime);
             // continue loop
             return Fiber.resume(null, this);
         }

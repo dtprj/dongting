@@ -35,7 +35,7 @@ public interface PerfConsts {
     int FIBER_D_WORK = 101;
 
     int RAFT_D_LEADER_RUNNER_FIBER_LATENCY = 200;
-    int RAFT_D_LOG_WRITE_FIBER_ROUND = 201;
+    int RAFT_D_ENCODE_AND_WRITE = 201;
     int RAFT_D_LOG_WRITE1 = 202;
     int RAFT_D_LOG_WRITE2 = 203;
     int RAFT_D_LOG_SYNC = 204;

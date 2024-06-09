@@ -32,7 +32,7 @@ public class RaftPerfCallback extends SimplePerfCallback {
     private final Summary fiberWork;
 
     private final Summary raftLeaderRunnerFiberLatency;
-    private final Summary raftLogWriteFiberRound;
+    private final Summary raftLogEncodeAndWrite;
     private final Summary raftLogWriteTime;
     private final Summary raftLogWriteItems;
     private final Summary raftLogWriteBytes;
@@ -61,7 +61,7 @@ public class RaftPerfCallback extends SimplePerfCallback {
         this.fiberPoll = createSummary(prefix + "fiber_poll");
         this.fiberWork = createSummary(prefix + "fiber_work");
         this.raftLeaderRunnerFiberLatency = createSummary(prefix + "raft_leader_runner_fiber_latency");
-        this.raftLogWriteFiberRound = createSummary(prefix + "raft_log_write_fiber_round");
+        this.raftLogEncodeAndWrite = createSummary(prefix + "raft_log_encode_and_write");
         this.raftLogWriteTime = createSummary(prefix + "raft_log_write_time");
         this.raftLogWriteFinishTime = createSummary(prefix + "raft_log_write_finish_time");
         this.raftLogWriteItems = createSummary(prefix + "raft_log_write_items");
@@ -108,8 +108,8 @@ public class RaftPerfCallback extends SimplePerfCallback {
             case RAFT_D_LEADER_RUNNER_FIBER_LATENCY:
                 raftLeaderRunnerFiberLatency.observe(costTime);
                 break;
-            case RAFT_D_LOG_WRITE_FIBER_ROUND:
-                raftLogWriteFiberRound.observe(costTime);
+            case RAFT_D_ENCODE_AND_WRITE:
+                raftLogEncodeAndWrite.observe(costTime);
                 break;
             case RAFT_D_LOG_WRITE1:
                 raftLogWriteTime.observe(costTime);
@@ -162,7 +162,7 @@ public class RaftPerfCallback extends SimplePerfCallback {
         printTime(fiberPoll);
         printTime(fiberWork);
         printTime(raftLeaderRunnerFiberLatency);
-        printTime(raftLogWriteFiberRound);
+        printTime(raftLogEncodeAndWrite);
         printTime(raftLogWriteTime);
         printValue(raftLogWriteItems);
         printValue(raftLogWriteBytes);
