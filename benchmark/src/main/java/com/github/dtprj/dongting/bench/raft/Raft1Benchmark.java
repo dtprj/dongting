@@ -16,8 +16,10 @@
 package com.github.dtprj.dongting.bench.raft;
 
 import com.github.dtprj.dongting.bench.common.BenchBase;
+import com.github.dtprj.dongting.bench.common.SimplePerfCallback;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.dtkv.KvClient;
 import com.github.dtprj.dongting.dtkv.server.DtKV;
 import com.github.dtprj.dongting.dtkv.server.KvServerUtil;
@@ -113,6 +115,14 @@ public class Raft1Benchmark extends BenchBase {
 
         // make client find the leader
         client.get(GROUP_ID, "kkk", new DtTime(5, TimeUnit.SECONDS)).get();
+    }
+
+    @Override
+    protected void afterWarmup() {
+        PerfCallback c = groupConfig.getPerfCallback();
+        if (c instanceof SimplePerfCallback) {
+            ((SimplePerfCallback) c).start();
+        }
     }
 
     @Override

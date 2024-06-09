@@ -53,6 +53,9 @@ public abstract class BenchBase {
     public void init() throws Exception {
     }
 
+    protected void afterWarmup() {
+    }
+
     public void shutdown() throws Exception {
     }
 
@@ -67,6 +70,7 @@ public abstract class BenchBase {
                 threads[i].start();
             }
             Thread.sleep(warmupTime);
+            afterWarmup();
             state.set(STATE_TEST);
 
             Thread.sleep(testTime);

@@ -47,6 +47,7 @@ public class RpcBenchmark extends BenchBase {
     private static final int DATA_LEN = 128;
     private static final boolean SYNC = false;
     private static final long TIMEOUT = 1500;
+    private static final boolean PERF = false;
 
     public static void main(String[] args) throws Exception {
         RpcBenchmark benchmark = new RpcBenchmark(1, 1000, 200, Commands.CMD_PING);
@@ -63,9 +64,11 @@ public class RpcBenchmark extends BenchBase {
     public void init() {
         NioServerConfig serverConfig = new NioServerConfig();
         serverConfig.setIoThreads(1);
-        serverConfig.setBizThreads(0);
+        serverConfig.setBizThreads(1);
         serverConfig.setPort(9000);
-        //serverConfig.setPerfCallback(new RpcPerfCallback(true, "server_"));
+        if (PERF) {
+            serverConfig.setPerfCallback(new RpcPerfCallback(true, "server_"));
+        }
         server = new NioServer(serverConfig);
         registerProcessor(server);
         server.start();
@@ -73,7 +76,9 @@ public class RpcBenchmark extends BenchBase {
         NioClientConfig clientConfig = new NioClientConfig();
         clientConfig.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
 
-        //clientConfig.setPerfCallback(new RpcPerfCallback(true, "client_"));
+        if (PERF) {
+            clientConfig.setPerfCallback(new RpcPerfCallback(true, "client_"));
+        }
 
         client = new NioClient(clientConfig);
         client.start();
@@ -81,6 +86,18 @@ public class RpcBenchmark extends BenchBase {
 
         data = new byte[DATA_LEN];
         new Random().nextBytes(data);
+    }
+
+    @Override
+    protected void afterWarmup() {
+        PerfCallback c = server.getConfig().getPerfCallback();
+        if (c instanceof RpcPerfCallback) {
+            ((RpcPerfCallback) c).start();
+        }
+        c = client.getConfig().getPerfCallback();
+        if (c instanceof RpcPerfCallback) {
+            ((RpcPerfCallback) c).start();
+        }
     }
 
     protected void registerProcessor(NioServer server) {

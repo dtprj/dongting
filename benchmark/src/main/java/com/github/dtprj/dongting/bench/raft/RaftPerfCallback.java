@@ -90,6 +90,9 @@ public class RaftPerfCallback extends SimplePerfCallback {
 
     @Override
     public void onEvent(int perfType, long costTime, int count, long sum) {
+        if (!started) {
+            return;
+        }
         switch (perfType) {
             case PERF_DEBUG:
                 debugTime.observe(costTime);

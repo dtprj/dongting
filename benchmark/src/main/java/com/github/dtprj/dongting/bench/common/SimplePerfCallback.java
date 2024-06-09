@@ -31,6 +31,8 @@ import java.util.concurrent.atomic.LongAdder;
 public abstract class SimplePerfCallback extends PerfCallback {
     protected static final DtLog log = DtLogs.getLogger(SimplePerfCallback.class);
 
+    protected volatile boolean started = false;
+
     public SimplePerfCallback(boolean useNanos) {
         super(useNanos);
     }
@@ -44,6 +46,10 @@ public abstract class SimplePerfCallback extends PerfCallback {
                 .quantile(0.99, 0.003)
                 .quantile(1.0, 0.0)
                 .register();
+    }
+
+    public void start() {
+        started = true;
     }
 
     protected void printTime(Summary summary) {
