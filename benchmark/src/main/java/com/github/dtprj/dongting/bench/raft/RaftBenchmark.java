@@ -52,22 +52,23 @@ public class RaftBenchmark extends BenchBase {
     private static final String DATA_DIR = "target/raftlog";
     private static final int GROUP_ID = 0;
 
-    private static final int NODE_COUNT = 3;
+    private static final int NODE_COUNT = 3; // change this should delete dongting/target dir
+    private static final int CLIENT_COUNT = 1; // also it is client thread count
     private static final boolean SYNC = false;
     private static final int DATA_LEN = 256;
-    private static final byte[] DATA = new byte[DATA_LEN];
-    private static final int CLIENT_MAX_OUT_REQUESTS = 2000;
-    private static final boolean PERF = false;
+    private static final int CLIENT_MAX_OUT_REQUESTS = 2000; // should less than RaftGroupConfig.maxPendingWrites
+    private static final boolean PERF = false; // significant performance impact if change to true
     private static final boolean SYNC_FORCE = true;
-    private static final int KEYS = 100_000;
+    private static final int KEYS = 100_000; // significant performance impact if too large
 
+    private static final byte[] DATA = new byte[DATA_LEN];
     private final List<RaftServer> raftServers = new ArrayList<>();
     private final List<RaftGroupConfig> groupConfigs = new ArrayList<>();
     private final List<DefaultRaftFactory> raftFactories = new ArrayList<>();
     private KvClient[] clients;
 
     public static void main(String[] args) throws Exception {
-        RaftBenchmark benchmark = new RaftBenchmark(1, 10000, 200);
+        RaftBenchmark benchmark = new RaftBenchmark(CLIENT_COUNT, 5000, 200);
         benchmark.setLogRt(true);
         benchmark.start();
     }
