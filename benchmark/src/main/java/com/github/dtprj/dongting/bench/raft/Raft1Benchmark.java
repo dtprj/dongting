@@ -62,7 +62,7 @@ public class Raft1Benchmark extends BenchBase {
     private RaftServer raftServer;
     private RaftGroupConfig groupConfig;
     private DefaultRaftFactory raftFactory;
-    private KvClient client;
+    private KvClient[] client;
 
     public static void main(String[] args) throws Exception {
         Raft1Benchmark benchmark = new Raft1Benchmark(1, 10000, 200);
@@ -107,15 +107,24 @@ public class Raft1Benchmark extends BenchBase {
         raftServer.getAllGroupReadyFuture().get(60, TimeUnit.SECONDS);
         log.info("raft servers started");
 
-        NioClientConfig nioClientConfig = new NioClientConfig();
-        nioClientConfig.setMaxOutRequests(CLIENT_MAX_OUT_REQUESTS);
-        client = new KvClient(nioClientConfig);
-        client.start();
-        RaftNode node = new RaftNode(NODE_ID, new HostPort("127.0.0.1", SERVICE_PORT));
-        client.getRaftClient().addOrUpdateGroup(GROUP_ID, Collections.singletonList(node));
+        client = new KvClient[threadCount];
+        for (int i = 0; i < threadCount; i++) {
+            NioClientConfig nioClientConfig = new NioClientConfig();
+            nioClientConfig.setMaxOutRequests(CLIENT_MAX_OUT_REQUESTS / threadCount);
+            KvClient c = new KvClient(nioClientConfig);
+            c.start();
+            RaftNode node = new RaftNode(NODE_ID, new HostPort("127.0.0.1", SERVICE_PORT));
+            c.getRaftClient().addOrUpdateGroup(GROUP_ID, Collections.singletonList(node));
+            client[i] = c;
+        }
 
-        // make client find the leader
-        client.get(GROUP_ID, "kkk", new DtTime(5, TimeUnit.SECONDS)).get();
+        //noinspection rawtypes
+        CompletableFuture[] futures = new CompletableFuture[threadCount];
+        for (int i = 0; i < threadCount; i++) {
+            // make c find the leader
+            futures[i] = client[i].get(GROUP_ID, "kkk", new DtTime(5, TimeUnit.SECONDS));
+        }
+        CompletableFuture.allOf(futures).get();
     }
 
     @Override
@@ -128,7 +137,8 @@ public class Raft1Benchmark extends BenchBase {
 
     @Override
     public void shutdown() {
-        DtUtil.stop(new DtTime(3, TimeUnit.SECONDS), client, raftServer, raftFactory);
+        DtUtil.stop(new DtTime(3, TimeUnit.SECONDS), client);
+        DtUtil.stop(new DtTime(3, TimeUnit.SECONDS), raftServer, raftFactory);
         if (groupConfig.getPerfCallback() instanceof RaftPerfCallback) {
             System.out.println("----------------------- raft perf stats----------------------");
             ((RaftPerfCallback) groupConfig.getPerfCallback()).printStats();
@@ -142,7 +152,7 @@ public class Raft1Benchmark extends BenchBase {
             int k = Integer.reverse((int) startTime);
             k = k % KEYS;
             final DtTime timeout = new DtTime(800, TimeUnit.MILLISECONDS);
-            CompletableFuture<Void> f = client.put(GROUP_ID, String.valueOf(k), DATA, timeout);
+            CompletableFuture<Void> f = client[threadIndex].put(GROUP_ID, String.valueOf(k), DATA, timeout);
 
             if (SYNC) {
                 f.get();

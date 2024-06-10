@@ -65,7 +65,7 @@ public class Raft3Benchmark extends BenchBase {
     private final RaftServer[] raftServers = new RaftServer[3];
     private final List<RaftGroupConfig> groupConfigs = new ArrayList<>();
     private final DefaultRaftFactory[] raftFactories = new DefaultRaftFactory[3];
-    private KvClient client;
+    private KvClient[] client;
 
     public static void main(String[] args) throws Exception {
         Raft3Benchmark benchmark = new Raft3Benchmark(1, 10000, 200);
@@ -141,17 +141,26 @@ public class Raft3Benchmark extends BenchBase {
         }
         log.info("raft servers started");
 
-        NioClientConfig nioClientConfig = new NioClientConfig();
-        nioClientConfig.setMaxOutRequests(CLIENT_MAX_OUT_REQUESTS);
-        client = new KvClient(nioClientConfig);
-        client.start();
-        RaftNode n1 = new RaftNode(1, new HostPort("127.0.0.1", 5001));
-        RaftNode n2 = new RaftNode(2, new HostPort("127.0.0.1", 5002));
-        RaftNode n3 = new RaftNode(3, new HostPort("127.0.0.1", 5003));
-        client.getRaftClient().addOrUpdateGroup(GROUP_ID, Arrays.asList(n1, n2, n3));
+        client = new KvClient[threadCount];
+        for (int i = 0; i < threadCount; i++) {
+            NioClientConfig nioClientConfig = new NioClientConfig();
+            nioClientConfig.setMaxOutRequests(CLIENT_MAX_OUT_REQUESTS / threadCount);
+            KvClient c = new KvClient(nioClientConfig);
+            c.start();
+            RaftNode n1 = new RaftNode(1, new HostPort("127.0.0.1", 5001));
+            RaftNode n2 = new RaftNode(2, new HostPort("127.0.0.1", 5002));
+            RaftNode n3 = new RaftNode(3, new HostPort("127.0.0.1", 5003));
+            c.getRaftClient().addOrUpdateGroup(GROUP_ID, Arrays.asList(n1, n2, n3));
+            client[i] = c;
+        }
 
-        // make client find the leader
-        client.get(GROUP_ID, "kkk", new DtTime(5, TimeUnit.SECONDS)).get();
+        //noinspection rawtypes
+        CompletableFuture[] futures = new CompletableFuture[threadCount];
+        for (int i = 0; i < threadCount; i++) {
+            // make c find the leader
+            futures[i] = client[i].get(GROUP_ID, "kkk", new DtTime(5, TimeUnit.SECONDS));
+        }
+        CompletableFuture.allOf(futures).get();
     }
 
     @Override
@@ -186,7 +195,7 @@ public class Raft3Benchmark extends BenchBase {
             int k = Integer.reverse((int) startTime);
             k = k % KEYS;
             final DtTime timeout = new DtTime(800, TimeUnit.MILLISECONDS);
-            CompletableFuture<Void> f = client.put(GROUP_ID, String.valueOf(k), DATA, timeout);
+            CompletableFuture<Void> f = client[threadIndex].put(GROUP_ID, String.valueOf(k), DATA, timeout);
 
             if (SYNC) {
                 f.get();
