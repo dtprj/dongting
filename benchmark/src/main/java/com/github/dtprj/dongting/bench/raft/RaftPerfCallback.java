@@ -52,6 +52,7 @@ public class RaftPerfCallback extends SimplePerfCallback {
     private final Summary raftReplicateRpcTime;
     private final Summary raftReplicateRpcItems;
     private final Summary raftReplicateRpcBytes;
+    private final Summary raftStateMachineExec;
 
     public RaftPerfCallback(boolean useNanos, String prefix) {
         super(useNanos);
@@ -81,6 +82,7 @@ public class RaftPerfCallback extends SimplePerfCallback {
         this.raftReplicateRpcTime = createSummary(prefix + "raft_replicate_rpc_time");
         this.raftReplicateRpcItems = createSummary(prefix + "raft_replicate_rpc_items");
         this.raftReplicateRpcBytes = createSummary(prefix + "raft_replicate_rpc_bytes");
+        this.raftStateMachineExec = createSummary(prefix + "raft_state_machine_exec");
     }
 
     @Override
@@ -152,6 +154,9 @@ public class RaftPerfCallback extends SimplePerfCallback {
                 raftReplicateRpcItems.observe(count);
                 raftReplicateRpcBytes.observe(sum);
                 break;
+            case RAFT_D_STATE_MACHINE_EXEC:
+                raftStateMachineExec.observe(costTime);
+                break;
         }
     }
 
@@ -182,6 +187,7 @@ public class RaftPerfCallback extends SimplePerfCallback {
         printTime(raftReplicateRpcTime);
         printValue(raftReplicateRpcItems);
         printValue(raftReplicateRpcBytes);
+        printTime(raftStateMachineExec);
 
         if (accept(FIBER_D_POLL) && accept(FIBER_D_WORK)) {
             double total = fiberPoll.get().sum + fiberWork.get().sum;

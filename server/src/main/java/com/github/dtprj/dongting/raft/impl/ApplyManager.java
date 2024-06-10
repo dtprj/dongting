@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
@@ -27,6 +28,7 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.PerfConsts;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
@@ -62,10 +64,13 @@ public class ApplyManager {
     private long initCommitIndex;
     private boolean initFutureComplete = false;
 
+    private final PerfCallback perfCallback;
+
     public ApplyManager(GroupComponents gc) {
         this.ts = gc.getRaftStatus().getTs();
         this.raftStatus = gc.getRaftStatus();
         this.gc = gc;
+        this.perfCallback = gc.getGroupConfig().getPerfCallback();
     }
 
     public void postInit() {
@@ -101,7 +106,9 @@ public class ApplyManager {
                 future.completeExceptionally(new RaftExecTimeoutException("timeout "
                         + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms"));
             }
+            long t = perfCallback.takeTime(PerfConsts.RAFT_D_STATE_MACHINE_EXEC);
             Object r = stateMachine.exec(index, input);
+            perfCallback.fireTime(PerfConsts.RAFT_D_STATE_MACHINE_EXEC, t);
             future.complete(new RaftOutput(index, r));
         } catch (Throwable e) {
             log.error("exec read failed. {}", e);
@@ -115,7 +122,9 @@ public class ApplyManager {
     private void execNormalWrite(long index, RaftTask rt) {
         try {
             RaftInput input = rt.getInput();
+            long t = perfCallback.takeTime(PerfConsts.RAFT_D_STATE_MACHINE_EXEC);
             Object r = stateMachine.exec(index, input);
+            perfCallback.fireTime(PerfConsts.RAFT_D_STATE_MACHINE_EXEC, t);
             CompletableFuture<RaftOutput> future = rt.getFuture();
             if (future != null) {
                 future.complete(new RaftOutput(index, r));
