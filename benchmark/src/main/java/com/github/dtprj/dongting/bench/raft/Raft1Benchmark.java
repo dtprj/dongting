@@ -52,11 +52,12 @@ public class Raft1Benchmark extends BenchBase {
     private static final int GROUP_ID = 0;
 
     private static final boolean SYNC = false;
-    private static final int DATA_LEN = 128;
+    private static final int DATA_LEN = 256;
     private static final byte[] DATA = new byte[DATA_LEN];
     private static final int CLIENT_MAX_OUT_REQUESTS = 2000;
     private static final boolean PERF = false;
     private static final boolean SYNC_FORCE = true;
+    private static final int KEYS = 100_000;
 
     private RaftServer raftServer;
     private RaftGroupConfig groupConfig;
@@ -138,8 +139,10 @@ public class Raft1Benchmark extends BenchBase {
     @Override
     public void test(int threadIndex, long startTime, int state) {
         try {
+            int k = Integer.reverse((int) startTime);
+            k = k % KEYS;
             final DtTime timeout = new DtTime(800, TimeUnit.MILLISECONDS);
-            CompletableFuture<Void> f = client.put(GROUP_ID, "key1", DATA, timeout);
+            CompletableFuture<Void> f = client.put(GROUP_ID, String.valueOf(k), DATA, timeout);
 
             if (SYNC) {
                 f.get();
