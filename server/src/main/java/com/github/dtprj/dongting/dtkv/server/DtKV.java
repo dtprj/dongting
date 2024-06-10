@@ -30,7 +30,7 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.Map;
 
 /**
  * @author huangli
@@ -103,14 +103,14 @@ public class DtKV implements StateMachine {
             }
             KvImpl kvImpl = kvStatus.kvImpl;
             if (data != null && data.hasRemaining()) {
-                ConcurrentSkipListMap<String, Value> map = kvImpl.getMap();
+                Map<String, Value> map = kvImpl.getMap();
                 while (data.hasRemaining()) {
                     if (encodeStatus.readFromBuffer(data)) {
                         long raftIndex = encodeStatus.raftIndex;
                         // TODO keyBytes is temporary object, we should use a pool
                         String key = new String(encodeStatus.keyBytes, StandardCharsets.UTF_8);
                         byte[] value = encodeStatus.valueBytes;
-                        map.put(key, new Value(raftIndex, value));
+                        map.put(key, new Value(raftIndex, key, value));
                         encodeStatus.reset();
                     } else {
                         break;

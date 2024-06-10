@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtkv.server;
 
 import java.util.LinkedList;
+import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
@@ -44,11 +45,12 @@ class KvImpl {
         if (data == null) {
             throw new IllegalArgumentException("value is null");
         }
-        Value newValue = new Value(index, data);
+        Value newValue = new Value(index, key, data);
         Value oldValue = map.put(key, newValue);
         if (minOpenSnapshotIndex != 0 && oldValue != null) {
             newValue.setPrevious(oldValue);
-            needCleanList.add(newValue);
+            oldValue.setNext(newValue);
+            needCleanList.add(oldValue);
         }
         gc(minOpenSnapshotIndex);
     }
@@ -57,12 +59,15 @@ class KvImpl {
         Value value;
         LinkedList<Value> needCleanList = this.needCleanList;
         while ((value = needCleanList.peekFirst()) != null) {
-            Value oldValue = value.getPrevious();
-            if (oldValue.getRaftIndex() >= minOpenSnapshotIndex) {
+            if (value.getRaftIndex() >= minOpenSnapshotIndex) {
                 break;
             }
-            value.setPrevious(null);
+            Value next = value.getNext();
+            next.setPrevious(null);
             needCleanList.removeFirst();
+            if (next.getData() == null && next.getNext() == null) {
+                map.remove(next.getKey());
+            }
         }
     }
 
@@ -79,17 +84,18 @@ class KvImpl {
                 gc(minOpenSnapshotIndex);
                 return false;
             } else {
-                Value newValue = new Value(index, null);
+                Value newValue = new Value(index, key, null);
                 newValue.setPrevious(oldValue);
+                oldValue.setNext(newValue);
                 map.put(key, newValue);
-                needCleanList.add(newValue);
+                needCleanList.add(oldValue);
                 gc(minOpenSnapshotIndex);
                 return oldValue.getData() != null;
             }
         }
     }
 
-    public ConcurrentSkipListMap<String, Value> getMap() {
+    public Map<String, Value> getMap() {
         return map;
     }
 }

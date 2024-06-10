@@ -19,14 +19,17 @@ package com.github.dtprj.dongting.dtkv.server;
  * @author huangli
  */
 class Value {
+    private final String key;
     private final byte[] data;
     private final long raftIndex;
 
     private Value previous;
+    private Value next;
 
-    public Value(long raftIndex, byte[] data) {
+    public Value(long raftIndex,String key, byte[] data) {
         this.raftIndex = raftIndex;
         this.data = data;
+        this.key = key;
     }
 
     public byte[] getData() {
@@ -43,5 +46,17 @@ class Value {
 
     public void setPrevious(Value previous) {
         this.previous = previous;
+    }
+
+    public void setNext(Value next) {
+        this.next = next;
+    }
+
+    public Value getNext() {
+        return next;
+    }
+
+    public String getKey() {
+        return key;
     }
 }
