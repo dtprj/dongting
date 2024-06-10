@@ -56,7 +56,7 @@ public abstract class BenchBase {
     protected void afterWarmup() {
     }
 
-    public void shutdown() throws Exception {
+    public void shutdown() {
     }
 
     public void start() throws Exception {
@@ -92,8 +92,8 @@ public abstract class BenchBase {
             System.out.println("fail sc:" + fc + ", ops=" + new DecimalFormat(",###").format(ops));
 
             if (logRt) {
-                System.out.printf("Max time: %,d ns%n", maxNanos.longValue());
-                System.out.printf("Avg time: %,d ns%n", totalNanos.sum() / (sc + fc));
+                System.out.printf("Max time: %,d us%n", maxNanos.longValue() / 1000);
+                System.out.printf("Avg time: %,d us%n", totalNanos.sum() / (sc + fc) / 1000);
             }
         } catch (Exception e) {
             log.error("", e);
