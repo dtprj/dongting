@@ -53,13 +53,17 @@ public class RaftBenchmark extends BenchBase {
     private static final int GROUP_ID = 0;
 
     private static final int NODE_COUNT = 3; // change this should delete dongting/target dir
-    private static final int CLIENT_COUNT = 1; // also it is client thread count
-    private static final boolean SYNC = false;
+    private static final int CLIENT_COUNT = 1; // also it is client thread count and tcp connections count
+    private static final boolean SYNC = false; // client send requests sync or async
     private static final int DATA_LEN = 256;
-    private static final int CLIENT_MAX_OUT_REQUESTS = 2000; // should less than RaftGroupConfig.maxPendingWrites
+    // should less than RaftGroupConfig.maxPendingWrites.
+    // larger numbers significantly increase throughput and latency.
+    private static final int CLIENT_MAX_OUT_REQUESTS = 2000;
     private static final boolean PERF = false; // significant performance impact if change to true
-    private static final boolean SYNC_FORCE = true;
-    private static final int KEYS = 100_000; // significant performance impact if too large
+    private static final boolean SYNC_FORCE = true; // not wait for FileChannel.force after write
+    // significant performance impact if too large.
+    // if we want to test the performance of the raft framework except the state machine, change to 1.
+    private static final int KEYS = 100_000;
 
     private static final byte[] DATA = new byte[DATA_LEN];
     private final List<RaftServer> raftServers = new ArrayList<>();
