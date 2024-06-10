@@ -87,7 +87,7 @@ public class RaftClient extends AbstractLifeCircle {
                 futures.add(f.thenAccept(peer -> needAddList.add(new NodeInfo(n.getNodeId(), n.getHostPort(), peer))));
             }
         }
-        if (!needAddList.isEmpty()) {
+        if (!futures.isEmpty()) {
             boolean success = false;
             try {
                 CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get(10, TimeUnit.SECONDS);
