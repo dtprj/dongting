@@ -63,7 +63,7 @@ class EncodeStatus {
                     return false;
                 } else {
                     if (offset > 0) {
-                        buffer.put(headerBuffer.array(), offset, rest);
+                        buffer.put(headerBuffer.array(), offset, HEADER_SIZE - offset);
                         offset = 0;
                     } else {
                         buffer.putLong(raftIndex);
