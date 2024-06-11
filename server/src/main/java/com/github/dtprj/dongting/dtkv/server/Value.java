@@ -24,7 +24,7 @@ class Value {
     private final long raftIndex;
 
     private Value previous;
-    private Value next;
+    private boolean evicted;
 
     public Value(long raftIndex,String key, byte[] data) {
         this.raftIndex = raftIndex;
@@ -48,12 +48,12 @@ class Value {
         this.previous = previous;
     }
 
-    public void setNext(Value next) {
-        this.next = next;
+    public boolean isEvicted() {
+        return evicted;
     }
 
-    public Value getNext() {
-        return next;
+    public void setEvicted(boolean evicted) {
+        this.evicted = evicted;
     }
 
     public String getKey() {

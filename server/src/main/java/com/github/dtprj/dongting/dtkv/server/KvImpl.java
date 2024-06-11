@@ -38,7 +38,7 @@ class KvImpl {
         }
     }
 
-    public void put(long index, String key, byte[] data, long minOpenSnapshotIndex) {
+    public void put(long index, String key, byte[] data, long maxOpenSnapshotIndex) {
         if (key == null) {
             throw new IllegalArgumentException("key is null");
         }
@@ -47,51 +47,53 @@ class KvImpl {
         }
         Value newValue = new Value(index, key, data);
         Value oldValue = map.put(key, newValue);
-        if (minOpenSnapshotIndex != 0 && oldValue != null) {
-            newValue.setPrevious(oldValue);
-            oldValue.setNext(newValue);
-            needCleanList.add(oldValue);
+        if (maxOpenSnapshotIndex > 0) {
+            while (oldValue != null && oldValue.getRaftIndex() > maxOpenSnapshotIndex) {
+                oldValue = oldValue.getPrevious();
+            }
+            if (oldValue != null) {
+                oldValue.setEvicted(true);
+                newValue.setPrevious(oldValue);
+                needCleanList.add(newValue);
+            }
         }
-        gc(minOpenSnapshotIndex);
     }
 
-    private void gc(long minOpenSnapshotIndex) {
-        Value value;
+    public void gc() {
         LinkedList<Value> needCleanList = this.needCleanList;
-        while ((value = needCleanList.peekFirst()) != null) {
-            if (value.getRaftIndex() >= minOpenSnapshotIndex) {
-                break;
-            }
-            Value next = value.getNext();
-            next.setPrevious(null);
-            needCleanList.removeFirst();
-            if (next.getData() == null && next.getNext() == null) {
-                map.remove(next.getKey());
+        while (!needCleanList.isEmpty()) {
+            Value v = needCleanList.removeFirst();
+            v.setPrevious(null);
+            if (v.getData() == null && !v.isEvicted()) {
+                map.remove(v.getKey());
             }
         }
     }
 
-    public Boolean remove(long index, String key, long minOpenSnapshotIndex) {
+    public Boolean remove(long index, String key, long maxOpenSnapshotIndex) {
         if (key == null) {
             throw new IllegalArgumentException("key is null");
         }
         Value oldValue = map.remove(key);
-        if (minOpenSnapshotIndex == 0) {
-            gc(minOpenSnapshotIndex);
-            return oldValue != null && oldValue.getData() != null;
-        } else {
+        if (maxOpenSnapshotIndex > 0) {
             if (oldValue == null) {
-                gc(minOpenSnapshotIndex);
-                return false;
+                return Boolean.FALSE;
             } else {
-                Value newValue = new Value(index, key, null);
-                newValue.setPrevious(oldValue);
-                oldValue.setNext(newValue);
-                map.put(key, newValue);
-                needCleanList.add(oldValue);
-                gc(minOpenSnapshotIndex);
-                return oldValue.getData() != null;
+                boolean result = oldValue.getData() != null;
+                while (oldValue != null && oldValue.getRaftIndex() > maxOpenSnapshotIndex) {
+                    oldValue = oldValue.getPrevious();
+                }
+                if (oldValue != null) {
+                    Value newValue = new Value(index, key, null);
+                    newValue.setPrevious(oldValue);
+                    oldValue.setEvicted(true);
+                    map.put(key, newValue);
+                    needCleanList.add(newValue);
+                }
+                return result;
             }
+        } else {
+            return oldValue != null && oldValue.getData() != null;
         }
     }
 

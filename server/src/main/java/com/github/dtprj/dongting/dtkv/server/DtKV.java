@@ -41,7 +41,7 @@ public class DtKV implements StateMachine {
     public static final int BIZ_TYPE_REMOVE = 2;
 
     private final ArrayList<Snapshot> openSnapshots = new ArrayList<>();
-    private long minOpenSnapshotIndex;
+    private long maxOpenSnapshotIndex;
 
     private volatile KvStatus kvStatus = new KvStatus(KvStatus.RUNNING, new KvImpl(), 0);
     private EncodeStatus encodeStatus;
@@ -75,10 +75,10 @@ public class DtKV implements StateMachine {
         return switch (input.getBizType()) {
             case BIZ_TYPE_GET -> kvStatus.kvImpl.get(key.getStr());
             case BIZ_TYPE_PUT -> {
-                kvStatus.kvImpl.put(index, key.getStr(), data.getData(), minOpenSnapshotIndex);
+                kvStatus.kvImpl.put(index, key.getStr(), data.getData(), maxOpenSnapshotIndex);
                 yield null;
             }
-            case BIZ_TYPE_REMOVE -> kvStatus.kvImpl.remove(index, key.getStr(), minOpenSnapshotIndex);
+            case BIZ_TYPE_REMOVE -> kvStatus.kvImpl.remove(index, key.getStr(), maxOpenSnapshotIndex);
             default -> throw new IllegalArgumentException("unknown bizType " + input.getBizType());
         };
     }
@@ -133,22 +133,22 @@ public class DtKV implements StateMachine {
         ensureRunning(kvStatus);
         KvSnapshot snapshot = new KvSnapshot(si, () -> kvStatus, this::closeSnapshot);
         openSnapshots.add(snapshot);
-        updateMin();
+        updateMax();
         return snapshot;
     }
 
     private void closeSnapshot(Snapshot snapshot) {
         openSnapshots.remove(snapshot);
-        updateMin();
+        updateMax();
     }
 
-    private void updateMin() {
-        long min = 0;
+    private void updateMax() {
+        long max = 0;
         for (Snapshot s : openSnapshots) {
             SnapshotInfo si = s.getSnapshotInfo();
-            min = min == 0 ? si.getLastIncludedIndex() : Math.min(min, si.getLastIncludedIndex());
+            max = Math.max(max, si.getLastIncludedIndex());
         }
-        this.minOpenSnapshotIndex = min;
+        this.maxOpenSnapshotIndex = max;
     }
 
     private static void ensureRunning(KvStatus kvStatus) {
