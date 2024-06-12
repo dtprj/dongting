@@ -170,9 +170,11 @@ public class RaftGroupImpl extends RaftGroup {
     }
 
     @Override
-    public CompletableFuture<Long> saveSnapshot() {
+    public CompletableFuture<Long> fireSaveSnapshot() {
         checkStatus();
-        return gc.getSnapshotManager().fireSaveSnapshot();
+        CompletableFuture<Long> f = new CompletableFuture<>();
+        gc.getFiberGroup().getExecutor().execute(() -> gc.getSnapshotManager().fireSaveSnapshot(f));
+        return f;
     }
 
     @Override

@@ -60,8 +60,7 @@ public abstract class RaftGroup {
      * This method should be called on each member, respectively.
      * @return Future indicating the latest log index of the snapshot. If there is a saving action running, return -1.
      */
-    @SuppressWarnings("unused")
-    public abstract CompletableFuture<Long> saveSnapshot();
+    public abstract CompletableFuture<Long> fireSaveSnapshot();
 
     /**
      * ADMIN API. This method should be called on the leader; otherwise, it will throw a NotLeaderException.
@@ -88,6 +87,5 @@ public abstract class RaftGroup {
     public abstract CompletableFuture<Void> leaderCommitJointConsensus(long prepareIndex);
 
     public abstract boolean isLeader();
-
 
 }

@@ -189,8 +189,8 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
     class SaveSnapshotLoopFrame extends FiberFrame<Void> {
 
-        CompletableFuture<Long> future;
         final FiberCondition saveSnapshotCond;
+        final LinkedList<Pair<Long, CompletableFuture<Long>>> saveRequest = new LinkedList<>();
 
         @Override
         protected FrameCallResult handle(Throwable ex) throws Throwable {
@@ -204,20 +204,29 @@ public class DefaultSnapshotManager implements SnapshotManager {
         @Override
         public FrameCallResult execute(Void input) throws Throwable {
             deleteOldFiles();
-            future = null;
-            return saveSnapshotCond.await(groupConfig.getSaveSnapshotMillis(), this::doSave);
+            if (saveRequest.isEmpty()) {
+                return saveSnapshotCond.await(groupConfig.getSaveSnapshotMillis(), this::doSave);
+            } else {
+                return doSave(null);
+            }
         }
 
         private FrameCallResult doSave(Void unused) {
-            if (future == null) {
-                future = new CompletableFuture<>();
-            }
-            FiberFrame<Long> f = new SaveFrame();
-            return Fiber.call(f, this::afterSave);
+            SaveFrame f = new SaveFrame();
+            return Fiber.call(f, v -> afterSave(f));
         }
 
-        private FrameCallResult afterSave(Long raftIndex) {
-            future.complete(raftIndex);
+        private FrameCallResult afterSave(SaveFrame f) {
+            long raftIndex = f.readSnapshot.getSnapshotInfo().getLastIncludedIndex();
+            Pair<Long, CompletableFuture<Long>> req;
+            while ((req = saveRequest.peek()) != null) {
+                if (req.getLeft() <= raftIndex) {
+                    req.getRight().complete(raftIndex);
+                    saveRequest.removeFirst();
+                } else {
+                    break;
+                }
+            }
             deleteOldFiles();
             return Fiber.resume(null, this);
         }
@@ -232,16 +241,12 @@ public class DefaultSnapshotManager implements SnapshotManager {
     }
 
     @Override
-    public CompletableFuture<Long> fireSaveSnapshot() {
-        if (saveLoopFrame.future == null) {
-            saveLoopFrame.future = new CompletableFuture<>();
-            saveLoopFrame.saveSnapshotCond.signal();
-        }
-        return saveLoopFrame.future;
+    public void fireSaveSnapshot(CompletableFuture<Long> f) {
+        saveLoopFrame.saveRequest.addLast(new Pair<>(raftStatus.getLastApplied(), f));
+        saveLoopFrame.saveSnapshotCond.signal();
     }
 
-    private class SaveFrame extends FiberFrame<Long> {
-
+    private class SaveFrame extends FiberFrame<Void> {
         private final long startTime = System.currentTimeMillis();
 
         private final CRC32C crc32c = new CRC32C();
@@ -312,7 +317,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
             int readConcurrency = groupConfig.getSnapshotConcurrency();
             int writeConcurrency = groupConfig.getDiskSnapshotConcurrency();
-            SnapshotReader reader = new SnapshotReader(readSnapshot, readConcurrency , writeConcurrency,
+            SnapshotReader reader = new SnapshotReader(readSnapshot, readConcurrency, writeConcurrency,
                     this::writeCallback, this::checkCancel, this::createBuffer, this::releaseBuffer);
             return Fiber.call(reader, this::finishDataFile);
         }
@@ -407,7 +412,6 @@ public class DefaultSnapshotManager implements SnapshotManager {
             success = true;
             log.info("snapshot status file write success: {}", newIdxFile.getPath());
             snapshotFiles.addLast(new Pair<>(newIdxFile, newDataFile.getFile()));
-            setResult(readSnapshot.getSnapshotInfo().getLastIncludedIndex());
             return Fiber.frameReturn();
         }
     }
@@ -459,7 +463,7 @@ class RecoverFiberFrame extends FiberFrame<Pair<Integer, Long>> {
             return FiberFuture.failedFuture(getFiberGroup(), new RaftException("invalid snapshot data size: " + size));
         }
         crc32C.reset();
-        RaftUtil.updateCrc(crc32C, buf,0, size + 4);
+        RaftUtil.updateCrc(crc32C, buf, 0, size + 4);
         int crc = buf.getInt(size + 4);
         if (crc != (int) crc32C.getValue()) {
             bufferReleaser.accept(buf);

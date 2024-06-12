@@ -31,5 +31,5 @@ public interface SnapshotManager {
 
     void startFiber();
 
-    CompletableFuture<Long> fireSaveSnapshot();
+    void fireSaveSnapshot(CompletableFuture<Long> f);
 }

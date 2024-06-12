@@ -91,7 +91,7 @@ public class RaftBenchmark extends BenchBase {
         RaftGroupConfig groupConfig = new RaftGroupConfig(GROUP_ID, nodeIdOfMembers, "");
         groupConfig.setDataDir(DATA_DIR + "-" + nodeId);
         groupConfig.setSyncForce(SYNC_FORCE);
-        groupConfig.setSaveSnapshotMillis(1000);
+        groupConfig.setSaveSnapshotMillis(Long.MAX_VALUE);
 
         if (PERF) {
             groupConfig.setPerfCallback(new RaftPerfCallback(true, "node" + nodeId + "_"));
@@ -180,8 +180,14 @@ public class RaftBenchmark extends BenchBase {
     }
 
     @Override
-    public void shutdown() {
-        DtTime timeout = new DtTime(3, TimeUnit.SECONDS);
+    public void shutdown() throws Exception {
+        //noinspection unchecked
+        CompletableFuture<Long>[] saveFutures = new CompletableFuture[NODE_COUNT];
+        for (int i = 0; i < raftServers.size(); i++) {
+            saveFutures[i] = raftServers.get(i).getRaftGroup(GROUP_ID).fireSaveSnapshot();
+        }
+        CompletableFuture.allOf(saveFutures).get(10, TimeUnit.SECONDS);
+        DtTime timeout = new DtTime(10, TimeUnit.SECONDS);
         DtUtil.stop(timeout, clients);
         DtUtil.stop(timeout, raftServers.toArray(new RaftServer[0]));
         DtUtil.stop(timeout, raftFactories.toArray(new DefaultRaftFactory[0]));

@@ -56,7 +56,7 @@ public abstract class BenchBase {
     protected void afterWarmup() {
     }
 
-    public void shutdown() {
+    public void shutdown() throws Exception {
     }
 
     public void start() throws Exception {
