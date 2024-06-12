@@ -107,7 +107,7 @@ public class ApplyManager {
                         + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms"));
             }
             long t = perfCallback.takeTime(PerfConsts.RAFT_D_STATE_MACHINE_EXEC);
-            Object r = stateMachine.exec(index, input);
+            Object r = stateMachine.exec(index, rt.getItem().getTerm(), input);
             perfCallback.fireTime(PerfConsts.RAFT_D_STATE_MACHINE_EXEC, t);
             future.complete(new RaftOutput(index, r));
         } catch (Throwable e) {
@@ -123,7 +123,7 @@ public class ApplyManager {
         try {
             RaftInput input = rt.getInput();
             long t = perfCallback.takeTime(PerfConsts.RAFT_D_STATE_MACHINE_EXEC);
-            Object r = stateMachine.exec(index, input);
+            Object r = stateMachine.exec(index, rt.getItem().getTerm(), input);
             perfCallback.fireTime(PerfConsts.RAFT_D_STATE_MACHINE_EXEC, t);
             CompletableFuture<RaftOutput> future = rt.getFuture();
             if (future != null) {

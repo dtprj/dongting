@@ -30,7 +30,7 @@ public interface StateMachine extends AutoCloseable, RaftCodecFactory {
     /**
      * this method is called in raft thread.
      */
-    Object exec(long index, RaftInput input);
+    Object exec(long index, int term, RaftInput input);
 
     /**
      * this method is called in raft thread.

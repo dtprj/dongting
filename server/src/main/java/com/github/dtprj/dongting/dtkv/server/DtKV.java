@@ -67,7 +67,7 @@ public class DtKV implements StateMachine {
     }
 
     @Override
-    public Object exec(long index, RaftInput input) {
+    public Object exec(long index, int term, RaftInput input) {
         KvStatus kvStatus = this.kvStatus;
         ensureRunning(kvStatus);
         StrEncoder key = (StrEncoder) input.getHeader();
