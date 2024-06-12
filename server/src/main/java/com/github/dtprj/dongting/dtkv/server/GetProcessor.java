@@ -83,12 +83,12 @@ public class GetProcessor extends AbstractRaftBizProcessor<GetReq> {
         ReadFrame<GetReq> frame = reqInfo.getReqFrame();
         ReqContext reqContext = reqInfo.getReqContext();
         RaftGroup group = reqInfo.getRaftGroup();
-        group.getLogIndexForRead(reqContext.getTimeout()).whenComplete((logIndex, ex) -> {
+        group.getLeaseReadIndex(reqContext.getTimeout()).whenComplete((logIndex, ex) -> {
             if (ex != null) {
                 processError(reqInfo, ex);
             } else {
                 DtKV dtKV = (DtKV) group.getStateMachine();
-                byte[] bytes = dtKV.get(frame.getBody().getKey());
+                byte[] bytes = dtKV.get(logIndex, frame.getBody().getKey());
                 ByteBufferWriteFrame wf = new ByteBufferWriteFrame(bytes == null ? null : ByteBuffer.wrap(bytes));
                 wf.setRespCode(CmdCodes.SUCCESS);
                 writeResp(reqInfo, wf);

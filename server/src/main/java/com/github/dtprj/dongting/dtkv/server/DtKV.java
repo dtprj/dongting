@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.StrEncoder;
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -73,7 +74,7 @@ public class DtKV implements StateMachine {
         StrEncoder key = (StrEncoder) input.getHeader();
         ByteArrayEncoder data = (ByteArrayEncoder) input.getBody();
         return switch (input.getBizType()) {
-            case BIZ_TYPE_GET -> kvStatus.kvImpl.get(key.getStr());
+            case BIZ_TYPE_GET -> kvStatus.kvImpl.get(index, key.getStr());
             case BIZ_TYPE_PUT -> {
                 kvStatus.kvImpl.put(index, key.getStr(), data.getData(), maxOpenSnapshotIndex);
                 yield null;
@@ -84,10 +85,11 @@ public class DtKV implements StateMachine {
     }
 
     /**
-     * read in other threads.
+     * raft lease read, can read in any threads.
+     * @see com.github.dtprj.dongting.raft.server.RaftGroup#getLeaseReadIndex(DtTime)
      */
-    public byte[] get(String key) {
-        return kvStatus.kvImpl.get(key);
+    public byte[] get(long index, String key) {
+        return kvStatus.kvImpl.get(index, key);
     }
 
     @Override

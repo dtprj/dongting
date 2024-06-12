@@ -32,7 +32,18 @@ public abstract class RaftGroup {
 
     public abstract CompletableFuture<RaftOutput> submitLinearTask(RaftInput input);
 
-    public abstract CompletableFuture<Long> getLogIndexForRead(DtTime deadline);
+    /**
+     * Get raft lease read index, use this index to read data from the state machine.
+     * Generally, the future returned by this method should complete immediately,
+     * however, it may be blocked in some conditions.
+     *
+     * <p>NOTE: Lease read is also linearizable.
+     *
+     * <li>If current node is not leader, or lease timeout(indicates something wrong),
+     * the future will complete with a NotLeaderException. </li>
+     * <li>If can't get the index before deadline, the future will complete with a RaftExecTimeoutException. </li>
+     */
+    public abstract CompletableFuture<Long> getLeaseReadIndex(DtTime deadline);
 
 
     /**

@@ -125,7 +125,7 @@ public class RaftGroupImpl extends RaftGroup {
     }
 
     @Override
-    public CompletableFuture<Long> getLogIndexForRead(DtTime deadline) {
+    public CompletableFuture<Long> getLeaseReadIndex(DtTime deadline) {
         if (fiberGroup.isShouldStop()) {
             return CompletableFuture.failedFuture(new RaftException("raft group thread is stop"));
         }
@@ -140,20 +140,21 @@ public class RaftGroupImpl extends RaftGroup {
         if (ss.leaseEndNanos - t < 0) {
             return CompletableFuture.failedFuture(new NotLeaderException(null));
         }
-        if (ss.groupReadyFuture == null) {
+
+        CompletableFuture<Void> groupReadyFuture = ss.groupReadyFuture;
+        if (groupReadyFuture == null) {
             return CompletableFuture.completedFuture(ss.lastApplied);
         }
-
-        if (ss.groupReadyFuture.isDone()) {
+        if (groupReadyFuture.isDone()) {
             return CompletableFuture.completedFuture(ss.lastApplied);
         }
         // wait fist commit of applied
-        return ss.groupReadyFuture.thenCompose(v -> {
+        return groupReadyFuture.thenCompose(v -> {
             if (deadline.isTimeout()) {
                 return CompletableFuture.failedFuture(new RaftExecTimeoutException());
             }
             // ss should re-read
-            return getLogIndexForRead(deadline);
+            return getLeaseReadIndex(deadline);
         });
     }
 

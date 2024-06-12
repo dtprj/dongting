@@ -26,11 +26,18 @@ class KvImpl {
     private final ConcurrentSkipListMap<String, Value> map = new ConcurrentSkipListMap<>();
     private final LinkedList<Value> needCleanList = new LinkedList<>();
 
-    public byte[] get(String key) {
+    public byte[] get(long index, String key) {
         if (key == null) {
             throw new IllegalArgumentException("key is null");
         }
         Value value = map.get(key);
+        while (value != null) {
+            if (value.getRaftIndex() > index) {
+                value = value.getPrevious();
+            } else {
+                break;
+            }
+        }
         if (value == null) {
             return null;
         } else {
