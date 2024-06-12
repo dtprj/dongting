@@ -489,6 +489,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
 
         // call raftStatus.copyShareStatus() in doFinally()
         raftStatus.setLastApplied(req.lastIncludedIndex);
+        raftStatus.setLastAppliedTerm(req.lastIncludedTerm);
 
         raftStatus.setCommitIndex(req.lastIncludedIndex);
 

@@ -125,6 +125,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
         long snapshotIndex = snapshotResult == null ? 0 : snapshotResult.getRight();
         log.info("load snapshot to term={}, index={}, groupId={}", snapshotTerm, snapshotIndex, groupConfig.getGroupId());
         raftStatus.setLastApplied(snapshotIndex);
+        raftStatus.setLastAppliedTerm(snapshotTerm);
         if (snapshotIndex > raftStatus.getCommitIndex()) {
             raftStatus.setCommitIndex(snapshotIndex);
         }

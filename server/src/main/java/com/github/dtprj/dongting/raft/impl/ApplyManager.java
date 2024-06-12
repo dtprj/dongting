@@ -172,6 +172,7 @@ public class ApplyManager {
         RaftStatusImpl raftStatus = ApplyManager.this.raftStatus;
 
         raftStatus.setLastApplied(index);
+        raftStatus.setLastAppliedTerm(rt.getItem().getTerm());
 
         if (raftStatus.getGroupReadyFuture() != null && index >= raftStatus.getGroupReadyIndex()) {
             raftStatus.getGroupReadyFuture().complete(null);
