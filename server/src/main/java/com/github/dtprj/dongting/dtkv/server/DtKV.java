@@ -140,6 +140,12 @@ public class DtKV implements StateMachine {
     private void closeSnapshot(Snapshot snapshot) {
         openSnapshots.remove(snapshot);
         updateMax();
+        if (maxOpenSnapshotIndex == 0) {
+            KvImpl kvImpl = kvStatus.kvImpl;
+            if (kvImpl != null) {
+                kvImpl.gc();
+            }
+        }
     }
 
     private void updateMax() {
