@@ -113,6 +113,7 @@ public class LinearTaskRunner {
     public CompletableFuture<RaftOutput> submitRaftTaskInBizThread(RaftInput input) {
         CompletableFuture<RaftOutput> f = new CompletableFuture<>();
         RaftTask t = new RaftTask(raftStatus.getTs(), LogItem.TYPE_NORMAL, input, f);
+        input.setPerfTime(perfCallback.takeTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY));
         if (taskChannel.fireOffer(t)) {
             return f;
         } else {
