@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.FiberGroup;
-import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.util.concurrent.ExecutorService;
 
@@ -34,7 +33,6 @@ public class RaftGroupConfigEx extends RaftGroupConfig {
     private RaftStatus raftStatus;
     private ExecutorService ioExecutor;
     private FiberGroup fiberGroup;
-    private RaftCodecFactory codecFactory;
 
     public RaftGroupConfigEx(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         super(groupId, nodeIdOfMembers, nodeIdOfObservers);
@@ -78,14 +76,6 @@ public class RaftGroupConfigEx extends RaftGroupConfig {
 
     public void setRaftStatus(RaftStatus raftStatus) {
         this.raftStatus = raftStatus;
-    }
-
-    public RaftCodecFactory getCodecFactory() {
-        return codecFactory;
-    }
-
-    public void setCodecFactory(RaftCodecFactory codecFactory) {
-        this.codecFactory = codecFactory;
     }
 
     public ExecutorService getIoExecutor() {

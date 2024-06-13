@@ -238,7 +238,6 @@ public class RaftServer extends AbstractLifeCircle {
         gc.setFiberGroup(fiberGroup);
 
         StateMachine stateMachine = raftFactory.createStateMachine(rgcEx);
-        rgcEx.setCodecFactory(stateMachine);
         StatusManager statusManager = new StatusManager(rgcEx);
         RaftLog raftLog = raftFactory.createRaftLog(rgcEx, statusManager, stateMachine);
 
