@@ -28,10 +28,11 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.File;
-import java.util.Properties;
+import java.util.Map;
 
 /**
  * @author huangli
@@ -75,13 +76,13 @@ public class StatusManager {
         return new PostFiberFrame<>(subFrame) {
             @Override
             protected FrameCallResult postProcess(Void result) {
-                Properties loadedProps = statusFile.getProperties();
+                Map<String, String> loadedProps = statusFile.getProperties();
 
-                raftStatus.setCurrentTerm(Integer.parseInt(loadedProps.getProperty(CURRENT_TERM_KEY, "0")));
-                raftStatus.setVotedFor(Integer.parseInt(loadedProps.getProperty(VOTED_FOR_KEY, "0")));
-                raftStatus.setCommitIndex(Integer.parseInt(loadedProps.getProperty(COMMIT_INDEX_KEY, "0")));
-                raftStatus.setInstallSnapshot(Boolean.parseBoolean(loadedProps.getProperty(
-                        KEY_INSTALL_SNAPSHOT, "false")));
+                raftStatus.setCurrentTerm(RaftUtil.parseInt(loadedProps, CURRENT_TERM_KEY, 0));
+                raftStatus.setVotedFor(RaftUtil.parseInt(loadedProps, VOTED_FOR_KEY, 0));
+                raftStatus.setCommitIndex(RaftUtil.parseInt(loadedProps, COMMIT_INDEX_KEY, 0));
+                raftStatus.setInstallSnapshot(RaftUtil.parseBoolean(loadedProps,
+                        KEY_INSTALL_SNAPSHOT, false));
 
                 updateFiber.start();
                 return Fiber.frameReturn();
@@ -156,12 +157,12 @@ public class StatusManager {
         }
 
         private void copyWriteData() {
-            Properties destProps = statusFile.getProperties();
+            Map<String, String> destMap = statusFile.getProperties();
 
-            destProps.setProperty(CURRENT_TERM_KEY, String.valueOf(raftStatus.getCurrentTerm()));
-            destProps.setProperty(VOTED_FOR_KEY, String.valueOf(raftStatus.getVotedFor()));
-            destProps.setProperty(COMMIT_INDEX_KEY, String.valueOf(raftStatus.getCommitIndex()));
-            destProps.setProperty(KEY_INSTALL_SNAPSHOT, String.valueOf(raftStatus.isInstallSnapshot()));
+            destMap.put(CURRENT_TERM_KEY, String.valueOf(raftStatus.getCurrentTerm()));
+            destMap.put(VOTED_FOR_KEY, String.valueOf(raftStatus.getVotedFor()));
+            destMap.put(COMMIT_INDEX_KEY, String.valueOf(raftStatus.getCommitIndex()));
+            destMap.put(KEY_INSTALL_SNAPSHOT, String.valueOf(raftStatus.isInstallSnapshot()));
         }
     }
 
@@ -184,7 +185,7 @@ public class StatusManager {
         return updateDoneCondition.await(1000, v -> waitUpdateFinish(version, resumePoint));
     }
 
-    public Properties getProperties() {
+    public Map<String, String> getProperties() {
         return statusFile.getProperties();
     }
 }

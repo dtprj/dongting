@@ -24,21 +24,20 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.StringReader;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.OpenOption;
 import java.nio.file.StandardOpenOption;
-import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Properties;
+import java.util.Map;
 import java.util.zip.CRC32C;
 
 /**
@@ -50,19 +49,15 @@ public class StatusFile implements AutoCloseable {
     // we think the minimum storage write unit is 4k
     private static final int FILE_LENGTH = 4096;
     private static final int CRC_HEX_LENGTH = 8;
-    private static final int CONTENT_START_POS = CRC_HEX_LENGTH + 2;
-    private static final int CONTENT_LENGTH = FILE_LENGTH - CONTENT_START_POS;
 
     private final File file;
     private final FiberGroup fiberGroup;
     private final RaftGroupConfigEx groupConfig;
     private FileLock lock;
     private DtFile dtFile;
-    private final byte[] data = new byte[FILE_LENGTH];
-    private final ByteArrayOutputStream bos = new ByteArrayOutputStream(FILE_LENGTH);
     private final CRC32C crc32c = new CRC32C();
 
-    private final Properties properties = new Properties();
+    private final Map<String, String> properties = new HashMap<>();
 
     public StatusFile(File file, RaftGroupConfigEx groupConfig) {
         this.file = file;
@@ -70,14 +65,21 @@ public class StatusFile implements AutoCloseable {
         this.groupConfig = groupConfig;
     }
 
-    public Properties getProperties() {
+    public Map<String, String> getProperties() {
         return properties;
     }
 
     public FiberFrame<Void> init() {
         return new FiberFrame<>() {
-            // don't use data since the init method may be timeout
-            private final byte[] initData = new byte[FILE_LENGTH];
+            private final ByteBuffer buf = groupConfig.getHeapPool().getPool().allocate(FILE_LENGTH);
+
+            @Override
+            protected FrameCallResult doFinally() {
+                if (buf != null) {
+                    groupConfig.getHeapPool().getPool().release(buf);
+                }
+                return Fiber.frameReturn();
+            }
 
             @Override
             public FrameCallResult execute(Void input) throws Exception {
@@ -86,7 +88,8 @@ public class StatusFile implements AutoCloseable {
                 options.add(StandardOpenOption.CREATE);
                 options.add(StandardOpenOption.READ);
                 options.add(StandardOpenOption.WRITE);
-                AsynchronousFileChannel channel = AsynchronousFileChannel.open(file.toPath(), options, getFiberGroup().getExecutor());
+                AsynchronousFileChannel channel = AsynchronousFileChannel.open(file.toPath(), options,
+                        getFiberGroup().getExecutor());
                 dtFile = new DtFile(file, channel, fiberGroup);
                 lock = channel.tryLock();
                 if (!needLoad) {
@@ -95,26 +98,39 @@ public class StatusFile implements AutoCloseable {
                 if (file.length() != FILE_LENGTH) {
                     throw new RaftException("bad status file length: " + file.length());
                 }
-                ByteBuffer buf = ByteBuffer.wrap(initData);
                 AsyncIoTask task = new AsyncIoTask(groupConfig, dtFile);
                 FiberFuture<Void> f = task.read(buf, 0);
                 return f.await(this::resumeAfterRead);
             }
 
-            private FrameCallResult resumeAfterRead(Void input) throws Exception {
+            private FrameCallResult resumeAfterRead(Void input) {
                 crc32c.reset();
-                crc32c.update(initData, CONTENT_START_POS, CONTENT_LENGTH);
+                byte[] arr = buf.array();
+                crc32c.update(arr, CRC_HEX_LENGTH, FILE_LENGTH - CRC_HEX_LENGTH);
                 int expectCrc = (int) crc32c.getValue();
-
-                int actualCrc = Integer.parseUnsignedInt(new String(
-                        initData, 0, 8, StandardCharsets.UTF_8), 16);
+                int actualCrc = Integer.parseUnsignedInt(new String(arr, 0, CRC_HEX_LENGTH,
+                        StandardCharsets.UTF_8), 16);
 
                 if (actualCrc != expectCrc) {
                     throw new ChecksumException("bad status file crc: " + actualCrc + ", expect: " + expectCrc);
                 }
 
-                properties.load(new StringReader(new String(
-                        initData, CONTENT_START_POS, CONTENT_LENGTH, StandardCharsets.UTF_8)));
+                String key = null;
+                for (int i = CRC_HEX_LENGTH + 1, s = i; i < FILE_LENGTH; i++) {
+                    if (key == null) {
+                        if (arr[i] == '=') {
+                            key = new String(arr, s, i - s, StandardCharsets.UTF_8);
+                            s = i + 1;
+                        }
+                    } else {
+                        if (arr[i] == '\n') {
+                            String value = new String(arr, s, i - s, StandardCharsets.UTF_8);
+                            properties.put(key, value);
+                            key = null;
+                            s = i + 1;
+                        }
+                    }
+                }
                 log.info("loaded status file: {}, content: {}", file.getPath(), properties);
                 return Fiber.frameReturn();
             }
@@ -129,29 +145,44 @@ public class StatusFile implements AutoCloseable {
 
     public FiberFuture<Void> update(boolean sync) {
         try {
-            bos.reset();
-            this.properties.store(bos, null);
-            byte[] propertiesBytes = bos.toByteArray();
-            Arrays.fill(data, (byte) ' ');
-            System.arraycopy(propertiesBytes, 0, data, CONTENT_START_POS, propertiesBytes.length);
-            data[CONTENT_START_POS - 2] = '\r';
-            data[CONTENT_START_POS - 1] = '\n';
+            ByteBuffer buf = groupConfig.getDirectPool().borrow(FILE_LENGTH);
+            buf.position(CRC_HEX_LENGTH);
+            buf.put((byte) '\n');
+            for (Map.Entry<String, String> entry : properties.entrySet()) {
+                byte[] key = entry.getKey().getBytes(StandardCharsets.UTF_8);
+                byte[] value = entry.getValue().getBytes(StandardCharsets.UTF_8);
+                buf.put(key);
+                buf.put((byte) '=');
+                buf.put(value);
+                buf.put((byte) '\n');
+            }
+            while (buf.hasRemaining()) {
+                buf.put((byte) ' ');
+            }
 
             crc32c.reset();
-            crc32c.update(data, CONTENT_START_POS, CONTENT_LENGTH);
+            RaftUtil.updateCrc(crc32c, buf, CRC_HEX_LENGTH, FILE_LENGTH - CRC_HEX_LENGTH);
             int crc = (int) crc32c.getValue();
-            String crcHex = String.format("%08x", crc);
-            byte[] crcBytes = crcHex.getBytes(StandardCharsets.UTF_8);
-            System.arraycopy(crcBytes, 0, data, 0, CRC_HEX_LENGTH);
-            ByteBuffer buf = ByteBuffer.wrap(data);
+            buf.clear();
+            String crcHex = Integer.toHexString(crc);
+            for (int i = 0, len = crcHex.length(); i < CRC_HEX_LENGTH - len; i++) {
+                buf.put((byte) '0');
+            }
+            for(int i=0, len = crcHex.length(); i < len; i++) {
+                buf.put((byte) crcHex.charAt(i));
+            }
+            buf.clear();
 
             // retry in status manager
             AsyncIoTask task = new AsyncIoTask(groupConfig, dtFile);
+            FiberFuture<Void> f;
             if (sync) {
-                return task.writeAndForce(buf, 0, false);
+                f = task.writeAndForce(buf, 0, false);
             } else {
-                return task.write(buf, 0);
+                f = task.write(buf, 0);
             }
+            f.registerCallback((v, ex) -> groupConfig.getDirectPool().release(buf));
+            return f;
         } catch (Throwable e) {
             RaftException raftException = new RaftException("update status file failed. file=" + file.getPath(), e);
             return FiberFuture.failedFuture(fiberGroup, raftException);

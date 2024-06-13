@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
+import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
@@ -52,6 +53,8 @@ public class StatusManagerTest extends BaseFiberTest {
         groupConfig.setIoExecutor(MockExecutors.ioExecutor());
         groupConfig.setFiberGroup(fiberGroup);
         raftStatus.setTailCache(new TailCache(groupConfig, raftStatus));
+        groupConfig.setHeapPool(TestUtil.heapPool());
+        groupConfig.setDirectPool(TestUtil.directPool());
         statusManager = new StatusManager(groupConfig);
     }
 
@@ -91,7 +94,7 @@ public class StatusManagerTest extends BaseFiberTest {
         raftStatus.setCommitIndex(100);
         raftStatus.setVotedFor(200);
         raftStatus.setCurrentTerm(300);
-        statusManager.getProperties().setProperty("k1", "v1");
+        statusManager.getProperties().put("k1", "v1");
     }
 
     @Test
@@ -107,7 +110,7 @@ public class StatusManagerTest extends BaseFiberTest {
                     raftStatus.setCommitIndex(100 + i);
                     raftStatus.setVotedFor(200 + i);
                     raftStatus.setCurrentTerm(300 + i);
-                    statusManager.getProperties().setProperty("k1", "v1" + i);
+                    statusManager.getProperties().put("k1", "v1" + i);
                     statusManager.persistAsync(false);
                 }
                 return statusManager.waitUpdateFinish(this::justReturn);

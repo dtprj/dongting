@@ -47,8 +47,8 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedList;
+import java.util.Map;
 import java.util.Objects;
-import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -145,15 +145,15 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         private FrameCallResult afterStatusFileInit(Pair<File, File> last) throws Exception {
-            Properties p = snapshotIdxFile.getProperties();
-            long lastIndex = Long.parseLong(p.getProperty(KEY_LAST_INDEX));
-            int lastTerm = Integer.parseInt(p.getProperty(KEY_LAST_TERM));
-            Set<Integer> members = RaftUtil.strToIdSet(p.getProperty(KEY_MEMBERS));
-            Set<Integer> observers = RaftUtil.strToIdSet(p.getProperty(KEY_OBSERVERS));
-            Set<Integer> preparedMembers = RaftUtil.strToIdSet(p.getProperty(KEY_PREPARED_MEMBERS));
-            Set<Integer> preparedObservers = RaftUtil.strToIdSet(p.getProperty(KEY_PREPARED_OBSERVERS));
-            long lastConfigChangeIndex = Long.parseLong(p.getProperty(KEY_LAST_CONFIG_CHANGE_INDEX));
-            int bufferSize = Integer.parseInt(p.getProperty(KEY_BUFFER_SIZE));
+            Map<String, String> p = snapshotIdxFile.getProperties();
+            long lastIndex = Long.parseLong(p.get(KEY_LAST_INDEX));
+            int lastTerm = Integer.parseInt(p.get(KEY_LAST_TERM));
+            Set<Integer> members = RaftUtil.strToIdSet(p.get(KEY_MEMBERS));
+            Set<Integer> observers = RaftUtil.strToIdSet(p.get(KEY_OBSERVERS));
+            Set<Integer> preparedMembers = RaftUtil.strToIdSet(p.get(KEY_PREPARED_MEMBERS));
+            Set<Integer> preparedObservers = RaftUtil.strToIdSet(p.get(KEY_PREPARED_OBSERVERS));
+            long lastConfigChangeIndex = Long.parseLong(p.get(KEY_LAST_CONFIG_CHANGE_INDEX));
+            int bufferSize = Integer.parseInt(p.get(KEY_BUFFER_SIZE));
             SnapshotInfo si = new SnapshotInfo(lastIndex, lastTerm, members, observers, preparedMembers,
                     preparedObservers, lastConfigChangeIndex);
 
@@ -390,20 +390,20 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
         private FrameCallResult afterStatusFileInit(Void unused) {
             SnapshotInfo si = readSnapshot.getSnapshotInfo();
-            Properties p = statusFile.getProperties();
-            p.setProperty(KEY_LAST_INDEX, String.valueOf(si.getLastIncludedIndex()));
-            p.setProperty(KEY_LAST_TERM, String.valueOf(si.getLastIncludedTerm()));
-            p.setProperty(KEY_MEMBERS, RaftUtil.setToStr(si.getMembers()));
-            p.setProperty(KEY_OBSERVERS, RaftUtil.setToStr(si.getObservers()));
-            p.setProperty(KEY_PREPARED_MEMBERS, RaftUtil.setToStr(si.getPreparedMembers()));
-            p.setProperty(KEY_PREPARED_OBSERVERS, RaftUtil.setToStr(si.getPreparedObservers()));
-            p.setProperty(KEY_LAST_CONFIG_CHANGE_INDEX, String.valueOf(si.getLastConfigChangeIndex()));
-            p.setProperty(KEY_BUFFER_SIZE, String.valueOf(bufferSize));
+            Map<String, String> p = statusFile.getProperties();
+            p.put(KEY_LAST_INDEX, String.valueOf(si.getLastIncludedIndex()));
+            p.put(KEY_LAST_TERM, String.valueOf(si.getLastIncludedTerm()));
+            p.put(KEY_MEMBERS, RaftUtil.setToStr(si.getMembers()));
+            p.put(KEY_OBSERVERS, RaftUtil.setToStr(si.getObservers()));
+            p.put(KEY_PREPARED_MEMBERS, RaftUtil.setToStr(si.getPreparedMembers()));
+            p.put(KEY_PREPARED_OBSERVERS, RaftUtil.setToStr(si.getPreparedObservers()));
+            p.put(KEY_LAST_CONFIG_CHANGE_INDEX, String.valueOf(si.getLastConfigChangeIndex()));
+            p.put(KEY_BUFFER_SIZE, String.valueOf(bufferSize));
 
             // just for human reading
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
-            statusFile.getProperties().setProperty("saveStartTime", sdf.format(new Date(startTime)));
-            statusFile.getProperties().setProperty("saveEndTime", sdf.format(new Date()));
+            statusFile.getProperties().put("saveStartTime", sdf.format(new Date(startTime)));
+            statusFile.getProperties().put("saveEndTime", sdf.format(new Date()));
 
             return statusFile.update(true).await(this::finish2);
         }

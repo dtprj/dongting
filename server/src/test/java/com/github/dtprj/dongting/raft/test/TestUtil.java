@@ -15,6 +15,9 @@
  */
 package com.github.dtprj.dongting.raft.test;
 
+import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.DefaultPoolFactory;
+import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.common.Timestamp;
 import org.opentest4j.AssertionFailedError;
 
@@ -93,5 +96,14 @@ public class TestUtil {
     public static void plus1Hour(Timestamp ts) {
         ts.updateForUnitTest(ts.getNanoTime() + Duration.ofHours(1).toNanos(),
                 ts.getWallClockMillis() + Duration.ofHours(1).toMillis());
+    }
+
+    public static RefBufferFactory heapPool() {
+        ByteBufferPool p = new DefaultPoolFactory().createPool(new Timestamp(), false);
+        return new RefBufferFactory(p, 0);
+    }
+
+    public static ByteBufferPool directPool(){
+        return new DefaultPoolFactory().createPool(new Timestamp(), true);
     }
 }

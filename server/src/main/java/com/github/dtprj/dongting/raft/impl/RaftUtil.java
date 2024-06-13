@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
@@ -44,7 +45,7 @@ import java.util.zip.CRC32C;
 /**
  * @author huangli
  */
-public class RaftUtil {
+public final class RaftUtil {
     private static final DtLog log = DtLogs.getLogger(RaftUtil.class);
     public final static ScheduledExecutorService SCHEDULED_SERVICE = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "DtRaftSchedule");
@@ -341,7 +342,7 @@ public class RaftUtil {
         for (int id : s) {
             sb.append(id).append(',');
         }
-        if (sb.length() > 0) {
+        if (!sb.isEmpty()) {
             sb.setLength(sb.length() - 1);
         }
         return sb.toString();
@@ -358,4 +359,20 @@ public class RaftUtil {
         }
         return set;
     }
+
+    public static int parseInt(Map<String, String> loadedProps, String key, int defaultValue) {
+        String value = loadedProps.get(key);
+        return value == null ? defaultValue : Integer.parseInt(value);
+    }
+
+    public static long parseLong(Map<String, String> loadedProps, String key, long defaultValue) {
+        String value = loadedProps.get(key);
+        return value == null ? defaultValue : Long.parseLong(value);
+    }
+
+    public static boolean parseBoolean(Map<String, String> loadedProps, String key, boolean defaultValue) {
+        String value = loadedProps.get(key);
+        return value == null ? defaultValue : Boolean.parseBoolean(value);
+    }
+
 }

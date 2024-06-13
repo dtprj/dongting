@@ -24,13 +24,15 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
+import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.RandomAccessFile;
-import java.util.Properties;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -46,10 +48,12 @@ public class StatusFileTest extends BaseFiberTest {
         RaftGroupConfigEx groupConfig = new RaftGroupConfigEx(0, "1", "");
         groupConfig.setFiberGroup(fiberGroup);
         groupConfig.setIoExecutor(MockExecutors.ioExecutor());
+        groupConfig.setHeapPool(TestUtil.heapPool());
+        groupConfig.setDirectPool(TestUtil.directPool());
         return groupConfig;
     }
 
-    private static void update(File file, Properties data, RaftGroupConfigEx groupConfig) throws Exception {
+    private static void update(File file, Map<String, String> data, RaftGroupConfigEx groupConfig) throws Exception {
         StatusFile statusFile = new StatusFile(file, groupConfig);
         CompletableFuture<Void> jdkFuture = new CompletableFuture<>();
         fiberGroup.fireFiber("f", new FiberFrame<>() {
@@ -82,9 +86,9 @@ public class StatusFileTest extends BaseFiberTest {
         RaftGroupConfigEx groupConfig = createGroupConfig();
         File dir = TestDir.createTestDir(StatusFileTest.class.getSimpleName());
         File file = new File(dir, "status");
-        Properties props = new Properties();
-        props.setProperty("1", "100");
-        props.setProperty("2", "200");
+        Map<String, String> props = new HashMap<>();
+        props.put("1", "100");
+        props.put("2", "200");
         update(file, props, groupConfig);
         {
             StatusFile statusFile = new StatusFile(file, groupConfig);
@@ -96,9 +100,9 @@ public class StatusFileTest extends BaseFiberTest {
                 }
 
                 private FrameCallResult afterInit(Void unused) {
-                    assertEquals("100", statusFile.getProperties().getProperty("1"));
-                    assertEquals("200", statusFile.getProperties().getProperty("2"));
-                    statusFile.getProperties().setProperty("3", "300");
+                    assertEquals("100", statusFile.getProperties().get("1"));
+                    assertEquals("200", statusFile.getProperties().get("2"));
+                    statusFile.getProperties().put("3", "300");
                     return statusFile.update(true).await(this::afterWrite);
                 }
 
@@ -125,9 +129,9 @@ public class StatusFileTest extends BaseFiberTest {
                 }
 
                 private FrameCallResult afterInit(Void unused) {
-                    assertEquals("100", statusFile.getProperties().getProperty("1"));
-                    assertEquals("200", statusFile.getProperties().getProperty("2"));
-                    assertEquals("300", statusFile.getProperties().getProperty("3"));
+                    assertEquals("100", statusFile.getProperties().get("1"));
+                    assertEquals("200", statusFile.getProperties().get("2"));
+                    assertEquals("300", statusFile.getProperties().get("3"));
                     jdkFuture.complete(null);
                     return Fiber.frameReturn();
                 }
@@ -147,9 +151,9 @@ public class StatusFileTest extends BaseFiberTest {
         RaftGroupConfigEx groupConfig = createGroupConfig();
         File dir = TestDir.createTestDir(StatusFileTest.class.getSimpleName());
         File file = new File(dir, "status");
-        Properties props = new Properties();
-        props.setProperty("1", "100");
-        props.setProperty("2", "200");
+        Map<String, String> props = new HashMap<>();
+        props.put("1", "100");
+        props.put("2", "200");
         update(file, props, groupConfig);
 
         FileInputStream in = new FileInputStream(file);

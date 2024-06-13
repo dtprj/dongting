@@ -26,6 +26,7 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
+import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -64,6 +65,8 @@ public class IdxFileQueueTest extends BaseFiberTest {
         c.setFiberGroup(fiberGroup);
         c.setDataDir(dir.getAbsolutePath());
         c.setDirectPool(new DefaultPoolFactory().createPool(c.getTs(), true));
+        c.setHeapPool(TestUtil.heapPool());
+        c.setDirectPool(TestUtil.directPool());
         statusManager = new StatusManager(c);
         doInFiber(new FiberFrame<>() {
             @Override
@@ -374,7 +377,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
             }
 
             private FrameCallResult afterIdxClose(Void unused) {
-                statusManager.getProperties().setProperty(IdxFileQueue.KEY_PERSIST_IDX_INDEX, "2");
+                statusManager.getProperties().put(IdxFileQueue.KEY_PERSIST_IDX_INDEX, "2");
                 statusManager.persistAsync(false);
                 return statusManager.waitUpdateFinish(this::afterUpdateStatus);
             }

@@ -31,6 +31,7 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.PerfConsts;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
+import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.File;
@@ -97,10 +98,10 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     public FiberFrame<Pair<Long, Long>> initRestorePos() throws Exception {
         super.initQueue();
         this.firstIndex = posToIndex(queueStartPosition);
-        long firstValidIndex = Long.parseLong(statusManager.getProperties()
-                .getProperty(KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, "0"));
-        this.persistedIndexInStatusFile = Long.parseLong(statusManager.getProperties()
-                .getProperty(KEY_PERSIST_IDX_INDEX, "0"));
+        long firstValidIndex = RaftUtil.parseLong(statusManager.getProperties(),
+                KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, 0);
+        this.persistedIndexInStatusFile = RaftUtil.parseLong(statusManager.getProperties(),
+                KEY_PERSIST_IDX_INDEX, 0);
         long restoreIndex = persistedIndexInStatusFile;
 
         log.info("load raft status file. firstIndex={}, {}={}, {}={}", firstIndex, KEY_PERSIST_IDX_INDEX, restoreIndex,
@@ -346,7 +347,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 long persistedIndex = Math.min(nextPersistIndex - 1, raftStatus.getLastForceLogIndex());
                 if (persistedIndex > persistedIndexInStatusFile) {
                     lastUpdateStatusNanos = ts.getNanoTime();
-                    statusManager.getProperties().setProperty(KEY_PERSIST_IDX_INDEX, String.valueOf(persistedIndex));
+                    statusManager.getProperties().put(KEY_PERSIST_IDX_INDEX, String.valueOf(persistedIndex));
                     statusManager.persistAsync(true);
                     if (closed) {
                         return statusManager.waitUpdateFinish(this::justReturn);

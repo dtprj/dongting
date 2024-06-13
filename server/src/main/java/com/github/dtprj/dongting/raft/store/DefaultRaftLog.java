@@ -92,8 +92,8 @@ public class DefaultRaftLog implements RaftLog {
                 RaftUtil.checkStop(fiberGroup);
                 long restoreIndex = p.getLeft();
                 long restoreStartPos = p.getRight();
-                long firstValidPos = Long.parseLong(statusManager.getProperties()
-                        .getProperty(KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT, "0"));
+                long firstValidPos = RaftUtil.parseLong(statusManager.getProperties(),
+                        KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT, 0);
                 return Fiber.call(logFiles.restore(restoreIndex, restoreStartPos, firstValidPos),
                         this::afterLogRestore);
             }
@@ -207,8 +207,8 @@ public class DefaultRaftLog implements RaftLog {
             }
 
             private FrameCallResult afterIdxFinishInstall(Void unused) {
-                statusManager.getProperties().setProperty(KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, String.valueOf(nextLogIndex));
-                statusManager.getProperties().setProperty(KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT, String.valueOf(nextLogPos));
+                statusManager.getProperties().put(KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT, String.valueOf(nextLogIndex));
+                statusManager.getProperties().put(KEY_NEXT_POS_AFTER_INSTALL_SNAPSHOT, String.valueOf(nextLogPos));
                 statusManager.persistAsync(true);
                 return statusManager.waitUpdateFinish(this::justReturn);
             }

@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.buf.DefaultPoolFactory;
-import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -66,8 +64,8 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         config.setDataDir(dataDir);
         config.setIoExecutor(MockExecutors.ioExecutor());
         config.setTs(raftStatus.getTs());
-        config.setDirectPool(new DefaultPoolFactory().createPool(config.getTs(), true));
-        config.setHeapPool(new RefBufferFactory(new DefaultPoolFactory().createPool(config.getTs(), false), 0));
+        config.setDirectPool(TestUtil.directPool());
+        config.setHeapPool(TestUtil.heapPool());
 
         raftStatus.setTailCache(new TailCache(config, raftStatus));
         config.setRaftStatus(raftStatus);
