@@ -94,7 +94,7 @@ public class ApplyManager {
     }
 
     private void startApplyFiber(FiberGroup fiberGroup) {
-        Fiber f = new Fiber("apply", fiberGroup, new ApplyFrame());
+        Fiber f = new Fiber("apply", fiberGroup, new ApplyFrame(), false, 50);
         f.start();
     }
 
