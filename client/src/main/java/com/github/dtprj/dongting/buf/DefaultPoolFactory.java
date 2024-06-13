@@ -15,7 +15,10 @@
  */
 package com.github.dtprj.dongting.buf;
 
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Timestamp;
+
+import java.util.concurrent.TimeUnit;
 
 import static com.github.dtprj.dongting.buf.SimpleByteBufferPool.calcTotalSize;
 
@@ -39,6 +42,14 @@ public class DefaultPoolFactory implements PoolFactory {
 
     private static final SimpleByteBufferPool GLOBAL_DIRECT_POOL = createGlobalPool(true);
     private static final SimpleByteBufferPool GLOBAL_HEAP_POOL = createGlobalPool(false);
+
+    static {
+        Runnable r = () -> {
+            GLOBAL_DIRECT_POOL.clean();
+            GLOBAL_HEAP_POOL.clean();
+        };
+        DtUtil.SCHEDULED_SERVICE.scheduleWithFixedDelay(r, 1, 1, TimeUnit.SECONDS);
+    }
 
     private static SimpleByteBufferPool createGlobalPool(boolean direct) {
         // Thread safe pool should use a dedicated timestamp

@@ -62,8 +62,6 @@ public class SimpleByteBufferPool extends ByteBufferPool {
             16, 8, 4, 2, 1, 0, 0,
             0};
 
-    public static final long DEFAULT_TIME_OUT_MILLIS = 10 * 1000;
-
     public SimpleByteBufferPool(Timestamp ts, boolean direct, int threshold) {
         this(new SimpleByteBufferPoolConfig(ts, direct, threshold, false));
     }

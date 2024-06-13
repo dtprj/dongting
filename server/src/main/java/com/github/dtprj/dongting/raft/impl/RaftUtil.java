@@ -38,8 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.zip.CRC32C;
 
 /**
@@ -47,11 +45,6 @@ import java.util.zip.CRC32C;
  */
 public final class RaftUtil {
     private static final DtLog log = DtLogs.getLogger(RaftUtil.class);
-    public final static ScheduledExecutorService SCHEDULED_SERVICE = Executors.newSingleThreadScheduledExecutor(r -> {
-        Thread t = new Thread(r, "DtRaftSchedule");
-        t.setDaemon(true);
-        return t;
-    });
 
     public static void updateCrc(CRC32C crc32c, ByteBuffer buf, int startPos, int len) {
         if (len == 0) {

@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
@@ -85,7 +86,7 @@ public class NodeManager extends AbstractLifeCircle {
 
     @Override
     protected void doStart() {
-        this.scheduledFuture = RaftUtil.SCHEDULED_SERVICE.scheduleWithFixedDelay(
+        this.scheduledFuture = DtUtil.SCHEDULED_SERVICE.scheduleWithFixedDelay(
                 this::tryNodePingAll, 0, 2, TimeUnit.SECONDS);
     }
 
@@ -154,7 +155,7 @@ public class NodeManager extends AbstractLifeCircle {
         nodeEx.setPinging(true);
         // we should set connecting status in schedule thread
         return sendNodePing(nodeEx).whenCompleteAsync(
-                (v, ex) -> processResultInScheduleThread(nodeEx, ex, extraCallback), RaftUtil.SCHEDULED_SERVICE);
+                (v, ex) -> processResultInScheduleThread(nodeEx, ex, extraCallback), DtUtil.SCHEDULED_SERVICE);
     }
 
     private void processResultInScheduleThread(RaftNodeEx nodeEx, Throwable ex, Consumer<Throwable> extraCallback) {
@@ -248,7 +249,7 @@ public class NodeManager extends AbstractLifeCircle {
 
     private <T> FiberFuture<T> runInScheduleThread(String futureName, Supplier<T> supplier) {
         FiberFuture<T> f = FiberGroup.currentGroup().newFuture(futureName);
-        RaftUtil.SCHEDULED_SERVICE.execute(() -> {
+        DtUtil.SCHEDULED_SERVICE.execute(() -> {
             try {
                 f.fireComplete(supplier.get());
             } catch (Throwable e) {
@@ -315,13 +316,13 @@ public class NodeManager extends AbstractLifeCircle {
                 log.error("", unexpected);
                 f.completeExceptionally(unexpected);
             }
-        }, RaftUtil.SCHEDULED_SERVICE);
+        }, DtUtil.SCHEDULED_SERVICE);
         return f;
     }
 
     public CompletableFuture<Void> removeNode(int nodeId) {
         CompletableFuture<Void> f = new CompletableFuture<>();
-        RaftUtil.SCHEDULED_SERVICE.execute(() -> {
+        DtUtil.SCHEDULED_SERVICE.execute(() -> {
             try {
                 RaftNodeEx existNode = allNodesEx.get(nodeId);
                 if (existNode == null) {

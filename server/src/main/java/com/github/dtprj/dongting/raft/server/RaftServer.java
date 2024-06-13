@@ -630,7 +630,7 @@ public class RaftServer extends AbstractLifeCircle {
                             "group already exist: " + groupConfig.getGroupId()));
                 }
                 CompletableFuture<RaftGroupImpl> f = new CompletableFuture<>();
-                RaftUtil.SCHEDULED_SERVICE.execute(() -> {
+                DtUtil.SCHEDULED_SERVICE.execute(() -> {
                     try {
                         RaftGroupImpl g = createRaftGroup(serverConfig, nodeManager.getAllNodeIds(), groupConfig);
                         g.getGroupComponents().getMemberManager().init(nodeManager.getAllNodesEx());

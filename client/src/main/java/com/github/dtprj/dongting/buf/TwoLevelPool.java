@@ -82,7 +82,6 @@ public class TwoLevelPool extends ByteBufferPool {
     @Override
     public void clean() {
         smallPool.clean();
-        largePool.clean();
     }
 
     @Override

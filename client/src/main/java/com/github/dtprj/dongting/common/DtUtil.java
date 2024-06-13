@@ -19,6 +19,8 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * @author huangli
@@ -33,6 +35,12 @@ public class DtUtil {
     private static final Runtime RUNTIME = Runtime.getRuntime();
     private static int CPU_COUNT = RUNTIME.availableProcessors();
     private static int cpuCountInvoke;
+
+    public final static ScheduledExecutorService SCHEDULED_SERVICE = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "DtRaftSchedule");
+        t.setDaemon(true);
+        return t;
+    });
 
     public static void close(AutoCloseable... resources) {
         for (AutoCloseable res : resources) {

@@ -168,7 +168,23 @@ public class InitFiberFrame extends FiberFrame<Void> {
         gc.getVoteManager().startFiber();
         gc.getApplyManager().init(getFiberGroup());
         gc.getSnapshotManager().startFiber();
+        Fiber f = new Fiber("cleaner", groupConfig.getFiberGroup(), cleanFiberFrame(), true);
+        f.start();
         return Fiber.frameReturn();
+    }
+
+    private FiberFrame<Void> cleanFiberFrame() {
+        return new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                groupConfig.getHeapPool().getPool().clean();
+                return Fiber.yield(this::exec2);
+            }
+            private FrameCallResult exec2(Void unused) {
+                groupConfig.getDirectPool().clean();
+                return Fiber.sleepUntilShouldStop(1000, this);
+            }
+        };
     }
 
 }
