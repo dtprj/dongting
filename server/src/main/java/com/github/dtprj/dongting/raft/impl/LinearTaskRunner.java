@@ -146,7 +146,7 @@ public class LinearTaskRunner {
         long newIndex = lastIndex(raftStatus);
         TailCache tailCache = raftStatus.getTailCache();
 
-        int oldTerm = raftStatus.getLastLogTerm();
+        int prevTerm = raftStatus.getLastLogTerm();
         int currentTerm = raftStatus.getCurrentTerm();
         boolean hasWrite = false;
         for (int len = inputs.size(), i = 0; i < len; i++) {
@@ -171,7 +171,8 @@ public class LinearTaskRunner {
                 item.setBizType(input.getBizType());
                 item.setTerm(currentTerm);
                 item.setIndex(newIndex);
-                item.setPrevLogTerm(oldTerm);
+                item.setPrevLogTerm(prevTerm);
+                prevTerm = currentTerm;
                 item.setTimestamp(ts.getWallClockMillis());
 
                 item.setHeader(input.getHeader(), input.isHeadReleasable());
