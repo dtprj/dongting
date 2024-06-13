@@ -139,7 +139,7 @@ public class StatusManager {
             finishedUpdateVersion = version;
             updateDoneCondition.signalAll();
             // loop
-            return execute(v);
+            return Fiber.yield(this);
         }
 
         @Override
