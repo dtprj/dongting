@@ -53,11 +53,14 @@ public class RaftGroupConfig {
     private int replicateSnapshotConcurrency = 4;
     private int replicateSnapshotBufferSize = 64 * 1024;
 
-
-    public RaftGroupConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
+    RaftGroupConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         this.groupId = groupId;
         this.nodeIdOfMembers = nodeIdOfMembers;
         this.nodeIdOfObservers = nodeIdOfObservers;
+    }
+
+    public static RaftGroupConfig newInstance(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
+        return new RaftGroupConfigEx(groupId, nodeIdOfMembers, nodeIdOfObservers);
     }
 
     public int getGroupId() {

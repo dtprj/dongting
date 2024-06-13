@@ -88,7 +88,7 @@ public class RaftBenchmark extends BenchBase {
         serverConfig.setReplicatePort(replicatePort);
         serverConfig.setServicePort(servicePort);
 
-        RaftGroupConfig groupConfig = new RaftGroupConfig(GROUP_ID, nodeIdOfMembers, "");
+        RaftGroupConfig groupConfig = RaftGroupConfig.newInstance(GROUP_ID, nodeIdOfMembers, "");
         groupConfig.setDataDir(DATA_DIR + "-" + nodeId);
         groupConfig.setSyncForce(SYNC_FORCE);
         groupConfig.setSaveSnapshotMillis(Long.MAX_VALUE);

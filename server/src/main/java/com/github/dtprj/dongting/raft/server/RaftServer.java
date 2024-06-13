@@ -286,42 +286,13 @@ public class RaftServer extends AbstractLifeCircle {
 
     private RaftGroupConfigEx createGroupConfigEx(RaftGroupConfig rgc, RaftStatusImpl raftStatus,
                                                   FiberGroup fiberGroup) {
-        RaftGroupConfigEx rgcEx = new RaftGroupConfigEx(rgc.getGroupId(), rgc.getNodeIdOfMembers(),
-                rgc.getNodeIdOfObservers());
-        rgcEx.setDataDir(rgc.getDataDir());
-        rgcEx.setStatusFile(rgc.getStatusFile());
-        rgcEx.setIoRetryInterval(rgc.getIoRetryInterval());
-        rgcEx.setSyncForce(rgc.isSyncForce());
-        rgcEx.setStaticConfig(rgc.isStaticConfig());
-
-        rgcEx.setMaxReplicateItems(rgc.getMaxReplicateItems());
-        rgcEx.setMaxReplicateBytes(rgc.getMaxReplicateBytes());
-        rgcEx.setSingleReplicateLimit(rgc.getSingleReplicateLimit());
-
-        rgcEx.setMaxPendingWrites(rgc.getMaxPendingWrites());
-        rgcEx.setMaxPendingWriteBytes(rgc.getMaxPendingWriteBytes());
-
-        rgcEx.setIdxCacheSize(rgc.getIdxCacheSize());
-        rgcEx.setIdxFlushThreshold(rgc.getIdxFlushThreshold());
-
-        rgcEx.setIoCallbackUseGroupExecutor(rgc.isIoCallbackUseGroupExecutor());
-
-        rgcEx.setPerfCallback(rgc.getPerfCallback());
-
-        rgcEx.setSaveSnapshotMillis(rgc.getSaveSnapshotMillis());
-        rgcEx.setSnapshotConcurrency(rgc.getSnapshotConcurrency());
-        rgcEx.setDiskSnapshotConcurrency(rgc.getDiskSnapshotConcurrency());
-        rgcEx.setDiskSnapshotBufferSize(rgc.getDiskSnapshotBufferSize());
-        rgcEx.setReplicateSnapshotConcurrency(rgc.getReplicateSnapshotConcurrency());
-        rgcEx.setReplicateSnapshotBufferSize(rgc.getReplicateSnapshotBufferSize());
-
+        RaftGroupConfigEx rgcEx = (RaftGroupConfigEx) rgc;
         rgcEx.setTs(raftStatus.getTs());
         rgcEx.setHeapPool(createHeapPoolFactory(fiberGroup));
         rgcEx.setDirectPool(serverConfig.getPoolFactory().createPool(raftStatus.getTs(), true));
         rgcEx.setRaftStatus(raftStatus);
         rgcEx.setIoExecutor(raftFactory.createIoExecutor());
         rgcEx.setFiberGroup(fiberGroup);
-
         return rgcEx;
     }
 
