@@ -70,7 +70,6 @@ public class RpcBenchmark extends BenchBase {
             serverConfig.setPerfCallback(new RpcPerfCallback(true, "server_"));
         }
         server = new NioServer(serverConfig);
-        registerProcessor(server);
         server.start();
 
         NioClientConfig clientConfig = new NioClientConfig();
@@ -98,9 +97,6 @@ public class RpcBenchmark extends BenchBase {
         if (c instanceof RpcPerfCallback) {
             ((RpcPerfCallback) c).start();
         }
-    }
-
-    protected void registerProcessor(NioServer server) {
     }
 
     @Override
