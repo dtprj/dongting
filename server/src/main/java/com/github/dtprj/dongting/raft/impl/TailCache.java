@@ -36,8 +36,6 @@ public class TailCache {
     private long pendingBytes;
     private final IndexedQueue<RaftTask> cache = new IndexedQueue<>(1024);
 
-    private int putCount;
-
     public TailCache(RaftGroupConfig groupConfig, RaftStatusImpl raftStatus) {
         this.groupConfig = groupConfig;
         this.raftStatus = raftStatus;
@@ -68,7 +66,7 @@ public class TailCache {
         cache.addLast(value);
         pending++;
         pendingBytes += value.getInput().getFlowControlSize();
-        if ((putCount++ & 0x0F) == 0) { // call cleanPending 1/16
+        if ((index & 0x0F) == 0) { // call cleanPending 1/16
             cleanPending();
         }
     }
