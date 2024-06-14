@@ -119,7 +119,6 @@ public class RaftBenchmark extends BenchBase {
             public FiberGroup createFiberGroup(RaftGroupConfig groupConfig) {
                 // we start multi nodes in same jvm, so use node id as part of dispatcher name
                 Dispatcher dispatcher = new Dispatcher("node-" + nodeId, groupConfig.getPerfCallback());
-                dispatcher.start();
                 return new FiberGroup("group-" + GROUP_ID + "-node-" + nodeId, dispatcher);
             }
         };
