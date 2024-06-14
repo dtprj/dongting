@@ -64,6 +64,8 @@ public class ApplyManager {
     private long initCommitIndex;
     private boolean initFutureComplete = false;
 
+    private int execCount = 0;
+
     private final PerfCallback perfCallback;
 
     public ApplyManager(GroupComponents gc) {
@@ -108,6 +110,7 @@ public class ApplyManager {
             }
             long t = perfCallback.takeTime(PerfConsts.RAFT_D_STATE_MACHINE_EXEC);
             Object r = stateMachine.exec(index, rt.getItem().getTerm(), input);
+            execCount++;
             perfCallback.fireTime(PerfConsts.RAFT_D_STATE_MACHINE_EXEC, t);
             future.complete(new RaftOutput(index, r));
         } catch (Throwable e) {
@@ -124,6 +127,7 @@ public class ApplyManager {
             RaftInput input = rt.getInput();
             long t = perfCallback.takeTime(PerfConsts.RAFT_D_STATE_MACHINE_EXEC);
             Object r = stateMachine.exec(index, rt.getItem().getTerm(), input);
+            execCount++;
             perfCallback.fireTime(PerfConsts.RAFT_D_STATE_MACHINE_EXEC, t);
             CompletableFuture<RaftOutput> future = rt.getFuture();
             if (future != null) {
@@ -245,11 +249,19 @@ public class ApplyManager {
             if (raftStatus.isInstallSnapshot()) {
                 return Fiber.sleepUntilShouldStop(10, this);
             }
+            execCount = 1;
+            return execLoop(null);
+        }
+
+        private FrameCallResult execLoop(Void v) {
+            if (execCount >= 100) {
+                return Fiber.yield(this);
+            }
+            RaftStatusImpl raftStatus = ApplyManager.this.raftStatus;
             long diff = raftStatus.getCommitIndex() - raftStatus.getLastApplied();
             if (diff == 0) {
                 return condition.await(this);
             }
-
             long index = raftStatus.getLastApplied() + 1;
             RaftTask rt = tailCache.get(index);
             if (rt == null || rt.getInput().isReadOnly()) {
@@ -266,13 +278,13 @@ public class ApplyManager {
                 return Fiber.call(ff, this::afterLoad);
             } else {
                 closeIterator();
-                return exec(rt, index, this);
+                return exec(rt, index, this::execLoop);
             }
         }
 
         private FrameCallResult afterLoad(List<LogItem> items) {
             ExecLoadResultFrame ff = new ExecLoadResultFrame(items);
-            return Fiber.call(ff, this);
+            return Fiber.call(ff, this::execLoop);
         }
 
         public void closeIterator() {
@@ -300,6 +312,9 @@ public class ApplyManager {
 
         @Override
         public FrameCallResult execute(Void input) {
+            if (isGroupShouldStopPlain()) {
+                return Fiber.frameReturn();
+            }
             if (raftStatus.isInstallSnapshot()) {
                 log.warn("install snapshot, ignore load result");
                 return Fiber.frameReturn();
