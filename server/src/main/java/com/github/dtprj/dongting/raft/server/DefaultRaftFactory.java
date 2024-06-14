@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.raft.server;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.fiber.Dispatcher;
-import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.sm.DefaultSnapshotManager;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 import com.github.dtprj.dongting.raft.sm.SnapshotManager;
@@ -27,7 +26,6 @@ import com.github.dtprj.dongting.raft.store.DefaultRaftLog;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -74,20 +72,17 @@ public abstract class DefaultRaftFactory extends AbstractLifeCircle implements R
     }
 
     @Override
-    public FiberGroup createFiberGroup(RaftGroupConfig groupConfig) {
-        Dispatcher dispatcher = new Dispatcher("raft-dispatcher-" + groupConfig.getGroupId(),
-                groupConfig.getPerfCallback());
-        return new FiberGroup("group-" + groupConfig.getGroupId(), dispatcher);
+    public Dispatcher createDispatcher(RaftGroupConfig groupConfig) {
+        return new Dispatcher("raft-dispatcher-" + groupConfig.getGroupId(), groupConfig.getPerfCallback());
     }
 
     @Override
-    public CompletableFuture<Void> startFiberGroup(FiberGroup group) {
-        group.getDispatcher().start();
-        return group.getDispatcher().startGroup(group);
+    public void startDispatcher(Dispatcher dispatcher) {
+        dispatcher.start();
     }
 
     @Override
-    public void afterGroupShutdown(FiberGroup group, DtTime timeout) {
-        group.getDispatcher().stop(timeout);
+    public void stopDispatcher(Dispatcher dispatcher, DtTime timeout) {
+        dispatcher.stop(timeout);
     }
 }

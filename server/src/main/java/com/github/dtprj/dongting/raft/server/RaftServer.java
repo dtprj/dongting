@@ -223,7 +223,8 @@ public class RaftServer extends AbstractLifeCircle {
             throw new IllegalArgumentException("self id not found in group members/observers list: " + serverConfig.getNodeId());
         }
 
-        FiberGroup fiberGroup = raftFactory.createFiberGroup(rgc);
+        Dispatcher dispatcher = raftFactory.createDispatcher(rgc);
+        FiberGroup fiberGroup = new FiberGroup("group-" + rgc.getGroupId(), dispatcher);
         RaftStatusImpl raftStatus = new RaftStatusImpl(fiberGroup.getDispatcher().getTs());
         raftStatus.setTailCache(new TailCache(rgc, raftStatus));
         raftStatus.setNodeIdOfMembers(nodeIdOfMembers);
@@ -340,7 +341,10 @@ public class RaftServer extends AbstractLifeCircle {
                 GroupComponents gc = g.getGroupComponents();
                 // nodeManager.getAllNodesEx() is not thread safe
                 gc.getMemberManager().init(nodeManager.getAllNodesEx());
-                CompletableFuture<Void> f = raftFactory.startFiberGroup(gc.getFiberGroup());
+
+                FiberGroup fg = gc.getFiberGroup();
+                raftFactory.startDispatcher(fg.getDispatcher());
+                CompletableFuture<Void> f = fg.getDispatcher().startGroup(fg);
                 futures.add(f);
             });
             // should complete soon, so we wait here
@@ -517,7 +521,7 @@ public class RaftServer extends AbstractLifeCircle {
         });
 
         // the group shutdown is not finished, but it's ok to call afterGroupShutdown(to shutdown dispatcher)
-        raftFactory.afterGroupShutdown(fiberGroup, timeout);
+        raftFactory.stopDispatcher(fiberGroup.getDispatcher(), timeout);
 
         return g.getShutdownFuture();
     }
@@ -610,10 +614,11 @@ public class RaftServer extends AbstractLifeCircle {
                     }
                 });
 
-                RaftGroupImpl g = f.get();
+                RaftGroupImpl g = f.get(60, TimeUnit.SECONDS);
                 GroupComponents gc = g.getGroupComponents();
-
-                raftFactory.startFiberGroup(gc.getFiberGroup()).get();
+                FiberGroup fg = gc.getFiberGroup();
+                raftFactory.startDispatcher(fg.getDispatcher());
+                fg.getDispatcher().startGroup(fg).get(60, TimeUnit.SECONDS);
 
                 raftGroups.put(groupConfig.getGroupId(), g);
                 initRaftGroup(g);
