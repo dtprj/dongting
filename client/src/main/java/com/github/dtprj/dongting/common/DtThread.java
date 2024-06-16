@@ -15,17 +15,34 @@
  */
 package com.github.dtprj.dongting.common;
 
+import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.RefBufferFactory;
+
 /**
  * @author huangli
  */
 public class DtThread extends Thread {
-    private final byte[] cache = new byte[4096];
+
+    private ByteBufferPool directPool;
+    private RefBufferFactory heapPool;
 
     public DtThread(Runnable r, String name) {
         super(r, name);
     }
 
-    public byte[] getCache() {
-        return cache;
+    public ByteBufferPool getDirectPool() {
+        return directPool;
+    }
+
+    public void setDirectPool(ByteBufferPool directPool) {
+        this.directPool = directPool;
+    }
+
+    public RefBufferFactory getHeapPool() {
+        return heapPool;
+    }
+
+    public void setHeapPool(RefBufferFactory heapPool) {
+        this.heapPool = heapPool;
     }
 }

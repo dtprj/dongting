@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.codec;
 
+import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.DtThread;
 
@@ -68,32 +69,43 @@ public abstract class PbCallback<T> {
         if (fieldLen == 0) {
             return "";
         }
+        byte[] arr;
+        ByteBuffer temp = null;
+        ByteBufferPool pool = null;
+        if (currentPos == 0) {
+            if (fieldLen < 64) {
+                arr = new byte[fieldLen];
+                parser.attachment = arr;
+            } else {
+                DtThread thread = (DtThread) Thread.currentThread();
+                pool = thread.getHeapPool().getPool();
+                temp = pool.borrow(fieldLen);
+                parser.attachment = temp;
+                arr = temp.array();
+            }
+        } else {
+            if (fieldLen < 64) {
+                arr = (byte[]) parser.attachment;
+            } else {
+                temp = (ByteBuffer) parser.attachment;
+                arr = temp.array();
+            }
+        }
         int needRead = fieldLen - currentPos;
         int remain = buf.remaining();
-        byte[] result;
         if (remain < needRead) {
-            if (currentPos == 0) {
-                result = new byte[fieldLen];
-                parser.attachment = result;
-            } else {
-                result = (byte[]) parser.attachment;
-            }
-            buf.get(result, currentPos, remain);
+            buf.get(arr, currentPos, remain);
             return null;
         } else {
-            DtThread thread = (DtThread) Thread.currentThread();
-            if (currentPos == 0) {
-                byte[] cache = thread.getCache();
-                if (cache.length < fieldLen) {
-                    result = new byte[fieldLen];
-                } else {
-                    result = cache;
+            buf.get(arr, currentPos, needRead);
+            String s = new String(arr, 0, fieldLen, StandardCharsets.UTF_8);
+            if (temp != null) {
+                if (pool == null) {
+                    pool = ((DtThread) Thread.currentThread()).getHeapPool().getPool();
                 }
-            } else {
-                result = (byte[]) parser.attachment;
+                pool.release(temp);
             }
-            buf.get(result, currentPos, needRead);
-            return new String(result, 0, fieldLen, StandardCharsets.UTF_8);
+            return s;
         }
     }
 

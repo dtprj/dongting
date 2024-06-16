@@ -15,10 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
-import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.PbCallback;
@@ -37,7 +34,6 @@ import java.nio.channels.SocketChannel;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 
 /**
  * @author huangli
@@ -88,27 +84,13 @@ class DtChannel extends PbCallback<Object> {
         channelContext.setChannel(socketChannel);
         channelContext.setRemoteAddr(socketChannel.getRemoteAddress());
         channelContext.setLocalAddr(socketChannel.getLocalAddress());
-        ByteBufferPool releaseSafePool = createReleaseSafePool((TwoLevelPool) workerStatus.getHeapPool(),
-                workerStatus.getIoQueue());
-        RefBufferFactory refBufferFactory = new RefBufferFactory(releaseSafePool, 800);
         channelContext.setRespWriter(respWriter);
         this.channelContext = channelContext;
 
         this.decodeContext = new DecodeContext();
-        decodeContext.setHeapPool(refBufferFactory);
+        this.decodeContext.setHeapPool(workerStatus.getHeapPool());
 
-        this.subQueue = new IoChannelQueue(nioConfig, workerStatus, this, refBufferFactory);
-    }
-
-    private static ByteBufferPool createReleaseSafePool(TwoLevelPool heapPool, IoWorkerQueue ioWorkerQueue) {
-        Consumer<ByteBuffer> callback = (buf) -> {
-            try {
-                ioWorkerQueue.scheduleFromBizThread(() -> heapPool.release(buf));
-            } catch (NetException e) {
-                log.warn("schedule ReleaseBufferTask fail: {}", e.toString());
-            }
-        };
-        return heapPool.toReleaseInOtherThreadInstance(Thread.currentThread(), callback);
+        this.subQueue = new IoChannelQueue(nioConfig, workerStatus, this, workerStatus.getHeapPool());
     }
 
     public void afterRead(boolean running, ByteBuffer buf) {

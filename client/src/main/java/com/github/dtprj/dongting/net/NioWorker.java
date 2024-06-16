@@ -16,6 +16,8 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtThread;
@@ -47,6 +49,7 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 /**
  * each worker represent a thread.
@@ -109,13 +112,29 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.directPool = config.getPoolFactory().createPool(timestamp, true);
         this.heapPool = config.getPoolFactory().createPool(timestamp, false);
 
+        ByteBufferPool releaseSafePool = createReleaseSafePool((TwoLevelPool) heapPool, ioWorkerQueue);
+        RefBufferFactory refBufferFactory = new RefBufferFactory(releaseSafePool, 800);
+        thread.setDirectPool(directPool);
+        thread.setHeapPool(refBufferFactory);
+
         workerStatus = new WorkerStatus();
         workerStatus.setIoQueue(ioWorkerQueue);
         workerStatus.setPendingRequests(pendingOutgoingRequests);
         workerStatus.setWakeupRunnable(this::wakeup);
         workerStatus.setDirectPool(directPool);
-        workerStatus.setHeapPool(heapPool);
+        workerStatus.setHeapPool(refBufferFactory);
         workerStatus.setTs(timestamp);
+    }
+
+    private ByteBufferPool createReleaseSafePool(TwoLevelPool heapPool, IoWorkerQueue ioWorkerQueue) {
+        Consumer<ByteBuffer> callback = (buf) -> {
+            try {
+                ioWorkerQueue.scheduleFromBizThread(() -> heapPool.release(buf));
+            } catch (NetException e) {
+                log.warn("schedule ReleaseBufferTask fail: {}", e.toString());
+            }
+        };
+        return heapPool.toReleaseInOtherThreadInstance(thread, callback);
     }
 
     @Override

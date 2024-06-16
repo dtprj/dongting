@@ -4,6 +4,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
+import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.codec.DtFrame;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.DtThread;
@@ -38,6 +39,7 @@ public class FramePbTest {
                 f.completeExceptionally(e);
             }
         }, "dtThread");
+        dtThread.setHeapPool(new RefBufferFactory(new DefaultPoolFactory().createPool(new Timestamp(), false), 0));
         dtThread.start();
         f.get();
     }
@@ -116,7 +118,7 @@ public class FramePbTest {
         buf.flip();
 
         WorkerStatus workerStatus = new WorkerStatus();
-        workerStatus.setHeapPool(new DefaultPoolFactory().createPool(new Timestamp(), false));
+        workerStatus.setHeapPool(((DtThread)Thread.currentThread()).getHeapPool());
 
         DtChannel dtc = new DtChannel(new NioStatus(null), workerStatus,
                 new NioClientConfig(), SocketChannel.open(), 0) {
