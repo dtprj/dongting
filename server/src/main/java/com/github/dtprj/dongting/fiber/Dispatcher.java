@@ -15,7 +15,12 @@
  */
 package com.github.dtprj.dongting.fiber;
 
+import com.github.dtprj.dongting.buf.DefaultPoolFactory;
+import com.github.dtprj.dongting.buf.PoolFactory;
+import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
+import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.NoopPerfCallback;
@@ -40,6 +45,7 @@ import java.util.concurrent.TimeUnit;
 public class Dispatcher extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(Dispatcher.class);
 
+    private final PoolFactory poolFactory;
     final PerfCallback perfCallback;
 
     final FiberQueue shareQueue = new FiberQueue();
@@ -59,6 +65,8 @@ public class Dispatcher extends AbstractLifeCircle {
     private volatile boolean shouldStop = false;
     private final static VarHandle SHOULD_STOP;
 
+    private long lastCleanNanos;
+
     int round;
 
     static {
@@ -76,12 +84,31 @@ public class Dispatcher extends AbstractLifeCircle {
     private DtTime stopTimeout;
 
     public Dispatcher(String name) {
-        this(name, NoopPerfCallback.INSTANCE);
+        this(name, new DefaultPoolFactory(), NoopPerfCallback.INSTANCE);
     }
 
-    public Dispatcher(String name, PerfCallback perfCallback) {
+    public Dispatcher(String name, PoolFactory poolFactory, PerfCallback perfCallback) {
         this.thread = new DispatcherThread(this::run, name);
+        this.poolFactory = poolFactory;
         this.perfCallback = perfCallback;
+
+        this.thread.setHeapPool(createHeapPoolFactory());
+        this.thread.setDirectPool(poolFactory.createPool(ts, true));
+    }
+
+    private RefBufferFactory createHeapPoolFactory() {
+        TwoLevelPool heapPool = (TwoLevelPool) poolFactory.createPool(ts, false);
+        TwoLevelPool releaseSafePool = heapPool.toReleaseInOtherThreadInstance(thread, byteBuffer -> {
+            if (byteBuffer != null) {
+                shareQueue.offer(new FiberQueueTask(null) {
+                    @Override
+                    protected void run() {
+                        heapPool.getSmallPool().release(byteBuffer);
+                    }
+                });
+            }
+        });
+        return new RefBufferFactory(releaseSafePool, 800);
     }
 
     public CompletableFuture<Void> startGroup(FiberGroup fiberGroup) {
@@ -139,6 +166,9 @@ public class Dispatcher extends AbstractLifeCircle {
         } catch (Throwable e) {
             SHOULD_STOP.setVolatile(this, true);
             log.info("fiber dispatcher exit exceptionally: {}", thread.getName(), e);
+        } finally {
+            poolFactory.destroyPool(thread.getHeapPool().getPool());
+            poolFactory.destroyPool(thread.getDirectPool());
         }
     }
 
@@ -167,6 +197,9 @@ public class Dispatcher extends AbstractLifeCircle {
         if (!finishedGroups.isEmpty()) {
             groups.removeAll(finishedGroups);
         }
+
+        // 60 seconds clean once
+        cleanPool(60_000_000_000L);
 
         if (c.accept(PerfConsts.FIBER_D_WORK) || c.accept(PerfConsts.FIBER_D_POLL)) {
             perfCallback.refresh(ts);
@@ -198,6 +231,14 @@ public class Dispatcher extends AbstractLifeCircle {
             }
             f.cleanSchedule();
             f.fiberGroup.tryMakeFiberReady(f, false);
+        }
+    }
+
+    private void cleanPool(long timeoutNanos) {
+        if (ts.getNanoTime() - lastCleanNanos > timeoutNanos) {
+            lastCleanNanos = ts.getNanoTime();
+            thread.getHeapPool().getPool().clean();
+            thread.getDirectPool().clean();
         }
     }
 
@@ -515,6 +556,8 @@ public class Dispatcher extends AbstractLifeCircle {
                 if (t > 0) {
                     PerfCallback c = perfCallback;
                     long startTime = c.takeTime(PerfConsts.FIBER_D_POLL, ts);
+                    // 100ms clean once
+                    cleanPool(100_000_000L);
                     FiberQueueTask o = shareQueue.poll(t, TimeUnit.NANOSECONDS);
                     if (c.accept(PerfConsts.FIBER_D_WORK) || c.accept(PerfConsts.FIBER_D_POLL)) {
                         perfCallback.refresh(ts);
@@ -564,7 +607,7 @@ public class Dispatcher extends AbstractLifeCircle {
         return (boolean) SHOULD_STOP.get(this);
     }
 
-    public Thread getThread() {
+    public DtThread getThread() {
         return thread;
     }
 }

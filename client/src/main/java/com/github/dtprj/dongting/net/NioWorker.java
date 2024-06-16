@@ -129,7 +129,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private ByteBufferPool createReleaseSafePool(TwoLevelPool heapPool, IoWorkerQueue ioWorkerQueue) {
         Consumer<ByteBuffer> callback = (buf) -> {
             try {
-                ioWorkerQueue.scheduleFromBizThread(() -> heapPool.release(buf));
+                ioWorkerQueue.scheduleFromBizThread(() -> heapPool.getSmallPool().release(buf));
             } catch (NetException e) {
                 log.warn("schedule ReleaseBufferTask fail: {}", e.toString());
             }
