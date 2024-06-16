@@ -64,8 +64,6 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         config.setDataDir(dataDir);
         config.setIoExecutor(MockExecutors.ioExecutor());
         config.setTs(raftStatus.getTs());
-        config.setDirectPool(TestUtil.directPool());
-        config.setHeapPool(TestUtil.heapPool());
 
         raftStatus.setTailCache(new TailCache(config, raftStatus));
         config.setRaftStatus(raftStatus);

@@ -23,7 +23,6 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
-import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
@@ -53,8 +52,6 @@ public class StatusManagerTest extends BaseFiberTest {
         groupConfig.setIoExecutor(MockExecutors.ioExecutor());
         groupConfig.setFiberGroup(fiberGroup);
         raftStatus.setTailCache(new TailCache(groupConfig, raftStatus));
-        groupConfig.setHeapPool(TestUtil.heapPool());
-        groupConfig.setDirectPool(TestUtil.directPool());
         statusManager = new StatusManager(groupConfig);
     }
 

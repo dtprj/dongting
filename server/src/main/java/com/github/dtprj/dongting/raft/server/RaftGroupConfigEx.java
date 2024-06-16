@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 
@@ -28,8 +26,6 @@ import java.util.concurrent.ExecutorService;
 public class RaftGroupConfigEx extends RaftGroupConfig {
 
     private Timestamp ts;
-    private RefBufferFactory heapPool;
-    private ByteBufferPool directPool;
     private RaftStatus raftStatus;
     private ExecutorService ioExecutor;
     private FiberGroup fiberGroup;
@@ -44,22 +40,6 @@ public class RaftGroupConfigEx extends RaftGroupConfig {
 
     public void setTs(Timestamp ts) {
         this.ts = ts;
-    }
-
-    public RefBufferFactory getHeapPool() {
-        return heapPool;
-    }
-
-    public void setHeapPool(RefBufferFactory heapPool) {
-        this.heapPool = heapPool;
-    }
-
-    public ByteBufferPool getDirectPool() {
-        return directPool;
-    }
-
-    public void setDirectPool(ByteBufferPool directPool) {
-        this.directPool = directPool;
     }
 
     public FiberGroup getFiberGroup() {

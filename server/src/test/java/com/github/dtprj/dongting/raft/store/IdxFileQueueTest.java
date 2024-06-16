@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -26,7 +25,6 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
-import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -64,9 +62,6 @@ public class IdxFileQueueTest extends BaseFiberTest {
         c.setTs(raftStatus.getTs());
         c.setFiberGroup(fiberGroup);
         c.setDataDir(dir.getAbsolutePath());
-        c.setDirectPool(new DefaultPoolFactory().createPool(c.getTs(), true));
-        c.setHeapPool(TestUtil.heapPool());
-        c.setDirectPool(TestUtil.directPool());
         statusManager = new StatusManager(c);
         doInFiber(new FiberFrame<>() {
             @Override

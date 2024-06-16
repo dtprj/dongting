@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.sm;
 
+import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
@@ -312,7 +313,8 @@ public class DefaultSnapshotManager implements SnapshotManager {
             HashSet<StandardOpenOption> options = new HashSet<>();
             options.add(StandardOpenOption.CREATE_NEW);
             options.add(StandardOpenOption.WRITE);
-            AsynchronousFileChannel channel = AsynchronousFileChannel.open(dataFile.toPath(), options, getFiberGroup().getExecutor());
+            AsynchronousFileChannel channel = AsynchronousFileChannel.open(dataFile.toPath(), options,
+                    getFiberGroup().getExecutor());
             this.newDataFile = new DtFile(dataFile, channel, groupConfig.getFiberGroup());
 
             int readConcurrency = groupConfig.getSnapshotConcurrency();
@@ -323,7 +325,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         }
 
         private ByteBuffer createBuffer() {
-            ByteBuffer full = groupConfig.getHeapPool().getPool().borrow(bufferSize);
+            ByteBuffer full = getFiberGroup().getThread().getDirectPool().borrow(bufferSize);
             ByteBuffer sub = full.slice(4, full.capacity() - 8);
             bufferMap.put(sub, full);
             return sub;
@@ -332,7 +334,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
         private void releaseBuffer(ByteBuffer buf) {
             ByteBuffer full = bufferMap.remove(buf);
             Objects.requireNonNull(full);
-            groupConfig.getHeapPool().getPool().release(full);
+            getFiberGroup().getThread().getDirectPool().release(full);
         }
 
         private FiberFuture<Void> writeCallback(ByteBuffer buf) {
@@ -348,7 +350,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             long newWritePos = currentWritePos + full.remaining();
             FiberFuture<Void> writeFuture = writeTask.write(full, currentWritePos);
             currentWritePos = newWritePos;
-            writeFuture.registerCallback((v, ex) -> groupConfig.getHeapPool().getPool().release(full));
+            writeFuture.registerCallback((v, ex) -> getFiberGroup().getThread().getDirectPool().release(full));
             return writeFuture;
         }
 
@@ -435,8 +437,9 @@ class RecoverFiberFrame extends FiberFrame<Pair<Integer, Long>> {
         this.stateMachine = stateMachine;
         this.groupConfig = groupConfig;
         this.snapshot = snapshot;
-        this.bufferCreator = () -> groupConfig.getDirectPool().borrow(snapshot.getBufferSize());
-        this.bufferReleaser = buf -> groupConfig.getDirectPool().release(buf);
+        ByteBufferPool p = groupConfig.getFiberGroup().getThread().getDirectPool();
+        this.bufferCreator = () -> p.borrow(snapshot.getBufferSize());
+        this.bufferReleaser = p::release;
     }
 
     @Override

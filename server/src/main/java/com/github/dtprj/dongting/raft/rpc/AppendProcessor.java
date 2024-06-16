@@ -32,7 +32,6 @@ import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.LinearTaskRunner;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
-import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
@@ -98,10 +97,7 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
             RaftUtil.release(req.getLogs());
         } else {
             InstallSnapshotReq req = (InstallSnapshotReq) f.getBody();
-            if (req.data != null) {
-                RaftGroupImpl g = (RaftGroupImpl) reqInfo.getRaftGroup();
-                g.getGroupComponents().getGroupConfig().getHeapPool().getPool().release(req.data);
-            }
+            req.release();
         }
     }
 
@@ -429,9 +425,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
         InstallSnapshotReq req = reqInfo.getReqFrame().getBody();
         GroupComponents gc = reqInfo.getRaftGroup().getGroupComponents();
         gc.getRaftStatus().copyShareStatus();
-        if (req.data != null) {
-            gc.getGroupConfig().getHeapPool().getPool().release(req.data);
-        }
+        req.release();
         return Fiber.frameReturn();
     }
 

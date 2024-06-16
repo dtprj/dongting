@@ -571,6 +571,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
     private final RaftServerConfig serverConfig;
     private final NioClient client;
     private final ReplicateManager replicateManager;
+    private final ByteBufferPool heapPool;
 
     private Snapshot snapshot;
     private long nextPosAfterInstallFinish;
@@ -584,6 +585,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         this.serverConfig = replicateManager.serverConfig;
         this.client = replicateManager.client;
         this.replicateManager = replicateManager;
+        this.heapPool = groupConfig.getFiberGroup().getThread().getHeapPool().getPool();
     }
 
     @Override
@@ -632,9 +634,8 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         if (shouldStopReplicate()) {
             return Fiber.frameReturn();
         }
-        ByteBufferPool p = groupConfig.getHeapPool().getPool();
-        Supplier<ByteBuffer> bufferCreator = () -> p.borrow(groupConfig.getReplicateSnapshotBufferSize());
-        Consumer<ByteBuffer> releaser = p::release;
+        Supplier<ByteBuffer> bufferCreator = () -> heapPool.borrow(groupConfig.getReplicateSnapshotBufferSize());
+        Consumer<ByteBuffer> releaser = heapPool::release;
 
         int readConcurrency = groupConfig.getSnapshotConcurrency();
         int writeConcurrency = groupConfig.getReplicateSnapshotConcurrency();
@@ -674,10 +675,10 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
             req.nextWritePos = nextPosAfterInstallFinish;
         }
         req.data = data;
+        req.pool = heapPool;
 
         // data buffer released in WriteFrame
-        InstallSnapshotReq.InstallReqWriteFrame wf = new InstallSnapshotReq.InstallReqWriteFrame(
-                req, groupConfig.getHeapPool().getPool());
+        InstallSnapshotReq.InstallReqWriteFrame wf = new InstallSnapshotReq.InstallReqWriteFrame(req);
         wf.setCommand(Commands.RAFT_INSTALL_SNAPSHOT);
         DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
         CompletableFuture<ReadFrame<AppendRespCallback>> future = client.sendRequest(

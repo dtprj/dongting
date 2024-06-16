@@ -15,8 +15,10 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
+import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.fiber.DoInLockFrame;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -59,6 +61,8 @@ class LogAppender {
     private final EncodeContext encodeContext;
     private final long fileLenMask;
 
+    private final ByteBufferPool directPool;
+
     // update before write operation issued
     long nextPersistIndex = -1;
     long nextPersistPos = -1;
@@ -80,7 +84,9 @@ class LogAppender {
     LogAppender(IdxOps idxOps, LogFileQueue logFileQueue, RaftGroupConfigEx groupConfig) {
         this.idxOps = idxOps;
         this.logFileQueue = logFileQueue;
-        this.encodeContext = new EncodeContext(groupConfig.getHeapPool());
+        DtThread thread = groupConfig.getFiberGroup().getThread();
+        this.directPool = thread.getDirectPool();
+        this.encodeContext = new EncodeContext(thread.getHeapPool());
         this.fileLenMask = logFileQueue.fileLength() - 1;
         this.groupConfig = groupConfig;
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
@@ -342,7 +348,7 @@ class LogAppender {
                 // release lock in processWriteResult() since we should unlock in same fiber.
                 // unlock in processWriteResult
                 perfCallback.fireTime(PerfConsts.RAFT_D_LOG_WRITE2, startTime, task.perfItemCount, bytes);
-                groupConfig.getDirectPool().release(task.getIoBuffer());
+                directPool.release(task.getIoBuffer());
                 raftStatus.getDataArrivedCondition().signal(appendFiber);
             });
 
@@ -359,7 +365,7 @@ class LogAppender {
                 return EMPTY_BUFFER;
             } else {
                 size = Math.min(size, logFileQueue.maxWriteBufferSize);
-                return groupConfig.getDirectPool().borrow(size);
+                return directPool.borrow(size);
             }
         }
 

@@ -62,6 +62,15 @@ public class InstallSnapshotReq {
     public long lastConfigChangeIndex;
 
     public ByteBuffer data;
+    public ByteBufferPool pool;
+
+    public void release() {
+        if (data != null && pool != null) {
+            pool.release(data);
+            data = null;
+            pool = null;
+        }
+    }
 
     public static class Callback extends PbCallback<InstallSnapshotReq> {
         private final InstallSnapshotReq result = new InstallSnapshotReq();
@@ -144,6 +153,7 @@ public class InstallSnapshotReq {
             if (index == 15) {
                 if (currentPos == 0) {
                     result.data = heapPool.getPool().borrow(len);
+                    result.pool = heapPool.getPool();
                 }
                 result.data.put(buf);
                 if (end) {
@@ -162,14 +172,12 @@ public class InstallSnapshotReq {
     public static class InstallReqWriteFrame extends WriteFrame {
 
         private final InstallSnapshotReq req;
-        private final ByteBufferPool heapPool;
         private final int headerSize;
         private final int bufferSize;
         private boolean headerWritten = false;
 
-        public InstallReqWriteFrame(InstallSnapshotReq req, ByteBufferPool heapPool) {
+        public InstallReqWriteFrame(InstallSnapshotReq req) {
             this.req = req;
-            this.heapPool = heapPool;
             int x = PbUtil.accurateUnsignedIntSize(1, req.groupId)
                     + PbUtil.accurateUnsignedIntSize(2, req.term)
                     + PbUtil.accurateUnsignedIntSize(3, req.leaderId)
@@ -251,10 +259,7 @@ public class InstallSnapshotReq {
 
         @Override
         protected void doClean() {
-            if (req.data != null) {
-                heapPool.release(req.data);
-                req.data = null;
-            }
+            req.release();
         }
     }
 }

@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.common.BitUtil;
+import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -375,7 +376,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 // don't cross file
                 len = (int) (logFile.endPos - startIdxPos);
             }
-            buf = groupConfig.getDirectPool().borrow(len);
+            DtThread t = (DtThread) Thread.currentThread();
+            buf = t.getDirectPool().borrow(len);
             buf.limit(len);
             return logFile.endPos - startIdxPos == len;
         }
@@ -383,7 +385,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         @Override
         protected FrameCallResult doFinally() {
             if (buf != null) {
-                groupConfig.getDirectPool().release(buf);
+                DtThread t = (DtThread) Thread.currentThread();
+                t.getDirectPool().release(buf);
             }
             flushDoneCondition.signalAll();
             return Fiber.frameReturn();

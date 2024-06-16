@@ -15,10 +15,12 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.Encodable;
+import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
@@ -54,6 +56,7 @@ class FileLogLoader implements RaftLog.LogIterator {
     private final RaftGroupConfigEx groupConfig;
     private final ByteBuffer readBuffer;
     private final TailCache tailCache;
+    private final ByteBufferPool directPool;
 
     private final Supplier<Boolean> cancelIndicator;
     private final CRC32C crc32c = new CRC32C();
@@ -85,9 +88,11 @@ class FileLogLoader implements RaftLog.LogIterator {
         this.cancelIndicator = cancelIndicator;
         this.tailCache = ((RaftStatusImpl) groupConfig.getRaftStatus()).getTailCache();
 
-        this.readBuffer = groupConfig.getDirectPool().borrow(readBufferSize);
+        DtThread t = groupConfig.getFiberGroup().getThread();
+        this.directPool = t.getDirectPool();
+        this.readBuffer = directPool.borrow(readBufferSize);
         this.decodeContext = new DecodeContext();
-        decodeContext.setHeapPool(groupConfig.getHeapPool());
+        decodeContext.setHeapPool(t.getHeapPool());
         reset();
     }
 
@@ -405,7 +410,7 @@ class FileLogLoader implements RaftLog.LogIterator {
     @Override
     public void close() {
         if (!close) {
-            groupConfig.getDirectPool().release(readBuffer);
+            directPool.release(readBuffer);
         }
         close = true;
     }

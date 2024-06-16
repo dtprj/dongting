@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -71,18 +73,19 @@ public class StatusFile implements AutoCloseable {
 
     public FiberFrame<Void> init() {
         return new FiberFrame<>() {
-            private final ByteBuffer buf = groupConfig.getHeapPool().getPool().allocate(FILE_LENGTH);
+            private ByteBuffer buf;
 
             @Override
             protected FrameCallResult doFinally() {
                 if (buf != null) {
-                    groupConfig.getHeapPool().getPool().release(buf);
+                    getFiberGroup().getThread().getHeapPool().getPool().release(buf);
                 }
                 return Fiber.frameReturn();
             }
 
             @Override
             public FrameCallResult execute(Void input) throws Exception {
+                buf = getFiberGroup().getThread().getHeapPool().getPool().allocate(FILE_LENGTH);
                 boolean needLoad = file.exists() && file.length() != 0;
                 HashSet<OpenOption> options = new HashSet<>();
                 options.add(StandardOpenOption.CREATE);
@@ -145,7 +148,8 @@ public class StatusFile implements AutoCloseable {
 
     public FiberFuture<Void> update(boolean sync) {
         try {
-            ByteBuffer buf = groupConfig.getDirectPool().borrow(FILE_LENGTH);
+            ByteBufferPool directPool = ((DtThread) Thread.currentThread()).getDirectPool();
+            ByteBuffer buf = directPool.borrow(FILE_LENGTH);
             buf.position(CRC_HEX_LENGTH);
             buf.put((byte) '\n');
             for (Map.Entry<String, String> entry : properties.entrySet()) {
@@ -168,7 +172,7 @@ public class StatusFile implements AutoCloseable {
             for (int i = 0, len = crcHex.length(); i < CRC_HEX_LENGTH - len; i++) {
                 buf.put((byte) '0');
             }
-            for(int i=0, len = crcHex.length(); i < len; i++) {
+            for (int i = 0, len = crcHex.length(); i < len; i++) {
                 buf.put((byte) crcHex.charAt(i));
             }
             buf.clear();
@@ -181,7 +185,7 @@ public class StatusFile implements AutoCloseable {
             } else {
                 f = task.write(buf, 0);
             }
-            f.registerCallback((v, ex) -> groupConfig.getDirectPool().release(buf));
+            f.registerCallback((v, ex) -> directPool.release(buf));
             return f;
         } catch (Throwable e) {
             RaftException raftException = new RaftException("update status file failed. file=" + file.getPath(), e);

@@ -24,7 +24,6 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
-import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
@@ -48,8 +47,6 @@ public class StatusFileTest extends BaseFiberTest {
         RaftGroupConfigEx groupConfig = new RaftGroupConfigEx(0, "1", "");
         groupConfig.setFiberGroup(fiberGroup);
         groupConfig.setIoExecutor(MockExecutors.ioExecutor());
-        groupConfig.setHeapPool(TestUtil.heapPool());
-        groupConfig.setDirectPool(TestUtil.directPool());
         return groupConfig;
     }
 

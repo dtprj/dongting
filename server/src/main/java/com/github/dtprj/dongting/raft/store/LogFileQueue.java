@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -66,8 +67,9 @@ class LogFileQueue extends FileQueue {
         this.idxOps = idxOps;
         this.ts = groupConfig.getTs();
         this.fiberGroup = groupConfig.getFiberGroup();
-        this.heapPool = groupConfig.getHeapPool();
-        this.directPool = groupConfig.getDirectPool();
+        DtThread t = fiberGroup.getThread();
+        this.heapPool = t.getHeapPool();
+        this.directPool = t.getDirectPool();
 
         this.logAppender = new LogAppender(idxOps, this, groupConfig);
     }

@@ -15,8 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.buf.RefBufferFactory;
-import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -71,7 +69,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
@@ -275,11 +272,7 @@ public class RaftServer extends AbstractLifeCircle {
         }
 
         RaftGroupImpl g = new RaftGroupImpl(gc);
-        CompletableFuture<Void> f = g.getFiberGroup().getShutdownFuture().thenRun(() -> {
-            raftGroups.remove(g.getGroupId());
-            serverConfig.getPoolFactory().destroyPool(rgcEx.getHeapPool().getPool());
-            serverConfig.getPoolFactory().destroyPool(rgcEx.getDirectPool());
-        });
+        CompletableFuture<Void> f = g.getFiberGroup().getShutdownFuture().thenRun(() -> raftGroups.remove(g.getGroupId()));
         g.setShutdownFuture(f);
         return g;
     }
@@ -288,25 +281,10 @@ public class RaftServer extends AbstractLifeCircle {
                                                   FiberGroup fiberGroup) {
         RaftGroupConfigEx rgcEx = (RaftGroupConfigEx) rgc;
         rgcEx.setTs(raftStatus.getTs());
-        rgcEx.setHeapPool(createHeapPoolFactory(fiberGroup));
-        rgcEx.setDirectPool(serverConfig.getPoolFactory().createPool(raftStatus.getTs(), true));
         rgcEx.setRaftStatus(raftStatus);
         rgcEx.setIoExecutor(raftFactory.createIoExecutor());
         rgcEx.setFiberGroup(fiberGroup);
         return rgcEx;
-    }
-
-    private RefBufferFactory createHeapPoolFactory(FiberGroup fiberGroup) {
-        ExecutorService executorService = fiberGroup.getExecutor();
-        Dispatcher dispatcher = fiberGroup.getDispatcher();
-
-        TwoLevelPool heapPool = (TwoLevelPool) serverConfig.getPoolFactory().createPool(dispatcher.getTs(), false);
-        TwoLevelPool releaseSafePool = heapPool.toReleaseInOtherThreadInstance(dispatcher.getThread(), byteBuffer -> {
-            if (byteBuffer != null) {
-                executorService.execute(() -> heapPool.release(byteBuffer));
-            }
-        });
-        return new RefBufferFactory(releaseSafePool, 800);
     }
 
     private static Set<Integer> parseMemberIds(Set<Integer> allNodeIds, String str, int groupId) {
