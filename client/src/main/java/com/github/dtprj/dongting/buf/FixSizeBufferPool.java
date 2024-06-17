@@ -62,7 +62,7 @@ class FixSizeBufferPool {
             if (bufMagic != MAGIC) {
                 throw new DtException("A bug may exist where the buffer is written to after release.");
             }
-            buf.putInt(0, 0);
+            buf.putInt(MAGIC_INDEX, 0);
             statBorrowHitCount++;
         }
         return buf;
