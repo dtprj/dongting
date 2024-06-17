@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
@@ -27,10 +28,8 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 
-import java.nio.ByteBuffer;
 import java.util.LinkedList;
-import java.util.function.Consumer;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 /**
@@ -43,14 +42,13 @@ public class SnapshotReader extends FiberFrame<Void> {
     private final Snapshot snapshot;
     private final int maxReadConcurrency;
     private final int maxWriteConcurrency;
-    private final Function<ByteBuffer, FiberFuture<Void>> callback;
+    private final BiFunction<RefBuffer, Integer, FiberFuture<Void>> callback;
     private final Supplier<Boolean> cancel;
-    private final Supplier<ByteBuffer> bufferCreator;
-    private final Consumer<ByteBuffer> bufferReleaser;
+    private final Supplier<RefBuffer> bufferCreator;
 
     private final FiberCondition cond;
 
-    private final LinkedList<Pair<ByteBuffer, FiberFuture<Void>>> readList = new LinkedList<>();
+    private final LinkedList<Pair<RefBuffer, FiberFuture<Integer>>> readList = new LinkedList<>();
     private final LinkedList<FiberFuture<Void>> writeList = new LinkedList<>();
 
     private Throwable firstEx;
@@ -58,17 +56,15 @@ public class SnapshotReader extends FiberFrame<Void> {
 
     // the callback should release the buffer
     public SnapshotReader(Snapshot snapshot, int maxReadConcurrency, int maxWriteConcurrency,
-                          Function<ByteBuffer, FiberFuture<Void>> callback,
+                          BiFunction<RefBuffer, Integer, FiberFuture<Void>> callback,
                           Supplier<Boolean> cancel,
-                          Supplier<ByteBuffer> bufferCreator,
-                          Consumer<ByteBuffer> bufferReleaser) {
+                          Supplier<RefBuffer> bufferCreator) {
         this.snapshot = snapshot;
         this.maxReadConcurrency = maxReadConcurrency;
         this.maxWriteConcurrency = maxWriteConcurrency;
         this.callback = callback;
         this.cancel = cancel;
         this.bufferCreator = bufferCreator;
-        this.bufferReleaser = bufferReleaser;
         this.cond = FiberGroup.currentGroup().newCondition("snapshotReaderCond");
     }
 
@@ -84,9 +80,9 @@ public class SnapshotReader extends FiberFrame<Void> {
         if (!readFinish && firstEx == null && !cancel.get()) {
             if (readList.size() < maxReadConcurrency) {
                 // fire read task
-                ByteBuffer buf = bufferCreator.get();
+                RefBuffer buf = bufferCreator.get();
                 addNewReadTask = true;
-                FiberFuture<Void> future = snapshot.readNext(buf);
+                FiberFuture<Integer> future = snapshot.readNext(buf.getBuffer());
                 readList.add(new Pair<>(buf, future));
                 future.registerCallback((v, ex) -> cond.signal());
             }
@@ -113,12 +109,12 @@ public class SnapshotReader extends FiberFrame<Void> {
     }
 
     private void processReadResult() {
-        Pair<ByteBuffer, FiberFuture<Void>> pair = readList.peekFirst();
+        Pair<RefBuffer, FiberFuture<Integer>> pair = readList.peekFirst();
         if (pair == null) {
             return;
         }
-        FiberFuture<Void> f = pair.getRight();
-        ByteBuffer buf = pair.getLeft();
+        FiberFuture<Integer> f = pair.getRight();
+        RefBuffer buf = pair.getLeft();
         if (!f.isDone()) {
             // header in list not finished, wait for next time
             return;
@@ -127,16 +123,16 @@ public class SnapshotReader extends FiberFrame<Void> {
             // only record the first exception
             firstEx = f.getEx();
         }
-        if (!buf.hasRemaining()) {
+        if (f.getResult() != null && f.getResult() == 0) {
             readFinish = true;
         }
         if (cancel.get() || firstEx != null || readFinish) {
             readList.removeFirst();
-            bufferReleaser.accept(buf);
+            buf.release();
         } else if (writeList.size() < maxWriteConcurrency) {
             readList.removeFirst();
             try {
-                FiberFuture<Void> writeFuture = callback.apply(buf);
+                FiberFuture<Void> writeFuture = callback.apply(buf, f.getResult());
                 writeList.add(writeFuture);
                 writeFuture.registerCallback((v, ex) -> cond.signal());
             } catch (Throwable e) {

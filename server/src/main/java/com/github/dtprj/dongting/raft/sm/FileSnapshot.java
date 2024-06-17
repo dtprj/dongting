@@ -58,19 +58,20 @@ public class FileSnapshot extends Snapshot {
     }
 
     @Override
-    public FiberFuture<Void> readNext(ByteBuffer buffer) {
+    public FiberFuture<Integer> readNext(ByteBuffer buffer) {
         if (filePos >= fileSize) {
-            buffer.flip();
-            return FiberFuture.completedFuture(fiberGroup, null);
+            return FiberFuture.completedFuture(fiberGroup, 0);
         }
         long rest = fileSize - filePos;
-        if (rest < buffer.remaining()) {
-            buffer.limit((int) rest);
+        ByteBuffer copy = buffer.slice();
+        if (rest < copy.remaining()) {
+            copy.limit(copy.position() + (int) rest);
         }
         AsyncIoTask t = new AsyncIoTask(groupConfig, dtFile);
-        FiberFuture<Void> f = t.read(buffer, filePos);
-        filePos += buffer.remaining();
-        return f;
+        int readBytes = copy.remaining();
+        FiberFuture<Void> f = t.read(copy, filePos);
+        filePos += readBytes;
+        return f.convert("FileSnapshotReadNext", v -> readBytes);
     }
 
     @Override

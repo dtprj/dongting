@@ -15,7 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -50,12 +51,10 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -571,7 +570,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
     private final RaftServerConfig serverConfig;
     private final NioClient client;
     private final ReplicateManager replicateManager;
-    private final ByteBufferPool heapPool;
+    private final RefBufferFactory heapPool;
 
     private Snapshot snapshot;
     private long nextPosAfterInstallFinish;
@@ -585,7 +584,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         this.serverConfig = replicateManager.serverConfig;
         this.client = replicateManager.client;
         this.replicateManager = replicateManager;
-        this.heapPool = groupConfig.getFiberGroup().getThread().getHeapPool().getPool();
+        this.heapPool = groupConfig.getFiberGroup().getThread().getHeapPool();
     }
 
     @Override
@@ -634,17 +633,18 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         if (shouldStopReplicate()) {
             return Fiber.frameReturn();
         }
-        Supplier<ByteBuffer> bufferCreator = () -> heapPool.borrow(groupConfig.getReplicateSnapshotBufferSize());
-        Consumer<ByteBuffer> releaser = heapPool::release;
+        Supplier<RefBuffer> bufferCreator = () -> heapPool.create(groupConfig.getReplicateSnapshotBufferSize());
 
         int readConcurrency = groupConfig.getSnapshotConcurrency();
         int writeConcurrency = groupConfig.getReplicateSnapshotConcurrency();
         SnapshotReader r = new SnapshotReader(snapshot, readConcurrency, writeConcurrency, this::readerCallback,
-                this::shouldStopReplicate, bufferCreator, releaser);
+                this::shouldStopReplicate, bufferCreator);
         return Fiber.call(r, this::afterReaderFinish);
     }
 
-    private FiberFuture<Void> readerCallback(ByteBuffer buf) {
+    private FiberFuture<Void> readerCallback(RefBuffer buf, Integer readBytes) {
+        buf.getBuffer().clear();
+        buf.getBuffer().limit(readBytes);
         return sendInstallSnapshotReq(buf, false, false);
     }
 
@@ -653,7 +653,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
                 .await(this::justReturn);
     }
 
-    private FiberFuture<Void> sendInstallSnapshotReq(ByteBuffer data, boolean start, boolean finish) {
+    private FiberFuture<Void> sendInstallSnapshotReq(RefBuffer data, boolean start, boolean finish) {
         SnapshotInfo si = snapshot.getSnapshotInfo();
         InstallSnapshotReq req = new InstallSnapshotReq();
         req.groupId = groupId;
@@ -675,7 +675,6 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
             req.nextWritePos = nextPosAfterInstallFinish;
         }
         req.data = data;
-        req.pool = heapPool;
 
         // data buffer released in WriteFrame
         InstallSnapshotReq.InstallReqWriteFrame wf = new InstallSnapshotReq.InstallReqWriteFrame(req);
@@ -683,7 +682,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
         CompletableFuture<ReadFrame<AppendRespCallback>> future = client.sendRequest(
                 member.getNode().getPeer(), wf, APPEND_RESP_DECODER, timeout);
-        int bytes = data == null ? 0 : data.remaining();
+        int bytes = data == null ? 0 : data.getBuffer().remaining();
         snapshotOffset += bytes;
         FiberFuture<Void> f = getFiberGroup().newFuture("install-" + groupId + "-" + req.offset);
         future.whenCompleteAsync((rf, ex) -> afterInstallRpc(rf, ex, req, f), getFiberGroup().getExecutor());

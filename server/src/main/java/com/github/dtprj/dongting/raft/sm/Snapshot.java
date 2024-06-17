@@ -41,7 +41,7 @@ public abstract class Snapshot {
         return snapshotInfo;
     }
 
-    public abstract FiberFuture<Void> readNext(ByteBuffer buffer);
+    public abstract FiberFuture<Integer> readNext(ByteBuffer buffer);
 
     public void close() {
         if (!closed.compareAndSet(false, true)) {

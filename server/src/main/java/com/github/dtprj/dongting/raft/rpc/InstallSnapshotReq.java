@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.EncodeContext;
@@ -61,14 +61,12 @@ public class InstallSnapshotReq {
     public Set<Integer> preparedObservers;
     public long lastConfigChangeIndex;
 
-    public ByteBuffer data;
-    public ByteBufferPool pool;
+    public RefBuffer data;
 
-    public void release() {
-        if (data != null && pool != null) {
-            pool.release(data);
+    public void release(){
+        if (data != null) {
+            data.release();
             data = null;
-            pool = null;
         }
     }
 
@@ -152,12 +150,11 @@ public class InstallSnapshotReq {
             boolean end = buf.remaining() >= len - currentPos;
             if (index == 15) {
                 if (currentPos == 0) {
-                    result.data = heapPool.getPool().borrow(len);
-                    result.pool = heapPool.getPool();
+                    result.data = heapPool.create(len);
                 }
-                result.data.put(buf);
+                result.data.getBuffer().put(buf);
                 if (end) {
-                    result.data.flip();
+                    result.data.getBuffer().flip();
                 }
             }
             return true;
@@ -192,8 +189,9 @@ public class InstallSnapshotReq {
             x += calcFix32SetSize(12, req.preparedObservers);
             x += PbUtil.accurateFix64Size(13, req.lastConfigChangeIndex);
 
-            if (req.data != null && req.data.hasRemaining()) {
-                this.bufferSize = req.data.remaining();
+            RefBuffer rb = req.data;
+            if (rb != null && rb.getBuffer().hasRemaining()) {
+                this.bufferSize = rb.getBuffer().remaining();
                 x += PbUtil.accurateLengthDelimitedSize(15, bufferSize);
             } else {
                 this.bufferSize = 0;
@@ -245,8 +243,8 @@ public class InstallSnapshotReq {
             if (bufferSize == 0) {
                 return true;
             }
-            dest.put(req.data);
-            return !req.data.hasRemaining();
+            dest.put(req.data.getBuffer());
+            return !req.data.getBuffer().hasRemaining();
         }
 
         private void writeSet(ByteBuffer buf, int index, Set<Integer> s) {

@@ -51,21 +51,21 @@ class KvSnapshot extends Snapshot {
     }
 
     @Override
-    public FiberFuture<Void> readNext(ByteBuffer buffer) {
+    public FiberFuture<Integer> readNext(ByteBuffer buffer) {
         FiberGroup fiberGroup = FiberGroup.currentGroup();
         KvStatus current = statusSupplier.get();
         if (current.status != KvStatus.RUNNING || current.epoch != epoch) {
             return FiberFuture.failedFuture(fiberGroup, new RaftException("the snapshot is expired"));
         }
 
+        int startPos = buffer.position();
         while (true) {
             if (currentValue == null) {
                 nextValue();
             }
             if (currentValue == null) {
                 // no more data
-                buffer.flip();
-                return FiberFuture.completedFuture(fiberGroup, null);
+                return FiberFuture.completedFuture(fiberGroup, buffer.position() - startPos);
             }
 
             if (encodeStatus.writeToBuffer(buffer)) {
@@ -73,8 +73,7 @@ class KvSnapshot extends Snapshot {
                 currentValue = null;
             } else {
                 // buffer is full
-                buffer.flip();
-                return FiberFuture.completedFuture(fiberGroup, null);
+                return FiberFuture.completedFuture(fiberGroup, buffer.position() - startPos);
             }
         }
     }

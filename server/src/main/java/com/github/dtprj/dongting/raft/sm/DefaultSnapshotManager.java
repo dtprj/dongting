@@ -16,6 +16,8 @@
 package com.github.dtprj.dongting.raft.sm;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
@@ -46,14 +48,11 @@ import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.zip.CRC32C;
 
@@ -253,6 +252,8 @@ public class DefaultSnapshotManager implements SnapshotManager {
         private final CRC32C crc32c = new CRC32C();
 
         private final int bufferSize = groupConfig.getDiskSnapshotBufferSize();
+        private RefBufferFactory directBufferFactory;
+
 
         private DtFile newDataFile;
 
@@ -265,8 +266,6 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
         private boolean success;
         private boolean logCancel;
-
-        private final IdentityHashMap<ByteBuffer, ByteBuffer> bufferMap = new IdentityHashMap<>();
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
@@ -303,6 +302,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             if (checkCancel()) {
                 return Fiber.frameReturn();
             }
+            this.directBufferFactory = new RefBufferFactory(getFiberGroup().getThread().getDirectPool(), 0);
             readSnapshot = stateMachine.takeSnapshot(new SnapshotInfo(raftStatus));
 
             SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
@@ -320,37 +320,32 @@ public class DefaultSnapshotManager implements SnapshotManager {
             int readConcurrency = groupConfig.getSnapshotConcurrency();
             int writeConcurrency = groupConfig.getDiskSnapshotConcurrency();
             SnapshotReader reader = new SnapshotReader(readSnapshot, readConcurrency, writeConcurrency,
-                    this::writeCallback, this::checkCancel, this::createBuffer, this::releaseBuffer);
+                    this::writeCallback, this::checkCancel, this::createBuffer);
             return Fiber.call(reader, this::finishDataFile);
         }
 
-        private ByteBuffer createBuffer() {
-            ByteBuffer full = getFiberGroup().getThread().getDirectPool().borrow(bufferSize);
-            ByteBuffer sub = full.slice(4, full.capacity() - 8);
-            bufferMap.put(sub, full);
-            return sub;
+        private RefBuffer createBuffer() {
+            RefBuffer buf = directBufferFactory.create(bufferSize);
+            buf.getBuffer().position(4);
+            buf.getBuffer().limit(bufferSize - 8);
+            return buf;
         }
 
-        private void releaseBuffer(ByteBuffer buf) {
-            ByteBuffer full = bufferMap.remove(buf);
-            Objects.requireNonNull(full);
-            getFiberGroup().getThread().getDirectPool().release(full);
-        }
-
-        private FiberFuture<Void> writeCallback(ByteBuffer buf) {
-            ByteBuffer full = bufferMap.remove(buf);
-            int size = buf.remaining();
+        private FiberFuture<Void> writeCallback(RefBuffer rb, Integer readBytes) {
             crc32c.reset();
-            full.putInt(0, size);
-            RaftUtil.updateCrc(crc32c, full, 0, size + 4);
-            full.putInt(size + 4, (int) crc32c.getValue());
-            full.position(0);
-            full.limit(size + 8);
+            ByteBuffer buf = rb.getBuffer();
+            buf.clear();
+            int size = readBytes;
+            buf.putInt(0, size);
+            RaftUtil.updateCrc(crc32c, buf, 0, size + 4);
+            buf.putInt(size + 4, (int) crc32c.getValue());
+            buf.position(0);
+            buf.limit(size + 8);
             AsyncIoTask writeTask = new AsyncIoTask(groupConfig, newDataFile);
-            long newWritePos = currentWritePos + full.remaining();
-            FiberFuture<Void> writeFuture = writeTask.write(full, currentWritePos);
+            long newWritePos = currentWritePos + buf.capacity();
+            FiberFuture<Void> writeFuture = writeTask.write(buf, currentWritePos);
             currentWritePos = newWritePos;
-            writeFuture.registerCallback((v, ex) -> getFiberGroup().getThread().getDirectPool().release(full));
+            writeFuture.registerCallback((v, ex) -> rb.release());
             return writeFuture;
         }
 
@@ -426,8 +421,7 @@ class RecoverFiberFrame extends FiberFrame<Pair<Integer, Long>> {
     private final RaftGroupConfigEx groupConfig;
     private final FileSnapshot snapshot;
 
-    private final Supplier<ByteBuffer> bufferCreator;
-    private final Consumer<ByteBuffer> bufferReleaser;
+    private final Supplier<RefBuffer> bufferCreator;
 
     private final CRC32C crc32C = new CRC32C();
 
@@ -438,8 +432,8 @@ class RecoverFiberFrame extends FiberFrame<Pair<Integer, Long>> {
         this.groupConfig = groupConfig;
         this.snapshot = snapshot;
         ByteBufferPool p = groupConfig.getFiberGroup().getThread().getDirectPool();
-        this.bufferCreator = () -> p.borrow(snapshot.getBufferSize());
-        this.bufferReleaser = p::release;
+        RefBufferFactory f = new RefBufferFactory(p, 0);
+        this.bufferCreator = () -> f.create(snapshot.getBufferSize());
     }
 
     @Override
@@ -455,28 +449,31 @@ class RecoverFiberFrame extends FiberFrame<Pair<Integer, Long>> {
         int readConcurrency = groupConfig.getDiskSnapshotConcurrency();
         int writeConcurrency = groupConfig.getSnapshotConcurrency();
         SnapshotReader reader = new SnapshotReader(snapshot, readConcurrency, writeConcurrency, this::apply,
-                this::isGroupShouldStopPlain, bufferCreator, bufferReleaser);
+                this::isGroupShouldStopPlain, bufferCreator);
         return Fiber.call(reader, this::finish1);
     }
 
-    private FiberFuture<Void> apply(ByteBuffer buf) {
-        int size = buf.getInt();
+    private FiberFuture<Void> apply(RefBuffer rb, Integer notUsed) {
+        ByteBuffer buf = rb.getBuffer();
+        int size = buf.getInt(0);
         if (size <= 0 || size > buf.capacity() - 8) {
-            bufferReleaser.accept(buf);
+            rb.release();
             return FiberFuture.failedFuture(getFiberGroup(), new RaftException("invalid snapshot data size: " + size));
         }
         crc32C.reset();
         RaftUtil.updateCrc(crc32C, buf, 0, size + 4);
         int crc = buf.getInt(size + 4);
         if (crc != (int) crc32C.getValue()) {
-            bufferReleaser.accept(buf);
+            rb.release();
             return FiberFuture.failedFuture(getFiberGroup(), new RaftException("snapshot data crc error"));
         }
+        buf.limit(size + 4);
+        buf.position(4);
         SnapshotInfo si = snapshot.getSnapshotInfo();
         FiberFuture<Void> f = stateMachine.installSnapshot(si.getLastIncludedIndex(), si.getLastIncludedTerm(),
                 offset, false, buf);
         offset += size;
-        f.registerCallback((v, ex) -> bufferReleaser.accept(buf));
+        f.registerCallback((v, ex) -> rb.release());
         return f;
     }
 

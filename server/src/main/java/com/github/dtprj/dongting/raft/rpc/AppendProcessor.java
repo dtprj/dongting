@@ -44,6 +44,7 @@ import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -468,8 +469,9 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
 
     private FrameCallResult doInstall(RaftStatusImpl raftStatus, InstallSnapshotReq req) {
         boolean finish = req.done;
+        ByteBuffer buf = req.data == null ? null : req.data.getBuffer();
         FiberFuture<Void> f = gc.getStateMachine().installSnapshot(req.lastIncludedIndex,
-                req.lastIncludedTerm, req.offset, finish, req.data);
+                req.lastIncludedTerm, req.offset, finish, buf);
         if (finish) {
             return f.await(v -> finishInstall(req, raftStatus));
         } else {
