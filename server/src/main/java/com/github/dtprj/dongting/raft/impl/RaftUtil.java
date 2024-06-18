@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.RefCount;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberGroup;
@@ -34,6 +35,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -123,21 +125,22 @@ public final class RaftUtil {
         if (newLeaderId > 0) {
             updateLeader(raftStatus, newLeaderId);
         }
+        LinkedList<Pair<CompletableFuture<?>, NotLeaderException>> failList = new LinkedList<>();
         if (oldRole != RaftRole.observer) {
             log.info("update term from {} to {}, change to follower, oldRole={}",
                     raftStatus.getCurrentTerm(), remoteTerm, raftStatus.getRole());
-            TailCache oldPending = raftStatus.getTailCache();
             raftStatus.setRole(RaftRole.follower);
             if (oldRole == RaftRole.leader) {
+                TailCache oldPending = raftStatus.getTailCache();
+                NotLeaderException e = new NotLeaderException(raftStatus.getCurrentLeaderNode());
                 oldPending.forEach((idx, task) -> {
-                    RaftNode leaderNode = raftStatus.getCurrentLeaderNode();
                     if (task.getFuture() != null) {
-                        task.getFuture().completeExceptionally(new NotLeaderException(leaderNode));
+                        failList.add(new Pair<>(task.getFuture(), e));
                     }
                     RaftTask reader;
                     while ((reader = task.getNextReader()) != null) {
                         if (reader.getFuture() != null) {
-                            reader.getFuture().completeExceptionally(new NotLeaderException(leaderNode));
+                            failList.add(new Pair<>(reader.getFuture(), e));
                         }
                     }
                 });
@@ -149,6 +152,10 @@ public final class RaftUtil {
         raftStatus.setCurrentTerm(remoteTerm);
         raftStatus.setVotedFor(0);
         raftStatus.copyShareStatus();
+        // copy share status should happen before futures complete
+        for(Pair<CompletableFuture<?>, NotLeaderException> pair : failList) {
+            pair.getLeft().completeExceptionally(pair.getRight());
+        }
     }
 
     public static void resetStatus(RaftStatusImpl raftStatus) {
