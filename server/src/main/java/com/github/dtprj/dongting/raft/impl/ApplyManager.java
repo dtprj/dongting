@@ -122,21 +122,15 @@ public class ApplyManager {
         }
     }
 
-    private void execNormalWrite(long index, RaftTask rt) {
+    private Object execNormalWrite(long index, RaftTask rt) {
         try {
             RaftInput input = rt.getInput();
             long t = perfCallback.takeTime(PerfConsts.RAFT_D_STATE_MACHINE_EXEC);
             Object r = stateMachine.exec(index, rt.getItem().getTerm(), input);
             execCount++;
             perfCallback.fireTime(PerfConsts.RAFT_D_STATE_MACHINE_EXEC, t);
-            CompletableFuture<RaftOutput> future = rt.getFuture();
-            if (future != null) {
-                future.complete(new RaftOutput(index, r));
-            }
+            return r;
         } catch (Throwable ex) {
-            if (rt.getFuture() != null) {
-                rt.getFuture().completeExceptionally(ex);
-            }
             throw Fiber.fatal(new RaftException("exec write failed.", ex));
         }
     }
@@ -158,35 +152,42 @@ public class ApplyManager {
     }
 
     private FrameCallResult exec(RaftTask rt, long index, FrameCall<Void> resumePoint) {
-        switch (rt.getType()) {
-            case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
-            case LogItem.TYPE_DROP_CONFIG_CHANGE:
-            case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
-                return Fiber.call(new ConfigChangeFrame(rt), unused -> afterExec(true, index, rt, resumePoint));
-            case LogItem.TYPE_NORMAL:
-                execNormalWrite(index, rt);
-                // not break here
-            case LogItem.TYPE_HEARTBEAT:
-            default:
-                return this.afterExec(false, index, rt, resumePoint);
-        }
+        return switch (rt.getType()) {
+            case LogItem.TYPE_PREPARE_CONFIG_CHANGE,
+                 LogItem.TYPE_DROP_CONFIG_CHANGE,
+                 LogItem.TYPE_COMMIT_CONFIG_CHANGE ->
+                    Fiber.call(new ConfigChangeFrame(rt), unused -> afterExec(
+                            true, index, rt, null, resumePoint));
+            case LogItem.TYPE_NORMAL -> {
+                Object r = execNormalWrite(index, rt);
+                yield this.afterExec(false, index, rt, r, resumePoint);
+            }
+            // heart beat, no need to exec
+            default -> this.afterExec(false, index, rt, null, resumePoint);
+        };
     }
 
-    private FrameCallResult afterExec(boolean configChange, long index, RaftTask rt, FrameCall<Void> resumePoint) {
+    private FrameCallResult afterExec(boolean configChange, long index, RaftTask rt, Object execResult,
+                                      FrameCall<Void> resumePoint) {
         RaftStatusImpl raftStatus = ApplyManager.this.raftStatus;
 
         raftStatus.setLastApplied(index);
         raftStatus.setLastAppliedTerm(rt.getItem().getTerm());
 
-        if (raftStatus.getGroupReadyFuture() != null && index >= raftStatus.getGroupReadyIndex()) {
-            raftStatus.getGroupReadyFuture().complete(null);
-            raftStatus.setGroupReadyFuture(null);
-            log.info("{} mark group ready future complete: groupId={}, groupReadyIndex={}",
-                    raftStatus.getRole(), raftStatus.getGroupId(), raftStatus.getGroupReadyIndex());
+        if (configChange) {
+            raftStatus.setLastConfigChangeIndex(index);
         }
 
-        if (configChange) {
-            postConfigChange(index, rt);
+        // copy share status should happen before group ready future and raft task future complete
+        if (raftStatus.getGroupReadyFuture() != null && index >= raftStatus.getGroupReadyIndex()) {
+            CompletableFuture<Void> f = raftStatus.getGroupReadyFuture();
+            raftStatus.setGroupReadyFuture(null);
+            raftStatus.copyShareStatus();
+            f.complete(null);
+            log.info("{} mark group ready future complete: groupId={}, groupReadyIndex={}",
+                    raftStatus.getRole(), raftStatus.getGroupId(), raftStatus.getGroupReadyIndex());
+        } else {
+            raftStatus.copyShareStatus();
         }
 
         if (!initFutureComplete && index >= initCommitIndex) {
@@ -194,7 +195,9 @@ public class ApplyManager {
             initFutureComplete = true;
             raftStatus.getInitFuture().complete(null);
         }
-        raftStatus.copyShareStatus();
+        if (rt.getFuture() != null) {
+            rt.getFuture().complete(new RaftOutput(index, execResult));
+        }
 
         execReaders(index, rt);
 
@@ -203,13 +206,6 @@ public class ApplyManager {
 
         // resume loop
         return Fiber.resume(null, resumePoint);
-    }
-
-    private void postConfigChange(long index, RaftTask rt) {
-        raftStatus.setLastConfigChangeIndex(index);
-        if (rt.getFuture() != null) {
-            rt.getFuture().complete(new RaftOutput(index, null));
-        }
     }
 
     private class ApplyFrame extends FiberFrame<Void> {
@@ -365,16 +361,12 @@ public class ApplyManager {
         }
 
         private FrameCallResult afterPersist(Void unused) {
-            switch (rt.getType()) {
-                case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
-                    return doPrepare(rt);
-                case LogItem.TYPE_DROP_CONFIG_CHANGE:
-                    return gc.getMemberManager().doAbort();
-                case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
-                    return gc.getMemberManager().doCommit();
-                default:
-                    throw Fiber.fatal(new RaftException("unknown config change type"));
-            }
+            return switch (rt.getType()) {
+                case LogItem.TYPE_PREPARE_CONFIG_CHANGE -> doPrepare(rt);
+                case LogItem.TYPE_DROP_CONFIG_CHANGE -> gc.getMemberManager().doAbort();
+                case LogItem.TYPE_COMMIT_CONFIG_CHANGE -> gc.getMemberManager().doCommit();
+                default -> throw Fiber.fatal(new RaftException("unknown config change type"));
+            };
         }
 
         private FrameCallResult doPrepare(RaftTask rt) {
