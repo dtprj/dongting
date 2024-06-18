@@ -489,7 +489,7 @@ public class RaftServer extends AbstractLifeCircle {
             @Override
             public FrameCallResult execute(Void input) {
                 GroupComponents gc = g.getGroupComponents();
-                gc.getApplyManager().close();
+                gc.getApplyManager().shutdown(timeout);
                 return gc.getRaftLog().close().await(this::afterRaftLogClose);
             }
 

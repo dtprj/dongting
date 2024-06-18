@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.codec.ByteArrayEncoder;
+import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -147,8 +148,13 @@ public class ApplyManager {
         condition.signal();
     }
 
-    public void close() {
+    public void shutdown(DtTime timeout) {
         condition.signal();
+        try {
+            stateMachine.stop(timeout);
+        } catch (Throwable e) {
+            log.error("state machine stop failed", e);
+        }
     }
 
     private FrameCallResult exec(RaftTask rt, long index, FrameCall<Void> resumePoint) {

@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.StrEncoder;
+import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
@@ -36,7 +37,7 @@ import java.util.Map;
 /**
  * @author huangli
  */
-public class DtKV implements StateMachine {
+public class DtKV extends AbstractLifeCircle implements StateMachine {
     public static final int BIZ_TYPE_GET = 0;
     public static final int BIZ_TYPE_PUT = 1;
     public static final int BIZ_TYPE_REMOVE = 2;
@@ -172,9 +173,12 @@ public class DtKV implements StateMachine {
         }
     }
 
+    @Override
+    protected void doStart() {
+    }
 
     @Override
-    public void close() throws Exception {
+    protected void doStop(DtTime timeout, boolean force) {
         newStatus(KvStatus.CLOSED, null);
     }
 

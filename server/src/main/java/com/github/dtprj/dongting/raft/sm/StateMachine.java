@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.sm;
 
+import com.github.dtprj.dongting.common.LifeCircle;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 
@@ -25,7 +26,7 @@ import java.nio.ByteBuffer;
  *
  * @author huangli
  */
-public interface StateMachine extends AutoCloseable, RaftCodecFactory {
+public interface StateMachine extends LifeCircle, RaftCodecFactory {
 
     /**
      * this method is called in raft thread.
