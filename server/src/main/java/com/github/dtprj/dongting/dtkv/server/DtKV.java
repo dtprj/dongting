@@ -69,12 +69,12 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     }
 
     @Override
-    public Object exec(long index, int term, RaftInput input) {
+    public FiberFuture<Object> exec(long index, int term, RaftInput input) {
         KvStatus kvStatus = this.kvStatus;
         ensureRunning(kvStatus);
         StrEncoder key = (StrEncoder) input.getHeader();
         ByteArrayEncoder data = (ByteArrayEncoder) input.getBody();
-        return switch (input.getBizType()) {
+        Object r = switch (input.getBizType()) {
             case BIZ_TYPE_GET -> kvStatus.kvImpl.get(index, key.getStr());
             case BIZ_TYPE_PUT -> {
                 kvStatus.kvImpl.put(index, key.getStr(), data.getData(), maxOpenSnapshotIndex);
@@ -83,6 +83,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             case BIZ_TYPE_REMOVE -> kvStatus.kvImpl.remove(index, key.getStr(), maxOpenSnapshotIndex);
             default -> throw new IllegalArgumentException("unknown bizType " + input.getBizType());
         };
+        return FiberFuture.completedFuture(FiberGroup.currentGroup(), r);
     }
 
     /**

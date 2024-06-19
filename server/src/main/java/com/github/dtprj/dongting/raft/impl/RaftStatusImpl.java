@@ -74,12 +74,13 @@ public class RaftStatusImpl extends RaftStatus {
 
     private int lastAppliedTerm;
 
-    // lastApplied <= commitIndex (<= lastForceLogIndex <=) lastWriteLogIndex <= lastLogIndex
+    // lastApplied <= lastApplying <= commitIndex (<= lastForceLogIndex <=) lastWriteLogIndex <= lastLogIndex
     // IdxFiles.nextPersistIndex may less than lastApplied, since it's update asynchronously
     private long lastLogIndex;
     private int lastLogTerm;
     private long lastForceLogIndex;
     private long lastWriteLogIndex;
+    private long lastApplying;
 
     private long leaderCommit;
 
@@ -433,5 +434,13 @@ public class RaftStatusImpl extends RaftStatus {
 
     public void setLastAppliedTerm(int lastAppliedTerm) {
         this.lastAppliedTerm = lastAppliedTerm;
+    }
+
+    public long getLastApplying() {
+        return lastApplying;
+    }
+
+    public void setLastApplying(long lastApplying) {
+        this.lastApplying = lastApplying;
     }
 }
