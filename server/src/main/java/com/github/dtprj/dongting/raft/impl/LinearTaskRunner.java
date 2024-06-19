@@ -47,10 +47,6 @@ public class LinearTaskRunner {
 
     private static final DtLog log = DtLogs.getLogger(LinearTaskRunner.class);
 
-    private final GroupComponents gc;
-
-    private ApplyManager applyManager;
-
     private final RaftServerConfig serverConfig;
     private final RaftGroupConfigEx groupConfig;
     private final RaftStatusImpl raftStatus;
@@ -62,16 +58,11 @@ public class LinearTaskRunner {
     private final PerfCallback perfCallback;
 
     public LinearTaskRunner(GroupComponents gc) {
-        this.gc = gc;
         this.serverConfig = gc.getServerConfig();
         this.groupConfig = gc.getGroupConfig();
         this.raftStatus = gc.getRaftStatus();
         this.ts = raftStatus.getTs();
         this.perfCallback = gc.getGroupConfig().getPerfCallback();
-    }
-
-    public void postInit() {
-        this.applyManager = gc.getApplyManager();
     }
 
     public void init(FiberChannel<RaftTask> taskChannel) {

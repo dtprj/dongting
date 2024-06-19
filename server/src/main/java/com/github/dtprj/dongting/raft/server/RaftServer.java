@@ -263,7 +263,6 @@ public class RaftServer extends AbstractLifeCircle {
         commitManager.postInit();
         replicateManager.postInit();
         memberManager.postInit();
-        linearTaskRunner.postInit();
         voteManager.postInit();
 
         for (RaftSequenceProcessor<?> processor : raftSequenceProcessors) {
