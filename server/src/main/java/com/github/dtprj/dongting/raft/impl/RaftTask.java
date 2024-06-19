@@ -34,22 +34,12 @@ public class RaftTask {
 
     private LogItem item;
 
-    private RaftTask nextReader;
-
     public RaftTask(Timestamp ts, int type, RaftInput input,
                     CompletableFuture<RaftOutput> future) {
         this.createTimeNanos = ts.getNanoTime();
         this.type = type;
         this.input = input;
         this.future = future;
-    }
-
-    public void setNextReader(RaftTask nextReader) {
-        this.nextReader = nextReader;
-    }
-
-    public RaftTask getNextReader() {
-        return nextReader;
     }
 
     public CompletableFuture<RaftOutput> getFuture() {

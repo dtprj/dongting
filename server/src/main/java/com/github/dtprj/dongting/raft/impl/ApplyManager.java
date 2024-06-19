@@ -26,13 +26,11 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.PerfConsts;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
@@ -43,7 +41,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptySet;
 
@@ -101,46 +98,23 @@ public class ApplyManager {
         f.start();
     }
 
-    public void execRead(long index, RaftTask rt) {
+    private FrameCallResult execNormalTask(long index, RaftTask rt, FrameCall<Void> resumePoint) {
         RaftInput input = rt.getInput();
-        CompletableFuture<RaftOutput> future = rt.getFuture();
         try {
-            if (input.getDeadline() != null && input.getDeadline().isTimeout(ts)) {
-                future.completeExceptionally(new RaftExecTimeoutException("timeout "
-                        + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms"));
+            if (input.isReadOnly() && (rt.getFuture() == null || rt.getFuture().isDone())) {
+                return afterExec(index, rt, null, null, resumePoint);
             }
             long t = perfCallback.takeTime(PerfConsts.RAFT_D_STATE_MACHINE_EXEC);
             Object r = stateMachine.exec(index, rt.getItem().getTerm(), input);
             execCount++;
             perfCallback.fireTime(PerfConsts.RAFT_D_STATE_MACHINE_EXEC, t);
-            future.complete(new RaftOutput(index, r));
-        } catch (Throwable e) {
-            log.error("exec read failed. {}", e);
-            future.completeExceptionally(e);
-        } finally {
-            // for read task, no LogItem generated
-            RaftUtil.release(input);
-        }
-    }
-
-    private Object execNormalWrite(long index, RaftTask rt) {
-        try {
-            RaftInput input = rt.getInput();
-            long t = perfCallback.takeTime(PerfConsts.RAFT_D_STATE_MACHINE_EXEC);
-            Object r = stateMachine.exec(index, rt.getItem().getTerm(), input);
-            execCount++;
-            perfCallback.fireTime(PerfConsts.RAFT_D_STATE_MACHINE_EXEC, t);
-            return r;
+            return afterExec(index, rt, r, null, resumePoint);
         } catch (Throwable ex) {
-            throw Fiber.fatal(new RaftException("exec write failed.", ex));
-        }
-    }
-
-    private void execReaders(long index, RaftTask rt) {
-        RaftTask nextReader = rt.getNextReader();
-        while (nextReader != null) {
-            execRead(index, nextReader);
-            nextReader = nextReader.getNextReader();
+            if (input.isReadOnly()) {
+                return afterExec(index, rt, null, ex, resumePoint);
+            } else {
+                throw Fiber.fatal(new RaftException("exec write failed.", ex));
+            }
         }
     }
 
@@ -161,28 +135,22 @@ public class ApplyManager {
         return switch (rt.getType()) {
             case LogItem.TYPE_PREPARE_CONFIG_CHANGE,
                  LogItem.TYPE_DROP_CONFIG_CHANGE,
-                 LogItem.TYPE_COMMIT_CONFIG_CHANGE ->
-                    Fiber.call(new ConfigChangeFrame(rt), unused -> afterExec(
-                            true, index, rt, null, resumePoint));
-            case LogItem.TYPE_NORMAL -> {
-                Object r = execNormalWrite(index, rt);
-                yield this.afterExec(false, index, rt, r, resumePoint);
-            }
+                 LogItem.TYPE_COMMIT_CONFIG_CHANGE -> Fiber.call(new ConfigChangeFrame(rt), unused -> {
+                raftStatus.setLastConfigChangeIndex(index);
+                return afterExec(index, rt, null, null, resumePoint);
+            });
+            case LogItem.TYPE_NORMAL -> execNormalTask(index, rt, resumePoint);
             // heart beat, no need to exec
-            default -> this.afterExec(false, index, rt, null, resumePoint);
+            default -> this.afterExec(index, rt, null, null, resumePoint);
         };
     }
 
-    private FrameCallResult afterExec(boolean configChange, long index, RaftTask rt, Object execResult,
-                                      FrameCall<Void> resumePoint) {
+    private FrameCallResult afterExec(long index, RaftTask rt, Object execResult,
+                                      Throwable execEx, FrameCall<Void> resumePoint) {
         RaftStatusImpl raftStatus = ApplyManager.this.raftStatus;
 
         raftStatus.setLastApplied(index);
         raftStatus.setLastAppliedTerm(rt.getItem().getTerm());
-
-        if (configChange) {
-            raftStatus.setLastConfigChangeIndex(index);
-        }
 
         // copy share status should happen before group ready future and raft task future complete
         if (raftStatus.getGroupReadyFuture() != null && index >= raftStatus.getGroupReadyIndex()) {
@@ -202,13 +170,14 @@ public class ApplyManager {
             raftStatus.getInitFuture().complete(null);
         }
         if (rt.getFuture() != null) {
-            rt.getFuture().complete(new RaftOutput(index, execResult));
+            if (execEx == null) {
+                rt.getFuture().complete(new RaftOutput(index, execResult));
+            } else if (rt.getInput().isReadOnly()) {
+                rt.getFuture().completeExceptionally(execEx);
+            } else {
+                throw Fiber.fatal(execEx);
+            }
         }
-
-        execReaders(index, rt);
-
-        // release reader memory
-        rt.setNextReader(null);
 
         // resume loop
         return Fiber.resume(null, resumePoint);
@@ -337,14 +306,6 @@ public class ApplyManager {
             RaftInput input = new RaftInput(item.getBizType(), item.getHeader(), item.getBody(), null);
             RaftTask result = new RaftTask(ts, item.getType(), input, null);
             result.setItem(item);
-            RaftTask reader = raftStatus.getTailCache().get(item.getIndex());
-            if (reader != null) {
-                if (reader.getInput().isReadOnly()) {
-                    result.setNextReader(reader);
-                } else {
-                    BugLog.getLog().error("not read only");
-                }
-            }
             return result;
         }
     }

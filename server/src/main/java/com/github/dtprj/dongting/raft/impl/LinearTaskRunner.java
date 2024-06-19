@@ -148,7 +148,6 @@ public class LinearTaskRunner {
 
         int prevTerm = raftStatus.getLastLogTerm();
         int currentTerm = raftStatus.getCurrentTerm();
-        boolean hasWrite = false;
         for (int len = inputs.size(), i = 0; i < len; i++) {
             RaftTask rt = inputs.get(i);
             RaftInput input = rt.getInput();
@@ -163,52 +162,34 @@ public class LinearTaskRunner {
                 continue;
             }
 
-            if (!input.isReadOnly()) {
-                // write task
-                newIndex++;
-                LogItem item = new LogItem();
-                item.setType(rt.getType());
-                item.setBizType(input.getBizType());
-                item.setTerm(currentTerm);
-                item.setIndex(newIndex);
-                item.setPrevLogTerm(prevTerm);
-                prevTerm = currentTerm;
-                item.setTimestamp(ts.getWallClockMillis());
+            newIndex++;
+            LogItem item = new LogItem();
+            item.setType(rt.getType());
+            item.setBizType(input.getBizType());
+            item.setTerm(currentTerm);
+            item.setIndex(newIndex);
+            item.setPrevLogTerm(prevTerm);
+            prevTerm = currentTerm;
+            item.setTimestamp(ts.getWallClockMillis());
 
-                item.setHeader(input.getHeader(), input.isHeadReleasable());
-                item.setBody(input.getBody(), input.isBodyReleasable());
+            item.setHeader(input.getHeader(), input.isHeadReleasable());
+            item.setBody(input.getBody(), input.isBodyReleasable());
 
-                rt.setItem(item);
+            rt.setItem(item);
 
-                hasWrite = true;
-                try {
-                    tailCache.put(newIndex, rt);
-                    // successful change owner to TailCache and release in TailCache.release(RaftTask)
-                } catch (RuntimeException | Error e) {
-                    item.release();
-                }
-            } else {
-                // read task, no LogItem, release res in execRead
-                if (newIndex <= raftStatus.getLastApplied()) {
-                    applyManager.execRead(newIndex, rt);
-                } else {
-                    RaftTask newTask = tailCache.get(newIndex);
-                    if (newTask == null) {
-                        tailCache.put(newIndex, rt);
-                    } else {
-                        newTask.setNextReader(rt);
-                    }
-                }
+            try {
+                tailCache.put(newIndex, rt);
+                // successful change owner to TailCache and release in TailCache.release(RaftTask)
+            } catch (RuntimeException | Error e) {
+                item.release();
             }
         }
 
-        if (hasWrite) {
-            raftStatus.setLastLogIndex(newIndex);
-            raftStatus.setLastLogTerm(currentTerm);
-            RaftUtil.resetElectTimer(raftStatus);
+        raftStatus.setLastLogIndex(newIndex);
+        raftStatus.setLastLogTerm(currentTerm);
+        RaftUtil.resetElectTimer(raftStatus);
 
-            raftStatus.getDataArrivedCondition().signalAll();
-        }
+        raftStatus.getDataArrivedCondition().signalAll();
     }
 
     public void sendHeartBeat() {

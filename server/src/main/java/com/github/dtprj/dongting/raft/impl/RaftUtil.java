@@ -137,12 +137,6 @@ public final class RaftUtil {
                     if (task.getFuture() != null) {
                         failList.add(new Pair<>(task.getFuture(), e));
                     }
-                    RaftTask reader;
-                    while ((reader = task.getNextReader()) != null) {
-                        if (reader.getFuture() != null) {
-                            failList.add(new Pair<>(reader.getFuture(), e));
-                        }
-                    }
                 });
             }
         } else {

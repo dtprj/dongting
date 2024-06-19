@@ -102,12 +102,8 @@ public class TailCache {
     private void release(RaftTask t) {
         pending--;
         pendingBytes = Math.max(pendingBytes - t.getInput().getFlowControlSize(), 0);
-        RaftTask x = t;
-        while (x != null) {
-            if (x.getItem() != null) {
-                x.getItem().release();
-            }
-            x = x.getNextReader();
+        if (t.getItem() != null) {
+            t.getItem().release();
         }
     }
 
