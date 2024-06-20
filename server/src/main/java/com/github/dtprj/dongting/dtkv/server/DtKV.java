@@ -69,7 +69,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     }
 
     @Override
-    public FiberFuture<Object> exec(long index, int term, RaftInput input) {
+    public FiberFuture<Object> exec(long index, RaftInput input) {
         KvStatus kvStatus = this.kvStatus;
         ensureRunning(kvStatus);
         StrEncoder key = (StrEncoder) input.getHeader();

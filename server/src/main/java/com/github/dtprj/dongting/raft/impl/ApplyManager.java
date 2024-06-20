@@ -141,7 +141,7 @@ public class ApplyManager {
                     FiberFuture<Object> f = null;
                     Throwable execEx = null;
                     try {
-                        f = stateMachine.exec(index, rt.getItem().getTerm(), input);
+                        f = stateMachine.exec(index, input);
                         execCount++;
                     } catch (Throwable e) {
                         execEx = e;
