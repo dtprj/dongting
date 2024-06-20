@@ -111,6 +111,7 @@ public class ApplyManager {
     public void shutdown(DtTime timeout) {
         needApplyCond.signal();
         try {
+            // start in InitFiberFrame
             stateMachine.stop(timeout);
         } catch (Throwable e) {
             log.error("state machine stop failed", e);

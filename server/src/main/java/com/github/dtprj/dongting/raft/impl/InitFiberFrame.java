@@ -61,6 +61,7 @@ public class InitFiberFrame extends FiberFrame<Void> {
 
     @Override
     public FrameCallResult execute(Void input) throws Throwable {
+        gc.getStateMachine().start(); // stop in apply manager
         FiberGroup fg = getFiberGroup();
         initRaftStatus(raftStatus, fg, gc.getServerConfig());
 
