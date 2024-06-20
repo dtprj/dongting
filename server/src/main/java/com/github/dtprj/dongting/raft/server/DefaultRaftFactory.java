@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
+import com.github.dtprj.dongting.buf.PoolFactory;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.fiber.Dispatcher;
@@ -38,9 +39,15 @@ public abstract class DefaultRaftFactory extends AbstractLifeCircle implements R
 
     private final RaftServerConfig serverConfig;
     private ExecutorService ioExecutor;
+    protected PoolFactory poolFactory;
 
     public DefaultRaftFactory(RaftServerConfig serverConfig) {
         this.serverConfig = serverConfig;
+        this.poolFactory = createPoolFactory();
+    }
+
+    protected PoolFactory createPoolFactory() {
+        return new DefaultPoolFactory();
     }
 
     @Override
@@ -74,7 +81,7 @@ public abstract class DefaultRaftFactory extends AbstractLifeCircle implements R
 
     @Override
     public Dispatcher createDispatcher(RaftGroupConfig groupConfig) {
-        return new Dispatcher("raft-dispatcher-" + groupConfig.getGroupId(), new DefaultPoolFactory(),
+        return new Dispatcher("raft-dispatcher-" + groupConfig.getGroupId(), poolFactory,
                 groupConfig.getPerfCallback());
     }
 

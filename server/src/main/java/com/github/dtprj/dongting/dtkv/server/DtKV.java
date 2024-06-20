@@ -15,15 +15,19 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.buf.PoolFactory;
 import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.StrEncoder;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.common.DtUtil;
+import com.github.dtprj.dongting.fiber.Dispatcher;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.sm.Snapshot;
 import com.github.dtprj.dongting.raft.sm.SnapshotInfo;
@@ -33,6 +37,8 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.concurrent.Executor;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author huangli
@@ -42,13 +48,24 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     public static final int BIZ_TYPE_PUT = 1;
     public static final int BIZ_TYPE_REMOVE = 2;
 
+    private Dispatcher dtkvDispatcher;
+    private FiberGroup dtkvFiberGroup;
+    private Executor dtkvExecutor;
+
+    private final FiberGroup mainFiberGroup;
+    private final RaftGroupConfigEx config;
+    private final PoolFactory poolFactory;
     private final ArrayList<Snapshot> openSnapshots = new ArrayList<>();
     private long maxOpenSnapshotIndex;
 
+    private final ReentrantLock kvStatusLock = new ReentrantLock();
     private volatile KvStatus kvStatus = new KvStatus(KvStatus.RUNNING, new KvImpl(), 0);
     private EncodeStatus encodeStatus;
 
-    public DtKV() {
+    public DtKV(RaftGroupConfigEx config, PoolFactory poolFactory) {
+        this.mainFiberGroup = config.getFiberGroup();
+        this.config = config;
+        this.poolFactory = poolFactory;
     }
 
     @Override
@@ -72,22 +89,31 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     public FiberFuture<Object> exec(long index, RaftInput input) {
         KvStatus kvStatus = this.kvStatus;
         ensureRunning(kvStatus);
-        StrEncoder key = (StrEncoder) input.getHeader();
-        ByteArrayEncoder data = (ByteArrayEncoder) input.getBody();
-        Object r = switch (input.getBizType()) {
-            case BIZ_TYPE_GET -> kvStatus.kvImpl.get(index, key.getStr());
-            case BIZ_TYPE_PUT -> {
-                kvStatus.kvImpl.put(index, key.getStr(), data.getData(), maxOpenSnapshotIndex);
-                yield null;
+        FiberFuture<Object> f = mainFiberGroup.newFuture("dtkv-exec");
+        dtkvExecutor.execute(() -> {
+            try {
+                StrEncoder key = (StrEncoder) input.getHeader();
+                ByteArrayEncoder data = (ByteArrayEncoder) input.getBody();
+                Object r = switch (input.getBizType()) {
+                    case BIZ_TYPE_GET -> kvStatus.kvImpl.get(index, key.getStr());
+                    case BIZ_TYPE_PUT -> {
+                        kvStatus.kvImpl.put(index, key.getStr(), data.getData(), maxOpenSnapshotIndex);
+                        yield null;
+                    }
+                    case BIZ_TYPE_REMOVE -> kvStatus.kvImpl.remove(index, key.getStr(), maxOpenSnapshotIndex);
+                    default -> throw new IllegalArgumentException("unknown bizType " + input.getBizType());
+                };
+                f.fireComplete(r);
+            } catch (Exception e) {
+                f.fireCompleteExceptionally(e);
             }
-            case BIZ_TYPE_REMOVE -> kvStatus.kvImpl.remove(index, key.getStr(), maxOpenSnapshotIndex);
-            default -> throw new IllegalArgumentException("unknown bizType " + input.getBizType());
-        };
-        return FiberFuture.completedFuture(FiberGroup.currentGroup(), r);
+        });
+        return f;
     }
 
     /**
      * raft lease read, can read in any threads.
+     *
      * @see com.github.dtprj.dongting.raft.server.RaftGroup#getLeaseReadIndex(DtTime)
      */
     public byte[] get(long index, String key) {
@@ -97,38 +123,41 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     @Override
     public FiberFuture<Void> installSnapshot(long lastIncludeIndex, int lastIncludeTerm, long offset,
                                              boolean done, ByteBuffer data) {
-        try {
-            if (offset == 0) {
-                newStatus(KvStatus.INSTALLING_SNAPSHOT, new KvImpl());
-                encodeStatus = new EncodeStatus();
-            } else if (kvStatus.status != KvStatus.INSTALLING_SNAPSHOT) {
-                return FiberFuture.failedFuture(FiberGroup.currentGroup(), new IllegalStateException(
-                        "current status error: " + kvStatus.status));
-            }
-            KvImpl kvImpl = kvStatus.kvImpl;
-            if (data != null && data.hasRemaining()) {
-                Map<String, Value> map = kvImpl.getMap();
-                while (data.hasRemaining()) {
-                    if (encodeStatus.readFromBuffer(data)) {
-                        long raftIndex = encodeStatus.raftIndex;
-                        // TODO keyBytes is temporary object, we should use a pool
-                        String key = new String(encodeStatus.keyBytes, StandardCharsets.UTF_8);
-                        byte[] value = encodeStatus.valueBytes;
-                        map.put(key, new Value(raftIndex, key, value));
-                        encodeStatus.reset();
-                    } else {
-                        break;
+        FiberFuture<Void> f = mainFiberGroup.newFuture("dtkv-install-snapshot");
+        dtkvExecutor.execute(() -> {
+            try {
+                if (offset == 0) {
+                    newStatus(KvStatus.INSTALLING_SNAPSHOT, new KvImpl());
+                    encodeStatus = new EncodeStatus();
+                } else if (kvStatus.status != KvStatus.INSTALLING_SNAPSHOT) {
+                    throw new IllegalStateException("current status error: " + kvStatus.status);
+                }
+                KvImpl kvImpl = kvStatus.kvImpl;
+                if (data != null && data.hasRemaining()) {
+                    Map<String, Value> map = kvImpl.getMap();
+                    while (data.hasRemaining()) {
+                        if (encodeStatus.readFromBuffer(data)) {
+                            long raftIndex = encodeStatus.raftIndex;
+                            // TODO keyBytes is temporary object, we should use a pool
+                            String key = new String(encodeStatus.keyBytes, StandardCharsets.UTF_8);
+                            byte[] value = encodeStatus.valueBytes;
+                            map.put(key, new Value(raftIndex, key, value));
+                            encodeStatus.reset();
+                        } else {
+                            break;
+                        }
                     }
                 }
+                if (done) {
+                    newStatus(KvStatus.RUNNING, kvImpl);
+                    encodeStatus = null;
+                }
+                f.fireComplete(null);
+            } catch (Exception ex) {
+                f.fireCompleteExceptionally(ex);
             }
-            if (done) {
-                newStatus(KvStatus.RUNNING, kvImpl);
-                encodeStatus = null;
-            }
-            return FiberFuture.completedFuture(FiberGroup.currentGroup(), null);
-        } catch (Throwable ex) {
-            return FiberFuture.failedFuture(FiberGroup.currentGroup(), ex);
-        }
+        });
+        return f;
     }
 
     @Override
@@ -176,16 +205,33 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     @Override
     protected void doStart() {
+        dtkvDispatcher = new Dispatcher("dtkv-dispatcher-" + config.getGroupId(),
+                poolFactory, config.getPerfCallback());
+        dtkvDispatcher.start();
+        dtkvFiberGroup = new FiberGroup("dtkv" + config.getGroupId(), dtkvDispatcher);
+        try {
+            dtkvDispatcher.startGroup(dtkvFiberGroup).get();
+        } catch (Exception e) {
+            DtUtil.restoreInterruptStatus();
+            throw new RaftException(e);
+        }
+        dtkvExecutor = dtkvFiberGroup.getExecutor();
     }
 
     @Override
     protected void doStop(DtTime timeout, boolean force) {
         newStatus(KvStatus.CLOSED, null);
+        dtkvFiberGroup.requestShutdown();
+        dtkvDispatcher.stop(timeout);
     }
 
-    @SuppressWarnings("NonAtomicOperationOnVolatileField")
     private void newStatus(int status, KvImpl kvImpl) {
-        // close()/installSnapshot() are called in raft thread, so we don't need to use CAS here
-        kvStatus = new KvStatus(status, kvImpl, kvStatus.epoch + 1);
+        kvStatusLock.lock();
+        try {
+            //noinspection NonAtomicOperationOnVolatileField
+            kvStatus = new KvStatus(status, kvImpl, kvStatus.epoch + 1);
+        } finally {
+            kvStatusLock.unlock();
+        }
     }
 }
