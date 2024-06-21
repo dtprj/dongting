@@ -15,15 +15,12 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.buf.PoolFactory;
 import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.StrEncoder;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.common.DtUtil;
-import com.github.dtprj.dongting.fiber.Dispatcher;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -38,6 +35,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -48,13 +47,10 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     public static final int BIZ_TYPE_PUT = 1;
     public static final int BIZ_TYPE_REMOVE = 2;
 
-    private Dispatcher dtkvDispatcher;
-    private FiberGroup dtkvFiberGroup;
     private Executor dtkvExecutor;
 
     private final FiberGroup mainFiberGroup;
     private final RaftGroupConfigEx config;
-    private final PoolFactory poolFactory;
     private final ArrayList<Snapshot> openSnapshots = new ArrayList<>();
     private long maxOpenSnapshotIndex;
 
@@ -62,10 +58,9 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     private volatile KvStatus kvStatus = new KvStatus(KvStatus.RUNNING, new KvImpl(), 0);
     private EncodeStatus encodeStatus;
 
-    public DtKV(RaftGroupConfigEx config, PoolFactory poolFactory) {
+    public DtKV(RaftGroupConfigEx config) {
         this.mainFiberGroup = config.getFiberGroup();
         this.config = config;
-        this.poolFactory = poolFactory;
     }
 
     @Override
@@ -203,26 +198,27 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         }
     }
 
+    protected Executor createExecutor() {
+        return Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r);
+            t.setName("DtKV-" + config.getGroupId());
+            return t;
+        });
+    }
+
+    protected void stopExecutor(Executor executor) {
+        ((ExecutorService) executor).shutdown();
+    }
+
     @Override
     protected void doStart() {
-        dtkvDispatcher = new Dispatcher("dtkv-dispatcher-" + config.getGroupId(),
-                poolFactory, config.getPerfCallback());
-        dtkvDispatcher.start();
-        dtkvFiberGroup = new FiberGroup("dtkv" + config.getGroupId(), dtkvDispatcher);
-        try {
-            dtkvDispatcher.startGroup(dtkvFiberGroup).get();
-        } catch (Exception e) {
-            DtUtil.restoreInterruptStatus();
-            throw new RaftException(e);
-        }
-        dtkvExecutor = dtkvFiberGroup.getExecutor();
+        dtkvExecutor = createExecutor();
     }
 
     @Override
     protected void doStop(DtTime timeout, boolean force) {
         newStatus(KvStatus.CLOSED, null);
-        dtkvFiberGroup.requestShutdown();
-        dtkvDispatcher.stop(timeout);
+        stopExecutor(dtkvExecutor);
     }
 
     private void newStatus(int status, KvImpl kvImpl) {
