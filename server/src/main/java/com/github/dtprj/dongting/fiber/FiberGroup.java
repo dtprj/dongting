@@ -374,10 +374,15 @@ class GroupRunnerFiberFrame extends FiberFrame<Void> {
 
     private FrameCallResult afterTake(Runnable r) {
         if (r != null) {
+            Dispatcher.Data d = getFiberGroup().dispatcher.perfMap.computeIfAbsent("group-runner-one", k -> new Dispatcher.Data());
+            long t = System.nanoTime();
             try {
                 r.run();
             } catch (Throwable e) {
                 log.error("callback error", e);
+            } finally {
+                d.count++;
+                d.sum += System.nanoTime() - t;
             }
         }
         return Fiber.resume(null, this);
