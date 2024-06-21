@@ -51,6 +51,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     private final FiberGroup mainFiberGroup;
     private final RaftGroupConfigEx config;
+    private final boolean useSeparateExecutor;
     private final ArrayList<Snapshot> openSnapshots = new ArrayList<>();
     private long maxOpenSnapshotIndex;
 
@@ -58,9 +59,10 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     private volatile KvStatus kvStatus = new KvStatus(KvStatus.RUNNING, new KvImpl(), 0);
     private EncodeStatus encodeStatus;
 
-    public DtKV(RaftGroupConfigEx config) {
+    public DtKV(RaftGroupConfigEx config, boolean useSeparateExecutor) {
         this.mainFiberGroup = config.getFiberGroup();
         this.config = config;
+        this.useSeparateExecutor = useSeparateExecutor;
     }
 
     @Override
@@ -85,25 +87,38 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
         KvStatus kvStatus = this.kvStatus;
         ensureRunning(kvStatus);
         FiberFuture<Object> f = mainFiberGroup.newFuture("dtkv-exec");
-        dtkvExecutor.execute(() -> {
+        if (useSeparateExecutor) {
+            dtkvExecutor.execute(() -> {
+                try {
+                    Object r = exec0(index, input, kvStatus);
+                    f.fireComplete(r);
+                } catch (Exception e) {
+                    f.fireCompleteExceptionally(e);
+                }
+            });
+        } else {
             try {
-                StrEncoder key = (StrEncoder) input.getHeader();
-                ByteArrayEncoder data = (ByteArrayEncoder) input.getBody();
-                Object r = switch (input.getBizType()) {
-                    case BIZ_TYPE_GET -> kvStatus.kvImpl.get(index, key.getStr());
-                    case BIZ_TYPE_PUT -> {
-                        kvStatus.kvImpl.put(index, key.getStr(), data.getData(), maxOpenSnapshotIndex);
-                        yield null;
-                    }
-                    case BIZ_TYPE_REMOVE -> kvStatus.kvImpl.remove(index, key.getStr(), maxOpenSnapshotIndex);
-                    default -> throw new IllegalArgumentException("unknown bizType " + input.getBizType());
-                };
-                f.fireComplete(r);
+                Object r = exec0(index, input, kvStatus);
+                f.complete(r);
             } catch (Exception e) {
-                f.fireCompleteExceptionally(e);
+                f.completeExceptionally(e);
             }
-        });
+        }
         return f;
+    }
+
+    private Object exec0(long index, RaftInput input, KvStatus kvStatus) {
+        StrEncoder key = (StrEncoder) input.getHeader();
+        ByteArrayEncoder data = (ByteArrayEncoder) input.getBody();
+        return switch (input.getBizType()) {
+            case BIZ_TYPE_GET -> kvStatus.kvImpl.get(index, key.getStr());
+            case BIZ_TYPE_PUT -> {
+                kvStatus.kvImpl.put(index, key.getStr(), data.getData(), maxOpenSnapshotIndex);
+                yield null;
+            }
+            case BIZ_TYPE_REMOVE -> kvStatus.kvImpl.remove(index, key.getStr(), maxOpenSnapshotIndex);
+            default -> throw new IllegalArgumentException("unknown bizType " + input.getBizType());
+        };
     }
 
     /**
@@ -119,40 +134,53 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     public FiberFuture<Void> installSnapshot(long lastIncludeIndex, int lastIncludeTerm, long offset,
                                              boolean done, ByteBuffer data) {
         FiberFuture<Void> f = mainFiberGroup.newFuture("dtkv-install-snapshot");
-        dtkvExecutor.execute(() -> {
+        if (useSeparateExecutor) {
+            dtkvExecutor.execute(() -> {
+                try {
+                    install0(offset, done, data);
+                    f.fireComplete(null);
+                } catch (Exception ex) {
+                    f.fireCompleteExceptionally(ex);
+                }
+            });
+        } else {
             try {
-                if (offset == 0) {
-                    newStatus(KvStatus.INSTALLING_SNAPSHOT, new KvImpl());
-                    encodeStatus = new EncodeStatus();
-                } else if (kvStatus.status != KvStatus.INSTALLING_SNAPSHOT) {
-                    throw new IllegalStateException("current status error: " + kvStatus.status);
-                }
-                KvImpl kvImpl = kvStatus.kvImpl;
-                if (data != null && data.hasRemaining()) {
-                    Map<String, Value> map = kvImpl.getMap();
-                    while (data.hasRemaining()) {
-                        if (encodeStatus.readFromBuffer(data)) {
-                            long raftIndex = encodeStatus.raftIndex;
-                            // TODO keyBytes is temporary object, we should use a pool
-                            String key = new String(encodeStatus.keyBytes, StandardCharsets.UTF_8);
-                            byte[] value = encodeStatus.valueBytes;
-                            map.put(key, new Value(raftIndex, key, value));
-                            encodeStatus.reset();
-                        } else {
-                            break;
-                        }
-                    }
-                }
-                if (done) {
-                    newStatus(KvStatus.RUNNING, kvImpl);
-                    encodeStatus = null;
-                }
-                f.fireComplete(null);
+                install0(offset, done, data);
+                f.complete(null);
             } catch (Exception ex) {
-                f.fireCompleteExceptionally(ex);
+                f.completeExceptionally(ex);
             }
-        });
+        }
         return f;
+    }
+
+    private void install0(long offset, boolean done, ByteBuffer data) {
+        if (offset == 0) {
+            newStatus(KvStatus.INSTALLING_SNAPSHOT, new KvImpl());
+            encodeStatus = new EncodeStatus();
+        } else if (kvStatus.status != KvStatus.INSTALLING_SNAPSHOT) {
+            throw new IllegalStateException("current status error: " + kvStatus.status);
+        }
+        KvImpl kvImpl = kvStatus.kvImpl;
+        if (data != null && data.hasRemaining()) {
+            Map<String, Value> map = kvImpl.getMap();
+            while (data.hasRemaining()) {
+                if (encodeStatus.readFromBuffer(data)) {
+                    long raftIndex = encodeStatus.raftIndex;
+                    // TODO keyBytes is temporary object, we should use a pool
+                    String key = new String(encodeStatus.keyBytes, StandardCharsets.UTF_8);
+                    byte[] value = encodeStatus.valueBytes;
+                    map.put(key, new Value(raftIndex, key, value));
+                    encodeStatus.reset();
+                } else {
+                    break;
+                }
+            }
+        }
+        if (done) {
+            newStatus(KvStatus.RUNNING, kvImpl);
+            encodeStatus = null;
+        }
     }
 
     @Override
@@ -212,13 +240,17 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     @Override
     protected void doStart() {
-        dtkvExecutor = createExecutor();
+        if (useSeparateExecutor) {
+            dtkvExecutor = createExecutor();
+        }
     }
 
     @Override
     protected void doStop(DtTime timeout, boolean force) {
         newStatus(KvStatus.CLOSED, null);
-        stopExecutor(dtkvExecutor);
+        if (dtkvExecutor != null) {
+            stopExecutor(dtkvExecutor);
+        }
     }
 
     private void newStatus(int status, KvImpl kvImpl) {

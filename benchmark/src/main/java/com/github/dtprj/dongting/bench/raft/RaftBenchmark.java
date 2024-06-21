@@ -64,6 +64,7 @@ public class RaftBenchmark extends BenchBase {
     // significant performance impact if too large.
     // if we want to test the performance of the raft framework except the state machine, change to 1.
     private static final int KEYS = 100_000;
+    private static final boolean STATEMACHINE_USE_SEPARATE_EXECUTOR = false;
 
     private static final byte[] DATA = new byte[DATA_LEN];
     private final List<RaftServer> raftServers = new ArrayList<>();
@@ -112,7 +113,7 @@ public class RaftBenchmark extends BenchBase {
         DefaultRaftFactory raftFactory = new DefaultRaftFactory(serverConfig) {
             @Override
             public StateMachine createStateMachine(RaftGroupConfigEx groupConfig) {
-                return new DtKV(groupConfig);
+                return new DtKV(groupConfig, STATEMACHINE_USE_SEPARATE_EXECUTOR);
             }
 
             @Override
