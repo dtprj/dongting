@@ -123,16 +123,24 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
     }
 
     public static String getAppendResultStr(int code) {
-        return switch (code) {
-            case APPEND_SUCCESS -> "CODE_SUCCESS";
-            case APPEND_LOG_NOT_MATCH -> "CODE_LOG_NOT_MATCH";
-            case APPEND_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT -> "CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT";
-            case APPEND_REQ_ERROR -> "CODE_REQ_ERROR";
-            case APPEND_INSTALL_SNAPSHOT -> "CODE_INSTALL_SNAPSHOT";
-            case APPEND_NOT_MEMBER_IN_GROUP -> "CODE_NOT_MEMBER_IN_GROUP";
-            case APPEND_SERVER_ERROR -> "CODE_SERVER_ERROR";
-            default -> "CODE_UNKNOWN_" + code;
-        };
+        switch (code) {
+            case APPEND_SUCCESS:
+                return "CODE_SUCCESS";
+            case APPEND_LOG_NOT_MATCH:
+                return "CODE_LOG_NOT_MATCH";
+            case APPEND_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT:
+                return "CODE_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT";
+            case APPEND_REQ_ERROR:
+                return "CODE_REQ_ERROR";
+            case APPEND_INSTALL_SNAPSHOT:
+                return "CODE_INSTALL_SNAPSHOT";
+            case APPEND_NOT_MEMBER_IN_GROUP:
+                return "CODE_NOT_MEMBER_IN_GROUP";
+            case APPEND_SERVER_ERROR:
+                return "CODE_SERVER_ERROR";
+            default:
+                return "CODE_UNKNOWN_" + code;
+        }
     }
 
     @Override

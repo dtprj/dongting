@@ -55,8 +55,8 @@ public abstract class Snapshot {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof Snapshot other) {
-            return id == other.id;
+        if (obj instanceof Snapshot) {
+            return id == ((Snapshot)obj).id;
         }
         return false;
     }

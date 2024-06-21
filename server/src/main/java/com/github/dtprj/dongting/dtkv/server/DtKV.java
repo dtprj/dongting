@@ -67,19 +67,27 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     @Override
     public Decoder<? extends Encodable> createHeaderDecoder(int bizType) {
-        return switch (bizType) {
-            case BIZ_TYPE_GET, BIZ_TYPE_REMOVE, BIZ_TYPE_PUT -> StrEncoder.DECODER;
-            default -> throw new IllegalArgumentException("unknown bizType " + bizType);
-        };
+        switch (bizType) {
+            case BIZ_TYPE_GET:
+            case BIZ_TYPE_REMOVE:
+            case BIZ_TYPE_PUT:
+                return StrEncoder.DECODER;
+            default:
+                throw new IllegalArgumentException("unknown bizType " + bizType);
+        }
     }
 
     @Override
     public Decoder<? extends Encodable> createBodyDecoder(int bizType) {
-        return switch (bizType) {
-            case BIZ_TYPE_GET, BIZ_TYPE_REMOVE -> null;
-            case BIZ_TYPE_PUT -> ByteArrayEncoder.DECODER;
-            default -> throw new IllegalArgumentException("unknown bizType " + bizType);
-        };
+        switch (bizType) {
+            case BIZ_TYPE_GET:
+            case BIZ_TYPE_REMOVE:
+                return null;
+            case BIZ_TYPE_PUT:
+                return ByteArrayEncoder.DECODER;
+            default:
+                throw new IllegalArgumentException("unknown bizType " + bizType);
+        }
     }
 
     @Override
@@ -110,15 +118,17 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     private Object exec0(long index, RaftInput input, KvStatus kvStatus) {
         StrEncoder key = (StrEncoder) input.getHeader();
         ByteArrayEncoder data = (ByteArrayEncoder) input.getBody();
-        return switch (input.getBizType()) {
-            case BIZ_TYPE_GET -> kvStatus.kvImpl.get(index, key.getStr());
-            case BIZ_TYPE_PUT -> {
+        switch (input.getBizType()) {
+            case BIZ_TYPE_GET:
+                return kvStatus.kvImpl.get(index, key.getStr());
+            case BIZ_TYPE_PUT:
                 kvStatus.kvImpl.put(index, key.getStr(), data.getData(), maxOpenSnapshotIndex);
-                yield null;
-            }
-            case BIZ_TYPE_REMOVE -> kvStatus.kvImpl.remove(index, key.getStr(), maxOpenSnapshotIndex);
-            default -> throw new IllegalArgumentException("unknown bizType " + input.getBizType());
-        };
+                return null;
+            case BIZ_TYPE_REMOVE:
+                return kvStatus.kvImpl.remove(index, key.getStr(), maxOpenSnapshotIndex);
+            default:
+                throw new IllegalArgumentException("unknown bizType " + input.getBizType());
+        }
     }
 
     /**

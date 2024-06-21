@@ -118,7 +118,6 @@ public class ApplyManager {
         }
     }
 
-    @SuppressWarnings("EnhancedSwitchMigration")
     private FrameCallResult exec(RaftTask rt, long index, FrameCall<Void> resumePoint) {
         raftStatus.setLastApplying(index);
         switch (rt.getType()) {
@@ -364,12 +363,16 @@ public class ApplyManager {
             waitApply = false;
             StatusManager statusManager = gc.getStatusManager();
             statusManager.persistAsync(true);
-            return switch (rt.getType()) {
-                case LogItem.TYPE_PREPARE_CONFIG_CHANGE -> doPrepare(rt);
-                case LogItem.TYPE_DROP_CONFIG_CHANGE -> gc.getMemberManager().doAbort();
-                case LogItem.TYPE_COMMIT_CONFIG_CHANGE -> gc.getMemberManager().doCommit();
-                default -> throw Fiber.fatal(new RaftException("unknown config change type"));
-            };
+            switch (rt.getType()) {
+                case LogItem.TYPE_PREPARE_CONFIG_CHANGE:
+                    return doPrepare(rt);
+                case LogItem.TYPE_DROP_CONFIG_CHANGE:
+                    return gc.getMemberManager().doAbort();
+                case LogItem.TYPE_COMMIT_CONFIG_CHANGE:
+                    return gc.getMemberManager().doCommit();
+                default:
+                    throw Fiber.fatal(new RaftException("unknown config change type"));
+            }
         }
 
         private FrameCallResult doPrepare(RaftTask rt) {
