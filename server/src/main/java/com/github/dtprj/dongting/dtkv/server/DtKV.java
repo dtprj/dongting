@@ -127,6 +127,8 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
      * @see com.github.dtprj.dongting.raft.server.RaftGroup#getLeaseReadIndex(DtTime)
      */
     public byte[] get(long index, String key) {
+        KvStatus kvStatus = this.kvStatus;
+        ensureRunning(kvStatus);
         return kvStatus.kvImpl.get(index, key);
     }
 
