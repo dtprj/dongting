@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.NoopPerfCallback;
+import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.log.BugLog;
@@ -34,6 +35,10 @@ import com.github.dtprj.dongting.net.PerfConsts;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -44,6 +49,11 @@ import java.util.concurrent.TimeUnit;
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class Dispatcher extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(Dispatcher.class);
+    final HashMap<String, Data> perfMap = new HashMap<>(10000);
+    static class Data {
+        long count;
+        long sum;
+    }
 
     private final PoolFactory poolFactory;
     final PerfCallback perfCallback;
@@ -163,6 +173,18 @@ public class Dispatcher extends AbstractLifeCircle {
             shareQueue.shutdown();
             runImpl(localData);
             log.info("fiber dispatcher exit: {}", thread.getName());
+            System.out.println("---------------------------------------------");
+            List<Pair<String, Data>> list = new ArrayList<>();
+            for(Map.Entry<String, Data> en: perfMap.entrySet()) {
+                list.add(new Pair(en.getKey(), en.getValue()));
+            }
+            Collections.sort(list, (o1, o2) ->
+                    o1.getRight().sum < o2.getRight().sum? 1 : o1.getRight().sum==o2.getRight().sum? 0 : -1);
+            for(Pair<String, Data> p: list) {
+                System.out.printf("%-30s %,13d   %,10d      %,d\n", p.getLeft(),
+                        p.getRight().count, p.getRight().sum / p.getRight().count, p.getRight().sum);
+            }
+            System.out.println("---------------------------------------------");
         } catch (Throwable e) {
             SHOULD_STOP.setVolatile(this, true);
             log.info("fiber dispatcher exit exceptionally: {}", thread.getName(), e);
@@ -177,12 +199,17 @@ public class Dispatcher extends AbstractLifeCircle {
         PerfCallback c = perfCallback;
         long start = c.takeTime(PerfConsts.FIBER_D_WORK, ts);
         processScheduleFibers();
+        Data d = perfMap.computeIfAbsent("dispatcherTask", k -> new Data());
         for (int len = localData.size(), i = 0; i < len; i++) {
+            long t = System.nanoTime();
             try {
                 FiberQueueTask r = localData.get(i);
                 r.run();
             } catch (Throwable e) {
                 log.error("dispatcher run task fail", e);
+            } finally {
+                d.count++;
+                d.sum += System.nanoTime() - t;
             }
         }
         localData.clear();
@@ -280,6 +307,8 @@ public class Dispatcher extends AbstractLifeCircle {
     }
 
     private void execFiber(FiberGroup g, Fiber fiber) {
+        long t = System.nanoTime();
+        Data d = perfMap.computeIfAbsent(fiber.getName(), k -> new Data());
         try {
             g.currentFiber = fiber;
             FiberFrame currentFrame = fiber.stackTop;
@@ -325,6 +354,8 @@ public class Dispatcher extends AbstractLifeCircle {
         } finally {
             g.currentFiber = null;
             fatalError = null;
+            d.count++;
+            d.sum += System.nanoTime() - t;
         }
     }
 
