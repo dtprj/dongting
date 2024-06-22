@@ -61,8 +61,7 @@ public class RaftBenchmark extends BenchBase {
     private static final int CLIENT_MAX_OUT_REQUESTS = 2000;
     private static final boolean PERF = false; // significant performance impact if change to true
     private static final boolean SYNC_FORCE = true; // not wait for FileChannel.force after write
-    // significant performance impact if too large.
-    // if we want to test the performance of the raft framework except the state machine, change to 1.
+    // total different keys
     private static final int KEYS = 100_000;
     private static final boolean STATEMACHINE_USE_SEPARATE_EXECUTOR = false;
 
