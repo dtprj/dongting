@@ -268,7 +268,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
 
     private void submitForceTask() {
         try {
-            ExecutorService executor = groupConfig.getIoExecutor();
+            ExecutorService executor = groupConfig.getBlockIoExecutor();
             executor.execute(() -> {
                 try {
                     doForce();

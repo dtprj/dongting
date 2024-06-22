@@ -90,7 +90,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
 
     public DefaultSnapshotManager(RaftGroupConfigEx groupConfig, StateMachine stateMachine) {
         this.groupConfig = groupConfig;
-        this.ioExecutor = groupConfig.getIoExecutor();
+        this.ioExecutor = groupConfig.getBlockIoExecutor();
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
         this.stateMachine = stateMachine;
         this.saveLoopFrame = new SaveSnapshotLoopFrame();

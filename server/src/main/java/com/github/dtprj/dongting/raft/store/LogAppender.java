@@ -475,7 +475,7 @@ class LogAppender {
         private final long bytes;
 
         public SyncFrame(WriteTask task, long perfStartTime, int count, long bytes) {
-            super(task.getDtFile().getChannel(), groupConfig.getIoExecutor(), false);
+            super(task.getDtFile().getChannel(), groupConfig.getBlockIoExecutor(), false);
             this.task = task;
             this.perfStartTime = perfStartTime;
             this.count = count;

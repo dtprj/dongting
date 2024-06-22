@@ -53,12 +53,12 @@ public abstract class DefaultRaftFactory extends AbstractLifeCircle implements R
     @Override
     protected void doStart() {
         AtomicInteger count = new AtomicInteger();
-        ioExecutor = Executors.newFixedThreadPool(serverConfig.getIoThreads(),
+        ioExecutor = Executors.newFixedThreadPool(serverConfig.getBlockIoThreads(),
                 r -> new Thread(r, "raft-io-" + count.incrementAndGet()));
     }
 
     @Override
-    public ExecutorService createIoExecutor() {
+    public ExecutorService createBlockIoExecutor() {
         return ioExecutor;
     }
 

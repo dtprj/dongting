@@ -27,7 +27,7 @@ public class RaftGroupConfigEx extends RaftGroupConfig {
 
     private Timestamp ts;
     private RaftStatus raftStatus;
-    private ExecutorService ioExecutor;
+    private ExecutorService blockIoExecutor;
     private FiberGroup fiberGroup;
 
     public RaftGroupConfigEx(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
@@ -58,11 +58,11 @@ public class RaftGroupConfigEx extends RaftGroupConfig {
         this.raftStatus = raftStatus;
     }
 
-    public ExecutorService getIoExecutor() {
-        return ioExecutor;
+    public ExecutorService getBlockIoExecutor() {
+        return blockIoExecutor;
     }
 
-    public void setIoExecutor(ExecutorService ioExecutor) {
-        this.ioExecutor = ioExecutor;
+    public void setBlockIoExecutor(ExecutorService blockIoExecutor) {
+        this.blockIoExecutor = blockIoExecutor;
     }
 }

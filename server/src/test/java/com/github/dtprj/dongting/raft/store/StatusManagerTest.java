@@ -49,7 +49,7 @@ public class StatusManagerTest extends BaseFiberTest {
         groupConfig.setDataDir(dir.getAbsolutePath());
         groupConfig.setStatusFile("status.test");
         groupConfig.setRaftStatus(raftStatus);
-        groupConfig.setIoExecutor(MockExecutors.ioExecutor());
+        groupConfig.setBlockIoExecutor(MockExecutors.ioExecutor());
         groupConfig.setFiberGroup(fiberGroup);
         raftStatus.setTailCache(new TailCache(groupConfig, raftStatus));
         statusManager = new StatusManager(groupConfig);

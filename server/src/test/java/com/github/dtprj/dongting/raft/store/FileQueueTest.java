@@ -44,7 +44,7 @@ public class FileQueueTest extends BaseFiberTest {
     public void setup() {
         File dir = TestDir.createTestDir(FileQueueTest.class.getSimpleName());
         RaftGroupConfigEx c = new RaftGroupConfigEx(1, "1", "1");
-        c.setIoExecutor(MockExecutors.ioExecutor());
+        c.setBlockIoExecutor(MockExecutors.ioExecutor());
         RaftStatusImpl raftStatus = new RaftStatusImpl(dispatcher.getTs());
         raftStatus.setTailCache(new TailCache(c, raftStatus));
         c.setRaftStatus(raftStatus);

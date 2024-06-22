@@ -53,7 +53,7 @@ public class FileSnapshot extends Snapshot {
         HashSet<StandardOpenOption> options = new HashSet<>();
         options.add(StandardOpenOption.READ);
         AsynchronousFileChannel channel = AsynchronousFileChannel.open(dataFile.toPath(), options,
-                groupConfig.getIoExecutor());
+                groupConfig.getBlockIoExecutor());
         this.dtFile = new DtFile(dataFile, channel, groupConfig.getFiberGroup());
     }
 

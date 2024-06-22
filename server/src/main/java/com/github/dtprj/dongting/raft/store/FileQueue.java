@@ -74,7 +74,7 @@ abstract class FileQueue {
 
     public FileQueue(File dir, RaftGroupConfigEx groupConfig, long fileSize, boolean mainLogFile) {
         this.dir = dir;
-        this.ioExecutor = groupConfig.getIoExecutor();
+        this.ioExecutor = groupConfig.getBlockIoExecutor();
         this.groupConfig = groupConfig;
         this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
 

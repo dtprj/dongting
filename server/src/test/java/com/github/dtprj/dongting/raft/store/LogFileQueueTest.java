@@ -106,7 +106,7 @@ public class LogFileQueueTest extends BaseFiberTest {
         RaftServerConfig serverConfig = new RaftServerConfig();
 
         config = new RaftGroupConfigEx(1, "1", "1");
-        config.setIoExecutor(MockExecutors.ioExecutor());
+        config.setBlockIoExecutor(MockExecutors.ioExecutor());
         config.setFiberGroup(fiberGroup);
         config.setTs(raftStatus.getTs());
         config.setRaftStatus(raftStatus);

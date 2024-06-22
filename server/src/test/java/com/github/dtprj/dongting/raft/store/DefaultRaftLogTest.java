@@ -62,7 +62,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         config = new RaftGroupConfigEx(1, "1", "1");
         config.setFiberGroup(fiberGroup);
         config.setDataDir(dataDir);
-        config.setIoExecutor(MockExecutors.ioExecutor());
+        config.setBlockIoExecutor(MockExecutors.ioExecutor());
         config.setTs(raftStatus.getTs());
 
         raftStatus.setTailCache(new TailCache(config, raftStatus));
