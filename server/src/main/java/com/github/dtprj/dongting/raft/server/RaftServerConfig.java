@@ -34,7 +34,7 @@ public class RaftServerConfig {
 
     private boolean checkSelf = true;
 
-    private int blockIoThreads = Math.min(Runtime.getRuntime().availableProcessors() * 2, 4);
+    private int blockIoThreads = Math.max(Runtime.getRuntime().availableProcessors() * 2, 4);
 
     private PoolFactory poolFactory = new DefaultPoolFactory();
 
