@@ -17,13 +17,13 @@ package com.github.dtprj.dongting.dtkv.server;
 
 import java.util.LinkedList;
 import java.util.Map;
-import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author huangli
  */
 class KvImpl {
-    private final ConcurrentSkipListMap<String, Value> map = new ConcurrentSkipListMap<>();
+    private final ConcurrentHashMap<String, Value> map = new ConcurrentHashMap<>();
     private final LinkedList<Value> needCleanList = new LinkedList<>();
 
     public byte[] get(long index, String key) {
