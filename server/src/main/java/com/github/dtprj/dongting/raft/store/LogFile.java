@@ -27,11 +27,12 @@ class LogFile extends DtFile {
     final long startPos;
     final long endPos;
 
+    // idx file not set below 4 fields
     long firstTimestamp;
     long firstIndex;
     int firstTerm;
-
     long deleteTimestamp;
+
     boolean deleted;
 
     public LogFile(long startPos, long endPos, AsynchronousFileChannel channel,
