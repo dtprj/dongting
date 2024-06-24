@@ -15,24 +15,26 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
+
 /**
  * @author huangli
  */
 class Value {
     private final String key;
-    private final byte[] data;
+    private final RefBuffer data;
     private final long raftIndex;
 
     private Value previous;
     private boolean evicted;
 
-    public Value(long raftIndex,String key, byte[] data) {
+    public Value(long raftIndex,String key, RefBuffer data) {
         this.raftIndex = raftIndex;
         this.data = data;
         this.key = key;
     }
 
-    public byte[] getData() {
+    public RefBuffer getData() {
         return data;
     }
 

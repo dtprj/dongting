@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.dtkv;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.raft.RaftReq;
 
 /**
@@ -22,7 +23,7 @@ import com.github.dtprj.dongting.raft.RaftReq;
  */
 public class PutReq extends RaftReq {
     private String key;
-    private byte[] value;
+    private RefBuffer value;
 
     public String getKey() {
         return key;
@@ -32,11 +33,11 @@ public class PutReq extends RaftReq {
         this.key = key;
     }
 
-    public byte[] getValue() {
+    public RefBuffer getValue() {
         return value;
     }
 
-    public void setValue(byte[] value) {
+    public void setValue(RefBuffer value) {
         this.value = value;
     }
 }

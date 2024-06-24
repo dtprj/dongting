@@ -15,14 +15,20 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.net.ByteBufferWriteFrame;
+
 import java.nio.ByteBuffer;
 
 /**
  * @author huangli
  */
 class EncodeStatus {
+    private final RefBufferFactory heapPool;
     byte[] keyBytes;
-    byte[] valueBytes;
+    int valueLen;
+    RefBuffer valueBytes;
     long raftIndex;
 
     private int offset;
@@ -35,16 +41,21 @@ class EncodeStatus {
     private static final int STATE_KEY = 1;
     private static final int STATE_VALUE = 2;
 
+    public EncodeStatus(RefBufferFactory heapPool) {
+        this.heapPool = heapPool;
+    }
+
     public void reset() {
         keyBytes = null;
         valueBytes = null;
+        valueLen = 0;
         offset = 0;
         raftIndex = 0;
         state = STATE_HEADER;
     }
 
-    public boolean writeToBuffer(ByteBuffer buffer) {
-        int rest = buffer.remaining();
+    public boolean writeToBuffer(ByteBuffer dest) {
+        int rest = dest.remaining();
         if (rest == 0) {
             return false;
         }
@@ -52,52 +63,65 @@ class EncodeStatus {
             case EncodeStatus.STATE_HEADER:
                 if (rest < HEADER_SIZE - offset) {
                     if (offset == 0) {
-                        // copy to temp buffer
+                        // copy to temp dest
                         headerBuffer.clear();
                         headerBuffer.putLong(raftIndex);
                         headerBuffer.putInt(keyBytes.length);
-                        headerBuffer.putInt(valueBytes.length);
+                        headerBuffer.putInt(valueBytes.getBuffer().remaining());
                     }
-                    buffer.put(headerBuffer.array(), offset, rest);
+                    dest.put(headerBuffer.array(), offset, rest);
                     offset += rest;
                     return false;
                 } else {
                     if (offset > 0) {
-                        buffer.put(headerBuffer.array(), offset, HEADER_SIZE - offset);
+                        dest.put(headerBuffer.array(), offset, HEADER_SIZE - offset);
                         offset = 0;
                     } else {
-                        buffer.putLong(raftIndex);
-                        buffer.putInt(keyBytes.length);
-                        buffer.putInt(valueBytes.length);
+                        dest.putLong(raftIndex);
+                        dest.putInt(keyBytes.length);
+                        dest.putInt(valueBytes.getBuffer().remaining());
                     }
                     state = EncodeStatus.STATE_KEY;
                 }
                 // NOTICE: there is no break here
             case EncodeStatus.STATE_KEY:
-                if (writeBytesToBuffer(buffer, keyBytes)) {
+                if (encode(dest, keyBytes)) {
                     state = EncodeStatus.STATE_VALUE;
                 } else {
                     return false;
                 }
                 // NOTICE: there is no break here
             case EncodeStatus.STATE_VALUE:
-                return writeBytesToBuffer(buffer, valueBytes);
+                return encode(dest, valueBytes.getBuffer());
             default:
                 throw new IllegalStateException();
         }
     }
 
-    private boolean writeBytesToBuffer(ByteBuffer buffer, byte[] arr) {
-        int rest = buffer.remaining();
+    private boolean encode(ByteBuffer dest, byte[] arr) {
+        int rest = dest.remaining();
         if (rest == 0) {
             return false;
         }
         if (rest < arr.length - offset) {
-            buffer.put(arr, offset, rest);
+            dest.put(arr, offset, rest);
             offset += rest;
             return false;
         } else {
-            buffer.put(arr, offset, arr.length - offset);
+            dest.put(arr, offset, arr.length - offset);
+            offset = 0;
+            return true;
+        }
+    }
+
+    private boolean encode(ByteBuffer dest, ByteBuffer valueBuf) {
+        if (dest.remaining() == 0) {
+            return false;
+        }
+        offset = ByteBufferWriteFrame.copyFromHeapBuffer(valueBuf, dest, offset);
+        if (offset < valueBuf.remaining()) {
+            return false;
+        } else {
             offset = 0;
             return true;
         }
@@ -117,7 +141,6 @@ class EncodeStatus {
                     return false;
                 } else {
                     int keyLen;
-                    int valueLen;
                     if (offset > 0) {
                         buffer.get(headerBuffer.array(), offset, HEADER_SIZE - offset);
                         headerBuffer.clear();
@@ -131,36 +154,53 @@ class EncodeStatus {
                         valueLen = buffer.getInt();
                     }
                     keyBytes = new byte[keyLen];
-                    valueBytes = new byte[valueLen];
+                    valueBytes = heapPool.create(valueLen);
                     state = EncodeStatus.STATE_KEY;
                 }
                 // NOTICE: there is no break here
             case EncodeStatus.STATE_KEY:
-                if (readBytesFromBuffer(buffer, keyBytes)) {
+                if (decode(buffer, keyBytes)) {
                     state = EncodeStatus.STATE_VALUE;
                 } else {
                     return false;
                 }
                 //NOTICE: there is no break here
             case EncodeStatus.STATE_VALUE:
-                return readBytesFromBuffer(buffer, valueBytes);
+                return decode(buffer, valueBytes.getBuffer());
             default:
                 throw new IllegalStateException();
         }
     }
 
-    private boolean readBytesFromBuffer(ByteBuffer buffer, byte[] arr) {
-        int rest = buffer.remaining();
-        if (rest == 0) {
+    private boolean decode(ByteBuffer src, byte[] arr) {
+        int srcRest = src.remaining();
+        if (srcRest == 0) {
             return false;
         }
-        if (rest < arr.length - offset) {
-            buffer.get(arr, offset, rest);
-            offset += rest;
+        if (srcRest < arr.length - offset) {
+            src.get(arr, offset, srcRest);
+            offset += srcRest;
             return false;
         } else {
-            buffer.get(arr, offset, arr.length - offset);
+            src.get(arr, offset, arr.length - offset);
             offset = 0;
+            return true;
+        }
+    }
+
+    private boolean decode(ByteBuffer src, ByteBuffer valueBuf) {
+        int srcRest = src.remaining();
+        if (srcRest == 0) {
+            return false;
+        }
+        if(srcRest < valueLen - offset) {
+            src.put(valueBuf.array(), offset, srcRest);
+            offset += srcRest;
+            return false;
+        } else {
+            src.put(valueBuf.array(), offset, valueLen - offset);
+            offset = 0;
+            valueBuf.limit(valueLen);
             return true;
         }
     }

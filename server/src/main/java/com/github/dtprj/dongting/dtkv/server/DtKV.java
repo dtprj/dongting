@@ -15,11 +15,13 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.codec.ByteArrayEncoder;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.Encodable;
+import com.github.dtprj.dongting.codec.RefBufferDecoder;
 import com.github.dtprj.dongting.codec.StrEncoder;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
+import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
@@ -33,7 +35,6 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -84,7 +85,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             case BIZ_TYPE_REMOVE:
                 return null;
             case BIZ_TYPE_PUT:
-                return ByteArrayEncoder.DECODER;
+                return RefBufferDecoder.INSTANCE;
             default:
                 throw new IllegalArgumentException("unknown bizType " + bizType);
         }
@@ -117,12 +118,12 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
 
     private Object exec0(long index, RaftInput input, KvStatus kvStatus) {
         StrEncoder key = (StrEncoder) input.getHeader();
-        ByteArrayEncoder data = (ByteArrayEncoder) input.getBody();
         switch (input.getBizType()) {
             case BIZ_TYPE_GET:
                 return kvStatus.kvImpl.get(index, key.getStr());
             case BIZ_TYPE_PUT:
-                kvStatus.kvImpl.put(index, key.getStr(), data.getData(), maxOpenSnapshotIndex);
+                RefBuffer data = (RefBuffer) input.getBody();
+                kvStatus.kvImpl.put(index, key.getStr(), data, maxOpenSnapshotIndex);
                 return null;
             case BIZ_TYPE_REMOVE:
                 return kvStatus.kvImpl.remove(index, key.getStr(), maxOpenSnapshotIndex);
@@ -136,7 +137,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
      *
      * @see com.github.dtprj.dongting.raft.server.RaftGroup#getLeaseReadIndex(DtTime)
      */
-    public byte[] get(long index, String key) {
+    public RefBuffer get(long index, String key) {
         KvStatus kvStatus = this.kvStatus;
         ensureRunning(kvStatus);
         return kvStatus.kvImpl.get(index, key);
@@ -169,20 +170,18 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     private void install0(long offset, boolean done, ByteBuffer data) {
         if (offset == 0) {
             newStatus(KvStatus.INSTALLING_SNAPSHOT, new KvImpl());
-            encodeStatus = new EncodeStatus();
+            encodeStatus = new EncodeStatus(((DtThread) Thread.currentThread()).getHeapPool());
         } else if (kvStatus.status != KvStatus.INSTALLING_SNAPSHOT) {
             throw new IllegalStateException("current status error: " + kvStatus.status);
         }
         KvImpl kvImpl = kvStatus.kvImpl;
         if (data != null && data.hasRemaining()) {
-            Map<String, Value> map = kvImpl.getMap();
             while (data.hasRemaining()) {
                 if (encodeStatus.readFromBuffer(data)) {
                     long raftIndex = encodeStatus.raftIndex;
-                    // TODO keyBytes is temporary object, we should use a pool
+                    // TODO use byte buffer pool?
                     String key = new String(encodeStatus.keyBytes, StandardCharsets.UTF_8);
-                    byte[] value = encodeStatus.valueBytes;
-                    map.put(key, new Value(raftIndex, key, value));
+                    kvImpl.put(raftIndex, key, encodeStatus.valueBytes, 0);
                     encodeStatus.reset();
                 } else {
                     break;

@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.codec;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.DtThread;
 
@@ -147,6 +148,27 @@ public abstract class PbCallback<T> {
             return null;
         } else {
             result.flip();
+            return result;
+        }
+    }
+
+    protected final RefBuffer parseRefBuffer(ByteBuffer buf, int fieldLen, int currentPos) {
+        if (fieldLen == 0) {
+            return RefBuffer.wrap(SimpleByteBufferPool.EMPTY_BUFFER);
+        }
+        RefBuffer result;
+        if (currentPos == 0) {
+            result = ((DtThread) Thread.currentThread()).getHeapPool().create(fieldLen);
+        } else {
+            result = (RefBuffer) parser.attachment;
+        }
+        ByteBuffer resultBuf = result.getBuffer();
+        resultBuf.put(buf);
+        if (resultBuf.position() < fieldLen) {
+            parser.attachment = result;
+            return null;
+        } else {
+            resultBuf.flip();
             return result;
         }
     }

@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
+
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,7 +28,7 @@ class KvImpl {
     private final ConcurrentHashMap<String, Value> map = new ConcurrentHashMap<>();
     private final LinkedList<Value> needCleanList = new LinkedList<>();
 
-    public byte[] get(long index, String key) {
+    public RefBuffer get(long index, String key) {
         if (key == null) {
             throw new IllegalArgumentException("key is null");
         }
@@ -41,28 +43,47 @@ class KvImpl {
         if (value == null) {
             return null;
         } else {
-            return value.getData();
+            RefBuffer rb = value.getData();
+            if (rb != null) {
+                rb.retain();
+            }
+            return rb;
         }
     }
 
-    public void put(long index, String key, byte[] data, long maxOpenSnapshotIndex) {
+    private RefBuffer release(Value v) {
+        if (v == null) {
+            return null;
+        }
+        RefBuffer rb = v.getData();
+        if (rb != null) {
+            rb.release();
+        }
+        return rb;
+    }
+
+    public void put(long index, String key, RefBuffer data, long maxOpenSnapshotIndex) {
         if (key == null) {
             throw new IllegalArgumentException("key is null");
         }
-        if (data == null) {
+        if (data == null || data.getBuffer() == null || data.getBuffer().remaining() == 0) {
             throw new IllegalArgumentException("value is null");
         }
+        data.retain();
         Value newValue = new Value(index, key, data);
         Value oldValue = map.put(key, newValue);
         if (maxOpenSnapshotIndex > 0) {
             while (oldValue != null && oldValue.getRaftIndex() > maxOpenSnapshotIndex) {
+                release(oldValue);
                 oldValue = oldValue.getPrevious();
             }
-            if (oldValue != null) {
+            newValue.setPrevious(oldValue);
+            if (oldValue != null && !oldValue.isEvicted()) {
                 oldValue.setEvicted(true);
-                newValue.setPrevious(oldValue);
                 needCleanList.add(newValue);
             }
+        } else {
+            release(oldValue);
         }
     }
 
@@ -70,6 +91,8 @@ class KvImpl {
         LinkedList<Value> needCleanList = this.needCleanList;
         while (!needCleanList.isEmpty()) {
             Value v = needCleanList.removeFirst();
+            Value previous = v.getPrevious();
+            release(previous);
             v.setPrevious(null);
             if (v.getData() == null && !v.isEvicted()) {
                 map.remove(v.getKey());
@@ -88,6 +111,7 @@ class KvImpl {
             } else {
                 boolean result = oldValue.getData() != null;
                 while (oldValue != null && oldValue.getRaftIndex() > maxOpenSnapshotIndex) {
+                    release(oldValue);
                     oldValue = oldValue.getPrevious();
                 }
                 if (oldValue != null) {
@@ -100,7 +124,7 @@ class KvImpl {
                 return result;
             }
         } else {
-            return oldValue != null && oldValue.getData() != null;
+            return release(oldValue) != null;
         }
     }
 

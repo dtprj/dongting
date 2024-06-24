@@ -15,13 +15,14 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.dtkv.GetReq;
-import com.github.dtprj.dongting.net.ByteBufferWriteFrame;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.RefBufWriteFrame;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.server.AbstractRaftBizProcessor;
@@ -88,8 +89,8 @@ public class GetProcessor extends AbstractRaftBizProcessor<GetReq> {
                 processError(reqInfo, ex);
             } else {
                 DtKV dtKV = (DtKV) group.getStateMachine();
-                byte[] bytes = dtKV.get(logIndex, frame.getBody().getKey());
-                ByteBufferWriteFrame wf = new ByteBufferWriteFrame(bytes == null ? null : ByteBuffer.wrap(bytes));
+                RefBuffer rb = dtKV.get(logIndex, frame.getBody().getKey());
+                RefBufWriteFrame wf = new RefBufWriteFrame(rb);
                 wf.setRespCode(CmdCodes.SUCCESS);
                 writeResp(reqInfo, wf);
             }

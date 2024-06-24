@@ -59,6 +59,21 @@ public final class RefBuffer extends RefCount implements Encodable {
         this.buffer.position(absolutePos);
     }
 
+    private RefBuffer(ByteBuffer buf) {
+        if (buf.isDirect()) {
+            throw new IllegalArgumentException();
+        }
+        this.buffer = buf;
+        this.pool = null;
+        this.direct = buf.isDirect();
+        this.size = buf.remaining();
+        this.root = null;
+    }
+
+    public static RefBuffer wrap(ByteBuffer buf) {
+        return new RefBuffer(buf);
+    }
+
     public RefBuffer slice(int absolutePos, int absoluteLimit) {
         RefBuffer r = this.root == null ? this : this.root;
         return new RefBuffer(r, absolutePos, absoluteLimit);

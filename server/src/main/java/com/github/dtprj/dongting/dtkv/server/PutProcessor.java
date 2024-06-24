@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
@@ -57,7 +56,7 @@ public class PutProcessor extends AbstractRaftBizProcessor<PutReq> {
             if (index == 2) {
                 result.setKey(parseUTF8(buf, fieldLen, currentPos));
             } else if (index == 3) {
-                result.setValue(parseBytes(buf, fieldLen, currentPos));
+                result.setValue(parseRefBuffer(buf, fieldLen, currentPos));
             }
             return true;
         }
@@ -90,8 +89,7 @@ public class PutProcessor extends AbstractRaftBizProcessor<PutReq> {
     protected WriteFrame doProcess(ReqInfo<PutReq> reqInfo) {
         PutReq req = reqInfo.getReqFrame().getBody();
         ReqContext reqContext = reqInfo.getReqContext();
-        byte[] data = req.getValue();
-        RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_PUT, new StrEncoder(req.getKey()), new ByteArrayEncoder(data),
+        RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_PUT, new StrEncoder(req.getKey()), req.getValue(),
                 reqContext.getTimeout());
         CompletableFuture<RaftOutput> f = reqInfo.getRaftGroup().submitLinearTask(ri);
         f.whenComplete((output, ex) -> {
