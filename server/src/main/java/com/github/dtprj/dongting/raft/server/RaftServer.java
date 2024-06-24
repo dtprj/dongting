@@ -126,7 +126,7 @@ public class RaftServer extends AbstractLifeCircle {
         }
 
         NioClientConfig repClientConfig = new NioClientConfig();
-        repClientConfig.setName("RaftClient");
+        repClientConfig.setName("RaftRepClient" + serverConfig.getNodeId());
         setupNioConfig(repClientConfig);
         replicateNioClient = new NioClient(repClientConfig);
 
