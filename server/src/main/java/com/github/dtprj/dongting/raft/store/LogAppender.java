@@ -485,12 +485,11 @@ class LogAppender {
         @Override
         protected FrameCallResult afterForce(Void unused) {
             perfCallback.fireTime(PerfConsts.RAFT_D_LOG_SYNC, perfStartTime, count, bytes);
-            WriteTask head = syncTaskQueueHead;
-            if (head != null && head.lastIndex <= task.lastIndex) {
-                syncTaskQueueHead = head.nextNeedSyncTask;
-                raftStatus.setLastForceLogIndex(head.lastIndex);
-                raftStatus.getLogForceFinishCondition().signalAll();
+            while (syncTaskQueueHead != null && syncTaskQueueHead.lastIndex <= task.lastIndex) {
+                raftStatus.setLastForceLogIndex(syncTaskQueueHead.lastIndex);
+                syncTaskQueueHead = syncTaskQueueHead.nextNeedSyncTask;
             }
+            raftStatus.getLogForceFinishCondition().signalAll();
             return Fiber.frameReturn();
         }
     }
