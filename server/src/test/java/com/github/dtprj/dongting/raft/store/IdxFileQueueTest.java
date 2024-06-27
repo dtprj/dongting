@@ -265,7 +265,8 @@ public class IdxFileQueueTest extends BaseFiberTest {
                         return Fiber.call(idxFileQueue.waitFlush(), this::checkPos);
                     } else {
                         // delete a file
-                        return Fiber.call(idxFileQueue.delete(idxFileQueue.getLogFile(0)), this::afterDelete);
+                        FileQueue.DeleteFrame f = idxFileQueue.new DeleteFrame(idxFileQueue.getLogFile(0));
+                        return Fiber.call(f, this::afterDelete);
                     }
                 }
                 FiberFrame<Void> f = new LoadLogPosFrame(checkIndex, checkIndex * 100);
@@ -363,7 +364,8 @@ public class IdxFileQueueTest extends BaseFiberTest {
                     return Fiber.call(idxFileQueue.waitFlush(), this::waitFlush);
                 }
                 // delete a file
-                return Fiber.call(idxFileQueue.delete(idxFileQueue.getLogFile(0)), this::afterDelete);
+                FileQueue.DeleteFrame f = idxFileQueue.new DeleteFrame(idxFileQueue.getLogFile(0));
+                return Fiber.call(f, this::afterDelete);
             }
 
             private FrameCallResult afterDelete(Void unused) {

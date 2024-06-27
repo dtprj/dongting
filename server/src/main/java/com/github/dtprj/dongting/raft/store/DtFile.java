@@ -33,7 +33,13 @@ public class DtFile {
     public DtFile(File file, AsynchronousFileChannel channel, FiberGroup fiberGroup) {
         this.file = file;
         this.channel = channel;
-        this.lock = fiberGroup.newLock("fileLock");
+        this.lock = fiberGroup.newLock("fileLock-" + file.getName());
+    }
+
+    DtFile(File file, AsynchronousFileChannel channel, FiberLock lock) {
+        this.file = file;
+        this.channel = channel;
+        this.lock = lock;
     }
 
     public File getFile() {

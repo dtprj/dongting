@@ -15,7 +15,9 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberGroup;
+import com.github.dtprj.dongting.fiber.FiberLock;
 
 import java.io.File;
 import java.nio.channels.AsynchronousFileChannel;
@@ -35,11 +37,16 @@ class LogFile extends DtFile {
 
     boolean deleted;
 
-    public LogFile(long startPos, long endPos, AsynchronousFileChannel channel,
-                   File file, FiberGroup fiberGroup) {
-        super(file, channel, fiberGroup);
+    int readers;
+    int writers;
+
+    FiberCondition noRwCond;
+
+    public LogFile(long startPos, long endPos, AsynchronousFileChannel channel, File file, FiberGroup group) {
+        super(file, channel, (FiberLock) null);
         this.startPos = startPos;
         this.endPos = endPos;
+        this.noRwCond = new FiberCondition("noRw-" + file.getName(), group);
     }
 
     public boolean shouldDelete() {

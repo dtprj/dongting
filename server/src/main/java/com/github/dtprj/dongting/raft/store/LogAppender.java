@@ -20,9 +20,7 @@ import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.PerfCallback;
-import com.github.dtprj.dongting.fiber.DoInLockFrame;
 import com.github.dtprj.dongting.fiber.Fiber;
-import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
@@ -67,19 +65,14 @@ class LogAppender {
     long nextPersistIndex = -1;
     long nextPersistPos = -1;
 
-    private WriteTask writeTaskQueueHead;
-    private WriteTask syncTaskQueueHead;
-
     private final Fiber appendFiber;
-
-    private final Fiber fsyncFiber;
-    private final FiberCondition needFsyncCondition;
 
     private final Supplier<Boolean> writeStopIndicator;
 
     private final RaftStatusImpl raftStatus;
 
     private final PerfCallback perfCallback;
+    private final LogChainWrite chainWriter;
 
     LogAppender(IdxOps idxOps, LogFileQueue logFileQueue, RaftGroupConfigEx groupConfig) {
         this.idxOps = idxOps;
@@ -95,32 +88,54 @@ class LogAppender {
         WriteFiberFrame writeFiberFrame = new WriteFiberFrame();
         this.appendFiber = new Fiber("append-" + groupConfig.getGroupId(), fiberGroup, writeFiberFrame);
         this.writeStopIndicator = logFileQueue::isClosed;
-        this.fsyncFiber = new Fiber("fsync-" + groupConfig.getGroupId(), fiberGroup, new SyncLoopFrame());
-        this.needFsyncCondition = fiberGroup.newCondition("NeedFsync-" + groupConfig.getGroupId());
         this.perfCallback = groupConfig.getPerfCallback();
+        this.chainWriter = new LogChainWrite(groupConfig, PerfConsts.RAFT_D_LOG_WRITE1, PerfConsts.RAFT_D_LOG_WRITE2,
+                PerfConsts.RAFT_D_LOG_SYNC);
     }
 
     public void startFiber() {
         appendFiber.start();
-        fsyncFiber.start();
+        chainWriter.startForceFiber();
     }
 
     public FiberFuture<Void> close() {
         appendFiber.interrupt();
-        needFsyncCondition.signal();
-        raftStatus.getLogForceFinishCondition().signalAll();
-        FiberFuture<Void> f1, f2;
+        FiberFuture<Void> f1;
         if (appendFiber.isStarted()) {
             f1 = appendFiber.join();
         } else {
             f1 = FiberFuture.completedFuture(groupConfig.getFiberGroup(), null);
         }
-        if (fsyncFiber.isStarted()) {
-            f2 = fsyncFiber.join();
-        } else {
-            f2 = FiberFuture.completedFuture(groupConfig.getFiberGroup(), null);
-        }
+        FiberFuture<Void> f2 = chainWriter.shutdownForceFiber();
+        raftStatus.getLogForceFinishCondition().signalAll();
         return FiberFuture.allOf("closeLogAppender", f1, f2);
+    }
+
+    private class LogChainWrite extends ChainWriter {
+
+        public LogChainWrite(RaftGroupConfigEx config, int writePerfType1, int writePerfType2, int forcePerfType) {
+            super(config, writePerfType1, writePerfType2, forcePerfType);
+        }
+
+        @Override
+        protected void writeFinish(WriteTask writeTask) {
+            raftStatus.getDataArrivedCondition().signal(appendFiber);
+            if (writeTask.getLastRaftIndex() > 0) {
+                raftStatus.setLastWriteLogIndex(writeTask.getLastRaftIndex());
+            }
+        }
+
+        @Override
+        protected void forceFinish(WriteTask writeTask) {
+            // assert lastRaftIndex > 0
+            raftStatus.setLastForceLogIndex(writeTask.getLastRaftIndex());
+            raftStatus.getLogForceFinishCondition().signalAll();
+        }
+
+        @Override
+        protected boolean isClosed() {
+            return logFileQueue.isClosed();
+        }
     }
 
     private class WriteFiberFrame extends FiberFrame<Void> {
@@ -145,7 +160,6 @@ class LogAppender {
             if (logFileQueue.isClosed()) {
                 return Fiber.frameReturn();
             }
-            processWriteResult();
             TailCache tailCache = LogAppender.this.cache;
             long nextPersistIndex = LogAppender.this.nextPersistIndex;
             if (tailCache.size() > 0 && tailCache.getLastIndex() >= nextPersistIndex) {
@@ -181,10 +195,7 @@ class LogAppender {
                 BugLog.getLog().error("file is deleted or mark deleted: {}", lf.getFile().getPath());
                 throw new RaftException("file is deleted or mark deleted: " + lf.getFile().getPath());
             }
-            // use read lock, so not block read operation.
-            // because we never read file block that is being written.
-            // unlock in encodeAndWriteItems()
-            return lf.getLock().readLock().lock(v -> encodeAndWriteItems(lf));
+            return encodeAndWriteItems(lf);
         }
 
         private FrameCallResult encodeAndWriteItems(LogFile file) {
@@ -323,34 +334,11 @@ class LogAppender {
             buffer.flip();
             int bytes = buffer.remaining();
             boolean retry = logFileQueue.initialized && !logFileQueue.isClosed();
-            WriteTask task = new WriteTask(groupConfig, file, retry, true, writeStopIndicator);
-            task.bytes = bytes;
-            if (lastItem != null) {
-                task.lastTerm = lastItem.getTerm();
-                task.lastIndex = lastItem.getIndex();
-                task.perfItemCount = perfCount;
-            }
 
-            long startTime = perfCallback.takeTime(PerfConsts.RAFT_D_LOG_WRITE1);
-            // no sync
-            task.write(buffer, writeStartPosInFile);
-            perfCallback.fireTime(PerfConsts.RAFT_D_LOG_WRITE1, startTime, task.perfItemCount, bytes);
-
-            if (writeTaskQueueHead == null) {
-                writeTaskQueueHead = task;
-            } else {
-                writeTaskQueueHead.nextNeedWriteTask = task;
-            }
-
-            // tryLock() will success immediately since we lock the file in afterPosReady()
-            file.getLock().readLock().tryLock();
-            task.getFuture().registerCallback((r, ex) -> {
-                // release lock in processWriteResult() since we should unlock in same fiber.
-                // unlock in processWriteResult
-                perfCallback.fireTime(PerfConsts.RAFT_D_LOG_WRITE2, startTime, task.perfItemCount, bytes);
-                directPool.release(task.getIoBuffer());
-                raftStatus.getDataArrivedCondition().signal(appendFiber);
-            });
+            long lastIndex = lastItem != null ? lastItem.getIndex() : -1;
+            ChainWriter.WriteTask task = new ChainWriter.WriteTask(groupConfig, file, retry, true, writeStopIndicator, buffer,
+                    writeStartPosInFile, lastItem != null, perfCount, lastIndex);
+            chainWriter.submitWrite(task);
 
             writeStartPosInFile += bytes;
             bytesToWrite -= bytes;
@@ -368,130 +356,6 @@ class LogAppender {
                 return directPool.borrow(size);
             }
         }
-
-        private void processWriteResult() {
-            boolean needSignal = false;
-            while (writeTaskQueueHead != null && writeTaskQueueHead.getFuture().isDone()) {
-                WriteTask wt = writeTaskQueueHead;
-                writeTaskQueueHead = wt.nextNeedWriteTask;
-                wt.getDtFile().getLock().readLock().unlock();
-                if (wt.getFuture().getEx() != null) {
-                    throw Fiber.fatal(new RaftException("write error", wt.getFuture().getEx()));
-                }
-                if (wt.lastTerm > 0) {
-                    raftStatus.setLastWriteLogIndex(wt.lastIndex);
-                    needSignal = true;
-                    if (syncTaskQueueHead == null) {
-                        syncTaskQueueHead = wt;
-                    } else {
-                        syncTaskQueueHead.nextNeedSyncTask = wt;
-                    }
-                }
-            }
-            if (needSignal) {
-                raftStatus.getLogWriteFinishCondition().signalAll();
-                needFsyncCondition.signalLater();
-            }
-        }
-    }
-
-
-    static class WriteTask extends AsyncIoTask {
-        int lastTerm;
-        long lastIndex;
-        int perfItemCount;
-
-        int bytes;
-
-        WriteTask nextNeedWriteTask;
-        WriteTask nextNeedSyncTask;
-
-        public WriteTask(RaftGroupConfigEx groupConfig, DtFile dtFile,
-                         boolean retry, boolean retryForever, Supplier<Boolean> cancelIndicator) {
-            super(groupConfig, dtFile, retry, retryForever, cancelIndicator);
-        }
-    }
-
-    private class SyncLoopFrame extends FiberFrame<Void> {
-        @Override
-        protected FrameCallResult handle(Throwable ex) {
-            throw Fiber.fatal(ex);
-        }
-
-        @Override
-        public FrameCallResult execute(Void input) {
-            if (logFileQueue.isClosed()) {
-                return Fiber.frameReturn();
-            }
-            if (syncTaskQueueHead == null) {
-                return needFsyncCondition.await(this);
-            } else {
-                long perfStartTime = perfCallback.takeTime(PerfConsts.RAFT_D_LOG_SYNC);
-                WriteTask task = syncTaskQueueHead;
-                long bytes = task.bytes;
-                int count = task.perfItemCount;
-                while (task.nextNeedSyncTask != null) {
-                    if (task.getDtFile() == task.nextNeedSyncTask.getDtFile()) {
-                        task = task.nextNeedSyncTask;
-                        bytes += task.bytes;
-                        count += task.perfItemCount;
-                    } else {
-                        break;
-                    }
-                }
-                return Fiber.call(new LockThenSyncFrame(task, perfStartTime, count, bytes), this);
-            }
-        }
-    }
-
-    private class LockThenSyncFrame extends DoInLockFrame<Void> {
-        private final WriteTask task;
-        private final long perfStartTime;
-        private final int count;
-        private final long bytes;
-
-        public LockThenSyncFrame(WriteTask task, long perfStartTime, int count, long bytes) {
-            // use read lock, no block read operations
-            super(task.getDtFile().getLock().readLock());
-            this.task = task;
-            this.perfStartTime = perfStartTime;
-            this.count = count;
-            this.bytes = bytes;
-        }
-
-        @Override
-        protected FrameCallResult afterGetLock() {
-            RetryFrame<Void> rf = new RetryFrame<>(new SyncFrame(task, perfStartTime, count, bytes),
-                    groupConfig.getIoRetryInterval(), false);
-            return Fiber.call(rf, this::justReturn);
-        }
-    }
-
-    private class SyncFrame extends ForceFrame {
-
-        private final WriteTask task;
-        private final long perfStartTime;
-        private final int count;
-        private final long bytes;
-
-        public SyncFrame(WriteTask task, long perfStartTime, int count, long bytes) {
-            super(task.getDtFile().getChannel(), groupConfig.getBlockIoExecutor(), false);
-            this.task = task;
-            this.perfStartTime = perfStartTime;
-            this.count = count;
-            this.bytes = bytes;
-        }
-
-        @Override
-        protected FrameCallResult afterForce(Void unused) {
-            perfCallback.fireTime(PerfConsts.RAFT_D_LOG_SYNC, perfStartTime, count, bytes);
-            while (syncTaskQueueHead != null && syncTaskQueueHead.lastIndex <= task.lastIndex) {
-                raftStatus.setLastForceLogIndex(syncTaskQueueHead.lastIndex);
-                syncTaskQueueHead = syncTaskQueueHead.nextNeedSyncTask;
-            }
-            raftStatus.getLogForceFinishCondition().signalAll();
-            return Fiber.frameReturn();
-        }
     }
 
     public void setNext(long nextPersistIndex, long nextPersistPos) {
@@ -500,9 +364,7 @@ class LogAppender {
     }
 
     public boolean writeNotFinish() {
-        return nextPersistIndex <= cache.getLastIndex()
-                || writeTaskQueueHead != null
-                || syncTaskQueueHead != null;
+        return nextPersistIndex <= cache.getLastIndex() || chainWriter.hasTask();
     }
 
 }

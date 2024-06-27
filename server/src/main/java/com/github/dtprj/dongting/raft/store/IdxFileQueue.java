@@ -62,6 +62,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     private long persistedIndexInStatusFile;
     private long nextPersistIndex;
+    private long persistedIndex;
     private long nextIndex;
     private long firstIndex;
 
@@ -70,9 +71,9 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     private long lastUpdateStatusNanos;
 
-    private final Fiber flushFiber;
-    private final FiberCondition needFlushCondition;
     private final FiberCondition flushDoneCondition;
+
+    private final IdxChainWriter chainWriter;
 
     private boolean closed;
 
@@ -90,10 +91,10 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         this.maxCacheItems = groupConfig.getIdxCacheSize();
         this.flushThreshold = groupConfig.getIdxFlushThreshold();
         this.cache = new LongLongSeqMap(maxCacheItems);
-        this.flushFiber = new Fiber("idxFlush-" + groupConfig.getGroupId(),
-                groupConfig.getFiberGroup(), new FlushLoopFrame());
-        this.needFlushCondition = groupConfig.getFiberGroup().newCondition("IdxNeedFlush-" + groupConfig.getGroupId());
         this.flushDoneCondition = groupConfig.getFiberGroup().newCondition("IdxFlushDone-" + groupConfig.getGroupId());
+
+        this.chainWriter = new IdxChainWriter(groupConfig, 0, PerfConsts.RAFT_D_IDX_WRITE,
+                PerfConsts.RAFT_D_IDX_FORCE);
     }
 
     public FiberFrame<Pair<Long, Long>> initRestorePos() throws Exception {
@@ -115,16 +116,18 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             long restoreStartPos = 0;
             nextIndex = 1;
             nextPersistIndex = 1;
+            persistedIndex = 0;
 
             if (queueEndPosition == 0) {
                 tryAllocateAsync(0);
             }
             log.info("restore from index: {}, pos: {}", restoreIndex, restoreStartPos);
-            flushFiber.start();
+            chainWriter.startForceFiber();
             return FiberFrame.completedFrame(new Pair<>(restoreIndex, restoreStartPos));
         } else {
             nextIndex = restoreIndex + 1;
             nextPersistIndex = restoreIndex + 1;
+            persistedIndex = restoreIndex;
             final long finalRestoreIndex = restoreIndex;
             return new FiberFrame<>() {
                 @Override
@@ -138,7 +141,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                     }
                     log.info("restore from index: {}, pos: {}", finalRestoreIndex, restoreIndexPos);
                     setResult(new Pair<>(finalRestoreIndex, restoreIndexPos));
-                    flushFiber.start();
+                    chainWriter.startForceFiber();
                     return Fiber.frameReturn();
                 }
 
@@ -154,6 +157,37 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                     throw ex;
                 }
             };
+        }
+    }
+
+    private class IdxChainWriter extends ChainWriter {
+
+        public IdxChainWriter(RaftGroupConfigEx config, int writePerfType1, int writePerfType2, int forcePerfType) {
+            super(config, writePerfType1, writePerfType2, forcePerfType);
+        }
+
+        @Override
+        protected void writeFinish(WriteTask writeTask) {
+            // nothing to do
+        }
+
+        @Override
+        protected void forceFinish(WriteTask writeTask) {
+            // if we set syncForce to false, lastRaftIndex(committed) may less than lastForceLogIndex
+            long idx = Math.min(writeTask.getLastRaftIndex(), raftStatus.getLastForceLogIndex());
+            if (idx > persistedIndexInStatusFile) {
+                lastUpdateStatusNanos = ts.getNanoTime();
+                statusManager.getProperties().put(KEY_PERSIST_IDX_INDEX, String.valueOf(idx));
+                statusManager.persistAsync(true);
+            }
+            lastFlushNanos = ts.getNanoTime();
+            persistedIndex = writeTask.getLastRaftIndex();
+            flushDoneCondition.signalAll();
+        }
+
+        @Override
+        protected boolean isClosed() {
+            return closed;
         }
     }
 
@@ -183,14 +217,59 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         cache.put(itemIndex, dataPosition);
         nextIndex = itemIndex + 1;
         if (shouldFlush()) {
-            needFlushCondition.signal();
+            flush();
         }
+    }
+
+    private void flush() {
+        long startIdx = nextPersistIndex;
+        long startIdxPos = indexToPos(startIdx);
+        long lastIdx = Math.min(raftStatus.getCommitIndex(), cache.getLastKey());
+        if (lastIdx - startIdx > MAX_BATCH_ITEMS) {
+            lastIdx = startIdx + MAX_BATCH_ITEMS;
+        }
+        long lastIdxPos = indexToPos(lastIdx);
+        long fileStartPos1 = startIdxPos & ~fileLenMask;
+        long fileStartPos2 = lastIdxPos & ~fileLenMask;
+        int len;
+        LogFile logFile = getLogFile(startIdxPos);
+        if (fileStartPos1 == fileStartPos2) {
+            len = (int) (lastIdxPos - startIdxPos + ITEM_LEN);
+        } else {
+            // don't cross file
+            len = (int) (logFile.endPos - startIdxPos);
+        }
+        DtThread t = (DtThread) Thread.currentThread();
+        ByteBuffer buf = t.getDirectPool().borrow(len);
+        buf.limit(len);
+        fillAndSubmit(buf, startIdx, logFile);
+    }
+
+    private void fillAndSubmit(ByteBuffer buf, long startIndex, LogFile logFile) {
+        long index = startIndex;
+        //noinspection UnnecessaryLocalVariable
+        LongLongSeqMap c = cache;
+        while (buf.hasRemaining()) {
+            long value = c.get(index++);
+            buf.putLong(value);
+        }
+        buf.flip();
+        nextPersistIndex = index;
+
+        long filePos = indexToPos(startIndex) & fileLenMask;
+        boolean fileEnd = filePos + buf.remaining() == logFile.endPos;
+        boolean force = fileEnd || closed || ts.getNanoTime() - lastUpdateStatusNanos > FLUSH_INTERVAL_NANOS;
+        int items = (int) (index - startIndex);
+        ChainWriter.WriteTask wt = new ChainWriter.WriteTask(groupConfig, logFile, true, true,
+                () -> closed, buf, filePos, force, items, index - 1);
+        chainWriter.submitWrite(wt);
+        removeHead();
     }
 
     @Override
     public boolean needWaitFlush() {
         removeHead();
-        if (cache.size() > maxCacheItems && shouldFlush()) {
+        if (cache.size() > maxCacheItems && persistedIndex < nextPersistIndex - 1) {
             long first = cache.getFirstKey();
             long last = cache.getLastKey();
             log.warn("group {} cache size exceed {}({}), may cause block. cache from {} to {}, commitIndex={}(diff={}), " +
@@ -210,12 +289,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                removeHead();
-                if (shouldFlush()) {
-                    needFlushCondition.signal();
-                    if (cache.size() > maxCacheItems) {
-                        return flushDoneCondition.await(1000, this);
-                    }
+                if (cache.size() > maxCacheItems && persistedIndex < nextPersistIndex - 1) {
+                    return flushDoneCondition.await(1000, this);
                 }
                 return Fiber.frameReturn();
             }
@@ -241,155 +316,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         // notice: we are not write no-commited logs to the idx file
         while (cache.size() >= maxCacheItems && cache.getFirstKey() < nextPersistIndex) {
             cache.remove();
-        }
-    }
-
-    private class FlushLoopFrame extends FiberFrame<Void> {
-
-        private boolean lastFlushTriggered;
-
-        @Override
-        public FrameCallResult execute(Void input) {
-            if (closed) {
-                if (lastFlushTriggered) {
-                    log.info("idx flush fiber exit, groupId={}", groupConfig.getGroupId());
-                    return Fiber.frameReturn();
-                } else {
-                    lastFlushTriggered = true;
-                }
-            } else {
-                if (!shouldFlush()) {
-                    return needFlushCondition.await(this);
-                }
-            }
-
-            lastFlushNanos = ts.getNanoTime();
-            return Fiber.call(ensureWritePosReady(indexToPos(nextPersistIndex)), this::afterPosReady);
-        }
-
-        private FrameCallResult afterPosReady(Void v) {
-            if (raftStatus.isInstallSnapshot()) {
-                return needFlushCondition.await(1000, this);
-            }
-            LogFile logFile = getLogFile(indexToPos(nextPersistIndex));
-            if (logFile.shouldDelete()) {
-                BugLog.getLog().error("idx file deleted, flush fail: {}", logFile.getFile().getPath());
-                throw Fiber.fatal(new RaftException("idx file deleted, flush fail"));
-            }
-            return Fiber.call(new FlushFrame(logFile), this);
-        }
-
-        @Override
-        protected FrameCallResult handle(Throwable ex) {
-            throw Fiber.fatal(ex);
-        }
-    }
-
-    private class FlushFrame extends FiberFrame<Void> {
-
-        private final LogFile logFile;
-        private ByteBuffer buf;
-
-        public FlushFrame(LogFile logFile) {
-            this.logFile = logFile;
-        }
-
-        @Override
-        public FrameCallResult execute(Void v) {
-            AsyncIoTask currentWriteTask = new AsyncIoTask(groupConfig, logFile, true, true);
-            if (getFlushDiff() <= 0) {
-                if (closed) {
-                    return Fiber.call(currentWriteTask.lockForce(false),
-                            noUseVoid -> afterFlush(nextPersistIndex, true));
-                } else {
-                    BugLog.getLog().error("no data to flush");
-                    return Fiber.frameReturn();
-                }
-            }
-            boolean endOfFile = prepareBuffer(logFile);
-
-            long startIndex = nextPersistIndex;
-            long index = startIndex;
-            //noinspection UnnecessaryLocalVariable
-            LongLongSeqMap c = cache;
-            ByteBuffer buf = this.buf;
-            while (buf.hasRemaining()) {
-                long value = c.get(index++);
-                buf.putLong(value);
-            }
-            buf.flip();
-            int bytes = buf.remaining();
-
-            long nextPersistIndexAfterWrite = index;
-
-            long filePos = indexToPos(startIndex) & fileLenMask;
-            FiberFrame<Void> f;
-            boolean updateStatusFile;
-            if (endOfFile || closed || ts.getNanoTime() - lastUpdateStatusNanos > FLUSH_INTERVAL_NANOS) {
-                f = currentWriteTask.lockWriteAndForce(buf, filePos, false);
-                updateStatusFile = true;
-            } else {
-                f = currentWriteTask.lockWrite(buf, filePos);
-                updateStatusFile = false;
-            }
-            int perfType = updateStatusFile ? PerfConsts.RAFT_D_IDX_WRITE_AND_FORCE : PerfConsts.RAFT_D_IDX_WRITE;
-            long perfStartTime = groupConfig.getPerfCallback().takeTime(perfType);
-            return Fiber.call(f, notUsedVoid -> {
-                groupConfig.getPerfCallback().fireTime(perfType, perfStartTime, bytes >>> 3, bytes);
-                return afterFlush(nextPersistIndexAfterWrite, updateStatusFile);
-            });
-        }
-
-        private FrameCallResult afterFlush(long nextPersistIndexAfterWrite, boolean updateStatusFile) {
-            removeHead();
-            nextPersistIndex = nextPersistIndexAfterWrite;
-            if (updateStatusFile) {
-                // if we set syncForce to false, nextPersistIndex - 1 (committed) may less than lastForceLogIndex
-                long persistedIndex = Math.min(nextPersistIndex - 1, raftStatus.getLastForceLogIndex());
-                if (persistedIndex > persistedIndexInStatusFile) {
-                    lastUpdateStatusNanos = ts.getNanoTime();
-                    statusManager.getProperties().put(KEY_PERSIST_IDX_INDEX, String.valueOf(persistedIndex));
-                    statusManager.persistAsync(true);
-                    if (closed) {
-                        return statusManager.waitUpdateFinish(this::justReturn);
-                    }
-                }
-            }
-            return Fiber.frameReturn();
-        }
-
-        // return true if return buffer is reached end of file
-        private boolean prepareBuffer(LogFile logFile) {
-            long startIdx = nextPersistIndex;
-            long startIdxPos = indexToPos(startIdx);
-            long lastIdx = Math.min(raftStatus.getCommitIndex(), cache.getLastKey());
-            if (lastIdx - startIdx > MAX_BATCH_ITEMS) {
-                lastIdx = startIdx + MAX_BATCH_ITEMS;
-            }
-            long lastIdxPos = indexToPos(lastIdx);
-            long fileStartPos1 = startIdxPos & ~fileLenMask;
-            long fileStartPos2 = lastIdxPos & ~fileLenMask;
-            int len;
-            if (fileStartPos1 == fileStartPos2) {
-                len = (int) (lastIdxPos - startIdxPos + ITEM_LEN);
-            } else {
-                // don't cross file
-                len = (int) (logFile.endPos - startIdxPos);
-            }
-            DtThread t = (DtThread) Thread.currentThread();
-            buf = t.getDirectPool().borrow(len);
-            buf.limit(len);
-            return logFile.endPos - startIdxPos == len;
-        }
-
-        @Override
-        protected FrameCallResult doFinally() {
-            if (buf != null) {
-                DtThread t = (DtThread) Thread.currentThread();
-                t.getDirectPool().release(buf);
-            }
-            flushDoneCondition.signalAll();
-            return Fiber.frameReturn();
         }
     }
 
@@ -461,6 +387,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             firstIndex = 0;
             nextIndex = 0;
             nextPersistIndex = 0;
+            persistedIndex = 0;
         }
     }
 
@@ -474,13 +401,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
     public FiberFuture<Void> close() {
         closed = true;
-        needFlushCondition.signal();
-        FiberFuture<Void> f;
-        if (flushFiber.isStarted()) {
-            f = flushFiber.join();
-        } else {
-            f = FiberFuture.completedFuture(groupConfig.getFiberGroup(), null);
-        }
+        FiberFuture<Void> f = chainWriter.shutdownForceFiber();
         return f.convertWithHandle("closeIdxFileQueue", (v, ex) -> {
             if (ex != null) {
                 log.error("close idx file queue failed", ex);
@@ -504,6 +425,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         firstIndex = nextLogIndex;
         nextIndex = nextLogIndex;
         nextPersistIndex = nextLogIndex;
+        persistedIndex = nextLogIndex - 1;
         return ensureWritePosReady(nextLogIndex);
     }
 }

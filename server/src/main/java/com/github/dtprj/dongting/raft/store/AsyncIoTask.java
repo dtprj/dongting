@@ -119,46 +119,6 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         return future;
     }
 
-    public FiberFrame<Void> lockWrite(ByteBuffer ioBuffer, long filePos) {
-        // use read lock, so not block read operation.
-        // because we never read file block that is being written.
-        return new DoInLockFrame<>(dtFile.getLock().readLock()) {
-            @Override
-            protected FrameCallResult afterGetLock() {
-                return write(ioBuffer, filePos).await(this::justReturn);
-            }
-        };
-    }
-
-    public FiberFrame<Void> lockWriteAndForce(ByteBuffer ioBuffer, long filePos, boolean flushMeta) {
-        // use read lock, so not block read operation.
-        // because we never read file block that is being written.
-        return new DoInLockFrame<>(dtFile.getLock().readLock()) {
-            @Override
-            protected FrameCallResult afterGetLock() {
-                return write(ioBuffer, filePos, true, flushMeta).await(this::justReturn);
-            }
-        };
-    }
-
-    public FiberFrame<Void> lockForce(boolean flushMeta) {
-        if (this.ioBuffer != null) {
-            throw new RaftException("io task can't reused");
-        }
-        this.force = true;
-        this.flushMeta = flushMeta;
-
-        // use read lock, so not block read operation.
-        // because we never read file block that is being written.
-        return new DoInLockFrame<>(dtFile.getLock().readLock()) {
-            @Override
-            protected FrameCallResult afterGetLock() {
-                submitForceTask();
-                return Fiber.frameReturn();
-            }
-        };
-    }
-
     protected void fireComplete(Throwable ex) {
         if (ex == null) {
             future.fireComplete(null);
@@ -285,10 +245,6 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
 
     public FiberFuture<Void> getFuture() {
         return future;
-    }
-
-    public ByteBuffer getIoBuffer() {
-        return ioBuffer;
     }
 
     public DtFile getDtFile() {

@@ -29,7 +29,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.RandomAccessFile;
-import java.util.function.Predicate;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -157,12 +157,9 @@ public class FileQueueTest extends BaseFiberTest {
                 assertNotNull(fileQueue.getLogFile(0));
                 assertNotNull(fileQueue.getLogFile(1024));
                 assertNotNull(fileQueue.getLogFile(2048));
-
-                Predicate<LogFile> p = lf -> {
-                    String n = lf.getFile().getName();
-                    return n.endsWith("0000") || n.endsWith("1024");
-                };
-                return Fiber.call(fileQueue.deleteByPredicate(p), this::resume2);
+                // delete 2 files
+                AtomicInteger count = new AtomicInteger();
+                return Fiber.call(fileQueue.deleteByPredicate(() -> count.incrementAndGet() <= 2), this::resume2);
             }
 
             private FrameCallResult resume2(Void unused) {

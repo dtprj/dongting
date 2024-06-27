@@ -126,7 +126,7 @@ class LogFileQueue extends FileQueue {
                         // after install snapshot, the firstValidPos is too large in file, so this file has no items
                         log.info("first file has no items, delete it");
                         queue.removeFirst();
-                        return Fiber.call(delete(first), v -> this.finish());
+                        return Fiber.call(new DeleteFrame(first), v -> this.finish());
                     }
                 }
 

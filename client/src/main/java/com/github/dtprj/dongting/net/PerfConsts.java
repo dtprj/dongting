@@ -45,7 +45,7 @@ public interface PerfConsts {
     int RAFT_D_LOG_FILE_ALLOC = 208;
     int RAFT_D_IDX_BLOCK = 209;
     int RAFT_D_IDX_WRITE = 210;
-    int RAFT_D_IDX_WRITE_AND_FORCE = 211;
+    int RAFT_D_IDX_FORCE = 211;
     int RAFT_D_REPLICATE_RPC = 212;
     int RAFT_D_STATE_MACHINE_EXEC = 213;
 }

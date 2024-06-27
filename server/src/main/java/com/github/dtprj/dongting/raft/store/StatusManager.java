@@ -91,6 +91,7 @@ public class StatusManager {
     }
 
     public FiberFuture<Void> close() {
+        // TODO wait last update
         closed = true;
         // wake up update fiber
         needUpdateCondition.signalAll();

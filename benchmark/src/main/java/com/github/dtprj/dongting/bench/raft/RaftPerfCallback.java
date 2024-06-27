@@ -145,7 +145,7 @@ public class RaftPerfCallback extends SimplePerfCallback {
                 raftIdxWriteTime.observe(costTime);
                 raftIdxWriteBytes.observe(sum);
                 break;
-            case RAFT_D_IDX_WRITE_AND_FORCE:
+            case RAFT_D_IDX_FORCE:
                 raftIdxWriteAndForceTime.observe(costTime);
                 raftIdxWriteAndForceBytes.observe(sum);
                 break;
