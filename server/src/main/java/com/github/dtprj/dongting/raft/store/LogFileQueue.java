@@ -251,7 +251,7 @@ class LogFileQueue extends FileQueue {
             public FrameCallResult execute(Void input) {
                 long filePos = filePos(pos);
                 AsyncIoTask task = new AsyncIoTask(groupConfig, f);
-                return Fiber.call(task.lockRead(buf, filePos), this::afterLoadHeader);
+                return task.read(buf, filePos).await(this::afterLoadHeader);
             }
 
             private FrameCallResult afterLoadHeader(Void unused) {

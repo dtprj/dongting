@@ -261,7 +261,6 @@ class LogAppender {
                         file.getFile().getName(), nextPersistPos, next);
                 nextPersistPos = next;
             }
-            file.getLock().readLock().unlock();
             perfCallback.fireTime(PerfConsts.RAFT_D_ENCODE_AND_WRITE, roundStartTime);
             // continue loop
             return Fiber.resume(null, this);
@@ -333,7 +332,7 @@ class LogAppender {
         private ByteBuffer doWrite(LogFile file, ByteBuffer buffer) {
             buffer.flip();
             int bytes = buffer.remaining();
-            boolean retry = logFileQueue.initialized && !logFileQueue.isClosed();
+            boolean retry = logFileQueue.initialized;
 
             long lastIndex = lastItem != null ? lastItem.getIndex() : -1;
             ChainWriter.WriteTask task = new ChainWriter.WriteTask(groupConfig, file, retry, true, writeStopIndicator, buffer,

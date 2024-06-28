@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
-import com.github.dtprj.dongting.fiber.DoInLockFrame;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
@@ -80,20 +79,12 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
             future.completeExceptionally(new RaftException("io task can't reused"));
             return future;
         }
+        dtFile.incReaders();
         this.ioBuffer = ioBuffer;
         this.filePos = filePos;
         this.position = ioBuffer.position();
         exec(filePos);
         return future;
-    }
-
-    public FiberFrame<Void> lockRead(ByteBuffer ioBuffer, long filePos) {
-        return new DoInLockFrame<>(dtFile.getLock().readLock()) {
-            @Override
-            protected FrameCallResult afterGetLock() {
-                return read(ioBuffer, filePos).await(this::justReturn);
-            }
-        };
     }
 
     public FiberFuture<Void> write(ByteBuffer ioBuffer, long filePos) {
@@ -109,6 +100,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
             future.completeExceptionally(new RaftException("io task can't reused"));
             return future;
         }
+        dtFile.incWriters();
         this.ioBuffer = ioBuffer;
         this.filePos = filePos;
         this.position = ioBuffer.position();
@@ -120,6 +112,11 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     }
 
     protected void fireComplete(Throwable ex) {
+        if (write) {
+            dtFile.decWriters();
+        } else {
+            dtFile.decReaders();
+        }
         if (ex == null) {
             future.fireComplete(null);
         } else {

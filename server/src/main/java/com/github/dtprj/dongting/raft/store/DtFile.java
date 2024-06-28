@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberGroup;
-import com.github.dtprj.dongting.fiber.FiberLock;
 
 import java.io.File;
 import java.nio.channels.AsynchronousFileChannel;
@@ -28,29 +28,56 @@ public class DtFile {
     private final File file;
     private final AsynchronousFileChannel channel;
 
-    private final FiberLock lock;
+    private int readers;
+    private int writers;
+
+    private final FiberCondition noRwCond;
 
     public DtFile(File file, AsynchronousFileChannel channel, FiberGroup fiberGroup) {
         this.file = file;
         this.channel = channel;
-        this.lock = fiberGroup.newLock("fileLock-" + file.getName());
-    }
-
-    DtFile(File file, AsynchronousFileChannel channel, FiberLock lock) {
-        this.file = file;
-        this.channel = channel;
-        this.lock = lock;
+        this.noRwCond = new FiberCondition("noRw-" + file.getName(), fiberGroup);
     }
 
     public File getFile() {
         return file;
     }
 
-    public FiberLock getLock() {
-        return lock;
-    }
-
     public AsynchronousFileChannel getChannel() {
         return channel;
+    }
+
+    public FiberCondition getNoRwCond() {
+        return noRwCond;
+    }
+
+    public void incReaders() {
+        readers++;
+    }
+
+    public void decReaders() {
+        readers--;
+        if (readers <= 0 && writers <= 0) {
+            noRwCond.signalAll();
+        }
+    }
+
+    public int getReaders() {
+        return readers;
+    }
+
+    public void incWriters() {
+        writers++;
+    }
+
+    public void decWriters() {
+        writers--;
+        if (readers <= 0 && writers <= 0) {
+            noRwCond.signalAll();
+        }
+    }
+
+    public int getWriters() {
+        return writers;
     }
 }

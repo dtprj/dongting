@@ -260,7 +260,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         boolean fileEnd = filePos + buf.remaining() == logFile.endPos;
         boolean force = fileEnd || closed || ts.getNanoTime() - lastUpdateStatusNanos > FLUSH_INTERVAL_NANOS;
         int items = (int) (index - startIndex);
-        ChainWriter.WriteTask wt = new ChainWriter.WriteTask(groupConfig, logFile, true, true,
+        ChainWriter.WriteTask wt = new ChainWriter.WriteTask(groupConfig, logFile, initialized, true,
                 () -> closed, buf, filePos, force, items, index - 1);
         chainWriter.submitWrite(wt);
         removeHead();
@@ -349,7 +349,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             public FrameCallResult execute(Void v) {
                 long filePos = pos & fileLenMask;
                 AsyncIoTask t = new AsyncIoTask(groupConfig, lf);
-                return Fiber.call(t.lockRead(buffer, filePos), this::afterLoad);
+                return t.read(buffer, filePos).await(this::afterLoad);
             }
 
             private FrameCallResult afterLoad(Void unused) {

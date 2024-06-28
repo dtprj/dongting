@@ -304,6 +304,7 @@ abstract class FileQueue {
 
         @Override
         public FrameCallResult execute(Void input) {
+            logFile.deleted = true;
             FiberFuture<Void> deleteFuture = groupConfig.getFiberGroup().newFuture("deleteFile");
             try {
                 ioExecutor.execute(() -> {

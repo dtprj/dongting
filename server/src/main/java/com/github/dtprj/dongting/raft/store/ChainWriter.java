@@ -51,7 +51,8 @@ public abstract class ChainWriter {
     private final FiberCondition needForceCondition;
     private final Fiber forceFiber;
 
-    private boolean forcing;
+    private WriteTask currentForceTask;
+    private boolean error;
 
     public ChainWriter(RaftGroupConfigEx config, int writePerfType1, int writePerfType2, int forcePerfType) {
         this.config = config;
@@ -138,8 +139,12 @@ public abstract class ChainWriter {
     private void afterWrite(Throwable ioEx, WriteTask task, long startTime) {
         perfCallback.fireTime(writePerfType2, startTime, task.perfWriteItemCount, task.perfWriteBytes);
         directPool.release(task.buf);
+        if (error) {
+            return;
+        }
         if (ioEx != null) {
             log.error("write file {} error: {}", task.getDtFile().getFile(), ioEx.toString());
+            error = true;
             FiberGroup.currentGroup().requestShutdown();
             return;
         }
@@ -148,9 +153,10 @@ public abstract class ChainWriter {
         while (!writeTasks.isEmpty()) {
             WriteTask t = writeTasks.getFirst();
             FiberFuture<Void> f = t.getFuture();
-            if (f.isDone() && f.getEx() == null) {
+            if (f.isDone()) {
                 writeTasks.removeFirst();
                 if (t.force) {
+                    t.getDtFile().incWriters();
                     lastTaskNeedCallback = t;
                     forceTasks.add(t);
                 }
@@ -167,13 +173,28 @@ public abstract class ChainWriter {
     private class ForceLoopFrame extends FiberFrame<Void> {
         @Override
         protected FrameCallResult handle(Throwable ex) {
+            if (currentForceTask != null) {
+                currentForceTask.getDtFile().decWriters();
+            }
+            error = true;
             throw Fiber.fatal(ex);
+        }
+
+        private FrameCallResult releaseAll() {
+            while (!forceTasks.isEmpty()) {
+                WriteTask task = forceTasks.removeFirst();
+                task.getDtFile().decWriters();
+            }
+            return Fiber.frameReturn();
         }
 
         @Override
         public FrameCallResult execute(Void input) {
             if (isClosed() && !hasTask()) {
-                return Fiber.frameReturn();
+                return releaseAll();
+            }
+            if (error) {
+                return releaseAll();
             }
             LinkedList<WriteTask> forceTasks = ChainWriter.this.forceTasks;
             if (forceTasks.isEmpty()) {
@@ -187,6 +208,7 @@ public abstract class ChainWriter {
                     if (task.getDtFile() == nextTask.getDtFile()) {
                         nextTask.perfForceItemCount = nextTask.perfWriteItemCount + task.perfForceItemCount;
                         nextTask.perfForceBytes = nextTask.perfWriteBytes + task.perfForceBytes;
+                        task.getDtFile().decWriters();
                         task = nextTask;
                         forceTasks.removeFirst();
                     } else {
@@ -196,21 +218,27 @@ public abstract class ChainWriter {
                 ForceFrame ff = new ForceFrame(task.getDtFile().getChannel(), config.getBlockIoExecutor(), false);
                 WriteTask finalTask = task;
                 long perfStartTime = perfCallback.takeTime(forcePerfType);
-                forcing = true;
+                currentForceTask = task;
                 return Fiber.call(ff, v -> afterForce(finalTask, perfStartTime));
             }
         }
 
         private FrameCallResult afterForce(WriteTask task, long perfStartTime) {
             perfCallback.fireTime(forcePerfType, perfStartTime, task.perfForceItemCount, task.perfForceBytes);
-            forcing = false;
+            task.getDtFile().decWriters();
+            currentForceTask = null;
+
+            if (error) {
+                return Fiber.frameReturn();
+            }
+
             forceFinish(task);
             return Fiber.frameReturn();
         }
     }
 
     public boolean hasTask() {
-        return !writeTasks.isEmpty() || !forceTasks.isEmpty() || forcing;
+        return !writeTasks.isEmpty() || !forceTasks.isEmpty() || currentForceTask != null;
     }
 
 }

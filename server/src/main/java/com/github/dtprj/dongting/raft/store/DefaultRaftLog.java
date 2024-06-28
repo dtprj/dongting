@@ -256,9 +256,9 @@ public class DefaultRaftLog implements RaftLog {
                 return false;
             }
             LogFile first = q.queue.get(0);
-            if (first.readers > 0 || first.writers > 0) {
+            if (first.getReaders() > 0 || first.getWriters() > 0) {
                 log.info("file still in use: {}, readers={}, writes={}",
-                        first.getFile().getPath(), first.readers, first.writers);
+                        first.getFile().getPath(), first.getReaders(), first.getWriters());
                 return false;
             }
             return true;

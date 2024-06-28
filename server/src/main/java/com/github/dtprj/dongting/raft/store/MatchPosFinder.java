@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
+import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -138,8 +139,8 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
 
         AsyncIoTask task = new AsyncIoTask(groupConfig, logFile);
         buf.clear();
-        FiberFrame<Void> f = task.lockRead(buf, pos & fileLenMask);
-        return Fiber.call(f, this::headerLoadComplete);
+        FiberFuture<Void> f = task.read(buf, pos & fileLenMask);
+        return f.await(this::headerLoadComplete);
     }
 
     private FrameCallResult headerLoadComplete(Void v) {
