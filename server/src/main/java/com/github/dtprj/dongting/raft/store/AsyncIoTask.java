@@ -29,12 +29,13 @@ import java.nio.ByteBuffer;
 import java.nio.channels.CompletionHandler;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /**
  * @author huangli
  */
-public class AsyncIoTask implements CompletionHandler<Integer, Void> {
+public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer<Void, Throwable> {
     private static final DtLog log = DtLogs.getLogger(AsyncIoTask.class);
     private final DtFile dtFile;
     private final Supplier<Boolean> cancelRetryIndicator;
@@ -54,6 +55,8 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
 
     private int retryCount = 0;
 
+    private boolean rwCalled;
+
     public AsyncIoTask(RaftGroupConfigEx groupConfig, DtFile dtFile) {
         this(groupConfig, dtFile, false, false, null);
     }
@@ -72,10 +75,11 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         this.retryForever = retryForever;
         this.cancelRetryIndicator = cancelRetryIndicator;
         this.future = groupConfig.getFiberGroup().newFuture("asyncIoTaskFuture");
+        this.future.registerCallback(this);
     }
 
     public FiberFuture<Void> read(ByteBuffer ioBuffer, long filePos) {
-        if (this.ioBuffer != null) {
+        if (rwCalled) {
             future.completeExceptionally(new RaftException("io task can't reused"));
             return future;
         }
@@ -84,6 +88,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         this.filePos = filePos;
         this.position = ioBuffer.position();
         exec(filePos);
+        rwCalled = true;
         return future;
     }
 
@@ -96,7 +101,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
     }
 
     private FiberFuture<Void> write(ByteBuffer ioBuffer, long filePos, boolean force, boolean syncMeta) {
-        if (this.ioBuffer != null) {
+        if (rwCalled) {
             future.completeExceptionally(new RaftException("io task can't reused"));
             return future;
         }
@@ -108,15 +113,21 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void> {
         this.force = force;
         this.flushMeta = syncMeta;
         exec(filePos);
+        rwCalled = true;
         return future;
     }
 
-    protected void fireComplete(Throwable ex) {
+    @Override
+    public void accept(Void unused, Throwable throwable) {
+        ioBuffer = null;
         if (write) {
             dtFile.decWriters();
         } else {
             dtFile.decReaders();
         }
+    }
+
+    protected void fireComplete(Throwable ex) {
         if (ex == null) {
             future.fireComplete(null);
         } else {
