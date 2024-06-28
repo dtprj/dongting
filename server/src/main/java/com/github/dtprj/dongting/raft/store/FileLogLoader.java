@@ -208,6 +208,9 @@ class FileLogLoader implements RaftLog.LogIterator {
         private FrameCallResult loadLogFromStore() {
             long pos = nextPos;
             logFile = logFiles.getLogFile(pos);
+            if (logFile.isDeleted()) {
+                throw new RaftException("file " + logFile.getFile().getName() + " is deleted");
+            }
             long rest = logFile.endPos - pos;
             long fileStartPos = logFiles.filePos(pos);
             ByteBuffer buf = readBuffer;
