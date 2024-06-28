@@ -300,10 +300,18 @@ abstract class FileQueue {
 
         public DeleteFrame(LogFile logFile) {
             this.logFile = logFile;
+            if (logFile.deleteTimestamp == 0) {
+                logFile.deleteTimestamp = 1;
+            }
         }
 
         @Override
         public FrameCallResult execute(Void input) {
+            if (logFile.getReaders() > 0 || logFile.getWriters() > 0) {
+                log.warn("file {} is in use, reader={},writer={}", logFile.getFile().getPath(),
+                        logFile.getReaders(), logFile.getWriters());
+                logFile.getNoRwCond().await(this);
+            }
             logFile.deleted = true;
             FiberFuture<Void> deleteFuture = groupConfig.getFiberGroup().newFuture("deleteFile");
             try {
