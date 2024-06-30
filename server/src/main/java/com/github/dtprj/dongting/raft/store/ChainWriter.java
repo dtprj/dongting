@@ -128,7 +128,12 @@ public abstract class ChainWriter {
             }
         }
         long startTime = perfCallback.takeTime(writePerfType2);
-        FiberFuture<Void> f = task.write(task.buf, task.posInFile);
+        FiberFuture<Void> f;
+        if (task.buf.remaining() > 0) {
+            f = task.write(task.buf, task.posInFile);
+        } else {
+            f = FiberFuture.completedFuture(config.getFiberGroup(), null);
+        }
         if (writePerfType1 > 0) {
             perfCallback.fireTime(writePerfType1, startTime, task.perfWriteItemCount, task.perfWriteBytes);
         }
