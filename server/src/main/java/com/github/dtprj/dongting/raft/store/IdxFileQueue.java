@@ -362,7 +362,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 throw Fiber.fatal(new RaftException("idx file deleted, flush fail"));
             }
             flush(logFile);
-            return Fiber.frameReturn();
+            return Fiber.resume(null, this);
         }
 
         @Override
