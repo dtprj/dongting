@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.store;
 
+import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -149,14 +150,14 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public void markTruncateByIndex(long index, long delayMillis) {
-        long bound = Math.min(raftStatus.getLastApplied(), idxFiles.getNextPersistIndex());
+        long bound = Math.min(raftStatus.getLastApplied(), idxFiles.getPersistedIndex());
         bound = Math.min(bound, index);
         logFiles.markDelete(bound, Long.MAX_VALUE, delayMillis);
     }
 
     @Override
     public void markTruncateByTimestamp(long timestampBound, long delayMillis) {
-        long bound = Math.min(raftStatus.getLastApplied(), idxFiles.getNextPersistIndex());
+        long bound = Math.min(raftStatus.getLastApplied(), idxFiles.getPersistedIndex());
         logFiles.markDelete(bound, timestampBound, delayMillis);
     }
 
@@ -247,42 +248,39 @@ public class DefaultRaftLog implements RaftLog {
             return Fiber.sleepUntilShouldStop(deleteIntervalMillis, this::deleteLogs);
         }
 
-        private boolean cantDel(FileQueue q) {
-            if (isGroupShouldStopPlain()) {
-                return false;
-            }
-            if (q.queue.size() <= 1) {
-                // don't delete last file
-                return false;
-            }
-            LogFile first = q.queue.get(0);
-            if (first.getReaders() > 0 || first.getWriters() > 0) {
+        @SuppressWarnings("BooleanMethodIsAlwaysInverted")
+        private boolean inUse(LogFile logFile) {
+            if (logFile.getReaders() > 0 || logFile.getWriters() > 0) {
                 log.info("file still in use: {}, readers={}, writes={}",
-                        first.getFile().getPath(), first.getReaders(), first.getWriters());
-                return false;
+                        logFile.getFile().getPath(), logFile.getReaders(), logFile.getWriters());
+                return true;
             }
-            return true;
+            return false;
         }
 
         private FrameCallResult deleteLogs(Void unused) {
             long taskStartTimestamp = ts.getWallClockMillis();
             // ex handled by deleteByPredicate method
             FiberFrame<Void> f = logFiles.deleteByPredicate(() -> {
-                if (cantDel(logFiles)) {
+                IndexedQueue<LogFile> q = logFiles.queue;
+                if (q.size() <= 1) {
+                    // don't delete last file
                     return false;
                 }
-                LogFile first = logFiles.queue.get(0);
-                LogFile second = logFiles.queue.get(1);
+                LogFile first = q.get(0);
+                long deleteTimestamp = first.deleteTimestamp;
+                if (deleteTimestamp <= 0 || deleteTimestamp >= taskStartTimestamp) {
+                    return false;
+                }
+                LogFile second = q.get(1);
                 if (second.firstIndex == 0) {
                     return false;
                 }
-                if (raftStatus.getCommitIndex() >= second.firstIndex &&
-                        raftStatus.getLastForceLogIndex() >= second.firstIndex) {
+                if (raftStatus.getCommitIndex() < second.firstIndex ||
+                        raftStatus.getLastForceLogIndex() < second.firstIndex) {
                     return false;
                 }
-
-                long deleteTimestamp = first.deleteTimestamp;
-                return deleteTimestamp > 0 && deleteTimestamp < taskStartTimestamp;
+                return !inUse(first);
             });
             return Fiber.call(f, this::deleteIdx);
         }
@@ -290,14 +288,20 @@ public class DefaultRaftLog implements RaftLog {
         private FrameCallResult deleteIdx(Void unused) {
             // ex handled by deleteByPredicate method
             FiberFrame<Void> f = idxFiles.deleteByPredicate(() -> {
-                if (cantDel(logFiles)) {
+                IndexedQueue<LogFile> q = logFiles.queue;
+                if (q.size() <= 1) {
+                    // don't delete last file
                     return false;
                 }
-                LogFile first = logFiles.queue.get(0);
-
+                LogFile first = q.get(0);
                 long firstIndexOfNextFile = idxFiles.posToIndex(first.endPos);
-                return firstIndexOfNextFile < logFiles.getFirstIndex()
-                        && firstIndexOfNextFile < idxFiles.getNextPersistIndex() - 1;
+                if (logFiles.getFirstIndex() < firstIndexOfNextFile) {
+                    return false;
+                }
+                if (idxFiles.getPersistedIndex() < firstIndexOfNextFile) {
+                    return false;
+                }
+                return !inUse(first);
             });
             // loop
             return Fiber.call(f, this);

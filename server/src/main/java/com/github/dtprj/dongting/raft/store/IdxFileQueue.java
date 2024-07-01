@@ -457,6 +457,10 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         return nextPersistIndex;
     }
 
+    public long getPersistedIndex() {
+        return persistedIndex;
+    }
+
     public FiberFuture<Void> close() {
         closed = true;
         needFlushCondition.signal();
