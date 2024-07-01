@@ -54,6 +54,9 @@ public abstract class ChainWriter {
     private WriteTask currentForceTask;
     private boolean error;
 
+    private int writeTaskCount;
+    private int forceTaskCount;
+
     public ChainWriter(RaftGroupConfigEx config, int writePerfType1, int writePerfType2, int forcePerfType) {
         this.config = config;
         this.perfCallback = config.getPerfCallback();
@@ -119,6 +122,9 @@ public abstract class ChainWriter {
     }
 
     public void submitWrite(WriteTask task) {
+        if (error) {
+            return;
+        }
         if (!writeTasks.isEmpty()) {
             WriteTask lastTask = writeTasks.getLast();
             if (lastTask.getDtFile() == task.getDtFile()) {
@@ -137,6 +143,7 @@ public abstract class ChainWriter {
         if (writePerfType1 > 0) {
             perfCallback.fireTime(writePerfType1, startTime, task.perfWriteItemCount, task.perfWriteBytes);
         }
+        writeTaskCount++;
         writeTasks.add(task);
         f.registerCallback((v, ex) -> afterWrite(ex, task, startTime));
     }
@@ -144,6 +151,7 @@ public abstract class ChainWriter {
     private void afterWrite(Throwable ioEx, WriteTask task, long startTime) {
         perfCallback.fireTime(writePerfType2, startTime, task.perfWriteItemCount, task.perfWriteBytes);
         directPool.release(task.buf);
+        writeTaskCount--;
         if (error) {
             return;
         }
@@ -164,6 +172,7 @@ public abstract class ChainWriter {
                     t.getDtFile().incWriters();
                     lastTaskNeedCallback = t;
                     forceTasks.add(t);
+                    forceTaskCount++;
                 }
             } else {
                 break;
@@ -216,6 +225,7 @@ public abstract class ChainWriter {
                         task.getDtFile().decWriters();
                         task = nextTask;
                         forceTasks.removeFirst();
+                        forceTaskCount--;
                     } else {
                         break;
                     }
@@ -231,6 +241,7 @@ public abstract class ChainWriter {
         private FrameCallResult afterForce(WriteTask task, long perfStartTime) {
             perfCallback.fireTime(forcePerfType, perfStartTime, task.perfForceItemCount, task.perfForceBytes);
             task.getDtFile().decWriters();
+            forceTaskCount--;
             currentForceTask = null;
 
             if (error) {
@@ -243,7 +254,7 @@ public abstract class ChainWriter {
     }
 
     public boolean hasTask() {
-        return !writeTasks.isEmpty() || !forceTasks.isEmpty() || currentForceTask != null;
+        return writeTaskCount > 0 && forceTaskCount > 0;
     }
 
 }
