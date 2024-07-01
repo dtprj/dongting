@@ -277,7 +277,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     @Override
     public boolean needWaitFlush() {
         removeHead();
-        if (cache.size() > maxCacheItems && persistedIndex < nextPersistIndex - 1) {
+        LongLongSeqMap cache = this.cache;
+        if (cache.size() > maxCacheItems && persistedIndex < Math.min(raftStatus.getCommitIndex(), cache.getLastKey())) {
             long first = cache.getFirstKey();
             long last = cache.getLastKey();
             log.warn("group {} cache size exceed {}({}), may cause block. cache from {} to {}, commitIndex={}(diff={}), " +
@@ -297,7 +298,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                if (cache.size() > maxCacheItems && persistedIndex < nextPersistIndex - 1) {
+                if (cache.size() > maxCacheItems && persistedIndex < Math.min(raftStatus.getCommitIndex(), cache.getLastKey())) {
                     return flushDoneCondition.await(1000, this);
                 }
                 return Fiber.frameReturn();
