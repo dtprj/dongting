@@ -134,11 +134,11 @@ public abstract class ChainWriter {
             }
         }
         long startTime = perfCallback.takeTime(writePerfType2);
-        FiberFuture<Void> f;
+        FiberFuture<Void> f = task.getFuture();
         if (task.buf.remaining() > 0) {
-            f = task.write(task.buf, task.posInFile);
+            task.write(task.buf, task.posInFile);
         } else {
-            f = FiberFuture.completedFuture(config.getFiberGroup(), null);
+            f.complete(null);
         }
         if (writePerfType1 > 0) {
             perfCallback.fireTime(writePerfType1, startTime, task.perfWriteItemCount, task.perfWriteBytes);
@@ -205,7 +205,7 @@ public abstract class ChainWriter {
         @Override
         public FrameCallResult execute(Void input) {
             if (isClosed() && !hasTask()) {
-                return releaseAll();
+                return Fiber.frameReturn();
             }
             if (error) {
                 return releaseAll();
@@ -249,12 +249,12 @@ public abstract class ChainWriter {
             }
 
             forceFinish(task);
-            return Fiber.frameReturn();
+            return Fiber.resume(null, this);
         }
     }
 
     public boolean hasTask() {
-        return writeTaskCount > 0 && forceTaskCount > 0;
+        return writeTaskCount > 0 || forceTaskCount > 0;
     }
 
 }
