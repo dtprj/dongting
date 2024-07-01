@@ -232,6 +232,12 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private void flush(LogFile logFile) {
         long startIdx = nextPersistIndex;
         long lastIdx = Math.min(raftStatus.getCommitIndex(), cache.getLastKey());
+        if (lastIdx < startIdx) {
+            // to issue force task
+            DtThread t = (DtThread) Thread.currentThread();
+            fillAndSubmit(t.getDirectPool().borrow(0), startIdx, logFile);
+            return;
+        }
         if (lastIdx - startIdx > MAX_BATCH_ITEMS) {
             lastIdx = startIdx + MAX_BATCH_ITEMS;
         }
