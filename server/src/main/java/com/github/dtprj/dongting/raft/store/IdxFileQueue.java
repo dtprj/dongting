@@ -265,7 +265,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         nextPersistIndex = index;
 
         long filePos = indexToPos(startIndex) & fileLenMask;
-        boolean fileEnd = filePos + buf.remaining() == logFile.endPos;
+        boolean fileEnd = filePos + buf.remaining() == fileSize;
         boolean force = fileEnd || closed || ts.getNanoTime() - lastUpdateStatusNanos > FLUSH_INTERVAL_NANOS;
         int items = (int) (index - startIndex);
         ChainWriter.WriteTask wt = new ChainWriter.WriteTask(groupConfig, logFile, initialized, true,
