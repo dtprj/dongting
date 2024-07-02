@@ -55,6 +55,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private final StatusManager statusManager;
 
     private final int maxCacheItems;
+    private final int blockCacheItems;
 
     private final int flushThreshold;
     final LongLongSeqMap cache;
@@ -90,6 +91,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
 
         this.maxCacheItems = groupConfig.getIdxCacheSize();
         this.flushThreshold = groupConfig.getIdxFlushThreshold();
+        this.blockCacheItems = maxCacheItems << 2;
         this.cache = new LongLongSeqMap(maxCacheItems);
 
         this.flushFiber = new Fiber("idxFlush-" + groupConfig.getGroupId(),
@@ -282,12 +284,12 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     public boolean needWaitFlush() {
         removeHead();
         LongLongSeqMap cache = this.cache;
-        if (cache.size() > maxCacheItems && persistedIndex < Math.min(raftStatus.getCommitIndex(), cache.getLastKey())) {
+        if (cache.size() > blockCacheItems && persistedIndex < Math.min(raftStatus.getCommitIndex(), cache.getLastKey())) {
             long first = cache.getFirstKey();
             long last = cache.getLastKey();
             log.warn("group {} cache size exceed {}({}), may cause block. cache from {} to {}, commitIndex={}(diff={}), " +
                             "lastWriteIndex={}(diff={}), lastForceIndex={}(diff={}), ",
-                    raftStatus.getGroupId(), maxCacheItems, cache.size(), first, last,
+                    raftStatus.getGroupId(), blockCacheItems, cache.size(), first, last,
                     raftStatus.getCommitIndex(), (last - raftStatus.getCommitIndex()),
                     raftStatus.getLastWriteLogIndex(), (last - raftStatus.getLastWriteLogIndex()),
                     raftStatus.getLastForceLogIndex(), (last - raftStatus.getLastForceLogIndex()));
@@ -302,7 +304,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         return new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                if (cache.size() > maxCacheItems && persistedIndex < Math.min(raftStatus.getCommitIndex(), cache.getLastKey())) {
+                if (cache.size() > blockCacheItems && persistedIndex < Math.min(raftStatus.getCommitIndex(), cache.getLastKey())) {
                     return flushDoneCondition.await(1000, this);
                 }
                 return Fiber.frameReturn();
