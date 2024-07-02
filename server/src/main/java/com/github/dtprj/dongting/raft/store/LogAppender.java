@@ -100,15 +100,28 @@ class LogAppender {
 
     public FiberFuture<Void> close() {
         appendFiber.interrupt();
+        raftStatus.getLogForceFinishCondition().signalAll();
+        FiberFuture<Void> closeFuture = groupConfig.getFiberGroup().newFuture("appenderClose");
         FiberFuture<Void> f1;
         if (appendFiber.isStarted()) {
             f1 = appendFiber.join();
         } else {
             f1 = FiberFuture.completedFuture(groupConfig.getFiberGroup(), null);
         }
-        FiberFuture<Void> f2 = chainWriter.shutdownForceFiber();
-        raftStatus.getLogForceFinishCondition().signalAll();
-        return FiberFuture.allOf("closeLogAppender", f1, f2);
+        f1.registerCallback((v, ex) -> {
+            if (ex != null) {
+                closeFuture.completeExceptionally(ex);
+            } else {
+                chainWriter.shutdownForceFiber().registerCallback((v2, ex2) -> {
+                    if (ex2 != null) {
+                        closeFuture.completeExceptionally(ex2);
+                    } else {
+                        closeFuture.complete(null);
+                    }
+                });
+            }
+        });
+        return closeFuture;
     }
 
     private class LogChainWrite extends ChainWriter {
@@ -130,11 +143,6 @@ class LogAppender {
             // assert lastRaftIndex > 0
             raftStatus.setLastForceLogIndex(writeTask.getLastRaftIndex());
             raftStatus.getLogForceFinishCondition().signalAll();
-        }
-
-        @Override
-        protected boolean isClosed() {
-            return logFileQueue.isClosed();
         }
     }
 

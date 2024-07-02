@@ -221,10 +221,22 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public FiberFuture<Void> close() {
-        FiberFuture<Void> f1 = idxFiles.close();
-        FiberFuture<Void> f2 = logFiles.close();
+        FiberFuture<Void> closeFuture = fiberGroup.newFuture("logClose");
+        logFiles.close().registerCallback((v, ex) -> {
+            if (ex != null) {
+                closeFuture.completeExceptionally(ex);
+            } else {
+                idxFiles.close().registerCallback((v2, ex2) -> {
+                    if (ex2 != null) {
+                        closeFuture.completeExceptionally(ex2);
+                    } else {
+                        closeFuture.complete(null);
+                    }
+                });
+            }
+        });
         // delete fiber is daemon
-        return FiberFuture.allOf("closeDefaultRaftLog", f1, f2);
+        return closeFuture;
     }
 
     private class QueueDeleteFiberFrame extends FiberFrame<Void> {

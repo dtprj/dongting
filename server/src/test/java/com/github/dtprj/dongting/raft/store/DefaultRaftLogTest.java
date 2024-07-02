@@ -155,6 +155,24 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         raftStatus.setLastLogIndex(5);
         append(6, totalSizes, bizHeaderLen);
 
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                // to fire idx flush
+                return raftLog.close().await(this::resume);
+            }
+
+            private FrameCallResult resume(Void unused) {
+                return statusManager.close().await(this::justReturn);
+            }
+        });
+
+        init();
+        raftStatus.setCommitIndex(5);
+        raftStatus.setLastApplied(5);
+        raftStatus.setLastLogIndex(5);
+        raftStatus.setLastForceLogIndex(5);
+
         // test delete
         File dir = new File(new File(dataDir), "log");
 

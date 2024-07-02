@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -57,6 +58,8 @@ public abstract class ChainWriter {
     private int writeTaskCount;
     private int forceTaskCount;
 
+    private boolean close;
+
     public ChainWriter(RaftGroupConfigEx config, int writePerfType1, int writePerfType2, int forcePerfType) {
         this.config = config;
         this.perfCallback = config.getPerfCallback();
@@ -73,13 +76,12 @@ public abstract class ChainWriter {
 
     protected abstract void forceFinish(WriteTask writeTask);
 
-    protected abstract boolean isClosed();
-
     public void startForceFiber() {
         forceFiber.start();
     }
 
     public FiberFuture<Void> shutdownForceFiber() {
+        this.close = true;
         needForceCondition.signal();
         if (forceFiber.isStarted()) {
             return forceFiber.join();
@@ -150,7 +152,9 @@ public abstract class ChainWriter {
 
     private void afterWrite(Throwable ioEx, WriteTask task, long startTime) {
         perfCallback.fireTime(writePerfType2, startTime, task.perfWriteItemCount, task.perfWriteBytes);
-        directPool.release(task.buf);
+        if (task.buf != SimpleByteBufferPool.EMPTY_BUFFER) {
+            directPool.release(task.buf);
+        }
         writeTaskCount--;
         if (error) {
             return;
@@ -204,7 +208,7 @@ public abstract class ChainWriter {
 
         @Override
         public FrameCallResult execute(Void input) {
-            if (isClosed() && !hasTask()) {
+            if (close && !hasTask()) {
                 return Fiber.frameReturn();
             }
             if (error) {
