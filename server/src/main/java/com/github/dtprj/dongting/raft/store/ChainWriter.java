@@ -127,6 +127,8 @@ public abstract class ChainWriter {
         if (error) {
             return;
         }
+        // inc use count for force task
+        task.getDtFile().incWriters();
         if (!writeTasks.isEmpty()) {
             WriteTask lastTask = writeTasks.getLast();
             if (lastTask.getDtFile() == task.getDtFile()) {
@@ -173,10 +175,11 @@ public abstract class ChainWriter {
             if (f.isDone()) {
                 writeTasks.removeFirst();
                 if (t.force) {
-                    t.getDtFile().incWriters();
                     lastTaskNeedCallback = t;
                     forceTasks.add(t);
                     forceTaskCount++;
+                } else {
+                    t.getDtFile().decWriters();
                 }
             } else {
                 break;
