@@ -145,7 +145,8 @@ public class DefaultRaftLog implements RaftLog {
     @Override
     public FiberFrame<Pair<Integer, Long>> tryFindMatchPos(int suggestTerm, long suggestIndex,
                                                            Supplier<Boolean> cancelIndicator) {
-        return logFiles.tryFindMatchPos(suggestTerm, suggestIndex, cancelIndicator);
+        return new MatchPosFinder(groupConfig, logFiles.queue, idxFiles, cancelIndicator, raftStatus.getTailCache(),
+                logFiles.fileLenMask, suggestTerm, suggestIndex, raftStatus.getLastLogIndex());
     }
 
     @Override

@@ -23,6 +23,8 @@ import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.raft.RaftException;
+import com.github.dtprj.dongting.raft.impl.RaftTask;
+import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.ChecksumException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
@@ -36,10 +38,10 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
     private final Supplier<Boolean> cancel;
     private final int suggestTerm;
     private final long suggestIndex;
-    private final long lastLogIndex;
     private final RaftGroupConfigEx groupConfig;
     private final IndexedQueue<LogFile> queue;
     private final IdxOps idxOps;
+    private final TailCache tailCache;
     private final long fileLenMask;
 
     private LogFile logFile;
@@ -50,16 +52,18 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
     private long midIndex;
     private ByteBuffer buf;//no need release
 
-    MatchPosFinder(RaftGroupConfigEx groupConfig, IndexedQueue<LogFile> queue, IdxOps idxOps, Supplier<Boolean> cancel, long fileLenMask,
-                   int suggestTerm, long suggestIndex, long lastLogIndex) {
+    MatchPosFinder(RaftGroupConfigEx groupConfig, IndexedQueue<LogFile> queue, IdxOps idxOps, Supplier<Boolean> cancel,
+                   TailCache tailCache, long fileLenMask, int suggestTerm, long suggestIndex, long lastLogIndex) {
         this.groupConfig = groupConfig;
         this.queue = queue;
         this.idxOps = idxOps;
         this.cancel = cancel;
+        this.tailCache = tailCache;
         this.fileLenMask = fileLenMask;
         this.suggestTerm = suggestTerm;
         this.suggestIndex = suggestIndex;
-        this.lastLogIndex = lastLogIndex;
+
+        this.rightIndex = Math.min(suggestIndex, lastLogIndex);
     }
 
     private void checkCancel() {
@@ -70,6 +74,14 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
 
     @Override
     public FrameCallResult execute(Void input) throws Throwable {
+        Pair<Integer, Long> r = findInCache();
+        if (r != null) {
+            setResult(r);
+            return Fiber.frameReturn();
+        }
+        if (tailCache.getFirstIndex() > 0) {
+            rightIndex = tailCache.getFirstIndex() - 1;
+        }
         logFile = findMatchLogFile(suggestTerm, suggestIndex);
         if (logFile == null) {
             setResult(null);
@@ -77,11 +89,48 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
         } else {
             this.leftIndex = logFile.firstIndex;
             this.leftTerm = logFile.firstTerm;
-            this.rightIndex = Math.min(suggestIndex, lastLogIndex);
             buf = ByteBuffer.allocate(LogHeader.ITEM_HEADER_SIZE);
-            return Fiber.resume(null, this::loop);
+            return loop(null);
         }
     }
+
+    private Pair<Integer, Long> findInCache() {
+        long li = tailCache.getFirstIndex();
+        RaftTask task = tailCache.get(li);
+        if (task == null) {
+            return null;
+        }
+        int lt = task.getItem().getTerm();
+        if (!valid(lt, li)) {
+            return null;
+        }
+        long ri = rightIndex;
+        while (li < ri) {
+            long mi = computeMidIndex(li, ri);
+            task = tailCache.get(mi);
+            if (task == null) {
+                break;
+            }
+            int mt = task.getItem().getTerm();
+            if (valid(mt, mi)) {
+                li = mi;
+            } else {
+                ri = mi - 1;
+            }
+        }
+        return new Pair<>(lt, li);
+    }
+
+    private boolean valid(int term, long index) {
+        if (term > suggestTerm) {
+            return false;
+        } else if (term == suggestTerm) {
+            return index <= suggestIndex;
+        } else {
+            return index < suggestIndex;
+        }
+    }
+
 
     private LogFile findMatchLogFile(int suggestTerm, long suggestIndex) {
         if (queue.size() == 0) {
@@ -122,12 +171,16 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
     private FrameCallResult loop(Void input) {
         checkCancel();
         if (leftIndex < rightIndex) {
-            midIndex = (leftIndex + rightIndex + 1) >>> 1;
+            midIndex = computeMidIndex(leftIndex, rightIndex);
             return idxOps.loadLogPos(midIndex, this::posLoadComplete);
         } else {
             setResult(new Pair<>(leftTerm, leftIndex));
             return Fiber.frameReturn();
         }
+    }
+
+    private static long computeMidIndex(long li, long ri) {
+        return (li + ri + 1) >>> 1;
     }
 
     private FrameCallResult posLoadComplete(Long pos) {
@@ -155,10 +208,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
         if (header.index != midIndex) {
             throw new RaftException("index not match");
         }
-        if (midIndex == suggestIndex && header.term == suggestTerm) {
-            setResult(new Pair<>(header.term, midIndex));
-            return Fiber.frameReturn();
-        } else if (midIndex < suggestIndex && header.term <= suggestTerm) {
+        if (valid(header.term, midIndex)) {
             leftIndex = midIndex;
             leftTerm = header.term;
         } else {
