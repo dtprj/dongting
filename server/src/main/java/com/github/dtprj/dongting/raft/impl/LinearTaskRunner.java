@@ -34,6 +34,7 @@ import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.server.RaftTask;
+import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -51,6 +52,7 @@ public class LinearTaskRunner {
     private final RaftServerConfig serverConfig;
     private final RaftGroupConfigEx groupConfig;
     private final RaftStatusImpl raftStatus;
+    private final RaftLog raftLog;
 
     private final Timestamp ts;
 
@@ -63,6 +65,7 @@ public class LinearTaskRunner {
         this.groupConfig = gc.getGroupConfig();
         this.raftStatus = gc.getRaftStatus();
         this.ts = raftStatus.getTs();
+        this.raftLog = gc.getRaftLog();
         this.perfCallback = gc.getGroupConfig().getPerfCallback();
     }
 
@@ -174,7 +177,7 @@ public class LinearTaskRunner {
         submitTasks(raftStatus, inputs);
     }
 
-    public static void submitTasks(RaftStatusImpl raftStatus, List<RaftTask> inputs) {
+    public void submitTasks(RaftStatusImpl raftStatus, List<RaftTask> inputs) {
         TailCache tailCache = raftStatus.getTailCache();
         for (int len = inputs.size(), i = 0; i < len; i++) {
             RaftTask rt = inputs.get(i);
@@ -188,6 +191,7 @@ public class LinearTaskRunner {
                 raftStatus.setLastLogTerm(rt.getItem().getTerm());
             }
         }
+        raftLog.append(inputs);
         raftStatus.getDataArrivedCondition().signalAll();
     }
 

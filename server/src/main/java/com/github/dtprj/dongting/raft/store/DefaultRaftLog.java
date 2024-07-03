@@ -30,9 +30,11 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftTask;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.io.File;
+import java.util.List;
 import java.util.function.Supplier;
 
 import static com.github.dtprj.dongting.raft.store.IdxFileQueue.KEY_NEXT_IDX_AFTER_INSTALL_SNAPSHOT;
@@ -122,6 +124,10 @@ public class DefaultRaftLog implements RaftLog {
                 throw ex;
             }
         };
+    }
+
+    @Override
+    public void append(List<RaftTask> inputs) {
     }
 
     @Override
