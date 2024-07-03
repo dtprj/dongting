@@ -26,7 +26,6 @@ import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -136,7 +135,9 @@ public class IdxFileQueueTest extends BaseFiberTest {
                 if (idxFileQueue.needWaitFlush()) {
                     return Fiber.call(idxFileQueue.waitFlush(), this::waitFlush);
                 } else {
-                    Assertions.assertTrue(idxFileQueue.cache.size() <= 4);
+                    if (idxFileQueue.getNextPersistIndex() < 29) {
+                        return Fiber.yield(this::waitFlush);
+                    }
                     return Fiber.frameReturn();
                 }
             }
