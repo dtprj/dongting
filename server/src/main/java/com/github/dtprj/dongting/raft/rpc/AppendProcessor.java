@@ -36,7 +36,6 @@ import com.github.dtprj.dongting.raft.impl.RaftRole;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftTask;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -325,8 +324,8 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReqCallback> {
 
         needRelease = false;
 
-        TailCache tailCache = raftStatus.getTailCache();
-        for (int i = 0; i < logs.size(); i++) {
+        ArrayList<RaftTask> list = new ArrayList<>(logs.size());
+        for (int i = 0, len = logs.size(); i < len; i++) {
             LogItem li = logs.get(i);
             if (++index != li.getIndex()) {
                 log.error("bad request: log index not match. index={}, expectIndex={}, leaderId={}, groupId={}",
@@ -337,34 +336,36 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReqCallback> {
             RaftInput raftInput = new RaftInput(li.getBizType(), li.getHeader(), li.getBody(), null);
             RaftTask task = new RaftTask(raftStatus.getTs(), li.getType(), raftInput, null);
             task.setItem(li);
-            tailCache.put(index, task);
+            list.add(task);
+
             if (index < raftStatus.getGroupReadyIndex()) {
                 raftStatus.setGroupReadyIndex(index);
             }
-            if (i == logs.size() - 1) {
-                raftStatus.setLastLogIndex(index);
-                raftStatus.setLastLogTerm(li.getTerm());
-                int term = raftStatus.getCurrentTerm();
-                long itemIndex = index;
-                // register write response callback
-                gc.getCommitManager().registerRespWriter(lastPersistIndex -> {
-                    if (raftStatus.getCurrentTerm() == term) {
-                        if (lastPersistIndex >= itemIndex) {
-                            writeAppendResp(AppendProcessor.APPEND_SUCCESS, null);
-                            return true;
-                        } else {
-                            return false;
-                        }
-                    } else {
-                        return true;
-                    }
-                });
+            if (i == len - 1) {
+                registerRespWriter(raftStatus, index);
             }
         }
-        raftStatus.getDataArrivedCondition().signalAll();
+        LinearTaskRunner.submitTasks(raftStatus, list);
 
         // success response write in CommitManager fiber
         return Fiber.frameReturn();
+    }
+
+    private void registerRespWriter(RaftStatusImpl raftStatus, long index) {
+        int term = raftStatus.getCurrentTerm();
+        // register write response callback
+        gc.getCommitManager().registerRespWriter(lastPersistIndex -> {
+            if (raftStatus.getCurrentTerm() == term) {
+                if (lastPersistIndex >= index) {
+                    writeAppendResp(AppendProcessor.APPEND_SUCCESS, null);
+                    return true;
+                } else {
+                    return false;
+                }
+            } else {
+                return true;
+            }
+        });
     }
 
     private FrameCallResult resumeWhenFindReplicatePosFinish(Pair<Integer, Long> pos, int oldTerm) {

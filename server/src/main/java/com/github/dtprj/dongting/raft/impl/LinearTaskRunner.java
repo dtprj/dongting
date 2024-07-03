@@ -135,7 +135,6 @@ public class LinearTaskRunner {
             return;
         }
         long newIndex = lastIndex(raftStatus);
-        TailCache tailCache = raftStatus.getTailCache();
 
         int prevTerm = raftStatus.getLastLogTerm();
         int currentTerm = raftStatus.getCurrentTerm();
@@ -167,15 +166,27 @@ public class LinearTaskRunner {
             item.setBody(input.getBody(), input.isBodyReleasable());
 
             rt.setItem(item);
-
-            tailCache.put(newIndex, rt);
-            // successful change owner to TailCache and release in TailCache.release(RaftTask)
         }
 
-        raftStatus.setLastLogIndex(newIndex);
-        raftStatus.setLastLogTerm(currentTerm);
         RaftUtil.resetElectTimer(raftStatus);
 
+        submitTasks(raftStatus, inputs);
+    }
+
+    public static void submitTasks(RaftStatusImpl raftStatus, List<RaftTask> inputs) {
+        TailCache tailCache = raftStatus.getTailCache();
+        for (int len = inputs.size(), i = 0; i < len; i++) {
+            RaftTask rt = inputs.get(i);
+            long index = rt.getItem().getIndex();
+
+            // successful change owner to TailCache and release in TailCache.release(RaftTask)
+            tailCache.put(index, rt);
+
+            if (i == len - 1) {
+                raftStatus.setLastLogIndex(index);
+                raftStatus.setLastLogTerm(rt.getItem().getTerm());
+            }
+        }
         raftStatus.getDataArrivedCondition().signalAll();
     }
 
