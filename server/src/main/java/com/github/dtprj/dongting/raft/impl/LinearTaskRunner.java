@@ -168,12 +168,8 @@ public class LinearTaskRunner {
 
             rt.setItem(item);
 
-            try {
-                tailCache.put(newIndex, rt);
-                // successful change owner to TailCache and release in TailCache.release(RaftTask)
-            } catch (RuntimeException | Error e) {
-                item.release();
-            }
+            tailCache.put(newIndex, rt);
+            // successful change owner to TailCache and release in TailCache.release(RaftTask)
         }
 
         raftStatus.setLastLogIndex(newIndex);

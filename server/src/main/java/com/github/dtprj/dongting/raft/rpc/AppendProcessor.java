@@ -239,7 +239,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReqCallback> {
 
     private static final DtLog log = DtLogs.getLogger(AppendProcessor.class);
 
-    private boolean putTailCache = false;
+    private boolean needRelease = true;
 
     public AppendFiberFrame(ReqInfoEx<AppendReqCallback> reqInfo, AppendProcessor processor) {
         super("append", processor, reqInfo);
@@ -256,7 +256,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReqCallback> {
     protected FrameCallResult doFinally() {
         reqInfo.getRaftGroup().getGroupComponents().getRaftStatus().copyShareStatus();
         AppendReqCallback req = reqInfo.getReqFrame().getBody();
-        if (!putTailCache) {
+        if (needRelease) {
             RaftUtil.release(req.getLogs());
         }
         return Fiber.frameReturn();
@@ -323,6 +323,8 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReqCallback> {
 
         long index = LinearTaskRunner.lastIndex(raftStatus);
 
+        needRelease = false;
+
         TailCache tailCache = raftStatus.getTailCache();
         for (int i = 0; i < logs.size(); i++) {
             LogItem li = logs.get(i);
@@ -336,7 +338,6 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReqCallback> {
             RaftTask task = new RaftTask(raftStatus.getTs(), li.getType(), raftInput, null);
             task.setItem(li);
             tailCache.put(index, task);
-            putTailCache = true;
             if (index < raftStatus.getGroupReadyIndex()) {
                 raftStatus.setGroupReadyIndex(index);
             }
