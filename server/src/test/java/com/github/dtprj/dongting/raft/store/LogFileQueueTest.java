@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.common.RunnableEx;
 import com.github.dtprj.dongting.fiber.BaseFiberTest;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
-import com.github.dtprj.dongting.fiber.FrameCall;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.InitFiberFrame;
@@ -83,11 +82,11 @@ public class LogFileQueueTest extends BaseFiberTest {
         }
 
         @Override
-        public FrameCallResult loadLogPos(long itemIndex, FrameCall<Long> resumePoint) {
+        public FiberFrame<Long> loadLogPos(long itemIndex) {
             if (mockLoadEx == null) {
-                return Fiber.resume(idxMap.get(itemIndex), resumePoint);
+                return FiberFrame.completedFrame(idxMap.get(itemIndex));
             } else {
-                throw mockLoadEx;
+                return FiberFrame.failedFrame(mockLoadEx);
             }
         }
     };

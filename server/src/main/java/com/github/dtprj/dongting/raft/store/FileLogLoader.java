@@ -158,7 +158,7 @@ class FileLogLoader implements RaftLog.LogIterator {
         @Override
         public FrameCallResult execute(Void input) {
             if (nextIndex == -1) {
-                return idxFiles.loadLogPos(startIndex, this::afterStartIndexPosLoad);
+                return Fiber.call(idxFiles.loadLogPos(startIndex), this::afterStartIndexPosLoad);
             } else {
                 if (readBuffer.hasRemaining()) {
                     return parseContent();

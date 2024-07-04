@@ -16,8 +16,6 @@
 package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.fiber.FiberFrame;
-import com.github.dtprj.dongting.fiber.FrameCall;
-import com.github.dtprj.dongting.fiber.FrameCallResult;
 
 /**
  * @author huangli
@@ -28,5 +26,5 @@ interface IdxOps {
     boolean needWaitFlush();
 
     FiberFrame<Void> waitFlush();
-    FrameCallResult loadLogPos(long itemIndex, FrameCall<Long> resumePoint);
+    FiberFrame<Long> loadLogPos(long itemIndex);
 }

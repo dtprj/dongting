@@ -31,7 +31,8 @@ import org.junit.jupiter.api.Test;
 
 import java.io.File;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * @author huangli
@@ -186,6 +187,14 @@ public class IdxFileQueueTest extends BaseFiberTest {
         private final long index;
         private final long expectResult;
 
+        @Override
+        protected FrameCallResult handle(Throwable ex) throws Throwable {
+            if (expectResult >= 0) {
+                throw ex;
+            }
+            return Fiber.frameReturn();
+        }
+
         public LoadLogPosFrame(long index, long expectResult) {
             this.index = index;
             this.expectResult = expectResult;
@@ -193,7 +202,7 @@ public class IdxFileQueueTest extends BaseFiberTest {
 
         @Override
         public FrameCallResult execute(Void input) {
-            return idxFileQueue.loadLogPos(index, this::resume);
+            return Fiber.call(idxFileQueue.loadLogPos(index), this::resume);
         }
 
         private FrameCallResult resume(Long result) {
@@ -218,16 +227,6 @@ public class IdxFileQueueTest extends BaseFiberTest {
                 }
                 idxFileQueue.truncateTail(5);
                 assertEquals(4, idxFileQueue.cache.size());
-                return Fiber.call(new LoadLogPosFrame(4, 400), this::afterCheckPos);
-            }
-
-            private FrameCallResult afterCheckPos(Void unused) {
-                try {
-                    idxFileQueue.loadLogPos(5, null);
-                    fail();
-                } catch (Exception e) {
-                    assertTrue(e.getMessage().contains("index is too large"));
-                }
 
                 raftStatus.setCommitIndex(3);
                 raftStatus.setLastForceLogIndex(3);
@@ -254,21 +253,31 @@ public class IdxFileQueueTest extends BaseFiberTest {
                     raftStatus.setLastForceLogIndex(i - 1);
                     idxFileQueue.put(i, i * 100);
                 }
+                return idxFileQueue.close().await(this::afterIdxClose);
+            }
+
+            private FrameCallResult afterIdxClose(Void unused) {
+                return statusManager.close().await(this::justReturn);
+            }
+        });
+        idxFileQueue = createFileQueue();
+        doInFiber(new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) throws Throwable {
+                return Fiber.call(idxFileQueue.initRestorePos(), this::resume);
+            }
+
+            private FrameCallResult resume(Pair<Long, Long> longLongPair) {
                 return checkPos(null);
             }
 
             long checkIndex = 1;
 
             private FrameCallResult checkPos(Void v) {
-                if (checkIndex > 30) {
-                    // wait other fiber allocate & flush
-                    if (idxFileQueue.needWaitFlush()) {
-                        return Fiber.call(idxFileQueue.waitFlush(), this::checkPos);
-                    } else {
-                        // delete a file
-                        FileQueue.DeleteFrame f = idxFileQueue.new DeleteFrame(idxFileQueue.getLogFile(0));
-                        return Fiber.call(f, this::afterDelete);
-                    }
+                if (checkIndex >= 30) {
+                    // delete a file
+                    FileQueue.DeleteFrame f = idxFileQueue.new DeleteFrame(idxFileQueue.getLogFile(0));
+                    return Fiber.call(f, this::afterDelete);
                 }
                 FiberFrame<Void> f = new LoadLogPosFrame(checkIndex, checkIndex * 100);
                 checkIndex++;
@@ -277,19 +286,11 @@ public class IdxFileQueueTest extends BaseFiberTest {
 
             private FrameCallResult afterDelete(Void unused) {
                 assertEquals(idxFileQueue.indexToPos(8), idxFileQueue.queueStartPosition);
-                try {
-                    idxFileQueue.loadLogPos(1, null);
-                    fail();
-                } catch (Throwable e) {
-                    assertTrue(e.getMessage().contains("index too small"));
-                }
-                try {
-                    idxFileQueue.loadLogPos(31, null);
-                    fail();
-                } catch (Throwable e) {
-                    assertTrue(e.getMessage().contains("index is too large"));
-                }
-                return Fiber.frameReturn();
+                return Fiber.call(new LoadLogPosFrame(1, -1), this::afterCheck1);
+            }
+
+            private FrameCallResult afterCheck1(Void unused) {
+                return Fiber.call(new LoadLogPosFrame(30, -1), this::justReturn);
             }
         });
     }

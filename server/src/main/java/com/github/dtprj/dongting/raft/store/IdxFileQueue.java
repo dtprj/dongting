@@ -139,7 +139,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             return new FiberFrame<>() {
                 @Override
                 public FrameCallResult execute(Void input) {
-                    return loadLogPos(finalRestoreIndex, this::afterLoad);
+                    FiberFrame<Long> f = loadLogPos(finalRestoreIndex);
+                    return Fiber.call(f, this::afterLoad);
                 }
 
                 private FrameCallResult afterLoad(Long restoreIndexPos) {
@@ -392,29 +393,25 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     }
 
     @Override
-    public FrameCallResult loadLogPos(long itemIndex, FrameCall<Long> resumePoint) {
+    public FiberFrame<Long> loadLogPos(long itemIndex) {
         DtUtil.checkPositive(itemIndex, "index");
-        if (itemIndex >= nextIndex) {
-            BugLog.getLog().error("index is too large : lastIndex={}, index={}", nextIndex, itemIndex);
-            throw new RaftException("index is too large");
-        }
-        if (itemIndex < firstIndex) {
-            BugLog.getLog().error("index is too small : firstIndex={}, index={}", firstIndex, itemIndex);
-            throw new RaftException("index too small");
-        }
-        if (itemIndex >= cache.getFirstKey() && itemIndex <= cache.getLastKey()) {
-            long result = cache.get(itemIndex);
-            return Fiber.resume(result, resumePoint);
-        }
-        long pos = indexToPos(itemIndex);
-        ByteBuffer buffer = ByteBuffer.allocate(8);
-        LogFile lf = getLogFile(pos);
-        if (lf.isDeleted()) {
-            throw new RaftException("file deleted: " + lf.getFile().getPath());
-        }
-        FiberFrame<Long> loadFrame = new FiberFrame<>() {
+        return new FiberFrame<>() {
+            final ByteBuffer buffer = ByteBuffer.allocate(8);
             @Override
             public FrameCallResult execute(Void v) {
+                if (itemIndex > persistedIndex) {
+                    BugLog.getLog().error("index is too large : lastIndex={}, index={}", nextIndex, itemIndex);
+                    throw new RaftException("index is too large");
+                }
+                if (itemIndex < firstIndex) {
+                    BugLog.getLog().error("index is too small : firstIndex={}, index={}", firstIndex, itemIndex);
+                    throw new RaftException("index too small");
+                }
+                long pos = indexToPos(itemIndex);
+                LogFile lf = getLogFile(pos);
+                if (lf.isDeleted()) {
+                    throw new RaftException("file deleted: " + lf.getFile().getPath());
+                }
                 long filePos = pos & fileLenMask;
                 AsyncIoTask t = new AsyncIoTask(groupConfig, lf);
                 return t.read(buffer, filePos).await(this::afterLoad);
@@ -426,7 +423,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                 return Fiber.frameReturn();
             }
         };
-        return Fiber.call(loadFrame, resumePoint);
     }
 
     /**

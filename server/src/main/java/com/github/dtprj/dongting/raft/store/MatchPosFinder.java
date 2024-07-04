@@ -172,7 +172,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
         checkCancel();
         if (leftIndex < rightIndex) {
             midIndex = computeMidIndex(leftIndex, rightIndex);
-            return idxOps.loadLogPos(midIndex, this::posLoadComplete);
+            return Fiber.call(idxOps.loadLogPos(midIndex), this::posLoadComplete);
         } else {
             setResult(new Pair<>(leftTerm, leftIndex));
             return Fiber.frameReturn();
