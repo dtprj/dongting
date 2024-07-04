@@ -404,15 +404,16 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReqCallback> {
 
     private FrameCallResult truncateAndAppend(long matchIndex, int matchTerm) {
         long truncateIndex = matchIndex + 1;
-        GroupComponents gc = reqInfo.getRaftGroup().getGroupComponents();
-        gc.getRaftLog().truncateTail(truncateIndex);
+        return Fiber.call(gc.getRaftLog().truncateTail(truncateIndex), v -> afterTruncate(matchIndex, matchTerm));
+    }
 
+    private FrameCallResult afterTruncate(long matchIndex, int matchTerm) {
+        GroupComponents gc = reqInfo.getRaftGroup().getGroupComponents();
         RaftStatusImpl raftStatus = gc.getRaftStatus();
         raftStatus.setLastWriteLogIndex(matchIndex);
         raftStatus.setLastForceLogIndex(matchIndex);
         raftStatus.setLastLogIndex(matchIndex);
         raftStatus.setLastLogTerm(matchTerm);
-
         return doAppend(reqInfo, gc);
     }
 

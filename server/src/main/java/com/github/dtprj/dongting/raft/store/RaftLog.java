@@ -41,7 +41,7 @@ public interface RaftLog {
     /**
      * truncate tail to index (include)
      */
-    void truncateTail(long index);
+    FiberFrame<Void> truncateTail(long index);
 
     LogIterator openIterator(Supplier<Boolean> cancelIndicator);
 

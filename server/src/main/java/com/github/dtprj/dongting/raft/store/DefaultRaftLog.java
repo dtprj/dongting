@@ -131,16 +131,22 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public void truncateTail(long index) {
-        TailCache tailCache = raftStatus.getTailCache();
-        tailCache.truncate(index);
+    public FiberFrame<Void> truncateTail(long index) {
+        return new FiberFrame<>() {
+            @Override
+            public FrameCallResult execute(Void input) {
+                TailCache tailCache = raftStatus.getTailCache();
+                tailCache.truncate(index);
+                return Fiber.call(idxFiles.loadLogPos(index), this::afterPosLoad);
+            }
 
-        // committed logs can't truncate, and we wait write finish before truncate,
-        // so we can assert the index is in the cache
-        long pos = idxFiles.loadLogPosInCache(index);
+            private FrameCallResult afterPosLoad(Long pos) {
+                idxFiles.truncateTail(index);
+                logFiles.truncateTail(index, pos);
+                return Fiber.frameReturn();
+            }
+        };
 
-        idxFiles.truncateTail(index);
-        logFiles.truncateTail(index, pos);
     }
 
     @Override

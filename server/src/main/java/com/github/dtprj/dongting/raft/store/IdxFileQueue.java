@@ -388,10 +388,6 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         }
     }
 
-    public long loadLogPosInCache(long index) {
-        return cache.get(index);
-    }
-
     @Override
     public FiberFrame<Long> loadLogPos(long itemIndex) {
         DtUtil.checkPositive(itemIndex, "index");
