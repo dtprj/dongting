@@ -82,6 +82,8 @@ public class RaftStatusImpl extends RaftStatus {
     private long lastWriteLogIndex;
     private long lastApplying;
 
+    private boolean truncating;
+
     private long leaderCommit;
 
     private FiberGroup fiberGroup;
@@ -442,5 +444,13 @@ public class RaftStatusImpl extends RaftStatus {
 
     public void setLastApplying(long lastApplying) {
         this.lastApplying = lastApplying;
+    }
+
+    public boolean isTruncating() {
+        return truncating;
+    }
+
+    public void setTruncating(boolean truncating) {
+        this.truncating = truncating;
     }
 }

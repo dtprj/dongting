@@ -246,6 +246,10 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReqCallback> {
 
     @Override
     protected FrameCallResult handle(Throwable ex) {
+        gc.getRaftStatus().setTruncating(false);
+        // to notify RaftUtil.waitWriteFinish() to resume
+        gc.getRaftStatus().getLogForceFinishCondition().signalAll();
+
         log.error("append error", ex);
         writeAppendResp(AppendProcessor.APPEND_SERVER_ERROR, ex.toString());
         return Fiber.frameReturn();
@@ -253,7 +257,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReqCallback> {
 
     @Override
     protected FrameCallResult doFinally() {
-        reqInfo.getRaftGroup().getGroupComponents().getRaftStatus().copyShareStatus();
+        gc.getRaftStatus().copyShareStatus();
         AppendReqCallback req = reqInfo.getReqFrame().getBody();
         if (needRelease) {
             RaftUtil.release(req.getLogs());
@@ -390,8 +394,8 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReqCallback> {
             log.info("local log truncate to prevLogIndex={}, prevLogTerm={}, groupId={}",
                     req.getPrevLogIndex(), req.getPrevLogTerm(), raftStatus.getGroupId());
             if (RaftUtil.writeNotFinished(raftStatus)) {
-                return RaftUtil.waitWriteFinish(raftStatus,
-                        v -> truncateAndAppend(req.getPrevLogIndex(), req.getPrevLogTerm()));
+                // resume to this::execute to re-run all check
+                return RaftUtil.waitWriteFinish(raftStatus, this);
             } else {
                 return truncateAndAppend(req.getPrevLogIndex(), req.getPrevLogTerm());
             }
@@ -403,13 +407,18 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReqCallback> {
     }
 
     private FrameCallResult truncateAndAppend(long matchIndex, int matchTerm) {
+        gc.getRaftStatus().setTruncating(true);
         long truncateIndex = matchIndex + 1;
         return Fiber.call(gc.getRaftLog().truncateTail(truncateIndex), v -> afterTruncate(matchIndex, matchTerm));
     }
 
     private FrameCallResult afterTruncate(long matchIndex, int matchTerm) {
-        GroupComponents gc = reqInfo.getRaftGroup().getGroupComponents();
         RaftStatusImpl raftStatus = gc.getRaftStatus();
+
+        raftStatus.setTruncating(false);
+        // to notify RaftUtil.waitWriteFinish() to resume
+        gc.getRaftStatus().getLogForceFinishCondition().signalAll();
+
         raftStatus.setLastWriteLogIndex(matchIndex);
         raftStatus.setLastForceLogIndex(matchIndex);
         raftStatus.setLastLogIndex(matchIndex);

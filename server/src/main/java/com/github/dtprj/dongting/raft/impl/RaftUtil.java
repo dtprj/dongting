@@ -307,12 +307,21 @@ public final class RaftUtil {
     }
 
     public static boolean writeNotFinished(RaftStatusImpl raftStatus) {
-        if (raftStatus.getLastForceLogIndex() != raftStatus.getLastLogIndex()) {
-            log.info("write not finished, lastPersistLogIndex={}, lastLogIndex={}",
-                    raftStatus.getLastForceLogIndex(), raftStatus.getLastLogIndex());
+        if (raftStatus.getLastForceLogIndex() != raftStatus.getLastLogIndex() || raftStatus.isTruncating()) {
+            log.info("write not finished, lastPersistLogIndex={}, lastLogIndex={}, truncating={}",
+                    raftStatus.getLastForceLogIndex(), raftStatus.getLastLogIndex(), raftStatus.isTruncating());
             return true;
         }
         return false;
+    }
+
+    public static FrameCallResult waitWriteFinish(RaftStatusImpl raftStatus, FrameCall<Void> resumePoint) {
+        if (writeNotFinished(raftStatus)) {
+            return raftStatus.getLogForceFinishCondition().await(10 * 1000,
+                    v -> waitWriteFinish(raftStatus, resumePoint));
+        } else {
+            return Fiber.resume(null, resumePoint);
+        }
     }
 
     public static <T> Set<T> union(Collection<T> c1, Collection<T> c2) {
@@ -320,15 +329,6 @@ public final class RaftUtil {
         set.addAll(c1);
         set.addAll(c2);
         return set;
-    }
-
-    public static FrameCallResult waitWriteFinish(RaftStatusImpl raftStatus, FrameCall<Void> resumePoint) {
-        if (writeNotFinished(raftStatus)) {
-            return raftStatus.getLogForceFinishCondition().await(
-                    1000, v -> waitWriteFinish(raftStatus, resumePoint));
-        } else {
-            return Fiber.resume(null, resumePoint);
-        }
     }
 
     public static String setToStr(Set<Integer> s) {
