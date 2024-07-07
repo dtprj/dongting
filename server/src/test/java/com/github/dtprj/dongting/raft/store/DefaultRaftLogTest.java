@@ -23,7 +23,6 @@ import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.raft.impl.InitFiberFrame;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
-import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -36,6 +35,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -65,7 +65,6 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         config.setBlockIoExecutor(MockExecutors.ioExecutor());
         config.setTs(raftStatus.getTs());
 
-        raftStatus.setTailCache(new TailCache(config, raftStatus));
         config.setRaftStatus(raftStatus);
         statusManager = new StatusManager(config);
         doInFiber(new FiberFrame<>() {
@@ -109,25 +108,26 @@ public class DefaultRaftLogTest extends BaseFiberTest {
         });
     }
 
-    private void append(int index, int[] totalSizes, int[] bizHeaderLen) throws Exception {
-        LogItem[] items = new LogItem[totalSizes.length];
+    private void append(long index, int[] totalSizes, int[] bizHeaderLen) throws Exception {
+        ArrayList<RaftTask> list = new ArrayList<>();
         for (int i = 0; i < totalSizes.length; i++) {
-            items[i] = LogFileQueueTest.createItem(config, 100, 100, index++, totalSizes[i], bizHeaderLen[i]);
+            LogItem li = LogFileQueueTest.createItem(config, 100, 100, index++, totalSizes[i], bizHeaderLen[i]);
             RaftInput ri = new RaftInput(0, null, null, null);
             RaftTask rt = new RaftTask(config.getTs(), LogItem.TYPE_NORMAL, ri, null);
-            rt.setItem(items[i]);
-            raftStatus.getTailCache().put(items[i].getIndex(), rt);
+            rt.setItem(li);
+            list.add(rt);
         }
 
+        long lastIdx = index - 1;
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                raftStatus.getDataArrivedCondition().signalAll();
+                raftLog.logFiles.submit(list);
                 return waitWriteFinish(null);
             }
 
             private FrameCallResult waitWriteFinish(Void v) {
-                if (raftLog.logFiles.logAppender.writeNotFinish()) {
+                if (raftStatus.getLastForceLogIndex() < lastIdx - 1) {
                     return raftStatus.getLogForceFinishCondition().await(1000, this::waitWriteFinish);
                 } else {
                     return Fiber.frameReturn();

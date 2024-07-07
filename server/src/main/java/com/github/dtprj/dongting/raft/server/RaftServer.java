@@ -264,6 +264,7 @@ public class RaftServer extends AbstractLifeCircle {
         replicateManager.postInit();
         memberManager.postInit();
         voteManager.postInit();
+        linearTaskRunner.postInit();
 
         for (RaftSequenceProcessor<?> processor : raftSequenceProcessors) {
             FiberChannel<Object> channel = fiberGroup.newChannel();

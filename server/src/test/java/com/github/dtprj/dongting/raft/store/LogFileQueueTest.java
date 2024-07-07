@@ -25,7 +25,6 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.InitFiberFrame;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
-import com.github.dtprj.dongting.raft.impl.TailCache;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -40,7 +39,9 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.zip.CRC32C;
 
@@ -55,7 +56,6 @@ public class LogFileQueueTest extends BaseFiberTest {
     private File dir;
     private RaftGroupConfigEx config;
     private RaftStatusImpl raftStatus;
-    private TailCache tailCache;
 
     private int index;
     private int term;
@@ -109,9 +109,6 @@ public class LogFileQueueTest extends BaseFiberTest {
         config.setFiberGroup(fiberGroup);
         config.setTs(raftStatus.getTs());
         config.setRaftStatus(raftStatus);
-
-        tailCache = new TailCache(config, raftStatus);
-        raftStatus.setTailCache(tailCache);
 
         logFileQueue = new LogFileQueue(dir, config, idxOps, fileSize);
         logFileQueue.maxWriteBufferSize = maxWriteBufferSize;
@@ -184,6 +181,7 @@ public class LogFileQueueTest extends BaseFiberTest {
     private void append(boolean check, long startPos, int... totalSizes) throws Exception {
         long fileSize = 1024;
         LogItem[] items = new LogItem[totalSizes.length];
+        List<RaftTask> list = new ArrayList<>();
         for (int i = 0; i < totalSizes.length; i++) {
             items[i] = createItem(config, term, prevTerm, index, totalSizes[i], bizHeaderLen);
             index++;
@@ -191,18 +189,18 @@ public class LogFileQueueTest extends BaseFiberTest {
             RaftInput ri = new RaftInput(0, null, null, null);
             RaftTask rt = new RaftTask(config.getTs(), LogItem.TYPE_NORMAL, ri, null);
             rt.setItem(items[i]);
-            tailCache.put(items[i].getIndex(), rt);
+            list.add(rt);
         }
 
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                raftStatus.getDataArrivedCondition().signalAll();
+                logFileQueue.submit(list);
                 return waitWriteFinish(null);
             }
 
             private FrameCallResult waitWriteFinish(Void v) {
-                if (logFileQueue.logAppender.writeNotFinish()) {
+                if (raftStatus.getLastForceLogIndex() < index - 1) {
                     return raftStatus.getLogForceFinishCondition().await(1000, this::waitWriteFinish);
                 } else {
                     return Fiber.frameReturn();

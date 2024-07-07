@@ -52,7 +52,8 @@ public class LinearTaskRunner {
     private final RaftServerConfig serverConfig;
     private final RaftGroupConfigEx groupConfig;
     private final RaftStatusImpl raftStatus;
-    private final RaftLog raftLog;
+    private final GroupComponents gc;
+    private RaftLog raftLog;
 
     private final Timestamp ts;
 
@@ -61,12 +62,16 @@ public class LinearTaskRunner {
     private final PerfCallback perfCallback;
 
     public LinearTaskRunner(GroupComponents gc) {
+        this.gc = gc;
         this.serverConfig = gc.getServerConfig();
         this.groupConfig = gc.getGroupConfig();
         this.raftStatus = gc.getRaftStatus();
         this.ts = raftStatus.getTs();
-        this.raftLog = gc.getRaftLog();
         this.perfCallback = gc.getGroupConfig().getPerfCallback();
+    }
+
+    public void postInit() {
+        this.raftLog = gc.getRaftLog();
     }
 
     public void init(FiberChannel<RaftTask> taskChannel) {

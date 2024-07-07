@@ -128,6 +128,7 @@ public class DefaultRaftLog implements RaftLog {
 
     @Override
     public void append(List<RaftTask> inputs) {
+        logFiles.submit(inputs);
     }
 
     @Override

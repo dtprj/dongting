@@ -30,9 +30,11 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
+import com.github.dtprj.dongting.raft.server.RaftTask;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.List;
 
 /**
  * @author huangli
@@ -224,6 +226,10 @@ class LogFileQueue extends FileQueue {
                 }
             }
         }
+    }
+
+    public void submit(List<RaftTask> inputs) {
+        logAppender.submit(inputs);
     }
 
     public FiberFrame<LogHeader> loadHeader(long pos) {
