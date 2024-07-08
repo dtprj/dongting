@@ -41,7 +41,6 @@ import com.github.dtprj.dongting.raft.server.NotLeaderException;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
-import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.server.RaftTask;
 
@@ -304,11 +303,11 @@ public class MemberManager {
 
             private FrameCallResult afterCheck(Void unused) {
                 leaderConfigChange(LogItem.TYPE_PREPARE_CONFIG_CHANGE, getInputData(newMemberNodes, newObserverNodes))
-                        .whenComplete((output, ex) -> {
+                        .whenComplete((raftIndex, ex) -> {
                             if (ex != null) {
                                 f.completeExceptionally(ex);
                             } else {
-                                f.complete(output.getLogIndex());
+                                f.complete(raftIndex);
                             }
                         });
                 return Fiber.frameReturn();
@@ -480,7 +479,7 @@ public class MemberManager {
         sb.append(';');
     }
 
-    private CompletableFuture<RaftOutput> leaderConfigChange(int type, byte[] data) {
+    private CompletableFuture<Long> leaderConfigChange(int type, byte[] data) {
         if (raftStatus.getRole() != RaftRole.leader) {
             String stageStr;
             switch (type) {
@@ -500,12 +499,12 @@ public class MemberManager {
                     stageStr, raftStatus.getRole(), groupId);
             return CompletableFuture.failedFuture(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
         }
-        CompletableFuture<RaftOutput> outputFuture = new CompletableFuture<>();
+        CompletableFuture<Long> outputFuture = new CompletableFuture<>();
         RaftInput input = new RaftInput(0, null, new ByteArrayEncoder(data), null);
         RaftTask rt = new RaftTask(raftStatus.getTs(), type, input, new RaftCallback() {
             @Override
-            public void success(long raftIndex, Object result) {
-                outputFuture.complete(new RaftOutput(raftIndex, result));
+            public void success(long raftIndex, Object nullResult) {
+                outputFuture.complete(raftIndex);
             }
 
             @Override
