@@ -27,6 +27,9 @@ public interface RaftCallback {
     void fail(Throwable ex);
 
     static void callSuccess(RaftCallback callback, long raftIndex, Object result) {
+        if (callback == null) {
+            return;
+        }
         try {
             callback.success(raftIndex, result);
         } catch (Throwable ex) {
@@ -35,6 +38,9 @@ public interface RaftCallback {
     }
 
     static void callFail(RaftCallback callback, Throwable ex) {
+        if (callback == null) {
+            return;
+        }
         try {
             callback.fail(ex);
         } catch (Throwable ex2) {

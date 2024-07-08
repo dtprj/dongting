@@ -148,10 +148,8 @@ public final class RaftUtil {
         raftStatus.setVotedFor(0);
         raftStatus.copyShareStatus();
         // copy share status should happen before callback invocation
-        for(Pair<RaftCallback, NotLeaderException> pair : failList) {
-            if (pair.getLeft() != null) {
-                RaftCallback.callFail(pair.getLeft(), pair.getRight());
-            }
+        for (Pair<RaftCallback, NotLeaderException> pair : failList) {
+            RaftCallback.callFail(pair.getLeft(), pair.getRight());
         }
     }
 

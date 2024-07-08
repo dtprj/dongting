@@ -193,12 +193,10 @@ public class ApplyManager {
             initFutureComplete = true;
             raftStatus.getInitFuture().complete(null);
         }
-        if (rt.getCallback() != null) {
-            if (execEx == null) {
-                RaftCallback.callSuccess(rt.getCallback(), index, execResult);
-            } else if (rt.getInput().isReadOnly()) {
-                RaftCallback.callFail(rt.getCallback(), execEx);
-            }
+        if (execEx == null) {
+            RaftCallback.callSuccess(rt.getCallback(), index, execResult);
+        } else if (rt.getInput().isReadOnly()) {
+            RaftCallback.callFail(rt.getCallback(), execEx);
         }
         if (waitApply) {
             applyFinishCond.signal();
