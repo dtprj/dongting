@@ -293,7 +293,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         int limit = multiAppend ? (int) Math.min(rest, diff) : 1;
 
         RaftTask first = raftStatus.getTailCache().get(nextIndex);
-        if (first != null && !first.getInput().isReadOnly()) {
+        if (first != null) {
             closeIterator();
             long sizeLimit = groupConfig.getSingleReplicateLimit();
             ArrayList<LogItem> items = new ArrayList<>(limit);

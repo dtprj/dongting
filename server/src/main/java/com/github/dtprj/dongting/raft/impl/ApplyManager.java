@@ -266,7 +266,7 @@ public class ApplyManager {
             }
             long index = raftStatus.getLastApplying() + 1;
             RaftTask rt = tailCache.get(index);
-            if (rt == null || rt.getInput().isReadOnly()) {
+            if (rt == null) {
                 int limit = (int) Math.min(diff, 1024L);
                 if (log.isDebugEnabled()) {
                     log.debug("load from {}, diff={}, limit={}, cacheSize={}, cacheFirstIndex={},commitIndex={},lastApplying={}",

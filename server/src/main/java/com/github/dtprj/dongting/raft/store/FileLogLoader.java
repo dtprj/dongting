@@ -384,7 +384,7 @@ class FileLogLoader implements RaftLog.LogIterator {
             } else {
                 long index = nextIndex + result.size();
                 RaftTask rt = tailCache.get(index);
-                if (rt == null || rt.getInput().isReadOnly()) {
+                if (rt == null) {
                     return RESULT_CONTINUE_PARSE;
                 } else {
                     // rest items in tail cache
