@@ -32,7 +32,6 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.PerfConsts;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -68,30 +67,26 @@ class LogAppender {
 
     private final Supplier<Boolean> writeStopIndicator;
 
-    private final RaftStatusImpl raftStatus;
-
     private final PerfCallback perfCallback;
-    final LogChainWrite chainWriter;
+    final ChainWriter chainWriter;
 
     private final FiberChannel<RaftTask> taskChannel;
 
-    LogAppender(IdxOps idxOps, LogFileQueue logFileQueue, RaftGroupConfigEx groupConfig) {
+    LogAppender(IdxOps idxOps, LogFileQueue logFileQueue, RaftGroupConfigEx groupConfig, ChainWriter chainWriter) {
         this.idxOps = idxOps;
         this.logFileQueue = logFileQueue;
+        this.chainWriter = chainWriter;
+        this.groupConfig = groupConfig;
+
         DtThread thread = groupConfig.getFiberGroup().getThread();
         this.directPool = thread.getDirectPool();
         this.encodeContext = new EncodeContext(thread.getHeapPool());
         this.fileLenMask = logFileQueue.fileLength() - 1;
-        this.groupConfig = groupConfig;
-        this.raftStatus = (RaftStatusImpl) groupConfig.getRaftStatus();
         FiberGroup fiberGroup = groupConfig.getFiberGroup();
         WriteFiberFrame writeFiberFrame = new WriteFiberFrame();
         this.appendFiber = new Fiber("append-" + groupConfig.getGroupId(), fiberGroup, writeFiberFrame);
         this.writeStopIndicator = logFileQueue::isClosed;
         this.perfCallback = groupConfig.getPerfCallback();
-        this.chainWriter = new LogChainWrite(groupConfig, PerfConsts.RAFT_D_LOG_WRITE1, PerfConsts.RAFT_D_LOG_WRITE2,
-                PerfConsts.RAFT_D_LOG_SYNC);
-
         this.taskChannel = fiberGroup.newChannel();
     }
 
@@ -102,7 +97,6 @@ class LogAppender {
 
     public FiberFuture<Void> close() {
         appendFiber.interrupt();
-        raftStatus.getLogForceFinishCondition().signalAll();
         FiberFuture<Void> closeFuture = groupConfig.getFiberGroup().newFuture("appenderClose");
         FiberFuture<Void> f1;
         if (appendFiber.isStarted()) {
@@ -131,28 +125,6 @@ class LogAppender {
         for (int i = 0, len = taskList.size(); i < len; i++) {
             RaftTask task = taskList.get(i);
             taskChannel.offer(task);
-        }
-    }
-
-    private class LogChainWrite extends ChainWriter {
-
-        public LogChainWrite(RaftGroupConfigEx config, int writePerfType1, int writePerfType2, int forcePerfType) {
-            super(config, writePerfType1, writePerfType2, forcePerfType);
-        }
-
-        @Override
-        protected void writeFinish(WriteTask writeTask) {
-            raftStatus.getDataArrivedCondition().signal(appendFiber);
-            if (writeTask.getLastRaftIndex() > 0) {
-                raftStatus.setLastWriteLogIndex(writeTask.getLastRaftIndex());
-            }
-        }
-
-        @Override
-        protected void forceFinish(WriteTask writeTask) {
-            // assert lastRaftIndex > 0
-            raftStatus.setLastForceLogIndex(writeTask.getLastRaftIndex());
-            raftStatus.getLogForceFinishCondition().signalAll();
         }
     }
 

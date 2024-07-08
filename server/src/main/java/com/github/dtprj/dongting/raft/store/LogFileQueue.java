@@ -27,6 +27,7 @@ import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
+import com.github.dtprj.dongting.net.PerfConsts;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -72,7 +73,30 @@ class LogFileQueue extends FileQueue {
         this.heapPool = t.getHeapPool();
         this.directPool = t.getDirectPool();
 
-        this.logAppender = new LogAppender(idxOps, this, groupConfig);
+        LogChainWriter chainWriter = new LogChainWriter(groupConfig, PerfConsts.RAFT_D_LOG_WRITE1,
+                PerfConsts.RAFT_D_LOG_WRITE2, PerfConsts.RAFT_D_LOG_SYNC);
+        this.logAppender = new LogAppender(idxOps, this, groupConfig, chainWriter);
+    }
+
+    private class LogChainWriter extends ChainWriter {
+
+        public LogChainWriter(RaftGroupConfigEx config, int writePerfType1, int writePerfType2, int forcePerfType) {
+            super(config, writePerfType1, writePerfType2, forcePerfType);
+        }
+
+        @Override
+        protected void writeFinish(WriteTask writeTask) {
+            if (writeTask.getLastRaftIndex() > 0) {
+                raftStatus.setLastWriteLogIndex(writeTask.getLastRaftIndex());
+            }
+        }
+
+        @Override
+        protected void forceFinish(WriteTask writeTask) {
+            // assert lastRaftIndex > 0
+            raftStatus.setLastForceLogIndex(writeTask.getLastRaftIndex());
+            raftStatus.getLogForceFinishCondition().signalAll();
+        }
     }
 
     public long fileLength() {
@@ -199,6 +223,8 @@ class LogFileQueue extends FileQueue {
 
     public FiberFuture<Void> close() {
         closed = true;
+        raftStatus.getLogWriteFinishCondition().signalAll();
+        raftStatus.getLogForceFinishCondition().signalAll();
         return logAppender.close().convertWithHandle("closeLogFileQueue", (v, ex) -> {
             if (ex != null) {
                 log.error("close log file queue failed", ex);
