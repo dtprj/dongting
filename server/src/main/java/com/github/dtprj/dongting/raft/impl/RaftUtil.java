@@ -28,6 +28,7 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
+import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 
 import java.nio.ByteBuffer;
@@ -125,7 +126,7 @@ public final class RaftUtil {
         if (newLeaderId > 0) {
             updateLeader(raftStatus, newLeaderId);
         }
-        LinkedList<Pair<CompletableFuture<?>, NotLeaderException>> failList = new LinkedList<>();
+        LinkedList<Pair<RaftCallback, NotLeaderException>> failList = new LinkedList<>();
         if (oldRole != RaftRole.observer) {
             log.info("update term from {} to {}, change to follower, oldRole={}",
                     raftStatus.getCurrentTerm(), remoteTerm, raftStatus.getRole());
@@ -134,8 +135,8 @@ public final class RaftUtil {
                 TailCache oldPending = raftStatus.getTailCache();
                 NotLeaderException e = new NotLeaderException(raftStatus.getCurrentLeaderNode());
                 oldPending.forEach((idx, task) -> {
-                    if (task.getFuture() != null) {
-                        failList.add(new Pair<>(task.getFuture(), e));
+                    if (task.getCallback() != null) {
+                        failList.add(new Pair<>(task.getCallback(), e));
                     }
                 });
             }
@@ -146,9 +147,11 @@ public final class RaftUtil {
         raftStatus.setCurrentTerm(remoteTerm);
         raftStatus.setVotedFor(0);
         raftStatus.copyShareStatus();
-        // copy share status should happen before futures complete
-        for(Pair<CompletableFuture<?>, NotLeaderException> pair : failList) {
-            pair.getLeft().completeExceptionally(pair.getRight());
+        // copy share status should happen before callback invocation
+        for(Pair<RaftCallback, NotLeaderException> pair : failList) {
+            if (pair.getLeft() != null) {
+                RaftCallback.callFail(pair.getLeft(), pair.getRight());
+            }
         }
     }
 

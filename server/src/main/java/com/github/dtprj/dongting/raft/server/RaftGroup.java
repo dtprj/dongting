@@ -30,7 +30,7 @@ public abstract class RaftGroup {
 
     public abstract StateMachine getStateMachine();
 
-    public abstract CompletableFuture<RaftOutput> submitLinearTask(RaftInput input);
+    public abstract void submitLinearTask(RaftInput input, RaftCallback callback);
 
     /**
      * Get raft lease read index, use this index to read data from the state machine.

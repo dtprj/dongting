@@ -26,13 +26,12 @@ import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.server.AbstractRaftBizProcessor;
+import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
-import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 
 import java.nio.ByteBuffer;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * @author huangli
@@ -91,15 +90,19 @@ public class PutProcessor extends AbstractRaftBizProcessor<PutReq> {
         ReqContext reqContext = reqInfo.getReqContext();
         RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_PUT, new StrEncoder(req.getKey()), req.getValue(),
                 reqContext.getTimeout());
-        CompletableFuture<RaftOutput> f = reqInfo.getRaftGroup().submitLinearTask(ri);
-        f.whenComplete((output, ex) -> {
-            if (ex != null) {
-                processError(reqInfo, ex);
-            } else {
+        RaftCallback c = new RaftCallback() {
+            @Override
+            public void success(long raftIndex, Object result) {
                 EmptyBodyRespFrame resp = new EmptyBodyRespFrame(CmdCodes.SUCCESS);
                 writeResp(reqInfo, resp);
             }
-        });
+
+            @Override
+            public void fail(Throwable ex) {
+                processError(reqInfo, ex);
+            }
+        };
+        reqInfo.getRaftGroup().submitLinearTask(ri, c);
         return null;
     }
 }

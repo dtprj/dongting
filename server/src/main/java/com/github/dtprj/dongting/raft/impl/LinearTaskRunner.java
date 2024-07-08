@@ -28,10 +28,10 @@ import com.github.dtprj.dongting.net.PerfConsts;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
+import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
-import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 import com.github.dtprj.dongting.raft.server.RaftTask;
 import com.github.dtprj.dongting.raft.store.RaftLog;
@@ -39,7 +39,6 @@ import com.github.dtprj.dongting.raft.store.RaftLog;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -110,15 +109,12 @@ public class LinearTaskRunner {
         }
     }
 
-    public CompletableFuture<RaftOutput> submitRaftTaskInBizThread(RaftInput input) {
-        CompletableFuture<RaftOutput> f = new CompletableFuture<>();
-        RaftTask t = new RaftTask(raftStatus.getTs(), LogItem.TYPE_NORMAL, input, f);
+    public void submitRaftTaskInBizThread(RaftInput input, RaftCallback callback) {
+        RaftTask t = new RaftTask(raftStatus.getTs(), LogItem.TYPE_NORMAL, input, callback);
         input.setPerfTime(perfCallback.takeTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY));
-        if (taskChannel.fireOffer(t)) {
-            return f;
-        } else {
+        if (!taskChannel.fireOffer(t)) {
             RaftUtil.release(input);
-            return CompletableFuture.failedFuture(new RaftException("submit raft task failed"));
+            RaftCallback.callFail(callback, new RaftException("submit raft task failed"));
         }
     }
 
@@ -137,9 +133,7 @@ public class LinearTaskRunner {
         if (raftStatus.getRole() != RaftRole.leader) {
             for (RaftTask t : inputs) {
                 RaftUtil.release(t.getInput());
-                if (t.getFuture() != null) {
-                    t.getFuture().completeExceptionally(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
-                }
+                RaftCallback.callFail(t.getCallback(), new NotLeaderException(raftStatus.getCurrentLeaderNode()));
             }
             return;
         }
@@ -156,7 +150,7 @@ public class LinearTaskRunner {
 
             if (input.getDeadline() != null && input.getDeadline().isTimeout(ts)) {
                 RaftUtil.release(input);
-                rt.getFuture().completeExceptionally(new RaftExecTimeoutException("timeout "
+                RaftCallback.callFail(rt.getCallback(), new RaftExecTimeoutException("timeout "
                         + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms"));
                 continue;
             }

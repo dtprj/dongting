@@ -27,13 +27,12 @@ import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.server.AbstractRaftBizProcessor;
+import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
-import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
 
 import java.nio.ByteBuffer;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * @author huangli
@@ -84,15 +83,17 @@ public class RemoveProcessor extends AbstractRaftBizProcessor<RemoveReq> {
         ReqContext reqContext = reqInfo.getReqContext();
         RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_REMOVE, new StrEncoder(req.getKey()), null,
                 reqContext.getTimeout());
-        CompletableFuture<RaftOutput> f = reqInfo.getRaftGroup().submitLinearTask(ri);
-        f.whenComplete((output, ex) -> {
-            if (ex != null) {
-                processError(reqInfo, ex);
-            } else {
-                Boolean result = (Boolean) output.getResult();
-                PbIntWriteFrame resp = new PbIntWriteFrame(Commands.DTKV_REMOVE, result ? 1 : 0);
+        reqInfo.getRaftGroup().submitLinearTask(ri, new RaftCallback() {
+            @Override
+            public void success(long raftIndex, Object result) {
+                PbIntWriteFrame resp = new PbIntWriteFrame(Commands.DTKV_REMOVE, (Boolean) result ? 1 : 0);
                 resp.setRespCode(CmdCodes.SUCCESS);
                 writeResp(reqInfo, resp);
+            }
+
+            @Override
+            public void fail(Throwable ex) {
+                processError(reqInfo, ex);
             }
         });
         return null;

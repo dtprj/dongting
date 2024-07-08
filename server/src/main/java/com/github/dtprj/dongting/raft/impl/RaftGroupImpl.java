@@ -24,11 +24,11 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
+import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
-import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 
 import java.util.Objects;
@@ -81,12 +81,11 @@ public class RaftGroupImpl extends RaftGroup {
     }
 
     @Override
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    public CompletableFuture<RaftOutput> submitLinearTask(RaftInput input) {
+    public void submitLinearTask(RaftInput input, RaftCallback callback) {
         Objects.requireNonNull(input);
         if (fiberGroup.isShouldStop()) {
             RaftUtil.release(input);
-            return CompletableFuture.failedFuture(new RaftException("raft group thread is stop"));
+            throw new RaftException("raft group thread is stop");
         }
         int currentPendingWrites = (int) PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, 1);
         if (currentPendingWrites >= groupConfig.getMaxPendingWrites()) {
@@ -94,7 +93,7 @@ public class RaftGroupImpl extends RaftGroup {
             String msg = "submitRaftTask failed: too many pending writes, currentPendingWrites=" + currentPendingWrites;
             log.warn(msg);
             PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, -1);
-            return CompletableFuture.failedFuture(new FlowControlException(msg));
+            throw new FlowControlException(msg);
         }
         long size = input.getFlowControlSize();
         long currentPendingWriteBytes = (long) PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, size);
@@ -104,18 +103,24 @@ public class RaftGroupImpl extends RaftGroup {
                     + currentPendingWriteBytes + ", currentRequestBytes=" + size;
             log.warn(msg);
             PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, -size);
-            return CompletableFuture.failedFuture(new FlowControlException(msg));
+            throw new FlowControlException(msg);
         }
-        CompletableFuture f = gc.getLinearTaskRunner().submitRaftTaskInBizThread(input);
-        registerCallback(f, size);
-        return f;
-    }
+        RaftCallback wrapper = new RaftCallback() {
+            @Override
+            public void success(long raftIndex, Object result) {
+                PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, -1);
+                PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, -size);
+                RaftCallback.callSuccess(callback, raftIndex, result);
+            }
 
-    private void registerCallback(CompletableFuture<?> f, long size) {
-        f.whenComplete((o, ex) -> {
-            PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, -1);
-            PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, -size);
-        });
+            @Override
+            public void fail(Throwable ex) {
+                PendingStat.PENDING_REQUESTS.getAndAddRelease(serverStat, -1);
+                PendingStat.PENDING_BYTES.getAndAddRelease(serverStat, -size);
+                RaftCallback.callFail(callback, ex);
+            }
+        };
+        gc.getLinearTaskRunner().submitRaftTaskInBizThread(input, wrapper);
     }
 
     @Override

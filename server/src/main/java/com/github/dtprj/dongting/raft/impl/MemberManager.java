@@ -38,6 +38,7 @@ import com.github.dtprj.dongting.raft.rpc.RaftPingWriteFrame;
 import com.github.dtprj.dongting.raft.rpc.TransferLeaderReq;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
+import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftOutput;
@@ -501,7 +502,17 @@ public class MemberManager {
         }
         CompletableFuture<RaftOutput> outputFuture = new CompletableFuture<>();
         RaftInput input = new RaftInput(0, null, new ByteArrayEncoder(data), null);
-        RaftTask rt = new RaftTask(raftStatus.getTs(), type, input, outputFuture);
+        RaftTask rt = new RaftTask(raftStatus.getTs(), type, input, new RaftCallback() {
+            @Override
+            public void success(long raftIndex, Object result) {
+                outputFuture.complete(new RaftOutput(raftIndex, result));
+            }
+
+            @Override
+            public void fail(Throwable ex) {
+                outputFuture.completeExceptionally(ex);
+            }
+        });
 
         gc.getLinearTaskRunner().raftExec(Collections.singletonList(rt));
 

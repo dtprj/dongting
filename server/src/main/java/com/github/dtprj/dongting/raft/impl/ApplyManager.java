@@ -32,8 +32,8 @@ import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.PerfConsts;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.server.LogItem;
+import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
-import com.github.dtprj.dongting.raft.server.RaftOutput;
 import com.github.dtprj.dongting.raft.server.RaftTask;
 import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
@@ -133,7 +133,7 @@ public class ApplyManager {
                 });
             case LogItem.TYPE_NORMAL: {
                 RaftInput input = rt.getInput();
-                if (input.isReadOnly() && (rt.getFuture() == null || rt.getFuture().isDone())) {
+                if (input.isReadOnly() && rt.getCallback() == null) {
                     // no need to execute read only task if no one wait for result
                     afterExec(index, rt, null, null);
                 } else {
@@ -193,11 +193,11 @@ public class ApplyManager {
             initFutureComplete = true;
             raftStatus.getInitFuture().complete(null);
         }
-        if (rt.getFuture() != null) {
+        if (rt.getCallback() != null) {
             if (execEx == null) {
-                rt.getFuture().complete(new RaftOutput(index, execResult));
+                RaftCallback.callSuccess(rt.getCallback(), index, execResult);
             } else if (rt.getInput().isReadOnly()) {
-                rt.getFuture().completeExceptionally(execEx);
+                RaftCallback.callFail(rt.getCallback(), execEx);
             }
         }
         if (waitApply) {

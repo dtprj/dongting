@@ -17,8 +17,6 @@ package com.github.dtprj.dongting.raft.server;
 
 import com.github.dtprj.dongting.common.Timestamp;
 
-import java.util.concurrent.CompletableFuture;
-
 /**
  * @author huangli
  */
@@ -26,20 +24,20 @@ public class RaftTask {
 
     private final int type;
     private final RaftInput input;
-    private final CompletableFuture<RaftOutput> future;
+    private final RaftCallback callback;
     private final long createTimeNanos;
 
     private LogItem item;
 
-    public RaftTask(Timestamp ts, int type, RaftInput input, CompletableFuture<RaftOutput> future) {
+    public RaftTask(Timestamp ts, int type, RaftInput input, RaftCallback callback) {
         this.createTimeNanos = ts.getNanoTime();
         this.type = type;
         this.input = input;
-        this.future = future;
+        this.callback = callback;
     }
 
-    public CompletableFuture<RaftOutput> getFuture() {
-        return future;
+    public RaftCallback getCallback() {
+        return callback;
     }
 
     public LogItem getItem() {
