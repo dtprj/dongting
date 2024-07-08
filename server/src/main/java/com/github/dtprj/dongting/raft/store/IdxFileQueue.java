@@ -393,17 +393,22 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     @Override
     public FiberFrame<Long> loadLogPos(long itemIndex) {
         DtUtil.checkPositive(itemIndex, "index");
+
         return new FiberFrame<>() {
             final ByteBuffer buffer = ByteBuffer.allocate(8);
             @Override
             public FrameCallResult execute(Void v) {
-                if (itemIndex > persistedIndex) {
-                    BugLog.getLog().error("index is too large : lastIndex={}, index={}", nextIndex, itemIndex);
-                    throw new RaftException("index is too large");
-                }
                 if (itemIndex < firstIndex) {
-                    BugLog.getLog().error("index is too small : firstIndex={}, index={}", firstIndex, itemIndex);
+                    BugLog.getLog().error("load index is too small: index={}, firstIndex={}", itemIndex, firstIndex);
                     throw new RaftException("index too small");
+                }
+                if (itemIndex > persistedIndex) {
+                    if (itemIndex >= cache.getFirstKey() && itemIndex <= cache.getLastKey()) {
+                        setResult(cache.get(itemIndex));
+                        return Fiber.frameReturn();
+                    }
+                    BugLog.getLog().error("load index too large: index={}, persistedIndex={}", itemIndex, persistedIndex);
+                    throw new RaftException("index is too large");
                 }
                 long pos = indexToPos(itemIndex);
                 LogFile lf = getLogFile(pos);
