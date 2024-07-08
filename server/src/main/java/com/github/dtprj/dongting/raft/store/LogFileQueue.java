@@ -87,6 +87,7 @@ class LogFileQueue extends FileQueue {
         @Override
         protected void writeFinish(WriteTask writeTask) {
             if (writeTask.getLastRaftIndex() > 0) {
+                raftStatus.getLogWriteFinishCondition().signalAll();
                 raftStatus.setLastWriteLogIndex(writeTask.getLastRaftIndex());
             }
         }
