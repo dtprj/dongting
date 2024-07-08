@@ -322,11 +322,11 @@ class LogAppender {
         private ByteBuffer doWrite(LogFile file, ByteBuffer buffer) {
             buffer.flip();
             int bytes = buffer.remaining();
-            boolean retry = logFileQueue.initialized;
 
             long lastIndex = lastItem != null ? lastItem.getIndex() : -1;
             long writeStartPosInFile = nextPersistPos & fileLenMask;
-            ChainWriter.WriteTask task = new ChainWriter.WriteTask(groupConfig, file, retry, true,
+            int[] retryInterval = logFileQueue.initialized ? groupConfig.getIoRetryInterval() : null;
+            ChainWriter.WriteTask task = new ChainWriter.WriteTask(groupConfig.getFiberGroup(), file, retryInterval, true,
                     writeStopIndicator, buffer, writeStartPosInFile, lastItem != null, writeCount, lastIndex);
             chainWriter.submitWrite(task);
 

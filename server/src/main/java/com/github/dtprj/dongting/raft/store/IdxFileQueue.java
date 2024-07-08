@@ -255,7 +255,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         LogFile logFile = getLogFile(indexToPos(nextPersistIndex));
         long filePos = indexToPos(nextPersistIndex) & fileLenMask;
         ByteBuffer buf = SimpleByteBufferPool.EMPTY_BUFFER;
-        ChainWriter.WriteTask wt = new ChainWriter.WriteTask(groupConfig, logFile, initialized, true,
+        int[] retryInterval = initialized ? groupConfig.getIoRetryInterval() : null;
+        ChainWriter.WriteTask wt = new ChainWriter.WriteTask(groupConfig.getFiberGroup(), logFile, retryInterval, true,
                 () -> closed, buf, filePos, true, 0, nextPersistIndex - 1);
         chainWriter.submitWrite(wt);
     }
@@ -275,7 +276,8 @@ class IdxFileQueue extends FileQueue implements IdxOps {
         boolean fileEnd = filePos + buf.remaining() == fileSize;
         boolean force = fileEnd || suggestForce;
         int items = (int) (index - startIndex);
-        ChainWriter.WriteTask wt = new ChainWriter.WriteTask(groupConfig, logFile, initialized, true,
+        int[] retryInterval = initialized ? groupConfig.getIoRetryInterval() : null;
+        ChainWriter.WriteTask wt = new ChainWriter.WriteTask(groupConfig.getFiberGroup(), logFile, retryInterval, true,
                 () -> closed, buf, filePos, force, items, index - 1);
         chainWriter.submitWrite(wt);
         removeHead();
@@ -409,7 +411,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
                     throw new RaftException("file deleted: " + lf.getFile().getPath());
                 }
                 long filePos = pos & fileLenMask;
-                AsyncIoTask t = new AsyncIoTask(groupConfig, lf);
+                AsyncIoTask t = new AsyncIoTask(groupConfig.getFiberGroup(), lf);
                 return t.read(buffer, filePos).await(this::afterLoad);
             }
 

@@ -18,17 +18,17 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
+import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.CompletionHandler;
 import java.util.Objects;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -39,11 +39,13 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
     private static final DtLog log = DtLogs.getLogger(AsyncIoTask.class);
     private final DtFile dtFile;
     private final Supplier<Boolean> cancelRetryIndicator;
-    private final RaftGroupConfigEx groupConfig;
     private final FiberFuture<Void> future;
 
-    private final boolean retry;
+    private final int[] retryInterval;
     private final boolean retryForever;
+    private final FiberGroup fiberGroup;
+
+    private Executor forceExecutor;
 
     private ByteBuffer ioBuffer;
     private long filePos;
@@ -57,24 +59,23 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
 
     private boolean rwCalled;
 
-    public AsyncIoTask(RaftGroupConfigEx groupConfig, DtFile dtFile) {
-        this(groupConfig, dtFile, false, false, null);
+    public AsyncIoTask(FiberGroup fiberGroup, DtFile dtFile) {
+        this(fiberGroup, dtFile, null, false, null);
     }
 
-    public AsyncIoTask(RaftGroupConfigEx groupConfig, DtFile dtFile, boolean retry, boolean retryForever) {
-        this(groupConfig, dtFile, retry, retryForever, null);
+    public AsyncIoTask(FiberGroup fiberGroup, DtFile dtFile, int[] retryInterval, boolean retryForever) {
+        this(fiberGroup, dtFile, retryInterval, retryForever, null);
     }
 
-    public AsyncIoTask(RaftGroupConfigEx groupConfig, DtFile dtFile, boolean retry, boolean retryForever,
+    public AsyncIoTask(FiberGroup fiberGroup, DtFile dtFile, int[] retryInterval, boolean retryForever,
                        Supplier<Boolean> cancelRetryIndicator) {
-        Objects.requireNonNull(groupConfig.getFiberGroup());
+        this.fiberGroup = fiberGroup;
         Objects.requireNonNull(dtFile);
-        this.groupConfig = groupConfig;
         this.dtFile = dtFile;
-        this.retry = retry;
+        this.retryInterval = retryInterval;
         this.retryForever = retryForever;
         this.cancelRetryIndicator = cancelRetryIndicator;
-        this.future = groupConfig.getFiberGroup().newFuture("asyncIoTaskFuture");
+        this.future = fiberGroup.newFuture("asyncIoTaskFuture");
         this.future.registerCallback(this);
     }
 
@@ -96,7 +97,8 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
         return write(ioBuffer, filePos, false, false);
     }
 
-    public FiberFuture<Void> writeAndForce(ByteBuffer ioBuffer, long filePos, boolean flushMeta) {
+    public FiberFuture<Void> writeAndForce(ByteBuffer ioBuffer, long filePos, boolean flushMeta, Executor forceExecutor) {
+        this.forceExecutor = forceExecutor;
         return write(ioBuffer, filePos, true, flushMeta);
     }
 
@@ -138,7 +140,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
     }
 
     private void retry(Throwable ioEx) {
-        if (!retry) {
+        if (retryInterval == null) {
             fireComplete(ioEx);
             return;
         }
@@ -147,7 +149,6 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
             return;
         }
         long sleepTime;
-        long[] retryInterval = groupConfig.getIoRetryInterval();
         if (retryCount >= retryInterval.length) {
             if (retryForever) {
                 sleepTime = retryInterval[retryInterval.length - 1];
@@ -160,7 +161,7 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
             sleepTime = retryInterval[retryCount++];
         }
 
-        Fiber retryFiber = new Fiber("io-retry-fiber", groupConfig.getFiberGroup(), new FiberFrame<>() {
+        Fiber retryFiber = new Fiber("io-retry-fiber", fiberGroup, new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
                 log.warn("io error, retry after {} ms", sleepTime, ioEx);
@@ -188,11 +189,11 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
                 return Fiber.frameReturn();
             }
         });
-        groupConfig.getFiberGroup().fireFiber(retryFiber);
+        fiberGroup.fireFiber(retryFiber);
     }
 
     private boolean shouldCancelRetry() {
-        if (groupConfig.getFiberGroup().isShouldStop()) {
+        if (fiberGroup.isShouldStop()) {
             // if fiber group is stopped, ignore cancelIndicator and retryForever
             return true;
         }
@@ -236,14 +237,13 @@ public class AsyncIoTask implements CompletionHandler<Integer, Void>, BiConsumer
 
     private void submitForceTask() {
         try {
-            ExecutorService executor = groupConfig.getBlockIoExecutor();
-            executor.execute(() -> {
+            forceExecutor.execute(() -> {
                 try {
                     doForce();
                     fireComplete(null);
                 } catch (Throwable e) {
                     // retry should run in fiber dispatcher thread
-                    executor.execute(() -> retry(e));
+                    fiberGroup.getExecutor().execute(() -> retry(e));
                 }
             });
         } catch (Throwable e) {

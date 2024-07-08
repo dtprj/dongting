@@ -191,7 +191,7 @@ abstract class FileQueue {
     }
 
     private FiberFrame<Void> allocateSync(boolean retry) {
-        long[] retryInterval = retry ? groupConfig.getIoRetryInterval() : null;
+        int[] retryInterval = retry ? groupConfig.getIoRetryInterval() : null;
         allocateFuture = groupConfig.getFiberGroup().newFuture("allocFileSync");
         return new RetryFrame<>(new AllocateFrame(), retryInterval, true) {
             @Override

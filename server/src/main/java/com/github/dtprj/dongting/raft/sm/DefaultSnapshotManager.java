@@ -341,7 +341,7 @@ public class DefaultSnapshotManager implements SnapshotManager {
             buf.putInt(size + 4, (int) crc32c.getValue());
             buf.position(0);
             buf.limit(size + 8);
-            AsyncIoTask writeTask = new AsyncIoTask(groupConfig, newDataFile);
+            AsyncIoTask writeTask = new AsyncIoTask(groupConfig.getFiberGroup(), newDataFile);
             long newWritePos = currentWritePos + buf.capacity();
             FiberFuture<Void> writeFuture = writeTask.write(buf, currentWritePos);
             currentWritePos = newWritePos;

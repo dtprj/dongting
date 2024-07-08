@@ -104,10 +104,10 @@ public abstract class ChainWriter {
         private long perfForceBytes;
 
 
-        public WriteTask(RaftGroupConfigEx groupConfig, DtFile dtFile, boolean retry, boolean retryForever,
+        public WriteTask(FiberGroup fiberGroup, DtFile dtFile, int[] retryInterval, boolean retryForever,
                          Supplier<Boolean> cancelIndicator, ByteBuffer buf, long posInFile, boolean force,
                          int perfItemCount, long lastRaftIndex) {
-            super(groupConfig, dtFile, retry, retryForever, cancelIndicator);
+            super(fiberGroup, dtFile, retryInterval, retryForever, cancelIndicator);
             this.posInFile = posInFile;
             this.force = force;
             this.buf = buf;

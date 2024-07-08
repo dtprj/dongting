@@ -35,7 +35,6 @@ import java.util.HashSet;
 public class FileSnapshot extends Snapshot {
 
     private final DtFile dtFile;
-    private final RaftGroupConfigEx groupConfig;
     private final FiberGroup fiberGroup;
     private final long fileSize;
 
@@ -46,7 +45,6 @@ public class FileSnapshot extends Snapshot {
     public FileSnapshot(RaftGroupConfigEx groupConfig, SnapshotInfo si, File dataFile, int bufferSize) throws IOException {
         super(si);
         this.fiberGroup = groupConfig.getFiberGroup();
-        this.groupConfig = groupConfig;
         this.fileSize = dataFile.length();
         this.bufferSize = bufferSize;
 
@@ -67,7 +65,7 @@ public class FileSnapshot extends Snapshot {
         if (rest < copy.remaining()) {
             copy.limit(copy.position() + (int) rest);
         }
-        AsyncIoTask t = new AsyncIoTask(groupConfig, dtFile);
+        AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
         int readBytes = copy.remaining();
         FiberFuture<Void> f = t.read(copy, filePos);
         filePos += readBytes;

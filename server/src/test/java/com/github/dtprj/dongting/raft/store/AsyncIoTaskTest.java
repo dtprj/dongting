@@ -75,7 +75,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         dtFile = new DtFile(file, channel, fiberGroup);
         groupConfig = new RaftGroupConfigEx(0, "1", "");
         groupConfig.setBlockIoExecutor(MockExecutors.ioExecutor());
-        groupConfig.setIoRetryInterval(new long[]{1});
+        groupConfig.setIoRetryInterval(new int[]{1});
         groupConfig.setFiberGroup(fiberGroup);
     }
 
@@ -95,19 +95,19 @@ public class AsyncIoTaskTest extends BaseFiberTest {
 
             @Override
             public FrameCallResult execute(Void input) {
-                AsyncIoTask t = new AsyncIoTask(groupConfig, dtFile);
+                AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
                 return t.write(buf, 0).await(1000, this::resume1);
             }
 
             private FrameCallResult resume1(Void unused) {
                 buf = ByteBuffer.allocate(768);
-                AsyncIoTask t = new AsyncIoTask(groupConfig, dtFile);
+                AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
                 return t.read(buf, 0).await(1000, this::resume2);
             }
 
             private FrameCallResult resume2(Void unused) {
                 buf.clear();
-                AsyncIoTask t = new AsyncIoTask(groupConfig, dtFile);
+                AsyncIoTask t = new AsyncIoTask(fiberGroup, dtFile);
                 return t.read(buf, 512).await(1000, this::resume3);
             }
 
@@ -165,8 +165,8 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         doInFiber(new FiberFrame<>() {
             @Override
             public FrameCallResult execute(Void input) {
-                AsyncIoTask wt = new AsyncIoTask(groupConfig, dtFile);
-                return wt.writeAndForce(buf, 0, false)
+                AsyncIoTask wt = new AsyncIoTask(fiberGroup, dtFile);
+                return wt.writeAndForce(buf, 0, false, groupConfig.getBlockIoExecutor())
                         .await(1000, this::justReturn);
             }
         });
@@ -197,9 +197,9 @@ public class AsyncIoTaskTest extends BaseFiberTest {
         private int count;
         IOException ex = new IOException("mock error");
 
-        public ReadFailTask(int failCount, boolean retry,
-                            boolean retryForever, Supplier<Boolean> cancelIndicator) {
-            super(groupConfig, dtFile, retry, retryForever, cancelIndicator);
+        public ReadFailTask(int failCount, boolean retry, boolean retryForever, Supplier<Boolean> cancelIndicator) {
+            super(groupConfig.getFiberGroup(), dtFile, retry ? groupConfig.getIoRetryInterval() : null,
+                    retryForever, cancelIndicator);
             this.failCount = failCount;
         }
 
@@ -222,7 +222,7 @@ public class AsyncIoTaskTest extends BaseFiberTest {
                 ByteBuffer buf = ByteBuffer.allocate(1);
                 // fail on first write
                 FlushFailTask t = new FlushFailTask(1, true, false, () -> false);
-                return t.writeAndForce(buf, 0, false)
+                return t.writeAndForce(buf, 0, false, groupConfig.getBlockIoExecutor())
                         .await(1000, this::justReturn);
             }
         });
@@ -236,7 +236,8 @@ public class AsyncIoTaskTest extends BaseFiberTest {
 
         public FlushFailTask(int failCount, boolean retry, boolean retryForever,
                              Supplier<Boolean> cancelIndicator) {
-            super(groupConfig, dtFile, retry, retryForever, cancelIndicator);
+            super(groupConfig.getFiberGroup(), dtFile, retry ? groupConfig.getIoRetryInterval() : null,
+                    retryForever, cancelIndicator);
             this.failCount = failCount;
         }
 

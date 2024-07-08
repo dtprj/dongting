@@ -190,7 +190,7 @@ class MatchPosFinder extends FiberFrame<Pair<Integer, Long>> {
             throw new RaftException(new RaftException("pos >= logFile.endPos"));
         }
 
-        AsyncIoTask task = new AsyncIoTask(groupConfig, logFile);
+        AsyncIoTask task = new AsyncIoTask(groupConfig.getFiberGroup(), logFile);
         buf.clear();
         FiberFuture<Void> f = task.read(buf, pos & fileLenMask);
         return f.await(this::headerLoadComplete);

@@ -107,7 +107,7 @@ class Restorer {
             } else {
                 firstItemPos = 0;
             }
-            AsyncIoTask task = new AsyncIoTask(groupConfig, lf);
+            AsyncIoTask task = new AsyncIoTask(groupConfig.getFiberGroup(), lf);
             return task.read(buffer, firstItemPos).await(v -> afterReadFirstItemHeader(firstItemPos));
         }
 
@@ -158,7 +158,7 @@ class Restorer {
         private FrameCallResult loopRestoreFileBlock() {
             if (readPos < logFileQueue.fileLength()) { // loop begin
                 RaftUtil.checkStop(getFiberGroup());
-                AsyncIoTask task = new AsyncIoTask(groupConfig, lf);
+                AsyncIoTask task = new AsyncIoTask(groupConfig.getFiberGroup(), lf);
                 long fileRest = logFileQueue.fileLength() - readPos;
                 if (buffer.remaining() > fileRest) {
                     buffer.limit(buffer.position() + (int) fileRest);

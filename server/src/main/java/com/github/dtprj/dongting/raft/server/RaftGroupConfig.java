@@ -27,7 +27,7 @@ public class RaftGroupConfig {
     private final String nodeIdOfObservers;
     private String dataDir = "./data";
     private String statusFile = "raft.status";
-    private long[] ioRetryInterval = new long[]{100, 1000, 3000, 5000, 10000, 20000};
+    private int[] ioRetryInterval = new int[]{100, 1000, 3000, 5000, 10000, 20000};
     private boolean syncForce = true;
     private boolean staticConfig = true;
 
@@ -91,11 +91,11 @@ public class RaftGroupConfig {
         this.statusFile = statusFile;
     }
 
-    public long[] getIoRetryInterval() {
+    public int[] getIoRetryInterval() {
         return ioRetryInterval;
     }
 
-    public void setIoRetryInterval(long[] ioRetryInterval) {
+    public void setIoRetryInterval(int[] ioRetryInterval) {
         this.ioRetryInterval = ioRetryInterval;
     }
 

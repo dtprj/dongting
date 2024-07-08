@@ -33,13 +33,13 @@ public class RetryFrame<O> extends FiberFrame<O> {
 
     private static final DtLog log = DtLogs.getLogger(RetryFrame.class);
 
-    private final long[] retryInterval;
+    private final int[] retryInterval;
     private final FiberFrame<O> subFrame;
     private final boolean retryForever;
     private int retryCount;
     private Throwable lastSubFrameEx;
 
-    public RetryFrame(FiberFrame<O> subFrame, long[] retryInterval, boolean retryForever) {
+    public RetryFrame(FiberFrame<O> subFrame, int[] retryInterval, boolean retryForever) {
         this.retryInterval = retryInterval;
         this.subFrame = subFrame;
         this.retryForever = retryForever;
