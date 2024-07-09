@@ -21,7 +21,7 @@ import com.github.dtprj.dongting.common.RefCount;
 /**
  * @author huangli
  */
-public class LogItem extends RefCount {
+public class LogItem {
     public static final int TYPE_NORMAL = 0;
     public static final int TYPE_HEARTBEAT = 1;
     public static final int TYPE_PREPARE_CONFIG_CHANGE = 2;
@@ -49,16 +49,22 @@ public class LogItem extends RefCount {
     public LogItem() {
     }
 
-    @Override
-    protected void doClean() {
+    public void retain() {
+        if (headerIsRefCount) {
+            ((RefCount) header).retain();
+        }
+        if (bodyIsRefCount) {
+            ((RefCount) body).retain();
+        }
+    }
+
+    public void release() {
         if (headerIsRefCount) {
             ((RefCount) header).release();
         }
-        header = null;
         if (bodyIsRefCount) {
             ((RefCount) body).release();
         }
-        body = null;
     }
 
     public void setHeader(Encodable header, boolean refCount) {
