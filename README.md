@@ -59,10 +59,10 @@ respond to the leader, and only then will the leader proceed with the RAFT commi
 
 The test results are as follows:
 
-|                        | 1 server                     | 3 servers                  |
-|------------------------|------------------------------|----------------------------|
-| sync write to storage  | 704,900 TPS, AVG RT 2.8 ms   | 272,540 TPS, AVG RT 7.3 ms |
-| async write to storage | 1,777,224 TPS, AVG RT 1.1 ms | 903,760 TPS, AVG RT 2.2 ms |
+|                        | 1 server                     | 3 servers in single RAFT group |
+|------------------------|------------------------------|--------------------------------|
+| sync write to storage  | 704,900 TPS, AVG RT 2.8 ms   | 272,540 TPS, AVG RT 7.3 ms     |
+| async write to storage | 1,777,224 TPS, AVG RT 1.1 ms | 903,760 TPS, AVG RT 2.2 ms     |
 
 ## Under development
 
