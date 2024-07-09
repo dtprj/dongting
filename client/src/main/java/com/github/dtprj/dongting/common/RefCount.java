@@ -30,25 +30,27 @@ public class RefCount {
 
     private static final AbstractRefCountUpdater UPDATER = VersionFactory.getInstance().newRefCountUpdater(false);
     private static final AbstractRefCountUpdater PLAIN_UPDATER = VersionFactory.getInstance().newRefCountUpdater(true);
-    private final AbstractRefCountUpdater updater;
+    protected final AbstractRefCountUpdater updater;
 
     @SuppressWarnings({"unused", "FieldMayBeFinal"})
     protected volatile int refCnt;
 
     public RefCount() {
-        this(false);
+        this(false, false);
     }
 
     /**
      * @param plain if true, the RefCount is not thread safe.
      */
-    public RefCount(boolean plain) {
-        this(plain ? PLAIN_UPDATER : UPDATER);
+    public RefCount(boolean plain, boolean dummy) {
+        this(dummy ? null : plain ? PLAIN_UPDATER : UPDATER);
     }
 
     protected RefCount(AbstractRefCountUpdater updater) {
         this.updater = updater;
-        updater.init(this);
+        if (updater != null) {
+            updater.init(this);
+        }
     }
 
     public void retain() {
@@ -56,7 +58,10 @@ public class RefCount {
     }
 
     public void retain(int increment) {
-        updater.retain(this, increment);
+        AbstractRefCountUpdater u = updater;
+        if (u != null) {
+            u.retain(this, increment);
+        }
     }
 
     public boolean release() {
@@ -64,7 +69,11 @@ public class RefCount {
     }
 
     public boolean release(int decrement) {
-        boolean r = updater.release(this, decrement);
+        AbstractRefCountUpdater u = updater;
+        if (u == null) {
+            return false;
+        }
+        boolean r = u.release(this, decrement);
         if (r) {
             doClean();
         }
@@ -72,7 +81,11 @@ public class RefCount {
     }
 
     protected boolean isReleased() {
-        return updater.isReleased(this);
+        AbstractRefCountUpdater u = updater;
+        if (u == null) {
+            return false;
+        }
+        return u.isReleased(this);
     }
 
     protected void doClean() {
