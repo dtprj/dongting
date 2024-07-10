@@ -41,7 +41,7 @@ public abstract class AbstractRaftBizProcessor<T> extends AbstractRaftGroupProce
         Throwable root = DtUtil.rootCause(ex);
         if (root instanceof RaftExecTimeoutException) {
             ReadFrame<?> reqFrame = reqInfo.getReqFrame();
-            log.warn("raft operation timeout: command={}, seq={}" + reqFrame.getCommand(), reqFrame.getSeq());
+            log.warn("raft operation timeout: command={}, seq={}", reqFrame.getCommand(), reqFrame.getSeq());
             return;
         }
         EmptyBodyRespFrame errorResp;
