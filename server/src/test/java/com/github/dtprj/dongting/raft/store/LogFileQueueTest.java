@@ -27,9 +27,7 @@ import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
-import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
-import com.github.dtprj.dongting.raft.server.RaftTask;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -181,15 +179,12 @@ public class LogFileQueueTest extends BaseFiberTest {
     private void append(boolean check, long startPos, int... totalSizes) throws Exception {
         long fileSize = 1024;
         LogItem[] items = new LogItem[totalSizes.length];
-        List<RaftTask> list = new ArrayList<>();
+        List<LogItem> list = new ArrayList<>();
         for (int i = 0; i < totalSizes.length; i++) {
             items[i] = createItem(config, term, prevTerm, index, totalSizes[i], bizHeaderLen);
             index++;
             prevTerm = term;
-            RaftInput ri = new RaftInput(0, null, null, null);
-            RaftTask rt = new RaftTask(config.getTs(), LogItem.TYPE_NORMAL, ri, null);
-            rt.setItem(items[i]);
-            list.add(rt);
+            list.add(items[i]);
         }
 
         doInFiber(new FiberFrame<>() {

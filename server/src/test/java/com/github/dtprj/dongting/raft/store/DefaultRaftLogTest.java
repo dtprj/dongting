@@ -25,9 +25,7 @@ import com.github.dtprj.dongting.raft.impl.InitFiberFrame;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
-import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
-import com.github.dtprj.dongting.raft.server.RaftTask;
 import com.github.dtprj.dongting.raft.test.MockExecutors;
 import com.github.dtprj.dongting.raft.test.TestUtil;
 import org.junit.jupiter.api.AfterEach;
@@ -109,13 +107,10 @@ public class DefaultRaftLogTest extends BaseFiberTest {
     }
 
     private void append(long index, int[] totalSizes, int[] bizHeaderLen) throws Exception {
-        ArrayList<RaftTask> list = new ArrayList<>();
+        ArrayList<LogItem> list = new ArrayList<>();
         for (int i = 0; i < totalSizes.length; i++) {
             LogItem li = LogFileQueueTest.createItem(config, 100, 100, index++, totalSizes[i], bizHeaderLen[i]);
-            RaftInput ri = new RaftInput(0, null, null, null);
-            RaftTask rt = new RaftTask(config.getTs(), LogItem.TYPE_NORMAL, ri, null);
-            rt.setItem(li);
-            list.add(rt);
+            list.add(li);
         }
 
         long lastIdx = index - 1;
