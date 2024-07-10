@@ -98,7 +98,8 @@ public abstract class BenchBase {
 
             if (logRt) {
                 System.out.printf("Max time: %,d us%n", maxNanos.longValue() / 1000);
-                System.out.printf("Avg time: %,d us%n", totalNanos.sum() / (sc + fc) / 1000);
+                long avg = sc + fc == 0 ? 0 : totalNanos.sum() / (sc + fc) / 1000;
+                System.out.printf("Avg time: %,d us%n", avg);
             }
         } catch (Exception e) {
             log.error("", e);
