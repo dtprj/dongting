@@ -29,8 +29,8 @@ import com.github.dtprj.dongting.raft.impl.FileUtil;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.impl.TailCache;
+import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
-import com.github.dtprj.dongting.raft.server.RaftTask;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.io.File;
@@ -127,7 +127,7 @@ public class DefaultRaftLog implements RaftLog {
     }
 
     @Override
-    public void append(List<RaftTask> inputs) {
+    public void append(List<LogItem> inputs) {
         logFiles.submit(inputs);
     }
 

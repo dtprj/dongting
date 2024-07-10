@@ -35,7 +35,6 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
-import com.github.dtprj.dongting.raft.server.RaftTask;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -70,7 +69,7 @@ class LogAppender {
     private final PerfCallback perfCallback;
     final ChainWriter chainWriter;
 
-    private final FiberChannel<RaftTask> taskChannel;
+    private final FiberChannel<LogItem> taskChannel;
 
     LogAppender(IdxOps idxOps, LogFileQueue logFileQueue, RaftGroupConfigEx groupConfig, ChainWriter chainWriter) {
         this.idxOps = idxOps;
@@ -120,11 +119,10 @@ class LogAppender {
         return closeFuture;
     }
 
-    public void submit(List<RaftTask> taskList) {
+    public void submit(List<LogItem> taskList) {
         //noinspection ForLoopReplaceableByForEach
         for (int i = 0, len = taskList.size(); i < len; i++) {
-            RaftTask task = taskList.get(i);
-            taskChannel.offer(task);
+            taskChannel.offer(taskList.get(i));
         }
     }
 
@@ -135,7 +133,7 @@ class LogAppender {
         private int writeCount;
         private int bytesToWrite;
 
-        private final ArrayList<RaftTask> taskList = new ArrayList<>(64);
+        private final ArrayList<LogItem> taskList = new ArrayList<>(64);
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
@@ -199,7 +197,7 @@ class LogAppender {
             long fileRestBytes = file.endPos - nextPersistPos;
             int count = 0;
             for (int listSize = taskList.size(), i = taskIndex; i < listSize; i++) {
-                LogItem li = taskList.get(i).getItem();
+                LogItem li = taskList.get(i);
                 int len = LogHeader.computeTotalLen(0, li.getActualHeaderSize(), li.getActualBodySize());
                 if (len <= fileRestBytes) {
                     bytesToWrite += len;
@@ -259,7 +257,7 @@ class LogAppender {
             long writeStartPosInFile = nextPersistPos & fileLenMask;
             long dataPos = file.startPos + writeStartPosInFile;
             for (int i = 0; i < count; i++) {
-                LogItem li = taskList.get(startTaskIndex + i).getItem();
+                LogItem li = taskList.get(startTaskIndex + i);
                 if (file.firstIndex == 0) {
                     file.firstIndex = li.getIndex();
                     file.firstTerm = li.getTerm();

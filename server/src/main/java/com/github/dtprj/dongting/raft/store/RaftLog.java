@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.raft.server.LogItem;
-import com.github.dtprj.dongting.raft.server.RaftTask;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -36,7 +35,7 @@ public interface RaftLog {
      */
     FiberFrame<Pair<Integer, Long>> init();
 
-    void append(List<RaftTask> inputs);
+    void append(List<LogItem> inputs);
 
     /**
      * truncate tail to index (include)

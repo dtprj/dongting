@@ -152,6 +152,7 @@ public class LinearTaskRunner {
                 RaftUtil.release(input);
                 RaftCallback.callFail(rt.getCallback(), new RaftExecTimeoutException("timeout "
                         + input.getDeadline().getTimeout(TimeUnit.MILLISECONDS) + "ms"));
+                // not removed from list, filter in submitTasks()
                 continue;
             }
 
@@ -178,19 +179,27 @@ public class LinearTaskRunner {
 
     public void submitTasks(RaftStatusImpl raftStatus, List<RaftTask> inputs) {
         TailCache tailCache = raftStatus.getTailCache();
+        ArrayList<LogItem> logItems = new ArrayList<>(inputs.size());
         for (int len = inputs.size(), i = 0; i < len; i++) {
             RaftTask rt = inputs.get(i);
-            long index = rt.getItem().getIndex();
+            LogItem li = rt.getItem();
+            if (li == null) {
+                // timeout, see raftExec()
+                continue;
+            }
+            long index = li.getIndex();
 
             // successful change owner to TailCache and release in TailCache.release(RaftTask)
             tailCache.put(index, rt);
 
+            logItems.add(li);
+
             if (i == len - 1) {
                 raftStatus.setLastLogIndex(index);
-                raftStatus.setLastLogTerm(rt.getItem().getTerm());
+                raftStatus.setLastLogTerm(li.getTerm());
             }
         }
-        raftLog.append(inputs);
+        raftLog.append(logItems);
         raftStatus.getDataArrivedCondition().signalAll();
     }
 
