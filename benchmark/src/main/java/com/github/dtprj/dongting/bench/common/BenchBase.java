@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.bench.common;
 
+import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -45,6 +46,8 @@ public abstract class BenchBase {
     private final AtomicLong maxNanos = new AtomicLong();
 
     public BenchBase(int threadCount, long testTime, long warmupTime) {
+        DtUtil.checkPositive(threadCount, "threadCount");
+        DtUtil.checkPositive(testTime, "testTime");
         this.threadCount = threadCount;
         this.testTime = testTime;
         this.warmupTime = warmupTime;
@@ -69,7 +72,9 @@ public abstract class BenchBase {
                 threads[i].setName("BenchThread" + i);
                 threads[i].start();
             }
-            Thread.sleep(warmupTime);
+            if (warmupTime > 0) {
+                Thread.sleep(warmupTime);
+            }
             afterWarmup();
             state.set(STATE_TEST);
 
