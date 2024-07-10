@@ -172,7 +172,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
     private class IdxChainWriter extends ChainWriter {
 
         public IdxChainWriter(RaftGroupConfigEx config, int writePerfType1, int writePerfType2, int forcePerfType) {
-            super(config, writePerfType1, writePerfType2, forcePerfType);
+            super(config, "IdxForce", writePerfType1, writePerfType2, forcePerfType);
         }
 
         @Override

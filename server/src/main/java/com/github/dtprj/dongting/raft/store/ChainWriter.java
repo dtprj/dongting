@@ -60,7 +60,8 @@ public abstract class ChainWriter {
 
     private boolean close;
 
-    public ChainWriter(RaftGroupConfigEx config, int writePerfType1, int writePerfType2, int forcePerfType) {
+    public ChainWriter(RaftGroupConfigEx config, String fiberNamePrefix, int writePerfType1, int writePerfType2,
+                       int forcePerfType) {
         this.config = config;
         this.perfCallback = config.getPerfCallback();
         this.writePerfType1 = writePerfType1;
@@ -69,7 +70,8 @@ public abstract class ChainWriter {
         DtThread t = config.getFiberGroup().getThread();
         this.directPool = t.getDirectPool();
         this.needForceCondition = new FiberCondition("needForceCond", config.getFiberGroup());
-        this.forceFiber = new Fiber("force-" + config.getGroupId(), config.getFiberGroup(), new ForceLoopFrame());
+        this.forceFiber = new Fiber(fiberNamePrefix + "-" + config.getGroupId(), config.getFiberGroup(),
+                new ForceLoopFrame());
     }
 
     protected abstract void writeFinish(WriteTask writeTask);

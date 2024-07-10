@@ -81,7 +81,7 @@ class LogFileQueue extends FileQueue {
     private class LogChainWriter extends ChainWriter {
 
         public LogChainWriter(RaftGroupConfigEx config, int writePerfType1, int writePerfType2, int forcePerfType) {
-            super(config, writePerfType1, writePerfType2, forcePerfType);
+            super(config, "LogForce", writePerfType1, writePerfType2, forcePerfType);
         }
 
         @Override
