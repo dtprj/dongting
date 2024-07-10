@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespFrame;
+import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.raft.RaftNode;
 
 import java.nio.charset.StandardCharsets;
@@ -39,7 +40,8 @@ public abstract class AbstractRaftBizProcessor<T> extends AbstractRaftGroupProce
     public void processError(ReqInfo<?> reqInfo, Throwable ex) {
         Throwable root = DtUtil.rootCause(ex);
         if (root instanceof RaftExecTimeoutException) {
-            log.warn("raft operation timeout");
+            ReadFrame<?> reqFrame = reqInfo.getReqFrame();
+            log.warn("raft operation timeout: command={}, seq={}" + reqFrame.getCommand(), reqFrame.getSeq());
             return;
         }
         EmptyBodyRespFrame errorResp;
