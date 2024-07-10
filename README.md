@@ -55,7 +55,9 @@ The test results are as follows:
 *sync write to storage*, means that only after the ```fsync``` call (FileChannel.force()) returns will the follower 
 respond to the leader, and only then will the leader proceed with the RAFT commit.
 
-*async write to storage* means that as soon as the data is written to the OS, all the above actions are performed.
+*async write to storage* means that as soon as the data is written to the OS, the follower respond to the leader 
+and leader proceed with the RAFT commit. Nevertheless, when the data write is completed, ```fsync``` will be called 
+immediately without any delay, ensuring that data loss is minimized in the event of a power failure.
 
 The test results are as follows:
 
