@@ -180,7 +180,7 @@ class LogAppender {
                 return Fiber.resume(null, this);
             }
             if (maxPendingIoWrites > 0 && chainWriter.writeTaskCount >= maxPendingIoWrites) {
-                return writeFinishCond.await(1000, this);
+                writeFinishCond.await(1000, this);
             }
             return ensureWritePosReady(0);
         }
