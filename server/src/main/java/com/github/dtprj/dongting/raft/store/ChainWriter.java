@@ -240,10 +240,11 @@ public abstract class ChainWriter {
                     }
                 }
                 ForceFrame ff = new ForceFrame(task.getDtFile().getChannel(), config.getBlockIoExecutor(), false);
+                RetryFrame<Void> rf = new RetryFrame<>(ff, config.getIoRetryInterval(), true);
                 WriteTask finalTask = task;
                 long perfStartTime = perfCallback.takeTime(forcePerfType);
                 currentForceTask = task;
-                return Fiber.call(ff, v -> afterForce(finalTask, perfStartTime));
+                return Fiber.call(rf, v -> afterForce(finalTask, perfStartTime));
             }
         }
 
