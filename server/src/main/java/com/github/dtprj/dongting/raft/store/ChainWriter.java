@@ -55,7 +55,7 @@ public abstract class ChainWriter {
     private WriteTask currentForceTask;
     private boolean error;
 
-    int writeTaskCount;
+    private int writeTaskCount;
     private int forceTaskCount;
 
     private boolean close;

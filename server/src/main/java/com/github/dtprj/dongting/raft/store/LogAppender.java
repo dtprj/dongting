@@ -22,7 +22,6 @@ import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberChannel;
-import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
@@ -33,7 +32,6 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.PerfConsts;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -135,14 +133,7 @@ class LogAppender {
         private int writeCount;
         private int bytesToWrite;
 
-        private final FiberCondition writeFinishCond;
-        private final int maxPendingIoWrites = groupConfig.getMaxPendingIoWrites();
-
         private final ArrayList<LogItem> taskList = new ArrayList<>(64);
-
-        public WriteFiberFrame() {
-            writeFinishCond = ((RaftStatusImpl) groupConfig.getRaftStatus()).getLogWriteFinishCondition();
-        }
 
         @Override
         protected FrameCallResult handle(Throwable ex) {
@@ -161,16 +152,10 @@ class LogAppender {
                 long start = perfCallback.takeTime(PerfConsts.RAFT_D_IDX_BLOCK);
                 return Fiber.call(idxOps.waitFlush(), v -> afterIdxReady(start));
             }
-            if (taskChannel.size() == 0 && !taskList.isEmpty()) {
-                return afterTakeAll(null);
-            }
             return taskChannel.takeAll(taskList, this::afterTakeAll);
         }
 
         private FrameCallResult afterIdxReady(long perfStartTime) {
-            if (logFileQueue.isClosed()) {
-                return Fiber.frameReturn();
-            }
             perfCallback.fireTime(PerfConsts.RAFT_D_IDX_BLOCK, perfStartTime);
             return Fiber.resume(null, this);
         }
@@ -178,9 +163,6 @@ class LogAppender {
         private FrameCallResult afterTakeAll(Void unused) {
             if (taskList.isEmpty()) {
                 return Fiber.resume(null, this);
-            }
-            if (maxPendingIoWrites > 0 && chainWriter.writeTaskCount >= maxPendingIoWrites) {
-                writeFinishCond.await(1000, this);
             }
             return ensureWritePosReady(0);
         }
