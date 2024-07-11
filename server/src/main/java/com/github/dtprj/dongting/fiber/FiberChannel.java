@@ -122,4 +122,8 @@ public class FiberChannel<T> {
         }
         return Fiber.resume(null, resumePoint);
     }
+
+    public int size() {
+        return queue.size();
+    }
 }

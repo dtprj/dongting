@@ -53,6 +53,8 @@ public class RaftGroupConfig {
     private int replicateSnapshotConcurrency = 4;
     private int replicateSnapshotBufferSize = 64 * 1024;
 
+    private int maxPendingIoWrites = 0;
+
     RaftGroupConfig(int groupId, String nodeIdOfMembers, String nodeIdOfObservers) {
         this.groupId = groupId;
         this.nodeIdOfMembers = nodeIdOfMembers;
@@ -233,5 +235,13 @@ public class RaftGroupConfig {
 
     public void setSnapshotConcurrency(int snapshotConcurrency) {
         this.snapshotConcurrency = snapshotConcurrency;
+    }
+
+    public int getMaxPendingIoWrites() {
+        return maxPendingIoWrites;
+    }
+
+    public void setMaxPendingIoWrites(int maxPendingIoWrites) {
+        this.maxPendingIoWrites = maxPendingIoWrites;
     }
 }
