@@ -35,8 +35,8 @@ public class RaftGroupConfig {
     private long maxReplicateBytes = 16 * 1024 * 1024;
     private int singleReplicateLimit = 1800 * 1024;
 
-    private int maxPendingWrites = 50000;
-    private long maxPendingWriteBytes = 256 * 1024 * 1024;
+    private int maxPendingRaftTasks = 50000;
+    private long maxPendingTaskBytes = 256 * 1024 * 1024;
 
     private int idxCacheSize = 16 * 1024;
     private int idxFlushThreshold = 8 * 1024;
@@ -131,20 +131,20 @@ public class RaftGroupConfig {
         this.singleReplicateLimit = singleReplicateLimit;
     }
 
-    public int getMaxPendingWrites() {
-        return maxPendingWrites;
+    public int getMaxPendingRaftTasks() {
+        return maxPendingRaftTasks;
     }
 
-    public void setMaxPendingWrites(int maxPendingWrites) {
-        this.maxPendingWrites = maxPendingWrites;
+    public void setMaxPendingRaftTasks(int maxPendingRaftTasks) {
+        this.maxPendingRaftTasks = maxPendingRaftTasks;
     }
 
-    public long getMaxPendingWriteBytes() {
-        return maxPendingWriteBytes;
+    public long getMaxPendingTaskBytes() {
+        return maxPendingTaskBytes;
     }
 
-    public void setMaxPendingWriteBytes(long maxPendingWriteBytes) {
-        this.maxPendingWriteBytes = maxPendingWriteBytes;
+    public void setMaxPendingTaskBytes(long maxPendingTaskBytes) {
+        this.maxPendingTaskBytes = maxPendingTaskBytes;
     }
 
     public boolean isStaticConfig() {
