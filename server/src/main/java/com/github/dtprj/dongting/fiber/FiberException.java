@@ -78,7 +78,7 @@ public class FiberException extends DtException {
 
 class FiberVirtualException extends Throwable {
     @Override
-    public synchronized Throwable fillInStackTrace() {
+    public Throwable fillInStackTrace() {
         return this;
     }
 }
