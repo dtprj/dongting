@@ -331,6 +331,7 @@ public class Dispatcher extends AbstractLifeCircle {
     private void execFrame(Fiber fiber, FiberFrame currentFrame) {
         try {
             if (fiber.inputEx != null) {
+                // ex throws by sub-frame, or after this frame suspend
                 Throwable x = fiber.inputEx;
                 fiber.inputEx = null;
                 fiber.inputObj = null;
@@ -346,7 +347,10 @@ public class Dispatcher extends AbstractLifeCircle {
                         // Fiber.resumeEx() called
                         throw fiber.inputEx;
                     }
+                } catch (FiberException e) {
+                    tryHandleEx(currentFrame, e);
                 } catch (Throwable e) {
+                    FiberException.addVirtualStackTrace(e, fiber);
                     tryHandleEx(currentFrame, e);
                 }
             }
@@ -357,8 +361,10 @@ public class Dispatcher extends AbstractLifeCircle {
                     currentFrame.finallyCalled = true;
                     currentFrame.doFinally();
                 }
+            } catch (FiberException e) {
+                setEx(currentFrame, e);
             } catch (Throwable e) {
-                // here the method will not return false
+                FiberException.addVirtualStackTrace(e, fiber);
                 setEx(currentFrame, e);
             }
         }
@@ -382,7 +388,12 @@ public class Dispatcher extends AbstractLifeCircle {
             currentFrame.catchCalled = true;
             try {
                 currentFrame.handle(x);
+            } catch (FiberException e) {
+                currentFrame.frameEx = e;
             } catch (Throwable e) {
+                if (e != x) {
+                    FiberException.addVirtualStackTrace(e, currentFrame.fiber);
+                }
                 currentFrame.frameEx = e;
             }
         } else {

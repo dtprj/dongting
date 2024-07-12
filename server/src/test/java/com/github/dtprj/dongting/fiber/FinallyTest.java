@@ -189,7 +189,7 @@ public class FinallyTest extends AbstractFiberTest {
         });
         TestUtil.waitUtil(parentFinallyCalled::get);
         assertSame(ex2, exRef.get());
-        assertSame(ex1, exRef.get().getSuppressed()[0]);
+        assertSame(ex1, exRef.get().getSuppressed()[1]);
     }
 
     // error occurs after resume
@@ -231,6 +231,6 @@ public class FinallyTest extends AbstractFiberTest {
         });
         TestUtil.waitUtil(parentFinallyCalled::get);
         assertSame(ex2, exRef.get());
-        assertSame(ex1, exRef.get().getSuppressed()[0]);
+        assertSame(ex1, exRef.get().getSuppressed()[1]);
     }
 }
