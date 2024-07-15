@@ -12,29 +12,6 @@ and low-level RPC. Features are as follows:
 * (Planned) Distribute configuration server with linearizability.
 * (Planned) MQ (message queues) with linearizability. Use RAFT log as message queue log.
 
-## Zero Dependencies and Only 1% of the Size
-The Dongting project is zero-dependency.
-
-Dongting does not rely on any third-party libraries. No third-party jar files are needed. 
-Slf4j is optional, if it is not in the classpath, the project will use the jdk logger.
-
-Are you still troubled by the dependency management issues that spread like wildfire? 
-Are you still being ridiculed for having a 1GB image size?
-Dongting has only two JAR packages, the client and the server, which together are less than 1MB. 
-It does not have transitive dependencies either.
-
-Dongting does not place excessive demands on your JDK; it only requires Java 8 for the client and Java 11 for 
-the server, that’s all.
-
-Dongting does not require the use of high-performance hardware, such as RDMA or Optane.
-It can even run well on HDD Disks and Raspberry Pis.
-
-Dongting does not rely on any third-party services such as storage services provided by Amazon or 
-any other cloud service providers.
-
-Dongting does not require you to adjust Linux kernel parameters to achieve optimal performance 
-(you might not even have the permission to do so).
-
 ## 10X Throughput
 Dongting is developed using performance-oriented programming.
 
@@ -65,6 +42,29 @@ The test results are as follows:
 |------------------------|------------------------------|--------------------------------|
 | sync write to storage  | 704,900 TPS, AVG RT 2.8 ms   | 272,540 TPS, AVG RT 7.3 ms     |
 | async write to storage | 1,777,224 TPS, AVG RT 1.1 ms | 903,760 TPS, AVG RT 2.2 ms     |
+
+## Zero Dependencies and Only 1% of the Size
+The Dongting project is zero-dependency.
+
+Dongting does not rely on any third-party libraries. No third-party jar files are needed.
+Slf4j is optional, if it is not in the classpath, the project will use the jdk logger.
+
+Are you still troubled by the dependency management issues that spread like wildfire?
+Are you still being ridiculed for having a 1GB image size?
+Dongting has only two JAR packages, the client and the server, which together are less than 1MB.
+It does not have transitive dependencies either. Therefore, you can easily embed it into your application.
+
+Dongting does not place excessive demands on your JDK; it only requires Java 8 for the client and Java 11 for
+the server, that’s all.
+
+Dongting does not require the use of high-performance hardware, such as RDMA or Optane.
+It can even run well on HDD Disks and Raspberry Pis.
+
+Dongting does not rely on any third-party services such as storage services provided by Amazon or
+any other cloud service providers.
+
+Dongting does not require you to adjust Linux kernel parameters to achieve optimal performance
+(you might not even have the permission to do so).
 
 ## Under development
 
