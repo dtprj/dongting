@@ -225,10 +225,10 @@ public final class RaftUtil {
     }
 
     public static void updateLease(RaftStatusImpl raftStatus) {
-        long leaseStartTime = computeLease(raftStatus, raftStatus.getElectQuorum(), raftStatus.getMembers());
+        long leaseStartTime = computeLease(raftStatus, raftStatus.getRwQuorum(), raftStatus.getMembers());
         List<RaftMember> jointMembers = raftStatus.getPreparedMembers();
         if (!jointMembers.isEmpty()) {
-            long lease2 = computeLease(raftStatus, RaftUtil.getElectQuorum(jointMembers.size()), jointMembers);
+            long lease2 = computeLease(raftStatus, RaftUtil.getRwQuorum(jointMembers.size()), jointMembers);
             if (lease2 - leaseStartTime < 0) {
                 leaseStartTime = lease2;
             }
