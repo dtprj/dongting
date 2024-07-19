@@ -66,6 +66,7 @@ public class RaftStatusImpl extends RaftStatus {
 
     private boolean shareStatusUpdated;
     private long electTimeoutNanos; // shared
+    private long electTimeoutDelta;
 
     private long leaseStartNanos; // shared
     private long[] leaseComputeArray = new long[0];
@@ -106,7 +107,7 @@ public class RaftStatusImpl extends RaftStatus {
             ShareStatus ss = new ShareStatus();
             ss.role = role;
             ss.lastApplied = lastApplied;
-            ss.leaseEndNanos = leaseStartNanos + electTimeoutNanos;
+            ss.leaseEndNanos = leaseStartNanos + electTimeoutNanos - electTimeoutDelta;
             ss.currentLeader = currentLeader;
             ss.groupReadyFuture = groupReadyFuture;
 
@@ -150,6 +151,10 @@ public class RaftStatusImpl extends RaftStatus {
     public void setElectTimeoutNanos(long electTimeoutNanos) {
         if (electTimeoutNanos != this.electTimeoutNanos) {
             this.electTimeoutNanos = electTimeoutNanos;
+            this.electTimeoutDelta = electTimeoutNanos / 10;
+            // keep electTimeoutDelta from 10 to 500ms
+            this.electTimeoutDelta = Math.min(Duration.ofMillis(500).toNanos(), electTimeoutDelta);
+            this.electTimeoutDelta = Math.max(Duration.ofMillis(10).toNanos(), electTimeoutDelta);
             this.shareStatusUpdated = true;
         }
     }
