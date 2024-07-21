@@ -162,12 +162,12 @@ public class VoteManager {
     private void startPreVote(Set<RaftMember> voter) {
         for (RaftMember member : voter) {
             if (member.isReady()) {
-                sendRequest(member, true, 0);
+                sendRequest(member, true);
             }
         }
     }
 
-    private void sendRequest(RaftMember member, boolean preVote, long leaseStartTime) {
+    private void sendRequest(RaftMember member, boolean preVote) {
         VoteReq req = new VoteReq();
         int currentTerm = raftStatus.getCurrentTerm();
         req.setGroupId(groupId);
@@ -186,23 +186,20 @@ public class VoteManager {
             VoteResp resp = new VoteResp();
             resp.setVoteGranted(true);
             resp.setTerm(currentTerm);
-            fireRespProcessFiber(req, resp, null, member, leaseStartTime, voteIdOfRequest);
+            fireRespProcessFiber(req, resp, null, member, voteIdOfRequest);
         } else {
             CompletableFuture<ReadFrame<VoteResp>> f = client.sendRequest(member.getNode().getPeer(), wf,
                     RESP_DECODER, timeout);
             log.info("send {} request. remoteNode={}, groupId={}, term={}, lastLogIndex={}, lastLogTerm={}",
                     preVote ? "pre-vote" : "vote", member.getNode().getNodeId(), groupId,
                     currentTerm, req.getLastLogIndex(), req.getLastLogTerm());
-            f.whenComplete((rf, ex) -> fireRespProcessFiber(req, rf.getBody(),
-                    ex, member, leaseStartTime, voteIdOfRequest));
+            f.whenComplete((rf, ex) -> fireRespProcessFiber(req, rf.getBody(), ex, member, voteIdOfRequest));
         }
     }
 
-    private void fireRespProcessFiber(VoteReq req, VoteResp resp, Throwable ex, RaftMember member,
-                                      long leaseStartTime, int voteIdOfRequest) {
+    private void fireRespProcessFiber(VoteReq req, VoteResp resp, Throwable ex, RaftMember member, int voteIdOfRequest) {
         String fiberName = "vote-resp-processor(" + voteIdOfRequest + "," + member.getNode().getNodeId() + ")";
-        RespProcessFiberFrame initFrame = new RespProcessFiberFrame(resp, ex, member,
-                req, voteIdOfRequest, leaseStartTime);
+        RespProcessFiberFrame initFrame = new RespProcessFiberFrame(resp, ex, member, req, voteIdOfRequest);
         groupConfig.getFiberGroup().fireFiber(fiberName, initFrame);
     }
 
@@ -280,16 +277,14 @@ public class VoteManager {
         private final RaftMember remoteMember;
         private final VoteReq req;
         private final int voteIdOfRequest;
-        private final long leaseStartTime;
 
         private RespProcessFiberFrame(VoteResp resp, Throwable ex, RaftMember remoteMember, VoteReq req,
-                                      int voteIdOfRequest, long leaseStartTime) {
+                                      int voteIdOfRequest) {
             this.resp = resp;
             this.ex = ex;
             this.remoteMember = remoteMember;
             this.req = req;
             this.voteIdOfRequest = voteIdOfRequest;
-            this.leaseStartTime = leaseStartTime;
         }
 
         @Override
@@ -381,9 +376,8 @@ public class VoteManager {
             log.info("start vote. groupId={}, newTerm={}, voteId={}, lastIndex={}", groupId,
                     raftStatus.getCurrentTerm(), currentVoteId, raftStatus.getLastLogIndex());
 
-            long leaseStartTime = raftStatus.getTs().getNanoTime();
             for (RaftMember member : voter) {
-                sendRequest(member, false, leaseStartTime);
+                sendRequest(member, false);
             }
             return Fiber.frameReturn();
         }
@@ -418,7 +412,6 @@ public class VoteManager {
                                 remoteMember.getNode().getNodeId(), groupId);
                     }
                     if (resp.isVoteGranted()) {
-                        remoteMember.setLastConfirmReqNanos(leaseStartTime);
                         if (isElected(remoteMember.getNode().getNodeId(), false)) {
                             log.info("successfully elected, change to leader. groupId={}, term={}", groupId, raftStatus.getCurrentTerm());
                             RaftUtil.changeToLeader(raftStatus);
