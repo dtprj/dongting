@@ -135,16 +135,13 @@ public class RaftGroupImpl extends RaftGroup {
             return CompletableFuture.failedFuture(new NotLeaderException(
                     ss.currentLeader == null ? null : ss.currentLeader.getNode()));
         }
-        long t = readTimestamp.getNanoTime();
-        if (ss.leaseEndNanos - t < 0) {
-            return CompletableFuture.failedFuture(new NotLeaderException(null));
-        }
 
         CompletableFuture<Void> groupReadyFuture = ss.groupReadyFuture;
-        if (groupReadyFuture == null) {
-            return CompletableFuture.completedFuture(ss.lastApplied);
-        }
-        if (groupReadyFuture.isDone()) {
+        if (groupReadyFuture == null || groupReadyFuture.isDone()) {
+            long t = readTimestamp.getNanoTime();
+            if (ss.leaseEndNanos - t < 0) {
+                return CompletableFuture.failedFuture(new NotLeaderException(null));
+            }
             return CompletableFuture.completedFuture(ss.lastApplied);
         }
         // wait fist commit of applied
