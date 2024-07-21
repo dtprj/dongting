@@ -52,6 +52,7 @@ import com.github.dtprj.dongting.raft.sm.StateMachine;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 import com.github.dtprj.dongting.raft.store.StatusManager;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -298,16 +299,20 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             long sizeLimit = groupConfig.getSingleReplicateLimit();
             ArrayList<LogItem> items = new ArrayList<>(limit);
             long size = 0;
+            long leaseStartNanos = 0;
             for (int i = 0; i < limit; i++) {
-                LogItem li = raftStatus.getTailCache().get(nextIndex + i).getItem();
+                RaftTask rt = raftStatus.getTailCache().get(nextIndex + i);
+                LogItem li = rt.getItem();
                 size += li.getActualBodySize();
-                if (size > sizeLimit && i != 0) {
+                if (i == 0) {
+                    leaseStartNanos = rt.getCreateTimeNanos();
+                } else if (size > sizeLimit) {
                     break;
                 }
                 li.retain();
                 items.add(li);
             }
-            sendAppendRequest(member, items);
+            sendAppendRequest(member, items, leaseStartNanos);
             return Fiber.resume(null, this);
         } else {
             if (replicateIterator == null) {
@@ -336,11 +341,13 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             return Fiber.resume(null, this);
         }
 
-        sendAppendRequest(member, items);
+        // can't get real lease start time since it's not be persisted
+        long leaseStartTime = ts.getNanoTime() - Duration.ofDays(1).toNanos();
+        sendAppendRequest(member, items, leaseStartTime);
         return Fiber.resume(null, this);
     }
 
-    private void sendAppendRequest(RaftMember member, List<LogItem> items) {
+    private void sendAppendRequest(RaftMember member, List<LogItem> items, long leaseStartNanos) {
         LogItem firstItem = items.get(0);
         long prevLogIndex = firstItem.getIndex() - 1;
 
@@ -356,8 +363,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
 
         member.setNextIndex(prevLogIndex + 1 + items.size());
 
-        long reqNanos = ts.getNanoTime();
-        DtTime timeout = new DtTime(reqNanos, serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
+        DtTime timeout = new DtTime(ts.getNanoTime(), serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
         long perfStartTime = perfCallback.takeTime(PerfConsts.RAFT_D_REPLICATE_RPC);
         // release in AppendReqWriteFrame
         CompletableFuture<ReadFrame<AppendRespCallback>> f = client.sendRequest(member.getNode().getPeer(),
@@ -374,12 +380,12 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
 
         long finalBytes = bytes;
         f.whenCompleteAsync((rf, ex) -> afterAppendRpc(rf, ex, prevLogIndex,
-                        firstItem.getPrevLogTerm(), reqNanos, items.size(), finalBytes, perfStartTime),
+                        firstItem.getPrevLogTerm(), leaseStartNanos, items.size(), finalBytes, perfStartTime),
                 getFiberGroup().getExecutor());
     }
 
     void afterAppendRpc(ReadFrame<AppendRespCallback> rf, Throwable ex, long prevLogIndex, int prevLogTerm,
-                        long reqNanos, int itemCount, long bytes, long perfStartTime) {
+                        long leaseStartNanos, int itemCount, long bytes, long perfStartTime) {
         perfCallback.fireTime(PerfConsts.RAFT_D_REPLICATE_RPC, perfStartTime, itemCount, bytes);
         if (epochChange()) {
             log.info("receive outdated append result, replicateEpoch not match. ignore.");
@@ -389,7 +395,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         descPending(itemCount, bytes);
 
         if (ex == null) {
-            processAppendResult(rf, prevLogIndex, prevLogTerm, reqNanos, itemCount);
+            processAppendResult(rf, prevLogIndex, prevLogTerm, leaseStartNanos, itemCount);
         } else {
             incrementEpoch();
             repCondition.signalAll();
@@ -412,7 +418,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
     }
 
     private void processAppendResult(ReadFrame<AppendRespCallback> rf, long prevLogIndex,
-                                     int prevLogTerm, long reqNanos, int count) {
+                                     int prevLogTerm, long leaseStartNanos, int count) {
         long expectNewMatchIndex = prevLogIndex + count;
         AppendRespCallback body = rf.getBody();
         RaftStatusImpl raftStatus = this.raftStatus;
@@ -428,7 +434,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         }
         if (body.isSuccess()) {
             if (member.getMatchIndex() <= prevLogIndex) {
-                updateLease(member, reqNanos, raftStatus);
+                updateLease(member, leaseStartNanos, raftStatus);
                 member.setMatchIndex(expectNewMatchIndex);
                 multiAppend = true;
                 commitManager.tryCommit(expectNewMatchIndex);
@@ -448,16 +454,16 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
             incrementEpoch();
             int appendCode = body.getAppendCode();
             if (appendCode == AppendProcessor.APPEND_LOG_NOT_MATCH) {
-                updateLease(member, reqNanos, raftStatus);
+                updateLease(member, leaseStartNanos, raftStatus);
                 processLogNotMatch(prevLogIndex, prevLogTerm, body, raftStatus);
             } else if (appendCode == AppendProcessor.APPEND_SERVER_ERROR) {
-                updateLease(member, reqNanos, raftStatus);
+                updateLease(member, leaseStartNanos, raftStatus);
                 log.error("append fail because of remote error. groupId={}, prevLogIndex={}, msg={}",
                         groupId, prevLogIndex, rf.getMsg());
             } else if (appendCode == AppendProcessor.APPEND_INSTALL_SNAPSHOT) {
                 log.warn("append fail because of member is install snapshot. groupId={}, remoteId={}",
                         groupId, member.getNode().getNodeId());
-                updateLease(member, reqNanos, raftStatus);
+                updateLease(member, leaseStartNanos, raftStatus);
                 member.setInstallSnapshot(true);
             } else {
                 BugLog.getLog().error("append fail. appendCode={}, old matchIndex={}, append prevLogIndex={}, " +
