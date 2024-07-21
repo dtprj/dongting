@@ -36,7 +36,7 @@ public class RaftUtilTest {
         RaftNodeEx n2 = new RaftNodeEx(2, new HostPort("127.0.0.1", 10002), false, null);
         RaftNodeEx n3 = new RaftNodeEx(3, new HostPort("127.0.0.1", 10003), false, null);
         RaftNodeEx n4 = new RaftNodeEx(4, new HostPort("127.0.0.1", 10004), false, null);
-        RaftNodeEx n5 = new RaftNodeEx(4, new HostPort("127.0.0.1", 10005), false, null);
+        RaftNodeEx n5 = new RaftNodeEx(5, new HostPort("127.0.0.1", 10005), false, null);
         RaftMember m1 = new RaftMember(n1, FiberTestUtil.FIBER_GROUP);
         RaftMember m2 = new RaftMember(n2, FiberTestUtil.FIBER_GROUP);
         RaftMember m3 = new RaftMember(n3, FiberTestUtil.FIBER_GROUP);
@@ -51,40 +51,45 @@ public class RaftUtilTest {
         rs.setPreparedMembers(Collections.emptyList());
 
         rs.setMembers(List.of(m1));
-        rs.setElectQuorum(RaftUtil.getElectQuorum(rs.getMembers().size()));
+        updateQuorum(rs);
         RaftUtil.updateLease(rs);
         assertEquals(-100, rs.getLeaseStartNanos());
 
         rs.setMembers(List.of(m1, m2));
-        rs.setElectQuorum(RaftUtil.getElectQuorum(rs.getMembers().size()));
+        updateQuorum(rs);
         RaftUtil.updateLease(rs);
         assertEquals(-200, rs.getLeaseStartNanos());
 
         rs.setMembers(List.of(m1, m2, m3));
-        rs.setElectQuorum(RaftUtil.getElectQuorum(rs.getMembers().size()));
+        updateQuorum(rs);
         RaftUtil.updateLease(rs);
         assertEquals(-100, rs.getLeaseStartNanos());
 
         rs.setMembers(List.of(m1, m2, m3, m4));
-        rs.setElectQuorum(RaftUtil.getElectQuorum(rs.getMembers().size()));
+        updateQuorum(rs);
         RaftUtil.updateLease(rs);
-        assertEquals(-100, rs.getLeaseStartNanos());
+        assertEquals(200, rs.getLeaseStartNanos());
 
         rs.setMembers(List.of(m1, m2, m3, m4, m5));
-        rs.setElectQuorum(RaftUtil.getElectQuorum(rs.getMembers().size()));
+        updateQuorum(rs);
         RaftUtil.updateLease(rs);
         assertEquals(100, rs.getLeaseStartNanos());
 
         rs.setMembers(List.of(m1, m2, m3, m4, m5));
-        rs.setElectQuorum(RaftUtil.getElectQuorum(rs.getMembers().size()));
+        updateQuorum(rs);
         rs.setPreparedMembers(List.of(m1));
         RaftUtil.updateLease(rs);
         assertEquals(-100, rs.getLeaseStartNanos());
 
         rs.setMembers(List.of(m1, m2, m3, m4, m5));
-        rs.setElectQuorum(RaftUtil.getElectQuorum(rs.getMembers().size()));
+        updateQuorum(rs);
         rs.setPreparedMembers(List.of(m3));
         RaftUtil.updateLease(rs);
         assertEquals(100, rs.getLeaseStartNanos());
+    }
+
+    private void updateQuorum(RaftStatusImpl rs) {
+        rs.setElectQuorum(RaftUtil.getElectQuorum(rs.getMembers().size()));
+        rs.setRwQuorum(RaftUtil.getRwQuorum(rs.getMembers().size()));
     }
 }

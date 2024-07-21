@@ -245,7 +245,7 @@ public final class RaftUtil {
             return list.get(0).getLastConfirmReqNanos();
         }
         long[] arr = raftStatus.getLeaseComputeArray();
-        if (arr.length < len) {
+        if (arr.length != len) {
             arr = new long[len];
             raftStatus.setLeaseComputeArray(arr);
         }
@@ -254,11 +254,12 @@ public final class RaftUtil {
             arr[i] = m.getLastConfirmReqNanos();
         }
         for (int i = 0; i < quorum; i++) {
-            for (int j = 0; j < len - 1; j++) {
-                if (arr[j] - arr[j + 1] < 0) {
+            // sort desc
+            for (int j = len - 1; j > 0; j--) {
+                if (arr[j - 1] - arr[j]  < 0) {
                     long tmp = arr[j];
-                    arr[j] = arr[j + 1];
-                    arr[j + 1] = tmp;
+                    arr[j] = arr[j - 1];
+                    arr[j - 1] = tmp;
                 }
             }
         }
