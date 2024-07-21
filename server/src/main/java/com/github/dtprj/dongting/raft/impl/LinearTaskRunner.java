@@ -33,7 +33,6 @@ import com.github.dtprj.dongting.raft.server.RaftExecTimeoutException;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
 import com.github.dtprj.dongting.raft.server.RaftInput;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
-import com.github.dtprj.dongting.raft.server.RaftTask;
 import com.github.dtprj.dongting.raft.store.RaftLog;
 
 import java.util.ArrayList;

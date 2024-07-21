@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfig;
-import com.github.dtprj.dongting.raft.server.RaftTask;
 
 import java.util.concurrent.TimeUnit;
 
