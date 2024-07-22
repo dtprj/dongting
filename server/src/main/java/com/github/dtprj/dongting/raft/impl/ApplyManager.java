@@ -145,6 +145,11 @@ public class ApplyManager {
                         execCount++;
                     } catch (Throwable e) {
                         execEx = e;
+                    } finally {
+                        if (input.isReadOnly() && rt.getItem() != null) {
+                            // release log read resource as soon as possible
+                            rt.getItem().release();
+                        }
                     }
                     if (execEx != null) {
                         afterExec(index, rt, null, execEx);

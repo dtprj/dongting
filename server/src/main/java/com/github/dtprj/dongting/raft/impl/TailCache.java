@@ -113,7 +113,10 @@ public class TailCache {
         }
         RaftTask t = cache.removeFirst();
         if (t != null) {
-            release(t);
+            if (!t.getInput().isReadOnly()) {
+                release(t);
+            }
+            // read only task release on apply manager
         } else {
             throw new IllegalStateException("pending is empty: index=" + index);
         }
