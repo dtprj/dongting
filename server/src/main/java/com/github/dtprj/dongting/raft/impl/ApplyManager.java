@@ -130,7 +130,8 @@ public class ApplyManager {
                     afterExec(index, rt, null, null);
                     return Fiber.resume(null, resumePoint);
                 });
-            case LogItem.TYPE_NORMAL: {
+            case LogItem.TYPE_NORMAL:
+            case LogItem.TYPE_LOG_READ: {
                 RaftInput input = rt.getInput();
                 if (input.isReadOnly() && rt.getCallback() == null) {
                     // no need to execute read only task if no one wait for result
@@ -194,7 +195,8 @@ public class ApplyManager {
         }
         if (execEx == null) {
             RaftCallback.callSuccess(rt.getCallback(), index, execResult);
-        } else if (rt.getInput().isReadOnly()) {
+        } else {
+            // assert read only
             RaftCallback.callFail(rt.getCallback(), execEx);
         }
         if (waitApply) {
@@ -331,7 +333,8 @@ public class ApplyManager {
         }
 
         private RaftTask buildRaftTask(LogItem item) {
-            RaftInput input = new RaftInput(item.getBizType(), item.getHeader(), item.getBody(), null);
+            RaftInput input = new RaftInput(item.getBizType(), item.getHeader(), item.getBody(), null,
+                    item.getType() == LogItem.TYPE_LOG_READ);
             RaftTask result = new RaftTask(ts, item.getType(), input, null);
             result.setItem(item);
             return result;

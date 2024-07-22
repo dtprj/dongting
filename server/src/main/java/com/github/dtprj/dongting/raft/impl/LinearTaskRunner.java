@@ -109,7 +109,8 @@ public class LinearTaskRunner {
     }
 
     public void submitRaftTaskInBizThread(RaftInput input, RaftCallback callback) {
-        RaftTask t = new RaftTask(raftStatus.getTs(), LogItem.TYPE_NORMAL, input, callback);
+        int type = input.isReadOnly() ? LogItem.TYPE_LOG_READ : LogItem.TYPE_NORMAL;
+        RaftTask t = new RaftTask(raftStatus.getTs(), type, input, callback);
         input.setPerfTime(perfCallback.takeTime(PerfConsts.RAFT_D_LEADER_RUNNER_FIBER_LATENCY));
         if (!taskChannel.fireOffer(t)) {
             RaftUtil.release(input);
@@ -204,7 +205,7 @@ public class LinearTaskRunner {
 
     public void sendHeartBeat() {
         DtTime deadline = new DtTime(ts, raftStatus.getElectTimeoutNanos(), TimeUnit.NANOSECONDS);
-        RaftInput input = new RaftInput(0, null, null, deadline);
+        RaftInput input = new RaftInput(0, null, null, deadline, false);
         RaftTask rt = new RaftTask(ts, LogItem.TYPE_HEARTBEAT, input, null);
         raftExec(Collections.singletonList(rt));
     }

@@ -499,7 +499,7 @@ public class MemberManager {
             return CompletableFuture.failedFuture(new NotLeaderException(raftStatus.getCurrentLeaderNode()));
         }
         CompletableFuture<Long> outputFuture = new CompletableFuture<>();
-        RaftInput input = new RaftInput(0, null, new ByteArrayEncoder(data), null);
+        RaftInput input = new RaftInput(0, null, new ByteArrayEncoder(data), null, false);
         RaftTask rt = new RaftTask(raftStatus.getTs(), type, input, new RaftCallback() {
             @Override
             public void success(long raftIndex, Object nullResult) {

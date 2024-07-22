@@ -89,7 +89,7 @@ public class PutProcessor extends AbstractRaftBizProcessor<PutReq> {
         PutReq req = reqInfo.getReqFrame().getBody();
         ReqContext reqContext = reqInfo.getReqContext();
         RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_PUT, new StrEncoder(req.getKey()), req.getValue(),
-                reqContext.getTimeout());
+                reqContext.getTimeout(), false);
         RaftCallback c = new RaftCallback() {
             @Override
             public void success(long raftIndex, Object result) {

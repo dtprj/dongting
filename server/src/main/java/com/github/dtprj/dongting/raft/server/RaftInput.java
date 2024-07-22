@@ -35,7 +35,7 @@ public final class RaftInput {
     // this field is reused
     private long perfTime;
 
-    public RaftInput(int bizType, Encodable header, Encodable body, DtTime deadline) {
+    public RaftInput(int bizType, Encodable header, Encodable body, DtTime deadline, boolean readOnly) {
         if (bizType < 0 || bizType > 127) {
             // we use 1 byte to store bizType in raft log
             throw new IllegalArgumentException("bizType must be in [0, 127]");
@@ -44,7 +44,7 @@ public final class RaftInput {
         this.body = body;
         this.header = header;
         this.deadline = deadline;
-        this.readOnly = false;
+        this.readOnly = readOnly;
         int flowControlSize = 0;
         if (header != null) {
             flowControlSize += header.actualSize();

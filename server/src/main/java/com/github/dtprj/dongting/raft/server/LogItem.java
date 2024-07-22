@@ -27,6 +27,7 @@ public class LogItem {
     public static final int TYPE_PREPARE_CONFIG_CHANGE = 2;
     public static final int TYPE_DROP_CONFIG_CHANGE = 3;
     public static final int TYPE_COMMIT_CONFIG_CHANGE = 4;
+    public static final int TYPE_LOG_READ = 5;
 
     private int type;
     private int bizType;

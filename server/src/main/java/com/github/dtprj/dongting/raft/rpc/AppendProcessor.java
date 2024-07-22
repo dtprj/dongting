@@ -337,7 +337,8 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReqCallback> {
                 writeAppendResp(AppendProcessor.APPEND_REQ_ERROR, "log index not match");
                 return Fiber.frameReturn();
             }
-            RaftInput raftInput = new RaftInput(li.getBizType(), li.getHeader(), li.getBody(), null);
+            RaftInput raftInput = new RaftInput(li.getBizType(), li.getHeader(), li.getBody(), null,
+                    li.getType() == LogItem.TYPE_LOG_READ);
             RaftTask task = new RaftTask(raftStatus.getTs(), li.getType(), raftInput, null);
             task.setItem(li);
             list.add(task);

@@ -82,7 +82,7 @@ public class RemoveProcessor extends AbstractRaftBizProcessor<RemoveReq> {
         RemoveReq req = reqInfo.getReqFrame().getBody();
         ReqContext reqContext = reqInfo.getReqContext();
         RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_REMOVE, new StrEncoder(req.getKey()), null,
-                reqContext.getTimeout());
+                reqContext.getTimeout(), false);
         reqInfo.getRaftGroup().submitLinearTask(ri, new RaftCallback() {
             @Override
             public void success(long raftIndex, Object result) {
