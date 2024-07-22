@@ -236,37 +236,49 @@ public class VoteManager {
 
     private class VoteFiberFrame extends FiberFrame<Void> {
 
-        private final long INTERVAL = new Random().nextInt(150) + 150;
+        private final Random r = new Random();
 
         @Override
         public FrameCallResult execute(Void input) {
             // sleep a random time to avoid multi nodes in same JVM start pre vote at almost same time (in tests)
-            return Fiber.sleep(new Random().nextInt(30) + 1, this::loop);
+            return Fiber.sleep(r.nextInt(30) + 1, this::loop);
         }
 
         private FrameCallResult loop(Void input) {
+            RaftStatusImpl raftStatus = VoteManager.this.raftStatus;
             boolean timeout = raftStatus.getTs().getNanoTime() - raftStatus.getLastElectTime() > raftStatus.getElectTimeoutNanos();
             if (voting) {
                 if (timeout) {
                     cancelVote();
                 } else {
-                    return Fiber.sleep(INTERVAL, this::loop);
+                    return sleepAwhile();
                 }
             }
             if (raftStatus.isInstallSnapshot()) {
-                return Fiber.sleep(INTERVAL, this::loop);
+                return sleepAwhile();
             }
             if (timeout) {
-                log.info("elect timer timeout, groupId={}, term={}", groupId, raftStatus.getCurrentTerm());
                 if (RaftUtil.writeNotFinished(raftStatus)) {
-                    return RaftUtil.waitWriteFinish(raftStatus, this::loop);
+                    log.info("elect timer timeout and write not finished, groupId={}, term={}", groupId, raftStatus.getCurrentTerm());
+                    return sleepAwhile();
                 }
-
+                if (raftStatus.getLastApplied() < raftStatus.getCommitIndex()) {
+                    log.info("elect timer timeout and apply not finished, groupId={}, term={}, applied={}, commit={}",
+                            groupId, raftStatus.getCurrentTerm(), raftStatus.getLastApplied(), raftStatus.getCommitIndex());
+                    return sleepAwhile();
+                }
+                log.info("elect timer timeout, groupId={}, term={}", groupId, raftStatus.getCurrentTerm());
                 tryStartPreVote();
                 return Fiber.resume(null, this::loop);
             } else {
-                return Fiber.sleep(INTERVAL, this::loop);
+                return sleepAwhile();
             }
+        }
+
+        private FrameCallResult sleepAwhile() {
+            // 30~300ms
+            int t = r.nextInt(270) + 30;
+            return Fiber.sleep(t, this::loop);
         }
     }
 
