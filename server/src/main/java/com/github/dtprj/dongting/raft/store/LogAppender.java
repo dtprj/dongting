@@ -198,7 +198,12 @@ class LogAppender {
             int count = 0;
             for (int listSize = taskList.size(), i = taskIndex; i < listSize; i++) {
                 LogItem li = taskList.get(i);
-                int len = LogHeader.computeTotalLen(0, li.getActualHeaderSize(), li.getActualBodySize());
+                int len;
+                if (li.getType() == LogItem.TYPE_LOG_READ) {
+                    len = LogHeader.ITEM_HEADER_SIZE;
+                } else {
+                    len = LogHeader.computeTotalLen(0, li.getActualHeaderSize(), li.getActualBodySize());
+                }
                 if (len <= fileRestBytes) {
                     bytesToWrite += len;
                     fileRestBytes -= len;
@@ -268,13 +273,13 @@ class LogAppender {
                 }
                 int len = LogHeader.writeHeader(crc32c, buffer, li);
 
-                if (li.getActualHeaderSize() > 0) {
+                if (li.getType() != LogItem.TYPE_LOG_READ && li.getActualHeaderSize() > 0) {
                     if (!buffer.hasRemaining()) {
                         buffer = doWrite(file, buffer);
                     }
                     buffer = encodeData(li.getActualHeaderSize(), li.getHeader(), buffer, file);
                 }
-                if (li.getActualBodySize() > 0) {
+                if (li.getType() != LogItem.TYPE_LOG_READ && li.getActualBodySize() > 0) {
                     if (!buffer.hasRemaining()) {
                         buffer = doWrite(file, buffer);
                     }

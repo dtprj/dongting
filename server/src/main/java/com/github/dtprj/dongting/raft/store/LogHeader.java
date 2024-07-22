@@ -96,12 +96,18 @@ class LogHeader {
     }
 
     public static int writeHeader(CRC32C crc, ByteBuffer buffer, LogItem log) {
+        boolean read = log.getType() == LogItem.TYPE_LOG_READ;
+        int len;
+        if (read) {
+            len = ITEM_HEADER_SIZE;
+        } else {
+            len = computeTotalLen(0, log.getActualHeaderSize(), log.getActualBodySize());
+        }
         int startPos = buffer.position();
-        int len = computeTotalLen(0, log.getActualHeaderSize(), log.getActualBodySize());
         buffer.putInt(len);
         buffer.putInt(0);
-        buffer.putInt(log.getActualHeaderSize());
-        buffer.putInt(log.getActualBodySize());
+        buffer.putInt(read ? 0 : log.getActualHeaderSize());
+        buffer.putInt(read ? 0 : log.getActualBodySize());
         buffer.put((byte) log.getType());
         buffer.put((byte) log.getBizType());
         buffer.putInt(log.getTerm());
