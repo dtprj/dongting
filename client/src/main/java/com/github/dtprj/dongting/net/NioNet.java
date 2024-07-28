@@ -105,7 +105,7 @@ public abstract class NioNet extends AbstractLifeCircle {
             CompletableFuture<ReadFrame<?>> future = new CompletableFuture<>();
             worker.writeReqInBizThreads(peer, request, decoder, timeout, future);
             write = true;
-            return registerReqCallback(future);
+            return registerReqCallback(future, request.getFrameType());
 
         } catch (Exception e) {
             return DtUtil.failedFuture(new NetException("sendRequest error", e));
@@ -119,7 +119,7 @@ public abstract class NioNet extends AbstractLifeCircle {
         }
     }
 
-    private CompletableFuture<ReadFrame<?>> registerReqCallback(CompletableFuture<ReadFrame<?>> future) {
+    private CompletableFuture<ReadFrame<?>> registerReqCallback(CompletableFuture<ReadFrame<?>> future, int frameType) {
         return future.whenComplete((frame, ex) -> {
             if (semaphore != null) {
                 semaphore.release();
@@ -127,7 +127,7 @@ public abstract class NioNet extends AbstractLifeCircle {
             if (ex != null) {
                 return;
             }
-            if (frame.getRespCode() != CmdCodes.SUCCESS) {
+            if (frameType == FrameType.TYPE_REQ && frame.getRespCode() != CmdCodes.SUCCESS) {
                 throw new NetCodeException(frame.getRespCode(), frame.getMsg(), frame);
             }
         });

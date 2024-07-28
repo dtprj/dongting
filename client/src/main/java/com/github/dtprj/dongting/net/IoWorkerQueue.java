@@ -77,8 +77,8 @@ class IoWorkerQueue {
                 wo.setDtc(dtc);
                 dtc.getSubQueue().enqueue(wo);
             } else if (peer.getStatus() == PeerStatus.removed) {
+                frame.clean();
                 if (wo.getFuture() != null) {
-                    frame.clean();
                     wo.getFuture().completeExceptionally(new NetException("peer is removed"));
                 }
             } else {
@@ -91,7 +91,7 @@ class IoWorkerQueue {
         } else {
             DtChannel dtc = wo.getDtc();
             if (dtc == null) {
-                if (!worker.isServer() && frame.getFrameType() == FrameType.TYPE_REQ) {
+                if (!worker.isServer() && frame.getFrameType() != FrameType.TYPE_RESP) {
                     dtc = selectChannel();
                     if (dtc == null) {
                         frame.clean();
@@ -102,15 +102,15 @@ class IoWorkerQueue {
                     }
                 } else {
                     log.error("no peer set");
-                    if (frame.getFrameType() == FrameType.TYPE_REQ) {
-                        frame.clean();
+                    frame.clean();
+                    if (frame.getFrameType() != FrameType.TYPE_RESP) {
                         wo.getFuture().completeExceptionally(new NetException("no peer set"));
                     }
                 }
             } else {
                 if (dtc.isClosed()) {
+                    frame.clean();
                     if (wo.getFuture() != null) {
-                        frame.clean();
                         wo.getFuture().completeExceptionally(new NetException("channel closed during dispatch"));
                     }
                 } else {

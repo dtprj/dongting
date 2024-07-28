@@ -36,7 +36,7 @@ final class WriteData {
 
     long time;
 
-    // for request
+    // for request or one way request
     public WriteData(Peer peer, WriteFrame data, DtTime timeout,
                      CompletableFuture<ReadFrame<?>> future, Decoder<?> respDecoder) {
         this.peer = peer;

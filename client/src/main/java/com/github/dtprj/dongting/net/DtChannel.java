@@ -140,6 +140,7 @@ class DtChannel extends PbCallback<Object> {
         if (frame.getFrameType() == FrameType.TYPE_RESP) {
             processIncomingResponse(frame, requestForResp);
         } else {
+            // req or one way
             processIncomingRequest(frame, processorForRequest, workerStatus.getTs());
         }
     }
@@ -274,6 +275,7 @@ class DtChannel extends PbCallback<Object> {
                 currentDecoder = requestForResp.getRespDecoder();
             }
         } else {
+            // req or one way
             if (!running) {
                 writeErrorInIoThread(frame, CmdCodes.STOPPING, null);
                 return false;
@@ -319,6 +321,7 @@ class DtChannel extends PbCallback<Object> {
                 requestForResp.getFuture().completeExceptionally(e);
             }
         } else {
+            // req or one way
             log.warn("decode fail in io thread", e);
             writeErrorInIoThread(frame, CmdCodes.BIZ_ERROR, "decode fail: " + e.toString());
         }
@@ -383,7 +386,7 @@ class DtChannel extends PbCallback<Object> {
         DtTime t = reqContext.getTimeout();
         boolean timeout = ts == null ? t.isTimeout() : t.isTimeout(ts);
         if (timeout) {
-            String type = rf.getFrameType() == FrameType.TYPE_REQ ? "request" : "response";
+            String type = FrameType.toStr(rf.getFrameType());
             log.debug("drop timeout {}, remote={}, seq={}, timeout={}ms", type,
                     channelContext.getRemoteAddr(), rf.getSeq(), t.getTimeout(TimeUnit.MILLISECONDS));
             return true;
@@ -397,6 +400,9 @@ class DtChannel extends PbCallback<Object> {
     }
 
     private void writeErrorInIoThread(Frame req, int code, String msg, DtTime timeout) {
+        if (req.getFrameType() == FrameType.TYPE_ONE_WAY) {
+            return;
+        }
         EmptyBodyRespFrame resp = new EmptyBodyRespFrame(code);
         resp.setCommand(req.getCommand());
         resp.setFrameType(FrameType.TYPE_RESP);
@@ -482,7 +488,7 @@ class ProcessInBizThreadTask implements Runnable {
 
     @Override
     public void run() {
-        WriteFrame resp;
+        WriteFrame resp = null;
         ReadFrame req = this.req;
         DtChannel dtc = this.dtc;
         try {
@@ -492,14 +498,16 @@ class ProcessInBizThreadTask implements Runnable {
             resp = processor.process(req, dtc.getProcessContext(), reqContext);
         } catch (NetCodeException e) {
             log.warn("ReqProcessor.process fail, command={}, code={}, msg={}", req.getCommand(), e.getCode(), e.getMessage());
-            EmptyBodyRespFrame errorResp = new EmptyBodyRespFrame(e.getCode());
-            errorResp.setMsg(e.toString());
-            resp = errorResp;
+            if (req.getFrameType() == FrameType.TYPE_REQ) {
+                resp = new EmptyBodyRespFrame(e.getCode());
+                resp.setMsg(e.toString());
+            }
         } catch (Throwable e) {
             log.warn("ReqProcessor.process fail, command={}", req.getCommand(), e);
-            EmptyBodyRespFrame errorResp = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
-            errorResp.setMsg(e.toString());
-            resp = errorResp;
+            if (req.getFrameType() == FrameType.TYPE_REQ) {
+                resp = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
+                resp.setMsg(e.toString());
+            }
         } finally {
             if (inBytes != null) {
                 inBytes.addAndGet(-frameSize);

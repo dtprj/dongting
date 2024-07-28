@@ -179,9 +179,17 @@ class IoChannelQueue {
                             }
                         }
                         framesInBuffer++;
+                        if (wd.getFuture() != null && f.getFrameType() == FrameType.TYPE_ONE_WAY) {
+                            // TODO complete after write finished
+                            wd.getFuture().complete(null);
+                        }
                     } else {
                         // cancel
                         workerStatus.addFramesToWrite(-1);
+                        if (wd.getFuture() != null) {
+                            String msg = "timeout before send: " + wd.getTimeout().getTimeout(TimeUnit.MILLISECONDS) + "ms";
+                            wd.getFuture().completeExceptionally(new NetTimeoutException(msg));
+                        }
                     }
 
                     subQueueBytes = Math.max(0, subQueueBytes - wd.getEstimateSize());
@@ -219,17 +227,14 @@ class IoChannelQueue {
 
     private int encode(ByteBuffer buf, WriteData wd, Timestamp roundTime) {
         WriteFrame f = wd.getData();
-        boolean request = f.getFrameType() == FrameType.TYPE_REQ;
+        // request or one way request
+        boolean request = f.getFrameType() != FrameType.TYPE_RESP;
         DtTime t = wd.getTimeout();
         long rest = t.rest(TimeUnit.NANOSECONDS, roundTime);
         if (rest <= 0) {
             if (request) {
-                String msg = "timeout before send: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
                 log.warn("request timeout before send: {}ms, cmd={}, seq={}, channel={}",
                         t.getTimeout(TimeUnit.MILLISECONDS), f.getCommand(), f.getSeq(), wd.getDtc().getChannel());
-                if (wd.getFuture() != null) {
-                    wd.getFuture().completeExceptionally(new NetTimeoutException(msg));
-                }
             } else {
                 log.warn("response timeout before send: {}ms, cmd={}, seq={}, channel={}",
                         t.getTimeout(TimeUnit.MILLISECONDS), f.getCommand(), f.getSeq(), wd.getDtc().getChannel());
