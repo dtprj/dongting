@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
-import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.DtTime;
@@ -45,7 +44,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -243,7 +241,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private void finishPendingReq() {
         try {
             pendingOutgoingRequests.forEach((key, value) -> {
-                if (value.getFuture() != null) {
+                if (value.callback != null) {
                     tempSortList.add(new Pair<>(key, value));
                 }
                 // return false to remove it
@@ -252,7 +250,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             // sort to keep fail order
             tempSortList.sort(this::compare);
             for (Pair<Long, WriteData> p : tempSortList) {
-                p.getRight().getFuture().completeExceptionally(new NetException("client closed"));
+                p.getRight().callFail(false, new NetException("client closed"));
             }
         } finally {
             tempSortList.clear();
@@ -580,7 +578,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             try {
                 pendingOutgoingRequests.forEach((key, wd) -> {
                     if (wd.getDtc() == dtc) {
-                        if (wd.getFuture() != null) {
+                        if (wd.callback != null) {
                             tempSortList.add(new Pair<>(key, wd));
                         }
                         return false;
@@ -590,7 +588,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 // sort to keep fail order
                 tempSortList.sort(this::compare);
                 for (Pair<Long, WriteData> p : tempSortList) {
-                    p.getRight().getFuture().completeExceptionally(new NetException(
+                    p.getRight().callFail(false, new NetException(
                             "channel closed, cancel pending request in NioWorker"));
                 }
             } finally {
@@ -627,17 +625,13 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 WriteData wd = p.getRight();
                 DtTime t = wd.getTimeout();
                 if (wd.getDtc().isClosed()) {
-                    if (wd.getFuture() != null) {
-                        wd.getFuture().completeExceptionally(new NetException("channel closed, future cancelled by timeout cleaner"));
-                    }
+                    wd.callFail(false, new NetException("channel closed, future cancelled by timeout cleaner"));
                 } else if (t.isTimeout(roundStartTime)) {
                     log.debug("drop timeout request: {}ms, seq={}, {}",
                             t.getTimeout(TimeUnit.MILLISECONDS), wd.getData().getSeq(),
                             wd.getDtc().getChannel());
-                    if (wd.getFuture() != null) {
-                        String msg = "request is timeout: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
-                        wd.getFuture().completeExceptionally(new NetTimeoutException(msg));
-                    }
+                    String msg = "request is timeout: " + t.getTimeout(TimeUnit.MILLISECONDS) + "ms";
+                    wd.callFail(false, new NetTimeoutException(msg));
                 }
             }
         } finally {
@@ -672,12 +666,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     }
 
     // invoke by other threads
-    public void writeReqInBizThreads(Peer peer, WriteFrame frame, Decoder<?> decoder,
-                                     DtTime timeout, CompletableFuture<ReadFrame<?>> future) {
-        Objects.requireNonNull(timeout);
-        Objects.requireNonNull(future);
-
-        WriteData data = new WriteData(peer, frame, timeout, future, decoder);
+    void writeReqInBizThreads(WriteData data) {
         this.ioWorkerQueue.writeFromBizThread(data);
         wakeup();
     }

@@ -79,22 +79,22 @@ class IoChannelQueue {
             // can't invoke actualSize() here because seq and timeout field is not set yet
             estimateSize = wf.calcMaxFrameSize();
             if (estimateSize > config.getMaxFrameSize() || estimateSize < 0) {
-                fail(writeData, new NetException("estimateSize overflow"));
+                writeData.callFail(true, new NetException("estimateSize overflow"));
                 return;
             }
-            writeData.setEstimateSize(estimateSize);
+            writeData.estimateSize = estimateSize;
             int bodySize = wf.actualBodySize();
             if (bodySize > config.getMaxBodySize() || bodySize < 0) {
-                fail(writeData, new NetException("frame body size " + bodySize
+                writeData.callFail(true, new NetException("frame body size " + bodySize
                         + " exceeds max body size " + config.getMaxBodySize()));
                 return;
             }
         } catch (RuntimeException | Error e) {
-            fail(writeData, new NetException("encode calc size fail", e));
+            writeData.callFail(true, new NetException("encode calc size fail", e));
             return;
         }
 
-        writeData.time = perfCallback.takeTime(PerfConsts.RPC_D_CHANNEL_QUEUE);
+        writeData.perfTime = perfCallback.takeTime(PerfConsts.RPC_D_CHANNEL_QUEUE);
         subQueue.addLast(writeData);
 
         // the subQueueBytes is not accurate
@@ -103,13 +103,6 @@ class IoChannelQueue {
             registerForWrite.run();
         }
         workerStatus.addFramesToWrite(1);
-    }
-
-    private void fail(WriteData writeData, NetException ex) {
-        if (writeData.getFuture() != null) {
-            writeData.getFuture().completeExceptionally(ex);
-        }
-        writeData.getData().clean();
     }
 
     public void cleanChannelQueue() {
@@ -123,11 +116,11 @@ class IoChannelQueue {
 
         if (lastWriteData != null) {
             workerStatus.addFramesToWrite(-1);
-            fail(lastWriteData, new NetException("channel closed, cancel request still in IoChannelQueue. 1"));
+            lastWriteData.callFail(true, new NetException("channel closed, cancel request still in IoChannelQueue. 1"));
         }
         WriteData wd;
         while ((wd = subQueue.pollFirst()) != null) {
-            fail(wd, new NetException("channel closed, cancel request still in IoChannelQueue. 2"));
+            wd.callFail(true, new NetException("channel closed, cancel request still in IoChannelQueue. 2"));
             workerStatus.addFramesToWrite(-1);
         }
     }
@@ -159,7 +152,7 @@ class IoChannelQueue {
                 int encodeResult;
                 if (wd == null) {
                     wd = subQueue.pollFirst();
-                    perfCallback.fireTime(PerfConsts.RPC_D_CHANNEL_QUEUE, wd.time);
+                    perfCallback.fireTime(PerfConsts.RPC_D_CHANNEL_QUEUE, wd.perfTime);
                     encodeResult = encode(buf, wd, roundTime);
                 } else {
                     encodeResult = doEncode(buf, wd);
@@ -175,24 +168,22 @@ class IoChannelQueue {
                             if (old != null) {
                                 String errMsg = "dup seq: old=" + old.getData() + ", new=" + f;
                                 BugLog.getLog().error(errMsg);
-                                fail(old, new NetException(errMsg));
+                                old.callFail(true, new NetException(errMsg));
                             }
                         }
                         framesInBuffer++;
-                        if (wd.getFuture() != null && f.getFrameType() == FrameType.TYPE_ONE_WAY) {
+                        if (f.getFrameType() == FrameType.TYPE_ONE_WAY) {
                             // TODO complete after write finished
-                            wd.getFuture().complete(null);
+                            wd.callSuccess(null);
                         }
                     } else {
                         // cancel
                         workerStatus.addFramesToWrite(-1);
-                        if (wd.getFuture() != null) {
-                            String msg = "timeout before send: " + wd.getTimeout().getTimeout(TimeUnit.MILLISECONDS) + "ms";
-                            wd.getFuture().completeExceptionally(new NetTimeoutException(msg));
-                        }
+                        String msg = "timeout before send: " + wd.getTimeout().getTimeout(TimeUnit.MILLISECONDS) + "ms";
+                        wd.callFail(false, new NetTimeoutException(msg));
                     }
 
-                    subQueueBytes = Math.max(0, subQueueBytes - wd.getEstimateSize());
+                    subQueueBytes = Math.max(0, subQueueBytes - wd.estimateSize);
                     try {
                         wd.getData().clean();
                     } finally {

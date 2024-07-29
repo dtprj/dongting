@@ -17,32 +17,32 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.common.DtTime;
-
-import java.util.concurrent.CompletableFuture;
+import com.github.dtprj.dongting.log.BugLog;
 
 /**
  * @author huangli
  */
-final class WriteData {
+class WriteData {
     private DtChannel dtc;
-    private final Peer peer;
 
     private final WriteFrame data;
     private final DtTime timeout;
-    private final CompletableFuture<ReadFrame<?>> future;
+
+    int estimateSize;
+
+    long perfTime;
+
+    // only for request or one way request
+    private final Peer peer;
+    final RpcCallback<?> callback;
     private final Decoder<?> respDecoder;
 
-    private int estimateSize;
-
-    long time;
-
     // for request or one way request
-    public WriteData(Peer peer, WriteFrame data, DtTime timeout,
-                     CompletableFuture<ReadFrame<?>> future, Decoder<?> respDecoder) {
+    public <T> WriteData(Peer peer, WriteFrame data, DtTime timeout, RpcCallback<T> callback, Decoder<T> respDecoder) {
         this.peer = peer;
         this.data = data;
         this.timeout = timeout;
-        this.future = future;
+        this.callback = callback;
         this.respDecoder = respDecoder;
     }
 
@@ -52,16 +52,37 @@ final class WriteData {
         this.peer = null;
         this.data = data;
         this.timeout = timeout;
-        this.future = null;
+        this.callback = null;
         this.respDecoder = null;
     }
 
-    public int getEstimateSize() {
-        return estimateSize;
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void callSuccess(ReadFrame resp) {
+        try {
+            if (callback == null) {
+                return;
+            }
+            callback.success(resp);
+        } catch (Throwable ex) {
+            BugLog.getLog().error("RpcCallback error", ex);
+        }
     }
 
-    public void setEstimateSize(int estimateSize) {
-        this.estimateSize = estimateSize;
+    void callFail(boolean callClean, Throwable ex) {
+        callFail(callClean ? data : null, ex, callback);
+    }
+
+    static void callFail(WriteFrame f, Throwable ex, RpcCallback<?> callback) {
+        try {
+            if (f != null) {
+                f.clean();
+            }
+            if (callback != null) {
+                callback.fail(ex);
+            }
+        } catch (Throwable ex2) {
+            BugLog.getLog().error("RpcCallback error", ex2);
+        }
     }
 
     public DtChannel getDtc() {
@@ -74,10 +95,6 @@ final class WriteData {
 
     public DtTime getTimeout() {
         return timeout;
-    }
-
-    public CompletableFuture<ReadFrame<?>> getFuture() {
-        return future;
     }
 
     public Decoder<?> getRespDecoder() {

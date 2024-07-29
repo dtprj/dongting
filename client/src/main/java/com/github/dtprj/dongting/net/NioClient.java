@@ -37,6 +37,7 @@ import java.util.function.Function;
 /**
  * @author huangli
  */
+@SuppressWarnings("Convert2Diamond")
 public class NioClient extends NioNet {
 
     private static final DtLog log = DtLogs.getLogger(NioClient.class);
@@ -120,7 +121,7 @@ public class NioClient extends NioNet {
             }
         }
 
-        if (successCount == 0 && peers.size() > 0) {
+        if (successCount == 0 && !peers.isEmpty()) {
             log.error("[{}] start fail: timeoutPeerCount={},failPeerCount={}\n{}",
                     config.getName(), timeoutCount, failCount, sb);
             throw new NetException("init NioClient fail:timeout=" + config.getWaitStartTimeout()
@@ -136,10 +137,30 @@ public class NioClient extends NioNet {
         return sendRequest(null, request, decoder, timeout);
     }
 
-    @SuppressWarnings("unchecked")
-    public <T> CompletableFuture<ReadFrame<T>> sendRequest(Peer peer, WriteFrame request, Decoder<T> decoder, DtTime timeout) {
-        CompletableFuture<?> f = sendRequest(worker, peer, request, decoder, timeout);
-        return (CompletableFuture<ReadFrame<T>>) f;
+    public <T> CompletableFuture<ReadFrame<T>> sendRequest(Peer peer, WriteFrame request, Decoder<T> decoder,
+                                                           DtTime timeout) {
+        CompletableFuture<ReadFrame<T>> f = new CompletableFuture<>();
+        sendRequest(worker, peer, request, decoder, timeout, new RpcCallback<T>() {
+            @Override
+            public void success(ReadFrame<T> resp) {
+                f.complete(resp);
+            }
+
+            @Override
+            public void fail(Throwable ex) {
+                f.completeExceptionally(ex);
+            }
+        });
+        return f;
+    }
+
+    public <T> void sendRequest(WriteFrame request, Decoder<T> decoder, DtTime timeout, RpcCallback<T> callback) {
+        sendRequest(worker, null, request, decoder, timeout, callback);
+    }
+
+    public <T> void sendRequest(Peer peer, WriteFrame request, Decoder<T> decoder, DtTime timeout,
+                                RpcCallback<T> callback) {
+        sendRequest(worker, peer, request, decoder, timeout, callback);
     }
 
     @Override

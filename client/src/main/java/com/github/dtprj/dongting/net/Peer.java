@@ -69,14 +69,12 @@ public class Peer {
             NetException ex = exceptionSupplier.apply(wd);
             if (ex != null) {
                 it.remove();
-                if (wd.getFuture() != null) {
-                    wd.getFuture().completeExceptionally(ex);
-                }
+                wd.callFail(true, ex);
             } else {
                 break;
             }
         }
-        if (waitConnectList.size() == 0) {
+        if (waitConnectList.isEmpty()) {
             waitConnectList = null;
         }
     }

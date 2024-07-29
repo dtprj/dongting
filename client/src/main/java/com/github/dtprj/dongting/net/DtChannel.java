@@ -318,7 +318,7 @@ class DtChannel extends PbCallback<Object> {
         }
         if (frame.getFrameType() == FrameType.TYPE_RESP) {
             if (requestForResp != null) {
-                requestForResp.getFuture().completeExceptionally(e);
+                requestForResp.callFail(false, e);
             }
         } else {
             // req or one way
@@ -330,10 +330,10 @@ class DtChannel extends PbCallback<Object> {
     private void processIncomingResponse(ReadFrame resp, WriteData wo) {
         WriteFrame req = wo.getData();
         if (resp.getCommand() != req.getCommand()) {
-            wo.getFuture().completeExceptionally(new NetException("command not match"));
+            wo.callFail(false, new NetException("command not match"));
             return;
         }
-        wo.getFuture().complete(resp);
+        wo.callSuccess(resp);
     }
 
     private void processIncomingRequest(ReadFrame req, ReqProcessor p, Timestamp roundTime) {

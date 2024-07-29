@@ -25,7 +25,7 @@ import com.github.dtprj.dongting.common.PerfCallback;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
-import java.util.concurrent.CompletableFuture;
+import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * @author huangli
  */
+@SuppressWarnings("Convert2Diamond")
 public abstract class NioNet extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(NioNet.class);
     private final NioConfig config;
@@ -77,15 +78,19 @@ public abstract class NioNet extends AbstractLifeCircle {
         nioStatus.registerProcessor(cmd, processor);
     }
 
-    CompletableFuture<ReadFrame<?>> sendRequest(NioWorker worker, Peer peer, WriteFrame request,
-                                                Decoder<?> decoder, DtTime timeout) {
-        request.setFrameType(FrameType.TYPE_REQ);
-        DtUtil.checkPositive(request.getCommand(), "request.command");
+    <T> void sendRequest(NioWorker worker, Peer peer, WriteFrame request, Decoder<T> decoder, DtTime timeout,
+                         RpcCallback<T> callback) {
         boolean acquire = false;
-        boolean write = false;
         try {
+            Objects.requireNonNull(timeout);
+            Objects.requireNonNull(callback);
+            Objects.requireNonNull(request);
+            Objects.requireNonNull(decoder);
+            DtUtil.checkPositive(request.getCommand(), "request.command");
+
+            request.setFrameType(FrameType.TYPE_REQ);
             if (status != STATUS_RUNNING) {
-                return DtUtil.failedFuture(new NetException("error state: " + status));
+                throw new NetException("error state: " + status);
             }
 
             if (this.semaphore != null) {
@@ -96,41 +101,44 @@ public abstract class NioNet extends AbstractLifeCircle {
                     perfCallback.fireTime(PerfConsts.RPC_D_ACQUIRE, t);
                 }
                 if (!acquire) {
-                    return DtUtil.failedFuture(new NetTimeoutException(
-                            "too many pending requests, client wait permit timeout in "
-                                    + timeout.getTimeout(TimeUnit.MILLISECONDS) + " ms"));
+                    throw new NetTimeoutException("too many pending requests, client wait permit timeout in "
+                                    + timeout.getTimeout(TimeUnit.MILLISECONDS) + " ms");
                 }
             }
-
-            CompletableFuture<ReadFrame<?>> future = new CompletableFuture<>();
-            worker.writeReqInBizThreads(peer, request, decoder, timeout, future);
-            write = true;
-            return registerReqCallback(future, request.getFrameType());
-
         } catch (Exception e) {
-            return DtUtil.failedFuture(new NetException("sendRequest error", e));
-        } finally {
-            if (!write) {
-                request.clean();
-                if (acquire) {
-                    this.semaphore.release();
-                }
-            }
-        }
-    }
-
-    private CompletableFuture<ReadFrame<?>> registerReqCallback(CompletableFuture<ReadFrame<?>> future, int frameType) {
-        return future.whenComplete((frame, ex) -> {
-            if (semaphore != null) {
+            WriteData.callFail(request, e, callback);
+            if (acquire) {
                 semaphore.release();
             }
-            if (ex != null) {
-                return;
+            return;
+        }
+
+        WriteData wd = new WriteData(peer, request, timeout, wrapCallback(callback, request.frameType), decoder);
+        worker.writeReqInBizThreads(wd);
+    }
+
+    private <T> RpcCallback<T> wrapCallback(RpcCallback<T> callback, int frameType) {
+        return new RpcCallback<T>() {
+            @Override
+            public void success(ReadFrame<T> resp) {
+                if (semaphore != null) {
+                    semaphore.release();
+                }
+                if (frameType == FrameType.TYPE_REQ && resp != null && resp.respCode != CmdCodes.SUCCESS) {
+                    callback.fail(new NetCodeException(resp.respCode, resp.msg, resp));
+                } else {
+                    callback.success(resp);
+                }
             }
-            if (frameType == FrameType.TYPE_REQ && frame.getRespCode() != CmdCodes.SUCCESS) {
-                throw new NetCodeException(frame.getRespCode(), frame.getMsg(), frame);
+
+            @Override
+            public void fail(Throwable ex) {
+                if (semaphore != null) {
+                    semaphore.release();
+                }
+                callback.fail(ex);
             }
-        });
+        };
     }
 
     protected void initBizExecutor() {

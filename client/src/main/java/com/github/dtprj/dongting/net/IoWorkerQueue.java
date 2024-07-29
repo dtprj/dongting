@@ -41,12 +41,9 @@ class IoWorkerQueue {
     }
 
     public void writeFromBizThread(WriteData data) {
-        data.time = perfCallback.takeTime(PerfConsts.RPC_D_WORKER_QUEUE);
+        data.perfTime = perfCallback.takeTime(PerfConsts.RPC_D_WORKER_QUEUE);
         if (!queue.offer(data)) {
-            if (data.getFuture() != null) {
-                data.getFuture().completeExceptionally(new NetException("IoQueue closed"));
-            }
-            data.getData().clean();
+            data.callFail(true, new NetException("IoQueue closed"));
         }
     }
 
@@ -68,7 +65,7 @@ class IoWorkerQueue {
     }
 
     private void processWriteData(WriteData wo) {
-        perfCallback.fireTime(PerfConsts.RPC_D_WORKER_QUEUE, wo.time);
+        perfCallback.fireTime(PerfConsts.RPC_D_WORKER_QUEUE, wo.perfTime);
         WriteFrame frame = wo.getData();
         Peer peer = wo.getPeer();
         if (peer != null) {
@@ -77,10 +74,7 @@ class IoWorkerQueue {
                 wo.setDtc(dtc);
                 dtc.getSubQueue().enqueue(wo);
             } else if (peer.getStatus() == PeerStatus.removed) {
-                frame.clean();
-                if (wo.getFuture() != null) {
-                    wo.getFuture().completeExceptionally(new NetException("peer is removed"));
-                }
+                wo.callFail(true, new NetException("peer is removed"));
             } else {
                 peer.addToWaitConnectList(wo);
                 if (peer.getStatus() == PeerStatus.not_connect) {
@@ -94,25 +88,18 @@ class IoWorkerQueue {
                 if (!worker.isServer() && frame.getFrameType() != FrameType.TYPE_RESP) {
                     dtc = selectChannel();
                     if (dtc == null) {
-                        frame.clean();
-                        wo.getFuture().completeExceptionally(new NetException("no available channel"));
+                        wo.callFail(true, new NetException("no available channel"));
                     } else {
                         wo.setDtc(dtc);
                         dtc.getSubQueue().enqueue(wo);
                     }
                 } else {
                     log.error("no peer set");
-                    frame.clean();
-                    if (frame.getFrameType() != FrameType.TYPE_RESP) {
-                        wo.getFuture().completeExceptionally(new NetException("no peer set"));
-                    }
+                    wo.callFail(true, new NetException("no peer set"));
                 }
             } else {
                 if (dtc.isClosed()) {
-                    frame.clean();
-                    if (wo.getFuture() != null) {
-                        wo.getFuture().completeExceptionally(new NetException("channel closed during dispatch"));
-                    }
+                    wo.callFail(true, new NetException("channel closed during dispatch"));
                 } else {
                     dtc.getSubQueue().enqueue(wo);
                 }
