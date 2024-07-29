@@ -28,6 +28,7 @@ import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
 import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.RpcCallback;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -50,7 +51,7 @@ public class RpcBenchmark extends BenchBase {
     private static final boolean PERF = false;
 
     public static void main(String[] args) throws Exception {
-        RpcBenchmark benchmark = new RpcBenchmark(1, 1000, 200, Commands.CMD_PING);
+        RpcBenchmark benchmark = new RpcBenchmark(1, 5000, 1000, Commands.CMD_PING);
         benchmark.setLogRt(true);
         benchmark.start();
     }
@@ -129,25 +130,31 @@ public class RpcBenchmark extends BenchBase {
             final DtTime timeout = new DtTime(TIMEOUT, TimeUnit.MILLISECONDS);
             ByteBufferWriteFrame req = new ByteBufferWriteFrame(ByteBuffer.wrap(data));
             req.setCommand(cmd);
-            CompletableFuture<ReadFrame<RefBuffer>> f = client.sendRequest(req, RefBufferDecoder.PLAIN_INSTANCE, timeout);
 
             if (SYNC) {
+                CompletableFuture<ReadFrame<RefBuffer>> f = client.sendRequest(
+                        req, RefBufferDecoder.PLAIN_INSTANCE, timeout);
                 ReadFrame<RefBuffer> rf = f.get();
                 success(state);
                 RefBuffer rc = rf.getBody();
                 rc.release();
             } else {
-                f.handle((result, ex) -> {
-                    logRt(startTime, state);
-                    if (ex != null) {
-                        fail(state);
-                    } else {
-                        RefBuffer rc = result.getBody();
+                RpcCallback<RefBuffer> c = new RpcCallback<>() {
+                    @Override
+                    public void success(ReadFrame<RefBuffer> resp) {
+                        logRt(startTime, state);
+                        RefBuffer rc = resp.getBody();
                         rc.release();
-                        success(state);
+                        RpcBenchmark.this.success(state);
                     }
-                    return null;
-                });
+
+                    @Override
+                    public void fail(Throwable ex) {
+                        logRt(startTime, state);
+                        RpcBenchmark.this.fail(state);
+                    }
+                };
+                client.sendRequest(req, RefBufferDecoder.PLAIN_INSTANCE, timeout, c);
             }
         } catch (Exception e) {
             fail(state);
