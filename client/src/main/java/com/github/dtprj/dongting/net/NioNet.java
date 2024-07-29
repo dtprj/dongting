@@ -106,7 +106,8 @@ public abstract class NioNet extends AbstractLifeCircle {
                 }
             }
         } catch (Exception e) {
-            WriteData.callFail(request, e, callback);
+            RpcCallback.callFail(callback, e);
+            request.clean();
             if (acquire) {
                 semaphore.release();
             }

@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.log.BugLog;
+
 /**
  * @author huangli
  */
@@ -23,4 +25,24 @@ public interface RpcCallback<T> {
     void success(ReadFrame<T> resp);
 
     void fail(Throwable ex);
+
+    static <T> void callSuccess(RpcCallback<T> callback, ReadFrame<T> resp) {
+        try {
+            if (callback != null) {
+                callback.success(resp);
+            }
+        } catch (Throwable ex) {
+            BugLog.getLog().error("RpcCallback error", ex);
+        }
+    }
+
+    static void callFail(RpcCallback<?> callback, Throwable ex) {
+        try {
+            if (callback != null) {
+                callback.fail(ex);
+            }
+        } catch (Throwable ex2) {
+            BugLog.getLog().error("RpcCallback error", ex2);
+        }
+    }
 }

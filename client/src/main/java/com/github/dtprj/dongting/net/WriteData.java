@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.common.DtTime;
-import com.github.dtprj.dongting.log.BugLog;
 
 /**
  * @author huangli
@@ -56,33 +55,16 @@ class WriteData {
         this.respDecoder = null;
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({"unchecked", "rawtypes"})
     void callSuccess(ReadFrame resp) {
-        try {
-            if (callback == null) {
-                return;
-            }
-            callback.success(resp);
-        } catch (Throwable ex) {
-            BugLog.getLog().error("RpcCallback error", ex);
-        }
+        RpcCallback.callSuccess(callback, resp);
     }
 
     void callFail(boolean callClean, Throwable ex) {
-        callFail(callClean ? data : null, ex, callback);
-    }
-
-    static void callFail(WriteFrame f, Throwable ex, RpcCallback<?> callback) {
-        try {
-            if (f != null) {
-                f.clean();
-            }
-            if (callback != null) {
-                callback.fail(ex);
-            }
-        } catch (Throwable ex2) {
-            BugLog.getLog().error("RpcCallback error", ex2);
+        if (callClean) {
+            data.clean();
         }
+        RpcCallback.callFail(callback, ex);
     }
 
     public DtChannel getDtc() {
