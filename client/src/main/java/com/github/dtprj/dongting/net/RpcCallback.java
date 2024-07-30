@@ -17,9 +17,12 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.log.BugLog;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * @author huangli
  */
+@SuppressWarnings("Convert2Diamond")
 public interface RpcCallback<T> {
 
     void success(ReadFrame<T> resp);
@@ -44,5 +47,19 @@ public interface RpcCallback<T> {
         } catch (Throwable ex2) {
             BugLog.getLog().error("RpcCallback error", ex2);
         }
+    }
+
+    static <T> RpcCallback<T> create(CompletableFuture<T> f) {
+        return new RpcCallback<T>() {
+            @Override
+            public void success(ReadFrame<T> resp) {
+                f.complete(resp.getBody());
+            }
+
+            @Override
+            public void fail(Throwable ex) {
+                f.completeExceptionally(ex);
+            }
+        };
     }
 }

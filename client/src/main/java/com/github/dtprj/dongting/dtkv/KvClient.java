@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.net.SmallNoCopyWriteFrame;
 import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.RaftClient;
@@ -36,6 +37,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * @author huangli
  */
+@SuppressWarnings("Convert2Diamond")
 public class KvClient extends AbstractLifeCircle {
     private final RaftClient raftClient;
 
@@ -65,8 +67,9 @@ public class KvClient extends AbstractLifeCircle {
             }
         };
         wf.setCommand(Commands.DTKV_PUT);
-        return raftClient.sendRequest(groupId, wf, Decoder.VOID_DECODER, timeout)
-                .thenApply(r -> null);
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        raftClient.sendRequest(groupId, wf, Decoder.VOID_DECODER, timeout, RpcCallback.create(f));
+        return f;
     }
 
     public CompletableFuture<byte[]> get(int groupId, String key, DtTime timeout) {
@@ -88,8 +91,9 @@ public class KvClient extends AbstractLifeCircle {
             }
         };
         wf.setCommand(Commands.DTKV_GET);
-        return raftClient.sendRequest(groupId, wf, ByteArrayDecoder.INSTANCE, timeout)
-                .thenApply(ReadFrame::getBody);
+        CompletableFuture<byte[]> f = new CompletableFuture<>();
+        raftClient.sendRequest(groupId, wf, ByteArrayDecoder.INSTANCE, timeout, RpcCallback.create(f));
+        return f;
     }
 
     public CompletableFuture<Boolean> remove(int groupId, String key, DtTime timeout) {
@@ -111,8 +115,20 @@ public class KvClient extends AbstractLifeCircle {
             }
         };
         wf.setCommand(Commands.DTKV_REMOVE);
-        return raftClient.sendRequest(groupId, wf, PbNoCopyDecoder.SIMPLE_INT_DECODER, timeout)
-                .thenApply(f -> f.getBody() != null && f.getBody() != 0);
+        CompletableFuture<Boolean> f = new CompletableFuture<>();
+        RpcCallback<Integer> c = new RpcCallback<Integer>() {
+            @Override
+            public void success(ReadFrame<Integer> resp) {
+                f.complete(resp.getBody() != null && resp.getBody() != 0);
+            }
+
+            @Override
+            public void fail(Throwable ex) {
+                f.completeExceptionally(ex);
+            }
+        };
+        raftClient.sendRequest(groupId, wf, PbNoCopyDecoder.SIMPLE_INT_DECODER, timeout, c);
+        return f;
     }
 
     @Override

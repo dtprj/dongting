@@ -34,6 +34,7 @@ import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.PbIntWriteFrame;
 import com.github.dtprj.dongting.net.Peer;
 import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.net.WriteFrame;
 
 import java.nio.charset.StandardCharsets;
@@ -42,13 +43,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author huangli
  */
+@SuppressWarnings("Convert2Diamond")
 public class RaftClient extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(RaftClient.class);
     private final NioClient client;
@@ -160,16 +161,15 @@ public class RaftClient extends AbstractLifeCircle {
         }
     }
 
-    public <T> CompletableFuture<ReadFrame<T>> sendRequest(int groupId, WriteFrame request,
-                                                           Decoder<T> decoder, DtTime timeout) {
+    public <T> void sendRequest(int groupId, WriteFrame request, Decoder<T> decoder, DtTime timeout,
+                                RpcCallback<T> callback) {
         GroupInfo groupInfo = groups.get(groupId);
         if (groupInfo == null) {
-            return DtUtil.failedFuture(new NoSuchGroupException(groupId));
+            RpcCallback.callFail(callback, new NoSuchGroupException(groupId));
+            return;
         }
-        CompletableFuture<ReadFrame<T>> finalResult = new CompletableFuture<>();
-        CompletableFuture<ReadFrame<T>> result;
         if (groupInfo.getLeader() != null) {
-            result = client.sendRequest(groupInfo.getLeader(), request, decoder, timeout);
+            send(request, decoder, timeout, callback, groupInfo, true);
         } else {
             CompletableFuture<Peer> leaderFuture;
             if (groupInfo.getLeaderFuture() == null) {
@@ -177,43 +177,44 @@ public class RaftClient extends AbstractLifeCircle {
             } else {
                 leaderFuture = groupInfo.getLeaderFuture();
             }
-            result = leaderFuture.thenCompose(leader -> {
-                if (leader == null) {
-                    return DtUtil.failedFuture(new RaftException("no leader"));
+            leaderFuture.whenComplete((leader, ex) -> {
+                if (ex != null) {
+                    RpcCallback.callFail(callback, ex);
+                } else if (leader == null) {
+                    RpcCallback.callFail(callback, new RaftException("no leader"));
+                } else if (timeout.isTimeout()) {
+                    RpcCallback.callFail(callback, new NetTimeoutException("timeout after find leader"));
+                } else {
+                    send(request, decoder, timeout, callback, groupInfo, true);
                 }
-                if (timeout.isTimeout()) {
-                    return DtUtil.failedFuture(new NetTimeoutException("timeout after find leader"));
-                }
-                return client.sendRequest(leader, request, decoder, timeout);
             });
         }
-        result.whenComplete((rf, ex) -> {
-            if (ex == null) {
-                finalResult.complete(rf);
-                return;
+    }
+
+    private <T> void send(WriteFrame request, Decoder<T> decoder, DtTime timeout,
+                      RpcCallback<T> c, GroupInfo groupInfo, boolean retry) {
+        RpcCallback<T> newCallback = new RpcCallback<T>() {
+            @Override
+            public void success(ReadFrame<T> resp) {
+                c.success(resp);
             }
-            if (ex instanceof CompletionException) {
-                ex = ex.getCause();
-            }
-            if (ex instanceof NetCodeException) {
-                NetCodeException ncEx = (NetCodeException) ex;
-                if (ncEx.getCode() == CmdCodes.NOT_RAFT_LEADER) {
-                    Peer newLeader = updateLeaderFromExtra(ncEx.getRespFrame(), groupInfo);
-                    if (newLeader != null && !timeout.isTimeout()) {
-                        client.sendRequest(newLeader, request, decoder, timeout).whenComplete((rf2, ex2) -> {
-                            if (ex2 == null) {
-                                finalResult.complete(rf2);
-                            } else {
-                                finalResult.completeExceptionally(ex2);
-                            }
-                        });
-                        return;
+
+            @Override
+            public void fail(Throwable ex) {
+                if (retry && ex instanceof NetCodeException) {
+                    NetCodeException ncEx = (NetCodeException) ex;
+                    if (ncEx.getCode() == CmdCodes.NOT_RAFT_LEADER) {
+                        Peer newLeader = updateLeaderFromExtra(ncEx.getRespFrame(), groupInfo);
+                        if (newLeader != null && !timeout.isTimeout()) {
+                            send(request, decoder, timeout, c, groupInfo, false);
+                            return;
+                        }
                     }
                 }
+                c.fail(ex);
             }
-            finalResult.completeExceptionally(ex);
-        });
-        return finalResult;
+        };
+        client.sendRequest(groupInfo.getLeader(), request, decoder, timeout, newCallback);
     }
 
     private CompletableFuture<Peer> updateLeaderInfo(int groupId) {
@@ -306,15 +307,15 @@ public class RaftClient extends AbstractLifeCircle {
     }
 
     private Peer updateLeaderFromExtra(ReadFrame<?> frame, GroupInfo groupInfo) {
+        byte[] bs = frame.getExtra();
+        if (bs == null) {
+            return null;
+        }
         lock.lock();
         try {
             GroupInfo currentGroupInfo = groups.get(groupInfo.getGroupId());
             if (currentGroupInfo != groupInfo) {
                 // group info changed, drop the result
-                return null;
-            }
-            byte[] bs = frame.getExtra();
-            if (bs == null) {
                 return null;
             }
             String s = new String(bs, StandardCharsets.UTF_8);
