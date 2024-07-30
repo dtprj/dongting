@@ -268,7 +268,7 @@ public class NioClient extends NioNet {
         // O(n)
         List<Peer> list = this.peers;
         //noinspection ForLoopReplaceableByForEach
-        for (int i = 0; i < list.size(); i++) {
+        for (int i = 0, size = list.size(); i < size; i++) {
             Peer p = list.get(i);
             p.cleanWaitingConnectList(exceptionSupplier);
         }
