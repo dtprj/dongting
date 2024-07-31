@@ -59,12 +59,17 @@ public class RaftClient extends AbstractLifeCircle {
     private volatile IntObjMap<GroupInfo> groups = new IntObjMap<>();
 
     private final ReentrantLock lock = new ReentrantLock();
+    private long nextEpoch = 0;
 
     public RaftClient(NioClientConfig nioClientConfig) {
         this.client = new NioClient(nioClientConfig);
     }
 
     public void addOrUpdateGroup(int groupId, List<RaftNode> servers) throws NetException {
+        Objects.requireNonNull(servers);
+        if (servers.isEmpty()) {
+            throw new IllegalArgumentException("servers is empty");
+        }
         lock.lock();
         try {
             addOrUpdateGroupInLock(groupId, servers);
@@ -74,11 +79,6 @@ public class RaftClient extends AbstractLifeCircle {
     }
 
     private void addOrUpdateGroupInLock(int groupId, List<RaftNode> servers) throws NetException {
-        Objects.requireNonNull(servers);
-        if (servers.isEmpty()) {
-            throw new IllegalArgumentException("servers is empty");
-        }
-
         ArrayList<NodeInfo> needAddList = new ArrayList<>();
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         for (RaftNode n : servers) {
@@ -107,17 +107,17 @@ public class RaftClient extends AbstractLifeCircle {
             }
         }
 
-        ArrayList<NodeInfo> nodeInfoOfGroup = new ArrayList<>();
+        ArrayList<NodeInfo> nodeInfoList = new ArrayList<>();
         GroupInfo oldGroupInfo = groups.get(groupId);
         Peer leader = null;
         for (RaftNode n : servers) {
             NodeInfo nodeInfo = allNodes.get(n.getNodeId());
             if (nodeInfo != null) {
                 nodeInfo.getRefCount().retain();
-                nodeInfoOfGroup.add(nodeInfo);
+                nodeInfoList.add(nodeInfo);
             }
             if (oldGroupInfo != null) {
-                Peer oldLeader = oldGroupInfo.getLeader();
+                Peer oldLeader = oldGroupInfo.leader;
                 if (oldLeader != null && oldLeader.getEndPoint().equals(n.getHostPort())) {
                     // old leader in the new servers list
                     leader = oldLeader;
@@ -125,20 +125,39 @@ public class RaftClient extends AbstractLifeCircle {
             }
         }
         for (NodeInfo nodeInfo : needAddList) {
-            nodeInfoOfGroup.add(nodeInfo);
+            nodeInfoList.add(nodeInfo);
             allNodes.put(nodeInfo.getNodeId(), nodeInfo);
         }
 
         releaseOldGroup(oldGroupInfo);
 
-        GroupInfo gi = new GroupInfo(groupId, nodeInfoOfGroup, leader, null);
+        GroupInfo gi;
+        if (oldGroupInfo != null && oldGroupInfo.leaderFuture != null) {
+            gi = new GroupInfo(groupId, generateNextEpoch(), nodeInfoList, leader, true);
+            findLeader(gi, nodeInfoList.iterator());
+            // use new leader future to complete the old one
+            //noinspection DataFlowIssue
+            gi.leaderFuture.whenComplete((result, ex) -> {
+                if (ex != null) {
+                    oldGroupInfo.leaderFuture.completeExceptionally(ex);
+                } else {
+                    oldGroupInfo.leaderFuture.complete(result);
+                }
+            });
+        } else {
+            gi = new GroupInfo(groupId, generateNextEpoch(), nodeInfoList, leader, false);
+        }
         //noinspection NonAtomicOperationOnVolatileField
         this.groups = IntObjMap.copyOnWritePut(groups, groupId, gi).getRight();
     }
 
+    private long generateNextEpoch() {
+        return nextEpoch++;
+    }
+
     private void releaseOldGroup(GroupInfo oldGroupInfo) {
         if (oldGroupInfo != null) {
-            for (NodeInfo nodeInfo : oldGroupInfo.getServers()) {
+            for (NodeInfo nodeInfo : oldGroupInfo.servers) {
                 if (nodeInfo.getRefCount().release()) {
                     allNodes.remove(nodeInfo.getNodeId());
                     client.removePeer(nodeInfo.getPeer());
@@ -152,10 +171,14 @@ public class RaftClient extends AbstractLifeCircle {
         lock.lock();
         try {
             Pair<GroupInfo, IntObjMap<GroupInfo>> pair = IntObjMap.copyOnWriteRemove(groups, groupId);
-            GroupInfo oldGroupInfo = pair.getLeft();
             this.groups = pair.getRight();
-
-            releaseOldGroup(oldGroupInfo);
+            GroupInfo oldGroupInfo = pair.getLeft();
+            if (oldGroupInfo != null) {
+                if (oldGroupInfo.leaderFuture != null) {
+                    oldGroupInfo.leaderFuture.completeExceptionally(new RaftException("group removed " + groupId));
+                }
+                releaseOldGroup(oldGroupInfo);
+            }
         } finally {
             lock.unlock();
         }
@@ -168,31 +191,31 @@ public class RaftClient extends AbstractLifeCircle {
             RpcCallback.callFail(callback, new NoSuchGroupException(groupId));
             return;
         }
-        if (groupInfo.getLeader() != null) {
+        if (groupInfo.leader != null) {
             send(request, decoder, timeout, callback, groupInfo, true);
         } else {
-            CompletableFuture<Peer> leaderFuture;
-            if (groupInfo.getLeaderFuture() == null) {
+            CompletableFuture<GroupInfo> leaderFuture;
+            if (groupInfo.leaderFuture == null) {
                 leaderFuture = updateLeaderInfo(groupId);
             } else {
-                leaderFuture = groupInfo.getLeaderFuture();
+                leaderFuture = groupInfo.leaderFuture;
             }
-            leaderFuture.whenComplete((leader, ex) -> {
+            leaderFuture.whenComplete((gi, ex) -> {
                 if (ex != null) {
                     RpcCallback.callFail(callback, ex);
-                } else if (leader == null) {
+                } else if (gi == null) {
                     RpcCallback.callFail(callback, new RaftException("no leader"));
                 } else if (timeout.isTimeout()) {
                     RpcCallback.callFail(callback, new NetTimeoutException("timeout after find leader"));
                 } else {
-                    send(request, decoder, timeout, callback, groupInfo, true);
+                    send(request, decoder, timeout, callback, gi, true);
                 }
             });
         }
     }
 
     private <T> void send(WriteFrame request, Decoder<T> decoder, DtTime timeout,
-                      RpcCallback<T> c, GroupInfo groupInfo, boolean retry) {
+                          RpcCallback<T> c, GroupInfo gi, boolean retry) {
         RpcCallback<T> newCallback = new RpcCallback<T>() {
             @Override
             public void success(ReadFrame<T> resp) {
@@ -204,9 +227,9 @@ public class RaftClient extends AbstractLifeCircle {
                 if (retry && ex instanceof NetCodeException) {
                     NetCodeException ncEx = (NetCodeException) ex;
                     if (ncEx.getCode() == CmdCodes.NOT_RAFT_LEADER) {
-                        Peer newLeader = updateLeaderFromExtra(ncEx.getRespFrame(), groupInfo);
+                        Peer newLeader = updateLeaderFromExtra(ncEx.getRespFrame(), gi);
                         if (newLeader != null && !timeout.isTimeout()) {
-                            send(request, decoder, timeout, c, groupInfo, false);
+                            send(request, decoder, timeout, c, gi, false);
                             return;
                         }
                     }
@@ -214,90 +237,76 @@ public class RaftClient extends AbstractLifeCircle {
                 c.fail(ex);
             }
         };
-        client.sendRequest(groupInfo.getLeader(), request, decoder, timeout, newCallback);
+        client.sendRequest(gi.leader, request, decoder, timeout, newCallback);
     }
 
-    private CompletableFuture<Peer> updateLeaderInfo(int groupId) {
+    private CompletableFuture<GroupInfo> updateLeaderInfo(int groupId) {
         lock.lock();
         try {
             GroupInfo gi = groups.get(groupId);
             if (gi == null) {
                 return DtUtil.failedFuture(new NoSuchGroupException(groupId));
             }
-            if (gi.getLeader() != null) {
-                return CompletableFuture.completedFuture(gi.getLeader());
+            if (gi.leader != null) {
+                return CompletableFuture.completedFuture(gi);
             }
-            if (gi.getLeaderFuture() != null) {
-                return gi.getLeaderFuture();
+            if (gi.leaderFuture != null) {
+                return gi.leaderFuture;
             }
-            CompletableFuture<Peer> f = new CompletableFuture<>();
-            GroupInfo newGroupInfo = new GroupInfo(groupId, gi.getServers(), null, f);
+            GroupInfo newGroupInfo = new GroupInfo(groupId, generateNextEpoch(), gi.servers, null, true);
             groups.put(groupId, newGroupInfo);
-            Iterator<NodeInfo> it = newGroupInfo.getServers().iterator();
+            Iterator<NodeInfo> it = newGroupInfo.servers.iterator();
             findLeader(newGroupInfo, it);
-            return f;
+            return newGroupInfo.leaderFuture;
         } finally {
             lock.unlock();
         }
     }
 
-    private void findLeader(GroupInfo groupInfo, Iterator<NodeInfo> it) {
-        GroupInfo currentGroupInfo = groups.get(groupInfo.getGroupId());
-        if (currentGroupInfo != groupInfo) {
-            // group info changed, stop current find process
-            if (currentGroupInfo.getLeader() != null) {
-                groupInfo.getLeaderFuture().complete(currentGroupInfo.getLeader());
-            } else {
-                CompletableFuture<Peer> newLeaderFuture = currentGroupInfo.getLeaderFuture();
-                if (newLeaderFuture == null) {
-                    newLeaderFuture = updateLeaderInfo(groupInfo.getGroupId());
-                }
-                // use new leader future to complete the old one
-                newLeaderFuture.whenComplete((leader, ex) -> {
-                    if (ex != null) {
-                        groupInfo.getLeaderFuture().completeExceptionally(ex);
-                    } else {
-                        groupInfo.getLeaderFuture().complete(leader);
-                    }
-                });
-            }
-            return;
-        }
+    private void findLeader(GroupInfo gi, Iterator<NodeInfo> it) {
         if (!it.hasNext()) {
-            groupInfo.getLeaderFuture().complete(null);
+            //noinspection DataFlowIssue
+            gi.leaderFuture.complete(null);
 
             // set new group info, to trigger next find
-            GroupInfo newGroupInfo = new GroupInfo(groupInfo.getGroupId(),
-                    groupInfo.getServers(), null, null);
-            groups.put(groupInfo.getGroupId(), newGroupInfo);
+            GroupInfo newGroupInfo = new GroupInfo(gi.groupId, gi.epoch, gi.servers, null, false);
+            groups.put(gi.groupId, newGroupInfo);
             return;
         }
         NodeInfo node = it.next();
-        PbIntWriteFrame req = new PbIntWriteFrame(Commands.RAFT_QUERY_STATUS, groupInfo.getGroupId());
+        PbIntWriteFrame req = new PbIntWriteFrame(Commands.RAFT_QUERY_STATUS, gi.groupId);
         DtTime rpcTimeout = new DtTime(3, TimeUnit.SECONDS);
         Decoder<QueryStatusResp> decoder = new PbNoCopyDecoder<>(c -> new QueryStatusResp.QueryStatusRespCallback());
         client.sendRequest(node.getPeer(), req, decoder, rpcTimeout)
-                .whenComplete((rf, ex) -> processLeaderQueryResult(groupInfo, it, rf, ex, node));
+                .whenComplete((rf, ex) -> processLeaderQueryResult(gi, it, rf, ex, node));
     }
 
-    private void processLeaderQueryResult(GroupInfo groupInfo, Iterator<NodeInfo> it,
+    private void processLeaderQueryResult(GroupInfo gi, Iterator<NodeInfo> it,
                                           ReadFrame<QueryStatusResp> rf, Throwable ex, NodeInfo node) {
         lock.lock();
         try {
+            GroupInfo currentGroupInfo = groups.get(gi.groupId);
+            if (currentGroupInfo == null || currentGroupInfo.epoch != gi.epoch) {
+                // group info changed, stop current find process
+                return;
+            }
             if (ex != null) {
                 log.warn("query leader from {} fail: {}", node.getPeer().getEndPoint(), ex.toString());
-                findLeader(groupInfo, it);
+                findLeader(gi, it);
             } else {
                 if (rf.getBody() == null || rf.getBody().getLeaderId() <= 0) {
                     log.error("query leader from {} fail, leader id illegal: {}",
                             node.getPeer().getEndPoint(), rf.getBody() == null ? null : rf.getBody().getLeaderId());
-                    findLeader(groupInfo, it);
+                    findLeader(gi, it);
                 } else {
-                    Peer leader = parseLeader(groupInfo, rf.getBody().getLeaderId());
+                    Peer leader = parseLeader(gi, rf.getBody().getLeaderId());
                     if (leader != null) {
-                        groupInfo.getLeaderFuture().complete(leader);
+                        GroupInfo newGroupInfo = new GroupInfo(gi.groupId, gi.epoch, gi.servers, leader, false);
+                        groups.put(gi.groupId, newGroupInfo);
+                        //noinspection DataFlowIssue
+                        gi.leaderFuture.complete(newGroupInfo);
                     } else {
-                        findLeader(groupInfo, it);
+                        findLeader(gi, it);
                     }
                 }
             }
@@ -313,17 +322,17 @@ public class RaftClient extends AbstractLifeCircle {
         }
         lock.lock();
         try {
-            GroupInfo currentGroupInfo = groups.get(groupInfo.getGroupId());
-            if (currentGroupInfo != groupInfo) {
+            GroupInfo currentGroupInfo = groups.get(groupInfo.groupId);
+            if (currentGroupInfo == null || currentGroupInfo.epoch != groupInfo.epoch) {
                 // group info changed, drop the result
                 return null;
             }
             String s = new String(bs, StandardCharsets.UTF_8);
             Peer leader = parseLeader(groupInfo, Integer.parseInt(s));
             if (leader != null) {
-                GroupInfo newGroupInfo = new GroupInfo(groupInfo.getGroupId(),
-                        groupInfo.getServers(), leader, null);
-                groups.put(groupInfo.getGroupId(), newGroupInfo);
+                GroupInfo newGroupInfo = new GroupInfo(groupInfo.groupId, groupInfo.epoch,
+                        groupInfo.servers, leader, false);
+                groups.put(groupInfo.groupId, newGroupInfo);
             }
             return leader;
         } finally {
@@ -332,13 +341,13 @@ public class RaftClient extends AbstractLifeCircle {
     }
 
     private Peer parseLeader(GroupInfo groupInfo, int leaderId) {
-        for (NodeInfo ni : groupInfo.getServers()) {
+        for (NodeInfo ni : groupInfo.servers) {
             if (ni.getNodeId() == leaderId) {
-                log.info("group {} find leader: {}, {}", groupInfo.getGroupId(), leaderId, ni.getHostPort());
+                log.info("group {} find leader: {}, {}", groupInfo.groupId, leaderId, ni.getHostPort());
                 return ni.getPeer();
             }
         }
-        log.warn("leader {} not in group {}", leaderId, groupInfo.getGroupId());
+        log.warn("leader {} not in group {}", leaderId, groupInfo.groupId);
         return null;
     }
 

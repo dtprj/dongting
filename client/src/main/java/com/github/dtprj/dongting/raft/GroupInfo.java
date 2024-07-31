@@ -24,32 +24,21 @@ import java.util.concurrent.CompletableFuture;
  * @author huangli
  */
 class GroupInfo {
-    private final int groupId;
-    private final List<NodeInfo> servers;
-    private final Peer leader;
-    private final CompletableFuture<Peer> leaderFuture;
+    final int groupId;
+    final List<NodeInfo> servers;
+    final Peer leader;
+    final CompletableFuture<GroupInfo> leaderFuture;
+    long epoch;
 
-    public GroupInfo(int groupId, List<NodeInfo> servers, Peer leader, CompletableFuture<Peer> leaderFuture) {
+    public GroupInfo(int groupId, long epoch, List<NodeInfo> servers, Peer leader, boolean createFuture) {
         this.groupId = groupId;
+        this.epoch = epoch;
         this.servers = servers;
         this.leader = leader;
-        this.leaderFuture = leaderFuture;
+        if (createFuture) {
+            this.leaderFuture = new CompletableFuture<>();
+        } else {
+            this.leaderFuture = null;
+        }
     }
-
-    public int getGroupId() {
-        return groupId;
-    }
-
-    public List<NodeInfo> getServers() {
-        return servers;
-    }
-
-    public Peer getLeader() {
-        return leader;
-    }
-
-    public CompletableFuture<Peer> getLeaderFuture() {
-        return leaderFuture;
-    }
-
 }
