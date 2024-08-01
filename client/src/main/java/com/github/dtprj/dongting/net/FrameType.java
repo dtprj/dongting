@@ -4,9 +4,9 @@ package com.github.dtprj.dongting.net;
  * @author huangli
  */
 public interface FrameType {
-    int TYPE_RESP = 0;
     int TYPE_REQ = 1;
-    int TYPE_ONE_WAY = 2;
+    int TYPE_RESP = 2;
+    int TYPE_ONE_WAY = 3;
 
     static String toStr(int frameType) {
         switch (frameType) {
