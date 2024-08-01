@@ -88,7 +88,7 @@ public abstract class NioNet extends AbstractLifeCircle {
             Objects.requireNonNull(decoder);
             DtUtil.checkPositive(request.getCommand(), "request.command");
 
-            request.setFrameType(FrameType.TYPE_REQ);
+            request.setFrameType(decoder != null ? FrameType.TYPE_REQ : FrameType.TYPE_ONE_WAY);
             if (status != STATUS_RUNNING) {
                 throw new NetException("error state: " + status);
             }
