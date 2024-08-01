@@ -78,14 +78,13 @@ public abstract class NioNet extends AbstractLifeCircle {
         nioStatus.registerProcessor(cmd, processor);
     }
 
-    <T> void sendRequest(NioWorker worker, Peer peer, WriteFrame request, Decoder<T> decoder, DtTime timeout,
-                         RpcCallback<T> callback) {
+    <T> void send(NioWorker worker, Peer peer, WriteFrame request, Decoder<T> decoder, DtTime timeout,
+                  RpcCallback<T> callback) {
         boolean acquire = false;
         try {
             Objects.requireNonNull(timeout);
             Objects.requireNonNull(callback);
             Objects.requireNonNull(request);
-            Objects.requireNonNull(decoder);
             DtUtil.checkPositive(request.getCommand(), "request.command");
 
             request.setFrameType(decoder != null ? FrameType.TYPE_REQ : FrameType.TYPE_ONE_WAY);
