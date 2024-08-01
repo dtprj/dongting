@@ -158,6 +158,16 @@ class IoChannelQueue {
                     encodeResult = doEncode(buf, wd);
                 }
                 if (encodeResult == ENCODE_NOT_FINISH) {
+                    if (buf.position() == 0) {
+                        workerStatus.addFramesToWrite(-1);
+                        subQueueBytes = Math.max(0, subQueueBytes - wd.estimateSize);
+                        encodeContext.reset();
+                        Throwable ex = new NetException("encode fail when buffer is empty");
+                        wd.callFail(true, ex);
+                        wd = null;
+                        BugLog.log(ex);
+                        continue;
+                    }
                     return flipAndReturnBuffer(buf);
                 } else {
                     if (encodeResult == ENCODE_FINISH) {
