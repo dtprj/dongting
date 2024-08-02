@@ -229,6 +229,7 @@ public class RaftClient extends AbstractLifeCircle {
                     if (ncEx.getCode() == CmdCodes.NOT_RAFT_LEADER) {
                         Peer newLeader = updateLeaderFromExtra(ncEx.getRespFrame(), gi);
                         if (newLeader != null && !timeout.isTimeout()) {
+                            request.reset();
                             send(request, decoder, timeout, c, gi, false);
                             return;
                         }

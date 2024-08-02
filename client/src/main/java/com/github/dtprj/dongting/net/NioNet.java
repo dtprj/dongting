@@ -101,7 +101,7 @@ public abstract class NioNet extends AbstractLifeCircle {
                 }
                 if (!acquire) {
                     throw new NetTimeoutException("too many pending requests, client wait permit timeout in "
-                                    + timeout.getTimeout(TimeUnit.MILLISECONDS) + " ms");
+                            + timeout.getTimeout(TimeUnit.MILLISECONDS) + " ms");
                 }
             }
         } catch (Exception e) {

@@ -27,4 +27,8 @@ public abstract class RetryableWriteFrame extends WriteFrame {
         // Since doClean() implementation may not be idempotent, we disable it here, user should
         // perform any cleanup in the callback of RPC.
     }
+
+    public void reset() {
+        super.reset();
+    }
 }

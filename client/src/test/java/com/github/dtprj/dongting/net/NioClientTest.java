@@ -664,8 +664,6 @@ public class NioClientTest {
         server1.sleep = tick(300);
 
         byte[] bs = new byte[1];
-        ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.wrap(bs));
-        wf.setCommand(Commands.CMD_PING);
 
         AtomicInteger expectFinishIndex = new AtomicInteger(0);
         AtomicReference<Throwable> fail = new AtomicReference<>();
@@ -673,6 +671,8 @@ public class NioClientTest {
         //noinspection rawtypes
         CompletableFuture[] allFutures = new CompletableFuture[loop];
         for (int i = 0; i < loop; i++) {
+            ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.wrap(bs));
+            wf.setCommand(Commands.CMD_PING);
             CompletableFuture<?> f = client.sendRequest(wf, RefBufferDecoder.INSTANCE,
                     new DtTime(100, TimeUnit.SECONDS));
             int index = i;

@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.PbUtil;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -38,6 +39,9 @@ public abstract class WriteFrame extends Frame implements Encodable {
     private int bodySize;
 
     private byte[] msgBytes;
+
+    boolean use;
+    private boolean cleaned;
 
     private static final int MAX_HEADER_SIZE = 4 // length
             + 1 + 1 // uint32 frame_type = 1;
@@ -138,10 +142,16 @@ public abstract class WriteFrame extends Frame implements Encodable {
     }
 
     public final void clean() {
+        if (cleaned) {
+            BugLog.getLog().error("already cleaned {}", this);
+            return;
+        }
         try {
             doClean();
         } catch (Throwable e) {
             log.error("clean error", e);
+        } finally {
+            cleaned = true;
         }
     }
 
@@ -149,6 +159,11 @@ public abstract class WriteFrame extends Frame implements Encodable {
      * may be called in io thread (or other thread).
      */
     protected void doClean() {
+    }
+
+    void reset() {
+        use = false;
+        cleaned = false;
     }
 
 }

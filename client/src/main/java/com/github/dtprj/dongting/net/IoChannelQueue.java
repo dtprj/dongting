@@ -73,6 +73,11 @@ class IoChannelQueue {
 
     public void enqueue(WriteData writeData) {
         WriteFrame wf = writeData.getData();
+        if (wf.use) {
+            writeData.callFail(true, new NetException("WriteFrame is used"));
+            return;
+        }
+        wf.use = true;
         int estimateSize;
         try {
             // can't invoke actualSize() here because seq and timeout field is not set yet
