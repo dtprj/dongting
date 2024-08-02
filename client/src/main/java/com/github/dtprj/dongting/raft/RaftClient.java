@@ -34,8 +34,8 @@ import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.PbIntWriteFrame;
 import com.github.dtprj.dongting.net.Peer;
 import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.RetryableWriteFrame;
 import com.github.dtprj.dongting.net.RpcCallback;
-import com.github.dtprj.dongting.net.WriteFrame;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -184,7 +184,7 @@ public class RaftClient extends AbstractLifeCircle {
         }
     }
 
-    public <T> void sendRequest(int groupId, WriteFrame request, Decoder<T> decoder, DtTime timeout,
+    public <T> void sendRequest(int groupId, RetryableWriteFrame request, Decoder<T> decoder, DtTime timeout,
                                 RpcCallback<T> callback) {
         GroupInfo groupInfo = groups.get(groupId);
         if (groupInfo == null) {
@@ -214,7 +214,7 @@ public class RaftClient extends AbstractLifeCircle {
         }
     }
 
-    private <T> void send(WriteFrame request, Decoder<T> decoder, DtTime timeout,
+    private <T> void send(RetryableWriteFrame request, Decoder<T> decoder, DtTime timeout,
                           RpcCallback<T> c, GroupInfo gi, boolean retry) {
         RpcCallback<T> newCallback = new RpcCallback<T>() {
             @Override

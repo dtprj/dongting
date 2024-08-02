@@ -26,7 +26,6 @@ import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.RpcCallback;
 import com.github.dtprj.dongting.net.SmallNoCopyWriteFrame;
-import com.github.dtprj.dongting.net.WriteFrame;
 import com.github.dtprj.dongting.raft.RaftClient;
 
 import java.nio.ByteBuffer;
@@ -48,7 +47,7 @@ public class KvClient extends AbstractLifeCircle {
     public CompletableFuture<Void> put(int groupId, String key, byte[] value, DtTime timeout) {
         Objects.requireNonNull(key);
         Objects.requireNonNull(value);
-        WriteFrame wf = new SmallNoCopyWriteFrame() {
+        SmallNoCopyWriteFrame wf = new SmallNoCopyWriteFrame() {
 
             private final byte[] keyBytes = key.getBytes(StandardCharsets.UTF_8);
 
@@ -74,7 +73,7 @@ public class KvClient extends AbstractLifeCircle {
 
     public CompletableFuture<byte[]> get(int groupId, String key, DtTime timeout) {
         Objects.requireNonNull(key);
-        WriteFrame wf = new SmallNoCopyWriteFrame() {
+        SmallNoCopyWriteFrame wf = new SmallNoCopyWriteFrame() {
 
             private final byte[] keyBytes = key.getBytes(StandardCharsets.UTF_8);
 
@@ -98,7 +97,7 @@ public class KvClient extends AbstractLifeCircle {
 
     public CompletableFuture<Boolean> remove(int groupId, String key, DtTime timeout) {
         Objects.requireNonNull(key);
-        WriteFrame wf = new SmallNoCopyWriteFrame() {
+        SmallNoCopyWriteFrame wf = new SmallNoCopyWriteFrame() {
 
             private final byte[] keyBytes = key.getBytes(StandardCharsets.UTF_8);
 

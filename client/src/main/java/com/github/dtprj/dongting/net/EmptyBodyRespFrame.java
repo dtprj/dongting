@@ -15,14 +15,12 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.codec.EncodeContext;
-
 import java.nio.ByteBuffer;
 
 /**
  * @author huangli
  */
-public class EmptyBodyRespFrame extends WriteFrame {
+public class EmptyBodyRespFrame extends RetryableWriteFrame {
 
     public EmptyBodyRespFrame(int respCode) {
         setRespCode(respCode);
@@ -34,7 +32,7 @@ public class EmptyBodyRespFrame extends WriteFrame {
     }
 
     @Override
-    protected boolean encodeBody(EncodeContext context, ByteBuffer dest) {
+    protected boolean encodeBody(RpcEncodeContext context, ByteBuffer dest) {
         return true;
     }
 }

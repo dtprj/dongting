@@ -15,17 +15,13 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.codec.EncodeContext;
-
 import java.nio.ByteBuffer;
 
 /**
  * @author huangli
  */
-public class ByteBufferWriteFrame extends WriteFrame {
+public class ByteBufferWriteFrame extends RetryableWriteFrame {
     private final ByteBuffer data;
-    private int readBytes;
-    private ByteBuffer srcCopy;
     private final int size;
 
     public ByteBufferWriteFrame(ByteBuffer data) {
@@ -59,17 +55,33 @@ public class ByteBufferWriteFrame extends WriteFrame {
         return srcCopy;
     }
 
-    @Override
-    protected boolean encodeBody(EncodeContext context, ByteBuffer dest) {
-        if (data == null) {
+    static boolean encodeBody(RpcEncodeContext context,ByteBuffer src, ByteBuffer dest) {
+        if (src == null) {
             return true;
         }
-        if (data.isDirect()) {
-            srcCopy = copyFromDirectBuffer(data, dest, srcCopy);
-            return srcCopy.remaining() == 0;
+        if (src.isDirect()) {
+            ByteBuffer srcCopy = (ByteBuffer) context.getStatus();
+            srcCopy = copyFromDirectBuffer(src, dest, srcCopy);
+            if (srcCopy.remaining() == 0) {
+                return true;
+            } else {
+                context.setStatus(srcCopy);
+                return false;
+            }
         } else {
-            readBytes = copyFromHeapBuffer(data, dest, readBytes);
-            return readBytes >= data.remaining();
+            Integer readBytes = (Integer) context.getStatus();
+            readBytes = copyFromHeapBuffer(src, dest, readBytes == null ? 0 : readBytes);
+            if(readBytes >= src.remaining()) {
+                return true;
+            } else {
+                context.setStatus(readBytes);
+                return false;
+            }
         }
+    }
+
+    @Override
+    protected boolean encodeBody(RpcEncodeContext context, ByteBuffer dest) {
+        return encodeBody(context, data, dest);
     }
 }

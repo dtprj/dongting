@@ -15,24 +15,16 @@
  */
 package com.github.dtprj.dongting.net;
 
-import java.nio.ByteBuffer;
-
 /**
  * @author huangli
  */
-public class EmptyBodyReqFrame extends RetryableWriteFrame {
-
-    public EmptyBodyReqFrame(int command) {
-        setCommand(command);
-    }
+public abstract class RetryableWriteFrame extends WriteFrame {
 
     @Override
-    protected int calcActualBodySize() {
-        return 0;
-    }
-
-    @Override
-    protected boolean encodeBody(RpcEncodeContext context, ByteBuffer dest) {
-        return true;
+    protected final void doClean() {
+        // WriteFrame.clean()/doClean() will be called after it's been written to the channel.
+        // In retryable write frame, it may be called multiple times.
+        // Since doClean() implementation may not be idempotent, we disable it here, user should
+        // perform any cleanup in the callback of RPC.
     }
 }

@@ -17,24 +17,36 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
 
+import java.nio.ByteBuffer;
+
 /**
  * @author huangli
  */
 @SuppressWarnings("FieldMayBeFinal")
-public class RefBufWriteFrame extends ByteBufferWriteFrame {
+public class RefBufWriteFrame extends WriteFrame {
     private RefBuffer refBuffer;
+    private final int size;
 
     public RefBufWriteFrame(RefBuffer refBuffer) {
-        super(refBuffer == null ? null : refBuffer.getBuffer());
         this.refBuffer = refBuffer;
+        this.size = refBuffer == null ? 0 : refBuffer.getBuffer() == null ? 0 : refBuffer.getBuffer().remaining();
     }
 
     @Override
     protected void doClean() {
-        super.doClean();
         if (refBuffer != null) {
             refBuffer.release();
             this.refBuffer = null;
         }
+    }
+
+    @Override
+    protected int calcActualBodySize() {
+        return size;
+    }
+
+    @Override
+    protected boolean encodeBody(RpcEncodeContext context, ByteBuffer dest) {
+        return ByteBufferWriteFrame.encodeBody(context, refBuffer == null ? null : refBuffer.getBuffer(), dest);
     }
 }

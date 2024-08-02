@@ -30,14 +30,12 @@ import java.nio.charset.StandardCharsets;
 public abstract class WriteFrame extends Frame implements Encodable {
     private static final DtLog log = DtLogs.getLogger(WriteFrame.class);
 
-    private static final int STATUS_INIT = 0;
+    static final int STATUS_INIT = 0;
     private static final int STATUS_HEADER_ENCODE_FINISHED = 1;
     private static final int STATUS_ENCODE_FINISHED = 2;
-    private static final int STATUS_CLEANED = 3;
 
     private int dumpSize;
     private int bodySize;
-    private int status;
 
     private byte[] msgBytes;
 
@@ -53,7 +51,7 @@ public abstract class WriteFrame extends Frame implements Encodable {
 
     protected abstract int calcActualBodySize();
 
-    protected abstract boolean encodeBody(EncodeContext context, ByteBuffer dest);
+    protected abstract boolean encodeBody(RpcEncodeContext context, ByteBuffer dest);
 
     public final int calcMaxFrameSize() {
         return MAX_HEADER_SIZE
@@ -99,7 +97,8 @@ public abstract class WriteFrame extends Frame implements Encodable {
 
     @Override
     public final boolean encode(EncodeContext context, ByteBuffer buf) {
-        if (status == STATUS_INIT) {
+        RpcEncodeContext c = (RpcEncodeContext) context;
+        if (c.frameEncodeStatus == STATUS_INIT) {
             int totalSize = actualSize();
             int headerSize = totalSize - actualBodySize();
             if (buf.remaining() < headerSize) {
@@ -116,38 +115,33 @@ public abstract class WriteFrame extends Frame implements Encodable {
                 if (bodySize > 0) {
                     PbUtil.writeLengthDelimitedPrefix(buf, Frame.IDX_BODY, bodySize);
                 }
-                status = STATUS_HEADER_ENCODE_FINISHED;
+                c.frameEncodeStatus = STATUS_HEADER_ENCODE_FINISHED;
             }
         }
-        if (status == STATUS_HEADER_ENCODE_FINISHED) {
+        if (c.frameEncodeStatus == STATUS_HEADER_ENCODE_FINISHED) {
             boolean finish = false;
             try {
                 if (bodySize > 0) {
-                    finish = encodeBody(context, buf);
+                    finish = encodeBody(c, buf);
                 } else {
                     finish = true;
                 }
             } finally {
                 if (finish) {
-                    status = STATUS_ENCODE_FINISHED;
+                    c.frameEncodeStatus = STATUS_ENCODE_FINISHED;
                 }
             }
             return finish;
         } else {
-            throw new NetException("invalid status: " + status);
+            throw new NetException("invalid status: " + c.frameEncodeStatus);
         }
     }
 
     public final void clean() {
-        if (status == STATUS_CLEANED) {
-            return;
-        }
         try {
             doClean();
         } catch (Throwable e) {
             log.error("clean error", e);
-        } finally {
-            status = STATUS_CLEANED;
         }
     }
 

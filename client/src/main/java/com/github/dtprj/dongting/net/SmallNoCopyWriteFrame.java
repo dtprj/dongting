@@ -15,16 +15,14 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.codec.EncodeContext;
-
 import java.nio.ByteBuffer;
 
 /**
  * @author huangli
  */
-public abstract class SmallNoCopyWriteFrame extends WriteFrame {
+public abstract class SmallNoCopyWriteFrame extends RetryableWriteFrame {
     @Override
-    protected final boolean encodeBody(EncodeContext context, ByteBuffer dest) {
+    protected final boolean encodeBody(RpcEncodeContext context, ByteBuffer dest) {
         if (dest.remaining() < actualBodySize()) {
             return false;
         }

@@ -6,7 +6,6 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.codec.DtFrame;
-import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.google.protobuf.ByteString;
@@ -78,7 +77,7 @@ public class FramePbTest {
         f.setTimeout(timeout);
         f.setExtra(extra);
         ByteBuffer buf = ByteBuffer.allocate(f.actualSize());
-        f.encode(new EncodeContext(null), buf);
+        f.encode(new RpcEncodeContext(null), buf);
         buf.flip();
         buf.position(4);
         DtFrame.Frame pbf = DtFrame.Frame.parseFrom(buf);

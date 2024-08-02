@@ -15,24 +15,23 @@
  */
 package com.github.dtprj.dongting.net;
 
-import java.nio.ByteBuffer;
+import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.codec.EncodeContext;
 
 /**
  * @author huangli
  */
-public class EmptyBodyReqFrame extends RetryableWriteFrame {
+public class RpcEncodeContext extends EncodeContext {
 
-    public EmptyBodyReqFrame(int command) {
-        setCommand(command);
+    int frameEncodeStatus;
+
+    public RpcEncodeContext(RefBufferFactory heapPool) {
+        super(heapPool);
     }
 
     @Override
-    protected int calcActualBodySize() {
-        return 0;
-    }
-
-    @Override
-    protected boolean encodeBody(RpcEncodeContext context, ByteBuffer dest) {
-        return true;
+    public void reset() {
+        super.reset();
+        this.frameEncodeStatus = WriteFrame.STATUS_INIT;
     }
 }

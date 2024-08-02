@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.codec.ByteArrayDecoder;
 import com.github.dtprj.dongting.codec.CopyDecoder;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.DtFrame;
-import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.codec.RefBufferDecoder;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
@@ -757,7 +756,7 @@ public class NioClientTest {
                 }
 
                 @Override
-                protected boolean encodeBody(EncodeContext context, ByteBuffer dest) {
+                protected boolean encodeBody(RpcEncodeContext context, ByteBuffer dest) {
                     return true;
                 }
             };
@@ -787,7 +786,7 @@ public class NioClientTest {
                 }
 
                 @Override
-                protected boolean encodeBody(EncodeContext context, ByteBuffer dest) {
+                protected boolean encodeBody(RpcEncodeContext context, ByteBuffer dest) {
                     throw new MockRuntimeException();
                 }
             };
