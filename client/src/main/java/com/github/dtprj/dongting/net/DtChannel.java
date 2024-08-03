@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import java.net.SocketAddress;
 import java.nio.channels.SocketChannel;
 
 /**
@@ -22,4 +23,10 @@ import java.nio.channels.SocketChannel;
  */
 public interface DtChannel {
     SocketChannel getChannel();
+
+    SocketAddress getRemoteAddr();
+
+    SocketAddress getLocalAddr();
+
+    RespWriter getRespWriter();
 }

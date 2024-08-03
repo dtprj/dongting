@@ -81,7 +81,7 @@ public class TimeoutTest {
     private void registerDelayPingProcessor(CountDownLatch latch1, CountDownLatch latch2) {
         server.register(CMD, new NioServer.PingProcessor() {
             @Override
-            public WriteFrame process(ReadFrame<RefBuffer> frame, ChannelContext channelContext, ReqContext reqContext) {
+            public WriteFrame process(ReadFrame<RefBuffer> frame, ReqContext reqContext) {
                 if (latch1 != null) {
                     latch1.countDown();
                 }
@@ -93,7 +93,7 @@ public class TimeoutTest {
                     }
                 }
                 runCount.incrementAndGet();
-                return super.process(frame, channelContext, reqContext);
+                return super.process(frame, reqContext);
             }
         });
     }
@@ -177,7 +177,7 @@ public class TimeoutTest {
         AtomicInteger processCount = new AtomicInteger();
         ReqProcessor<ByteBuffer> p = new ReqProcessor<>() {
             @Override
-            public WriteFrame process(ReadFrame<ByteBuffer> frame, ChannelContext channelContext, ReqContext reqContext) {
+            public WriteFrame process(ReadFrame<ByteBuffer> frame, ReqContext reqContext) {
                 ByteBufferWriteFrame resp = new ByteBufferWriteFrame(frame.getBody());
                 resp.setRespCode(CmdCodes.SUCCESS);
                 processCount.incrementAndGet();

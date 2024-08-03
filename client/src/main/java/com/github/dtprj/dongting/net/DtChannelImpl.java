@@ -29,6 +29,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
 import java.io.IOException;
+import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.RejectedExecutionException;
@@ -46,10 +47,11 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     private final NioConfig nioConfig;
     final WorkerStatus workerStatus;
     private final SocketChannel channel;
-    private final ChannelContext channelContext;
     private final DecodeContext decodeContext;
     private final RespWriter respWriter;
     private final Peer peer;
+    private final SocketAddress remoteAddr;
+    private final SocketAddress localAddr;
 
     private final int channelIndexInWorker;
     int seq = 1;
@@ -81,8 +83,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
         this.respWriter = new RespWriter(workerStatus.getIoQueue(), workerStatus.getWakeupRunnable(), this);
 
-        this.channelContext = new ChannelContext(this, channel, socketChannel.getRemoteAddress(),
-                socketChannel.getLocalAddress(), respWriter);
+        this.remoteAddr = channel.getRemoteAddress();
+        this.localAddr = channel.getLocalAddress();
 
         this.decodeContext = new DecodeContext();
         this.decodeContext.setHeapPool(workerStatus.getHeapPool());
@@ -335,15 +337,14 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
     private void processIncomingRequest(ReadFrame req, ReqProcessor p, Timestamp roundTime) {
         NioStatus nioStatus = this.nioStatus;
-        ReqContext reqContext = new ReqContext();
-        reqContext.setTimeout(new DtTime(roundTime, req.getTimeout(), TimeUnit.NANOSECONDS));
+        ReqContext reqContext = new ReqContext(this, new DtTime(roundTime, req.getTimeout(), TimeUnit.NANOSECONDS));
         if (p.getExecutor() == null) {
-            if (timeout(req, channelContext, reqContext, roundTime)) {
+            if (timeout(req, reqContext, roundTime)) {
                 return;
             }
             WriteFrame resp;
             try {
-                resp = p.process(req, channelContext, reqContext);
+                resp = p.process(req, reqContext);
             } catch (NetCodeException e) {
                 log.warn("ReqProcessor.process fail, command={}, code={}, msg={}",
                         req.getCommand(), e.getCode(), e.getMessage());
@@ -379,13 +380,13 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         }
     }
 
-    static boolean timeout(ReadFrame rf, ChannelContext channelContext, ReqContext reqContext, Timestamp ts) {
+    static boolean timeout(ReadFrame rf, ReqContext reqContext, Timestamp ts) {
         DtTime t = reqContext.getTimeout();
         boolean timeout = ts == null ? t.isTimeout() : t.isTimeout(ts);
         if (timeout) {
             String type = FrameType.toStr(rf.getFrameType());
             log.debug("drop timeout {}, remote={}, seq={}, timeout={}ms", type,
-                    channelContext.getRemoteAddr(), rf.getSeq(), t.getTimeout(TimeUnit.MILLISECONDS));
+                    reqContext.getDtChannel().getRemoteAddr(), rf.getSeq(), t.getTimeout(TimeUnit.MILLISECONDS));
             return true;
         } else {
             return false;
@@ -429,8 +430,14 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         return closed;
     }
 
-    public ChannelContext getProcessContext() {
-        return channelContext;
+    @Override
+    public SocketAddress getRemoteAddr() {
+        return remoteAddr;
+    }
+
+    @Override
+    public SocketAddress getLocalAddr() {
+        return localAddr;
     }
 
     public void close() {
@@ -455,6 +462,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         return frame;
     }
 
+    @Override
     public RespWriter getRespWriter() {
         return respWriter;
     }
@@ -486,10 +494,10 @@ class ProcessInBizThreadTask implements Runnable {
         ReadFrame req = this.req;
         DtChannelImpl dtc = this.dtc;
         try {
-            if (DtChannelImpl.timeout(req, dtc.getProcessContext(), reqContext, null)) {
+            if (DtChannelImpl.timeout(req, reqContext, null)) {
                 return;
             }
-            resp = processor.process(req, dtc.getProcessContext(), reqContext);
+            resp = processor.process(req, reqContext);
         } catch (NetCodeException e) {
             log.warn("ReqProcessor.process fail, command={}, code={}, msg={}", req.getCommand(), e.getCode(), e.getMessage());
             if (req.getFrameType() == FrameType.TYPE_REQ) {

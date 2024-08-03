@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.raft.server;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
-import com.github.dtprj.dongting.net.ChannelContext;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.EmptyBodyRespFrame;
 import com.github.dtprj.dongting.net.ReadFrame;
@@ -44,7 +43,7 @@ public abstract class AbstractRaftGroupProcessor<T> extends ReqProcessor<T> {
     protected abstract int getGroupId(ReadFrame<T> frame);
 
     protected void writeResp(ReqInfo<?> reqInfo, WriteFrame respFrame) {
-        reqInfo.getChannelContext().getRespWriter().writeRespInBizThreads(
+        reqInfo.getReqContext().getDtChannel().getRespWriter().writeRespInBizThreads(
                 reqInfo.getReqFrame(), respFrame, reqInfo.getReqContext().getTimeout());
     }
 
@@ -52,11 +51,11 @@ public abstract class AbstractRaftGroupProcessor<T> extends ReqProcessor<T> {
      * run in io thread.
      */
     @Override
-    public final WriteFrame process(ReadFrame<T> frame, ChannelContext channelContext, ReqContext reqContext) {
+    public final WriteFrame process(ReadFrame<T> frame, ReqContext reqContext) {
         Object body = frame.getBody();
         int groupId = getGroupId(frame);
         RaftGroupImpl g = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
-        ReqInfoEx<T> reqInfo = new ReqInfoEx<>(frame, channelContext, reqContext, g);
+        ReqInfoEx<T> reqInfo = new ReqInfoEx<>(frame, reqContext, g);
         if (body == null) {
             // no data need invoke clean
             EmptyBodyRespFrame errorResp = new EmptyBodyRespFrame(CmdCodes.CLIENT_ERROR);

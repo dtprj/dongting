@@ -192,7 +192,7 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
                     return process();
                 } else {
                     BugLog.getLog().error("leader receive {} request. term={}, remote={}", appendType,
-                            remoteTerm, reqInfo.getChannelContext().getRemoteAddr());
+                            remoteTerm, reqInfo.getReqContext().getDtChannel().getRemoteAddr());
                     return writeAppendResp(AppendProcessor.APPEND_REQ_ERROR, "leader receive raft install snapshot request");
                 }
             } else if (remoteTerm > localTerm) {
@@ -207,7 +207,7 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
             }
         } else {
             log.warn("receive {} request from a non-member, ignore. remoteId={}, group={}, remote={}", appendType,
-                    leaderId, reqInfo.getRaftGroup().getGroupId(), reqInfo.getChannelContext().getRemoteAddr());
+                    leaderId, reqInfo.getRaftGroup().getGroupId(), reqInfo.getReqContext().getDtChannel().getRemoteAddr());
             return writeAppendResp(AppendProcessor.APPEND_NOT_MEMBER_IN_GROUP, "not member");
         }
     }

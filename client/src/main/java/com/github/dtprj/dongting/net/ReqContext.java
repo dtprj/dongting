@@ -21,16 +21,19 @@ import com.github.dtprj.dongting.common.DtTime;
  * @author huangli
  */
 public class ReqContext {
-    private DtTime timeout;
+    private final DtChannelImpl dtChannel;
+    private final DtTime timeout;
 
-    public ReqContext() {
+    ReqContext(DtChannelImpl dtChannel, DtTime timeout) {
+        this.dtChannel = dtChannel;
+        this.timeout = timeout;
     }
 
     public DtTime getTimeout() {
         return timeout;
     }
 
-    public void setTimeout(DtTime timeout) {
-        this.timeout = timeout;
+    public DtChannel getDtChannel() {
+        return dtChannel;
     }
 }

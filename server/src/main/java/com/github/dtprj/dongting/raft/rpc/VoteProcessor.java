@@ -86,7 +86,8 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
             } else {
                 resp.setVoteGranted(false);
                 log.warn("receive vote request from unknown member. remoteId={}, group={}, remote={}",
-                        voteReq.getCandidateId(), voteReq.getGroupId(), reqInfo.getChannelContext().getRemoteAddr());
+                        voteReq.getCandidateId(), voteReq.getGroupId(),
+                        reqInfo.getReqContext().getDtChannel().getRemoteAddr());
                 // don't write response
                 return Fiber.frameReturn();
             }

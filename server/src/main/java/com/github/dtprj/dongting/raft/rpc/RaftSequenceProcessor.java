@@ -85,7 +85,7 @@ public abstract class RaftSequenceProcessor<T> extends AbstractRaftGroupProcesso
             if (current != null) {
                 EmptyBodyRespFrame wf = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
                 wf.setMsg(ex.toString());
-                current.getChannelContext().getRespWriter().writeRespInBizThreads(
+                current.getReqContext().getDtChannel().getRespWriter().writeRespInBizThreads(
                         current.getReqFrame(), wf, current.getReqContext().getTimeout());
             }
             if (!isGroupShouldStopPlain()) {

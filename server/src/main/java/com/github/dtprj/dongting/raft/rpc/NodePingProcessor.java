@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
-import com.github.dtprj.dongting.net.ChannelContext;
 import com.github.dtprj.dongting.net.ReadFrame;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
@@ -40,7 +39,7 @@ public class NodePingProcessor extends ReqProcessor<NodePingCallback> {
     }
 
     @Override
-    public WriteFrame process(ReadFrame<NodePingCallback> frame, ChannelContext channelContext, ReqContext reqContext) {
+    public WriteFrame process(ReadFrame<NodePingCallback> frame, ReqContext reqContext) {
         return new NodePingWriteFrame(selfNodeId, uuid);
     }
 

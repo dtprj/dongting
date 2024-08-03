@@ -83,13 +83,13 @@ public class NioServerClientTest {
         NioServer server = new NioServer(serverConfig);
         server.register(12345, new NioServer.PingProcessor() {
             @Override
-            public WriteFrame process(ReadFrame<RefBuffer> frame, ChannelContext channelContext, ReqContext reqContext) {
+            public WriteFrame process(ReadFrame<RefBuffer> frame, ReqContext reqContext) {
                 try {
                     Thread.sleep(30);
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
-                return super.process(frame, channelContext, reqContext);
+                return super.process(frame, reqContext);
             }
         });
 
