@@ -22,41 +22,38 @@ import java.nio.channels.SocketChannel;
  * @author huangli
  */
 public class ChannelContext {
-    private SocketChannel channel;
-    private SocketAddress remoteAddr;
-    private SocketAddress localAddr;
-    private RespWriter respWriter;
+    private final DtChannelImpl dtChannel;
+    private final SocketChannel channel;
+    private final SocketAddress remoteAddr;
+    private final SocketAddress localAddr;
+    private final RespWriter respWriter;
+
+    ChannelContext(DtChannelImpl dtChannel, SocketChannel channel, SocketAddress remoteAddr, SocketAddress localAddr, RespWriter respWriter) {
+        this.dtChannel = dtChannel;
+        this.channel = channel;
+        this.remoteAddr = remoteAddr;
+        this.localAddr = localAddr;
+        this.respWriter = respWriter;
+    }
+
+    public DtChannel getDtChannel() {
+        return dtChannel;
+    }
 
     public SocketChannel getChannel() {
         return channel;
-    }
-
-    protected void setChannel(SocketChannel channel) {
-        this.channel = channel;
     }
 
     public SocketAddress getRemoteAddr() {
         return remoteAddr;
     }
 
-    protected void setRemoteAddr(SocketAddress remoteAddr) {
-        this.remoteAddr = remoteAddr;
-    }
-
     public SocketAddress getLocalAddr() {
         return localAddr;
     }
 
-    protected void setLocalAddr(SocketAddress localAddr) {
-        this.localAddr = localAddr;
-    }
-
     public RespWriter getRespWriter() {
         return respWriter;
-    }
-
-    protected void setRespWriter(RespWriter respWriter) {
-        this.respWriter = respWriter;
     }
 
 }

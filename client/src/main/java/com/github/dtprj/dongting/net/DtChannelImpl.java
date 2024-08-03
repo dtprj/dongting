@@ -81,12 +81,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
         this.respWriter = new RespWriter(workerStatus.getIoQueue(), workerStatus.getWakeupRunnable(), this);
 
-        ChannelContext channelContext = new ChannelContext();
-        channelContext.setChannel(socketChannel);
-        channelContext.setRemoteAddr(socketChannel.getRemoteAddress());
-        channelContext.setLocalAddr(socketChannel.getLocalAddress());
-        channelContext.setRespWriter(respWriter);
-        this.channelContext = channelContext;
+        this.channelContext = new ChannelContext(this, channel, socketChannel.getRemoteAddress(),
+                socketChannel.getLocalAddress(), respWriter);
 
         this.decodeContext = new DecodeContext();
         this.decodeContext.setHeapPool(workerStatus.getHeapPool());
