@@ -418,6 +418,13 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                 DtChannelImpl dtc = initNewChannel(sc, null);
                 // TODO do handshake
                 channels.put(dtc.getChannelIndexInWorker(), dtc);
+                if (nioStatus.channelListener != null) {
+                    try {
+                        nioStatus.channelListener.onConnected(dtc);
+                    } catch (Throwable e) {
+                        log.error("channelListener.onConnected error: {}", e);
+                    }
+                }
             } catch (Throwable e) {
                 log.warn("accept channel fail: {}, {}", sc, e.toString());
                 closeChannel0(sc);
@@ -561,6 +568,15 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
 
         dtc.close();
+
+        if (nioStatus.channelListener != null) {
+            try {
+                nioStatus.channelListener.onDisconnected(dtc);
+            } catch (Throwable e) {
+                log.error("channelListener.onDisconnected error: {}", e);
+            }
+        }
+
         Peer peer = dtc.getPeer();
         if (peer != null && peer.getDtChannel() == dtc) {
             peer.setDtChannel(null);

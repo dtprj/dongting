@@ -255,6 +255,10 @@ public class NioServer extends NioNet implements Runnable {
         push((DtChannelImpl) dtc, request, null, timeout, callback);
     }
 
+    public void setChannelListener(ChannelListener channelListener) {
+        nioStatus.channelListener = channelListener;
+    }
+
     public NioServerConfig getConfig() {
         return config;
     }

@@ -23,22 +23,23 @@ import java.util.concurrent.atomic.AtomicLong;
  * @author huangli
  */
 class NioStatus {
-    private final IntObjMap<ReqProcessor> processors = new IntObjMap<>();
+    private final IntObjMap<ReqProcessor<?>> processors = new IntObjMap<>();
     private final AtomicLong inReqBytes;
+    ChannelListener channelListener;
 
     NioStatus(AtomicLong inReqBytes) {
         this.inReqBytes = inReqBytes;
     }
 
-    public ReqProcessor getProcessor(int cmd) {
+    public ReqProcessor<?> getProcessor(int cmd) {
         return processors.get(cmd);
     }
 
-    public void registerProcessor(int cmd, ReqProcessor processor) {
+    public void registerProcessor(int cmd, ReqProcessor<?> processor) {
         processors.put(cmd, processor);
     }
 
-    public IntObjMap<ReqProcessor> getProcessors() {
+    public IntObjMap<ReqProcessor<?>> getProcessors() {
         return processors;
     }
 
