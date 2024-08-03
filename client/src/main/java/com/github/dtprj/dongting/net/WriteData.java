@@ -22,7 +22,7 @@ import com.github.dtprj.dongting.common.DtTime;
  * @author huangli
  */
 class WriteData {
-    private DtChannel dtc;
+    private DtChannelImpl dtc;
 
     private final WriteFrame data;
     private final DtTime timeout;
@@ -46,7 +46,7 @@ class WriteData {
     }
 
     // for response
-    public WriteData(DtChannel dtc, WriteFrame data, DtTime timeout) {
+    public WriteData(DtChannelImpl dtc, WriteFrame data, DtTime timeout) {
         this.dtc = dtc;
         this.peer = null;
         this.data = data;
@@ -67,7 +67,7 @@ class WriteData {
         RpcCallback.callFail(callback, ex);
     }
 
-    public DtChannel getDtc() {
+    public DtChannelImpl getDtc() {
         return dtc;
     }
 
@@ -87,7 +87,7 @@ class WriteData {
         return peer;
     }
 
-    public void setDtc(DtChannel dtc) {
+    public void setDtc(DtChannelImpl dtc) {
         this.dtc = dtc;
     }
 }

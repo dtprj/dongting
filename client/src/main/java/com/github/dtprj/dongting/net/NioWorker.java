@@ -66,8 +66,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private final AtomicInteger notified = new AtomicInteger(0);
 
     private int channelIndex;
-    private final ArrayList<DtChannel> channelsList;
-    private final IntObjMap<DtChannel> channels;
+    private final ArrayList<DtChannelImpl> channelsList;
+    private final IntObjMap<DtChannelImpl> channels;
     private final IoWorkerQueue ioWorkerQueue;
 
     private final Timestamp timestamp = new Timestamp();
@@ -150,12 +150,12 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
             finishPendingReq();
 
-            List<DtChannel> tempList = new ArrayList<>(channels.size());
+            List<DtChannelImpl> tempList = new ArrayList<>(channels.size());
             // can't modify channels map in foreach
             channels.forEach((index, dtc) -> {
                 tempList.add(dtc);
             });
-            for (DtChannel dtc : tempList) {
+            for (DtChannelImpl dtc : tempList) {
                 close(dtc);
             }
 
@@ -317,7 +317,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             }
 
             stage = "process socket read";
-            DtChannel dtc = (DtChannel) key.attachment();
+            DtChannelImpl dtc = (DtChannelImpl) key.attachment();
             if (key.isReadable()) {
                 prepareReadBuffer(roundTime);
                 long startTime = perfCallback.takeTime(PerfConsts.RPC_D_READ);
@@ -368,7 +368,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         }
     }
 
-    private DtChannel initNewChannel(SocketChannel sc, Peer peer) throws IOException {
+    private DtChannelImpl initNewChannel(SocketChannel sc, Peer peer) throws IOException {
         sc.configureBlocking(false);
         sc.setOption(StandardSocketOptions.SO_KEEPALIVE, false);
         sc.setOption(StandardSocketOptions.TCP_NODELAY, true);
@@ -377,7 +377,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         while (channels.get(channelIndex) != null) {
             channelIndex++;
         }
-        DtChannel dtc = new DtChannel(nioStatus, workerStatus, config, peer, sc, channelIndex++);
+        DtChannelImpl dtc = new DtChannelImpl(nioStatus, workerStatus, config, peer, sc, channelIndex++);
         if (peer != null) {
             peer.setDtChannel(dtc);
             peer.setConnectionId(peer.getConnectionId() + 1);
@@ -411,11 +411,11 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         DtTime deadline;
     }
 
-    // invoke by NioServer accept thead
+    // invoke by NioServer accept thread
     public void newChannelAccept(SocketChannel sc) {
         doInIoThread(() -> {
             try {
-                DtChannel dtc = initNewChannel(sc, null);
+                DtChannelImpl dtc = initNewChannel(sc, null);
                 // TODO do handshake
                 channels.put(dtc.getChannelIndexInWorker(), dtc);
             } catch (Throwable e) {
@@ -495,7 +495,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         try {
             if (!ci.future.isDone()) {
                 channel.finishConnect();
-                DtChannel dtc = initNewChannel(channel, ci.peer);
+                DtChannelImpl dtc = initNewChannel(channel, ci.peer);
                 channels.put(dtc.getChannelIndexInWorker(), dtc);
                 channelsList.add(dtc);
                 ci.peer.enqueueAfterConnect();
@@ -545,17 +545,17 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private void closeChannelBySelKey(SelectionKey key) {
         Object obj = key.attachment();
         SocketChannel sc = (SocketChannel) key.channel();
-        if (obj instanceof DtChannel) {
-            DtChannel dtc = (DtChannel) obj;
+        if (obj instanceof DtChannelImpl) {
+            DtChannelImpl dtc = (DtChannelImpl) obj;
             close(dtc);
         } else {
-            BugLog.getLog().error("assert false. key attachment is not " + DtChannel.class.getName());
+            BugLog.getLog().error("assert false. key attachment is not " + DtChannelImpl.class.getName());
             closeChannel0(sc);
             assert false;
         }
     }
 
-    void close(DtChannel dtc) {
+    void close(DtChannelImpl dtc) {
         if (dtc.isClosed()) {
             return;
         }
@@ -699,7 +699,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         return client == null;
     }
 
-    public ArrayList<DtChannel> getChannelsList() {
+    public ArrayList<DtChannelImpl> getChannelsList() {
         return channelsList;
     }
 

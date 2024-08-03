@@ -70,7 +70,7 @@ class IoWorkerQueue {
         Peer peer = wo.getPeer();
         if (peer != null) {
             if (peer.getStatus() == PeerStatus.connected) {
-                DtChannel dtc = peer.getDtChannel();
+                DtChannelImpl dtc = peer.getDtChannel();
                 wo.setDtc(dtc);
                 dtc.getSubQueue().enqueue(wo);
             } else if (peer.getStatus() == PeerStatus.removed) {
@@ -83,7 +83,7 @@ class IoWorkerQueue {
                 }
             }
         } else {
-            DtChannel dtc = wo.getDtc();
+            DtChannelImpl dtc = wo.getDtc();
             if (dtc == null) {
                 if (!worker.isServer() && frame.getFrameType() != FrameType.TYPE_RESP) {
                     dtc = selectChannel();
@@ -107,8 +107,8 @@ class IoWorkerQueue {
         }
     }
 
-    private DtChannel selectChannel() {
-        ArrayList<DtChannel> list = worker.getChannelsList();
+    private DtChannelImpl selectChannel() {
+        ArrayList<DtChannelImpl> list = worker.getChannelsList();
         int size = list.size();
         if (size == 0) {
             return null;

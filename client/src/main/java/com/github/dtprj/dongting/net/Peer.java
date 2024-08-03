@@ -27,7 +27,7 @@ public class Peer {
     private volatile PeerStatus status;
     private final HostPort endPoint;
     private final NioNet owner;
-    private DtChannel dtChannel;
+    private DtChannelImpl dtChannel;
     private int connectionId;
 
     private LinkedList<WriteData> waitConnectList;
@@ -96,11 +96,11 @@ public class Peer {
         return owner;
     }
 
-    DtChannel getDtChannel() {
+    DtChannelImpl getDtChannel() {
         return dtChannel;
     }
 
-    void setDtChannel(DtChannel dtChannel) {
+    void setDtChannel(DtChannelImpl dtChannel) {
         this.dtChannel = dtChannel;
     }
 

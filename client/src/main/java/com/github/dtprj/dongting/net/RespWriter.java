@@ -24,9 +24,9 @@ public class RespWriter {
 
     private final IoWorkerQueue ioWorkerQueue;
     private final Runnable wakeupRunnable;
-    private final DtChannel dtc;
+    private final DtChannelImpl dtc;
 
-    RespWriter(IoWorkerQueue ioWorkerQueue, Runnable wakeupRunnable, DtChannel dtc) {
+    RespWriter(IoWorkerQueue ioWorkerQueue, Runnable wakeupRunnable, DtChannelImpl dtc) {
         this.ioWorkerQueue = ioWorkerQueue;
         this.wakeupRunnable = wakeupRunnable;
         this.dtc = dtc;

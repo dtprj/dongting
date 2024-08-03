@@ -43,7 +43,7 @@ class IoChannelQueue {
     private final NioConfig config;
     private final ByteBufferPool directPool;
     private final WorkerStatus workerStatus;
-    private final DtChannel dtc;
+    private final DtChannelImpl dtc;
     private Runnable registerForWrite;
 
     private ByteBuffer writeBuffer;
@@ -58,7 +58,7 @@ class IoChannelQueue {
 
     private final PerfCallback perfCallback;
 
-    public IoChannelQueue(NioConfig config, WorkerStatus workerStatus, DtChannel dtc, RefBufferFactory heapPool) {
+    public IoChannelQueue(NioConfig config, WorkerStatus workerStatus, DtChannelImpl dtc, RefBufferFactory heapPool) {
         this.config = config;
         this.directPool = workerStatus.getDirectPool();
         this.workerStatus = workerStatus;

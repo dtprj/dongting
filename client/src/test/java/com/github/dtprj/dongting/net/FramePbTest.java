@@ -119,7 +119,7 @@ public class FramePbTest {
         WorkerStatus workerStatus = new WorkerStatus();
         workerStatus.setHeapPool(((DtThread) Thread.currentThread()).getHeapPool());
 
-        DtChannel dtc = new DtChannel(new NioStatus(null), workerStatus,
+        DtChannelImpl dtc = new DtChannelImpl(new NioStatus(null), workerStatus,
                 new NioClientConfig(), null, SocketChannel.open(), 0) {
 
             @Override
