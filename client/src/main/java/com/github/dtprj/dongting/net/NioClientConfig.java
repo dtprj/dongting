@@ -26,7 +26,7 @@ public class NioClientConfig extends NioConfig {
 
     public NioClientConfig() {
         setName("DtNioClient");
-        setBizThreads(0);
+        setBizThreads(Runtime.getRuntime().availableProcessors());
 
         // TODO negotiate with server
         setMaxOutRequests(2000);
