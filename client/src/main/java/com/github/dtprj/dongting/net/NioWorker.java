@@ -377,16 +377,14 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         while (channels.get(channelIndex) != null) {
             channelIndex++;
         }
-        DtChannel dtc = new DtChannel(nioStatus, workerStatus, config, sc, channelIndex++);
-        SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
-        dtc.getSubQueue().setRegisterForWrite(new RegWriteRunner(selectionKey));
-
+        DtChannel dtc = new DtChannel(nioStatus, workerStatus, config, peer, sc, channelIndex++);
         if (peer != null) {
             peer.setDtChannel(dtc);
-            dtc.setPeer(peer);
             peer.setConnectionId(peer.getConnectionId() + 1);
             peer.setStatus(PeerStatus.connected);
         }
+        SelectionKey selectionKey = sc.register(selector, SelectionKey.OP_READ, dtc);
+        dtc.getSubQueue().setRegisterForWrite(new RegWriteRunner(selectionKey));
 
         log.info("new DtChannel init: {}", sc);
         return dtc;

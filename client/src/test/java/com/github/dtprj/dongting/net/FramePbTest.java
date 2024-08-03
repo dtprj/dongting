@@ -117,10 +117,10 @@ public class FramePbTest {
         buf.flip();
 
         WorkerStatus workerStatus = new WorkerStatus();
-        workerStatus.setHeapPool(((DtThread)Thread.currentThread()).getHeapPool());
+        workerStatus.setHeapPool(((DtThread) Thread.currentThread()).getHeapPool());
 
         DtChannel dtc = new DtChannel(new NioStatus(null), workerStatus,
-                new NioClientConfig(), SocketChannel.open(), 0) {
+                new NioClientConfig(), null, SocketChannel.open(), 0) {
 
             @Override
             public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {

@@ -49,7 +49,7 @@ class DtChannel extends PbCallback<Object> {
     private final ChannelContext channelContext;
     private final DecodeContext decodeContext;
     private final RespWriter respWriter;
-    private Peer peer;
+    private final Peer peer;
 
     private final int channelIndexInWorker;
     int seq = 1;
@@ -69,13 +69,14 @@ class DtChannel extends PbCallback<Object> {
 
     private boolean closed;
 
-    public DtChannel(NioStatus nioStatus, WorkerStatus workerStatus, NioConfig nioConfig,
+    public DtChannel(NioStatus nioStatus, WorkerStatus workerStatus, NioConfig nioConfig, Peer peer,
                      SocketChannel socketChannel, int channelIndexInWorker) throws IOException {
         this.nioStatus = nioStatus;
         this.channel = socketChannel;
         this.nioConfig = nioConfig;
         this.workerStatus = workerStatus;
         this.channelIndexInWorker = channelIndexInWorker;
+        this.peer = peer;
         this.parser = PbParser.multiParser(this, nioConfig.getMaxFrameSize());
 
         this.respWriter = new RespWriter(workerStatus.getIoQueue(), workerStatus.getWakeupRunnable(), this);
@@ -441,10 +442,6 @@ class DtChannel extends PbCallback<Object> {
         }
         parser.reset();
         closed = true;
-    }
-
-    public void setPeer(Peer peer) {
-        this.peer = peer;
     }
 
     public Peer getPeer() {
