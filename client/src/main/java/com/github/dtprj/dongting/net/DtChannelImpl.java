@@ -424,6 +424,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         return subQueue;
     }
 
+    @Override
     public SocketChannel getChannel() {
         return channel;
     }

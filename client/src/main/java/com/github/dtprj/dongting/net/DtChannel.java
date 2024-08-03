@@ -15,9 +15,11 @@
  */
 package com.github.dtprj.dongting.net;
 
+import java.nio.channels.SocketChannel;
+
 /**
  * @author huangli
  */
 public interface DtChannel {
-
+    SocketChannel getChannel();
 }
