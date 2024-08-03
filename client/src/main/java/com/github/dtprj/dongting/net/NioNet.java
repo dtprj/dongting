@@ -78,8 +78,24 @@ public abstract class NioNet extends AbstractLifeCircle {
         nioStatus.registerProcessor(cmd, processor);
     }
 
-    <T> void send(NioWorker worker, Peer peer, WriteFrame request, Decoder<T> decoder, DtTime timeout,
-                  RpcCallback<T> callback) {
+    <T> void send(NioWorker worker, Peer peer, WriteFrame request, Decoder<T> decoder,
+                  DtTime timeout, RpcCallback<T> callback) {
+        if (rpcPreCheckFail(request, decoder, timeout, callback)) {
+            return;
+        }
+        WriteData wd = new WriteData(peer, request, timeout, wrapCallback(callback, request.frameType), decoder);
+        worker.writeReqInBizThreads(wd);
+    }
+
+    <T> void push(DtChannelImpl dtc, WriteFrame request, Decoder<T> decoder, DtTime timeout, RpcCallback<T> callback) {
+        if (rpcPreCheckFail(request, decoder, timeout, callback)) {
+            return;
+        }
+        WriteData wd = new WriteData(dtc, request, timeout, wrapCallback(callback, request.frameType), decoder);
+        dtc.workerStatus.getWorker().writeReqInBizThreads(wd);
+    }
+
+    private <T> boolean rpcPreCheckFail(WriteFrame request, Decoder<T> decoder, DtTime timeout, RpcCallback<T> callback) {
         boolean acquire = false;
         try {
             Objects.requireNonNull(timeout);
@@ -110,11 +126,9 @@ public abstract class NioNet extends AbstractLifeCircle {
             if (acquire) {
                 semaphore.release();
             }
-            return;
+            return true;
         }
-
-        WriteData wd = new WriteData(peer, request, timeout, wrapCallback(callback, request.frameType), decoder);
-        worker.writeReqInBizThreads(wd);
+        return false;
     }
 
     private <T> RpcCallback<T> wrapCallback(RpcCallback<T> callback, int frameType) {

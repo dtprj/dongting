@@ -115,7 +115,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         thread.setDirectPool(directPool);
         thread.setHeapPool(refBufferFactory);
 
-        workerStatus = new WorkerStatus();
+        workerStatus = new WorkerStatus(this);
         workerStatus.setIoQueue(ioWorkerQueue);
         workerStatus.setPendingRequests(pendingOutgoingRequests);
         workerStatus.setWakeupRunnable(this::wakeup);

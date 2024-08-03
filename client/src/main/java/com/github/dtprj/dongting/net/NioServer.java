@@ -41,6 +41,7 @@ import java.util.concurrent.TimeoutException;
 /**
  * @author huangli
  */
+@SuppressWarnings("Convert2Diamond")
 public class NioServer extends NioNet implements Runnable {
     private static final DtLog log = DtLogs.getLogger(NioServer.class);
 
@@ -210,6 +211,48 @@ public class NioServer extends NioNet implements Runnable {
         }
         shutdownBizExecutor(new DtTime());
         log.warn("force stop done");
+    }
+
+    public <T> CompletableFuture<ReadFrame<T>> sendRequest(DtChannel dtc, WriteFrame request, Decoder<T> decoder,
+                                                           DtTime timeout) {
+        CompletableFuture<ReadFrame<T>> f = new CompletableFuture<>();
+        push((DtChannelImpl) dtc, request, decoder, timeout, new RpcCallback<T>() {
+            @Override
+            public void success(ReadFrame<T> resp) {
+                f.complete(resp);
+            }
+
+            @Override
+            public void fail(Throwable ex) {
+                f.completeExceptionally(ex);
+            }
+        });
+        return f;
+    }
+
+    public <T> void sendRequest(DtChannel dtc, WriteFrame request, Decoder<T> decoder, DtTime timeout,
+                                RpcCallback<T> callback) {
+        push((DtChannelImpl) dtc, request, decoder, timeout, callback);
+    }
+
+    public CompletableFuture<Void> sendOneWay(DtChannel dtc, WriteFrame request, DtTime timeout) {
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        push((DtChannelImpl) dtc, request, null, timeout, new RpcCallback<Object>() {
+            @Override
+            public void success(ReadFrame<Object> resp) {
+                f.complete(null);
+            }
+
+            @Override
+            public void fail(Throwable ex) {
+                f.completeExceptionally(ex);
+            }
+        });
+        return f;
+    }
+
+    public <T> void sendOneWay(DtChannel dtc, WriteFrame request, DtTime timeout, RpcCallback<T> callback) {
+        push((DtChannelImpl) dtc, request, null, timeout, callback);
     }
 
     public NioServerConfig getConfig() {

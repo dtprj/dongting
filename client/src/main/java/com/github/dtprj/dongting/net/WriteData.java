@@ -36,9 +36,19 @@ class WriteData {
     final RpcCallback<?> callback;
     private final Decoder<?> respDecoder;
 
-    // for request or one way request
+    // for request or one way request (client side)
     public <T> WriteData(Peer peer, WriteFrame data, DtTime timeout, RpcCallback<T> callback, Decoder<T> respDecoder) {
         this.peer = peer;
+        this.data = data;
+        this.timeout = timeout;
+        this.callback = callback;
+        this.respDecoder = respDecoder;
+    }
+
+    // for request or one way request (server push)
+    public <T> WriteData(DtChannelImpl dtc, WriteFrame data, DtTime timeout, RpcCallback<T> callback, Decoder<T> respDecoder) {
+        this.dtc = dtc;
+        this.peer = null;
         this.data = data;
         this.timeout = timeout;
         this.callback = callback;

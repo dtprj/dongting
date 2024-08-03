@@ -116,7 +116,7 @@ public class FramePbTest {
         buf.put(encodeBytes);
         buf.flip();
 
-        WorkerStatus workerStatus = new WorkerStatus();
+        WorkerStatus workerStatus = new WorkerStatus(null);
         workerStatus.setHeapPool(((DtThread) Thread.currentThread()).getHeapPool());
 
         DtChannelImpl dtc = new DtChannelImpl(new NioStatus(null), workerStatus,

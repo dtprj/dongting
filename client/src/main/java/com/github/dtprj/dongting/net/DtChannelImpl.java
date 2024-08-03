@@ -44,7 +44,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
     private final NioStatus nioStatus;
     private final NioConfig nioConfig;
-    private final WorkerStatus workerStatus;
+    final WorkerStatus workerStatus;
     private final SocketChannel channel;
     private final ChannelContext channelContext;
     private final DecodeContext decodeContext;

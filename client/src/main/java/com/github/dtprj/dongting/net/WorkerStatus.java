@@ -24,6 +24,7 @@ import com.github.dtprj.dongting.common.Timestamp;
  * @author huangli
  */
 class WorkerStatus {
+    private final NioWorker worker;
     private IoWorkerQueue ioWorkerQueue;
     private Runnable wakeupRunnable;
     private LongObjMap<WriteData> pendingRequests;
@@ -32,7 +33,12 @@ class WorkerStatus {
     private int framesToWrite;
     private Timestamp ts;
 
-    public WorkerStatus() {
+    public WorkerStatus(NioWorker worker) {
+        this.worker = worker;
+    }
+
+    public NioWorker getWorker() {
+        return worker;
     }
 
     public IoWorkerQueue getIoQueue() {
