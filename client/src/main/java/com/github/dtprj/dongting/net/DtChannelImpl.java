@@ -287,7 +287,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                     writeErrorInIoThread(frame, CmdCodes.COMMAND_NOT_SUPPORT, null);
                     return false;
                 }
-                if (processorForRequest.getExecutor() != null) {
+                if (processorForRequest.executor != null) {
                     // TODO can we eliminate this CAS operation?
                     AtomicLong inReqBytes = nioStatus.getInReqBytes();
                     if (inReqBytes != null) {
@@ -338,7 +338,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     private void processIncomingRequest(ReadFrame req, ReqProcessor p, Timestamp roundTime) {
         NioStatus nioStatus = this.nioStatus;
         ReqContext reqContext = new ReqContext(this, new DtTime(roundTime, req.getTimeout(), TimeUnit.NANOSECONDS));
-        if (p.getExecutor() == null) {
+        if (p.executor == null) {
             if (timeout(req, reqContext, roundTime)) {
                 return;
             }
@@ -366,7 +366,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             int currentReadFrameSize = this.currentReadFrameSize;
             try {
                 // TODO use custom thread pool?
-                p.getExecutor().execute(new ProcessInBizThreadTask(
+                p.executor.execute(new ProcessInBizThreadTask(
                         req, p, currentReadFrameSize, this, bytes, reqContext));
             } catch (RejectedExecutionException e) {
                 log.debug("catch RejectedExecutionException, write response code FLOW_CONTROL to client, maxInRequests={}",

@@ -24,26 +24,11 @@ import java.util.concurrent.Executor;
  */
 public abstract class ReqProcessor<T> {
 
-    private Executor executor;
-    private boolean useDefaultExecutor;
+    Executor executor;
+    boolean useDefaultExecutor;
 
     public abstract WriteFrame process(ReadFrame<T> frame, ReqContext reqContext) throws Exception;
 
     public abstract Decoder<T> createDecoder(int command);
 
-    Executor getExecutor() {
-        return executor;
-    }
-
-    void setExecutor(Executor executor) {
-        this.executor = executor;
-    }
-
-    boolean isUseDefaultExecutor() {
-        return useDefaultExecutor;
-    }
-
-    void setUseDefaultExecutor(boolean useDefaultExecutor) {
-        this.useDefaultExecutor = useDefaultExecutor;
-    }
 }

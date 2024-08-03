@@ -63,7 +63,7 @@ public abstract class NioNet extends AbstractLifeCircle {
         if (status != STATUS_NOT_START) {
             throw new DtException("processor should register before start");
         }
-        processor.setUseDefaultExecutor(true);
+        processor.useDefaultExecutor = true;
         nioStatus.registerProcessor(cmd, processor);
     }
 
@@ -74,7 +74,7 @@ public abstract class NioNet extends AbstractLifeCircle {
         if (status != STATUS_NOT_START) {
             throw new DtException("processor should register before start");
         }
-        processor.setExecutor(executor);
+        processor.executor = executor;
         nioStatus.registerProcessor(cmd, processor);
     }
 
@@ -164,9 +164,9 @@ public abstract class NioNet extends AbstractLifeCircle {
                     new DtThreadFactory(config.getName() + "Biz", false));
         }
         nioStatus.getProcessors().forEach((command, p) -> {
-            if (p.isUseDefaultExecutor()) {
+            if (p.useDefaultExecutor) {
                 if (bizExecutor != null) {
-                    p.setExecutor(bizExecutor);
+                    p.executor = bizExecutor;
                 }
             }
         });
