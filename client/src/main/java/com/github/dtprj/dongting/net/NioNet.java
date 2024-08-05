@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.common.DtThreadFactory;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.PerfCallback;
+import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -29,10 +30,11 @@ import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author huangli
@@ -41,15 +43,19 @@ import java.util.concurrent.atomic.AtomicLong;
 public abstract class NioNet extends AbstractLifeCircle {
     private static final DtLog log = DtLogs.getLogger(NioNet.class);
     private final NioConfig config;
-    final Semaphore semaphore;
     final NioStatus nioStatus;
     protected volatile ExecutorService bizExecutor;
     private final PerfCallback perfCallback;
 
+    private final ReentrantLock lock = new ReentrantLock();
+    private final Condition pendingReqCond = lock.newCondition();
+    private final Condition pendingBytesCond = lock.newCondition();
+    private int pendingRequests;
+    private int pendingBytes;
+
     public NioNet(NioConfig config) {
         this.config = config;
         this.nioStatus = new NioStatus(config.getMaxInBytes() > 0 ? new AtomicLong(0) : null);
-        this.semaphore = config.getMaxOutRequests() > 0 ? new Semaphore(config.getMaxOutRequests()) : null;
         this.perfCallback = config.getPerfCallback();
         if (config.getMaxFrameSize() < config.getMaxBodySize() + 128 * 1024) {
             throw new IllegalArgumentException("maxFrameSize should greater than maxBodySize plus 128KB.");
@@ -80,73 +86,121 @@ public abstract class NioNet extends AbstractLifeCircle {
 
     <T> void send(NioWorker worker, Peer peer, WriteFrame request, Decoder<T> decoder,
                   DtTime timeout, RpcCallback<T> callback) {
-        if (rpcPreCheckFail(request, decoder, timeout, callback)) {
-            return;
-        }
-        WriteData wd = new WriteData(peer, request, timeout, wrapCallback(callback), decoder);
-        worker.writeReqInBizThreads(wd);
+        send0(worker, peer, null, request, decoder, timeout, callback);
     }
 
     <T> void push(DtChannelImpl dtc, WriteFrame request, Decoder<T> decoder, DtTime timeout, RpcCallback<T> callback) {
-        if (rpcPreCheckFail(request, decoder, timeout, callback)) {
-            return;
-        }
-        WriteData wd = new WriteData(dtc, request, timeout, wrapCallback(callback), decoder);
-        dtc.workerStatus.getWorker().writeReqInBizThreads(wd);
+        send0(dtc.workerStatus.getWorker(), null, dtc, request, decoder, timeout, callback);
     }
 
-    private <T> boolean rpcPreCheckFail(WriteFrame request, Decoder<T> decoder, DtTime timeout, RpcCallback<T> callback) {
-        boolean acquire = false;
+    private <T> void send0(NioWorker worker, Peer peer, DtChannelImpl dtc, WriteFrame request,
+                           Decoder<T> decoder, DtTime timeout, RpcCallback<T> callback) {
         try {
-            Objects.requireNonNull(timeout);
-            Objects.requireNonNull(callback);
-            Objects.requireNonNull(request);
-            DtUtil.checkPositive(request.getCommand(), "request.command");
-
+            int estimateSize = generalCheck(request, timeout, callback);
             request.setFrameType(decoder != null ? FrameType.TYPE_REQ : FrameType.TYPE_ONE_WAY);
-            if (status != STATUS_RUNNING) {
-                throw new NetException("error state: " + status);
-            }
 
-            if (this.semaphore != null) {
+            while (true) {
+                int maxPending = config.getMaxOutRequests();
+                long maxPendingBytes = config.getMaxOutBytes();
+                if (maxPending <= 0 && maxPendingBytes <= 0) {
+                    break;
+                }
+
                 long t = perfCallback.takeTime(PerfConsts.RPC_D_ACQUIRE);
+                lock.lock();
                 try {
-                    acquire = this.semaphore.tryAcquire(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+                    if (pendingRequests + 1 > maxPending) {
+                        if (!pendingReqCond.await(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)) {
+                            throw new NetTimeoutException("too many pending requests, client wait permit timeout in "
+                                    + timeout.getTimeout(TimeUnit.MILLISECONDS) + " ms");
+                        }
+                        // re-check all
+                        continue;
+                    }
+                    if (pendingBytes + estimateSize > maxPendingBytes) {
+                        if (!pendingBytesCond.await(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)) {
+                            throw new NetTimeoutException("too many pending bytes, client wait permit timeout in "
+                                    + timeout.getTimeout(TimeUnit.MILLISECONDS) + " ms");
+                        }
+                        // re-check all
+                        continue;
+                    }
+                    pendingRequests++;
+                    pendingBytes += estimateSize;
                 } finally {
+                    lock.unlock();
                     perfCallback.fireTime(PerfConsts.RPC_D_ACQUIRE, t);
                 }
-                if (!acquire) {
-                    throw new NetTimeoutException("too many pending requests, client wait permit timeout in "
-                            + timeout.getTimeout(TimeUnit.MILLISECONDS) + " ms");
-                }
+                callback = wrapCallback(callback, estimateSize);
+                break;
             }
         } catch (Exception e) {
             RpcCallback.callFail(callback, e);
             request.clean();
-            if (acquire) {
-                semaphore.release();
-            }
-            return true;
+            return;
         }
-        return false;
+        WriteData wd;
+        if (peer != null) {
+            wd = new WriteData(peer, request, timeout, callback, decoder);
+        } else {
+            wd = new WriteData(dtc, request, timeout, callback, decoder);
+        }
+        worker.writeReqInBizThreads(wd);
     }
 
-    private <T> RpcCallback<T> wrapCallback(RpcCallback<T> callback) {
+    private <T> int generalCheck(WriteFrame request, DtTime timeout, RpcCallback<T> callback) {
+        Objects.requireNonNull(timeout);
+        Objects.requireNonNull(callback);
+        Objects.requireNonNull(request);
+        DtUtil.checkPositive(request.getCommand(), "request.command");
+
+        if (status != STATUS_RUNNING) {
+            throw new NetException("error state: " + status);
+        }
+
+        // can't invoke actualSize() here because seq and timeout field is not set yet
+        int estimateSize = request.calcMaxFrameSize();
+        if (estimateSize > config.getMaxFrameSize() || estimateSize < 0) {
+            throw new NetException("estimateSize overflow");
+        }
+        int bodySize = request.actualBodySize();
+        if (bodySize > config.getMaxBodySize() || bodySize < 0) {
+            throw new NetException("frame body size " + bodySize
+                    + " exceeds max body size " + config.getMaxBodySize());
+        }
+        return estimateSize;
+    }
+
+    private <T> RpcCallback<T> wrapCallback(RpcCallback<T> callback, int estimateSize) {
         return new RpcCallback<T>() {
+            boolean b;
+
             @Override
             public void success(ReadFrame<T> resp) {
-                if (semaphore != null) {
-                    semaphore.release();
-                }
-                callback.success(resp);
+                RpcCallback.callSuccess(callback, resp);
+                updatePending();
             }
 
             @Override
             public void fail(Throwable ex) {
-                if (semaphore != null) {
-                    semaphore.release();
+                RpcCallback.callFail(callback, ex);
+                updatePending();
+            }
+
+            private void updatePending() {
+                if (b) {
+                    BugLog.getLog().error("already called update pending");
                 }
-                callback.fail(ex);
+                b = true;
+                lock.lock();
+                try {
+                    pendingRequests--;
+                    pendingBytes -= estimateSize;
+                    pendingReqCond.signal();
+                    pendingBytesCond.signal();
+                } finally {
+                    lock.unlock();
+                }
             }
         };
     }

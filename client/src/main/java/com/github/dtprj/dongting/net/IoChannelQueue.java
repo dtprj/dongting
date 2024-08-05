@@ -40,7 +40,6 @@ class IoChannelQueue {
     private static final int ENCODE_CANCEL = 3;
 
     private static final int MAX_BUFFER_SIZE = 512 * 1024;
-    private final NioConfig config;
     private final ByteBufferPool directPool;
     private final WorkerStatus workerStatus;
     private final DtChannelImpl dtc;
@@ -59,7 +58,6 @@ class IoChannelQueue {
     private final PerfCallback perfCallback;
 
     public IoChannelQueue(NioConfig config, WorkerStatus workerStatus, DtChannelImpl dtc, RefBufferFactory heapPool) {
-        this.config = config;
         this.directPool = workerStatus.getDirectPool();
         this.workerStatus = workerStatus;
         this.dtc = dtc;
@@ -78,31 +76,13 @@ class IoChannelQueue {
             return;
         }
         wf.use = true;
-        int estimateSize;
-        try {
-            // can't invoke actualSize() here because seq and timeout field is not set yet
-            estimateSize = wf.calcMaxFrameSize();
-            if (estimateSize > config.getMaxFrameSize() || estimateSize < 0) {
-                writeData.callFail(true, new NetException("estimateSize overflow"));
-                return;
-            }
-            writeData.estimateSize = estimateSize;
-            int bodySize = wf.actualBodySize();
-            if (bodySize > config.getMaxBodySize() || bodySize < 0) {
-                writeData.callFail(true, new NetException("frame body size " + bodySize
-                        + " exceeds max body size " + config.getMaxBodySize()));
-                return;
-            }
-        } catch (RuntimeException | Error e) {
-            writeData.callFail(true, new NetException("encode calc size fail", e));
-            return;
-        }
 
         writeData.perfTime = perfCallback.takeTime(PerfConsts.RPC_D_CHANNEL_QUEUE);
         subQueue.addLast(writeData);
 
         // the subQueueBytes is not accurate
-        subQueueBytes += estimateSize;
+        // can't invoke actualSize() here because seq and timeout field is not set yet
+        subQueueBytes += writeData.estimateSize;
         if (subQueue.size() == 1 && !writing) {
             registerForWrite.run();
         }

@@ -27,7 +27,7 @@ class WriteData {
     private final WriteFrame data;
     private final DtTime timeout;
 
-    int estimateSize;
+    final int estimateSize;
 
     long perfTime;
 
@@ -43,6 +43,7 @@ class WriteData {
         this.timeout = timeout;
         this.callback = callback;
         this.respDecoder = respDecoder;
+        this.estimateSize = data.calcMaxFrameSize();
     }
 
     // for request or one way request (server push)
@@ -53,6 +54,7 @@ class WriteData {
         this.timeout = timeout;
         this.callback = callback;
         this.respDecoder = respDecoder;
+        this.estimateSize = data.calcMaxFrameSize();
     }
 
     // for response
@@ -63,6 +65,7 @@ class WriteData {
         this.timeout = timeout;
         this.callback = null;
         this.respDecoder = null;
+        this.estimateSize = data.calcMaxFrameSize();
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
