@@ -67,7 +67,11 @@ class WriteData {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     void callSuccess(ReadFrame resp) {
-        RpcCallback.callSuccess(callback, resp);
+        if (data.frameType == FrameType.TYPE_REQ && resp != null && resp.respCode != CmdCodes.SUCCESS) {
+            RpcCallback.callFail(callback, new NetCodeException(resp.respCode, resp.msg, resp));
+        } else {
+            RpcCallback.callSuccess(callback, resp);
+        }
     }
 
     void callFail(boolean callClean, Throwable ex) {

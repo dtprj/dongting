@@ -83,7 +83,7 @@ public abstract class NioNet extends AbstractLifeCircle {
         if (rpcPreCheckFail(request, decoder, timeout, callback)) {
             return;
         }
-        WriteData wd = new WriteData(peer, request, timeout, wrapCallback(callback, request.frameType), decoder);
+        WriteData wd = new WriteData(peer, request, timeout, wrapCallback(callback), decoder);
         worker.writeReqInBizThreads(wd);
     }
 
@@ -91,7 +91,7 @@ public abstract class NioNet extends AbstractLifeCircle {
         if (rpcPreCheckFail(request, decoder, timeout, callback)) {
             return;
         }
-        WriteData wd = new WriteData(dtc, request, timeout, wrapCallback(callback, request.frameType), decoder);
+        WriteData wd = new WriteData(dtc, request, timeout, wrapCallback(callback), decoder);
         dtc.workerStatus.getWorker().writeReqInBizThreads(wd);
     }
 
@@ -131,18 +131,14 @@ public abstract class NioNet extends AbstractLifeCircle {
         return false;
     }
 
-    private <T> RpcCallback<T> wrapCallback(RpcCallback<T> callback, int frameType) {
+    private <T> RpcCallback<T> wrapCallback(RpcCallback<T> callback) {
         return new RpcCallback<T>() {
             @Override
             public void success(ReadFrame<T> resp) {
                 if (semaphore != null) {
                     semaphore.release();
                 }
-                if (frameType == FrameType.TYPE_REQ && resp != null && resp.respCode != CmdCodes.SUCCESS) {
-                    callback.fail(new NetCodeException(resp.respCode, resp.msg, resp));
-                } else {
-                    callback.success(resp);
-                }
+                callback.success(resp);
             }
 
             @Override
