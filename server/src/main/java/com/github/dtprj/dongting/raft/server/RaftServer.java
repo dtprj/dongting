@@ -175,6 +175,7 @@ public class RaftServer extends AbstractLifeCircle {
     private void setupNioConfig(NioConfig nc) {
         nc.setFinishPendingImmediatelyWhenChannelClose(true);
         nc.setMaxOutRequests(0);
+        nc.setMaxOutBytes(0);
         nc.setMaxInRequests(0);
         nc.setMaxInBytes(0);
         nc.setMaxBodySize(Integer.MAX_VALUE);

@@ -30,6 +30,7 @@ public class NioClientConfig extends NioConfig {
 
         // TODO negotiate with server
         setMaxOutRequests(2000);
+        setMaxOutBytes(32 * 1024 * 1024);
         setMaxInRequests(100);
         setMaxInBytes(32 * 1024 * 1024);
     }

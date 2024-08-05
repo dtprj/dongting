@@ -29,6 +29,7 @@ public abstract class NioConfig {
 
     // back pressure config
     private int maxOutRequests;
+    private long maxOutBytes;
     private int maxInRequests;
     private long maxInBytes;
 
@@ -148,5 +149,13 @@ public abstract class NioConfig {
 
     public void setPerfCallback(PerfCallback perfCallback) {
         this.perfCallback = perfCallback;
+    }
+
+    public long getMaxOutBytes() {
+        return maxOutBytes;
+    }
+
+    public void setMaxOutBytes(long maxOutBytes) {
+        this.maxOutBytes = maxOutBytes;
     }
 }

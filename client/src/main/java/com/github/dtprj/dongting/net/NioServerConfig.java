@@ -30,7 +30,8 @@ public class NioServerConfig extends NioConfig {
         setName("DtNioServer");
 
         // back pressure config
-        setMaxOutRequests(10000);
+        setMaxOutRequests(0);
+        setMaxOutBytes(0);
         setMaxInRequests(100_000);
         setMaxInBytes(512 * 1024 * 1024);
     }
