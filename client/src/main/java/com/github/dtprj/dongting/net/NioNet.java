@@ -111,7 +111,7 @@ public abstract class NioNet extends AbstractLifeCircle {
                 long t = perfCallback.takeTime(PerfConsts.RPC_D_ACQUIRE);
                 lock.lock();
                 try {
-                    if (pendingRequests + 1 > maxPending) {
+                    if (maxPending > 0 && pendingRequests + 1 > maxPending) {
                         if (!pendingReqCond.await(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)) {
                             throw new NetTimeoutException("too many pending requests, client wait permit timeout in "
                                     + timeout.getTimeout(TimeUnit.MILLISECONDS) + " ms");
@@ -119,7 +119,7 @@ public abstract class NioNet extends AbstractLifeCircle {
                         // re-check all
                         continue;
                     }
-                    if (pendingBytes + estimateSize > maxPendingBytes) {
+                    if (maxPendingBytes > 0 && pendingBytes + estimateSize > maxPendingBytes) {
                         if (!pendingBytesCond.await(timeout.getTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS)) {
                             throw new NetTimeoutException("too many pending bytes, client wait permit timeout in "
                                     + timeout.getTimeout(TimeUnit.MILLISECONDS) + " ms");
