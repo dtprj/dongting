@@ -59,6 +59,7 @@ public class TimeoutTest {
         clientConfig.setCleanInterval(1);
         clientConfig.setSelectTimeout(1);
         clientConfig.setMaxOutRequests(1);
+        clientConfig.setMaxOutBytes(5000);
         clientConfig.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
         client = new NioClient(clientConfig);
 
@@ -73,7 +74,11 @@ public class TimeoutTest {
     }
 
     private CompletableFuture<?> send(DtTime timeout) {
-        ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(1));
+        return send(timeout, 1);
+    }
+
+    private CompletableFuture<?> send(DtTime timeout, int bytes) {
+        ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(bytes));
         wf.setCommand(CMD);
         return client.sendRequest(wf, RefBufferDecoder.INSTANCE, timeout);
     }
@@ -99,7 +104,7 @@ public class TimeoutTest {
     }
 
     @Test
-    public void acquireTimeoutTest() throws Exception {
+    public void acquireTimeoutTest1() throws Exception {
         CountDownLatch latch2 = new CountDownLatch(1);
         setup(() -> registerDelayPingProcessor(null, latch2));
         CompletableFuture<?> f1 = send(new DtTime(1, TimeUnit.SECONDS));
@@ -113,7 +118,25 @@ public class TimeoutTest {
         }
         latch2.countDown();
         f1.get(5, TimeUnit.SECONDS);
-        assertEquals(1, client.semaphore.availablePermits());
+        assertEquals(0, client.pendingBytes);
+        assertEquals(0, client.pendingRequests);
+        //ensure connection status is correct after timeout
+        NioServerClientTest.invoke(client);
+    }
+
+    @Test
+    public void acquireTimeoutTest2() throws Exception {
+        setup(() -> registerDelayPingProcessor(null, null));
+        try {
+            CompletableFuture<?> f2 = send(new DtTime(1, TimeUnit.NANOSECONDS), 6000);
+            f2.get(5, TimeUnit.SECONDS);
+            fail();
+        } catch (ExecutionException e) {
+            assertEquals(NetTimeoutException.class, e.getCause().getClass());
+            assertTrue(e.getCause().getMessage().contains("too many pending bytes"));
+        }
+        assertEquals(0, client.pendingBytes);
+        assertEquals(0, client.pendingRequests);
         //ensure connection status is correct after timeout
         NioServerClientTest.invoke(client);
     }
@@ -134,7 +157,8 @@ public class TimeoutTest {
             }
         }
         assertFalse(BugLog.BUG);
-        assertEquals(1, client.semaphore.availablePermits());
+        assertEquals(0, client.pendingBytes);
+        assertEquals(0, client.pendingRequests);
         //ensure connection status is correct after timeout
         NioServerClientTest.invoke(client);
     }
@@ -165,7 +189,8 @@ public class TimeoutTest {
         // need more check server side status
         TestUtil.waitUtil(() -> runCount.get() == oldCount + 1);
 
-        assertEquals(1, client.semaphore.availablePermits());
+        assertEquals(0, client.pendingBytes);
+        assertEquals(0, client.pendingRequests);
 
         //ensure connection status is correct after timeout
         NioServerClientTest.invoke(client);
@@ -216,7 +241,8 @@ public class TimeoutTest {
             assertEquals(NetTimeoutException.class, e.getCause().getClass());
             assertTrue(e.getCause().getMessage().contains("request is timeout: "), e.getCause().getMessage());
         }
-        assertEquals(1, client.semaphore.availablePermits());
+        assertEquals(0, client.pendingBytes);
+        assertEquals(0, client.pendingRequests);
 
         latch2.countDown();
 

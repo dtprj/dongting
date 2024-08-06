@@ -50,8 +50,8 @@ public abstract class NioNet extends AbstractLifeCircle {
     private final ReentrantLock lock = new ReentrantLock();
     private final Condition pendingReqCond = lock.newCondition();
     private final Condition pendingBytesCond = lock.newCondition();
-    private int pendingRequests;
-    private int pendingBytes;
+    int pendingRequests;
+    int pendingBytes;
 
     public NioNet(NioConfig config) {
         this.config = config;
