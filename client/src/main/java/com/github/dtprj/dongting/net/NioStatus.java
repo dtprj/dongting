@@ -17,18 +17,20 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.common.IntObjMap;
 
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author huangli
  */
 class NioStatus {
     private final IntObjMap<ReqProcessor<?>> processors = new IntObjMap<>();
-    private final AtomicLong inReqBytes;
     ChannelListener channelListener;
 
-    NioStatus(AtomicLong inReqBytes) {
-        this.inReqBytes = inReqBytes;
+    final ReentrantLock pendingLock = new ReentrantLock();
+    int pendingRequests;
+    long pendingBytes;
+
+    NioStatus() {
     }
 
     public ReqProcessor<?> getProcessor(int cmd) {
@@ -41,10 +43,6 @@ class NioStatus {
 
     public IntObjMap<ReqProcessor<?>> getProcessors() {
         return processors;
-    }
-
-    public AtomicLong getInReqBytes() {
-        return inReqBytes;
     }
 
 }

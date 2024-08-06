@@ -368,7 +368,7 @@ public class NioServerTest {
             t1.join(1000);
             t2.join(1000);
             t3.join(1000);
-            assertEquals(CmdCodes.FLOW_CONTROL, t1.result.get() + t2.result.get() + t3.result.get());
+            assertEquals(CmdCodes.FLOW_CONTROL * 2, t1.result.get() + t2.result.get() + t3.result.get());
         }
         {
             InvokeThread t1 = new InvokeThread(6000);

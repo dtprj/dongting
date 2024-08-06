@@ -33,7 +33,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -56,7 +55,7 @@ public abstract class NioNet extends AbstractLifeCircle {
 
     public NioNet(NioConfig config) {
         this.config = config;
-        this.nioStatus = new NioStatus(config.getMaxInBytes() > 0 ? new AtomicLong(0) : null);
+        this.nioStatus = new NioStatus();
         this.perfCallback = config.getPerfCallback();
         if (config.getMaxFrameSize() < config.getMaxBodySize() + 128 * 1024) {
             throw new IllegalArgumentException("maxFrameSize should greater than maxBodySize plus 128KB.");
@@ -209,10 +208,8 @@ public abstract class NioNet extends AbstractLifeCircle {
 
     protected void initBizExecutor() {
         if (config.getBizThreads() > 0) {
-            int maxReq = config.getMaxInRequests();
-            LinkedBlockingQueue<Runnable> queue = maxReq > 0 ? new LinkedBlockingQueue<>(maxReq) : new LinkedBlockingQueue<>();
             bizExecutor = new ThreadPoolExecutor(config.getBizThreads(), config.getBizThreads(),
-                    1, TimeUnit.MINUTES, queue,
+                    1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(),
                     new DtThreadFactory(config.getName() + "Biz", false));
         }
         nioStatus.getProcessors().forEach((command, p) -> {

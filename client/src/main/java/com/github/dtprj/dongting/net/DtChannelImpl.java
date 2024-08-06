@@ -34,7 +34,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @author huangli
@@ -64,6 +63,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     private ReqProcessor processorForRequest;
     private int currentReadFrameSize;
     private Decoder<?> currentDecoder;
+    private boolean flowControl;
 
     private boolean running = true;
 
@@ -106,6 +106,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         readBody = false;
         requestForResp = null;
         processorForRequest = null;
+        flowControl = false;
         if (currentDecoder != null) {
             BugLog.getLog().error("currentDecoder is not null");
             currentDecoder = null;
@@ -279,7 +280,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 writeErrorInIoThread(frame, CmdCodes.STOPPING, null);
                 return false;
             }
-            ReqProcessor processorForRequest = this.processorForRequest;
             if (processorForRequest == null) {
                 processorForRequest = nioStatus.getProcessor(frame.getCommand());
                 if (processorForRequest == null) {
@@ -287,28 +287,54 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                     writeErrorInIoThread(frame, CmdCodes.COMMAND_NOT_SUPPORT, null);
                     return false;
                 }
-                if (processorForRequest.executor != null) {
-                    // TODO can we eliminate this CAS operation?
-                    AtomicLong inReqBytes = nioStatus.getInReqBytes();
-                    if (inReqBytes != null) {
-                        long bytesAfterAdd = inReqBytes.addAndGet(this.currentReadFrameSize);
-                        if (bytesAfterAdd > nioConfig.getMaxInBytes()) {
-                            log.debug("pendingBytes({})>maxInBytes({}), write response code FLOW_CONTROL to client",
-                                    bytesAfterAdd, nioConfig.getMaxInBytes());
-                            writeErrorInIoThread(frame, CmdCodes.FLOW_CONTROL,
-                                    "max incoming request bytes: " + nioConfig.getMaxInBytes());
-                            inReqBytes.addAndGet(-currentReadFrameSize);
-                            return false;
-                        }
-                    }
-                }
-                this.processorForRequest = processorForRequest;
             }
             if (currentDecoder == null) {
                 currentDecoder = processorForRequest.createDecoder(frame.getCommand());
             }
         }
         return true;
+    }
+
+    private boolean flowControlCheck(int bytes) {
+        int maxReq = nioConfig.getMaxInRequests();
+        long maxBytes = nioConfig.getMaxInBytes();
+        if (maxReq <= 0 && maxBytes <= 0) {
+            return true;
+        }
+        nioStatus.pendingLock.lock();
+        try {
+            if (maxReq > 0 && nioStatus.pendingRequests + 1 > maxReq) {
+                log.debug("pendingRequests({})>maxInRequests({}), write response code FLOW_CONTROL to client",
+                        nioStatus.pendingRequests + 1, nioConfig.getMaxInRequests());
+                writeErrorInIoThread(frame, CmdCodes.FLOW_CONTROL,
+                        "max incoming request: " + nioConfig.getMaxInRequests());
+                return false;
+
+            }
+            if (maxBytes > 0 && nioStatus.pendingBytes + bytes > maxBytes) {
+                log.debug("pendingBytes({})>maxInBytes({}), write response code FLOW_CONTROL to client",
+                        nioStatus.pendingBytes + bytes, nioConfig.getMaxInBytes());
+                writeErrorInIoThread(frame, CmdCodes.FLOW_CONTROL,
+                        "max incoming request bytes: " + nioConfig.getMaxInBytes());
+                return false;
+            }
+            flowControl = true;
+            nioStatus.pendingRequests++;
+            nioStatus.pendingBytes += bytes;
+        } finally {
+            nioStatus.pendingLock.unlock();
+        }
+        return true;
+    }
+
+    void releasePending(int bytes) {
+        nioStatus.pendingLock.lock();
+        try {
+            nioStatus.pendingRequests--;
+            nioStatus.pendingBytes -= bytes;
+        } finally {
+            nioStatus.pendingLock.unlock();
+        }
     }
 
     private void processIoDecodeFail(Throwable e) {
@@ -336,7 +362,9 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     private void processIncomingRequest(ReadFrame req, ReqProcessor p, Timestamp roundTime) {
-        NioStatus nioStatus = this.nioStatus;
+        if(!flowControlCheck(currentReadFrameSize)) {
+            return;
+        }
         ReqContext reqContext = new ReqContext(this, new DtTime(roundTime, req.getTimeout(), TimeUnit.NANOSECONDS));
         if (p.executor == null) {
             if (timeout(req, reqContext, roundTime)) {
@@ -354,6 +382,10 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 log.warn("ReqProcessor.process fail", e);
                 writeErrorInIoThread(req, CmdCodes.BIZ_ERROR, e.toString(), reqContext.getTimeout());
                 return;
+            } finally {
+                if (flowControl) {
+                    releasePending(currentReadFrameSize);
+                }
             }
             if (resp != null) {
                 resp.setCommand(req.getCommand());
@@ -362,19 +394,16 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 subQueue.enqueue(new WriteData(this, resp, reqContext.getTimeout()));
             }
         } else {
-            AtomicLong bytes = nioStatus.getInReqBytes();
-            int currentReadFrameSize = this.currentReadFrameSize;
             try {
-                // TODO use custom thread pool?
                 p.executor.execute(new ProcessInBizThreadTask(
-                        req, p, currentReadFrameSize, this, bytes, reqContext));
+                        req, p, currentReadFrameSize, this, flowControl, reqContext));
             } catch (RejectedExecutionException e) {
                 log.debug("catch RejectedExecutionException, write response code FLOW_CONTROL to client, maxInRequests={}",
                         nioConfig.getMaxInRequests());
                 writeErrorInIoThread(req, CmdCodes.FLOW_CONTROL,
                         "max incoming request: " + nioConfig.getMaxInRequests(), reqContext.getTimeout());
-                if (bytes != null) {
-                    bytes.addAndGet(-currentReadFrameSize);
+                if (flowControl) {
+                    releasePending(currentReadFrameSize);
                 }
             }
         }
@@ -475,16 +504,16 @@ class ProcessInBizThreadTask implements Runnable {
     private final ReqProcessor processor;
     private final int frameSize;
     private final DtChannelImpl dtc;
-    private final AtomicLong inBytes;
+    private final boolean flowControl;
     private final ReqContext reqContext;
 
     ProcessInBizThreadTask(ReadFrame req, ReqProcessor processor,
-                           int frameSize, DtChannelImpl dtc, AtomicLong inBytes, ReqContext reqContext) {
+                           int frameSize, DtChannelImpl dtc, boolean flowControl, ReqContext reqContext) {
         this.req = req;
         this.processor = processor;
         this.frameSize = frameSize;
         this.dtc = dtc;
-        this.inBytes = inBytes;
+        this.flowControl = flowControl;
         this.reqContext = reqContext;
     }
 
@@ -511,8 +540,8 @@ class ProcessInBizThreadTask implements Runnable {
                 resp.setMsg(e.toString());
             }
         } finally {
-            if (inBytes != null) {
-                inBytes.addAndGet(-frameSize);
+            if (flowControl) {
+                dtc.releasePending(frameSize);
             }
         }
         if (resp != null) {
