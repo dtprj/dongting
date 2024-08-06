@@ -30,7 +30,11 @@ public class DtUtil {
 
     private static final int JAVA_VER = majorVersion(System.getProperty("java.specification.version", "1.8"));
 
-    public static boolean DEBUG = Boolean.parseBoolean(System.getProperty("dt.debug", "false"));
+    // 0 no debug code
+    // 1 base debug code
+    // 2 more debug code
+    // 3 all debug code
+    public static int DEBUG = Integer.parseInt(System.getProperty("dt.debug", "1"));
 
     private static final Runtime RUNTIME = Runtime.getRuntime();
     private static int CPU_COUNT = RUNTIME.availableProcessors();
