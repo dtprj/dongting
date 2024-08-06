@@ -20,6 +20,7 @@ import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
 import com.github.dtprj.dongting.unsafe.DtUnsafe;
 
+import java.lang.invoke.VarHandle;
 import java.nio.ByteBuffer;
 
 /**
@@ -41,5 +42,20 @@ public class Java11Factory extends VersionFactory {
     @Override
     public void releaseDirectBuffer(ByteBuffer buffer) {
         DtUnsafe.freeDirectBuffer(buffer);
+    }
+
+    @Override
+    public void releaseFence() {
+        VarHandle.releaseFence();
+    }
+
+    @Override
+    public void acquireFence() {
+        VarHandle.acquireFence();
+    }
+
+    @Override
+    public void fullFence() {
+        VarHandle.fullFence();
     }
 }

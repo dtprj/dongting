@@ -21,6 +21,7 @@ import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.queue.MpscLinkedQueue;
+import com.github.dtprj.dongting.unsafe.DtUnsafe;
 
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
@@ -79,5 +80,20 @@ public class Java8Factory extends VersionFactory {
                 log.error("can't clean direct buffer", e);
             }
         }
+    }
+
+    @Override
+    public void releaseFence() {
+        DtUnsafe.releaseFence();
+    }
+
+    @Override
+    public void acquireFence() {
+        DtUnsafe.acquireFence();
+    }
+
+    @Override
+    public void fullFence() {
+        DtUnsafe.fullFence();
     }
 }

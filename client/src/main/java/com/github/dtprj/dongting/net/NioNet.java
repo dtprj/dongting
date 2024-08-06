@@ -22,6 +22,7 @@ import com.github.dtprj.dongting.common.DtThreadFactory;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.PerfCallback;
+import com.github.dtprj.dongting.common.VersionFactory;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
@@ -100,6 +101,7 @@ public abstract class NioNet extends AbstractLifeCircle {
             request.setFrameType(decoder != null ? FrameType.TYPE_REQ : FrameType.TYPE_ONE_WAY);
 
             while (true) {
+                VersionFactory.getInstance().acquireFence();
                 int maxPending = config.getMaxOutRequests();
                 long maxPendingBytes = config.getMaxOutBytes();
                 if (maxPending <= 0 && maxPendingBytes <= 0) {
