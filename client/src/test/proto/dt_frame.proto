@@ -25,3 +25,35 @@ message Frame {
   bytes extra = 7;
   bytes body = 15;
 }
+
+message Handshake {
+  fixed64 magic1 = 1;
+  fixed64 magic2 = 2;
+  int32 major_version = 3;
+  int32 minor_version = 4;
+  ProcessInfo process_info = 5;
+  DtAuth dt_auth = 6;
+  UserAuth user_auth = 7;
+  Config config = 8;
+}
+
+message ProcessInfo {
+  // reserved for future use
+}
+
+message DtAuth {
+  // reserved for build-in authentication
+}
+
+message UserAuth {
+  // reserved for user custom authentication
+}
+
+message Config {
+  int32 max_frame_size = 1;
+  int32 max_body_size = 2;
+  int32 max_in_pending = 3;
+  int64 max_in_pending_bytes = 4;
+  int32 max_out_pending = 5;
+  int64 max_out_pending_bytes = 6;
+}

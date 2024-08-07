@@ -21,7 +21,9 @@ package com.github.dtprj.dongting.net;
 public interface Commands {
     // 1 ~ 15
     int CMD_PING = 1;
-    int RAFT_APPEND_ENTRIES = 2;
+    int CMD_HANDSHAKE = 2;
+    int CMD_HEARTBEAT = 3;
+    int RAFT_APPEND_ENTRIES = 4;
 
     // 16 ~ 29 for rpc
 

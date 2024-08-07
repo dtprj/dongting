@@ -127,7 +127,7 @@ public class PbParser {
             parse0(buf);
         } catch (RuntimeException | Error e) {
             if (status == STATUS_ERROR || status == STATUS_SINGLE_INIT || status == STATUS_SINGLE_END) {
-                BugLog.getLog().error("unexpect status: {}", status);
+                BugLog.getLog().error("unexpected status: {}", status);
             } else if (status != STATUS_PARSE_PB_LEN) {
                 callEnd(callback, false, STATUS_ERROR);
             }
@@ -514,9 +514,8 @@ public class PbParser {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    public <T> PbCallback<T> getCallback() {
-        return (PbCallback<T>) callback;
+    public PbCallback<?> getCallback() {
+        return callback;
     }
 
     public PbParser getNestedParser() {

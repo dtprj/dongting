@@ -41,7 +41,8 @@ public final class PbNoCopyDecoder<T> extends Decoder<T> {
                 context.parser.prepareNext(callback, bodyLen);
             }
         } else {
-            callback = context.parser.getCallback();
+            //noinspection unchecked
+            callback = (PbCallback<T>) context.parser.getCallback();
         }
         boolean end = buffer.remaining() >= bodyLen - currentPos;
         context.parser.parse(buffer);
