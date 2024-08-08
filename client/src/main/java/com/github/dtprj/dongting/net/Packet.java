@@ -18,7 +18,7 @@ package com.github.dtprj.dongting.net;
 /**
  * @author huangli
  */
-public abstract class Frame {
+public abstract class Packet {
     public static final int IDX_TYPE = 1;
     public static final int IDX_COMMAND = 2;
     public static final int IDX_SEQ = 3;
@@ -28,7 +28,7 @@ public abstract class Frame {
     public static final int IDX_EXTRA = 7;
     public static final int IDX_BODY = 15;
 
-    int frameType;
+    int packetType;
     int command;
     int seq;
     int respCode;
@@ -38,7 +38,7 @@ public abstract class Frame {
 
     @Override
     public String toString() {
-        return "Frame(type=" + frameType +
+        return "Packet(type=" + packetType +
                 ",cmd=" + command +
                 ",seq=" + seq +
                 ",respCode=" + respCode +
@@ -46,12 +46,12 @@ public abstract class Frame {
     }
 
 
-    public int getFrameType() {
-        return frameType;
+    public int getPacketType() {
+        return packetType;
     }
 
-    void setFrameType(int frameType) {
-        this.frameType = frameType;
+    void setPacketType(int packetType) {
+        this.packetType = packetType;
     }
 
     public int getCommand() {

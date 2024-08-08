@@ -20,11 +20,11 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class ByteBufferWriteFrame extends RetryableWriteFrame {
+public class ByteBufferWritePacket extends RetryableWritePacket {
     private final ByteBuffer data;
     private final int size;
 
-    public ByteBufferWriteFrame(ByteBuffer data) {
+    public ByteBufferWritePacket(ByteBuffer data) {
         this.size = data == null ? 0 : data.remaining();
         this.data = data;
     }

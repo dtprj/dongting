@@ -57,11 +57,11 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
     // read status
     private final PbParser parser;
-    private ReadFrame frame;
+    private ReadPacket packet;
     private boolean readBody;
     private WriteData requestForResp;
     private ReqProcessor processorForRequest;
-    private int currentReadFrameSize;
+    private int currentReadPacketSize;
     private Decoder<?> currentDecoder;
     private boolean flowControl;
 
@@ -79,7 +79,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         this.workerStatus = workerStatus;
         this.channelIndexInWorker = channelIndexInWorker;
         this.peer = peer;
-        this.parser = PbParser.multiParser(this, nioConfig.getMaxFrameSize());
+        this.parser = PbParser.multiParser(this, nioConfig.getMaxPacketSize());
 
         this.respWriter = new RespWriter(workerStatus.getIoQueue(), workerStatus.getWakeupRunnable(), this);
 
@@ -101,8 +101,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
     @Override
     protected void begin(int len) {
-        this.currentReadFrameSize = len;
-        frame = new ReadFrame();
+        this.currentReadPacketSize = len;
+        packet = new ReadPacket();
         readBody = false;
         requestForResp = null;
         processorForRequest = null;
@@ -122,7 +122,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
             if (requestForResp == null && processorForRequest == null) {
                 // empty body
-                if (!initRelatedDataForFrame()) {
+                if (!initRelatedDataForPacket()) {
                     return;
                 }
                 if (requestForResp == null && processorForRequest == null) {
@@ -130,18 +130,18 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 }
                 if (currentDecoder != null) {
                     Object o = currentDecoder.decode(decodeContext, SimpleByteBufferPool.EMPTY_BUFFER, 0, 0);
-                    frame.setBody(o);
+                    packet.setBody(o);
                 }
             }
         } finally {
             resetDecoder();
         }
 
-        if (frame.getFrameType() == FrameType.TYPE_RESP) {
-            processIncomingResponse(frame, requestForResp);
+        if (packet.getPacketType() == PacketType.TYPE_RESP) {
+            processIncomingResponse(packet, requestForResp);
         } else {
             // req or one way
-            processIncomingRequest(frame, processorForRequest, workerStatus.getTs());
+            processIncomingRequest(packet, processorForRequest, workerStatus.getTs());
         }
     }
 
@@ -151,14 +151,14 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             throw new PbException("body has read");
         }
         switch (index) {
-            case Frame.IDX_TYPE:
-                frame.setFrameType((int) value);
+            case Packet.IDX_TYPE:
+                packet.setPacketType((int) value);
                 break;
-            case Frame.IDX_COMMAND:
-                frame.setCommand((int) value);
+            case Packet.IDX_COMMAND:
+                packet.setCommand((int) value);
                 break;
-            case Frame.IDX_RESP_CODE:
-                frame.setRespCode((int) value);
+            case Packet.IDX_RESP_CODE:
+                packet.setRespCode((int) value);
                 break;
         }
         return true;
@@ -169,8 +169,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         if (this.readBody) {
             throw new PbException("body has read");
         }
-        if (index == Frame.IDX_SEQ) {
-            frame.setSeq(value);
+        if (index == Packet.IDX_SEQ) {
+            packet.setSeq(value);
         }
         return true;
     }
@@ -180,8 +180,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         if (this.readBody) {
             throw new PbException("body has read");
         }
-        if (index == Frame.IDX_TIMOUT) {
-            frame.setTimeout(value);
+        if (index == Packet.IDX_TIMOUT) {
+            packet.setTimeout(value);
         }
         return true;
     }
@@ -192,15 +192,15 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             throw new PbException("body has read");
         }
         switch (index) {
-            case Frame.IDX_MSG: {
-                this.frame.setMsg(parseUTF8(buf, fieldLen, currentPos));
+            case Packet.IDX_MSG: {
+                this.packet.setMsg(parseUTF8(buf, fieldLen, currentPos));
                 return true;
             }
-            case Frame.IDX_EXTRA: {
-                this.frame.setExtra(parseBytes(buf, fieldLen, currentPos));
+            case Packet.IDX_EXTRA: {
+                this.packet.setExtra(parseBytes(buf, fieldLen, currentPos));
                 return true;
             }
-            case Frame.IDX_BODY: {
+            case Packet.IDX_BODY: {
                 boolean end = buf.remaining() >= fieldLen - currentPos;
                 try {
                     if (currentPos == 0 && currentDecoder != null) {
@@ -231,12 +231,12 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     private boolean readBody(ByteBuffer buf, int fieldLen, int currentPos, boolean end) {
-        ReadFrame frame = this.frame;
-        if (frame.getCommand() <= 0) {
-            throw new NetException("command invalid :" + frame.getCommand());
+        ReadPacket packet = this.packet;
+        if (packet.getCommand() <= 0) {
+            throw new NetException("command invalid :" + packet.getCommand());
         }
         // the body field should encode as last field
-        if (!initRelatedDataForFrame()) {
+        if (!initRelatedDataForPacket()) {
             return false;
         }
         if (currentDecoder == null) {
@@ -246,7 +246,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         try {
             Object o = currentDecoder.decode(decodeContext, buf, fieldLen, currentPos);
             if (end) {
-                frame.setBody(o);
+                packet.setBody(o);
                 // so if the body is not last field, exception throws
                 readBody = true;
             }
@@ -258,14 +258,14 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    private boolean initRelatedDataForFrame() {
-        ReadFrame frame = this.frame;
-        if (frame.getFrameType() == FrameType.TYPE_RESP) {
+    private boolean initRelatedDataForPacket() {
+        ReadPacket packet = this.packet;
+        if (packet.getPacketType() == PacketType.TYPE_RESP) {
             WriteData requestForResp = this.requestForResp;
             if (requestForResp == null) {
-                requestForResp = this.workerStatus.getPendingRequests().remove(BitUtil.toLong(channelIndexInWorker, frame.getSeq()));
+                requestForResp = this.workerStatus.getPendingRequests().remove(BitUtil.toLong(channelIndexInWorker, packet.getSeq()));
                 if (requestForResp == null) {
-                    log.info("pending request not found. channel={}, resp={}", channel, frame);
+                    log.info("pending request not found. channel={}, resp={}", channel, packet);
                     return false;
                 } else {
                     this.requestForResp = requestForResp;
@@ -277,19 +277,19 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         } else {
             // req or one way
             if (!running) {
-                writeErrorInIoThread(frame, CmdCodes.STOPPING, null);
+                writeErrorInIoThread(packet, CmdCodes.STOPPING, null);
                 return false;
             }
             if (processorForRequest == null) {
-                processorForRequest = nioStatus.getProcessor(frame.getCommand());
+                processorForRequest = nioStatus.getProcessor(packet.getCommand());
                 if (processorForRequest == null) {
-                    log.warn("command {} is not support", frame.getCommand());
-                    writeErrorInIoThread(frame, CmdCodes.COMMAND_NOT_SUPPORT, null);
+                    log.warn("command {} is not support", packet.getCommand());
+                    writeErrorInIoThread(packet, CmdCodes.COMMAND_NOT_SUPPORT, null);
                     return false;
                 }
             }
             if (currentDecoder == null) {
-                currentDecoder = processorForRequest.createDecoder(frame.getCommand());
+                currentDecoder = processorForRequest.createDecoder(packet.getCommand());
             }
         }
         return true;
@@ -306,7 +306,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             if (maxReq > 0 && nioStatus.pendingRequests + 1 > maxReq) {
                 log.debug("pendingRequests({})>maxInRequests({}), write response code FLOW_CONTROL to client",
                         nioStatus.pendingRequests + 1, nioConfig.getMaxInRequests());
-                writeErrorInIoThread(frame, CmdCodes.FLOW_CONTROL,
+                writeErrorInIoThread(packet, CmdCodes.FLOW_CONTROL,
                         "max incoming request: " + nioConfig.getMaxInRequests());
                 return false;
 
@@ -314,7 +314,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             if (maxBytes > 0 && nioStatus.pendingBytes + bytes > maxBytes) {
                 log.debug("pendingBytes({})>maxInBytes({}), write response code FLOW_CONTROL to client",
                         nioStatus.pendingBytes + bytes, nioConfig.getMaxInBytes());
-                writeErrorInIoThread(frame, CmdCodes.FLOW_CONTROL,
+                writeErrorInIoThread(packet, CmdCodes.FLOW_CONTROL,
                         "max incoming request bytes: " + nioConfig.getMaxInBytes());
                 return false;
             }
@@ -341,19 +341,19 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         if (log.isDebugEnabled()) {
             log.debug("decode fail. {} {}", channel, e.toString());
         }
-        if (frame.getFrameType() == FrameType.TYPE_RESP) {
+        if (packet.getPacketType() == PacketType.TYPE_RESP) {
             if (requestForResp != null) {
                 requestForResp.callFail(false, e);
             }
         } else {
             // req or one way
             log.warn("decode fail in io thread", e);
-            writeErrorInIoThread(frame, CmdCodes.BIZ_ERROR, "decode fail: " + e.toString());
+            writeErrorInIoThread(packet, CmdCodes.BIZ_ERROR, "decode fail: " + e.toString());
         }
     }
 
-    private void processIncomingResponse(ReadFrame resp, WriteData wo) {
-        WriteFrame req = wo.getData();
+    private void processIncomingResponse(ReadPacket resp, WriteData wo) {
+        WritePacket req = wo.getData();
         if (resp.getCommand() != req.getCommand()) {
             wo.callFail(false, new NetException("command not match"));
             return;
@@ -361,8 +361,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         wo.callSuccess(resp);
     }
 
-    private void processIncomingRequest(ReadFrame req, ReqProcessor p, Timestamp roundTime) {
-        if(!flowControlCheck(currentReadFrameSize)) {
+    private void processIncomingRequest(ReadPacket req, ReqProcessor p, Timestamp roundTime) {
+        if(!flowControlCheck(currentReadPacketSize)) {
             return;
         }
         ReqContext reqContext = new ReqContext(this, new DtTime(roundTime, req.getTimeout(), TimeUnit.NANOSECONDS));
@@ -370,7 +370,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             if (timeout(req, reqContext, roundTime)) {
                 return;
             }
-            WriteFrame resp;
+            WritePacket resp;
             try {
                 resp = p.process(req, reqContext);
             } catch (NetCodeException e) {
@@ -384,36 +384,36 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 return;
             } finally {
                 if (flowControl) {
-                    releasePending(currentReadFrameSize);
+                    releasePending(currentReadPacketSize);
                 }
             }
             if (resp != null) {
                 resp.setCommand(req.getCommand());
-                resp.setFrameType(FrameType.TYPE_RESP);
+                resp.setPacketType(PacketType.TYPE_RESP);
                 resp.setSeq(req.getSeq());
                 subQueue.enqueue(new WriteData(this, resp, reqContext.getTimeout()));
             }
         } else {
             try {
                 p.executor.execute(new ProcessInBizThreadTask(
-                        req, p, currentReadFrameSize, this, flowControl, reqContext));
+                        req, p, currentReadPacketSize, this, flowControl, reqContext));
             } catch (RejectedExecutionException e) {
                 log.debug("catch RejectedExecutionException, write response code FLOW_CONTROL to client, maxInRequests={}",
                         nioConfig.getMaxInRequests());
                 writeErrorInIoThread(req, CmdCodes.FLOW_CONTROL,
                         "max incoming request: " + nioConfig.getMaxInRequests(), reqContext.getTimeout());
                 if (flowControl) {
-                    releasePending(currentReadFrameSize);
+                    releasePending(currentReadPacketSize);
                 }
             }
         }
     }
 
-    static boolean timeout(ReadFrame rf, ReqContext reqContext, Timestamp ts) {
+    static boolean timeout(ReadPacket rf, ReqContext reqContext, Timestamp ts) {
         DtTime t = reqContext.getTimeout();
         boolean timeout = ts == null ? t.isTimeout() : t.isTimeout(ts);
         if (timeout) {
-            String type = FrameType.toStr(rf.getFrameType());
+            String type = PacketType.toStr(rf.getPacketType());
             log.debug("drop timeout {}, remote={}, seq={}, timeout={}ms", type,
                     reqContext.getDtChannel().getRemoteAddr(), rf.getSeq(), t.getTimeout(TimeUnit.MILLISECONDS));
             return true;
@@ -422,17 +422,17 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         }
     }
 
-    private void writeErrorInIoThread(Frame req, int code, String msg) {
+    private void writeErrorInIoThread(Packet req, int code, String msg) {
         writeErrorInIoThread(req, code, msg, new DtTime(10, TimeUnit.SECONDS));
     }
 
-    private void writeErrorInIoThread(Frame req, int code, String msg, DtTime timeout) {
-        if (req.getFrameType() == FrameType.TYPE_ONE_WAY) {
+    private void writeErrorInIoThread(Packet req, int code, String msg, DtTime timeout) {
+        if (req.getPacketType() == PacketType.TYPE_ONE_WAY) {
             return;
         }
-        EmptyBodyRespFrame resp = new EmptyBodyRespFrame(code);
+        EmptyBodyRespPacket resp = new EmptyBodyRespPacket(code);
         resp.setCommand(req.getCommand());
-        resp.setFrameType(FrameType.TYPE_RESP);
+        resp.setPacketType(PacketType.TYPE_RESP);
         resp.setSeq(req.getSeq());
         resp.setMsg(msg);
         subQueue.enqueue(new WriteData(this, resp, timeout));
@@ -487,8 +487,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     // for unit test
-    ReadFrame getFrame() {
-        return frame;
+    ReadPacket getPacket() {
+        return packet;
     }
 
     @Override
@@ -500,18 +500,18 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 @SuppressWarnings({"rawtypes", "unchecked"})
 class ProcessInBizThreadTask implements Runnable {
     private static final DtLog log = DtLogs.getLogger(ProcessInBizThreadTask.class);
-    private final ReadFrame req;
+    private final ReadPacket req;
     private final ReqProcessor processor;
-    private final int frameSize;
+    private final int packetSize;
     private final DtChannelImpl dtc;
     private final boolean flowControl;
     private final ReqContext reqContext;
 
-    ProcessInBizThreadTask(ReadFrame req, ReqProcessor processor,
-                           int frameSize, DtChannelImpl dtc, boolean flowControl, ReqContext reqContext) {
+    ProcessInBizThreadTask(ReadPacket req, ReqProcessor processor,
+                           int packetSize, DtChannelImpl dtc, boolean flowControl, ReqContext reqContext) {
         this.req = req;
         this.processor = processor;
-        this.frameSize = frameSize;
+        this.packetSize = packetSize;
         this.dtc = dtc;
         this.flowControl = flowControl;
         this.reqContext = reqContext;
@@ -519,8 +519,8 @@ class ProcessInBizThreadTask implements Runnable {
 
     @Override
     public void run() {
-        WriteFrame resp = null;
-        ReadFrame req = this.req;
+        WritePacket resp = null;
+        ReadPacket req = this.req;
         DtChannelImpl dtc = this.dtc;
         try {
             if (DtChannelImpl.timeout(req, reqContext, null)) {
@@ -529,19 +529,19 @@ class ProcessInBizThreadTask implements Runnable {
             resp = processor.process(req, reqContext);
         } catch (NetCodeException e) {
             log.warn("ReqProcessor.process fail, command={}, code={}, msg={}", req.getCommand(), e.getCode(), e.getMessage());
-            if (req.getFrameType() == FrameType.TYPE_REQ) {
-                resp = new EmptyBodyRespFrame(e.getCode());
+            if (req.getPacketType() == PacketType.TYPE_REQ) {
+                resp = new EmptyBodyRespPacket(e.getCode());
                 resp.setMsg(e.toString());
             }
         } catch (Throwable e) {
             log.warn("ReqProcessor.process fail, command={}", req.getCommand(), e);
-            if (req.getFrameType() == FrameType.TYPE_REQ) {
-                resp = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
+            if (req.getPacketType() == PacketType.TYPE_REQ) {
+                resp = new EmptyBodyRespPacket(CmdCodes.BIZ_ERROR);
                 resp.setMsg(e.toString());
             }
         } finally {
             if (flowControl) {
-                dtc.releasePending(frameSize);
+                dtc.releasePending(packetSize);
             }
         }
         if (resp != null) {

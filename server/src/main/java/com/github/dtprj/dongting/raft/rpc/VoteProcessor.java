@@ -23,7 +23,7 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
-import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
 import com.github.dtprj.dongting.raft.impl.RaftStatusImpl;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
@@ -43,7 +43,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
     }
 
     @Override
-    protected int getGroupId(ReadFrame<VoteReq> frame) {
+    protected int getGroupId(ReadPacket<VoteReq> frame) {
         return frame.getBody().getGroupId();
     }
 
@@ -95,7 +95,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
 
         private FrameCallResult writeVoteResp() {
             resp.setTerm(raftStatus.getCurrentTerm());
-            VoteResp.VoteRespWriteFrame wf = new VoteResp.VoteRespWriteFrame(resp);
+            VoteResp.VoteRespWritePacket wf = new VoteResp.VoteRespWritePacket(resp);
             wf.setRespCode(CmdCodes.SUCCESS);
             writeResp(reqInfo, wf);
             return Fiber.frameReturn();

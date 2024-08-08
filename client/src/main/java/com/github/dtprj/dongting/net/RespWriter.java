@@ -33,7 +33,7 @@ public class RespWriter {
     }
 
     // invoke by other threads
-    public void writeRespInBizThreads(ReadFrame<?> req, WriteFrame resp, DtTime timeout) {
+    public void writeRespInBizThreads(ReadPacket<?> req, WritePacket resp, DtTime timeout) {
         resp.setSeq(req.getSeq());
         resp.setCommand(req.getCommand());
         if (dtc.isClosed()) {
@@ -47,7 +47,7 @@ public class RespWriter {
         }
         req.responseHasWrite = true;
 
-        resp.setFrameType(FrameType.TYPE_RESP);
+        resp.setPacketType(PacketType.TYPE_RESP);
         WriteData data = new WriteData(dtc, resp, timeout);
         ioWorkerQueue.writeFromBizThread(data);
         wakeupRunnable.run();

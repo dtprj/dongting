@@ -133,16 +133,16 @@ public class NioClient extends NioNet {
         this.startFutures = null;
     }
 
-    public <T> CompletableFuture<ReadFrame<T>> sendRequest(WriteFrame request, Decoder<T> decoder, DtTime timeout) {
+    public <T> CompletableFuture<ReadPacket<T>> sendRequest(WritePacket request, Decoder<T> decoder, DtTime timeout) {
         return sendRequest(null, request, decoder, timeout);
     }
 
-    public <T> CompletableFuture<ReadFrame<T>> sendRequest(Peer peer, WriteFrame request, Decoder<T> decoder,
-                                                           DtTime timeout) {
-        CompletableFuture<ReadFrame<T>> f = new CompletableFuture<>();
+    public <T> CompletableFuture<ReadPacket<T>> sendRequest(Peer peer, WritePacket request, Decoder<T> decoder,
+                                                            DtTime timeout) {
+        CompletableFuture<ReadPacket<T>> f = new CompletableFuture<>();
         send(worker, peer, request, decoder, timeout, new RpcCallback<T>() {
             @Override
-            public void success(ReadFrame<T> resp) {
+            public void success(ReadPacket<T> resp) {
                 f.complete(resp);
             }
 
@@ -154,24 +154,24 @@ public class NioClient extends NioNet {
         return f;
     }
 
-    public <T> void sendRequest(WriteFrame request, Decoder<T> decoder, DtTime timeout, RpcCallback<T> callback) {
+    public <T> void sendRequest(WritePacket request, Decoder<T> decoder, DtTime timeout, RpcCallback<T> callback) {
         send(worker, null, request, decoder, timeout, callback);
     }
 
-    public <T> void sendRequest(Peer peer, WriteFrame request, Decoder<T> decoder, DtTime timeout,
+    public <T> void sendRequest(Peer peer, WritePacket request, Decoder<T> decoder, DtTime timeout,
                                 RpcCallback<T> callback) {
         send(worker, peer, request, decoder, timeout, callback);
     }
 
-    public CompletableFuture<Void> sendOneWay(WriteFrame request, DtTime timeout) {
+    public CompletableFuture<Void> sendOneWay(WritePacket request, DtTime timeout) {
         return sendOneWay(null, request, timeout);
     }
 
-    public CompletableFuture<Void> sendOneWay(Peer peer, WriteFrame request, DtTime timeout) {
+    public CompletableFuture<Void> sendOneWay(Peer peer, WritePacket request, DtTime timeout) {
         CompletableFuture<Void> f = new CompletableFuture<>();
         send(worker, peer, request, null, timeout, new RpcCallback<Object>() {
             @Override
-            public void success(ReadFrame<Object> resp) {
+            public void success(ReadPacket<Object> resp) {
                 f.complete(null);
             }
 
@@ -183,11 +183,11 @@ public class NioClient extends NioNet {
         return f;
     }
 
-    public <T> void sendOneWay(WriteFrame request, DtTime timeout, RpcCallback<T> callback) {
+    public <T> void sendOneWay(WritePacket request, DtTime timeout, RpcCallback<T> callback) {
         send(worker, null, request, null, timeout, callback);
     }
 
-    public <T> void sendOneWay(Peer peer, WriteFrame request, DtTime timeout, RpcCallback<T> callback) {
+    public <T> void sendOneWay(Peer peer, WritePacket request, DtTime timeout, RpcCallback<T> callback) {
         send(worker, peer, request, null, timeout, callback);
     }
 

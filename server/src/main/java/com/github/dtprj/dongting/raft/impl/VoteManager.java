@@ -26,7 +26,7 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.NioClient;
-import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.raft.rpc.VoteReq;
 import com.github.dtprj.dongting.raft.rpc.VoteResp;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -176,7 +176,7 @@ public class VoteManager {
         req.setLastLogIndex(raftStatus.getLastLogIndex());
         req.setLastLogTerm(raftStatus.getLastLogTerm());
         req.setPreVote(preVote);
-        VoteReq.VoteReqWriteFrame wf = new VoteReq.VoteReqWriteFrame(req);
+        VoteReq.VoteReqWritePacket wf = new VoteReq.VoteReqWritePacket(req);
         wf.setCommand(Commands.RAFT_REQUEST_VOTE);
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
 
@@ -188,7 +188,7 @@ public class VoteManager {
             resp.setTerm(currentTerm);
             fireRespProcessFiber(req, resp, null, member, voteIdOfRequest);
         } else {
-            CompletableFuture<ReadFrame<VoteResp>> f = client.sendRequest(member.getNode().getPeer(), wf,
+            CompletableFuture<ReadPacket<VoteResp>> f = client.sendRequest(member.getNode().getPeer(), wf,
                     RESP_DECODER, timeout);
             log.info("send {} request. remoteNode={}, groupId={}, term={}, lastLogIndex={}, lastLogTerm={}",
                     preVote ? "pre-vote" : "vote", member.getNode().getNodeId(), groupId,

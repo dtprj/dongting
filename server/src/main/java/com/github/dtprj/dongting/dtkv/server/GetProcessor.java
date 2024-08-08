@@ -21,10 +21,10 @@ import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.dtkv.GetReq;
 import com.github.dtprj.dongting.net.CmdCodes;
-import com.github.dtprj.dongting.net.ReadFrame;
-import com.github.dtprj.dongting.net.RefBufWriteFrame;
+import com.github.dtprj.dongting.net.ReadPacket;
+import com.github.dtprj.dongting.net.RefBufWritePacket;
 import com.github.dtprj.dongting.net.ReqContext;
-import com.github.dtprj.dongting.net.WriteFrame;
+import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.server.AbstractRaftBizProcessor;
 import com.github.dtprj.dongting.raft.server.RaftGroup;
 import com.github.dtprj.dongting.raft.server.RaftServer;
@@ -72,7 +72,7 @@ public class GetProcessor extends AbstractRaftBizProcessor<GetReq> {
     }
 
     @Override
-    protected int getGroupId(ReadFrame<GetReq> frame) {
+    protected int getGroupId(ReadPacket<GetReq> frame) {
         return frame.getBody().getGroupId();
     }
 
@@ -80,8 +80,8 @@ public class GetProcessor extends AbstractRaftBizProcessor<GetReq> {
      * run in io thread.
      */
     @Override
-    protected WriteFrame doProcess(ReqInfo<GetReq> reqInfo) {
-        ReadFrame<GetReq> frame = reqInfo.getReqFrame();
+    protected WritePacket doProcess(ReqInfo<GetReq> reqInfo) {
+        ReadPacket<GetReq> frame = reqInfo.getReqFrame();
         ReqContext reqContext = reqInfo.getReqContext();
         RaftGroup group = reqInfo.getRaftGroup();
         group.getLeaseReadIndex(reqContext.getTimeout()).whenComplete((logIndex, ex) -> {
@@ -90,7 +90,7 @@ public class GetProcessor extends AbstractRaftBizProcessor<GetReq> {
             } else {
                 DtKV dtKV = (DtKV) group.getStateMachine();
                 RefBuffer rb = dtKV.get(logIndex, frame.getBody().getKey());
-                RefBufWriteFrame wf = new RefBufWriteFrame(rb);
+                RefBufWritePacket wf = new RefBufWritePacket(rb);
                 wf.setRespCode(CmdCodes.SUCCESS);
                 writeResp(reqInfo, wf);
             }

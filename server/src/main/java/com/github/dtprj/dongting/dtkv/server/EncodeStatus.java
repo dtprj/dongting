@@ -17,7 +17,7 @@ package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
-import com.github.dtprj.dongting.net.ByteBufferWriteFrame;
+import com.github.dtprj.dongting.net.ByteBufferWritePacket;
 
 import java.nio.ByteBuffer;
 
@@ -118,7 +118,7 @@ class EncodeStatus {
         if (dest.remaining() == 0) {
             return false;
         }
-        offset = ByteBufferWriteFrame.copyFromHeapBuffer(valueBuf, dest, offset);
+        offset = ByteBufferWritePacket.copyFromHeapBuffer(valueBuf, dest, offset);
         if (offset < valueBuf.remaining()) {
             return false;
         } else {

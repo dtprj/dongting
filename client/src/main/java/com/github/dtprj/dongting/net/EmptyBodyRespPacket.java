@@ -15,29 +15,24 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.codec.PbUtil;
-
 import java.nio.ByteBuffer;
 
 /**
  * @author huangli
  */
-public class PbIntWriteFrame extends SmallNoCopyWriteFrame {
+public class EmptyBodyRespPacket extends RetryableWritePacket {
 
-    private final int value;
-
-    public PbIntWriteFrame(int command, int value) {
-        setCommand(command);
-        this.value = value;
-    }
-
-    @Override
-    protected void encodeBody(ByteBuffer buf) {
-        PbUtil.writeFix32(buf, 1, value);
+    public EmptyBodyRespPacket(int respCode) {
+        setRespCode(respCode);
     }
 
     @Override
     protected int calcActualBodySize() {
-        return value == 0 ? 0 : 5;
+        return 0;
+    }
+
+    @Override
+    protected boolean encodeBody(RpcEncodeContext context, ByteBuffer dest) {
+        return true;
     }
 }

@@ -17,7 +17,7 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
-import com.github.dtprj.dongting.net.SmallNoCopyWriteFrame;
+import com.github.dtprj.dongting.net.SmallNoCopyWritePacket;
 
 import java.nio.ByteBuffer;
 
@@ -52,11 +52,11 @@ public class VoteResp {
         }
     }
 
-    public static class VoteRespWriteFrame extends SmallNoCopyWriteFrame {
+    public static class VoteRespWritePacket extends SmallNoCopyWritePacket {
 
         private final VoteResp data;
 
-        public VoteRespWriteFrame(VoteResp data) {
+        public VoteRespWritePacket(VoteResp data) {
             this.data = data;
         }
 

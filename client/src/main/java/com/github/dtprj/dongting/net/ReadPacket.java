@@ -15,24 +15,22 @@
  */
 package com.github.dtprj.dongting.net;
 
-import java.nio.ByteBuffer;
-
 /**
  * @author huangli
  */
-public class EmptyBodyRespFrame extends RetryableWriteFrame {
+public class ReadPacket<T> extends Packet {
+    private T body;
+    boolean responseHasWrite;
 
-    public EmptyBodyRespFrame(int respCode) {
-        setRespCode(respCode);
+    public ReadPacket() {
     }
 
-    @Override
-    protected int calcActualBodySize() {
-        return 0;
+    public T getBody() {
+        return body;
     }
 
-    @Override
-    protected boolean encodeBody(RpcEncodeContext context, ByteBuffer dest) {
-        return true;
+    public void setBody(T body) {
+        this.body = body;
     }
+
 }

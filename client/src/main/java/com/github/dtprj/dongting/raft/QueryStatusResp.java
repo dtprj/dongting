@@ -17,7 +17,7 @@ package com.github.dtprj.dongting.raft;
 
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
-import com.github.dtprj.dongting.net.SmallNoCopyWriteFrame;
+import com.github.dtprj.dongting.net.SmallNoCopyWritePacket;
 
 import java.nio.ByteBuffer;
 
@@ -79,11 +79,11 @@ public class QueryStatusResp {
         }
     }
 
-    public static class QueryStatusRespWriteFrame extends SmallNoCopyWriteFrame {
+    public static class QueryStatusRespWritePacket extends SmallNoCopyWritePacket {
 
         QueryStatusResp resp;
 
-        public QueryStatusRespWriteFrame(QueryStatusResp resp) {
+        public QueryStatusRespWritePacket(QueryStatusResp resp) {
             this.resp = resp;
         }
 

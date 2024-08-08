@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.PbUtil;
-import com.github.dtprj.dongting.net.SmallNoCopyWriteFrame;
+import com.github.dtprj.dongting.net.SmallNoCopyWritePacket;
 
 import java.nio.ByteBuffer;
 
@@ -29,7 +29,7 @@ import java.nio.ByteBuffer;
 //  uint32 append_code = 3;
 //  uint32 suggest_term = 4;
 //  fixed64 suggest_index = 5;
-public class AppendRespWriteFrame extends SmallNoCopyWriteFrame {
+public class AppendRespWritePacket extends SmallNoCopyWritePacket {
     private int term;
     private boolean success;
     private int appendCode;

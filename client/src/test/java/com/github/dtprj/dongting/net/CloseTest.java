@@ -47,14 +47,14 @@ public class CloseTest {
         server = new NioServer(serverConfig);
         server.register(CMD, new NioServer.PingProcessor() {
             @Override
-            public WriteFrame process(ReadFrame<RefBuffer> frame, ReqContext reqContext) {
+            public WritePacket process(ReadPacket<RefBuffer> packet, ReqContext reqContext) {
                 received = true;
                 try {
                     Thread.sleep(sleepTime);
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
-                return super.process(frame, reqContext);
+                return super.process(packet, reqContext);
             }
         });
 
@@ -78,7 +78,7 @@ public class CloseTest {
     public void testCleanInterval() {
         setup(Tick.tick(30), false, 1);
 
-        ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(1));
+        ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.allocate(1));
         wf.setCommand(CMD);
         CompletableFuture<?> f = client.sendRequest(wf, RefBufferDecoder.INSTANCE, new DtTime(10, TimeUnit.SECONDS));
 
@@ -100,7 +100,7 @@ public class CloseTest {
     public void testCleanWhenClose() throws Exception {
         setup(Tick.tick(30), true, 1000000);
 
-        ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(1));
+        ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.allocate(1));
         wf.setCommand(CMD);
         CompletableFuture<?> f = client.sendRequest(wf, RefBufferDecoder.INSTANCE, new DtTime(10, TimeUnit.SECONDS));
 

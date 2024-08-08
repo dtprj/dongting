@@ -21,7 +21,7 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.net.RpcEncodeContext;
-import com.github.dtprj.dongting.net.WriteFrame;
+import com.github.dtprj.dongting.net.WritePacket;
 
 import java.nio.ByteBuffer;
 import java.util.HashSet;
@@ -166,14 +166,14 @@ public class InstallSnapshotReq {
         }
     }
 
-    public static class InstallReqWriteFrame extends WriteFrame {
+    public static class InstallReqWritePacket extends WritePacket {
 
         private final InstallSnapshotReq req;
         private final int headerSize;
         private final int bufferSize;
         private boolean headerWritten = false;
 
-        public InstallReqWriteFrame(InstallSnapshotReq req) {
+        public InstallReqWritePacket(InstallSnapshotReq req) {
             this.req = req;
             int x = PbUtil.accurateUnsignedIntSize(1, req.groupId)
                     + PbUtil.accurateUnsignedIntSize(2, req.term)

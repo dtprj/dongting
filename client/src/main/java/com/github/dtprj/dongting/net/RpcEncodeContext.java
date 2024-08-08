@@ -23,7 +23,7 @@ import com.github.dtprj.dongting.codec.EncodeContext;
  */
 public class RpcEncodeContext extends EncodeContext {
 
-    int frameEncodeStatus;
+    int packetEncodeStatus;
 
     public RpcEncodeContext(RefBufferFactory heapPool) {
         super(heapPool);
@@ -32,6 +32,6 @@ public class RpcEncodeContext extends EncodeContext {
     @Override
     public void reset() {
         super.reset();
-        this.frameEncodeStatus = WriteFrame.STATUS_INIT;
+        this.packetEncodeStatus = WritePacket.STATUS_INIT;
     }
 }

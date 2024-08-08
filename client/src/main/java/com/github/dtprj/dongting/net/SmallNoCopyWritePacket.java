@@ -20,19 +20,15 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class EmptyBodyReqFrame extends RetryableWriteFrame {
-
-    public EmptyBodyReqFrame(int command) {
-        setCommand(command);
-    }
-
+public abstract class SmallNoCopyWritePacket extends RetryableWritePacket {
     @Override
-    protected int calcActualBodySize() {
-        return 0;
-    }
-
-    @Override
-    protected boolean encodeBody(RpcEncodeContext context, ByteBuffer dest) {
+    protected final boolean encodeBody(RpcEncodeContext context, ByteBuffer dest) {
+        if (dest.remaining() < actualBodySize()) {
+            return false;
+        }
+        encodeBody(dest);
         return true;
     }
+
+    protected abstract void encodeBody(ByteBuffer buf);
 }

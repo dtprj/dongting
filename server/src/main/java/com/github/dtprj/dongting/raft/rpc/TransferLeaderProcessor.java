@@ -21,8 +21,8 @@ import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
-import com.github.dtprj.dongting.net.EmptyBodyRespFrame;
-import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
+import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.RaftRole;
@@ -44,13 +44,13 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
     }
 
     @Override
-    protected int getGroupId(ReadFrame<TransferLeaderReq> frame) {
+    protected int getGroupId(ReadPacket<TransferLeaderReq> frame) {
         return frame.getBody().groupId;
     }
 
     @Override
     protected FiberFrame<Void> processInFiberGroup(ReqInfoEx<TransferLeaderReq> reqInfo) {
-        ReadFrame<TransferLeaderReq> frame = reqInfo.getReqFrame();
+        ReadPacket<TransferLeaderReq> frame = reqInfo.getReqFrame();
         TransferLeaderReq req = frame.getBody();
         GroupComponents gc = reqInfo.getRaftGroup().getGroupComponents();
         RaftStatusImpl raftStatus = gc.getRaftStatus();
@@ -77,7 +77,7 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
 
         RaftUtil.changeToLeader(raftStatus);
         gc.getVoteManager().cancelVote();
-        writeResp(reqInfo, new EmptyBodyRespFrame(CmdCodes.SUCCESS));
+        writeResp(reqInfo, new EmptyBodyRespPacket(CmdCodes.SUCCESS));
         gc.getLinearTaskRunner().sendHeartBeat();
         return FiberFrame.voidCompletedFrame();
     }

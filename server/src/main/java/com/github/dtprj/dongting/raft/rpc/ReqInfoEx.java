@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
@@ -26,7 +26,7 @@ import com.github.dtprj.dongting.raft.server.ReqInfo;
 public class ReqInfoEx<T> extends ReqInfo<T> {
     private final RaftGroupImpl raftGroup;
 
-    public ReqInfoEx(ReadFrame<T> reqFrame, ReqContext reqContext, RaftGroupImpl raftGroup) {
+    public ReqInfoEx(ReadPacket<T> reqFrame, ReqContext reqContext, RaftGroupImpl raftGroup) {
         super(reqFrame, reqContext, raftGroup);
         this.raftGroup = raftGroup;
     }

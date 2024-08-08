@@ -28,8 +28,8 @@ import java.nio.charset.StandardCharsets;
 /**
  * @author huangli
  */
-public abstract class WriteFrame extends Frame implements Encodable {
-    private static final DtLog log = DtLogs.getLogger(WriteFrame.class);
+public abstract class WritePacket extends Packet implements Encodable {
+    private static final DtLog log = DtLogs.getLogger(WritePacket.class);
 
     static final int STATUS_INIT = 0;
     private static final int STATUS_HEADER_ENCODE_FINISHED = 1;
@@ -44,7 +44,7 @@ public abstract class WriteFrame extends Frame implements Encodable {
     private boolean cleaned;
 
     private static final int MAX_HEADER_SIZE = 4 // length
-            + 1 + 1 // uint32 frame_type = 1;
+            + 1 + 1 // uint32 packet_type = 1;
             + 1 + 5 // uint32 command = 2;
             + 1 + 4 // fixed32 seq = 3;
             + 1 + 5 // uint32 resp_code = 4;
@@ -57,7 +57,7 @@ public abstract class WriteFrame extends Frame implements Encodable {
 
     protected abstract boolean encodeBody(RpcEncodeContext context, ByteBuffer dest);
 
-    public final int calcMaxFrameSize() {
+    public final int calcMaxPacketSize() {
         return MAX_HEADER_SIZE
                 + (msgBytes == null ? 0 : msgBytes.length)
                 + (extra == null ? 0 : extra.length)
@@ -86,7 +86,7 @@ public abstract class WriteFrame extends Frame implements Encodable {
         int dumpSize = this.dumpSize;
         if (dumpSize == 0) {
             dumpSize = 4 // length
-                    + PbUtil.accurateUnsignedIntSize(IDX_TYPE, frameType) // uint32 frame_type = 1;
+                    + PbUtil.accurateUnsignedIntSize(IDX_TYPE, packetType) // uint32 packet_type = 1;
                     + PbUtil.accurateUnsignedIntSize(IDX_COMMAND, command) // uint32 command = 2;
                     + PbUtil.accurateFix32Size(IDX_SEQ, seq) // fixed32 seq = 3;
                     + PbUtil.accurateUnsignedIntSize(IDX_RESP_CODE, respCode) // uint32 resp_code = 4;
@@ -102,14 +102,14 @@ public abstract class WriteFrame extends Frame implements Encodable {
     @Override
     public final boolean encode(EncodeContext context, ByteBuffer buf) {
         RpcEncodeContext c = (RpcEncodeContext) context;
-        if (c.frameEncodeStatus == STATUS_INIT) {
+        if (c.packetEncodeStatus == STATUS_INIT) {
             int totalSize = actualSize();
             int headerSize = totalSize - actualBodySize();
             if (buf.remaining() < headerSize) {
                 return false;
             } else {
                 buf.putInt(totalSize - 4); //not include total length
-                PbUtil.writeUnsignedInt32(buf, IDX_TYPE, frameType);
+                PbUtil.writeUnsignedInt32(buf, IDX_TYPE, packetType);
                 PbUtil.writeUnsignedInt32(buf, IDX_COMMAND, command);
                 PbUtil.writeFix32(buf, IDX_SEQ, seq);
                 PbUtil.writeUnsignedInt32(buf, IDX_RESP_CODE, respCode);
@@ -117,12 +117,12 @@ public abstract class WriteFrame extends Frame implements Encodable {
                 PbUtil.writeFix64(buf, IDX_TIMOUT, timeout);
                 PbUtil.writeBytes(buf, IDX_EXTRA, extra);
                 if (bodySize > 0) {
-                    PbUtil.writeLengthDelimitedPrefix(buf, Frame.IDX_BODY, bodySize);
+                    PbUtil.writeLengthDelimitedPrefix(buf, Packet.IDX_BODY, bodySize);
                 }
-                c.frameEncodeStatus = STATUS_HEADER_ENCODE_FINISHED;
+                c.packetEncodeStatus = STATUS_HEADER_ENCODE_FINISHED;
             }
         }
-        if (c.frameEncodeStatus == STATUS_HEADER_ENCODE_FINISHED) {
+        if (c.packetEncodeStatus == STATUS_HEADER_ENCODE_FINISHED) {
             boolean finish = false;
             try {
                 if (bodySize > 0) {
@@ -132,12 +132,12 @@ public abstract class WriteFrame extends Frame implements Encodable {
                 }
             } finally {
                 if (finish) {
-                    c.frameEncodeStatus = STATUS_ENCODE_FINISHED;
+                    c.packetEncodeStatus = STATUS_ENCODE_FINISHED;
                 }
             }
             return finish;
         } else {
-            throw new NetException("invalid status: " + c.frameEncodeStatus);
+            throw new NetException("invalid status: " + c.packetEncodeStatus);
         }
     }
 

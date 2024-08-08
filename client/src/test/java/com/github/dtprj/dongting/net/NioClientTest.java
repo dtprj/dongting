@@ -19,7 +19,7 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.ByteArrayDecoder;
 import com.github.dtprj.dongting.codec.CopyDecoder;
 import com.github.dtprj.dongting.codec.Decoder;
-import com.github.dtprj.dongting.codec.DtFrame;
+import com.github.dtprj.dongting.codec.DtPacket;
 import com.github.dtprj.dongting.codec.RefBufferDecoder;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
@@ -85,7 +85,7 @@ public class NioClientTest {
                     Socket s = ss.accept();
                     sockets.add(s);
                     s.setSoTimeout(tick(1000));
-                    ArrayBlockingQueue<DtFrame.Frame> queue = new ArrayBlockingQueue<>(100);
+                    ArrayBlockingQueue<DtPacket.Packet> queue = new ArrayBlockingQueue<>(100);
                     Thread readThread = new Thread(() -> runReadThread(s, queue));
                     Thread writeThread = new Thread(() -> runWriteThread(s, queue));
                     readThread.start();
@@ -96,7 +96,7 @@ public class NioClientTest {
             }
         }
 
-        public void runReadThread(Socket s, ArrayBlockingQueue<DtFrame.Frame> queue) {
+        public void runReadThread(Socket s, ArrayBlockingQueue<DtPacket.Packet> queue) {
             DataInputStream in = null;
             try {
                 in = new DataInputStream(s.getInputStream());
@@ -104,8 +104,8 @@ public class NioClientTest {
                     int len = in.readInt();
                     byte[] data = new byte[len];
                     in.readFully(data);
-                    DtFrame.Frame pbFrame = DtFrame.Frame.parseFrom(data);
-                    queue.put(pbFrame);
+                    DtPacket.Packet pbPacket = DtPacket.Packet.parseFrom(data);
+                    queue.put(pbPacket);
                 }
             } catch (EOFException e) {
                 // ignore
@@ -116,21 +116,21 @@ public class NioClientTest {
             }
         }
 
-        public void runWriteThread(Socket s, ArrayBlockingQueue<DtFrame.Frame> queue) {
+        public void runWriteThread(Socket s, ArrayBlockingQueue<DtPacket.Packet> queue) {
             DataOutputStream out = null;
             try {
                 out = new DataOutputStream(s.getOutputStream());
                 while (!stop) {
                     if (queue.size() > 1) {
-                        ArrayList<DtFrame.Frame> list = new ArrayList<>();
+                        ArrayList<DtPacket.Packet> list = new ArrayList<>();
                         queue.drainTo(list);
                         // shuffle
                         for (int i = list.size() - 1; i >= 0; i--) {
-                            writeFrame(out, list.get(i));
+                            writePacket(out, list.get(i));
                         }
                     } else {
-                        DtFrame.Frame frame = queue.take();
-                        writeFrame(out, frame);
+                        DtPacket.Packet packet = queue.take();
+                        writePacket(out, packet);
                     }
                 }
             } catch (InterruptedException e) {
@@ -142,13 +142,13 @@ public class NioClientTest {
             }
         }
 
-        private void writeFrame(DataOutputStream out, DtFrame.Frame frame) throws Exception {
-            frame = DtFrame.Frame.newBuilder().mergeFrom(frame)
-                    .setFrameType(FrameType.TYPE_RESP)
+        private void writePacket(DataOutputStream out, DtPacket.Packet packet) throws Exception {
+            packet = DtPacket.Packet.newBuilder().mergeFrom(packet)
+                    .setPacketType(PacketType.TYPE_RESP)
                     .setRespCode(resultCode)
                     .setRespMsg("msg")
                     .build();
-            byte[] bs = frame.toByteArray();
+            byte[] bs = packet.toByteArray();
             if (sleep > 0) {
                 Thread.sleep(sleep);
             }
@@ -265,15 +265,15 @@ public class NioClientTest {
         ThreadLocalRandom r = ThreadLocalRandom.current();
         byte[] bs = new byte[r.nextInt(maxBodySize)];
         r.nextBytes(bs);
-        ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.wrap(bs));
+        ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.wrap(bs));
         wf.setCommand(Commands.CMD_PING);
 
         CompletableFuture<?> f = client.sendRequest(wf,
                 decoder, new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
 
-        ReadFrame<?> rf = (ReadFrame<?>) f.get(5000, TimeUnit.MILLISECONDS);
+        ReadPacket<?> rf = (ReadPacket<?>) f.get(5000, TimeUnit.MILLISECONDS);
         assertEquals(wf.getSeq(), rf.getSeq());
-        assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
+        assertEquals(PacketType.TYPE_RESP, rf.getPacketType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
         assertEquals("msg", rf.getMsg());
         if (rf.getBody() instanceof RefBuffer) {
@@ -290,14 +290,14 @@ public class NioClientTest {
                                        Peer peer, long timeoutMillis) throws Exception {
         byte[] bs = new byte[ThreadLocalRandom.current().nextInt(maxBodySize)];
         ThreadLocalRandom.current().nextBytes(bs);
-        ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.wrap(bs));
+        ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.wrap(bs));
         wf.setCommand(Commands.CMD_PING);
 
-        CompletableFuture<ReadFrame<RefBuffer>> f = client.sendRequest(peer, wf,
+        CompletableFuture<ReadPacket<RefBuffer>> f = client.sendRequest(peer, wf,
                 RefBufferDecoder.INSTANCE, new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
-        ReadFrame<RefBuffer> rf = f.get(5000, TimeUnit.MILLISECONDS);
+        ReadPacket<RefBuffer> rf = f.get(5000, TimeUnit.MILLISECONDS);
         assertEquals(wf.getSeq(), rf.getSeq());
-        assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
+        assertEquals(PacketType.TYPE_RESP, rf.getPacketType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
         RefBuffer rc = rf.getBody();
         assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
@@ -308,14 +308,14 @@ public class NioClientTest {
         ThreadLocalRandom r = ThreadLocalRandom.current();
         byte[] bs = new byte[r.nextInt(maxBodySize)];
         r.nextBytes(bs);
-        ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.wrap(bs));
+        ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.wrap(bs));
         wf.setCommand(Commands.CMD_PING);
 
-        CompletableFuture<ReadFrame<RefBuffer>> f = client.sendRequest(wf,
+        CompletableFuture<ReadPacket<RefBuffer>> f = client.sendRequest(wf,
                 RefBufferDecoder.INSTANCE, new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
         return f.thenApply(rf -> {
             assertEquals(wf.getSeq(), rf.getSeq());
-            assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
+            assertEquals(PacketType.TYPE_RESP, rf.getPacketType());
             assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
             RefBuffer rc = rf.getBody();
             assertEquals(ByteBuffer.wrap(bs), rc.getBuffer());
@@ -671,7 +671,7 @@ public class NioClientTest {
         //noinspection rawtypes
         CompletableFuture[] allFutures = new CompletableFuture[loop];
         for (int i = 0; i < loop; i++) {
-            ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.wrap(bs));
+            ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.wrap(bs));
             wf.setCommand(Commands.CMD_PING);
             CompletableFuture<?> f = client.sendRequest(wf, RefBufferDecoder.INSTANCE,
                     new DtTime(100, TimeUnit.SECONDS));
@@ -709,7 +709,7 @@ public class NioClientTest {
 
         {
             // decoder fail in io thread
-            ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(1));
+            ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.allocate(1));
             wf.setCommand(Commands.CMD_PING);
             Decoder<Object> decoder = new CopyDecoder<>() {
 
@@ -749,7 +749,7 @@ public class NioClientTest {
 
         {
             // encode fail in io thread
-            WriteFrame wf = new WriteFrame() {
+            WritePacket wf = new WritePacket() {
                 @Override
                 protected int calcActualBodySize() {
                     throw new MockRuntimeException();
@@ -779,7 +779,7 @@ public class NioClientTest {
 
         {
             // encode fail in io thread
-            WriteFrame wf = new WriteFrame() {
+            WritePacket wf = new WritePacket() {
                 @Override
                 protected int calcActualBodySize() {
                     return 1;
@@ -809,10 +809,10 @@ public class NioClientTest {
     }
 
     @Test
-    public void largeFrameTest() throws Exception {
+    public void largePacketTest() throws Exception {
         NioClientConfig c = new NioClientConfig();
         c.setHostPorts(Collections.singletonList(new HostPort("127.0.0.1", 9000)));
-        c.setMaxFrameSize(100 + 128 * 1024);
+        c.setMaxPacketSize(100 + 128 * 1024);
         c.setMaxBodySize(100);
         client = new NioClient(c);
         server1 = new BioServer(9000);
@@ -823,7 +823,7 @@ public class NioClientTest {
 
         ByteBuffer buf = ByteBuffer.allocate(101 + 128 * 1024);
         try {
-            ByteBufferWriteFrame f = new ByteBufferWriteFrame(buf);
+            ByteBufferWritePacket f = new ByteBufferWritePacket(buf);
             f.setCommand(Commands.CMD_PING);
             client.sendRequest(peer, f, ByteArrayDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS)).get();
             fail();
@@ -834,7 +834,7 @@ public class NioClientTest {
 
         buf.limit(101);
         try {
-            ByteBufferWriteFrame f = new ByteBufferWriteFrame(buf);
+            ByteBufferWritePacket f = new ByteBufferWritePacket(buf);
             f.setCommand(Commands.CMD_PING);
             client.sendRequest(peer, f, ByteArrayDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS)).get();
             fail();

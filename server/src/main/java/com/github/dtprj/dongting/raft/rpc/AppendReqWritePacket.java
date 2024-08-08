@@ -18,7 +18,7 @@ package com.github.dtprj.dongting.raft.rpc;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.net.RpcEncodeContext;
-import com.github.dtprj.dongting.net.WriteFrame;
+import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 
@@ -48,7 +48,7 @@ import java.util.List;
 //  bytes header = 7;
 //  bytes body = 8;
 //}
-public class AppendReqWriteFrame extends WriteFrame {
+public class AppendReqWritePacket extends WritePacket {
 
     int groupId;
     int term;
@@ -71,7 +71,7 @@ public class AppendReqWriteFrame extends WriteFrame {
 
     private LogItem currentItem;
 
-    public AppendReqWriteFrame() {
+    public AppendReqWritePacket() {
     }
 
     @Override

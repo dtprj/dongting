@@ -31,10 +31,10 @@ import com.github.dtprj.dongting.net.NetException;
 import com.github.dtprj.dongting.net.NetTimeoutException;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.NioClientConfig;
-import com.github.dtprj.dongting.net.PbIntWriteFrame;
+import com.github.dtprj.dongting.net.PbIntWritePacket;
 import com.github.dtprj.dongting.net.Peer;
-import com.github.dtprj.dongting.net.ReadFrame;
-import com.github.dtprj.dongting.net.RetryableWriteFrame;
+import com.github.dtprj.dongting.net.ReadPacket;
+import com.github.dtprj.dongting.net.RetryableWritePacket;
 import com.github.dtprj.dongting.net.RpcCallback;
 
 import java.nio.charset.StandardCharsets;
@@ -184,7 +184,7 @@ public class RaftClient extends AbstractLifeCircle {
         }
     }
 
-    public <T> void sendRequest(int groupId, RetryableWriteFrame request, Decoder<T> decoder, DtTime timeout,
+    public <T> void sendRequest(int groupId, RetryableWritePacket request, Decoder<T> decoder, DtTime timeout,
                                 RpcCallback<T> callback) {
         GroupInfo groupInfo = groups.get(groupId);
         if (groupInfo == null) {
@@ -214,11 +214,11 @@ public class RaftClient extends AbstractLifeCircle {
         }
     }
 
-    private <T> void send(RetryableWriteFrame request, Decoder<T> decoder, DtTime timeout,
+    private <T> void send(RetryableWritePacket request, Decoder<T> decoder, DtTime timeout,
                           RpcCallback<T> c, GroupInfo gi, boolean retry) {
         RpcCallback<T> newCallback = new RpcCallback<T>() {
             @Override
-            public void success(ReadFrame<T> resp) {
+            public void success(ReadPacket<T> resp) {
                 c.success(resp);
             }
 
@@ -227,7 +227,7 @@ public class RaftClient extends AbstractLifeCircle {
                 if (retry && ex instanceof NetCodeException) {
                     NetCodeException ncEx = (NetCodeException) ex;
                     if (ncEx.getCode() == CmdCodes.NOT_RAFT_LEADER) {
-                        Peer newLeader = updateLeaderFromExtra(ncEx.getRespFrame(), gi);
+                        Peer newLeader = updateLeaderFromExtra(ncEx.getRespPacket(), gi);
                         if (newLeader != null && !timeout.isTimeout()) {
                             request.reset();
                             send(request, decoder, timeout, c, gi, false);
@@ -275,7 +275,7 @@ public class RaftClient extends AbstractLifeCircle {
             return;
         }
         NodeInfo node = it.next();
-        PbIntWriteFrame req = new PbIntWriteFrame(Commands.RAFT_QUERY_STATUS, gi.groupId);
+        PbIntWritePacket req = new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, gi.groupId);
         DtTime rpcTimeout = new DtTime(3, TimeUnit.SECONDS);
         Decoder<QueryStatusResp> decoder = new PbNoCopyDecoder<>(c -> new QueryStatusResp.QueryStatusRespCallback());
         client.sendRequest(node.getPeer(), req, decoder, rpcTimeout)
@@ -283,7 +283,7 @@ public class RaftClient extends AbstractLifeCircle {
     }
 
     private void processLeaderQueryResult(GroupInfo gi, Iterator<NodeInfo> it,
-                                          ReadFrame<QueryStatusResp> rf, Throwable ex, NodeInfo node) {
+                                          ReadPacket<QueryStatusResp> rf, Throwable ex, NodeInfo node) {
         lock.lock();
         try {
             GroupInfo currentGroupInfo = groups.get(gi.groupId);
@@ -316,8 +316,8 @@ public class RaftClient extends AbstractLifeCircle {
         }
     }
 
-    private Peer updateLeaderFromExtra(ReadFrame<?> frame, GroupInfo groupInfo) {
-        byte[] bs = frame.getExtra();
+    private Peer updateLeaderFromExtra(ReadPacket<?> packet, GroupInfo groupInfo) {
+        byte[] bs = packet.getExtra();
         if (bs == null) {
             return null;
         }

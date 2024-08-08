@@ -66,7 +66,7 @@ class IoWorkerQueue {
 
     private void processWriteData(WriteData wo) {
         perfCallback.fireTime(PerfConsts.RPC_D_WORKER_QUEUE, wo.perfTime);
-        WriteFrame frame = wo.getData();
+        WritePacket packet = wo.getData();
         Peer peer = wo.getPeer();
         if (peer != null) {
             if (peer.getStatus() == PeerStatus.connected) {
@@ -85,7 +85,7 @@ class IoWorkerQueue {
         } else {
             DtChannelImpl dtc = wo.getDtc();
             if (dtc == null) {
-                if (!worker.isServer() && frame.getFrameType() != FrameType.TYPE_RESP) {
+                if (!worker.isServer() && packet.getPacketType() != PacketType.TYPE_RESP) {
                     dtc = selectChannel();
                     if (dtc == null) {
                         wo.callFail(true, new NetException("no available channel"));

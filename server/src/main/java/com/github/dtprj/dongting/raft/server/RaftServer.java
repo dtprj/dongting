@@ -179,7 +179,7 @@ public class RaftServer extends AbstractLifeCircle {
         nc.setMaxInRequests(0);
         nc.setMaxInBytes(0);
         nc.setMaxBodySize(Integer.MAX_VALUE);
-        nc.setMaxFrameSize(Integer.MAX_VALUE);
+        nc.setMaxPacketSize(Integer.MAX_VALUE);
     }
 
     private void createRaftGroups(RaftServerConfig serverConfig,

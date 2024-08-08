@@ -191,11 +191,11 @@ public class PbParserTest {
             nestedCallback = null;
         }
 
-        public ByteBuffer buildFrame() {
-            return buildFrame(true);
+        public ByteBuffer buildPacket() {
+            return buildPacket(true);
         }
 
-        public ByteBuffer buildFrame(boolean hasLenField) {
+        public ByteBuffer buildPacket(boolean hasLenField) {
             DtPbTest.PbParserTestMsg.Builder builder = DtPbTest.PbParserTestMsg.newBuilder()
                     .setInt32Field(msg.f1)
                     .setInt64Field(msg.f2)
@@ -350,33 +350,33 @@ public class PbParserTest {
     public void testParse() {
         Callback callback = new Callback(0, 0, "", "", 0, 0, new NestedMsg(0, null));
         PbParser parser = PbParser.multiParser(callback, 500);
-        parser.parse(callback.buildFrame());
+        parser.parse(callback.buildPacket());
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endSuccessCount);
         assertEquals(0, callback.endFailCount);
 
         callback = new Callback(100, 200, "msg", "body", 100, 200, new NestedMsg(0, "123"));
         parser = PbParser.multiParser(callback, 500);
-        parser.parse(callback.buildFrame());
+        parser.parse(callback.buildPacket());
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endSuccessCount);
         assertEquals(0, callback.endFailCount);
 
         callback.reset(Integer.MAX_VALUE, Long.MAX_VALUE, "msg", "body", Integer.MAX_VALUE, Long.MAX_VALUE,
                 new NestedMsg(Integer.MAX_VALUE, "abc"));
-        parser.parse(callback.buildFrame());
+        parser.parse(callback.buildPacket());
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endSuccessCount);
         assertEquals(0, callback.endFailCount);
 
         callback.reset(-1, -1, "msg", "body", -1, -1, new NestedMsg(-1, "abc"));
-        parser.parse(callback.buildFrame());
+        parser.parse(callback.buildPacket());
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endSuccessCount);
         assertEquals(0, callback.endFailCount);
 
         callback.reset(-1000, -2000, "msg", "body", -1000, -2000, new NestedMsg(-10000, null));
-        parser.parse(callback.buildFrame());
+        parser.parse(callback.buildPacket());
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endSuccessCount);
         assertEquals(0, callback.endFailCount);
@@ -385,7 +385,7 @@ public class PbParserTest {
     @Test
     public void testSingleParse() {
         Callback callback = new Callback(100, 200, "msg", "body", 100, 200, new NestedMsg(30000, "abc"));
-        ByteBuffer buffer = callback.buildFrame(false);
+        ByteBuffer buffer = callback.buildPacket(false);
         PbParser parser = PbParser.singleParser(callback, buffer.remaining());
         parser.parse(buffer);
         assertEquals(1, callback.beginCount);
@@ -393,10 +393,10 @@ public class PbParserTest {
         assertEquals(0, callback.endFailCount);
 
         callback.reset(100, 200, "msg", "body", 100, 200, new NestedMsg(30000, "abc"));
-        assertThrows(DtException.class, () -> parser.parse(callback.buildFrame(false)));
+        assertThrows(DtException.class, () -> parser.parse(callback.buildPacket(false)));
 
         callback.reset(100, 200, "msg", "body", 100, 200, new NestedMsg(30000, "abc"));
-        buffer = callback.buildFrame(false);
+        buffer = callback.buildPacket(false);
         parser.prepareNext(callback, buffer.remaining());
         parser.parse(buffer);
         assertEquals(1, callback.beginCount);
@@ -431,7 +431,7 @@ public class PbParserTest {
         int loop = 10;
         Callback callback = new Callback(f1, f2, f3, f4, f5, f6, f7);
         PbParser parser = PbParser.multiParser(callback, 10000);
-        byte[] fullBuffer = callback.buildFrame().array();
+        byte[] fullBuffer = callback.buildPacket().array();
         ByteBuffer tempBuf = ByteBuffer.allocate(fullBuffer.length * loop);
         for (int i = 0; i < loop; i++) {
             tempBuf.put(fullBuffer);
@@ -548,20 +548,20 @@ public class PbParserTest {
         Callback callback = callbackBuilder.get();
         PbParser parser = PbParser.multiParser(callback, 500);
 
-        parser.parse(callback.buildFrame());
+        parser.parse(callback.buildPacket());
         assertEquals(expectBegin, callback.beginCount);
         assertEquals(expectEndSuccess, callback.endSuccessCount);
         assertEquals(expectEndFail, callback.endFailCount);
 
-        halfParse(1, parser, callback.buildFrame().array());
-        halfParse(2, parser, callback.buildFrame().array());
-        halfParse(3, parser, callback.buildFrame().array());
-        halfParse(4, parser, callback.buildFrame().array());
-        halfParse(5, parser, callback.buildFrame().array());
-        halfParse(6, parser, callback.buildFrame().array());
-        halfParse(7, parser, callback.buildFrame().array());
-        halfParse(8, parser, callback.buildFrame().array());
-        halfParse(9, parser, callback.buildFrame().array());
+        halfParse(1, parser, callback.buildPacket().array());
+        halfParse(2, parser, callback.buildPacket().array());
+        halfParse(3, parser, callback.buildPacket().array());
+        halfParse(4, parser, callback.buildPacket().array());
+        halfParse(5, parser, callback.buildPacket().array());
+        halfParse(6, parser, callback.buildPacket().array());
+        halfParse(7, parser, callback.buildPacket().array());
+        halfParse(8, parser, callback.buildPacket().array());
+        halfParse(9, parser, callback.buildPacket().array());
 
         assertEquals(expectBegin * 10, callback.beginCount);
         assertEquals(expectEndSuccess * 10, callback.endSuccessCount);

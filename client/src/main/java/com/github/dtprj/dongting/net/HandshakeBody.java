@@ -72,12 +72,12 @@ public class HandshakeBody {
         }
     }
 
-    public static class HandshakeBodyWriteFrame extends SmallNoCopyWriteFrame {
+    public static class HandshakeBodyWritePacket extends SmallNoCopyWritePacket {
 
         private final HandshakeBody v;
         private final int configBodySize;
 
-        public HandshakeBodyWriteFrame(HandshakeBody v) {
+        public HandshakeBodyWritePacket(HandshakeBody v) {
             this.v = v;
             configBodySize = v.config == null ? 0 : v.config.calcActualBodySize();
         }

@@ -5,7 +5,7 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.DefaultPoolFactory;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
-import com.github.dtprj.dongting.codec.DtFrame;
+import com.github.dtprj.dongting.codec.DtPacket;
 import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.Timestamp;
 import com.google.protobuf.ByteString;
@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /**
  * @author <a href="mailto:areyouok@gmail.com">huangli</a>
  */
-public class FramePbTest {
+public class PacketPbTest {
 
     @Test
     public void testInDtThread() throws Exception {
@@ -58,18 +58,18 @@ public class FramePbTest {
         test0(1000, 1000, 1000, 1000, new String(cs), null, 1000, 1000);
     }
 
-    private void test0(int frameType, int command, int seq, int respCode, String msg, byte[] extra,
+    private void test0(int packetType, int command, int seq, int respCode, String msg, byte[] extra,
                        long timeout, int bodySize) throws Exception {
-        testEncode0(frameType, command, seq, respCode, msg, extra, timeout, bodySize);
-        testDecode0(frameType, command, seq, respCode, msg, extra, timeout, bodySize);
+        testEncode0(packetType, command, seq, respCode, msg, extra, timeout, bodySize);
+        testDecode0(packetType, command, seq, respCode, msg, extra, timeout, bodySize);
     }
 
-    private void testEncode0(int frameType, int command, int seq, int respCode, String msg, byte[] extra,
+    private void testEncode0(int packetType, int command, int seq, int respCode, String msg, byte[] extra,
                              long timeout, int bodySize) throws Exception {
         byte[] bs = new byte[bodySize];
         new Random().nextBytes(bs);
-        ByteBufferWriteFrame f = new ByteBufferWriteFrame(ByteBuffer.wrap(bs));
-        f.setFrameType(frameType);
+        ByteBufferWritePacket f = new ByteBufferWritePacket(ByteBuffer.wrap(bs));
+        f.setPacketType(packetType);
         f.setCommand(command);
         f.setSeq(seq);
         f.setRespCode(respCode);
@@ -80,8 +80,8 @@ public class FramePbTest {
         f.encode(new RpcEncodeContext(null), buf);
         buf.flip();
         buf.position(4);
-        DtFrame.Frame pbf = DtFrame.Frame.parseFrom(buf);
-        assertEquals(frameType, pbf.getFrameType());
+        DtPacket.Packet pbf = DtPacket.Packet.parseFrom(buf);
+        assertEquals(packetType, pbf.getPacketType());
         assertEquals(command, pbf.getCommand());
         assertEquals(seq, pbf.getSeq());
         assertEquals(respCode, pbf.getRespCode());
@@ -95,12 +95,12 @@ public class FramePbTest {
         assertArrayEquals(bs, pbf.getBody().toByteArray());
     }
 
-    private void testDecode0(int frameType, int command, int seq, int respCode,
+    private void testDecode0(int packetType, int command, int seq, int respCode,
                              String msg, byte[] extra, long timeout, int bodySize) throws IOException {
         byte[] bs = new byte[bodySize];
         new Random().nextBytes(bs);
-        DtFrame.Frame.Builder builder = DtFrame.Frame.newBuilder()
-                .setFrameType(frameType)
+        DtPacket.Packet.Builder builder = DtPacket.Packet.newBuilder()
+                .setPacketType(packetType)
                 .setCommand(command)
                 .setSeq(seq)
                 .setRespCode(respCode)
@@ -124,7 +124,7 @@ public class FramePbTest {
 
             @Override
             public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
-                if (index == Frame.IDX_BODY) {
+                if (index == Packet.IDX_BODY) {
                     byte[] readBytes = new byte[fieldLen];
                     buf.get(readBytes);
                     assertArrayEquals(bs, readBytes);
@@ -136,12 +136,12 @@ public class FramePbTest {
         };
         buf.order(ByteOrder.LITTLE_ENDIAN);
         dtc.getParser().parse(buf);
-        assertEquals(frameType, dtc.getFrame().getFrameType());
-        assertEquals(command, dtc.getFrame().getCommand());
-        assertEquals(seq, dtc.getFrame().getSeq());
-        assertEquals(respCode, dtc.getFrame().getRespCode());
-        assertEquals(msg, dtc.getFrame().getMsg());
-        assertArrayEquals(extra, dtc.getFrame().getExtra());
-        assertEquals(timeout, dtc.getFrame().getTimeout());
+        assertEquals(packetType, dtc.getPacket().getPacketType());
+        assertEquals(command, dtc.getPacket().getCommand());
+        assertEquals(seq, dtc.getPacket().getSeq());
+        assertEquals(respCode, dtc.getPacket().getRespCode());
+        assertEquals(msg, dtc.getPacket().getMsg());
+        assertArrayEquals(extra, dtc.getPacket().getExtra());
+        assertEquals(timeout, dtc.getPacket().getTimeout());
     }
 }

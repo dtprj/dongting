@@ -15,26 +15,26 @@
  */
 package com.github.dtprj.dongting.raft.server;
 
-import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.ReqContext;
 
 /**
  * @author huangli
  */
 public class ReqInfo<T> {
-    private final ReadFrame<T> reqFrame;
+    private final ReadPacket<T> reqFrame;
     private final ReqContext reqContext;
     private final RaftGroup raftGroup;
 
     boolean invokeCleanUp;
 
-    protected ReqInfo(ReadFrame<T> reqFrame, ReqContext reqContext, RaftGroup raftGroup) {
+    protected ReqInfo(ReadPacket<T> reqFrame, ReqContext reqContext, RaftGroup raftGroup) {
         this.reqFrame = reqFrame;
         this.reqContext = reqContext;
         this.raftGroup = raftGroup;
     }
 
-    public ReadFrame<T> getReqFrame() {
+    public ReadPacket<T> getReqFrame() {
         return reqFrame;
     }
 

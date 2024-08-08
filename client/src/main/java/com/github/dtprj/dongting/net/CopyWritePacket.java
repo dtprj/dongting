@@ -22,11 +22,11 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public abstract class CopyWriteFrame extends WriteFrame {
+public abstract class CopyWritePacket extends WritePacket {
 
     private RefBuffer tempRefBuffer;
 
-    public CopyWriteFrame() {
+    public CopyWritePacket() {
     }
 
     @Override

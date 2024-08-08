@@ -36,10 +36,10 @@ import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.NetCodeException;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.PerfConsts;
-import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
-import com.github.dtprj.dongting.raft.rpc.AppendReqWriteFrame;
+import com.github.dtprj.dongting.raft.rpc.AppendReqWritePacket;
 import com.github.dtprj.dongting.raft.rpc.AppendRespCallback;
 import com.github.dtprj.dongting.raft.rpc.InstallSnapshotReq;
 import com.github.dtprj.dongting.raft.server.LogItem;
@@ -350,7 +350,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         LogItem firstItem = items.get(0);
         long prevLogIndex = firstItem.getIndex() - 1;
 
-        AppendReqWriteFrame req = new AppendReqWriteFrame();
+        AppendReqWritePacket req = new AppendReqWritePacket();
         req.setCommand(Commands.RAFT_APPEND_ENTRIES);
         req.setGroupId(groupId);
         req.setTerm(raftStatus.getCurrentTerm());
@@ -364,8 +364,8 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
 
         DtTime timeout = new DtTime(ts.getNanoTime(), serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
         long perfStartTime = perfCallback.takeTime(PerfConsts.RAFT_D_REPLICATE_RPC);
-        // release in AppendReqWriteFrame
-        CompletableFuture<ReadFrame<AppendRespCallback>> f = client.sendRequest(member.getNode().getPeer(),
+        // release in AppendReqWritePacket
+        CompletableFuture<ReadPacket<AppendRespCallback>> f = client.sendRequest(member.getNode().getPeer(),
                 req, APPEND_RESP_DECODER, timeout);
 
         long bytes = 0;
@@ -383,7 +383,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
                 getFiberGroup().getExecutor());
     }
 
-    void afterAppendRpc(ReadFrame<AppendRespCallback> rf, Throwable ex, long prevLogIndex, int prevLogTerm,
+    void afterAppendRpc(ReadPacket<AppendRespCallback> rf, Throwable ex, long prevLogIndex, int prevLogTerm,
                         long leaseStartNanos, int itemCount, long bytes, long perfStartTime) {
         perfCallback.fireTime(PerfConsts.RAFT_D_REPLICATE_RPC, perfStartTime, itemCount, bytes);
         if (epochChange()) {
@@ -416,7 +416,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         }
     }
 
-    private void processAppendResult(ReadFrame<AppendRespCallback> rf, long prevLogIndex,
+    private void processAppendResult(ReadPacket<AppendRespCallback> rf, long prevLogIndex,
                                      int prevLogTerm, long leaseStartNanos, int count) {
         long expectNewMatchIndex = prevLogIndex + count;
         AppendRespCallback body = rf.getBody();
@@ -682,11 +682,11 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         }
         req.data = data;
 
-        // data buffer released in WriteFrame
-        InstallSnapshotReq.InstallReqWriteFrame wf = new InstallSnapshotReq.InstallReqWriteFrame(req);
+        // data buffer released in WritePacket
+        InstallSnapshotReq.InstallReqWritePacket wf = new InstallSnapshotReq.InstallReqWritePacket(req);
         wf.setCommand(Commands.RAFT_INSTALL_SNAPSHOT);
         DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        CompletableFuture<ReadFrame<AppendRespCallback>> future = client.sendRequest(
+        CompletableFuture<ReadPacket<AppendRespCallback>> future = client.sendRequest(
                 member.getNode().getPeer(), wf, APPEND_RESP_DECODER, timeout);
         int bytes = data == null ? 0 : data.getBuffer().remaining();
         snapshotOffset += bytes;
@@ -695,7 +695,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         return f;
     }
 
-    private void afterInstallRpc(ReadFrame<AppendRespCallback> rf, Throwable ex,
+    private void afterInstallRpc(ReadPacket<AppendRespCallback> rf, Throwable ex,
                                  InstallSnapshotReq req, FiberFuture<Void> f) {
         if (epochChange()) {
             f.completeExceptionally(new RaftCancelException("epoch not match, ignore install snapshot response."));

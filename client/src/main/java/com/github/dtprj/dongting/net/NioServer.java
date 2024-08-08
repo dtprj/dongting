@@ -213,12 +213,12 @@ public class NioServer extends NioNet implements Runnable {
         log.warn("force stop done");
     }
 
-    public <T> CompletableFuture<ReadFrame<T>> sendRequest(DtChannel dtc, WriteFrame request, Decoder<T> decoder,
-                                                           DtTime timeout) {
-        CompletableFuture<ReadFrame<T>> f = new CompletableFuture<>();
+    public <T> CompletableFuture<ReadPacket<T>> sendRequest(DtChannel dtc, WritePacket request, Decoder<T> decoder,
+                                                            DtTime timeout) {
+        CompletableFuture<ReadPacket<T>> f = new CompletableFuture<>();
         push((DtChannelImpl) dtc, request, decoder, timeout, new RpcCallback<T>() {
             @Override
-            public void success(ReadFrame<T> resp) {
+            public void success(ReadPacket<T> resp) {
                 f.complete(resp);
             }
 
@@ -230,16 +230,16 @@ public class NioServer extends NioNet implements Runnable {
         return f;
     }
 
-    public <T> void sendRequest(DtChannel dtc, WriteFrame request, Decoder<T> decoder, DtTime timeout,
+    public <T> void sendRequest(DtChannel dtc, WritePacket request, Decoder<T> decoder, DtTime timeout,
                                 RpcCallback<T> callback) {
         push((DtChannelImpl) dtc, request, decoder, timeout, callback);
     }
 
-    public CompletableFuture<Void> sendOneWay(DtChannel dtc, WriteFrame request, DtTime timeout) {
+    public CompletableFuture<Void> sendOneWay(DtChannel dtc, WritePacket request, DtTime timeout) {
         CompletableFuture<Void> f = new CompletableFuture<>();
         push((DtChannelImpl) dtc, request, null, timeout, new RpcCallback<Object>() {
             @Override
-            public void success(ReadFrame<Object> resp) {
+            public void success(ReadPacket<Object> resp) {
                 f.complete(null);
             }
 
@@ -251,7 +251,7 @@ public class NioServer extends NioNet implements Runnable {
         return f;
     }
 
-    public <T> void sendOneWay(DtChannel dtc, WriteFrame request, DtTime timeout, RpcCallback<T> callback) {
+    public <T> void sendOneWay(DtChannel dtc, WritePacket request, DtTime timeout, RpcCallback<T> callback) {
         push((DtChannelImpl) dtc, request, null, timeout, callback);
     }
 
@@ -271,8 +271,8 @@ public class NioServer extends NioNet implements Runnable {
         }
 
         @Override
-        public WriteFrame process(ReadFrame<RefBuffer> frame, ReqContext reqContext) {
-            RefBufWriteFrame resp = new RefBufWriteFrame(frame.getBody());
+        public WritePacket process(ReadPacket<RefBuffer> packet, ReqContext reqContext) {
+            RefBufWritePacket resp = new RefBufWritePacket(packet.getBody());
             resp.setRespCode(CmdCodes.SUCCESS);
             return resp;
         }

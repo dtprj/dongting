@@ -20,14 +20,14 @@ import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.RefBufferDecoder;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.PerfCallback;
-import com.github.dtprj.dongting.net.ByteBufferWriteFrame;
+import com.github.dtprj.dongting.net.ByteBufferWritePacket;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.HostPort;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.NioClientConfig;
 import com.github.dtprj.dongting.net.NioServer;
 import com.github.dtprj.dongting.net.NioServerConfig;
-import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
 
 import java.nio.ByteBuffer;
@@ -128,20 +128,20 @@ public class RpcBenchmark extends BenchBase {
     public void test(int threadIndex, long startTime, int state) {
         try {
             final DtTime timeout = new DtTime(TIMEOUT, TimeUnit.MILLISECONDS);
-            ByteBufferWriteFrame req = new ByteBufferWriteFrame(ByteBuffer.wrap(data));
+            ByteBufferWritePacket req = new ByteBufferWritePacket(ByteBuffer.wrap(data));
             req.setCommand(cmd);
 
             if (SYNC) {
-                CompletableFuture<ReadFrame<RefBuffer>> f = client.sendRequest(
+                CompletableFuture<ReadPacket<RefBuffer>> f = client.sendRequest(
                         req, RefBufferDecoder.PLAIN_INSTANCE, timeout);
-                ReadFrame<RefBuffer> rf = f.get();
+                ReadPacket<RefBuffer> rf = f.get();
                 success(state);
                 RefBuffer rc = rf.getBody();
                 rc.release();
             } else {
                 RpcCallback<RefBuffer> c = new RpcCallback<>() {
                     @Override
-                    public void success(ReadFrame<RefBuffer> resp) {
+                    public void success(ReadPacket<RefBuffer> resp) {
                         logRt(startTime, state);
                         RefBuffer rc = resp.getBody();
                         rc.release();

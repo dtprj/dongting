@@ -15,35 +15,20 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.codec.PbUtil;
-
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-
 /**
  * @author huangli
  */
-public class PbStrWriteFrame extends SmallNoCopyWriteFrame {
-
-    private final byte[] bytes;
-
-    public PbStrWriteFrame(int command, String value) {
-        setCommand(command);
-        if (value != null) {
-            bytes = value.getBytes(StandardCharsets.UTF_8);
-        } else {
-            bytes = null;
-        }
-    }
+public abstract class RetryableWritePacket extends WritePacket {
 
     @Override
-    protected void encodeBody(ByteBuffer buf) {
-        PbUtil.writeLengthDelimitedPrefix(buf, 1, bytes.length);
-        buf.put(bytes);
+    protected final void doClean() {
+        // WritePacket.clean()/doClean() will be called after it's been written to the channel.
+        // In retryable write packet, it may be called multiple times.
+        // Since doClean() implementation may not be idempotent, we disable it here, user should
+        // perform any cleanup in the callback of RPC.
     }
 
-    @Override
-    protected int calcActualBodySize() {
-        return bytes == null ? 0 : PbUtil.accurateLengthDelimitedSize(1, bytes.length);
+    public void reset() {
+        super.reset();
     }
 }

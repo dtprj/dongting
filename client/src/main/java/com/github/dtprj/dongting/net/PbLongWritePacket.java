@@ -15,20 +15,29 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.codec.PbUtil;
+
+import java.nio.ByteBuffer;
+
 /**
  * @author huangli
  */
-public abstract class RetryableWriteFrame extends WriteFrame {
+public class PbLongWritePacket extends SmallNoCopyWritePacket {
 
-    @Override
-    protected final void doClean() {
-        // WriteFrame.clean()/doClean() will be called after it's been written to the channel.
-        // In retryable write frame, it may be called multiple times.
-        // Since doClean() implementation may not be idempotent, we disable it here, user should
-        // perform any cleanup in the callback of RPC.
+    private final long value;
+
+    public PbLongWritePacket(int command, long value) {
+        setCommand(command);
+        this.value = value;
     }
 
-    public void reset() {
-        super.reset();
+    @Override
+    protected void encodeBody(ByteBuffer buf) {
+        PbUtil.writeFix64(buf, 1, value);
+    }
+
+    @Override
+    protected int calcActualBodySize() {
+        return value == 0 ? 0 : 9;
     }
 }

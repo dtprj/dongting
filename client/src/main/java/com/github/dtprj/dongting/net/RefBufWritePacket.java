@@ -15,29 +15,38 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.codec.PbUtil;
+import com.github.dtprj.dongting.buf.RefBuffer;
 
 import java.nio.ByteBuffer;
 
 /**
  * @author huangli
  */
-public class PbLongWriteFrame extends SmallNoCopyWriteFrame {
+@SuppressWarnings("FieldMayBeFinal")
+public class RefBufWritePacket extends WritePacket {
+    private RefBuffer refBuffer;
+    private final int size;
 
-    private final long value;
-
-    public PbLongWriteFrame(int command, long value) {
-        setCommand(command);
-        this.value = value;
+    public RefBufWritePacket(RefBuffer refBuffer) {
+        this.refBuffer = refBuffer;
+        this.size = refBuffer == null ? 0 : refBuffer.getBuffer() == null ? 0 : refBuffer.getBuffer().remaining();
     }
 
     @Override
-    protected void encodeBody(ByteBuffer buf) {
-        PbUtil.writeFix64(buf, 1, value);
+    protected void doClean() {
+        if (refBuffer != null) {
+            refBuffer.release();
+            this.refBuffer = null;
+        }
     }
 
     @Override
     protected int calcActualBodySize() {
-        return value == 0 ? 0 : 9;
+        return size;
+    }
+
+    @Override
+    protected boolean encodeBody(RpcEncodeContext context, ByteBuffer dest) {
+        return ByteBufferWritePacket.encodeBody(context, refBuffer == null ? null : refBuffer.getBuffer(), dest);
     }
 }

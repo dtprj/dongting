@@ -25,12 +25,12 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.NioClient;
 import com.github.dtprj.dongting.net.PeerStatus;
-import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.rpc.NodePingCallback;
 import com.github.dtprj.dongting.raft.rpc.NodePingProcessor;
-import com.github.dtprj.dongting.raft.rpc.NodePingWriteFrame;
+import com.github.dtprj.dongting.raft.rpc.NodePingWritePacket;
 import com.github.dtprj.dongting.raft.server.RaftServerConfig;
 
 import java.util.ArrayList;
@@ -196,13 +196,13 @@ public class NodeManager extends AbstractLifeCircle {
 
     private CompletableFuture<Void> sendNodePing(RaftNodeEx nodeEx) {
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        CompletableFuture<ReadFrame<NodePingCallback>> f = client.sendRequest(nodeEx.getPeer(),
-                new NodePingWriteFrame(selfNodeId, uuid), NodePingProcessor.DECODER, timeout);
+        CompletableFuture<ReadPacket<NodePingCallback>> f = client.sendRequest(nodeEx.getPeer(),
+                new NodePingWritePacket(selfNodeId, uuid), NodePingProcessor.DECODER, timeout);
         return f.thenAccept(rf -> whenRpcFinish(rf, nodeEx));
     }
 
     // run in io thread
-    private void whenRpcFinish(ReadFrame<NodePingCallback> rf, RaftNodeEx nodeEx) {
+    private void whenRpcFinish(ReadPacket<NodePingCallback> rf, RaftNodeEx nodeEx) {
         NodePingCallback callback = rf.getBody();
         if (nodeEx.getNodeId() != callback.nodeId) {
             String msg = "config fail: node id not match. expect " + nodeEx.getNodeId() + ", but " + callback.nodeId;

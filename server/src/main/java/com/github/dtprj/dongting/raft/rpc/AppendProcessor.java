@@ -27,8 +27,8 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
-import com.github.dtprj.dongting.net.ReadFrame;
-import com.github.dtprj.dongting.net.WriteFrame;
+import com.github.dtprj.dongting.net.ReadPacket;
+import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.LinearTaskRunner;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
@@ -77,12 +77,12 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     @Override
-    protected int getGroupId(ReadFrame frame) {
+    protected int getGroupId(ReadPacket frame) {
         if (frame.getCommand() == Commands.RAFT_APPEND_ENTRIES) {
-            ReadFrame<AppendReqCallback> f = (ReadFrame<AppendReqCallback>) frame;
+            ReadPacket<AppendReqCallback> f = (ReadPacket<AppendReqCallback>) frame;
             return f.getBody().getGroupId();
         } else {
-            ReadFrame<InstallSnapshotReq> f = (ReadFrame<InstallSnapshotReq>) frame;
+            ReadPacket<InstallSnapshotReq> f = (ReadPacket<InstallSnapshotReq>) frame;
             return f.getBody().groupId;
         }
     }
@@ -91,7 +91,7 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
     protected void cleanReqInProcessorThread(ReqInfo<Object> reqInfo) {
         // if no error occurs in io thread, this method will not be called.
         // AppendProcessor do not call invokeCleanUp()
-        ReadFrame<Object> f = reqInfo.getReqFrame();
+        ReadPacket<Object> f = reqInfo.getReqFrame();
         if (f.getCommand() == Commands.RAFT_APPEND_ENTRIES) {
             AppendReqCallback req = (AppendReqCallback) f.getBody();
             RaftUtil.release(req.getLogs());
@@ -143,7 +143,7 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
     }
 
     @Override
-    public void writeResp(ReqInfo<?> reqInfo, WriteFrame respFrame) {
+    public void writeResp(ReqInfo<?> reqInfo, WritePacket respFrame) {
         super.writeResp(reqInfo, respFrame);
     }
 }
@@ -213,7 +213,7 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
     }
 
     protected FrameCallResult writeAppendResp(int code, int suggestTerm, long suggestIndex, String msg) {
-        AppendRespWriteFrame resp = new AppendRespWriteFrame();
+        AppendRespWritePacket resp = new AppendRespWritePacket();
         resp.setTerm(gc.getRaftStatus().getCurrentTerm());
         if (code == AppendProcessor.APPEND_SUCCESS) {
             resp.setSuccess(true);

@@ -198,7 +198,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
             }
             if (status == STATUS_PREPARE_STOP) {
                 ioWorkerQueue.dispatchActions();
-                if (workerStatus.getFramesToWrite() == 0 && pendingOutgoingRequests.size() == 0) {
+                if (workerStatus.getPacketsToWrite() == 0 && pendingOutgoingRequests.size() == 0) {
                     prepareStopFuture.complete(null);
                 }
             }

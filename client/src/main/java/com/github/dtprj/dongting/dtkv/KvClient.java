@@ -23,9 +23,9 @@ import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.NioClientConfig;
-import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.RpcCallback;
-import com.github.dtprj.dongting.net.SmallNoCopyWriteFrame;
+import com.github.dtprj.dongting.net.SmallNoCopyWritePacket;
 import com.github.dtprj.dongting.raft.RaftClient;
 
 import java.nio.ByteBuffer;
@@ -47,7 +47,7 @@ public class KvClient extends AbstractLifeCircle {
     public CompletableFuture<Void> put(int groupId, String key, byte[] value, DtTime timeout) {
         Objects.requireNonNull(key);
         Objects.requireNonNull(value);
-        SmallNoCopyWriteFrame wf = new SmallNoCopyWriteFrame() {
+        SmallNoCopyWritePacket wf = new SmallNoCopyWritePacket() {
 
             private final byte[] keyBytes = key.getBytes(StandardCharsets.UTF_8);
 
@@ -73,7 +73,7 @@ public class KvClient extends AbstractLifeCircle {
 
     public CompletableFuture<byte[]> get(int groupId, String key, DtTime timeout) {
         Objects.requireNonNull(key);
-        SmallNoCopyWriteFrame wf = new SmallNoCopyWriteFrame() {
+        SmallNoCopyWritePacket wf = new SmallNoCopyWritePacket() {
 
             private final byte[] keyBytes = key.getBytes(StandardCharsets.UTF_8);
 
@@ -97,7 +97,7 @@ public class KvClient extends AbstractLifeCircle {
 
     public CompletableFuture<Boolean> remove(int groupId, String key, DtTime timeout) {
         Objects.requireNonNull(key);
-        SmallNoCopyWriteFrame wf = new SmallNoCopyWriteFrame() {
+        SmallNoCopyWritePacket wf = new SmallNoCopyWritePacket() {
 
             private final byte[] keyBytes = key.getBytes(StandardCharsets.UTF_8);
 
@@ -117,7 +117,7 @@ public class KvClient extends AbstractLifeCircle {
         CompletableFuture<Boolean> f = new CompletableFuture<>();
         RpcCallback<Integer> c = new RpcCallback<Integer>() {
             @Override
-            public void success(ReadFrame<Integer> resp) {
+            public void success(ReadPacket<Integer> resp) {
                 f.complete(resp.getBody() != null && resp.getBody() != 0);
             }
 

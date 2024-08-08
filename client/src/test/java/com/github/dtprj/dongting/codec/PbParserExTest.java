@@ -28,7 +28,7 @@ public class PbParserExTest {
     @Test
     public void testPbLenOverflow1() {
         PbParserTest.Callback callback = new PbParserTest.Callback(1, 2, "1", "body", 1, 2, null);
-        ByteBuffer buf = callback.buildFrame();
+        ByteBuffer buf = callback.buildPacket();
 
         // len has 4 bytes
         PbParser parser = PbParser.multiParser(callback, buf.remaining() - 4);
@@ -39,7 +39,7 @@ public class PbParserExTest {
 
         callback.msg.f3 = "12";
         try {
-            parser.parse(callback.buildFrame());
+            parser.parse(callback.buildPacket());
             fail();
         } catch (PbException e) {
             // ignore
@@ -51,7 +51,7 @@ public class PbParserExTest {
         // now the size is ok, but parser is in error status
         callback.msg.f3 = "";
         try {
-            parser.parse(callback.buildFrame());
+            parser.parse(callback.buildPacket());
             fail();
         } catch (PbException e) {
             // ignore
@@ -64,7 +64,7 @@ public class PbParserExTest {
     @Test
     public void testPbLenOverflow2() {
         PbParserTest.Callback callback = new PbParserTest.Callback(1, 2, "12", "body", 1, 2, null);
-        ByteBuffer buf = callback.buildFrame();
+        ByteBuffer buf = callback.buildPacket();
 
         // len has 4 bytes
         PbParser parser = PbParser.multiParser(callback, buf.remaining() - 5);
@@ -164,7 +164,7 @@ public class PbParserExTest {
             parser.parse(buf);
             fail();
         } catch (PbException e) {
-            assertTrue(e.getMessage().startsWith("frame exceed"));
+            assertTrue(e.getMessage().startsWith("size exceed"));
             assertTrue(parser.isError());
         }
         assertEquals(1, callback.beginCount);
@@ -178,7 +178,7 @@ public class PbParserExTest {
             parseByByte(buf, parser);
             fail();
         } catch (PbException e) {
-            assertTrue(e.getMessage().startsWith("frame exceed"));
+            assertTrue(e.getMessage().startsWith("size exceed"));
             assertTrue(parser.isError());
         }
         assertEquals(1, callback.beginCount);
@@ -201,7 +201,7 @@ public class PbParserExTest {
             parser.parse(buf);
             fail();
         } catch (PbException e) {
-            assertTrue(e.getMessage().startsWith("field length overflow "));
+            assertTrue(e.getMessage().startsWith("field length overflow"));
             assertTrue(parser.isError());
         }
         assertEquals(1, callback.beginCount);
@@ -306,7 +306,7 @@ public class PbParserExTest {
             parser.parse(buf);
             fail();
         } catch (PbException e) {
-            assertTrue(e.getMessage().startsWith("frame exceed"));
+            assertTrue(e.getMessage().startsWith("size exceed"));
             assertTrue(parser.isError());
         }
         assertEquals(1, callback.beginCount);
@@ -320,7 +320,7 @@ public class PbParserExTest {
             parseByByte(buf, parser);
             fail();
         } catch (PbException e) {
-            assertTrue(e.getMessage().startsWith("frame exceed"));
+            assertTrue(e.getMessage().startsWith("size exceed"));
             assertTrue(parser.isError());
         }
         assertEquals(1, callback.beginCount);

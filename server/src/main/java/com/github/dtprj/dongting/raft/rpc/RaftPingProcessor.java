@@ -19,30 +19,30 @@ import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.net.CmdCodes;
-import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 
 /**
  * @author huangli
  */
-public class RaftPingProcessor extends RaftSequenceProcessor<RaftPingFrameCallback> {
-    public static final PbNoCopyDecoder<RaftPingFrameCallback> DECODER = new PbNoCopyDecoder<>(context ->
-            new RaftPingFrameCallback());
+public class RaftPingProcessor extends RaftSequenceProcessor<RaftPingPacketCallback> {
+    public static final PbNoCopyDecoder<RaftPingPacketCallback> DECODER = new PbNoCopyDecoder<>(context ->
+            new RaftPingPacketCallback());
 
     public RaftPingProcessor(RaftServer raftServer) {
         super(raftServer);
     }
 
     @Override
-    protected int getGroupId(ReadFrame<RaftPingFrameCallback> frame) {
+    protected int getGroupId(ReadPacket<RaftPingPacketCallback> frame) {
         return frame.getBody().groupId;
     }
 
     @Override
-    protected FiberFrame<Void> processInFiberGroup(ReqInfoEx<RaftPingFrameCallback> reqInfo) {
+    protected FiberFrame<Void> processInFiberGroup(ReqInfoEx<RaftPingPacketCallback> reqInfo) {
         GroupComponents gc = reqInfo.getRaftGroup().getGroupComponents();
-        RaftPingWriteFrame resp = new RaftPingWriteFrame(gc.getGroupConfig().getGroupId(),
+        RaftPingWritePacket resp = new RaftPingWritePacket(gc.getGroupConfig().getGroupId(),
                 gc.getServerConfig().getNodeId(), gc.getRaftStatus().getNodeIdOfMembers(),
                 gc.getRaftStatus().getNodeIdOfObservers());
         resp.setRespCode(CmdCodes.SUCCESS);
@@ -51,7 +51,7 @@ public class RaftPingProcessor extends RaftSequenceProcessor<RaftPingFrameCallba
     }
 
     @Override
-    public Decoder<RaftPingFrameCallback> createDecoder(int command) {
+    public Decoder<RaftPingPacketCallback> createDecoder(int command) {
         return DECODER;
     }
 }

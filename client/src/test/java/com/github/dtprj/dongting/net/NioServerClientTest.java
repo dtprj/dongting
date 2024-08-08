@@ -61,13 +61,13 @@ public class NioServerClientTest {
         int len = (r.nextInt(10) == 0) ? 0 : r.nextInt(3000);
         ByteBuffer buf = ByteBuffer.allocate(len);
         r.nextBytes(buf.array());
-        ByteBufferWriteFrame wf = new ByteBufferWriteFrame(buf);
+        ByteBufferWritePacket wf = new ByteBufferWritePacket(buf);
         wf.setCommand(Commands.CMD_PING);
 
-        CompletableFuture<ReadFrame<RefBuffer>> f = client.sendRequest(wf, RefBufferDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS));
-        ReadFrame<RefBuffer> rf = f.get(1, TimeUnit.SECONDS);
+        CompletableFuture<ReadPacket<RefBuffer>> f = client.sendRequest(wf, RefBufferDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS));
+        ReadPacket<RefBuffer> rf = f.get(1, TimeUnit.SECONDS);
         assertEquals(wf.getSeq(), rf.getSeq());
-        assertEquals(FrameType.TYPE_RESP, rf.getFrameType());
+        assertEquals(PacketType.TYPE_RESP, rf.getPacketType());
         assertEquals(CmdCodes.SUCCESS, rf.getRespCode());
         RefBuffer rc = rf.getBody();
         if (rc != null) {
@@ -83,13 +83,13 @@ public class NioServerClientTest {
         NioServer server = new NioServer(serverConfig);
         server.register(12345, new NioServer.PingProcessor() {
             @Override
-            public WriteFrame process(ReadFrame<RefBuffer> frame, ReqContext reqContext) {
+            public WritePacket process(ReadPacket<RefBuffer> packet, ReqContext reqContext) {
                 try {
                     Thread.sleep(30);
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
-                return super.process(frame, reqContext);
+                return super.process(packet, reqContext);
             }
         });
 
@@ -112,17 +112,17 @@ public class NioServerClientTest {
             }
 
             // dup seq test
-            ByteBufferWriteFrame wf1 = new ByteBufferWriteFrame(SimpleByteBufferPool.EMPTY_BUFFER);
+            ByteBufferWritePacket wf1 = new ByteBufferWritePacket(SimpleByteBufferPool.EMPTY_BUFFER);
             wf1.setCommand(12345);
 
-            ByteBufferWriteFrame wf2 = new ByteBufferWriteFrame(SimpleByteBufferPool.EMPTY_BUFFER);
+            ByteBufferWritePacket wf2 = new ByteBufferWritePacket(SimpleByteBufferPool.EMPTY_BUFFER);
             wf2.setCommand(12345);
 
-            CompletableFuture<ReadFrame<RefBuffer>> f1 = client.sendRequest(wf1, RefBufferDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS));
+            CompletableFuture<ReadPacket<RefBuffer>> f1 = client.sendRequest(wf1, RefBufferDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS));
             Thread.sleep(10);// wait dispatch thread
             dtc.seq = dtc.seq - 1;
-            CompletableFuture<ReadFrame<RefBuffer>> f2 = client.sendRequest(wf2, RefBufferDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS));
-            ReadFrame<RefBuffer> rf2 = f2.get(1, TimeUnit.SECONDS);
+            CompletableFuture<ReadPacket<RefBuffer>> f2 = client.sendRequest(wf2, RefBufferDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS));
+            ReadPacket<RefBuffer> rf2 = f2.get(1, TimeUnit.SECONDS);
             Assertions.assertEquals(CmdCodes.SUCCESS, rf2.getRespCode());
 
             try {

@@ -30,7 +30,7 @@ class WorkerStatus {
     private LongObjMap<WriteData> pendingRequests;
     private ByteBufferPool directPool;
     private RefBufferFactory heapPool;
-    private int framesToWrite;
+    private int packetsToWrite;
     private Timestamp ts;
 
     public WorkerStatus(NioWorker worker) {
@@ -81,12 +81,12 @@ class WorkerStatus {
         this.heapPool = heapPool;
     }
 
-    public int getFramesToWrite() {
-        return framesToWrite;
+    public int getPacketsToWrite() {
+        return packetsToWrite;
     }
 
-    public void addFramesToWrite(int delta) {
-        this.framesToWrite = Math.max(framesToWrite + delta, 0);
+    public void addPacketsToWrite(int delta) {
+        this.packetsToWrite = Math.max(packetsToWrite + delta, 0);
     }
 
     public Timestamp getTs() {

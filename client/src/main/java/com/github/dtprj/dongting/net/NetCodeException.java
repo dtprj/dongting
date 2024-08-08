@@ -22,18 +22,18 @@ public class NetCodeException extends NetException {
     private static final long serialVersionUID = -5950474263583156637L;
     private final int code;
     private final String msg;
-    private final ReadFrame<?> respFrame;
+    private final ReadPacket<?> respPacket;
 
     public NetCodeException(int code, String msg) {
         this.code = code;
         this.msg = msg;
-        this.respFrame = null;
+        this.respPacket = null;
     }
 
-    NetCodeException(int code, String msg, ReadFrame<?> respFrame) {
+    NetCodeException(int code, String msg, ReadPacket<?> respPacket) {
         this.code = code;
         this.msg = msg;
-        this.respFrame = respFrame;
+        this.respPacket = respPacket;
     }
 
     public int getCode() {
@@ -43,8 +43,8 @@ public class NetCodeException extends NetException {
     /**
      * be called in client side
      */
-    public ReadFrame<?> getRespFrame() {
-        return respFrame;
+    public ReadPacket<?> getRespPacket() {
+        return respPacket;
     }
 
     @Override

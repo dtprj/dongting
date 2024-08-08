@@ -21,10 +21,10 @@ import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
 import com.github.dtprj.dongting.codec.StrEncoder;
 import com.github.dtprj.dongting.dtkv.PutReq;
 import com.github.dtprj.dongting.net.CmdCodes;
-import com.github.dtprj.dongting.net.EmptyBodyRespFrame;
-import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
+import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.ReqContext;
-import com.github.dtprj.dongting.net.WriteFrame;
+import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.server.AbstractRaftBizProcessor;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -77,7 +77,7 @@ public class PutProcessor extends AbstractRaftBizProcessor<PutReq> {
     }
 
     @Override
-    protected int getGroupId(ReadFrame<PutReq> frame) {
+    protected int getGroupId(ReadPacket<PutReq> frame) {
         return frame.getBody().getGroupId();
     }
 
@@ -85,7 +85,7 @@ public class PutProcessor extends AbstractRaftBizProcessor<PutReq> {
      * run in io thread.
      */
     @Override
-    protected WriteFrame doProcess(ReqInfo<PutReq> reqInfo) {
+    protected WritePacket doProcess(ReqInfo<PutReq> reqInfo) {
         PutReq req = reqInfo.getReqFrame().getBody();
         ReqContext reqContext = reqInfo.getReqContext();
         RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_PUT, new StrEncoder(req.getKey()), req.getValue(),
@@ -93,7 +93,7 @@ public class PutProcessor extends AbstractRaftBizProcessor<PutReq> {
         RaftCallback c = new RaftCallback() {
             @Override
             public void success(long raftIndex, Object result) {
-                EmptyBodyRespFrame resp = new EmptyBodyRespFrame(CmdCodes.SUCCESS);
+                EmptyBodyRespPacket resp = new EmptyBodyRespPacket(CmdCodes.SUCCESS);
                 writeResp(reqInfo, resp);
             }
 

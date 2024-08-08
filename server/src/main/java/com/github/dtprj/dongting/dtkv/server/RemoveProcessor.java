@@ -22,10 +22,10 @@ import com.github.dtprj.dongting.codec.StrEncoder;
 import com.github.dtprj.dongting.dtkv.RemoveReq;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
-import com.github.dtprj.dongting.net.PbIntWriteFrame;
-import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.PbIntWritePacket;
+import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.ReqContext;
-import com.github.dtprj.dongting.net.WriteFrame;
+import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.server.AbstractRaftBizProcessor;
 import com.github.dtprj.dongting.raft.server.RaftCallback;
 import com.github.dtprj.dongting.raft.server.RaftInput;
@@ -73,12 +73,12 @@ public class RemoveProcessor extends AbstractRaftBizProcessor<RemoveReq> {
     }
 
     @Override
-    protected int getGroupId(ReadFrame<RemoveReq> frame) {
+    protected int getGroupId(ReadPacket<RemoveReq> frame) {
         return frame.getBody().getGroupId();
     }
 
     @Override
-    protected WriteFrame doProcess(ReqInfo<RemoveReq> reqInfo) {
+    protected WritePacket doProcess(ReqInfo<RemoveReq> reqInfo) {
         RemoveReq req = reqInfo.getReqFrame().getBody();
         ReqContext reqContext = reqInfo.getReqContext();
         RaftInput ri = new RaftInput(DtKV.BIZ_TYPE_REMOVE, new StrEncoder(req.getKey()), null,
@@ -86,7 +86,7 @@ public class RemoveProcessor extends AbstractRaftBizProcessor<RemoveReq> {
         reqInfo.getRaftGroup().submitLinearTask(ri, new RaftCallback() {
             @Override
             public void success(long raftIndex, Object result) {
-                PbIntWriteFrame resp = new PbIntWriteFrame(Commands.DTKV_REMOVE, (Boolean) result ? 1 : 0);
+                PbIntWritePacket resp = new PbIntWritePacket(Commands.DTKV_REMOVE, (Boolean) result ? 1 : 0);
                 resp.setRespCode(CmdCodes.SUCCESS);
                 writeResp(reqInfo, resp);
             }

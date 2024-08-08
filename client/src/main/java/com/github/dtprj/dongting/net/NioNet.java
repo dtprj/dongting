@@ -57,8 +57,8 @@ public abstract class NioNet extends AbstractLifeCircle {
         this.config = config;
         this.nioStatus = new NioStatus();
         this.perfCallback = config.getPerfCallback();
-        if (config.getMaxFrameSize() < config.getMaxBodySize() + 128 * 1024) {
-            throw new IllegalArgumentException("maxFrameSize should greater than maxBodySize plus 128KB.");
+        if (config.getMaxPacketSize() < config.getMaxBodySize() + 128 * 1024) {
+            throw new IllegalArgumentException("maxPacketSize should greater than maxBodySize plus 128KB.");
         }
     }
 
@@ -84,20 +84,20 @@ public abstract class NioNet extends AbstractLifeCircle {
         nioStatus.registerProcessor(cmd, processor);
     }
 
-    <T> void send(NioWorker worker, Peer peer, WriteFrame request, Decoder<T> decoder,
+    <T> void send(NioWorker worker, Peer peer, WritePacket request, Decoder<T> decoder,
                   DtTime timeout, RpcCallback<T> callback) {
         send0(worker, peer, null, request, decoder, timeout, callback);
     }
 
-    <T> void push(DtChannelImpl dtc, WriteFrame request, Decoder<T> decoder, DtTime timeout, RpcCallback<T> callback) {
+    <T> void push(DtChannelImpl dtc, WritePacket request, Decoder<T> decoder, DtTime timeout, RpcCallback<T> callback) {
         send0(dtc.workerStatus.getWorker(), null, dtc, request, decoder, timeout, callback);
     }
 
-    private <T> void send0(NioWorker worker, Peer peer, DtChannelImpl dtc, WriteFrame request,
+    private <T> void send0(NioWorker worker, Peer peer, DtChannelImpl dtc, WritePacket request,
                            Decoder<T> decoder, DtTime timeout, RpcCallback<T> callback) {
         try {
             int estimateSize = generalCheck(request, timeout, callback);
-            request.setFrameType(decoder != null ? FrameType.TYPE_REQ : FrameType.TYPE_ONE_WAY);
+            request.setPacketType(decoder != null ? PacketType.TYPE_REQ : PacketType.TYPE_ONE_WAY);
 
             while (true) {
                 VersionFactory.getInstance().acquireFence();
@@ -149,7 +149,7 @@ public abstract class NioNet extends AbstractLifeCircle {
         worker.writeReqInBizThreads(wd);
     }
 
-    private <T> int generalCheck(WriteFrame request, DtTime timeout, RpcCallback<T> callback) {
+    private <T> int generalCheck(WritePacket request, DtTime timeout, RpcCallback<T> callback) {
         Objects.requireNonNull(timeout);
         Objects.requireNonNull(callback);
         Objects.requireNonNull(request);
@@ -160,13 +160,13 @@ public abstract class NioNet extends AbstractLifeCircle {
         }
 
         // can't invoke actualSize() here because seq and timeout field is not set yet
-        int estimateSize = request.calcMaxFrameSize();
-        if (estimateSize > config.getMaxFrameSize() || estimateSize < 0) {
+        int estimateSize = request.calcMaxPacketSize();
+        if (estimateSize > config.getMaxPacketSize() || estimateSize < 0) {
             throw new NetException("estimateSize overflow");
         }
         int bodySize = request.actualBodySize();
         if (bodySize > config.getMaxBodySize() || bodySize < 0) {
-            throw new NetException("frame body size " + bodySize
+            throw new NetException("packet body size " + bodySize
                     + " exceeds max body size " + config.getMaxBodySize());
         }
         return estimateSize;
@@ -177,7 +177,7 @@ public abstract class NioNet extends AbstractLifeCircle {
             boolean b;
 
             @Override
-            public void success(ReadFrame<T> resp) {
+            public void success(ReadPacket<T> resp) {
                 RpcCallback.callSuccess(callback, resp);
                 updatePending();
             }

@@ -27,14 +27,14 @@ import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.NioClient;
-import com.github.dtprj.dongting.net.PbIntWriteFrame;
+import com.github.dtprj.dongting.net.PbIntWritePacket;
 import com.github.dtprj.dongting.net.PeerStatus;
-import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftException;
-import com.github.dtprj.dongting.raft.rpc.RaftPingFrameCallback;
+import com.github.dtprj.dongting.raft.rpc.RaftPingPacketCallback;
 import com.github.dtprj.dongting.raft.rpc.RaftPingProcessor;
-import com.github.dtprj.dongting.raft.rpc.RaftPingWriteFrame;
+import com.github.dtprj.dongting.raft.rpc.RaftPingWritePacket;
 import com.github.dtprj.dongting.raft.rpc.TransferLeaderReq;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.NotLeaderException;
@@ -210,7 +210,7 @@ public class MemberManager {
         member.setPinging(true);
         try {
             DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
-            RaftPingWriteFrame f = new RaftPingWriteFrame(groupId, serverConfig.getNodeId(),
+            RaftPingWritePacket f = new RaftPingWritePacket(groupId, serverConfig.getNodeId(),
                     raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers());
             client.sendRequest(raftNodeEx.getPeer(), f, RaftPingProcessor.DECODER, timeout)
                     .whenCompleteAsync((rf, ex) -> processPingResult(raftNodeEx, member, rf, ex, nodeEpochWhenStartPing),
@@ -222,9 +222,9 @@ public class MemberManager {
     }
 
     private void processPingResult(RaftNodeEx raftNodeEx, RaftMember member,
-                                   ReadFrame<RaftPingFrameCallback> rf, Throwable ex, int nodeEpochWhenStartPing) {
+                                   ReadPacket<RaftPingPacketCallback> rf, Throwable ex, int nodeEpochWhenStartPing) {
         member.setPinging(false);
-        RaftPingFrameCallback callback = rf.getBody();
+        RaftPingPacketCallback callback = rf.getBody();
         if (ex != null) {
             log.warn("raft ping fail, remote={}", raftNodeEx.getHostPort(), ex);
             setReady(member, false);
@@ -255,7 +255,7 @@ public class MemberManager {
         }
     }
 
-    private boolean checkRemoteConfig(RaftPingFrameCallback callback) {
+    private boolean checkRemoteConfig(RaftPingPacketCallback callback) {
         if (groupConfig.isStaticConfig()) {
             return raftStatus.getNodeIdOfMembers().equals(callback.nodeIdOfMembers)
                     && raftStatus.getNodeIdOfObservers().equals(callback.nodeIdOfObservers);
@@ -384,7 +384,7 @@ public class MemberManager {
         } else {
             final PbNoCopyDecoder<QueryStatusResp> decoder = new PbNoCopyDecoder<>(
                     c -> new QueryStatusResp.QueryStatusRespCallback());
-            CompletableFuture<Boolean> queryFuture = client.sendRequest(n.getPeer(), new PbIntWriteFrame(Commands.RAFT_QUERY_STATUS, groupId),
+            CompletableFuture<Boolean> queryFuture = client.sendRequest(n.getPeer(), new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, groupId),
                             decoder, new DtTime(3, TimeUnit.SECONDS))
                     .handle((resp, ex) -> {
                         if (ex != null) {
@@ -755,7 +755,7 @@ public class MemberManager {
                 req.logIndex = raftStatus.getLastLogIndex();
                 req.oldLeaderId = serverConfig.getNodeId();
                 req.groupId = groupId;
-                TransferLeaderReq.TransferLeaderReqWriteFrame frame = new TransferLeaderReq.TransferLeaderReqWriteFrame(req);
+                TransferLeaderReq.TransferLeaderReqWritePacket frame = new TransferLeaderReq.TransferLeaderReqWritePacket(req);
                 client.sendRequest(newLeader.getNode().getPeer(), frame,
                                 null, new DtTime(5, TimeUnit.SECONDS))
                         .whenComplete((rf, ex) -> {

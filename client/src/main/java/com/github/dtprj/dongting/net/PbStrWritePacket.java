@@ -15,20 +15,35 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.codec.PbUtil;
+
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 /**
  * @author huangli
  */
-public abstract class SmallNoCopyWriteFrame extends RetryableWriteFrame {
-    @Override
-    protected final boolean encodeBody(RpcEncodeContext context, ByteBuffer dest) {
-        if (dest.remaining() < actualBodySize()) {
-            return false;
+public class PbStrWritePacket extends SmallNoCopyWritePacket {
+
+    private final byte[] bytes;
+
+    public PbStrWritePacket(int command, String value) {
+        setCommand(command);
+        if (value != null) {
+            bytes = value.getBytes(StandardCharsets.UTF_8);
+        } else {
+            bytes = null;
         }
-        encodeBody(dest);
-        return true;
     }
 
-    protected abstract void encodeBody(ByteBuffer buf);
+    @Override
+    protected void encodeBody(ByteBuffer buf) {
+        PbUtil.writeLengthDelimitedPrefix(buf, 1, bytes.length);
+        buf.put(bytes);
+    }
+
+    @Override
+    protected int calcActualBodySize() {
+        return bytes == null ? 0 : PbUtil.accurateLengthDelimitedSize(1, bytes.length);
+    }
 }

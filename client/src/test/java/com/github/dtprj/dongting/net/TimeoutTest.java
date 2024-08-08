@@ -78,7 +78,7 @@ public class TimeoutTest {
     }
 
     private CompletableFuture<?> send(DtTime timeout, int bytes) {
-        ByteBufferWriteFrame wf = new ByteBufferWriteFrame(ByteBuffer.allocate(bytes));
+        ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.allocate(bytes));
         wf.setCommand(CMD);
         return client.sendRequest(wf, RefBufferDecoder.INSTANCE, timeout);
     }
@@ -86,7 +86,7 @@ public class TimeoutTest {
     private void registerDelayPingProcessor(CountDownLatch latch1, CountDownLatch latch2) {
         server.register(CMD, new NioServer.PingProcessor() {
             @Override
-            public WriteFrame process(ReadFrame<RefBuffer> frame, ReqContext reqContext) {
+            public WritePacket process(ReadPacket<RefBuffer> packet, ReqContext reqContext) {
                 if (latch1 != null) {
                     latch1.countDown();
                 }
@@ -98,7 +98,7 @@ public class TimeoutTest {
                     }
                 }
                 runCount.incrementAndGet();
-                return super.process(frame, reqContext);
+                return super.process(packet, reqContext);
             }
         });
     }
@@ -202,8 +202,8 @@ public class TimeoutTest {
         AtomicInteger processCount = new AtomicInteger();
         ReqProcessor<ByteBuffer> p = new ReqProcessor<>() {
             @Override
-            public WriteFrame process(ReadFrame<ByteBuffer> frame, ReqContext reqContext) {
-                ByteBufferWriteFrame resp = new ByteBufferWriteFrame(frame.getBody());
+            public WritePacket process(ReadPacket<ByteBuffer> packet, ReqContext reqContext) {
+                ByteBufferWritePacket resp = new ByteBufferWritePacket(packet.getBody());
                 resp.setRespCode(CmdCodes.SUCCESS);
                 processCount.incrementAndGet();
                 return resp;

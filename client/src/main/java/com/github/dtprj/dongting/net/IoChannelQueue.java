@@ -46,7 +46,7 @@ class IoChannelQueue {
     private Runnable registerForWrite;
 
     private ByteBuffer writeBuffer;
-    private int framesInBuffer;
+    private int packetsInBuffer;
 
     private final ArrayDeque<WriteData> subQueue = new ArrayDeque<>();
     private int subQueueBytes;
@@ -70,9 +70,9 @@ class IoChannelQueue {
     }
 
     public void enqueue(WriteData writeData) {
-        WriteFrame wf = writeData.getData();
+        WritePacket wf = writeData.getData();
         if (wf.use) {
-            writeData.callFail(true, new NetException("WriteFrame is used"));
+            writeData.callFail(true, new NetException("WritePacket is used"));
             return;
         }
         wf.use = true;
@@ -86,12 +86,12 @@ class IoChannelQueue {
         if (subQueue.size() == 1 && !writing) {
             registerForWrite.run();
         }
-        workerStatus.addFramesToWrite(1);
+        workerStatus.addPacketsToWrite(1);
     }
 
     public void cleanChannelQueue() {
-        if (framesInBuffer > 0) {
-            workerStatus.addFramesToWrite(-framesInBuffer);
+        if (packetsInBuffer > 0) {
+            workerStatus.addPacketsToWrite(-packetsInBuffer);
         }
         if (this.writeBuffer != null) {
             directPool.release(this.writeBuffer);
@@ -99,13 +99,13 @@ class IoChannelQueue {
         }
 
         if (lastWriteData != null) {
-            workerStatus.addFramesToWrite(-1);
+            workerStatus.addPacketsToWrite(-1);
             lastWriteData.callFail(true, new NetException("channel closed, cancel request still in IoChannelQueue. 1"));
         }
         WriteData wd;
         while ((wd = subQueue.pollFirst()) != null) {
             wd.callFail(true, new NetException("channel closed, cancel request still in IoChannelQueue. 2"));
-            workerStatus.addFramesToWrite(-1);
+            workerStatus.addPacketsToWrite(-1);
         }
     }
 
@@ -116,10 +116,10 @@ class IoChannelQueue {
                 return writeBuffer;
             } else {
                 // current buffer write finished
-                workerStatus.addFramesToWrite(-framesInBuffer);
+                workerStatus.addPacketsToWrite(-packetsInBuffer);
                 directPool.release(writeBuffer);
                 this.writeBuffer = null;
-                framesInBuffer = 0;
+                packetsInBuffer = 0;
             }
         }
         int subQueueBytes = this.subQueueBytes;
@@ -143,7 +143,7 @@ class IoChannelQueue {
                 }
                 if (encodeResult == ENCODE_NOT_FINISH) {
                     if (buf.position() == 0) {
-                        workerStatus.addFramesToWrite(-1);
+                        workerStatus.addPacketsToWrite(-1);
                         subQueueBytes = Math.max(0, subQueueBytes - wd.estimateSize);
                         encodeContext.reset();
                         Throwable ex = new NetException("encode fail when buffer is empty");
@@ -155,8 +155,8 @@ class IoChannelQueue {
                     return flipAndReturnBuffer(buf);
                 } else {
                     if (encodeResult == ENCODE_FINISH) {
-                        WriteFrame f = wd.getData();
-                        if (f.getFrameType() == FrameType.TYPE_REQ) {
+                        WritePacket f = wd.getData();
+                        if (f.getPacketType() == PacketType.TYPE_REQ) {
                             long key = BitUtil.toLong(dtc.getChannelIndexInWorker(), f.getSeq());
                             WriteData old = workerStatus.getPendingRequests().put(key, wd);
                             if (old != null) {
@@ -165,14 +165,14 @@ class IoChannelQueue {
                                 old.callFail(true, new NetException(errMsg));
                             }
                         }
-                        framesInBuffer++;
-                        if (f.getFrameType() == FrameType.TYPE_ONE_WAY) {
+                        packetsInBuffer++;
+                        if (f.getPacketType() == PacketType.TYPE_ONE_WAY) {
                             // TODO complete after write finished
                             wd.callSuccess(null);
                         }
                     } else {
                         // cancel
-                        workerStatus.addFramesToWrite(-1);
+                        workerStatus.addPacketsToWrite(-1);
                         String msg = "timeout before send: " + wd.getTimeout().getTimeout(TimeUnit.MILLISECONDS) + "ms";
                         wd.callFail(false, new NetTimeoutException(msg));
                     }
@@ -211,9 +211,9 @@ class IoChannelQueue {
     }
 
     private int encode(ByteBuffer buf, WriteData wd, Timestamp roundTime) {
-        WriteFrame f = wd.getData();
+        WritePacket f = wd.getData();
         // request or one way request
-        boolean request = f.getFrameType() != FrameType.TYPE_RESP;
+        boolean request = f.getPacketType() != PacketType.TYPE_RESP;
         DtTime t = wd.getTimeout();
         long rest = t.rest(TimeUnit.NANOSECONDS, roundTime);
         if (rest <= 0) {
@@ -237,7 +237,7 @@ class IoChannelQueue {
     }
 
     private int doEncode(ByteBuffer buf, WriteData wd) {
-        WriteFrame wf = wd.getData();
+        WritePacket wf = wd.getData();
         return wf.encode(encodeContext, buf) ? ENCODE_FINISH : ENCODE_NOT_FINISH;
     }
 

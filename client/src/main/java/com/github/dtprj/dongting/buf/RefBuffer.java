@@ -18,7 +18,7 @@ package com.github.dtprj.dongting.buf;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
 import com.github.dtprj.dongting.common.RefCount;
-import com.github.dtprj.dongting.net.ByteBufferWriteFrame;
+import com.github.dtprj.dongting.net.ByteBufferWritePacket;
 
 import java.nio.ByteBuffer;
 
@@ -153,7 +153,7 @@ public final class RefBuffer extends RefCount implements Encodable {
         }
         if (src.isDirect()) {
             ByteBuffer srcCopy = (ByteBuffer) context.getStatus();
-            srcCopy = ByteBufferWriteFrame.copyFromDirectBuffer(src, destBuffer, srcCopy);
+            srcCopy = ByteBufferWritePacket.copyFromDirectBuffer(src, destBuffer, srcCopy);
             if (srcCopy.remaining() == 0) {
                 return true;
             } else {
@@ -166,7 +166,7 @@ public final class RefBuffer extends RefCount implements Encodable {
             if (s != null) {
                 readBytes = s;
             }
-            readBytes = ByteBufferWriteFrame.copyFromHeapBuffer(src, destBuffer, readBytes);
+            readBytes = ByteBufferWritePacket.copyFromHeapBuffer(src, destBuffer, readBytes);
             if (readBytes >= src.remaining()) {
                 return true;
             } else {

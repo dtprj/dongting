@@ -24,7 +24,7 @@ import com.github.dtprj.dongting.common.DtTime;
 class WriteData {
     private DtChannelImpl dtc;
 
-    private final WriteFrame data;
+    private final WritePacket data;
     private final DtTime timeout;
 
     final int estimateSize;
@@ -37,40 +37,40 @@ class WriteData {
     private final Decoder<?> respDecoder;
 
     // for request or one way request (client side)
-    public <T> WriteData(Peer peer, WriteFrame data, DtTime timeout, RpcCallback<T> callback, Decoder<T> respDecoder) {
+    public <T> WriteData(Peer peer, WritePacket data, DtTime timeout, RpcCallback<T> callback, Decoder<T> respDecoder) {
         this.peer = peer;
         this.data = data;
         this.timeout = timeout;
         this.callback = callback;
         this.respDecoder = respDecoder;
-        this.estimateSize = data.calcMaxFrameSize();
+        this.estimateSize = data.calcMaxPacketSize();
     }
 
     // for request or one way request (server push)
-    public <T> WriteData(DtChannelImpl dtc, WriteFrame data, DtTime timeout, RpcCallback<T> callback, Decoder<T> respDecoder) {
+    public <T> WriteData(DtChannelImpl dtc, WritePacket data, DtTime timeout, RpcCallback<T> callback, Decoder<T> respDecoder) {
         this.dtc = dtc;
         this.peer = null;
         this.data = data;
         this.timeout = timeout;
         this.callback = callback;
         this.respDecoder = respDecoder;
-        this.estimateSize = data.calcMaxFrameSize();
+        this.estimateSize = data.calcMaxPacketSize();
     }
 
     // for response
-    public WriteData(DtChannelImpl dtc, WriteFrame data, DtTime timeout) {
+    public WriteData(DtChannelImpl dtc, WritePacket data, DtTime timeout) {
         this.dtc = dtc;
         this.peer = null;
         this.data = data;
         this.timeout = timeout;
         this.callback = null;
         this.respDecoder = null;
-        this.estimateSize = data.calcMaxFrameSize();
+        this.estimateSize = data.calcMaxPacketSize();
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    void callSuccess(ReadFrame resp) {
-        if (data.frameType == FrameType.TYPE_REQ && resp != null && resp.respCode != CmdCodes.SUCCESS) {
+    void callSuccess(ReadPacket resp) {
+        if (data.packetType == PacketType.TYPE_REQ && resp != null && resp.respCode != CmdCodes.SUCCESS) {
             RpcCallback.callFail(callback, new NetCodeException(resp.respCode, resp.msg, resp));
         } else {
             RpcCallback.callSuccess(callback, resp);
@@ -88,7 +88,7 @@ class WriteData {
         return dtc;
     }
 
-    public WriteFrame getData() {
+    public WritePacket getData() {
         return data;
     }
 

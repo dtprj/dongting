@@ -20,8 +20,8 @@ import com.github.dtprj.dongting.common.FlowControlException;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
-import com.github.dtprj.dongting.net.EmptyBodyRespFrame;
-import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
+import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.raft.RaftNode;
 
 import java.nio.charset.StandardCharsets;
@@ -40,22 +40,22 @@ public abstract class AbstractRaftBizProcessor<T> extends AbstractRaftGroupProce
     public void processError(ReqInfo<?> reqInfo, Throwable ex) {
         Throwable root = DtUtil.rootCause(ex);
         if (root instanceof RaftExecTimeoutException) {
-            ReadFrame<?> reqFrame = reqInfo.getReqFrame();
+            ReadPacket<?> reqFrame = reqInfo.getReqFrame();
             log.warn("raft operation timeout: command={}, seq={}", reqFrame.getCommand(), reqFrame.getSeq());
             return;
         }
-        EmptyBodyRespFrame errorResp;
+        EmptyBodyRespPacket errorResp;
         if (root instanceof FlowControlException) {
-            errorResp = new EmptyBodyRespFrame(CmdCodes.FLOW_CONTROL);
+            errorResp = new EmptyBodyRespPacket(CmdCodes.FLOW_CONTROL);
         } else if (root instanceof NotLeaderException) {
-            errorResp = new EmptyBodyRespFrame(CmdCodes.NOT_RAFT_LEADER);
+            errorResp = new EmptyBodyRespPacket(CmdCodes.NOT_RAFT_LEADER);
             RaftNode leader = ((NotLeaderException) root).getCurrentLeader();
             if (leader != null) {
                 errorResp.setExtra(String.valueOf(leader.getNodeId()).getBytes(StandardCharsets.UTF_8));
             }
             log.warn("not leader, current leader is {}", leader);
         } else {
-            errorResp = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
+            errorResp = new EmptyBodyRespPacket(CmdCodes.BIZ_ERROR);
             log.warn("raft processor error", ex);
         }
         errorResp.setMsg(root.toString());

@@ -36,7 +36,7 @@ public abstract class NioConfig {
     private long selectTimeout = 50;
     private long cleanInterval = 100;
 
-    private int maxFrameSize = 5 * 1024 * 1024;
+    private int maxPacketSize = 5 * 1024 * 1024;
     private int maxBodySize = 4 * 1024 * 1024;
 
     private PoolFactory poolFactory = new DefaultPoolFactory();
@@ -111,12 +111,12 @@ public abstract class NioConfig {
         this.poolFactory = poolFactory;
     }
 
-    public int getMaxFrameSize() {
-        return maxFrameSize;
+    public int getMaxPacketSize() {
+        return maxPacketSize;
     }
 
-    public void setMaxFrameSize(int maxFrameSize) {
-        this.maxFrameSize = maxFrameSize;
+    public void setMaxPacketSize(int maxPacketSize) {
+        this.maxPacketSize = maxPacketSize;
     }
 
     public int getMaxBodySize() {

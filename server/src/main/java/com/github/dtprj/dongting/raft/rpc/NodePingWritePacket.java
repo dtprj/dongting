@@ -17,7 +17,7 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.net.Commands;
-import com.github.dtprj.dongting.net.SmallNoCopyWriteFrame;
+import com.github.dtprj.dongting.net.SmallNoCopyWritePacket;
 
 import java.nio.ByteBuffer;
 import java.util.UUID;
@@ -25,12 +25,12 @@ import java.util.UUID;
 /**
  * @author huangli
  */
-public class NodePingWriteFrame extends SmallNoCopyWriteFrame {
+public class NodePingWritePacket extends SmallNoCopyWritePacket {
 
     private final int selfNodeId;
     private final UUID uuid;
 
-    public NodePingWriteFrame(int selfNodeId, UUID uuid) {
+    public NodePingWritePacket(int selfNodeId, UUID uuid) {
         setCommand(Commands.NODE_PING);
         this.selfNodeId = selfNodeId;
         this.uuid = uuid;

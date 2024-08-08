@@ -18,7 +18,7 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.CopyDecoder;
 import com.github.dtprj.dongting.codec.Decoder;
-import com.github.dtprj.dongting.codec.DtFrame;
+import com.github.dtprj.dongting.codec.DtPacket;
 import com.github.dtprj.dongting.codec.RefBufferDecoder;
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtTime;
@@ -67,7 +67,7 @@ public class NioServerTest {
         }
 
         @Override
-        public WriteFrame process(ReadFrame frame, ReqContext reqContext) {
+        public WritePacket process(ReadPacket packet, ReqContext reqContext) {
             if (sleep > 0) {
                 try {
                     Thread.sleep(sleep);
@@ -75,7 +75,7 @@ public class NioServerTest {
                     throw new RuntimeException(e);
                 }
             }
-            return super.process(frame, reqContext);
+            return super.process(packet, reqContext);
         }
     }
 
@@ -91,9 +91,9 @@ public class NioServerTest {
         server.register(CMD_BIZ_PING2, new ReqProcessor() {
 
             @Override
-            public WriteFrame process(ReadFrame frame, ReqContext reqContext) {
-                ByteBuffer buf = (ByteBuffer) frame.getBody();
-                ByteBufferWriteFrame resp = new ByteBufferWriteFrame(buf);
+            public WritePacket process(ReadPacket packet, ReqContext reqContext) {
+                ByteBuffer buf = (ByteBuffer) packet.getBody();
+                ByteBufferWritePacket resp = new ByteBufferWritePacket(buf);
                 resp.setRespCode(CmdCodes.SUCCESS);
                 return resp;
             }
@@ -130,24 +130,24 @@ public class NioServerTest {
 
     private static void simpleTest(int cmd, DataInputStream in, DataOutputStream out, int seq) throws Exception {
         byte[] bs = new byte[new Random().nextInt(3000)];
-        DtFrame.Frame reqFrame = DtFrame.Frame.newBuilder().setFrameType(FrameType.TYPE_REQ)
+        DtPacket.Packet reqPacket = DtPacket.Packet.newBuilder().setPacketType(PacketType.TYPE_REQ)
                 .setSeq(seq)
                 .setCommand(cmd)
                 .setBody(ByteString.copyFrom(bs))
                 .setTimeout(Duration.ofSeconds(10).toNanos())
                 .build();
-        byte[] reqFrameBytes = reqFrame.toByteArray();
-        out.writeInt(reqFrameBytes.length);
-        out.write(reqFrameBytes);
+        byte[] reqPacketBytes = reqPacket.toByteArray();
+        out.writeInt(reqPacketBytes.length);
+        out.write(reqPacketBytes);
         out.flush();
 
         int len = in.readInt();
         byte[] resp = new byte[len];
         in.readFully(resp);
-        DtFrame.Frame frame = DtFrame.Frame.parseFrom(resp);
-        assertEquals(FrameType.TYPE_RESP, frame.getFrameType());
-        assertEquals(CmdCodes.SUCCESS, frame.getRespCode());
-        assertArrayEquals(bs, frame.getBody().toByteArray());
+        DtPacket.Packet packet = DtPacket.Packet.parseFrom(resp);
+        assertEquals(PacketType.TYPE_RESP, packet.getPacketType());
+        assertEquals(CmdCodes.SUCCESS, packet.getRespCode());
+        assertArrayEquals(bs, packet.getBody().toByteArray());
     }
 
     @Test
@@ -182,13 +182,13 @@ public class NioServerTest {
                     }
                 }
                 for (int i = 0; i < count; i++) {
-                    DtFrame.Frame frame = DtFrame.Frame.newBuilder().setFrameType(FrameType.TYPE_REQ)
+                    DtPacket.Packet packet = DtPacket.Packet.newBuilder().setPacketType(PacketType.TYPE_REQ)
                             .setSeq(seq + i)
                             .setCommand(CMD_IO_PING + (i % 3))
                             .setBody(ByteString.copyFrom(map.get(seq + i)))
                             .setTimeout(Duration.ofSeconds(10).toNanos())
                             .build();
-                    byte[] bs = frame.toByteArray();
+                    byte[] bs = packet.toByteArray();
                     if (writer == null) {
                         out.writeInt(bs.length);
                         out.write(bs);
@@ -202,14 +202,14 @@ public class NioServerTest {
                     int len = in.readInt();
                     byte[] resp = new byte[len];
                     in.readFully(resp);
-                    DtFrame.Frame frame = DtFrame.Frame.parseFrom(resp);
-                    assertEquals(FrameType.TYPE_RESP, frame.getFrameType());
-                    assertEquals(CmdCodes.SUCCESS, frame.getRespCode());
-                    byte[] expect = map.get(frame.getSeq());
+                    DtPacket.Packet packet = DtPacket.Packet.parseFrom(resp);
+                    assertEquals(PacketType.TYPE_RESP, packet.getPacketType());
+                    assertEquals(CmdCodes.SUCCESS, packet.getRespCode());
+                    byte[] expect = map.get(packet.getSeq());
                     if (expect.length != 0) {
-                        assertArrayEquals(expect, frame.getBody().toByteArray());
+                        assertArrayEquals(expect, packet.getBody().toByteArray());
                     } else {
-                        assertNotNull(frame.getBody());
+                        assertNotNull(packet.getBody());
                     }
                 }
             }
@@ -287,26 +287,26 @@ public class NioServerTest {
     private static int invoke(int seq, int command, int bodySize, DataInputStream in, DataOutputStream out) throws Exception {
         byte[] bs = new byte[bodySize];
         ThreadLocalRandom.current().nextBytes(bs);
-        DtFrame.Frame frame = DtFrame.Frame.newBuilder().setFrameType(FrameType.TYPE_REQ)
+        DtPacket.Packet packet = DtPacket.Packet.newBuilder().setPacketType(PacketType.TYPE_REQ)
                 .setSeq(seq)
                 .setCommand(command)
                 .setBody(ByteString.copyFrom(bs))
                 .setTimeout(Duration.ofSeconds(tick(1)).toNanos())
                 .build();
-        byte[] frameBytes = frame.toByteArray();
-        out.writeInt(frameBytes.length);
-        out.write(frameBytes);
+        byte[] packetBytes = packet.toByteArray();
+        out.writeInt(packetBytes.length);
+        out.write(packetBytes);
         out.flush();
 
         int len = in.readInt();
         byte[] resp = new byte[len];
         in.readFully(resp);
-        frame = DtFrame.Frame.parseFrom(resp);
-        assertEquals(FrameType.TYPE_RESP, frame.getFrameType());
-        if (frame.getRespCode() == CmdCodes.SUCCESS) {
-            assertArrayEquals(bs, frame.getBody().toByteArray());
+        packet = DtPacket.Packet.parseFrom(resp);
+        assertEquals(PacketType.TYPE_RESP, packet.getPacketType());
+        if (packet.getRespCode() == CmdCodes.SUCCESS) {
+            assertArrayEquals(bs, packet.getBody().toByteArray());
         }
-        return frame.getRespCode();
+        return packet.getRespCode();
     }
 
     @Test
@@ -386,7 +386,7 @@ public class NioServerTest {
         setupServer(null);
         server.register(10001, new ReqProcessor() {
             @Override
-            public WriteFrame process(ReadFrame frame, ReqContext reqContext) {
+            public WritePacket process(ReadPacket packet, ReqContext reqContext) {
                 return null;
             }
 
@@ -427,7 +427,7 @@ public class NioServerTest {
         setupServer(null);
         server.register(10001, new ReqProcessor() {
             @Override
-            public WriteFrame process(ReadFrame frame, ReqContext reqContext) {
+            public WritePacket process(ReadPacket packet, ReqContext reqContext) {
                 throw new ArrayIndexOutOfBoundsException();
             }
 
@@ -438,7 +438,7 @@ public class NioServerTest {
         }, null);
         server.register(10002, new ReqProcessor() {
             @Override
-            public WriteFrame process(ReadFrame frame, ReqContext reqContext) {
+            public WritePacket process(ReadPacket packet, ReqContext reqContext) {
                 throw new ArrayIndexOutOfBoundsException();
             }
 
@@ -449,7 +449,7 @@ public class NioServerTest {
         });
         server.register(10003, new ReqProcessor() {
             @Override
-            public WriteFrame process(ReadFrame frame, ReqContext reqContext) {
+            public WritePacket process(ReadPacket packet, ReqContext reqContext) {
                 return null;
             }
 
@@ -460,7 +460,7 @@ public class NioServerTest {
         }, null);
         server.register(10004, new ReqProcessor() {
             @Override
-            public WriteFrame process(ReadFrame frame, ReqContext reqContext) {
+            public WritePacket process(ReadPacket packet, ReqContext reqContext) {
                 return null;
             }
 
@@ -529,11 +529,11 @@ public class NioServerTest {
         setupServer(null);
         server.register(3333, new ReqProcessor() {
             @Override
-            public WriteFrame process(ReadFrame frame, ReqContext reqContext) {
+            public WritePacket process(ReadPacket packet, ReqContext reqContext) {
                 Thread t = new Thread(() -> {
-                    RefBufWriteFrame resp = new RefBufWriteFrame((RefBuffer) frame.getBody());
+                    RefBufWritePacket resp = new RefBufWritePacket((RefBuffer) packet.getBody());
                     resp.setRespCode(CmdCodes.SUCCESS);
-                    reqContext.getDtChannel().getRespWriter().writeRespInBizThreads(frame, resp, new DtTime(1, TimeUnit.SECONDS));
+                    reqContext.getDtChannel().getRespWriter().writeRespInBizThreads(packet, resp, new DtTime(1, TimeUnit.SECONDS));
                 });
                 t.start();
                 return null;

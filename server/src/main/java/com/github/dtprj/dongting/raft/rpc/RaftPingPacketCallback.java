@@ -22,7 +22,7 @@ import java.util.HashSet;
 /**
  * @author huangli
  */
-public class RaftPingFrameCallback extends PbCallback<RaftPingFrameCallback> {
+public class RaftPingPacketCallback extends PbCallback<RaftPingPacketCallback> {
     public int groupId;
     public int nodeId;
     public HashSet<Integer> nodeIdOfMembers = new HashSet<>();
@@ -43,7 +43,7 @@ public class RaftPingFrameCallback extends PbCallback<RaftPingFrameCallback> {
     }
 
     @Override
-    public RaftPingFrameCallback getResult() {
+    public RaftPingPacketCallback getResult() {
         return this;
     }
 }

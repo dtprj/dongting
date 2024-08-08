@@ -19,11 +19,11 @@ import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
-import com.github.dtprj.dongting.net.EmptyBodyRespFrame;
-import com.github.dtprj.dongting.net.ReadFrame;
+import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
+import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
-import com.github.dtprj.dongting.net.WriteFrame;
+import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.RaftGroupImpl;
 import com.github.dtprj.dongting.raft.rpc.ReqInfoEx;
@@ -40,9 +40,9 @@ public abstract class AbstractRaftGroupProcessor<T> extends ReqProcessor<T> {
         this.raftServer = raftServer;
     }
 
-    protected abstract int getGroupId(ReadFrame<T> frame);
+    protected abstract int getGroupId(ReadPacket<T> frame);
 
-    protected void writeResp(ReqInfo<?> reqInfo, WriteFrame respFrame) {
+    protected void writeResp(ReqInfo<?> reqInfo, WritePacket respFrame) {
         reqInfo.getReqContext().getDtChannel().getRespWriter().writeRespInBizThreads(
                 reqInfo.getReqFrame(), respFrame, reqInfo.getReqContext().getTimeout());
     }
@@ -51,20 +51,20 @@ public abstract class AbstractRaftGroupProcessor<T> extends ReqProcessor<T> {
      * run in io thread.
      */
     @Override
-    public final WriteFrame process(ReadFrame<T> frame, ReqContext reqContext) {
-        Object body = frame.getBody();
-        int groupId = getGroupId(frame);
+    public final WritePacket process(ReadPacket<T> packet, ReqContext reqContext) {
+        Object body = packet.getBody();
+        int groupId = getGroupId(packet);
         RaftGroupImpl g = (RaftGroupImpl) raftServer.getRaftGroup(groupId);
-        ReqInfoEx<T> reqInfo = new ReqInfoEx<>(frame, reqContext, g);
+        ReqInfoEx<T> reqInfo = new ReqInfoEx<>(packet, reqContext, g);
         if (body == null) {
             // no data need invoke clean
-            EmptyBodyRespFrame errorResp = new EmptyBodyRespFrame(CmdCodes.CLIENT_ERROR);
+            EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.CLIENT_ERROR);
             errorResp.setMsg("empty body");
             return errorResp;
         }
         if (g == null) {
             invokeCleanReqInProcessorThread(reqInfo);
-            EmptyBodyRespFrame errorResp = new EmptyBodyRespFrame(CmdCodes.RAFT_GROUP_NOT_FOUND);
+            EmptyBodyRespPacket errorResp = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_NOT_FOUND);
             errorResp.setMsg("raft group not found: " + groupId);
             log.error(errorResp.getMsg());
             return errorResp;
@@ -72,13 +72,13 @@ public abstract class AbstractRaftGroupProcessor<T> extends ReqProcessor<T> {
         GroupComponents gc = g.getGroupComponents();
         if (!gc.getRaftStatus().isInitialized()) {
             invokeCleanReqInProcessorThread(reqInfo);
-            EmptyBodyRespFrame wf = new EmptyBodyRespFrame(CmdCodes.RAFT_GROUP_NOT_INIT);
+            EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_NOT_INIT);
             wf.setMsg("raft group not initialized: " + groupId);
             return wf;
         }
         if (gc.getFiberGroup().isShouldStop()) {
             invokeCleanReqInProcessorThread(reqInfo);
-            EmptyBodyRespFrame wf = new EmptyBodyRespFrame(CmdCodes.RAFT_GROUP_STOPPED);
+            EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.RAFT_GROUP_STOPPED);
             wf.setMsg("raft group is stopped: " + groupId);
             return wf;
         } else {
@@ -100,7 +100,7 @@ public abstract class AbstractRaftGroupProcessor<T> extends ReqProcessor<T> {
         }
     }
 
-    protected abstract WriteFrame doProcess(ReqInfo<T> reqInfo);
+    protected abstract WritePacket doProcess(ReqInfo<T> reqInfo);
 
     protected void cleanReqInProcessorThread(ReqInfo<T> reqInfo) {
     }

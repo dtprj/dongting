@@ -25,11 +25,11 @@ import java.util.concurrent.CompletableFuture;
 @SuppressWarnings("Convert2Diamond")
 public interface RpcCallback<T> {
 
-    void success(ReadFrame<T> resp);
+    void success(ReadPacket<T> resp);
 
     void fail(Throwable ex);
 
-    static <T> void callSuccess(RpcCallback<T> callback, ReadFrame<T> resp) {
+    static <T> void callSuccess(RpcCallback<T> callback, ReadPacket<T> resp) {
         try {
             if (callback != null) {
                 callback.success(resp);
@@ -52,7 +52,7 @@ public interface RpcCallback<T> {
     static <T> RpcCallback<T> create(CompletableFuture<T> f) {
         return new RpcCallback<T>() {
             @Override
-            public void success(ReadFrame<T> resp) {
+            public void success(ReadPacket<T> resp) {
                 f.complete(resp.getBody());
             }
 

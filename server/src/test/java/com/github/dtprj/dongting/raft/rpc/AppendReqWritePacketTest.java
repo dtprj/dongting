@@ -36,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * @author huangli
  */
-public class AppendReqWriteFrameTest {
+public class AppendReqWritePacketTest {
 
     private final RaftCodecFactory raftCodecFactory = new RaftCodecFactory() {
 
@@ -64,7 +64,7 @@ public class AppendReqWriteFrameTest {
     }
 
     private void testEncode0(boolean addHeader, boolean addBody) {
-        AppendReqWriteFrame f = createFrame(addHeader, addBody);
+        AppendReqWritePacket f = createFrame(addHeader, addBody);
         ByteBuffer buf = ByteBuffer.allocate(f.actualBodySize());
         Assertions.assertTrue(f.encodeBody(new RpcEncodeContext(null), buf));
         assertEquals(buf.position(), f.actualBodySize());
@@ -89,7 +89,7 @@ public class AppendReqWriteFrameTest {
     }
 
     private void testSmallBufferEncode0(boolean addHeader, boolean addBody) {
-        AppendReqWriteFrame f = createFrame(addHeader, addBody);
+        AppendReqWritePacket f = createFrame(addHeader, addBody);
         RpcEncodeContext context = new RpcEncodeContext(null);
         DecodeContext decodeContext = new DecodeContext();
         AppendReqCallback c = new AppendReqCallback(decodeContext, g -> raftCodecFactory);
@@ -114,8 +114,8 @@ public class AppendReqWriteFrameTest {
         check(f, c);
     }
 
-    private AppendReqWriteFrame createFrame(boolean addHeader, boolean addBody) {
-        AppendReqWriteFrame f = new AppendReqWriteFrame();
+    private AppendReqWritePacket createFrame(boolean addHeader, boolean addBody) {
+        AppendReqWritePacket f = new AppendReqWritePacket();
         f.setGroupId(12345);
         f.setTerm(4);
         f.setLeaderId(2);
@@ -143,7 +143,7 @@ public class AppendReqWriteFrameTest {
         return f;
     }
 
-    private void check(AppendReqWriteFrame f, AppendReqCallback c) {
+    private void check(AppendReqWritePacket f, AppendReqCallback c) {
         assertEquals(f.groupId, c.getGroupId());
         assertEquals(f.term, c.getTerm());
         assertEquals(f.leaderId, c.getLeaderId());

@@ -24,7 +24,7 @@ import java.nio.ByteBuffer;
  * @author huangli
  */
 public class ConfigBody {
-    int maxFrameSize;
+    int maxPacketSize;
     int maxBodySize;
     int maxInPending;
     long maxInPendingBytes;
@@ -38,7 +38,7 @@ public class ConfigBody {
         public boolean readVarNumber(int index, long value) {
             switch (index) {
                 case 1:
-                    result.maxFrameSize = (int) value;
+                    result.maxPacketSize = (int) value;
                     break;
                 case 2:
                     result.maxBodySize = (int) value;
@@ -68,7 +68,7 @@ public class ConfigBody {
     }
 
     public int calcActualBodySize(){
-        return PbUtil.accurateUnsignedIntSize(1, maxFrameSize) +
+        return PbUtil.accurateUnsignedIntSize(1, maxPacketSize) +
                 PbUtil.accurateUnsignedIntSize(2, maxBodySize) +
                 PbUtil.accurateUnsignedIntSize(3, maxInPending) +
                 PbUtil.accurateFix64Size(4, maxInPendingBytes) +
@@ -77,7 +77,7 @@ public class ConfigBody {
     }
 
     public void encodeBody(ByteBuffer buf) {
-        PbUtil.writeUnsignedInt32(buf, 1, maxFrameSize);
+        PbUtil.writeUnsignedInt32(buf, 1, maxPacketSize);
         PbUtil.writeUnsignedInt32(buf, 2, maxBodySize);
         PbUtil.writeUnsignedInt32(buf, 3, maxInPending);
         PbUtil.writeFix64(buf, 4, maxInPendingBytes);

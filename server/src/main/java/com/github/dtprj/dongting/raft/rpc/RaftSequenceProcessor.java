@@ -23,8 +23,8 @@ import com.github.dtprj.dongting.fiber.FrameCallResult;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.net.CmdCodes;
-import com.github.dtprj.dongting.net.EmptyBodyRespFrame;
-import com.github.dtprj.dongting.net.WriteFrame;
+import com.github.dtprj.dongting.net.EmptyBodyRespPacket;
+import com.github.dtprj.dongting.net.WritePacket;
 import com.github.dtprj.dongting.raft.server.AbstractRaftGroupProcessor;
 import com.github.dtprj.dongting.raft.server.RaftServer;
 import com.github.dtprj.dongting.raft.server.ReqInfo;
@@ -83,7 +83,7 @@ public abstract class RaftSequenceProcessor<T> extends AbstractRaftGroupProcesso
         @Override
         protected FrameCallResult handle(Throwable ex) {
             if (current != null) {
-                EmptyBodyRespFrame wf = new EmptyBodyRespFrame(CmdCodes.BIZ_ERROR);
+                EmptyBodyRespPacket wf = new EmptyBodyRespPacket(CmdCodes.BIZ_ERROR);
                 wf.setMsg(ex.toString());
                 current.getReqContext().getDtChannel().getRespWriter().writeRespInBizThreads(
                         current.getReqFrame(), wf, current.getReqContext().getTimeout());
@@ -98,7 +98,7 @@ public abstract class RaftSequenceProcessor<T> extends AbstractRaftGroupProcesso
     }
 
     @Override
-    protected final WriteFrame doProcess(ReqInfo<T> reqInfo) {
+    protected final WritePacket doProcess(ReqInfo<T> reqInfo) {
         ReqInfoEx<T> rix = (ReqInfoEx<T>) reqInfo;
         FiberChannel<Object> c = rix.getRaftGroup().getGroupComponents().getProcessorChannels().get(typeId);
         if (!c.fireOffer(reqInfo)) {
