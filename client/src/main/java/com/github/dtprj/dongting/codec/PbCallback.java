@@ -172,4 +172,30 @@ public abstract class PbCallback<T> {
             return result;
         }
     }
+
+    protected final <X extends PbCallback<?>> X parseNested(int index, ByteBuffer buf, int fieldLen, int currentPos,
+                                       X nestedCallback) {
+        PbParser nestedParser;
+        if (currentPos == 0) {
+            nestedParser = parser.createOrGetNestedParser(nestedCallback, fieldLen);
+        } else {
+            nestedParser = parser.nestedParser;
+            //noinspection unchecked
+            nestedCallback = (X) nestedParser.callback;
+        }
+        boolean end = buf.remaining() >= fieldLen - currentPos;
+        nestedParser.parse(buf);
+        if (end) {
+            if (!nestedParser.checkSingleEndStatus()) {
+                throw new PbException("parse not finish after read all bytes. index=" + index
+                        + ", fieldLen=" + fieldLen + ", currentPos=" + currentPos + "class=" + getClass());
+            }
+        } else {
+            if (!nestedParser.checkNotSingleEndStatus()) {
+                throw new PbException("parse finished without read all bytes. index=" + index
+                        + ", fieldLen=" + fieldLen + ", currentPos=" + currentPos + "class=" + getClass());
+            }
+        }
+        return nestedCallback;
+    }
 }

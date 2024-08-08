@@ -21,7 +21,6 @@ import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
-import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
@@ -105,8 +104,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
     public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
         boolean end = buf.remaining() >= len - currentPos;
         if (index == 7) {
-            PbParser logItemParser;
-            LogItemCallback callback;
+            LogItemCallback callback = null;
             if (currentPos == 0) {
                 if (raftCodecFactory == null) {
                     // group id should encode before entries
@@ -117,12 +115,8 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                 }
                 // since AppendReqCallback not use context (to save status), we can use it in sub parser
                 callback = new LogItemCallback(context, raftCodecFactory);
-                logItemParser = parser.createOrGetNestedParser(callback, len);
-            } else {
-                logItemParser = parser.getNestedParser();
-                callback = (LogItemCallback) logItemParser.getCallback();
             }
-            logItemParser.parse(buf);
+            callback = parseNested(index, buf, len, currentPos, callback);
             if (end) {
                 LogItem i = callback.item;
                 logs.add(i);

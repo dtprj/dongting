@@ -58,7 +58,7 @@ public class PbParserTest {
         }
     }
 
-    static class NestedCallback extends PbCallback<Object> {
+    static class NestedCallback extends PbCallback<NestedMsg> {
         private final NestedMsg msg = new NestedMsg(0, null);
         private int set101Count;
         private int begin102Count;
@@ -321,17 +321,8 @@ public class PbParserTest {
                 f4BeginCount += begin ? 1 : 0;
                 f4EndCount += end ? 1 : 0;
             } else if (index == 7) {
-                PbParser np;
-                if (begin) {
-                    np = parser.createOrGetNestedParser(new NestedCallback(), len);
-                } else {
-                    np = parser.getNestedParser();
-                }
-                nestedCallback = (NestedCallback) np.getCallback();
-                np.parse(buf);
-                if (end) {
-                    readMsg.f7 = nestedCallback.msg;
-                }
+                nestedCallback = parseNested(index, buf, len, currentPos, begin ? new NestedCallback() : null);
+                readMsg.f7 = nestedCallback.msg;
             } else {
                 fail();
             }

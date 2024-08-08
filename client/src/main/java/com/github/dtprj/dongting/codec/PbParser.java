@@ -40,7 +40,7 @@ public class PbParser {
     private static final int STATUS_SINGLE_INIT = 6;
     private static final int STATUS_SINGLE_END = 7;
 
-    private PbCallback<?> callback;
+    PbCallback<?> callback;
 
     private int maxFrame;
 
@@ -56,7 +56,7 @@ public class PbParser {
     private int fieldLen;
     private long tempValue;
 
-    private PbParser nestedParser;
+    PbParser nestedParser;
 
     Object attachment;
 
@@ -111,12 +111,22 @@ public class PbParser {
         if (maxFrame > 0) {
             throw new PbException("multi parser");
         }
-        if (status != STATUS_ERROR && status != STATUS_SINGLE_END) {
+        if (!checkSingleEndStatus()) {
             throw new PbException("can't prepare next when last parse not finished");
         }
         this.callback = callback;
         this.frameLen = pbLen;
         this.status = STATUS_SINGLE_INIT;
+    }
+
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
+    boolean checkSingleEndStatus() {
+        return status == STATUS_SINGLE_END || status == STATUS_ERROR;
+    }
+
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
+    boolean checkNotSingleEndStatus() {
+        return status != STATUS_SINGLE_END;
     }
 
     public void parse(ByteBuffer buf) {
@@ -514,19 +524,11 @@ public class PbParser {
         }
     }
 
-    public PbCallback<?> getCallback() {
-        return callback;
-    }
-
-    public PbParser getNestedParser() {
-        return nestedParser;
-    }
-
     boolean isError() {
         return status == STATUS_ERROR;
     }
 
-    public PbParser createOrGetNestedParser(PbCallback<?> callback, int pbLen) {
+    PbParser createOrGetNestedParser(PbCallback<?> callback, int pbLen) {
         PbParser nestedParser = this.nestedParser;
         if (nestedParser == null) {
             nestedParser = singleParser(callback, pbLen);

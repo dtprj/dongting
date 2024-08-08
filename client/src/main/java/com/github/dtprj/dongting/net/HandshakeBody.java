@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.codec.PbCallback;
-import com.github.dtprj.dongting.codec.PbParser;
 
 import java.nio.ByteBuffer;
 
@@ -60,19 +59,9 @@ public class HandshakeBody {
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == 8) {
-                PbParser nestedParser;
-                ConfigBody.Callback nestedCallback;
-                if (currentPos == 0) {
-                    nestedCallback = new ConfigBody.Callback();
-                    nestedParser = parser.createOrGetNestedParser(nestedCallback, fieldLen);
-                } else {
-                    nestedParser = parser.getNestedParser();
-                    nestedCallback = (ConfigBody.Callback) nestedParser.getCallback();
-                }
-                nestedParser.parse(buf);
-                if (currentPos == fieldLen) {
-                    result.config = nestedCallback.getResult();
-                }
+                ConfigBody.Callback nestedCallback = currentPos == 0 ? new ConfigBody.Callback() : null;
+                nestedCallback = parseNested(index, buf, fieldLen, currentPos, nestedCallback);
+                result.config = nestedCallback.getResult();
             }
             return true;
         }

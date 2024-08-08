@@ -33,22 +33,33 @@ public final class PbNoCopyDecoder<T> extends Decoder<T> {
     @Override
     public T doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
         PbCallback<T> callback;
+        PbParser p = context.parser;
         if (currentPos == 0) {
             callback = callbackCreator.apply(context);
-            if (context.parser == null) {
-                context.parser = PbParser.singleParser(callback, bodyLen);
+            if (p == null) {
+                p = PbParser.singleParser(callback, bodyLen);
+                context.parser = p;
             } else {
-                context.parser.prepareNext(callback, bodyLen);
+                p.prepareNext(callback, bodyLen);
             }
         } else {
             //noinspection unchecked
-            callback = (PbCallback<T>) context.parser.getCallback();
+            callback = (PbCallback<T>) p.callback;
         }
         boolean end = buffer.remaining() >= bodyLen - currentPos;
-        context.parser.parse(buffer);
+        p.parse(buffer);
+
         if (end) {
+            if (!p.checkSingleEndStatus()) {
+                throw new PbException("parse not finish after read all bytes. bodyLen="
+                        + bodyLen + ", currentPos=" + currentPos + "class=" + getClass());
+            }
             return callback.getResult();
         } else {
+            if (!p.checkNotSingleEndStatus()) {
+                throw new PbException("parse finished without read all bytes. bodyLen="
+                        + bodyLen + ", currentPos=" + currentPos + "class=" + getClass());
+            }
             return null;
         }
     }
