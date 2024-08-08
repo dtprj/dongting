@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.codec.PbCallback;
+import com.github.dtprj.dongting.codec.PbUtil;
 
 import java.nio.ByteBuffer;
 
@@ -23,6 +24,10 @@ import java.nio.ByteBuffer;
  * @author huangli
  */
 public class HandshakeBody {
+
+    public static final long MAGIC1 = 0xAE10_9045_1C22_DA13L;
+    public static final long MAGIC2 = 0x1CD7_D1A3_0A61_935FL;
+
     long magic1;
     long magic2;
     int majorVersion;
@@ -61,9 +66,41 @@ public class HandshakeBody {
             if (index == 8) {
                 ConfigBody.Callback nestedCallback = currentPos == 0 ? new ConfigBody.Callback() : null;
                 nestedCallback = parseNested(index, buf, fieldLen, currentPos, nestedCallback);
-                result.config = nestedCallback.getResult();
+                result.config = nestedCallback.result;
             }
             return true;
+        }
+    }
+
+    public static class HandshakeBodyWriteFrame extends SmallNoCopyWriteFrame {
+
+        private final HandshakeBody v;
+        private final int configBodySize;
+
+        public HandshakeBodyWriteFrame(HandshakeBody v) {
+            this.v = v;
+            configBodySize = v.config == null ? 0 : v.config.calcActualBodySize();
+        }
+
+        @Override
+        protected int calcActualBodySize() {
+            return PbUtil.accurateFix64Size(1, MAGIC1)
+                    + PbUtil.accurateFix64Size(2, MAGIC2)
+                    + PbUtil.accurateUnsignedIntSize(3, v.majorVersion)
+                    + PbUtil.accurateUnsignedIntSize(4, v.minorVersion)
+                    + PbUtil.accurateLengthDelimitedSize(8, configBodySize);
+        }
+
+        @Override
+        protected void encodeBody(ByteBuffer buf) {
+            PbUtil.writeFix64(buf, 1, MAGIC1);
+            PbUtil.writeFix64(buf, 2, MAGIC2);
+            PbUtil.writeUnsignedInt32(buf, 3, v.majorVersion);
+            PbUtil.writeUnsignedInt32(buf, 4, v.minorVersion);
+            if (configBodySize > 0) {
+                PbUtil.writeLengthDelimitedPrefix(buf, 8, configBodySize);
+                v.config.encodeBody(buf);
+            }
         }
     }
 }

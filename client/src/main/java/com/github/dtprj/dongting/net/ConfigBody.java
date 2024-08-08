@@ -32,12 +32,7 @@ public class ConfigBody {
     long maxOutPendingBytes;
 
     public static class Callback extends PbCallback<ConfigBody> {
-        private final ConfigBody result = new ConfigBody();
-
-        @Override
-        public ConfigBody getResult() {
-            return result;
-        }
+        final ConfigBody result = new ConfigBody();
 
         @Override
         public boolean readVarNumber(int index, long value) {
@@ -72,32 +67,21 @@ public class ConfigBody {
         }
     }
 
-    public static class CmdConfigWriteFrame extends SmallNoCopyWriteFrame {
+    public int calcActualBodySize(){
+        return PbUtil.accurateUnsignedIntSize(1, maxFrameSize) +
+                PbUtil.accurateUnsignedIntSize(2, maxBodySize) +
+                PbUtil.accurateUnsignedIntSize(3, maxInPending) +
+                PbUtil.accurateFix64Size(4, maxInPendingBytes) +
+                PbUtil.accurateUnsignedIntSize(5, maxOutPending) +
+                PbUtil.accurateFix64Size(6, maxOutPendingBytes);
+    }
 
-        private final ConfigBody v;
-
-        public CmdConfigWriteFrame(ConfigBody v) {
-            this.v = v;
-        }
-
-        @Override
-        protected int calcActualBodySize() {
-            return PbUtil.accurateUnsignedIntSize(1, v.maxFrameSize) +
-                    PbUtil.accurateUnsignedIntSize(2, v.maxBodySize) +
-                    PbUtil.accurateUnsignedIntSize(3, v.maxInPending) +
-                    PbUtil.accurateFix64Size(4, v.maxInPendingBytes) +
-                    PbUtil.accurateUnsignedIntSize(5, v.maxOutPending) +
-                    PbUtil.accurateFix64Size(6, v.maxOutPendingBytes);
-        }
-
-        @Override
-        protected void encodeBody(ByteBuffer buf) {
-            PbUtil.writeUnsignedInt32(buf, 1, v.maxFrameSize);
-            PbUtil.writeUnsignedInt32(buf, 2, v.maxBodySize);
-            PbUtil.writeUnsignedInt32(buf, 3, v.maxInPending);
-            PbUtil.writeFix64(buf, 4, v.maxInPendingBytes);
-            PbUtil.writeUnsignedInt32(buf, 5, v.maxOutPending);
-            PbUtil.writeFix64(buf, 6, v.maxOutPendingBytes);
-        }
+    public void encodeBody(ByteBuffer buf) {
+        PbUtil.writeUnsignedInt32(buf, 1, maxFrameSize);
+        PbUtil.writeUnsignedInt32(buf, 2, maxBodySize);
+        PbUtil.writeUnsignedInt32(buf, 3, maxInPending);
+        PbUtil.writeFix64(buf, 4, maxInPendingBytes);
+        PbUtil.writeUnsignedInt32(buf, 5, maxOutPending);
+        PbUtil.writeFix64(buf, 6, maxOutPendingBytes);
     }
 }
