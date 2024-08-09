@@ -186,7 +186,6 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                 item.release();
             }
             resetDecoder();
-            context.reset();
         }
 
         @Override
@@ -275,6 +274,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                     currentDecoder = null;
                 }
             }
+            context.reset();
         }
     }
 }

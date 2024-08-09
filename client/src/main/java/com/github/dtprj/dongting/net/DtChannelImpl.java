@@ -136,7 +136,14 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 }
             }
         } finally {
-            resetDecoder();
+            if (currentDecoder != null) {
+                try {
+                    currentDecoder.finish(decodeContext);
+                    decodeContext.reset();
+                } finally {
+                    currentDecoder = null;
+                }
+            }
         }
 
         if (packet.getPacketType() == PacketType.TYPE_RESP) {
@@ -203,33 +210,16 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 return true;
             }
             case Packet.IDX_BODY: {
-                boolean end = buf.remaining() >= fieldLen - currentPos;
-                try {
-                    if (currentPos == 0 && currentDecoder != null) {
-                        throw new IllegalStateException("currentDecoder is not null");
-                    }
-                    return readBody(buf, fieldLen, currentPos, end);
-                } finally {
-                    if (end) {
-                        resetDecoder();
-                    }
+                if (currentPos == 0 && currentDecoder != null) {
+                    throw new IllegalStateException("currentDecoder is not null");
                 }
+                boolean end = buf.remaining() >= fieldLen - currentPos;
+                return readBody(buf, fieldLen, currentPos, end);
             }
             default:
                 return true;
         }
 
-    }
-
-    private void resetDecoder() {
-        if (currentDecoder != null) {
-            try {
-                currentDecoder.finish(decodeContext);
-            } finally {
-                currentDecoder = null;
-            }
-        }
-        decodeContext.reset();
     }
 
     private boolean readBody(ByteBuffer buf, int fieldLen, int currentPos, boolean end) {
