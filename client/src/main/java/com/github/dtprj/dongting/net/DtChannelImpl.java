@@ -71,6 +71,9 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
 
     private boolean closed;
 
+    boolean listenerOnConnectedCalled;
+
+
     public DtChannelImpl(NioStatus nioStatus, WorkerStatus workerStatus, NioConfig nioConfig, Peer peer,
                          SocketChannel socketChannel, int channelIndexInWorker) throws IOException {
         this.nioStatus = nioStatus;
@@ -129,8 +132,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                     return;
                 }
                 if (currentDecoder != null) {
-                    Object o = currentDecoder.decode(decodeContext, SimpleByteBufferPool.EMPTY_BUFFER, 0, 0);
-                    packet.setBody(o);
+                    packet.body = currentDecoder.decode(decodeContext, SimpleByteBufferPool.EMPTY_BUFFER, 0, 0);
                 }
             }
         } finally {
@@ -152,13 +154,13 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         }
         switch (index) {
             case Packet.IDX_TYPE:
-                packet.setPacketType((int) value);
+                packet.packetType = (int) value;
                 break;
             case Packet.IDX_COMMAND:
-                packet.setCommand((int) value);
+                packet.command = (int) value;
                 break;
             case Packet.IDX_RESP_CODE:
-                packet.setRespCode((int) value);
+                packet.respCode = (int) value;
                 break;
         }
         return true;
@@ -170,7 +172,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             throw new PbException("body has read");
         }
         if (index == Packet.IDX_SEQ) {
-            packet.setSeq(value);
+            packet.seq = value;
         }
         return true;
     }
@@ -181,7 +183,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             throw new PbException("body has read");
         }
         if (index == Packet.IDX_TIMOUT) {
-            packet.setTimeout(value);
+            packet.timeout = value;
         }
         return true;
     }
@@ -193,11 +195,11 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         }
         switch (index) {
             case Packet.IDX_MSG: {
-                this.packet.setMsg(parseUTF8(buf, fieldLen, currentPos));
+                this.packet.msg = parseUTF8(buf, fieldLen, currentPos);
                 return true;
             }
             case Packet.IDX_EXTRA: {
-                this.packet.setExtra(parseBytes(buf, fieldLen, currentPos));
+                this.packet.extra = parseBytes(buf, fieldLen, currentPos);
                 return true;
             }
             case Packet.IDX_BODY: {
@@ -246,7 +248,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         try {
             Object o = currentDecoder.decode(decodeContext, buf, fieldLen, currentPos);
             if (end) {
-                packet.setBody(o);
+                packet.body = o;
                 // so if the body is not last field, exception throws
                 readBody = true;
             }
@@ -341,14 +343,15 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         if (log.isDebugEnabled()) {
             log.debug("decode fail. {} {}", channel, e.toString());
         }
-        if (packet.getPacketType() == PacketType.TYPE_RESP) {
+        if (packet.packetType == PacketType.TYPE_RESP) {
             if (requestForResp != null) {
                 requestForResp.callFail(false, e);
             }
-        } else {
-            // req or one way
-            log.warn("decode fail in io thread", e);
-            writeErrorInIoThread(packet, CmdCodes.BIZ_ERROR, "decode fail: " + e.toString());
+        } else if (packet.packetType == PacketType.TYPE_REQ || packet.packetType == PacketType.TYPE_ONE_WAY) {
+            if (packet.command > 0) {
+                log.warn("decode fail in io thread", e);
+                writeErrorInIoThread(packet, CmdCodes.BIZ_ERROR, "decode fail: " + e.toString());
+            }
         }
     }
 
@@ -362,7 +365,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     private void processIncomingRequest(ReadPacket req, ReqProcessor p, Timestamp roundTime) {
-        if(!flowControlCheck(currentReadPacketSize)) {
+        if (!flowControlCheck(currentReadPacketSize)) {
             return;
         }
         ReqContext reqContext = new ReqContext(this, new DtTime(roundTime, req.getTimeout(), TimeUnit.NANOSECONDS));

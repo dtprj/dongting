@@ -421,6 +421,8 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
                         nioStatus.channelListener.onConnected(dtc);
                     } catch (Throwable e) {
                         log.error("channelListener.onConnected error: {}", e);
+                    } finally {
+                        dtc.listenerOnConnectedCalled = true;
                     }
                 }
             } catch (Throwable e) {
@@ -567,7 +569,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
         dtc.close();
 
-        if (nioStatus.channelListener != null) {
+        if (nioStatus.channelListener != null && dtc.listenerOnConnectedCalled) {
             try {
                 nioStatus.channelListener.onDisconnected(dtc);
             } catch (Throwable e) {

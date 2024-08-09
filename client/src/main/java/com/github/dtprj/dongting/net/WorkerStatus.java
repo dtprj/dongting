@@ -24,14 +24,14 @@ import com.github.dtprj.dongting.common.Timestamp;
  * @author huangli
  */
 class WorkerStatus {
-    private final NioWorker worker;
-    private IoWorkerQueue ioWorkerQueue;
-    private Runnable wakeupRunnable;
-    private LongObjMap<WriteData> pendingRequests;
-    private ByteBufferPool directPool;
-    private RefBufferFactory heapPool;
-    private int packetsToWrite;
-    private Timestamp ts;
+    final NioWorker worker;
+    IoWorkerQueue ioWorkerQueue;
+    Runnable wakeupRunnable;
+    LongObjMap<WriteData> pendingRequests;
+    ByteBufferPool directPool;
+    RefBufferFactory heapPool;
+    int packetsToWrite;
+    Timestamp ts;
 
     public WorkerStatus(NioWorker worker) {
         this.worker = worker;

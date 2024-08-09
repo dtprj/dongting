@@ -19,7 +19,7 @@ package com.github.dtprj.dongting.net;
  * @author huangli
  */
 public class ReadPacket<T> extends Packet {
-    private T body;
+    T body;
     boolean responseHasWrite;
 
     public ReadPacket() {
