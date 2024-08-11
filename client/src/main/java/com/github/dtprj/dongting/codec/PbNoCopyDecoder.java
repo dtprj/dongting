@@ -33,12 +33,12 @@ public final class PbNoCopyDecoder<T> extends Decoder<T> {
     @Override
     public T doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
         PbCallback<T> callback;
-        PbParser p = context.parser;
+        PbParser p = context.nestedParser;
         if (currentPos == 0) {
             callback = callbackCreator.apply(context);
             if (p == null) {
                 p = PbParser.singleParser(callback, bodyLen);
-                context.parser = p;
+                context.nestedParser = p;
             } else {
                 p.prepareNext(callback, bodyLen);
             }
@@ -66,7 +66,7 @@ public final class PbNoCopyDecoder<T> extends Decoder<T> {
 
     @Override
     public void finish(DecodeContext context) {
-        PbParser p = context.parser;
+        PbParser p = context.nestedParser;
         if (p != null) {
             p.reset();
         }

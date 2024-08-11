@@ -28,7 +28,7 @@ public class DecodeContext {
     private Object status;
 
     // only use by PbNoCopyDecoder
-    PbParser parser;
+    PbParser nestedParser;
 
     private final byte[] threadLocalBuffer = THREAD_LOCAL_BUFFER.get();
 
