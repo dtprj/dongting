@@ -24,7 +24,7 @@ public class DecodeContext {
     private static final int THREAD_LOCAL_BUFFER_SIZE = 4 * 1024;
     private static final ThreadLocal<byte[]> THREAD_LOCAL_BUFFER = ThreadLocal.withInitial(() -> new byte[THREAD_LOCAL_BUFFER_SIZE]);
 
-    private RefBufferFactory heapPool;
+    private final RefBufferFactory heapPool;
     private Object status;
 
     // only use by PbNoCopyDecoder
@@ -32,7 +32,8 @@ public class DecodeContext {
 
     private final byte[] threadLocalBuffer = THREAD_LOCAL_BUFFER.get();
 
-    public DecodeContext() {
+    public DecodeContext(RefBufferFactory heapPool) {
+        this.heapPool = heapPool;
     }
 
     public void reset() {
@@ -41,10 +42,6 @@ public class DecodeContext {
 
     public RefBufferFactory getHeapPool() {
         return heapPool;
-    }
-
-    public void setHeapPool(RefBufferFactory heapPool) {
-        this.heapPool = heapPool;
     }
 
     public Object getStatus() {

@@ -38,9 +38,8 @@ public class StrFiledDecoderTest {
 
     @Test
     public void test() {
-        decodeContext = new DecodeContext();
         ByteBufferPool byteBufferPool = new SimpleByteBufferPool(new Timestamp(), false);
-        decodeContext.setHeapPool(new RefBufferFactory(byteBufferPool, 128));
+        decodeContext = new DecodeContext(new RefBufferFactory(byteBufferPool, 128));
         decoder = StrFiledDecoder.INSTANCE;
         bytes = new byte[5 * 1024];
         byte c = 'a';
