@@ -178,23 +178,23 @@ public abstract class NioNet extends AbstractLifeCircle {
 
             @Override
             public void success(ReadPacket<T> resp) {
-                RpcCallback.callSuccess(callback, resp);
                 updatePending();
+                RpcCallback.callSuccess(callback, resp);
             }
 
             @Override
             public void fail(Throwable ex) {
-                RpcCallback.callFail(callback, ex);
                 updatePending();
+                RpcCallback.callFail(callback, ex);
             }
 
             private void updatePending() {
-                if (b) {
-                    BugLog.getLog().error("already called update pending");
-                }
-                b = true;
                 lock.lock();
                 try {
+                    if (b) {
+                        BugLog.getLog().error("already called update pending");
+                    }
+                    b = true;
                     pendingRequests--;
                     pendingBytes -= estimateSize;
                     pendingReqCond.signal();
