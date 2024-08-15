@@ -122,7 +122,7 @@ public class DefaultRaftLogTest extends BaseFiberTest {
             }
 
             private FrameCallResult waitWriteFinish(Void v) {
-                if (raftStatus.getLastForceLogIndex() < lastIdx - 1) {
+                if (raftStatus.getLastForceLogIndex() < lastIdx) {
                     return raftStatus.getLogForceFinishCondition().await(1000, this::waitWriteFinish);
                 } else {
                     return Fiber.frameReturn();
