@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
-import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
@@ -56,7 +55,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     int seq = 1;
 
     // read status
-    private final PbParser parser;
+    private final MultiParser parser;
     private ReadPacket packet;
     private boolean readBody;
     private WriteData requestForResp;
@@ -82,7 +81,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         this.workerStatus = workerStatus;
         this.channelIndexInWorker = channelIndexInWorker;
         this.peer = peer;
-        this.parser = PbParser.multiParser(this, nioConfig.getMaxPacketSize());
+        this.parser = new MultiParser(this, nioConfig.getMaxPacketSize());
 
         this.respWriter = new RespWriter(workerStatus.getIoQueue(), workerStatus.getWakeupRunnable(), this);
 
@@ -474,7 +473,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     // for unit test
-    PbParser getParser() {
+    MultiParser getParser() {
         return parser;
     }
 

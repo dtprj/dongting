@@ -98,34 +98,39 @@ public class DtUtil {
      * Checks that the given argument is strictly positive. If it is not, throws {@link IllegalArgumentException}.
      * Otherwise, returns the argument.
      */
-    public static void checkPositive(int i, String name) {
+    public static int checkPositive(int i, String name) {
         if (i <= 0) {
             throw new IllegalArgumentException(name + " : " + i + " (expected: > 0)");
         }
+        return i;
     }
 
-    public static void checkPositive(long value, String name) {
+    public static long checkPositive(long value, String name) {
         if (value <= 0) {
             throw new IllegalArgumentException(name + " : " + value + " (expected: >= 0)");
         }
+        return value;
     }
 
-    public static void checkPositive(float i, String name) {
+    public static float checkPositive(float i, String name) {
         if (i <= 0) {
             throw new IllegalArgumentException(name + " : " + i + " (expected: > 0)");
         }
+        return i;
     }
 
-    public static void checkNotNegative(int i, String name) {
+    public static int checkNotNegative(int i, String name) {
         if (i < 0) {
             throw new IllegalArgumentException(name + " : " + i + " (expected: >= 0)");
         }
+        return i;
     }
 
-    public static void checkNotNegative(long value, String name) {
+    public static long checkNotNegative(long value, String name) {
         if (value < 0) {
             throw new IllegalArgumentException(name + " : " + value + " (expected: >= 0)");
         }
+        return value;
     }
 
     public static void restoreInterruptStatus() {

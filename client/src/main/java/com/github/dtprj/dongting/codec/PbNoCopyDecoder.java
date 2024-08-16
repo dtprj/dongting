@@ -37,7 +37,7 @@ public final class PbNoCopyDecoder<T> extends Decoder<T> {
         if (currentPos == 0) {
             callback = callbackCreator.apply(context);
             if (p == null) {
-                p = PbParser.singleParser(callback, bodyLen);
+                p = new PbParser(callback, bodyLen);
                 context.nestedParser = p;
             } else {
                 p.prepareNext(callback, bodyLen);

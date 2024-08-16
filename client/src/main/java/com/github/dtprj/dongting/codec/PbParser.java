@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.codec;
 
-import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
@@ -32,7 +31,6 @@ public class PbParser {
     private static final DtLog log = DtLogs.getLogger(PbParser.class);
 
     private static final int STATUS_ERROR = -1;
-    private static final int STATUS_PARSE_PB_LEN = 1;
     private static final int STATUS_PARSE_TAG = 2;
     private static final int STATUS_PARSE_FILED_LEN = 3;
     private static final int STATUS_PARSE_FILED_BODY = 4;
@@ -41,8 +39,6 @@ public class PbParser {
     private static final int STATUS_SINGLE_END = 7;
 
     PbCallback<?> callback;
-
-    private int maxSize;
 
     private int status;
 
@@ -60,27 +56,14 @@ public class PbParser {
 
     Object attachment;
 
-    private PbParser(PbCallback<?> callback, boolean multi, int maxSizeOrPbLen) {
-        Objects.requireNonNull(callback);
-        if (multi) {
-            DtUtil.checkPositive(maxSizeOrPbLen, "maxSize");
-            this.callback = callback;
-            this.maxSize = maxSizeOrPbLen;
-            this.status = STATUS_PARSE_PB_LEN;
-        } else {
-            DtUtil.checkNotNegative(maxSizeOrPbLen, "pbLen");
-            this.callback = callback;
-            this.size = maxSizeOrPbLen;
-            this.status = STATUS_SINGLE_INIT;
-        }
+    public PbParser(PbCallback<?> callback, int size) {
+        this.callback = Objects.requireNonNull(callback);
+        this.size = DtUtil.checkNotNegative(size, "size");
+        this.status = STATUS_SINGLE_INIT;
     }
 
-    public static PbParser multiParser(PbCallback<?> callback, int maxSize) {
-        return new PbParser(callback, true, maxSize);
-    }
-
-    public static PbParser singleParser(PbCallback<?> callback, int pbLen) {
-        return new PbParser(callback, false, pbLen);
+    public PbParser() {
+        this.status = STATUS_SINGLE_INIT;
     }
 
     public void reset() {
@@ -89,7 +72,6 @@ public class PbParser {
         }
         switch (status) {
             case STATUS_ERROR:
-            case STATUS_PARSE_PB_LEN:
             case STATUS_SINGLE_INIT:
             case STATUS_SINGLE_END:
                 break;
@@ -107,21 +89,27 @@ public class PbParser {
         */
     }
 
-    public void prepareNext(PbCallback<?> callback, int pbLen) {
-        if (maxSize > 0) {
-            throw new PbException("multi parser");
-        }
+    public void prepareNext(PbCallback<?> callback, int size) {
         if (!checkSingleEndStatus()) {
             throw new PbException("can't prepare next when last parse not finished");
         }
-        this.callback = callback;
-        this.size = pbLen;
+        this.callback = Objects.requireNonNull(callback);
+        this.size = DtUtil.checkNotNegative(size, "size");
         this.status = STATUS_SINGLE_INIT;
+
+        this.pendingBytes = 0;
+        this.parsedBytes = 0;
+        this.attachment = null;
+
+        this.fieldType = 0;
+        this.fieldIndex = 0;
+        this.fieldLen = 0;
+        this.tempValue = 0;
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     boolean checkSingleEndStatus() {
-        return status == STATUS_SINGLE_END || status == STATUS_ERROR;
+        return status == STATUS_SINGLE_END || status == STATUS_SINGLE_INIT || status == STATUS_ERROR;
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
@@ -129,19 +117,25 @@ public class PbParser {
         return status != STATUS_SINGLE_END;
     }
 
+    public boolean isFinished() {
+        return status == STATUS_SINGLE_END;
+    }
+
     public void parse(ByteBuffer buf) {
         if (status == STATUS_ERROR) {
             throw new PbException("parser is in error status");
+        }
+        if(status == STATUS_SINGLE_END) {
+            throw new PbException("parser is finished");
         }
         try {
             parse0(buf);
         } catch (RuntimeException | Error e) {
             if (status == STATUS_ERROR || status == STATUS_SINGLE_INIT || status == STATUS_SINGLE_END) {
                 BugLog.getLog().error("unexpected status: {}", status);
-            } else if (status != STATUS_PARSE_PB_LEN) {
+            } else {
                 callEnd(callback, false, STATUS_ERROR);
             }
-            status = STATUS_ERROR;
             throw e;
         }
     }
@@ -151,9 +145,6 @@ public class PbParser {
         PbCallback<?> callback = this.callback;
         while (true) {
             switch (this.status) {
-                case STATUS_PARSE_PB_LEN:
-                    remain = onStatusParsePbLen(buf, callback, remain);
-                    break;
                 case STATUS_SINGLE_INIT:
                     callBegin(callback, size);
                     break;
@@ -178,9 +169,9 @@ public class PbParser {
                     remain -= skipCount;
                     break;
                 case STATUS_SINGLE_END:
-                    throw new DtException("single parser can't reuse");
+                    return;
                 default:
-                    throw new DtException("invalid status: " + status);
+                    throw new PbException("invalid status: " + status);
             }
             if (remain == 0) {
                 return;
@@ -189,7 +180,7 @@ public class PbParser {
     }
 
     private void callEnd(PbCallback<?> callback, boolean success) {
-        callEnd(callback, success, maxSize == 0 ? STATUS_SINGLE_END : STATUS_PARSE_PB_LEN);
+        callEnd(callback, success, STATUS_SINGLE_END);
     }
 
     private void callEnd(PbCallback<?> callback, boolean success, int nextStatus) {
@@ -203,9 +194,7 @@ public class PbParser {
         this.size = 0;
         this.parsedBytes = 0;
         this.attachment = null;
-        if (maxSize == 0) {
-            this.callback = null;
-        }
+        this.callback = null;
     }
 
     private void callBegin(PbCallback<?> callback, int len) {
@@ -218,39 +207,6 @@ public class PbParser {
         }
         if (len == 0) {
             callEnd(callback, this.status == STATUS_PARSE_TAG);
-        }
-    }
-
-    private int onStatusParsePbLen(ByteBuffer buf, PbCallback<?> callback, int remain) {
-        // read buffer is little endian.
-        // however the length field is out of proto buffer data, and it's big endian
-        if (pendingBytes == 0 && remain >= 4) {
-            int len = buf.getInt();
-            len = Integer.reverseBytes(len);
-            if (len < 0 || len > maxSize) {
-                throw new PbException("maxSize exceed: max=" + maxSize + ", actual=" + len);
-            }
-            size = len;
-            callBegin(callback, len);
-            return remain - 4;
-        }
-        int restLen = 4 - pendingBytes;
-        if (remain >= restLen) {
-            for (int i = 0; i < restLen; i++) {
-                size = (size << 8) | (0xFF & buf.get());
-            }
-            if (size < 0 || size > maxSize) {
-                throw new PbException("maxSize exceed: max=" + maxSize + ", actual=" + size);
-            }
-            pendingBytes = 0;
-            callBegin(callback, size);
-            return remain - restLen;
-        } else {
-            for (int i = 0; i < remain; i++) {
-                size = (size << 8) | (0xFF & buf.get());
-            }
-            pendingBytes += remain;
-            return 0;
         }
     }
 
@@ -442,6 +398,7 @@ public class PbParser {
         try {
             result = callback.readBytes(this.fieldIndex, buf, fieldLen, pendingBytes);
         } catch (Throwable e) {
+            e.printStackTrace();
             log.error("proto buffer parse callback readBytes() fail. fieldIndex={}, error={}", this.fieldIndex, e.toString());
         } finally {
             buf.limit(limit);
@@ -531,7 +488,7 @@ public class PbParser {
     PbParser createOrGetNestedParser(PbCallback<?> callback, int pbLen) {
         PbParser nestedParser = this.nestedParser;
         if (nestedParser == null) {
-            nestedParser = singleParser(callback, pbLen);
+            nestedParser = new PbParser(callback, pbLen);
             this.nestedParser = nestedParser;
         } else {
             nestedParser.prepareNext(callback, pbLen);

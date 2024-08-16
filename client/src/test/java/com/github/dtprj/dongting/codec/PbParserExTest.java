@@ -25,61 +25,6 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author huangli
  */
 public class PbParserExTest {
-    @Test
-    public void testPbLenOverflow1() {
-        PbParserTest.Callback callback = new PbParserTest.Callback(1, 2, "1", "body", 1, 2, null);
-        ByteBuffer buf = callback.buildPacket();
-
-        // len has 4 bytes
-        PbParser parser = PbParser.multiParser(callback, buf.remaining() - 4);
-        parser.parse(buf);
-        assertEquals(1, callback.beginCount);
-        assertEquals(1, callback.endSuccessCount);
-        assertEquals(0, callback.endFailCount);
-
-        callback.msg.f3 = "12";
-        try {
-            parser.parse(callback.buildPacket());
-            fail();
-        } catch (PbException e) {
-            // ignore
-        }
-        assertEquals(1, callback.beginCount);
-        assertEquals(1, callback.endSuccessCount);
-        assertEquals(0, callback.endFailCount);
-
-        // now the size is ok, but parser is in error status
-        callback.msg.f3 = "";
-        try {
-            parser.parse(callback.buildPacket());
-            fail();
-        } catch (PbException e) {
-            // ignore
-        }
-        assertEquals(1, callback.beginCount);
-        assertEquals(1, callback.endSuccessCount);
-        assertEquals(0, callback.endFailCount);
-    }
-
-    @Test
-    public void testPbLenOverflow2() {
-        PbParserTest.Callback callback = new PbParserTest.Callback(1, 2, "12", "body", 1, 2, null);
-        ByteBuffer buf = callback.buildPacket();
-
-        // len has 4 bytes
-        PbParser parser = PbParser.multiParser(callback, buf.remaining() - 5);
-        try {
-            parseByByte(buf, parser);
-            fail();
-        } catch (PbException e) {
-            // ignore
-        }
-        assertEquals(0, callback.beginCount);
-        assertEquals(0, callback.endSuccessCount);
-        assertEquals(0, callback.endFailCount);
-
-        assertTrue(parser.isError());
-    }
 
     private static void parseByByte(ByteBuffer buf, PbParser parser) {
         while (buf.remaining() > 0) {
@@ -123,7 +68,7 @@ public class PbParserExTest {
         buf.mark();
 
         EmptyCallback callback = new EmptyCallback();
-        PbParser parser = PbParser.singleParser(callback, buf.remaining());
+        PbParser parser = new PbParser(callback, buf.remaining());
         try {
             parser.parse(buf);
             fail();
@@ -137,7 +82,7 @@ public class PbParserExTest {
 
         buf.reset();
         callback = new EmptyCallback();
-        parser = PbParser.singleParser(callback, buf.remaining());
+        parser = new PbParser(callback, buf.remaining());
         try {
             parseByByte(buf, parser);
             fail();
@@ -159,7 +104,7 @@ public class PbParserExTest {
         buf.mark();
 
         EmptyCallback callback = new EmptyCallback();
-        PbParser parser = PbParser.singleParser(callback, buf.remaining() - 1);
+        PbParser parser = new PbParser(callback, buf.remaining() - 1);
         try {
             parser.parse(buf);
             fail();
@@ -173,7 +118,7 @@ public class PbParserExTest {
 
         buf.reset();
         callback = new EmptyCallback();
-        parser = PbParser.singleParser(callback, buf.remaining() - 1);
+        parser = new PbParser(callback, buf.remaining() - 1);
         try {
             parseByByte(buf, parser);
             fail();
@@ -196,7 +141,7 @@ public class PbParserExTest {
         buf.mark();
 
         EmptyCallback callback = new EmptyCallback();
-        PbParser parser = PbParser.singleParser(callback, buf.remaining());
+        PbParser parser = new PbParser(callback, buf.remaining());
         try {
             parser.parse(buf);
             fail();
@@ -219,7 +164,7 @@ public class PbParserExTest {
         buf.mark();
 
         EmptyCallback callback = new EmptyCallback();
-        PbParser parser = PbParser.singleParser(callback, buf.remaining());
+        PbParser parser = new PbParser(callback, buf.remaining());
         try {
             parser.parse(buf);
             fail();
@@ -240,7 +185,7 @@ public class PbParserExTest {
         buf.mark();
 
         EmptyCallback callback = new EmptyCallback();
-        PbParser parser = PbParser.singleParser(callback, buf.remaining());
+        PbParser parser = new PbParser(callback, buf.remaining());
         try {
             parser.parse(buf);
             fail();
@@ -265,7 +210,7 @@ public class PbParserExTest {
         buf.mark();
 
         EmptyCallback callback = new EmptyCallback();
-        PbParser parser = PbParser.singleParser(callback, buf.remaining());
+        PbParser parser = new PbParser(callback, buf.remaining());
         try {
             parser.parse(buf);
             fail();
@@ -279,7 +224,7 @@ public class PbParserExTest {
 
         buf.reset();
         callback = new EmptyCallback();
-        parser = PbParser.singleParser(callback, buf.remaining());
+        parser = new PbParser(callback, buf.remaining());
         try {
             parseByByte(buf, parser);
             fail();
@@ -301,7 +246,7 @@ public class PbParserExTest {
         buf.mark();
 
         EmptyCallback callback = new EmptyCallback();
-        PbParser parser = PbParser.singleParser(callback, buf.remaining() - 1);
+        PbParser parser = new PbParser(callback, buf.remaining() - 1);
         try {
             parser.parse(buf);
             fail();
@@ -315,7 +260,7 @@ public class PbParserExTest {
 
         buf.reset();
         callback = new EmptyCallback();
-        parser = PbParser.singleParser(callback, buf.remaining() - 1);
+        parser = new PbParser(callback, buf.remaining() - 1);
         try {
             parseByByte(buf, parser);
             fail();

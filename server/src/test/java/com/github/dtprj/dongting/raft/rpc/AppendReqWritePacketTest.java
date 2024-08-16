@@ -74,7 +74,7 @@ public class AppendReqWritePacketTest {
 
         DecodeContext decodeContext = new DecodeContext(null);
         AppendReqCallback c = new AppendReqCallback(decodeContext, g -> raftCodecFactory);
-        PbParser p = PbParser.singleParser(c, f.actualBodySize());
+        PbParser p = new PbParser(c, f.actualBodySize());
         p.parse(buf);
 
         check(f, c);
@@ -93,7 +93,7 @@ public class AppendReqWritePacketTest {
         RpcEncodeContext context = new RpcEncodeContext(null);
         DecodeContext decodeContext = new DecodeContext(null);
         AppendReqCallback c = new AppendReqCallback(decodeContext, g -> raftCodecFactory);
-        PbParser p = PbParser.singleParser(c, f.actualBodySize());
+        PbParser p = new PbParser(c, f.actualBodySize());
         Random r = new Random();
         int actualBodySize = f.actualBodySize();
         for (int encodeBytes = 0; encodeBytes < actualBodySize; ) {
