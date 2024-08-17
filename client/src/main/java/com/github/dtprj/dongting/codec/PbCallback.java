@@ -186,12 +186,12 @@ public abstract class PbCallback<T> {
         boolean end = buf.remaining() >= fieldLen - currentPos;
         nestedParser.parse(buf);
         if (end) {
-            if (!nestedParser.checkSingleEndStatus()) {
+            if (!nestedParser.isFinished()) {
                 throw new PbException("parse not finish after read all bytes. index=" + index
                         + ", fieldLen=" + fieldLen + ", currentPos=" + currentPos + "class=" + getClass());
             }
         } else {
-            if (!nestedParser.checkNotSingleEndStatus()) {
+            if (nestedParser.isFinished()) {
                 throw new PbException("parse finished without read all bytes. index=" + index
                         + ", fieldLen=" + fieldLen + ", currentPos=" + currentPos + "class=" + getClass());
             }

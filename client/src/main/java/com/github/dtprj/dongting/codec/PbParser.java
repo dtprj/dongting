@@ -90,9 +90,6 @@ public class PbParser {
     }
 
     public void prepareNext(PbCallback<?> callback, int size) {
-        if (!checkSingleEndStatus()) {
-            throw new PbException("can't prepare next when last parse not finished");
-        }
         this.callback = Objects.requireNonNull(callback);
         this.size = DtUtil.checkNotNegative(size, "size");
         this.status = STATUS_SINGLE_INIT;
@@ -105,16 +102,6 @@ public class PbParser {
         this.fieldIndex = 0;
         this.fieldLen = 0;
         this.tempValue = 0;
-    }
-
-    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    boolean checkSingleEndStatus() {
-        return status == STATUS_SINGLE_END || status == STATUS_SINGLE_INIT || status == STATUS_ERROR;
-    }
-
-    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    boolean checkNotSingleEndStatus() {
-        return status != STATUS_SINGLE_END;
     }
 
     public boolean isFinished() {

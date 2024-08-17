@@ -50,13 +50,13 @@ public final class PbNoCopyDecoder<T> extends Decoder<T> {
         p.parse(buffer);
 
         if (end) {
-            if (!p.checkSingleEndStatus()) {
+            if (!p.isFinished()) {
                 throw new PbException("parse not finish after read all bytes. bodyLen="
                         + bodyLen + ", currentPos=" + currentPos + "class=" + getClass());
             }
             return callback.getResult();
         } else {
-            if (!p.checkNotSingleEndStatus()) {
+            if (p.isFinished()) {
                 throw new PbException("parse finished without read all bytes. bodyLen="
                         + bodyLen + ", currentPos=" + currentPos + "class=" + getClass());
             }
