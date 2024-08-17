@@ -76,7 +76,7 @@ public class PbParser {
             case STATUS_SINGLE_END:
                 break;
             default:
-                callEnd(callback, false);
+                callEnd(callback, false, STATUS_SINGLE_END);
         }
 
         /*
@@ -149,7 +149,7 @@ public class PbParser {
                     int skipCount = Math.min(this.size - this.parsedBytes, buf.remaining());
                     buf.position(buf.position() + skipCount);
                     if (this.parsedBytes + skipCount == this.size) {
-                        callEnd(callback, false);
+                        callEnd(callback, false, STATUS_SINGLE_END);
                     } else {
                         this.parsedBytes += skipCount;
                     }
@@ -164,10 +164,6 @@ public class PbParser {
                 return;
             }
         }
-    }
-
-    private void callEnd(PbCallback<?> callback, boolean success) {
-        callEnd(callback, success, STATUS_SINGLE_END);
     }
 
     private void callEnd(PbCallback<?> callback, boolean success, int nextStatus) {
@@ -193,7 +189,7 @@ public class PbParser {
             this.status = STATUS_SKIP_REST;
         }
         if (len == 0) {
-            callEnd(callback, this.status == STATUS_PARSE_TAG);
+            callEnd(callback, this.status == STATUS_PARSE_TAG, STATUS_SINGLE_END);
         }
     }
 
@@ -365,7 +361,7 @@ public class PbParser {
         }
         int status = this.status;
         if (size == parsedBytes && (status == STATUS_PARSE_TAG || status == STATUS_SKIP_REST)) {
-            callEnd(callback, status == STATUS_PARSE_TAG);
+            callEnd(callback, status == STATUS_PARSE_TAG, STATUS_SINGLE_END);
         }
         return remain;
     }
@@ -385,7 +381,6 @@ public class PbParser {
         try {
             result = callback.readBytes(this.fieldIndex, buf, fieldLen, pendingBytes);
         } catch (Throwable e) {
-            e.printStackTrace();
             log.error("proto buffer parse callback readBytes() fail. fieldIndex={}, error={}", this.fieldIndex, e.toString());
         } finally {
             buf.limit(limit);
