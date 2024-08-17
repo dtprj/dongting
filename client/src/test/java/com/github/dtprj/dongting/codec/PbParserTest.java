@@ -470,7 +470,7 @@ public class PbParserTest {
                 return super.readVarNumber(index, value);
             }
         };
-        testCallbackFail0(supplier, 1, 0, 1);
+        testCallbackEx(supplier);
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
@@ -492,7 +492,7 @@ public class PbParserTest {
                 return super.readBytes(index, buf, len, currentPos);
             }
         };
-        testCallbackFail0(supplier, 1, 0, 1);
+        testCallbackEx(supplier);
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
@@ -508,7 +508,7 @@ public class PbParserTest {
                 throw new ArrayIndexOutOfBoundsException();
             }
         };
-        testCallbackFail0(supplier, 1, 0, 1);
+        testCallbackEx(supplier);
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
@@ -530,6 +530,23 @@ public class PbParserTest {
         supplier = () -> new Callback(100, 200, "msg", "body", 100, 200, new NestedMsg(10000, "abc"));
         testCallbackFail0(supplier, 1, 1, 0);
     }
+
+    private void testCallbackEx(Supplier<Callback> callbackBuilder) {
+        Callback callback = callbackBuilder.get();
+        ByteBuffer buf = callback.buildPacket();
+        int size = buf.remaining();
+        PbParser parser = new PbParser(callback, size);
+
+        try {
+            parser.parse(buf);
+            fail();
+        } catch (ArrayIndexOutOfBoundsException e) {
+            assertEquals(1, callback.beginCount);
+            assertEquals(0, callback.endSuccessCount);
+            assertEquals(1, callback.endFailCount);
+        }
+    }
+
 
     private void testCallbackFail0(Supplier<Callback> callbackBuilder, int expectBegin,
                                    int expectEndSuccess, int expectEndFail) {

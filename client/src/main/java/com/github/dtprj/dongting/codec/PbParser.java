@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.codec;
 
 import com.github.dtprj.dongting.common.DtUtil;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -112,17 +111,13 @@ public class PbParser {
         if (status == STATUS_ERROR) {
             throw new PbException("parser is in error status");
         }
-        if(status == STATUS_SINGLE_END) {
+        if (status == STATUS_SINGLE_END) {
             throw new PbException("parser is finished");
         }
         try {
             parse0(buf);
         } catch (RuntimeException | Error e) {
-            if (status == STATUS_ERROR || status == STATUS_SINGLE_INIT || status == STATUS_SINGLE_END) {
-                BugLog.getLog().error("unexpected status: {}", status);
-            } else {
-                callEnd(callback, false, STATUS_ERROR);
-            }
+            callEnd(callback, false, STATUS_ERROR);
             throw e;
         }
     }
@@ -310,14 +305,9 @@ public class PbParser {
                     throw new PbException("size exceed " + size);
                 }
 
-                try {
-                    if (callback.readVarNumber(this.fieldIndex, value)) {
-                        this.status = STATUS_PARSE_TAG;
-                    } else {
-                        this.status = STATUS_SKIP_REST;
-                    }
-                } catch (Throwable e) {
-                    log.error("proto buffer parse callback readVarInt() fail. fieldIndex={}, error={}", this.fieldIndex, e.toString());
+                if (callback.readVarNumber(this.fieldIndex, value)) {
+                    this.status = STATUS_PARSE_TAG;
+                } else {
                     this.status = STATUS_SKIP_REST;
                 }
 
@@ -377,30 +367,23 @@ public class PbParser {
         int end = start + actualRead;
         int limit = buf.limit();
         buf.limit(end);
-        boolean result = false;
-        try {
-            result = callback.readBytes(this.fieldIndex, buf, fieldLen, pendingBytes);
-        } catch (Throwable e) {
-            log.error("proto buffer parse callback readBytes() fail. fieldIndex={}, error={}", this.fieldIndex, e.toString());
-        } finally {
-            buf.limit(limit);
-            buf.position(end);
-            parsedBytes += actualRead;
-            remain -= actualRead;
-            if (result) {
-                if (needRead == actualRead) {
-                    pendingBytes = 0;
-                    attachment = null;
-                    status = STATUS_PARSE_TAG;
-                } else {
-                    pendingBytes += actualRead;
-                }
-            } else {
+        boolean result = callback.readBytes(this.fieldIndex, buf, fieldLen, pendingBytes);
+        buf.limit(limit);
+        buf.position(end);
+        parsedBytes += actualRead;
+        if (result) {
+            if (needRead == actualRead) {
                 pendingBytes = 0;
-                status = STATUS_SKIP_REST;
+                attachment = null;
+                status = STATUS_PARSE_TAG;
+            } else {
+                pendingBytes += actualRead;
             }
+        } else {
+            pendingBytes = 0;
+            status = STATUS_SKIP_REST;
         }
-        return remain;
+        return remain - actualRead;
     }
 
     private int parseBodyFixedNumber(ByteBuffer buf, PbCallback<?> callback, int remain, int len) {
@@ -446,15 +429,10 @@ public class PbParser {
 
     private void callbackOnReadFixNumber(PbCallback<?> callback, int len, long value) {
         boolean r;
-        try {
-            if (len == 4) {
-                r = callback.readFix32(this.fieldIndex, (int) value);
-            } else {
-                r = callback.readFix64(this.fieldIndex, value);
-            }
-        } catch (Throwable e) {
-            log.error("proto buffer parse callback readFixInt()/readFixLong() fail. fieldIndex={}, error={}", this.fieldIndex, e.toString());
-            r = false;
+        if (len == 4) {
+            r = callback.readFix32(this.fieldIndex, (int) value);
+        } else {
+            r = callback.readFix64(this.fieldIndex, value);
         }
         if (r) {
             this.status = STATUS_PARSE_TAG;
