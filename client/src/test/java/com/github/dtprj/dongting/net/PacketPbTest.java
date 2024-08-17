@@ -13,7 +13,6 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.channels.SocketChannel;
 import java.util.Arrays;
 import java.util.Random;
@@ -134,7 +133,6 @@ public class PacketPbTest {
                 }
             }
         };
-        buf.order(ByteOrder.LITTLE_ENDIAN);
         dtc.getParser().parse(buf);
         assertEquals(packetType, dtc.getPacket().getPacketType());
         assertEquals(command, dtc.getPacket().getCommand());

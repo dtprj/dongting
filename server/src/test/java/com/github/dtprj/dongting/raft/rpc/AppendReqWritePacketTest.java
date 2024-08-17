@@ -27,7 +27,6 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Random;
 
@@ -70,7 +69,6 @@ public class AppendReqWritePacketTest {
         assertEquals(buf.position(), f.actualBodySize());
 
         buf.clear();
-        buf.order(ByteOrder.LITTLE_ENDIAN);
 
         DecodeContext decodeContext = new DecodeContext(null);
         AppendReqCallback c = new AppendReqCallback(decodeContext, g -> raftCodecFactory);
@@ -107,7 +105,6 @@ public class AppendReqWritePacketTest {
             buf.flip();
             encodeBytes += buf.remaining();
             if (buf.remaining() > 0) {
-                buf.order(ByteOrder.LITTLE_ENDIAN);
                 p.parse(buf);
             }
         }

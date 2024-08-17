@@ -35,7 +35,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
@@ -284,16 +283,12 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private void prepareReadBuffer(Timestamp roundTime) {
         if (readBuffer == null) {
             readBuffer = directPool.borrow(config.getReadBufferSize());
-            // change to little endian since protobuf is little endian
-            readBuffer.order(ByteOrder.LITTLE_ENDIAN);
         }
         readBuffer.clear();
         readBufferUseTime = roundTime.getNanoTime();
     }
 
     private void releaseReadBuffer() {
-        // recover to big endian
-        readBuffer.order(ByteOrder.BIG_ENDIAN);
         directPool.release(readBuffer);
         this.readBuffer = null;
         readBufferUseTime = 0;

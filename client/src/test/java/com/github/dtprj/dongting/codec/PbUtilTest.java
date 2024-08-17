@@ -18,34 +18,9 @@ package com.github.dtprj.dongting.codec;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 
-import static com.github.dtprj.dongting.codec.PbUtil.TYPE_VAR_INT;
-import static com.github.dtprj.dongting.codec.PbUtil.accurateFix32Size;
-import static com.github.dtprj.dongting.codec.PbUtil.accurateFix64Size;
-import static com.github.dtprj.dongting.codec.PbUtil.accurateLengthDelimitedSize;
-import static com.github.dtprj.dongting.codec.PbUtil.accurateStrSizeAscii;
-import static com.github.dtprj.dongting.codec.PbUtil.accurateTagSize;
-import static com.github.dtprj.dongting.codec.PbUtil.accurateUnsignedIntSize;
-import static com.github.dtprj.dongting.codec.PbUtil.accurateUnsignedLongSize;
-import static com.github.dtprj.dongting.codec.PbUtil.maxFix32Size;
-import static com.github.dtprj.dongting.codec.PbUtil.maxFix64Size;
-import static com.github.dtprj.dongting.codec.PbUtil.maxLengthDelimitedSize;
-import static com.github.dtprj.dongting.codec.PbUtil.maxStrSizeAscii;
-import static com.github.dtprj.dongting.codec.PbUtil.maxStrSizeUTF8;
-import static com.github.dtprj.dongting.codec.PbUtil.maxUnsignedIntSize;
-import static com.github.dtprj.dongting.codec.PbUtil.maxUnsignedLongSize;
-import static com.github.dtprj.dongting.codec.PbUtil.writeAscii;
-import static com.github.dtprj.dongting.codec.PbUtil.writeFix32;
-import static com.github.dtprj.dongting.codec.PbUtil.writeFix64;
-import static com.github.dtprj.dongting.codec.PbUtil.writeTag;
-import static com.github.dtprj.dongting.codec.PbUtil.writeUTF8;
-import static com.github.dtprj.dongting.codec.PbUtil.writeUnsignedInt32ValueOnly;
-import static com.github.dtprj.dongting.codec.PbUtil.writeUnsignedInt64ValueOnly;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static com.github.dtprj.dongting.codec.PbUtil.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author huangli
@@ -464,15 +439,13 @@ public class PbUtilTest {
         writeFix32(buf, 536870911, 123456);
         assertEquals(accurateFix32Size(536870911, 123456), buf.position());
         buf.position(5);
-        buf.order(ByteOrder.LITTLE_ENDIAN);
-        assertEquals(123456, buf.getInt());
+        assertEquals(123456, Integer.reverseBytes(buf.getInt()));
 
         buf = ByteBuffer.allocate(maxFix64Size());
-        writeFix64(buf, 536870911, 123456L);
-        assertEquals(accurateFix64Size(536870911, 123456L), buf.position());
+        writeFix64(buf, 536870911, 12345689012345L);
+        assertEquals(accurateFix64Size(536870911, 12345689012345L), buf.position());
         buf.position(5);
-        buf.order(ByteOrder.LITTLE_ENDIAN);
-        assertEquals(123456L, buf.getLong());
+        assertEquals(12345689012345L, Long.reverseBytes(buf.getLong()));
     }
 
     @Test

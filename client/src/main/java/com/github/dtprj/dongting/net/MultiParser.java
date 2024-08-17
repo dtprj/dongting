@@ -62,7 +62,6 @@ class MultiParser {
         int remain = buf.remaining();
         if (pendingLenBytes == 0 && remain >= 4) {
             int len = buf.getInt();
-            len = Integer.reverseBytes(len);
             if (len < 0 || len > maxSize) {
                 throw new PbException("maxSize exceed: max=" + maxSize + ", actual=" + len);
             }

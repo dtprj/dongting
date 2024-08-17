@@ -21,7 +21,6 @@ import com.github.dtprj.dongting.codec.PbUtil;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -68,7 +67,6 @@ public class MultiParserTest {
         int len = buf.position() - 4;
         buf.putInt(0, len);
         buf.flip();
-        buf.order(ByteOrder.LITTLE_ENDIAN);
 
         MultiParser parser = new MultiParser(callback, len);
         parser.parse(buf);
@@ -94,7 +92,6 @@ public class MultiParserTest {
         int len = buf.position() - 4;
         buf.putInt(0, len);
         buf.flip();
-        buf.order(ByteOrder.LITTLE_ENDIAN);
 
         MultiParser parser = new MultiParser(callback, len);
         parser.parse(buf);
@@ -126,7 +123,6 @@ public class MultiParserTest {
         int len = buf.position() - 4;
         buf.putInt(0, len);
         buf.flip();
-        buf.order(ByteOrder.LITTLE_ENDIAN);
 
         MultiParser parser = new MultiParser(callback, len);
         parseByByte(buf, parser);

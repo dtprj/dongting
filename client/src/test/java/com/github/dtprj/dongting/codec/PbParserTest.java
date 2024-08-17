@@ -19,7 +19,6 @@ import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Random;
@@ -212,7 +211,6 @@ public class PbParserTest {
             buf.put(bs);
             buf.flip();
             this.expectLen = bs.length;
-            buf.order(ByteOrder.LITTLE_ENDIAN);
             return buf;
         }
 
@@ -441,7 +439,6 @@ public class PbParserTest {
         for (int j = 0; j < len; ) {
             int c = r.nextInt(maxStep + 1);
             ByteBuffer buf = ByteBuffer.allocate(c);
-            buf.order(ByteOrder.LITTLE_ENDIAN);
             int readCount = Math.min(c, len - j);
             buf.put(fullBuffer, j, readCount);
             buf.flip();

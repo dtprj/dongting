@@ -426,9 +426,9 @@ public class PbParser {
         if (pendingBytes == 0 && remain >= len) {
             long value;
             if (len == 4) {
-                value = buf.getInt();
+                value = Integer.reverseBytes(buf.getInt());
             } else {
-                value = buf.getLong();
+                value = Long.reverseBytes(buf.getLong());
             }
             callbackOnReadFixNumber(callback, len, value);
             this.pendingBytes = 0;
