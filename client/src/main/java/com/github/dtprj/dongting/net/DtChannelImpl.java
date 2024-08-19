@@ -413,7 +413,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         }
     }
 
-    private void writeErrorInIoThread(Packet req, int code, String msg) {
+    protected void writeErrorInIoThread(Packet req, int code, String msg) {
         writeErrorInIoThread(req, code, msg, new DtTime(10, TimeUnit.SECONDS));
     }
 

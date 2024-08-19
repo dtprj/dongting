@@ -16,8 +16,6 @@
 package com.github.dtprj.dongting.codec;
 
 import com.github.dtprj.dongting.common.DtUtil;
-import com.github.dtprj.dongting.log.DtLog;
-import com.github.dtprj.dongting.log.DtLogs;
 
 import java.nio.ByteBuffer;
 import java.util.Objects;
@@ -27,15 +25,13 @@ import java.util.Objects;
  */
 public class PbParser {
 
-    private static final DtLog log = DtLogs.getLogger(PbParser.class);
-
     private static final int STATUS_ERROR = -1;
-    private static final int STATUS_PARSE_TAG = 2;
-    private static final int STATUS_PARSE_FILED_LEN = 3;
-    private static final int STATUS_PARSE_FILED_BODY = 4;
-    private static final int STATUS_SKIP_REST = 5;
-    private static final int STATUS_SINGLE_INIT = 6;
-    private static final int STATUS_SINGLE_END = 7;
+    private static final int STATUS_INIT = 1;
+    private static final int STATUS_END = 2;
+    private static final int STATUS_PARSE_TAG = 3;
+    private static final int STATUS_PARSE_FILED_LEN = 4;
+    private static final int STATUS_PARSE_FILED_BODY = 5;
+    private static final int STATUS_SKIP_REST = 6;
 
     PbCallback<?> callback;
 
@@ -58,11 +54,11 @@ public class PbParser {
     public PbParser(PbCallback<?> callback, int size) {
         this.callback = Objects.requireNonNull(callback);
         this.size = DtUtil.checkNotNegative(size, "size");
-        this.status = STATUS_SINGLE_INIT;
+        this.status = STATUS_INIT;
     }
 
     public PbParser() {
-        this.status = STATUS_SINGLE_INIT;
+        this.status = STATUS_INIT;
     }
 
     public void reset() {
@@ -71,11 +67,11 @@ public class PbParser {
         }
         switch (status) {
             case STATUS_ERROR:
-            case STATUS_SINGLE_INIT:
-            case STATUS_SINGLE_END:
+            case STATUS_INIT:
+            case STATUS_END:
                 break;
             default:
-                callEnd(callback, false, STATUS_SINGLE_END);
+                callEnd(callback, false, STATUS_END);
         }
 
         /*
@@ -91,7 +87,7 @@ public class PbParser {
     public void prepareNext(PbCallback<?> callback, int size) {
         this.callback = Objects.requireNonNull(callback);
         this.size = DtUtil.checkNotNegative(size, "size");
-        this.status = STATUS_SINGLE_INIT;
+        this.status = STATUS_INIT;
 
         this.pendingBytes = 0;
         this.parsedBytes = 0;
@@ -104,14 +100,14 @@ public class PbParser {
     }
 
     public boolean isFinished() {
-        return status == STATUS_SINGLE_END;
+        return status == STATUS_END;
     }
 
     public void parse(ByteBuffer buf) {
         if (status == STATUS_ERROR) {
             throw new PbException("parser is in error status");
         }
-        if (status == STATUS_SINGLE_END) {
+        if (status == STATUS_END) {
             throw new PbException("parser is finished");
         }
         try {
@@ -127,7 +123,7 @@ public class PbParser {
         PbCallback<?> callback = this.callback;
         while (true) {
             switch (this.status) {
-                case STATUS_SINGLE_INIT:
+                case STATUS_INIT:
                     callBegin(callback, size);
                     break;
                 case STATUS_PARSE_TAG:
@@ -144,13 +140,13 @@ public class PbParser {
                     int skipCount = Math.min(this.size - this.parsedBytes, buf.remaining());
                     buf.position(buf.position() + skipCount);
                     if (this.parsedBytes + skipCount == this.size) {
-                        callEnd(callback, false, STATUS_SINGLE_END);
+                        callEnd(callback, false, STATUS_END);
                     } else {
                         this.parsedBytes += skipCount;
                     }
                     remain -= skipCount;
                     break;
-                case STATUS_SINGLE_END:
+                case STATUS_END:
                     return;
                 default:
                     throw new PbException("invalid status: " + status);
@@ -162,29 +158,25 @@ public class PbParser {
     }
 
     private void callEnd(PbCallback<?> callback, boolean success, int nextStatus) {
-        try {
-            callback.afterParse(success);
-        } catch (Throwable e) {
-            log.error("proto buffer parse callback end() fail", e);
+        if (this.status > STATUS_END) {
+            try {
+                callback.afterParse(success);
+            } finally {
+                this.status = nextStatus;
+                this.pendingBytes = 0;
+                this.size = 0;
+                this.parsedBytes = 0;
+                this.attachment = null;
+                this.callback = null;
+            }
         }
-        this.status = nextStatus;
-        this.pendingBytes = 0;
-        this.size = 0;
-        this.parsedBytes = 0;
-        this.attachment = null;
-        this.callback = null;
     }
 
     private void callBegin(PbCallback<?> callback, int len) {
-        try {
-            callback.beforeParse(len, this);
-            this.status = STATUS_PARSE_TAG;
-        } catch (Throwable e) {
-            log.error("proto buffer parse callback begin() fail", e);
-            this.status = STATUS_SKIP_REST;
-        }
+        callback.beforeParse(len, this);
+        this.status = STATUS_PARSE_TAG;
         if (len == 0) {
-            callEnd(callback, this.status == STATUS_PARSE_TAG, STATUS_SINGLE_END);
+            callEnd(callback, true, STATUS_END);
         }
     }
 
@@ -351,7 +343,7 @@ public class PbParser {
         }
         int status = this.status;
         if (size == parsedBytes && (status == STATUS_PARSE_TAG || status == STATUS_SKIP_REST)) {
-            callEnd(callback, status == STATUS_PARSE_TAG, STATUS_SINGLE_END);
+            callEnd(callback, status == STATUS_PARSE_TAG, STATUS_END);
         }
         return remain;
     }

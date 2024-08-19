@@ -470,7 +470,7 @@ public class PbParserTest {
                 return super.readVarNumber(index, value);
             }
         };
-        testCallbackEx(supplier);
+        testCallbackEx(supplier, 1, 0, 1);
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
@@ -492,7 +492,7 @@ public class PbParserTest {
                 return super.readBytes(index, buf, len, currentPos);
             }
         };
-        testCallbackEx(supplier);
+        testCallbackEx(supplier, 1, 0, 1);
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
@@ -508,7 +508,7 @@ public class PbParserTest {
                 throw new ArrayIndexOutOfBoundsException();
             }
         };
-        testCallbackEx(supplier);
+        testCallbackEx(supplier, 1, 0, 1);
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
@@ -516,7 +516,7 @@ public class PbParserTest {
                 throw new ArrayIndexOutOfBoundsException();
             }
         };
-        testCallbackFail0(supplier, 0, 0, 1);
+        testCallbackEx(supplier, 0, 0, 0);
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
@@ -524,14 +524,14 @@ public class PbParserTest {
                 throw new ArrayIndexOutOfBoundsException();
             }
         };
-        // since we override end(), the endFailCount not set
-        testCallbackFail0(supplier, 1, 0, 0);
+        testCallbackEx(supplier, 1, 0, 0);
 
         supplier = () -> new Callback(100, 200, "msg", "body", 100, 200, new NestedMsg(10000, "abc"));
         testCallbackFail0(supplier, 1, 1, 0);
     }
 
-    private void testCallbackEx(Supplier<Callback> callbackBuilder) {
+    private void testCallbackEx(Supplier<Callback> callbackBuilder,int expectBegin,
+                                int expectEndSuccess, int expectEndFail) {
         Callback callback = callbackBuilder.get();
         ByteBuffer buf = callback.buildPacket();
         int size = buf.remaining();
@@ -541,9 +541,9 @@ public class PbParserTest {
             parser.parse(buf);
             fail();
         } catch (ArrayIndexOutOfBoundsException e) {
-            assertEquals(1, callback.beginCount);
-            assertEquals(0, callback.endSuccessCount);
-            assertEquals(1, callback.endFailCount);
+            assertEquals(expectBegin, callback.beginCount);
+            assertEquals(expectEndSuccess, callback.endSuccessCount);
+            assertEquals(expectEndFail, callback.endFailCount);
         }
     }
 

@@ -132,6 +132,10 @@ public class PacketPbTest {
                     return super.readBytes(index, buf, fieldLen, currentPos);
                 }
             }
+
+            @Override
+            protected void writeErrorInIoThread(Packet req, int code, String msg) {
+            }
         };
         dtc.getParser().parse(buf);
         assertEquals(packetType, dtc.getPacket().getPacketType());
