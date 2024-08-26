@@ -36,7 +36,7 @@ import com.github.dtprj.dongting.raft.store.StatusManager;
 public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
     private static final DtLog log = DtLogs.getLogger(VoteProcessor.class);
 
-    private static final PbNoCopyDecoderCallback<VoteReq> decoder = new PbNoCopyDecoderCallback<>(c -> new VoteReq.Callback());
+    private static final PbNoCopyDecoderCallback<VoteReq> decoder = new PbNoCopyDecoderCallback<>(VoteReq.Callback::new);
 
     public VoteProcessor(RaftServer raftServer) {
         super(raftServer);

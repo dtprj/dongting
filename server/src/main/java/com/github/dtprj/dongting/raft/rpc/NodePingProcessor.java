@@ -29,7 +29,7 @@ import java.util.UUID;
  */
 public class NodePingProcessor extends ReqProcessor<NodePingCallback> {
 
-    public static final PbNoCopyDecoderCallback<NodePingCallback> DECODER = new PbNoCopyDecoderCallback<>(ctx -> new NodePingCallback());
+    public static final PbNoCopyDecoderCallback<NodePingCallback> DECODER = new PbNoCopyDecoderCallback<>(NodePingCallback::new);
     private final int selfNodeId;
     private final UUID uuid;
 

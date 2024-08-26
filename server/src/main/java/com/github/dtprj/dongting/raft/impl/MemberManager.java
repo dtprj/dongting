@@ -383,7 +383,7 @@ public class MemberManager {
             resultMap.put(n.getNodeId(), CompletableFuture.completedFuture(result));
         } else {
             final PbNoCopyDecoderCallback<QueryStatusResp> decoder = new PbNoCopyDecoderCallback<>(
-                    c -> new QueryStatusResp.QueryStatusRespCallback());
+                    QueryStatusResp.QueryStatusRespCallback::new);
             CompletableFuture<Boolean> queryFuture = client.sendRequest(n.getPeer(), new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, groupId),
                             decoder, new DtTime(3, TimeUnit.SECONDS))
                     .handle((resp, ex) -> {

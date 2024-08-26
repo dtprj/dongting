@@ -16,18 +16,17 @@
 package com.github.dtprj.dongting.codec;
 
 import java.nio.ByteBuffer;
-import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * @author huangli
  */
-@SuppressWarnings("Convert2Diamond")
 public final class PbNoCopyDecoderCallback<T> extends DecoderCallback<T> {
 
-    private final Function<DecodeContext, PbCallback<T>> callbackCreator;
+    private final Supplier<PbCallback<T>> callbackCreator;
     private PbCallback<T> pbCallback;
 
-    public PbNoCopyDecoderCallback(Function<DecodeContext, PbCallback<T>> callbackCreator) {
+    public PbNoCopyDecoderCallback(Supplier<PbCallback<T>> callbackCreator) {
         this.callbackCreator = callbackCreator;
     }
 
@@ -46,7 +45,7 @@ public final class PbNoCopyDecoderCallback<T> extends DecoderCallback<T> {
     public boolean doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
         PbParser p;
         if (currentPos == 0) {
-            pbCallback = callbackCreator.apply(context);
+            pbCallback = callbackCreator.get();
             p = context.prepareNestedParser(pbCallback, bodyLen);
         } else {
             p = context.nestedParser;

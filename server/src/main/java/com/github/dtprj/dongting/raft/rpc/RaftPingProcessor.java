@@ -27,8 +27,8 @@ import com.github.dtprj.dongting.raft.server.RaftServer;
  * @author huangli
  */
 public class RaftPingProcessor extends RaftSequenceProcessor<RaftPingPacketCallback> {
-    public static final PbNoCopyDecoderCallback<RaftPingPacketCallback> DECODER = new PbNoCopyDecoderCallback<>(context ->
-            new RaftPingPacketCallback());
+    public static final PbNoCopyDecoderCallback<RaftPingPacketCallback> DECODER = new PbNoCopyDecoderCallback<>(
+             RaftPingPacketCallback::new);
 
     public RaftPingProcessor(RaftServer raftServer) {
         super(raftServer);

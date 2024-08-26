@@ -39,7 +39,7 @@ import java.nio.ByteBuffer;
  */
 public class RemoveProcessor extends AbstractRaftBizProcessor<RemoveReq> {
 
-    private static final PbNoCopyDecoderCallback<RemoveReq> DECODER = new PbNoCopyDecoderCallback<>(c -> new PbCallback<>() {
+    private static final PbNoCopyDecoderCallback<RemoveReq> DECODER = new PbNoCopyDecoderCallback<>(() -> new PbCallback<>() {
         private final RemoveReq result = new RemoveReq();
         @Override
         public boolean readVarNumber(int index, long value) {

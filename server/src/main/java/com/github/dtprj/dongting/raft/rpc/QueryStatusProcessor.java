@@ -35,7 +35,7 @@ public class QueryStatusProcessor extends RaftSequenceProcessor<Integer> {
 
     @Override
     public DecoderCallback<Integer> createDecoder(int command) {
-        return new PbNoCopyDecoderCallback<>(c -> new PbNoCopyDecoderCallback.IntCallback());
+        return new PbNoCopyDecoderCallback<>(PbNoCopyDecoderCallback.IntCallback::new);
     }
 
     @Override

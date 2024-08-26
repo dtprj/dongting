@@ -277,7 +277,7 @@ public class RaftClient extends AbstractLifeCircle {
         NodeInfo node = it.next();
         PbIntWritePacket req = new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, gi.groupId);
         DtTime rpcTimeout = new DtTime(3, TimeUnit.SECONDS);
-        DecoderCallback<QueryStatusResp> decoderCallback = new PbNoCopyDecoderCallback<>(c -> new QueryStatusResp.QueryStatusRespCallback());
+        DecoderCallback<QueryStatusResp> decoderCallback = new PbNoCopyDecoderCallback<>(QueryStatusResp.QueryStatusRespCallback::new);
         client.sendRequest(node.getPeer(), req, decoderCallback, rpcTimeout)
                 .whenComplete((rf, ex) -> processLeaderQueryResult(gi, it, rf, ex, node));
     }

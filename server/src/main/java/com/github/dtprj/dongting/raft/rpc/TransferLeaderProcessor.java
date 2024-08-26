@@ -37,7 +37,7 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
 
     private static final DtLog log = DtLogs.getLogger(TransferLeaderProcessor.class);
 
-    private static final DecoderCallback<TransferLeaderReq> DECODE_CALLBACK = new PbNoCopyDecoderCallback<>(context -> new TransferLeaderReq.Callback());
+    private static final DecoderCallback<TransferLeaderReq> DECODE_CALLBACK = new PbNoCopyDecoderCallback<>(TransferLeaderReq.Callback::new);
 
     public TransferLeaderProcessor(RaftServer raftServer) {
         super(raftServer);

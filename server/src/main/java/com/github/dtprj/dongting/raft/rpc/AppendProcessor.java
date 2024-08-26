@@ -72,7 +72,7 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
             RaftGroup g = raftServer.getRaftGroup(groupId);
             return g == null ? null : g.getStateMachine();
         };
-        this.appendDecoder = new PbNoCopyDecoderCallback<>(decodeContext -> new AppendReqCallback(decoderFactory));
+        this.appendDecoder = new PbNoCopyDecoderCallback<>(() -> new AppendReqCallback(decoderFactory));
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

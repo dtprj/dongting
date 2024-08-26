@@ -16,8 +16,6 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.buf.RefBufferFactory;
-import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.net.RpcEncodeContext;
@@ -72,11 +70,6 @@ public class InstallSnapshotReq {
 
     public static class Callback extends PbCallback<InstallSnapshotReq> {
         private final InstallSnapshotReq result = new InstallSnapshotReq();
-        private final RefBufferFactory heapPool;
-
-        public Callback(DecodeContext context) {
-            this.heapPool = context.getHeapPool();
-        }
 
         @Override
         public boolean readVarNumber(int index, long value) {
@@ -150,7 +143,7 @@ public class InstallSnapshotReq {
             boolean end = buf.remaining() >= len - currentPos;
             if (index == 15) {
                 if (currentPos == 0) {
-                    result.data = heapPool.create(len);
+                    result.data = context.getHeapPool().create(len);
                 }
                 result.data.getBuffer().put(buf);
                 if (end) {

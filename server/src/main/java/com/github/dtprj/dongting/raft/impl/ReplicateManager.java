@@ -144,7 +144,7 @@ abstract class AbstractLeaderRepFrame extends FiberFrame<Void> {
     protected final RaftMember member;
 
     protected static final PbNoCopyDecoderCallback<AppendRespCallback> APPEND_RESP_DECODER =
-            new PbNoCopyDecoderCallback<>(c -> new AppendRespCallback());
+            new PbNoCopyDecoderCallback<>(AppendRespCallback::new);
 
     public AbstractLeaderRepFrame(ReplicateManager replicateManager, RaftMember member) {
         this.groupId = replicateManager.groupId;

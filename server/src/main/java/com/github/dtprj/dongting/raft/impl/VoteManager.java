@@ -63,7 +63,7 @@ public class VoteManager {
     private HashSet<Integer> votes;
     private int currentVoteId;
 
-    private static final DecoderCallback<VoteResp> RESP_DECODE_CALLBACK = new PbNoCopyDecoderCallback<>(c -> new VoteResp.Callback());
+    private static final DecoderCallback<VoteResp> RESP_DECODE_CALLBACK = new PbNoCopyDecoderCallback<>(VoteResp.Callback::new);
 
     public VoteManager(NioClient client, GroupComponents gc) {
         this.gc = gc;

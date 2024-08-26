@@ -38,7 +38,7 @@ import java.nio.ByteBuffer;
  */
 public class PutProcessor extends AbstractRaftBizProcessor<PutReq> {
 
-    private static final PbNoCopyDecoderCallback<PutReq> DECODER = new PbNoCopyDecoderCallback<>(c -> new PbCallback<>() {
+    private static final PbNoCopyDecoderCallback<PutReq> DECODER = new PbNoCopyDecoderCallback<>(() -> new PbCallback<>() {
 
         private final PutReq result = new PutReq();
 
