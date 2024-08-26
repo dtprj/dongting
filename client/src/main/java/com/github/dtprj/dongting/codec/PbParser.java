@@ -25,13 +25,13 @@ import java.util.Objects;
  */
 public class PbParser {
 
-    private static final int STATUS_ERROR = -1;
     private static final int STATUS_INIT = 1;
     private static final int STATUS_END = 2;
-    private static final int STATUS_PARSE_TAG = 3;
-    private static final int STATUS_PARSE_FILED_LEN = 4;
-    private static final int STATUS_PARSE_FILED_BODY = 5;
-    private static final int STATUS_SKIP_REST = 6;
+    private static final int STATUS_END_SKIP = 3;
+    private static final int STATUS_PARSE_TAG = 4;
+    private static final int STATUS_PARSE_FILED_LEN = 5;
+    private static final int STATUS_PARSE_FILED_BODY = 6;
+    private static final int STATUS_SKIP_REST = 7;
 
     PbCallback<?> callback;
 
@@ -47,12 +47,12 @@ public class PbParser {
     private int fieldLen;
     private long tempValue;
 
-    PbParser nestedParser;
+    private DecodeContext context;
 
-    Object attachment;
-
-    public PbParser(PbCallback<?> callback, int size) {
+    public PbParser(DecodeContext context, PbCallback<?> callback, int size) {
         this.callback = Objects.requireNonNull(callback);
+        this.context = Objects.requireNonNull(context);
+        callback.context = context;
         this.size = DtUtil.checkNotNegative(size, "size");
         this.status = STATUS_INIT;
     }
@@ -61,17 +61,14 @@ public class PbParser {
         this.status = STATUS_INIT;
     }
 
-    public void reset() {
-        if (nestedParser != null) {
-            nestedParser.reset();
-        }
+    void reset() {
         switch (status) {
-            case STATUS_ERROR:
             case STATUS_INIT:
             case STATUS_END:
+            case STATUS_END_SKIP:
                 break;
             default:
-                callEnd(callback, false, STATUS_END);
+                callEnd(callback, false);
         }
 
         /*
@@ -84,14 +81,17 @@ public class PbParser {
         */
     }
 
-    public void prepareNext(PbCallback<?> callback, int size) {
+    public void prepareNext(DecodeContext context, PbCallback<?> callback, int size) {
         this.callback = Objects.requireNonNull(callback);
+        this.context = Objects.requireNonNull(context);
         this.size = DtUtil.checkNotNegative(size, "size");
         this.status = STATUS_INIT;
 
+        callback.context = context;
+        callback.parser = this;
+
         this.pendingBytes = 0;
         this.parsedBytes = 0;
-        this.attachment = null;
 
         this.fieldType = 0;
         this.fieldIndex = 0;
@@ -100,31 +100,35 @@ public class PbParser {
     }
 
     public boolean isFinished() {
-        return status == STATUS_END;
+        return status == STATUS_END || status == STATUS_END_SKIP;
     }
 
-    public void parse(ByteBuffer buf) {
-        if (status == STATUS_ERROR) {
-            throw new PbException("parser is in error status");
-        }
-        if (status == STATUS_END) {
+    public boolean shouldSkip() {
+        return status == STATUS_END_SKIP || status == STATUS_SKIP_REST;
+    }
+
+    public Object parse(ByteBuffer buf) {
+        if (status == STATUS_END || status == STATUS_END_SKIP) {
             throw new PbException("parser is finished");
         }
         try {
-            parse0(buf);
+            return parse0(buf);
         } catch (RuntimeException | Error e) {
-            callEnd(callback, false, STATUS_ERROR);
+            callEnd(callback, false);
             throw e;
         }
     }
 
-    private void parse0(ByteBuffer buf) {
+    private Object parse0(ByteBuffer buf) {
         int remain = buf.remaining();
         PbCallback<?> callback = this.callback;
-        while (true) {
+        while (remain > 0) {
             switch (this.status) {
                 case STATUS_INIT:
                     callBegin(callback, size);
+                    if (size == 0) {
+                        return callEnd(callback, true);
+                    }
                     break;
                 case STATUS_PARSE_TAG:
                 case STATUS_PARSE_FILED_LEN:
@@ -135,49 +139,56 @@ public class PbParser {
                     // go down to ensure empty body will invoke callEnd()
                 case STATUS_PARSE_FILED_BODY:
                     remain = onStatusParseFieldBody(buf, callback, remain);
+                    if (size == parsedBytes && (status == STATUS_PARSE_TAG || status == STATUS_SKIP_REST)) {
+                        return callEnd(callback, status == STATUS_PARSE_TAG);
+                    }
                     break;
                 case STATUS_SKIP_REST:
                     int skipCount = Math.min(this.size - this.parsedBytes, buf.remaining());
                     buf.position(buf.position() + skipCount);
                     if (this.parsedBytes + skipCount == this.size) {
-                        callEnd(callback, false, STATUS_END);
+                        return callEnd(callback, false);
                     } else {
                         this.parsedBytes += skipCount;
                     }
                     remain -= skipCount;
                     break;
-                case STATUS_END:
-                    return;
                 default:
                     throw new PbException("invalid status: " + status);
             }
-            if (remain == 0) {
-                return;
-            }
         }
+        return null;
     }
 
-    private void callEnd(PbCallback<?> callback, boolean success, int nextStatus) {
-        if (this.status > STATUS_END) {
+    private Object callEnd(PbCallback<?> callback, boolean success) {
+        if (this.status > STATUS_END_SKIP) {
             try {
-                callback.afterParse(success);
+                if (success) {
+                    success = callback.end(true);
+                    return callback.getResult();
+                } else {
+                    callback.end(false);
+                    return null;
+                }
             } finally {
-                this.status = nextStatus;
+                this.status = success ? STATUS_END : STATUS_END_SKIP;
                 this.pendingBytes = 0;
                 this.size = 0;
                 this.parsedBytes = 0;
-                this.attachment = null;
+
+                context.status = null;
+                callback.context = null;
+                callback.parser = null;
+
                 this.callback = null;
             }
         }
+        return null;
     }
 
     private void callBegin(PbCallback<?> callback, int len) {
-        callback.beforeParse(len, this);
+        callback.begin(len);
         this.status = STATUS_PARSE_TAG;
-        if (len == 0) {
-            callEnd(callback, true, STATUS_END);
-        }
     }
 
     private int parseVarInt(ByteBuffer buf, int remain) {
@@ -341,10 +352,6 @@ public class PbParser {
             default:
                 throw new PbException("type not support:" + this.fieldType);
         }
-        int status = this.status;
-        if (size == parsedBytes && (status == STATUS_PARSE_TAG || status == STATUS_SKIP_REST)) {
-            callEnd(callback, status == STATUS_PARSE_TAG, STATUS_END);
-        }
         return remain;
     }
 
@@ -357,16 +364,15 @@ public class PbParser {
         int actualRead = Math.min(needRead, remain);
         int start = buf.position();
         int end = start + actualRead;
-        int limit = buf.limit();
+        int oldLimit = buf.limit();
         buf.limit(end);
         boolean result = callback.readBytes(this.fieldIndex, buf, fieldLen, pendingBytes);
-        buf.limit(limit);
+        buf.limit(oldLimit);
         buf.position(end);
         parsedBytes += actualRead;
         if (result) {
             if (needRead == actualRead) {
                 pendingBytes = 0;
-                attachment = null;
                 status = STATUS_PARSE_TAG;
             } else {
                 pendingBytes += actualRead;
@@ -431,20 +437,5 @@ public class PbParser {
         } else {
             this.status = STATUS_SKIP_REST;
         }
-    }
-
-    boolean isError() {
-        return status == STATUS_ERROR;
-    }
-
-    PbParser createOrGetNestedParser(PbCallback<?> callback, int pbLen) {
-        PbParser nestedParser = this.nestedParser;
-        if (nestedParser == null) {
-            nestedParser = new PbParser(callback, pbLen);
-            this.nestedParser = nestedParser;
-        } else {
-            nestedParser.prepareNext(callback, pbLen);
-        }
-        return nestedParser;
     }
 }

@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.codec.Decoder;
-import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
+import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.codec.PbNoCopyDecoderCallback;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadPacket;
@@ -27,7 +27,7 @@ import com.github.dtprj.dongting.raft.server.RaftServer;
  * @author huangli
  */
 public class RaftPingProcessor extends RaftSequenceProcessor<RaftPingPacketCallback> {
-    public static final PbNoCopyDecoder<RaftPingPacketCallback> DECODER = new PbNoCopyDecoder<>(context ->
+    public static final PbNoCopyDecoderCallback<RaftPingPacketCallback> DECODER = new PbNoCopyDecoderCallback<>(context ->
             new RaftPingPacketCallback());
 
     public RaftPingProcessor(RaftServer raftServer) {
@@ -51,7 +51,7 @@ public class RaftPingProcessor extends RaftSequenceProcessor<RaftPingPacketCallb
     }
 
     @Override
-    public Decoder<RaftPingPacketCallback> createDecoder(int command) {
+    public DecoderCallback<RaftPingPacketCallback> createDecoder(int command) {
         return DECODER;
     }
 }

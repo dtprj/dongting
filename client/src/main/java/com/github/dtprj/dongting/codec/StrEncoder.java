@@ -30,6 +30,11 @@ public class StrEncoder extends ByteArrayEncoder {
         this.str = str;
     }
 
+    private StrEncoder(byte[] bs) {
+        super(bs);
+        this.str = new String(bs, StandardCharsets.UTF_8);
+    }
+
     public String getStr() {
         return str;
     }
@@ -39,20 +44,24 @@ public class StrEncoder extends ByteArrayEncoder {
         return str;
     }
 
-    public static final Decoder<StrEncoder> DECODER = new Decoder<StrEncoder>() {
+    public static class Callback extends DecoderCallback<StrEncoder> {
+
+        private StrEncoder r;
+
         @Override
-        public StrEncoder doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
-            String s = StrFiledDecoder.decode0(context, buffer, bodyLen, currentPos);
-            if (s != null) {
-                return new StrEncoder(s);
-            } else {
-                return null;
+        protected boolean doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+            byte[] bytes = parseBytes(buffer, bodyLen, currentPos);
+            if (bytes != null) {
+                r = new StrEncoder(bytes);
             }
+            return true;
         }
 
         @Override
-        public void finish(DecodeContext context) {
-            StrFiledDecoder.finish0(context);
+        protected StrEncoder getResult() {
+            return r;
         }
-    };
+    }
+
+    ;
 }

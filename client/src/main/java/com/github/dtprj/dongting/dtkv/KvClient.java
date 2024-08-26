@@ -15,9 +15,9 @@
  */
 package com.github.dtprj.dongting.dtkv;
 
-import com.github.dtprj.dongting.codec.ByteArrayDecoder;
-import com.github.dtprj.dongting.codec.Decoder;
-import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
+import com.github.dtprj.dongting.codec.ByteArrayDecoderCallback;
+import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.codec.PbNoCopyDecoderCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
@@ -67,7 +67,7 @@ public class KvClient extends AbstractLifeCircle {
         };
         wf.setCommand(Commands.DTKV_PUT);
         CompletableFuture<Void> f = new CompletableFuture<>();
-        raftClient.sendRequest(groupId, wf, Decoder.VOID_DECODER, timeout, RpcCallback.create(f));
+        raftClient.sendRequest(groupId, wf, DecoderCallback.VOID_DECODE_CALLBACK, timeout, RpcCallback.create(f));
         return f;
     }
 
@@ -91,7 +91,7 @@ public class KvClient extends AbstractLifeCircle {
         };
         wf.setCommand(Commands.DTKV_GET);
         CompletableFuture<byte[]> f = new CompletableFuture<>();
-        raftClient.sendRequest(groupId, wf, ByteArrayDecoder.INSTANCE, timeout, RpcCallback.create(f));
+        raftClient.sendRequest(groupId, wf, new ByteArrayDecoderCallback(), timeout, RpcCallback.create(f));
         return f;
     }
 
@@ -126,7 +126,8 @@ public class KvClient extends AbstractLifeCircle {
                 f.completeExceptionally(ex);
             }
         };
-        raftClient.sendRequest(groupId, wf, PbNoCopyDecoder.SIMPLE_INT_DECODER, timeout, c);
+        raftClient.sendRequest(groupId, wf, new PbNoCopyDecoderCallback<>(
+                ctx -> new PbNoCopyDecoderCallback.IntCallback()), timeout, c);
         return f;
     }
 

@@ -16,8 +16,8 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.codec.Decoder;
-import com.github.dtprj.dongting.codec.RefBufferDecoder;
+import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.MockDtTime;
 import com.github.dtprj.dongting.common.TestUtil;
@@ -80,7 +80,7 @@ public class TimeoutTest {
     private CompletableFuture<?> send(DtTime timeout, int bytes) {
         ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.allocate(bytes));
         wf.setCommand(CMD);
-        return client.sendRequest(wf, RefBufferDecoder.INSTANCE, timeout);
+        return client.sendRequest(wf, RefBufferDecoderCallback.INSTANCE, timeout);
     }
 
     private void registerDelayPingProcessor(CountDownLatch latch1, CountDownLatch latch2) {
@@ -210,10 +210,10 @@ public class TimeoutTest {
             }
 
             @Override
-            public Decoder<ByteBuffer> createDecoder(int command) {
-                return new IoFullPackByteBufferDecoder() {
+            public DecoderCallback<ByteBuffer> createDecoder(int command) {
+                return new IoFullPackByteBufferDecoderCallback() {
                     @Override
-                    public ByteBuffer decode(ByteBuffer buffer) {
+                    public boolean decode(ByteBuffer buffer) {
                         latch1.countDown();
                         try {
                             latch2.await();

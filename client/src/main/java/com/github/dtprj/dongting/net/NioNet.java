@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.codec.Decoder;
+import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtThreadFactory;
@@ -84,20 +84,20 @@ public abstract class NioNet extends AbstractLifeCircle {
         nioStatus.registerProcessor(cmd, processor);
     }
 
-    <T> void send(NioWorker worker, Peer peer, WritePacket request, Decoder<T> decoder,
+    <T> void send(NioWorker worker, Peer peer, WritePacket request, DecoderCallback<T> decoderCallback,
                   DtTime timeout, RpcCallback<T> callback) {
-        send0(worker, peer, null, request, decoder, timeout, callback);
+        send0(worker, peer, null, request, decoderCallback, timeout, callback);
     }
 
-    <T> void push(DtChannelImpl dtc, WritePacket request, Decoder<T> decoder, DtTime timeout, RpcCallback<T> callback) {
-        send0(dtc.workerStatus.getWorker(), null, dtc, request, decoder, timeout, callback);
+    <T> void push(DtChannelImpl dtc, WritePacket request, DecoderCallback<T> decoderCallback, DtTime timeout, RpcCallback<T> callback) {
+        send0(dtc.workerStatus.getWorker(), null, dtc, request, decoderCallback, timeout, callback);
     }
 
     private <T> void send0(NioWorker worker, Peer peer, DtChannelImpl dtc, WritePacket request,
-                           Decoder<T> decoder, DtTime timeout, RpcCallback<T> callback) {
+                           DecoderCallback<T> decoderCallback, DtTime timeout, RpcCallback<T> callback) {
         try {
             int estimateSize = generalCheck(request, timeout, callback);
-            request.setPacketType(decoder != null ? PacketType.TYPE_REQ : PacketType.TYPE_ONE_WAY);
+            request.setPacketType(decoderCallback != null ? PacketType.TYPE_REQ : PacketType.TYPE_ONE_WAY);
 
             while (true) {
                 VersionFactory.getInstance().acquireFence();
@@ -142,9 +142,9 @@ public abstract class NioNet extends AbstractLifeCircle {
         }
         WriteData wd;
         if (peer != null) {
-            wd = new WriteData(peer, request, timeout, callback, decoder);
+            wd = new WriteData(peer, request, timeout, callback, decoderCallback);
         } else {
-            wd = new WriteData(dtc, request, timeout, callback, decoder);
+            wd = new WriteData(dtc, request, timeout, callback, decoderCallback);
         }
         worker.writeReqInBizThreads(wd);
     }

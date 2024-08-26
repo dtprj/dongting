@@ -22,47 +22,48 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class RefBufferDecoder extends Decoder<RefBuffer> {
+public class RefBufferDecoderCallback extends DecoderCallback<RefBuffer> {
 
-    public static final RefBufferDecoder INSTANCE = new RefBufferDecoder(false);
-    public static final RefBufferDecoder PLAIN_INSTANCE = new RefBufferDecoder(true);
+    public static final RefBufferDecoderCallback INSTANCE = new RefBufferDecoderCallback(false);
+    public static final RefBufferDecoderCallback PLAIN_INSTANCE = new RefBufferDecoderCallback(true);
 
     private final boolean plain;
+    private RefBuffer r;
 
-    private RefBufferDecoder(boolean plain) {
+    private RefBufferDecoderCallback(boolean plain) {
         this.plain = plain;
     }
 
     @Override
-    public RefBuffer doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
-        RefBuffer result;
+    public boolean doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
         boolean end = buffer.remaining() >= bodyLen - currentPos;
         if (currentPos == 0) {
             if (plain) {
-                result = context.getHeapPool().createPlain(bodyLen);
+                r = context.getHeapPool().createPlain(bodyLen);
             } else {
-                result = context.getHeapPool().create(bodyLen);
+                r = context.getHeapPool().create(bodyLen);
             }
-            context.setStatus(result);
-        } else {
-            result = (RefBuffer) context.getStatus();
         }
-        ByteBuffer bb = result.getBuffer();
+        ByteBuffer bb = r.getBuffer();
         bb.put(buffer);
         if (end) {
             bb.flip();
-            context.setStatus(null);
             // release by user code
-            return result;
         }
-        return null;
+        return true;
     }
 
     @Override
-    public void finish(DecodeContext context) {
-        Object s = context.getStatus();
-        if (s instanceof RefBuffer) {
-            ((RefBuffer) s).release();
+    public boolean end(boolean success) {
+        if (!success && r != null) {
+            r.release();
         }
+        r = null;
+        return success;
+    }
+
+    @Override
+    protected RefBuffer getResult() {
+        return r;
     }
 }

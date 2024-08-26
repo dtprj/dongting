@@ -17,7 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
-import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
+import com.github.dtprj.dongting.codec.PbNoCopyDecoderCallback;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
@@ -143,8 +143,8 @@ abstract class AbstractLeaderRepFrame extends FiberFrame<Void> {
     protected final int groupId;
     protected final RaftMember member;
 
-    protected static final PbNoCopyDecoder<AppendRespCallback> APPEND_RESP_DECODER =
-            new PbNoCopyDecoder<>(c -> new AppendRespCallback());
+    protected static final PbNoCopyDecoderCallback<AppendRespCallback> APPEND_RESP_DECODER =
+            new PbNoCopyDecoderCallback<>(c -> new AppendRespCallback());
 
     public AbstractLeaderRepFrame(ReplicateManager replicateManager, RaftMember member) {
         this.groupId = replicateManager.groupId;

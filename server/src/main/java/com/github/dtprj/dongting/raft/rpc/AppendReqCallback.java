@@ -16,8 +16,8 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.ByteArrayEncoder;
-import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
+import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
@@ -43,7 +43,6 @@ import java.util.function.Function;
 //}
 public class AppendReqCallback extends PbCallback<AppendReqCallback> {
 
-    private final DecodeContext context;
     private final Function<Integer, RaftCodecFactory> decoderFactory;
     private RaftCodecFactory raftCodecFactory;
 
@@ -56,16 +55,16 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
     private long leaderCommit;
 
 
-    public AppendReqCallback(DecodeContext context, Function<Integer, RaftCodecFactory> decoderFactory) {
-        this.context = context;
+    public AppendReqCallback(Function<Integer, RaftCodecFactory> decoderFactory) {
         this.decoderFactory = decoderFactory;
     }
 
     @Override
-    protected void end(boolean success) {
+    protected boolean end(boolean success) {
         if (!success) {
             RaftUtil.release(logs);
         }
+        return success;
     }
 
     @Override
@@ -113,12 +112,10 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                         throw new PbException("can't find raft group: " + groupId);
                     }
                 }
-                // since AppendReqCallback not use context (to save status), we can use it in sub parser
-                callback = new LogItemCallback(context, raftCodecFactory);
+                callback = new LogItemCallback(raftCodecFactory);
             }
-            callback = parseNested(index, buf, len, currentPos, callback);
+            LogItem i = (LogItem) parseNested(index, buf, len, currentPos, callback);
             if (end) {
-                LogItem i = callback.item;
                 logs.add(i);
             }
         }
@@ -171,21 +168,24 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
     //}
     static class LogItemCallback extends PbCallback<Object> {
         private final LogItem item = new LogItem();
-        private final DecodeContext context;
         private final RaftCodecFactory codecFactory;
-        private Decoder<? extends Encodable> currentDecoder;
+        private DecoderCallback<? extends Encodable> currentDecoderCallback;
 
-        public LogItemCallback(DecodeContext context, RaftCodecFactory codecFactory) {
-            this.context = context;
+        public LogItemCallback(RaftCodecFactory codecFactory) {
             this.codecFactory = codecFactory;
         }
 
         @Override
-        protected void end(boolean success) {
+        protected boolean end(boolean success) {
             if (!success) {
                 item.release();
             }
-            resetDecoder();
+            return success;
+        }
+
+        @Override
+        protected Object getResult() {
+            return item;
         }
 
         @Override
@@ -225,56 +225,41 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
             boolean begin = currentPos == 0;
             boolean end = buf.remaining() >= len - currentPos;
             if (index == 7) {
+                Decoder d;
                 if (begin) {
                     item.setActualHeaderSize(len);
-                }
-                Encodable result = null;
-                if (item.getType() == LogItem.TYPE_NORMAL) {
-                    currentDecoder = codecFactory.createHeaderDecoder(item.getBizType());
-                    result = currentDecoder.decode(context, buf, len, currentPos);
-                } else {
-                    byte[] bytes = parseBytes(buf, len, currentPos);
-                    context.setStatus(bytes);
-                    if (bytes != null) {
-                        result = new ByteArrayEncoder(bytes);
+                    if (item.getType() == LogItem.TYPE_NORMAL) {
+                        currentDecoderCallback = codecFactory.createHeaderDecoder(item.getBizType());
+                    } else {
+                        currentDecoderCallback = new ByteArrayEncoder.Callback();
                     }
+                    d = context.prepareNestedDecoder(currentDecoderCallback, len);
+                } else {
+                    d = context.getNestedDecoder();
                 }
+                Encodable result = (Encodable) d.decode(buf, len, currentPos);
                 if (end) {
-                    resetDecoder();
                     item.setHeader(result);
                 }
             } else if (index == 8) {
+                Decoder d;
                 if (begin) {
                     item.setActualBodySize(len);
-                }
-                Encodable result = null;
-                if (item.getType() == LogItem.TYPE_NORMAL) {
-                    currentDecoder = codecFactory.createBodyDecoder(item.getBizType());
-                    result = currentDecoder.decode(context, buf, len, currentPos);
-                } else {
-                    byte[] bytes = parseBytes(buf, len, currentPos);
-                    context.setStatus(bytes);
-                    if (bytes != null) {
-                        result = new ByteArrayEncoder(bytes);
+                    if (item.getType() == LogItem.TYPE_NORMAL) {
+                        currentDecoderCallback = codecFactory.createBodyDecoder(item.getBizType());
+                    } else {
+                        currentDecoderCallback = new ByteArrayEncoder.Callback();
                     }
+                    d = context.prepareNestedDecoder(currentDecoderCallback, len);
+                } else {
+                    d = context.getNestedDecoder();
                 }
+                Encodable result = (Encodable) d.decode(buf, len, currentPos);
                 if (end) {
-                    resetDecoder();
                     item.setBody(result);
                 }
             }
             return true;
-        }
-
-        private void resetDecoder() {
-            if (currentDecoder != null) {
-                try {
-                    currentDecoder.finish(context);
-                } finally {
-                    currentDecoder = null;
-                }
-            }
-            context.reset();
         }
     }
 }

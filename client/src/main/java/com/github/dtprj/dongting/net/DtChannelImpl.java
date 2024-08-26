@@ -18,12 +18,12 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
+import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.common.BitUtil;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.Timestamp;
-import com.github.dtprj.dongting.log.BugLog;
 import com.github.dtprj.dongting.log.DtLog;
 import com.github.dtprj.dongting.log.DtLogs;
 
@@ -54,15 +54,16 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     private final int channelIndexInWorker;
     int seq = 1;
 
-    // read status
     private final MultiParser parser;
+    private final Decoder decoder;
+
+    // read status
     private ReadPacket packet;
     private boolean readBody;
     private WriteData requestForResp;
     private ReqProcessor processorForRequest;
     private int currentReadPacketSize;
-    private Decoder<?> currentDecoder;
-    private boolean flowControl;
+    private DecoderCallback currentDecoderCallback;
 
     private boolean running = true;
 
@@ -81,14 +82,16 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         this.workerStatus = workerStatus;
         this.channelIndexInWorker = channelIndexInWorker;
         this.peer = peer;
-        this.parser = new MultiParser(this, nioConfig.getMaxPacketSize());
+
+        this.decodeContext = new DecodeContext(workerStatus.getHeapPool());
+        this.parser = new MultiParser(decodeContext, this, nioConfig.getMaxPacketSize());
+        this.decoder = new Decoder();
 
         this.respWriter = new RespWriter(workerStatus.getIoQueue(), workerStatus.getWakeupRunnable(), this);
 
         this.remoteAddr = channel.getRemoteAddress();
         this.localAddr = channel.getLocalAddress();
 
-        this.decodeContext = new DecodeContext(workerStatus.getHeapPool());
 
         this.subQueue = new IoChannelQueue(nioConfig, workerStatus, this, workerStatus.getHeapPool());
     }
@@ -101,48 +104,40 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     @Override
+    public Object getResult() {
+        return null;
+    }
+
+    @Override
     protected void begin(int len) {
         this.currentReadPacketSize = len;
         packet = new ReadPacket();
         readBody = false;
         requestForResp = null;
         processorForRequest = null;
-        flowControl = false;
-        if (currentDecoder != null) {
-            BugLog.getLog().error("currentDecoder is not null");
-            currentDecoder = null;
-        }
+        currentDecoderCallback = null;
     }
 
     @Override
-    protected void end(boolean success) {
-        try {
-            if (!success) {
-                return;
-            }
+    protected boolean end(boolean success) {
+        if (!success) {
+            return false;
+        }
 
-            if (requestForResp == null && processorForRequest == null) {
-                // empty body
-                if (!initRelatedDataForPacket()) {
-                    return;
-                }
-                if (requestForResp == null && processorForRequest == null) {
-                    return;
-                }
-                if (currentDecoder != null) {
-                    packet.body = currentDecoder.decode(decodeContext, SimpleByteBufferPool.EMPTY_BUFFER, 0, 0);
-                }
+        if (requestForResp == null && processorForRequest == null) {
+            // empty body
+            if (!initRelatedDataForPacket()) {
+                return false;
             }
-        } finally {
-            if (currentDecoder != null) {
-                try {
-                    currentDecoder.finish(decodeContext);
-                    decodeContext.reset();
-                } finally {
-                    currentDecoder = null;
-                }
+            if (requestForResp == null && processorForRequest == null) {
+                return false;
+            }
+            if (currentDecoderCallback != null) {
+                decoder.prepareNext(decodeContext.createOrGetNestedContext(), currentDecoderCallback);
+                packet.body = decoder.decode(SimpleByteBufferPool.EMPTY_BUFFER, 0, 0);
             }
         }
+        currentDecoderCallback = null;
 
         if (packet.getPacketType() == PacketType.TYPE_RESP) {
             processIncomingResponse(packet, requestForResp);
@@ -150,6 +145,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             // req or one way
             processIncomingRequest(packet, processorForRequest, workerStatus.getTs());
         }
+        return true;
     }
 
     @Override
@@ -208,7 +204,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 return true;
             }
             case Packet.IDX_BODY: {
-                if (currentPos == 0 && currentDecoder != null) {
+                if (currentPos == 0 && currentDecoderCallback != null) {
                     throw new IllegalStateException("currentDecoder is not null");
                 }
                 boolean end = buf.remaining() >= fieldLen - currentPos;
@@ -221,7 +217,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     private boolean readBody(ByteBuffer buf, int fieldLen, int currentPos, boolean end) {
-        ReadPacket packet = this.packet;
         if (packet.getCommand() <= 0) {
             throw new NetException("command invalid :" + packet.getCommand());
         }
@@ -229,22 +224,22 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         if (!initRelatedDataForPacket()) {
             return false;
         }
-        if (currentDecoder == null) {
+        if (currentDecoderCallback == null) {
             return false;
         }
 
+        if (currentPos == 0) {
+            decoder.prepareNext(decodeContext.createOrGetNestedContext(), currentDecoderCallback);
+        }
         try {
-            Object o = currentDecoder.decode(decodeContext, buf, fieldLen, currentPos);
+            packet.body = decoder.decode(buf, fieldLen, currentPos);
+        } finally {
             if (end) {
-                packet.body = o;
                 // so if the body is not last field, exception throws
                 readBody = true;
             }
-            return true;
-        } catch (Throwable e) {
-            processIoDecodeFail(e);
-            return false;
         }
+        return !decoder.shouldSkip();
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
@@ -261,8 +256,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                     this.requestForResp = requestForResp;
                 }
             }
-            if (currentDecoder == null) {
-                currentDecoder = requestForResp.getRespDecoder();
+            if (currentDecoderCallback == null) {
+                currentDecoderCallback = requestForResp.getRespDecoder();
             }
         } else {
             // req or one way
@@ -278,41 +273,9 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                     return false;
                 }
             }
-            if (currentDecoder == null) {
-                currentDecoder = processorForRequest.createDecoder(packet.getCommand());
+            if (currentDecoderCallback == null) {
+                currentDecoderCallback = processorForRequest.createDecoder(packet.getCommand());
             }
-        }
-        return true;
-    }
-
-    private boolean flowControlCheck(int bytes) {
-        int maxReq = nioConfig.getMaxInRequests();
-        long maxBytes = nioConfig.getMaxInBytes();
-        if (maxReq <= 0 && maxBytes <= 0) {
-            return true;
-        }
-        nioStatus.pendingLock.lock();
-        try {
-            if (maxReq > 0 && nioStatus.pendingRequests + 1 > maxReq) {
-                log.debug("pendingRequests({})>maxInRequests({}), write response code FLOW_CONTROL to client",
-                        nioStatus.pendingRequests + 1, nioConfig.getMaxInRequests());
-                writeErrorInIoThread(packet, CmdCodes.FLOW_CONTROL,
-                        "max incoming request: " + nioConfig.getMaxInRequests());
-                return false;
-
-            }
-            if (maxBytes > 0 && nioStatus.pendingBytes + bytes > maxBytes) {
-                log.debug("pendingBytes({})>maxInBytes({}), write response code FLOW_CONTROL to client",
-                        nioStatus.pendingBytes + bytes, nioConfig.getMaxInBytes());
-                writeErrorInIoThread(packet, CmdCodes.FLOW_CONTROL,
-                        "max incoming request bytes: " + nioConfig.getMaxInBytes());
-                return false;
-            }
-            flowControl = true;
-            nioStatus.pendingRequests++;
-            nioStatus.pendingBytes += bytes;
-        } finally {
-            nioStatus.pendingLock.unlock();
         }
         return true;
     }
@@ -327,22 +290,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         }
     }
 
-    private void processIoDecodeFail(Throwable e) {
-        if (log.isDebugEnabled()) {
-            log.debug("decode fail. {} {}", channel, e.toString());
-        }
-        if (packet.packetType == PacketType.TYPE_RESP) {
-            if (requestForResp != null) {
-                requestForResp.callFail(false, e);
-            }
-        } else if (packet.packetType == PacketType.TYPE_REQ || packet.packetType == PacketType.TYPE_ONE_WAY) {
-            if (packet.command > 0) {
-                log.warn("decode fail in io thread", e);
-                writeErrorInIoThread(packet, CmdCodes.BIZ_ERROR, "decode fail: " + e.toString());
-            }
-        }
-    }
-
     private void processIncomingResponse(ReadPacket resp, WriteData wo) {
         WritePacket req = wo.getData();
         if (resp.getCommand() != req.getCommand()) {
@@ -353,9 +300,36 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     }
 
     private void processIncomingRequest(ReadPacket req, ReqProcessor p, Timestamp roundTime) {
-        if (!flowControlCheck(currentReadPacketSize)) {
-            return;
+        int maxReq = nioConfig.getMaxInRequests();
+        long maxBytes = nioConfig.getMaxInBytes();
+        boolean flowControl;
+        if (maxReq <= 0 && maxBytes <= 0) {
+            flowControl = false;
+        } else {
+            nioStatus.pendingLock.lock();
+            try {
+                if (maxReq > 0 && nioStatus.pendingRequests + 1 > maxReq) {
+                    log.debug("pendingRequests({})>maxInRequests({}), write response code FLOW_CONTROL to client",
+                            nioStatus.pendingRequests + 1, nioConfig.getMaxInRequests());
+                    writeErrorInIoThread(packet, CmdCodes.FLOW_CONTROL,
+                            "max incoming request: " + nioConfig.getMaxInRequests());
+                    return;
+                }
+                if (maxBytes > 0 && nioStatus.pendingBytes + currentReadPacketSize > maxBytes) {
+                    log.debug("pendingBytes({})>maxInBytes({}), write response code FLOW_CONTROL to client",
+                            nioStatus.pendingBytes + currentReadPacketSize, nioConfig.getMaxInBytes());
+                    writeErrorInIoThread(packet, CmdCodes.FLOW_CONTROL,
+                            "max incoming request bytes: " + nioConfig.getMaxInBytes());
+                    return;
+                }
+                nioStatus.pendingRequests++;
+                nioStatus.pendingBytes += currentReadPacketSize;
+            } finally {
+                nioStatus.pendingLock.unlock();
+            }
+            flowControl = true;
         }
+
         ReqContext reqContext = new ReqContext(this, new DtTime(roundTime, req.getTimeout(), TimeUnit.NANOSECONDS));
         if (p.executor == null) {
             if (timeout(req, reqContext, roundTime)) {
@@ -464,8 +438,12 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         if (closed) {
             return;
         }
-        parser.reset();
         closed = true;
+        try {
+            decodeContext.reset(parser.getParser());
+        } catch (Exception e) {
+            log.error("channel close error", e);
+        }
     }
 
     public Peer getPeer() {

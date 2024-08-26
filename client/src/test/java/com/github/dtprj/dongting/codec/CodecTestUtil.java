@@ -13,22 +13,19 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.net;
+package com.github.dtprj.dongting.codec;
 
-import com.github.dtprj.dongting.codec.DecoderCallback;
-
-import java.util.concurrent.Executor;
+import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.DefaultPoolFactory;
+import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.common.Timestamp;
 
 /**
  * @author huangli
  */
-public abstract class ReqProcessor<T> {
-
-    Executor executor;
-    boolean useDefaultExecutor;
-
-    public abstract WritePacket process(ReadPacket<T> packet, ReqContext reqContext) throws Exception;
-
-    public abstract DecoderCallback<T> createDecoder(int command);
-
+public class CodecTestUtil {
+    public static DecodeContext createContext() {
+        ByteBufferPool pool = new DefaultPoolFactory().createPool(new Timestamp(), false);
+        return new DecodeContext(new RefBufferFactory(pool, 128));
+    }
 }

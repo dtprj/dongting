@@ -22,32 +22,33 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public class BoolDecoder extends Decoder<Boolean> {
+public class BoolDecoderCallback extends DecoderCallback<Boolean> {
 
-    public static final BoolDecoder INSTANCE = new BoolDecoder();
-
-    private BoolDecoder() {
+    public BoolDecoderCallback() {
     }
 
     @Override
-    public Boolean doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
+    public boolean doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
         if (bodyLen != 1 || currentPos != 0) {
             throw new NetException("invalid bool data");
         }
         if (buffer.hasRemaining()) {
             byte b = buffer.get();
             if (b == -1) {
-                return null;
+                context.status = null;
             } else if (b == 0) {
-                return false;
+                context.status = Boolean.FALSE;
             } else if (b == 1) {
-                return true;
+                context.status = Boolean.TRUE;
             } else {
                 throw new NetException("invalid bool data:" + b);
             }
-        } else {
-            return null;
         }
+        return true;
     }
 
+    @Override
+    protected Boolean getResult() {
+        return (Boolean) context.status;
+    }
 }

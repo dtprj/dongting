@@ -15,49 +15,41 @@
  */
 package com.github.dtprj.dongting.codec;
 
-import com.github.dtprj.dongting.buf.RefBuffer;
-
 import java.nio.ByteBuffer;
 
 /**
  * @author huangli
  */
-public abstract class CopyDecoder<T> extends Decoder<T> {
+public abstract class CopyDecoderCallback<T> extends DecoderCallback<T> {
+
+    private ByteBuffer temp;
+
     @Override
-    public T doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
+    public final boolean doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
         boolean start = currentPos == 0;
         boolean end = buffer.remaining() >= bodyLen - currentPos;
         if (start && end) {
             return decode(buffer);
         }
-        RefBuffer temp;
         if (start) {
-            temp = context.getHeapPool().create(bodyLen);
-            context.setStatus(temp);
-        } else {
-            temp = (RefBuffer) context.getStatus();
+            temp = context.getHeapPool().getPool().borrow(bodyLen);
         }
-        ByteBuffer bb = temp.getBuffer();
-        bb.put(buffer);
+        temp.put(buffer);
         if (end) {
-            bb.flip();
-            try {
-                return decode(bb);
-            } finally {
-                temp.release();
-                context.setStatus(null);
-            }
+            temp.flip();
+            return decode(temp);
         }
-        return null;
+        return true;
     }
 
     @Override
-    public void finish(DecodeContext context) {
-        Object s = context.getStatus();
-        if(s instanceof RefBuffer) {
-            ((RefBuffer) s).release();
+    public boolean end(boolean success) {
+        if (temp != null) {
+            context.getHeapPool().getPool().release(temp);
+            temp = null;
         }
+        return success;
     }
 
-    protected abstract T decode(ByteBuffer buffer);
+    protected abstract boolean decode(ByteBuffer buffer);
 }

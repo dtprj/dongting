@@ -15,10 +15,6 @@
  */
 package com.github.dtprj.dongting.codec;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.RefBufferFactory;
-import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
-import com.github.dtprj.dongting.common.Timestamp;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -29,18 +25,19 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 /**
  * @author huangli
  */
-public class StrFiledDecoderTest {
+public class StrDecoderCallbackTest {
 
-    private StrFiledDecoder decoder;
+    private Decoder decoder;
+    private StrDecoderCallback callback;
     private byte[] bytes;
     private ByteBuffer buf;
     private DecodeContext decodeContext;
 
     @Test
     public void test() {
-        ByteBufferPool byteBufferPool = new SimpleByteBufferPool(new Timestamp(), false);
-        decodeContext = new DecodeContext(new RefBufferFactory(byteBufferPool, 128));
-        decoder = StrFiledDecoder.INSTANCE;
+        decodeContext = CodecTestUtil.createContext();
+        decoder = new Decoder();
+        callback = new StrDecoderCallback();
         bytes = new byte[5 * 1024];
         byte c = 'a';
         for (int i = 0; i < bytes.length; i++) {
@@ -63,64 +60,72 @@ public class StrFiledDecoderTest {
     private void testFull() {
         buf.clear();
         buf.limit(100);
-        String s = decoder.decode(decodeContext, buf, 100, 0);
+        decoder.prepareNext(decodeContext, callback);
+        String s = (String) decoder.decode(buf, 100, 0);
         assertEquals(new String(bytes, 0, 100), s);
-        decoder.finish(decodeContext);
 
         buf.clear();
-        s = decoder.decode(decodeContext, buf, buf.capacity(), 0);
+        decoder.prepareNext(decodeContext, callback);
+        s = (String) decoder.decode(buf, buf.capacity(), 0);
         assertEquals(new String(bytes, 0, buf.capacity()), s);
-        decoder.finish(decodeContext);
     }
 
     private void testHalf1() {
         buf.clear();
         buf.limit(10);
-        assertNull(decoder.decode(decodeContext, buf, 100, 0));
+        decoder.prepareNext(decodeContext, callback);
+        assertNull(decoder.decode(buf, 100, 0));
         buf.clear();
         buf.position(10);
         buf.limit(100);
-        String s = decoder.decode(decodeContext, buf, 100, 10);
+        decoder.prepareNext(decodeContext, callback);
+        String s = (String) decoder.decode(buf, 100, 10);
         assertEquals(new String(bytes, 0, 100), s);
 
         buf.clear();
         buf.limit(10);
-        assertNull(decoder.decode(decodeContext, buf, buf.capacity(), 0));
+        decoder.prepareNext(decodeContext, callback);
+        assertNull(decoder.decode(buf, buf.capacity(), 0));
         buf.clear();
         buf.position(10);
         buf.limit(buf.capacity());
-        s = decoder.decode(decodeContext, buf, buf.capacity(), 10);
+
+        decoder.prepareNext(decodeContext, callback);
+        s = (String) decoder.decode(buf, buf.capacity(), 10);
         assertEquals(new String(bytes, 0, buf.capacity()), s);
-        decoder.finish(decodeContext);
     }
 
     private void testHalf2() {
         buf.clear();
         buf.limit(10);
-        assertNull(decoder.decode(decodeContext, buf, 100, 0));
+        decoder.prepareNext(decodeContext, callback);
+        assertNull(decoder.decode(buf, 100, 0));
         buf.clear();
         buf.position(10);
         buf.limit(20);
-        assertNull(decoder.decode(decodeContext, buf, 100, 10));
+        decoder.prepareNext(decodeContext, callback);
+        assertNull(decoder.decode(buf, 100, 10));
         buf.clear();
         buf.position(20);
         buf.limit(100);
-        String s = decoder.decode(decodeContext, buf, 100, 20);
+        decoder.prepareNext(decodeContext, callback);
+        String s = (String) decoder.decode(buf, 100, 20);
         assertEquals(new String(bytes, 0, 100), s);
-        decoder.finish(decodeContext);
 
         buf.clear();
         buf.limit(10);
-        assertNull(decoder.decode(decodeContext, buf, buf.capacity(), 0));
+        decoder.prepareNext(decodeContext, callback);
+        assertNull(decoder.decode(buf, buf.capacity(), 0));
         buf.clear();
         buf.position(10);
         buf.limit(20);
-        assertNull(decoder.decode(decodeContext, buf, buf.capacity(), 10));
+        decoder.prepareNext(decodeContext, callback);
+        assertNull(decoder.decode(buf, buf.capacity(), 10));
         buf.clear();
         buf.position(20);
         buf.limit(buf.capacity());
-        s = decoder.decode(decodeContext, buf, buf.capacity(), 20);
+        decoder.prepareNext(decodeContext, callback);
+        s = (String) decoder.decode(buf, buf.capacity(), 20);
         assertEquals(new String(bytes, 0, buf.capacity()), s);
-        decoder.finish(decodeContext);
     }
 }

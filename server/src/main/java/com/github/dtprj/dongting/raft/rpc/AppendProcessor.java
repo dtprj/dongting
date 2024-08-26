@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
-import com.github.dtprj.dongting.codec.Decoder;
-import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
+import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.codec.PbNoCopyDecoderCallback;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -61,9 +61,9 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
     public static final int APPEND_NOT_MEMBER_IN_GROUP = 5;
     public static final int APPEND_SERVER_ERROR = 6;
 
-    private final PbNoCopyDecoder<AppendReqCallback> appendDecoder;
+    private final PbNoCopyDecoderCallback<AppendReqCallback> appendDecoder;
 
-    private static final Decoder<InstallSnapshotReq> INSTALL_SNAPSHOT_DECODER = new PbNoCopyDecoder<>(
+    private static final DecoderCallback<InstallSnapshotReq> INSTALL_SNAPSHOT_DECODE_CALLBACK = new PbNoCopyDecoderCallback<>(
             InstallSnapshotReq.Callback::new);
 
     public AppendProcessor(RaftServer raftServer) {
@@ -72,7 +72,7 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
             RaftGroup g = raftServer.getRaftGroup(groupId);
             return g == null ? null : g.getStateMachine();
         };
-        this.appendDecoder = new PbNoCopyDecoder<>(decodeContext -> new AppendReqCallback(decodeContext, decoderFactory));
+        this.appendDecoder = new PbNoCopyDecoderCallback<>(decodeContext -> new AppendReqCallback(decoderFactory));
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -103,11 +103,11 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     @Override
-    public Decoder createDecoder(int command) {
+    public DecoderCallback createDecoder(int command) {
         if (command == Commands.RAFT_APPEND_ENTRIES) {
             return appendDecoder;
         } else {
-            return INSTALL_SNAPSHOT_DECODER;
+            return INSTALL_SNAPSHOT_DECODE_CALLBACK;
         }
     }
 

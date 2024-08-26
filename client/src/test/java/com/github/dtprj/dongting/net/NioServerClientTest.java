@@ -17,7 +17,7 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
-import com.github.dtprj.dongting.codec.RefBufferDecoder;
+import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.TestUtil;
 import org.junit.jupiter.api.Assertions;
@@ -64,7 +64,7 @@ public class NioServerClientTest {
         ByteBufferWritePacket wf = new ByteBufferWritePacket(buf);
         wf.setCommand(Commands.CMD_PING);
 
-        CompletableFuture<ReadPacket<RefBuffer>> f = client.sendRequest(wf, RefBufferDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS));
+        CompletableFuture<ReadPacket<RefBuffer>> f = client.sendRequest(wf, RefBufferDecoderCallback.INSTANCE, new DtTime(1, TimeUnit.SECONDS));
         ReadPacket<RefBuffer> rf = f.get(1, TimeUnit.SECONDS);
         assertEquals(wf.getSeq(), rf.getSeq());
         assertEquals(PacketType.TYPE_RESP, rf.getPacketType());
@@ -118,10 +118,10 @@ public class NioServerClientTest {
             ByteBufferWritePacket wf2 = new ByteBufferWritePacket(SimpleByteBufferPool.EMPTY_BUFFER);
             wf2.setCommand(12345);
 
-            CompletableFuture<ReadPacket<RefBuffer>> f1 = client.sendRequest(wf1, RefBufferDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS));
+            CompletableFuture<ReadPacket<RefBuffer>> f1 = client.sendRequest(wf1, RefBufferDecoderCallback.INSTANCE, new DtTime(1, TimeUnit.SECONDS));
             Thread.sleep(10);// wait dispatch thread
             dtc.seq = dtc.seq - 1;
-            CompletableFuture<ReadPacket<RefBuffer>> f2 = client.sendRequest(wf2, RefBufferDecoder.INSTANCE, new DtTime(1, TimeUnit.SECONDS));
+            CompletableFuture<ReadPacket<RefBuffer>> f2 = client.sendRequest(wf2, RefBufferDecoderCallback.INSTANCE, new DtTime(1, TimeUnit.SECONDS));
             ReadPacket<RefBuffer> rf2 = f2.get(1, TimeUnit.SECONDS);
             Assertions.assertEquals(CmdCodes.SUCCESS, rf2.getRespCode());
 

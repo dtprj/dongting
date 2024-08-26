@@ -15,12 +15,10 @@
  */
 package com.github.dtprj.dongting.codec;
 
-import com.github.dtprj.dongting.common.DtException;
-
 /**
  * @author huangli
  */
-public class PbException extends DtException {
+public class PbException extends CodecException {
     private static final long serialVersionUID = 5611346320921436852L;
 
     public PbException(String message) {

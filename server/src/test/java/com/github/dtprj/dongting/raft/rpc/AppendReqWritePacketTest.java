@@ -17,7 +17,7 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.DecodeContext;
-import com.github.dtprj.dongting.codec.Decoder;
+import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.net.RpcEncodeContext;
@@ -40,13 +40,13 @@ public class AppendReqWritePacketTest {
     private final RaftCodecFactory raftCodecFactory = new RaftCodecFactory() {
 
         @Override
-        public Decoder<? extends Encodable> createBodyDecoder(int bizType) {
-            return ByteArrayEncoder.DECODER;
+        public DecoderCallback<? extends Encodable> createBodyDecoder(int bizType) {
+            return new ByteArrayEncoder.Callback();
         }
 
         @Override
-        public Decoder<? extends Encodable> createHeaderDecoder(int bizType) {
-            return ByteArrayEncoder.DECODER;
+        public DecoderCallback<? extends Encodable> createHeaderDecoder(int bizType) {
+            return new ByteArrayEncoder.Callback();
         }
     };
 
@@ -71,8 +71,8 @@ public class AppendReqWritePacketTest {
         buf.clear();
 
         DecodeContext decodeContext = new DecodeContext(null);
-        AppendReqCallback c = new AppendReqCallback(decodeContext, g -> raftCodecFactory);
-        PbParser p = new PbParser(c, f.actualBodySize());
+        AppendReqCallback c = new AppendReqCallback(g -> raftCodecFactory);
+        PbParser p = new PbParser(decodeContext, c, f.actualBodySize());
         p.parse(buf);
 
         check(f, c);
@@ -90,8 +90,8 @@ public class AppendReqWritePacketTest {
         AppendReqWritePacket f = createFrame(addHeader, addBody);
         RpcEncodeContext context = new RpcEncodeContext(null);
         DecodeContext decodeContext = new DecodeContext(null);
-        AppendReqCallback c = new AppendReqCallback(decodeContext, g -> raftCodecFactory);
-        PbParser p = new PbParser(c, f.actualBodySize());
+        AppendReqCallback c = new AppendReqCallback(g -> raftCodecFactory);
+        PbParser p = new PbParser(decodeContext, c, f.actualBodySize());
         Random r = new Random();
         int actualBodySize = f.actualBodySize();
         for (int encodeBytes = 0; encodeBytes < actualBodySize; ) {

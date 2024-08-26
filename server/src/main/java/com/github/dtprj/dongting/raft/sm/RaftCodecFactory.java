@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.sm;
 
-import com.github.dtprj.dongting.codec.Decoder;
+import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
 
 /**
@@ -26,11 +26,11 @@ public interface RaftCodecFactory {
     /**
      * this method is called in raft thread or io thread.
      */
-    Decoder<? extends Encodable> createHeaderDecoder(int bizType);
+    DecoderCallback<? extends Encodable> createHeaderDecoder(int bizType);
 
     /**
      * this method is called in raft thread or io thread.
      */
-    Decoder<? extends Encodable> createBodyDecoder(int bizType);
+    DecoderCallback<? extends Encodable> createBodyDecoder(int bizType);
 
 }

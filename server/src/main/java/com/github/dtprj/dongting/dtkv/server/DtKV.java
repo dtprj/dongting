@@ -16,9 +16,9 @@
 package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.codec.Decoder;
+import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
-import com.github.dtprj.dongting.codec.RefBufferDecoder;
+import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.codec.StrEncoder;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtThread;
@@ -67,25 +67,25 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     }
 
     @Override
-    public Decoder<? extends Encodable> createHeaderDecoder(int bizType) {
+    public DecoderCallback<? extends Encodable> createHeaderDecoder(int bizType) {
         switch (bizType) {
             case BIZ_TYPE_GET:
             case BIZ_TYPE_REMOVE:
             case BIZ_TYPE_PUT:
-                return StrEncoder.DECODER;
+                return new StrEncoder.Callback();
             default:
                 throw new IllegalArgumentException("unknown bizType " + bizType);
         }
     }
 
     @Override
-    public Decoder<? extends Encodable> createBodyDecoder(int bizType) {
+    public DecoderCallback<? extends Encodable> createBodyDecoder(int bizType) {
         switch (bizType) {
             case BIZ_TYPE_GET:
             case BIZ_TYPE_REMOVE:
                 return null;
             case BIZ_TYPE_PUT:
-                return RefBufferDecoder.INSTANCE;
+                return RefBufferDecoderCallback.INSTANCE;
             default:
                 throw new IllegalArgumentException("unknown bizType " + bizType);
         }

@@ -15,6 +15,8 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.codec.CodecTestUtil;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.codec.PbUtil;
@@ -42,18 +44,24 @@ public class MultiParserTest {
         }
 
         @Override
-        protected void end(boolean success) {
+        protected boolean end(boolean success) {
             if (success) {
                 endSuccessCount++;
             } else {
                 endFailCount++;
             }
+            return success;
         }
 
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             f1 = parseUTF8(buf, fieldLen, currentPos);
             return true;
+        }
+
+        @Override
+        protected Object getResult() {
+            return this;
         }
     }
 
@@ -68,7 +76,8 @@ public class MultiParserTest {
         buf.putInt(0, len);
         buf.flip();
 
-        MultiParser parser = new MultiParser(callback, len);
+        DecodeContext c = CodecTestUtil.createContext();
+        MultiParser parser = new MultiParser(c, callback, len);
         parser.parse(buf);
         assertEquals("VVV", callback.f1);
         assertEquals(1, callback.beginCount);
@@ -93,7 +102,8 @@ public class MultiParserTest {
         buf.putInt(0, len);
         buf.flip();
 
-        MultiParser parser = new MultiParser(callback, len);
+        DecodeContext c = CodecTestUtil.createContext();
+        MultiParser parser = new MultiParser(c, callback, len);
         parser.parse(buf);
         assertEquals("VVV", callback.f1);
         assertEquals(1, callback.beginCount);
@@ -101,7 +111,7 @@ public class MultiParserTest {
         assertEquals(0, callback.endFailCount);
 
         buf.position(0);
-        parser = new MultiParser(callback, len - 1);
+        parser = new MultiParser(c, callback, len - 1);
         try {
             parser.parse(buf);
             fail();
@@ -124,7 +134,8 @@ public class MultiParserTest {
         buf.putInt(0, len);
         buf.flip();
 
-        MultiParser parser = new MultiParser(callback, len);
+        DecodeContext c = CodecTestUtil.createContext();
+        MultiParser parser = new MultiParser(c, callback, len);
         parseByByte(buf, parser);
         assertEquals("VVV", callback.f1);
         assertEquals(1, callback.beginCount);
@@ -132,7 +143,7 @@ public class MultiParserTest {
         assertEquals(0, callback.endFailCount);
 
         buf.position(0);
-        parser = new MultiParser(callback, len - 1);
+        parser = new MultiParser(c, callback, len - 1);
         try {
             parseByByte(buf, parser);
             fail();

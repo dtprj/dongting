@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
 import com.github.dtprj.dongting.codec.PbParser;
@@ -25,6 +26,7 @@ import java.nio.ByteBuffer;
  * @author huangli
  */
 class MultiParser {
+    private final DecodeContext context;
     private final int maxSize;
     private final PbCallback<?> callback;
     private final PbParser parser;
@@ -33,7 +35,8 @@ class MultiParser {
     private boolean parseLen = true;
     private int pendingLenBytes;
 
-    public MultiParser(PbCallback<?> callback, int maxSize) {
+    public MultiParser(DecodeContext context, PbCallback<?> callback, int maxSize) {
+        this.context = context;
         this.maxSize = maxSize;
         this.callback = callback;
         this.parser = new PbParser();
@@ -46,7 +49,7 @@ class MultiParser {
                 if (parseLen) {
                     return;
                 } else {
-                    parser.prepareNext(callback, size);
+                    parser.prepareNext(context, callback, size);
                 }
             }
             parser.parse(buf);
@@ -87,8 +90,7 @@ class MultiParser {
         }
     }
 
-
-    public void reset() {
-        parser.reset();
+    public PbParser getParser() {
+        return parser;
     }
 }

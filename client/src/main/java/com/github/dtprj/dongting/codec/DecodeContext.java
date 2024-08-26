@@ -16,19 +16,23 @@
 package com.github.dtprj.dongting.codec;
 
 import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 
 /**
  * @author huangli
  */
 public class DecodeContext {
-    private static final int THREAD_LOCAL_BUFFER_SIZE = 4 * 1024;
+    private static final DtLog log = DtLogs.getLogger(DecodeContext.class);
+    static final int THREAD_LOCAL_BUFFER_SIZE = 4 * 1024;
     private static final ThreadLocal<byte[]> THREAD_LOCAL_BUFFER = ThreadLocal.withInitial(() -> new byte[THREAD_LOCAL_BUFFER_SIZE]);
 
     private final RefBufferFactory heapPool;
-    private Object status;
-
-    // only use by PbNoCopyDecoder
     PbParser nestedParser;
+    Decoder nestedDecoder;
+    Object status;
+
+    private DecodeContext nestedContext;
 
     private final byte[] threadLocalBuffer = THREAD_LOCAL_BUFFER.get();
 
@@ -36,20 +40,72 @@ public class DecodeContext {
         this.heapPool = heapPool;
     }
 
-    public void reset() {
+    public void reset(PbParser root) {
+        reset();
+        try {
+            root.reset();
+        } catch (Exception e) {
+            log.error("reset error", e);
+        }
+    }
+
+    public void reset(Decoder root) {
+        reset();
+        try {
+            root.reset();
+        } catch (Exception e) {
+            log.error("reset error", e);
+        }
+    }
+
+    private void reset() {
+        if (nestedContext != null) {
+            nestedContext.reset();
+        }
+        if (nestedParser != null) {
+            nestedParser.reset();
+        }
+        if (nestedDecoder != null) {
+            nestedDecoder.reset();
+        }
         status = null;
+    }
+
+    public DecodeContext createOrGetNestedContext() {
+        if (nestedContext == null) {
+            nestedContext = new DecodeContext(heapPool);
+        }
+        return nestedContext;
+    }
+
+    public PbParser prepareNestedParser(PbCallback<?> nestedCallback, int len) {
+        if (nestedParser == null) {
+            nestedParser = new PbParser(createOrGetNestedContext(), nestedCallback, len);
+        } else {
+            nestedParser.prepareNext(createOrGetNestedContext(), nestedCallback, len);
+        }
+        return nestedParser;
+    }
+
+    public Decoder prepareNestedDecoder(DecoderCallback<?> nestedCallback, int len) {
+        if (nestedDecoder == null) {
+            nestedDecoder = new Decoder(createOrGetNestedContext(), nestedCallback);
+        } else {
+            nestedDecoder.prepareNext(createOrGetNestedContext(), nestedCallback);
+        }
+        return nestedDecoder;
+    }
+
+    public PbParser getNestedParser() {
+        return nestedParser;
+    }
+
+    public Decoder getNestedDecoder() {
+        return nestedDecoder;
     }
 
     public RefBufferFactory getHeapPool() {
         return heapPool;
-    }
-
-    public Object getStatus() {
-        return status;
-    }
-
-    public void setStatus(Object status) {
-        this.status = status;
     }
 
     public byte[] getThreadLocalBuffer() {

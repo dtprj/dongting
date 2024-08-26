@@ -19,6 +19,7 @@ import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
+import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -130,7 +131,7 @@ class FileLogLoader implements RaftLog.LogIterator {
 
         private int totalReadBytes;
         private int currentReadBytes;
-        private Decoder<? extends Encodable> currentDecoder;
+        private Decoder decoder;
         private final List<LogItem> result = new LinkedList<>();
         private int state = STATE_ITEM_HEADER;
         private LogItem item;
@@ -150,7 +151,10 @@ class FileLogLoader implements RaftLog.LogIterator {
 
         @Override
         protected FrameCallResult doFinally() {
-            resetDecoder();
+            if (decoder != null) {
+                decodeContext.reset(decoder);
+                decoder = null;
+            }
             return Fiber.frameReturn();
         }
 
@@ -320,30 +324,36 @@ class FileLogLoader implements RaftLog.LogIterator {
         private boolean readData(ByteBuffer buf, int dataLen, boolean isHeader) {
             if (dataLen - currentReadBytes > 0 && buf.remaining() > 0) {
                 int oldPos = buf.position();
-                if (currentDecoder == null) {
+                if (decoder == null) {
+                    DecoderCallback<?> callback;
                     if (header.type == LogItem.TYPE_NORMAL) {
-                        currentDecoder = isHeader ? codecFactory.createHeaderDecoder(header.bizType)
+                        callback = isHeader ? codecFactory.createHeaderDecoder(header.bizType)
                                 : codecFactory.createBodyDecoder(header.bizType);
                     } else {
-                        currentDecoder = ByteArrayEncoder.DECODER;
+                        callback = new ByteArrayEncoder.Callback();
                     }
-                }
-                Encodable result = currentDecoder.decode(decodeContext, buf, dataLen, currentReadBytes);
-                if (isHeader) {
-                    item.setHeader(result);
+                    decoder = decodeContext.prepareNestedDecoder(callback, dataLen);
                 } else {
-                    item.setBody(result);
+                    decoder = decodeContext.getNestedDecoder();
                 }
+                Encodable result = (Encodable) decoder.decode(buf, dataLen, currentReadBytes);
                 int read = buf.position() - oldPos;
                 if (read > 0) {
                     RaftUtil.updateCrc(crc32c, buf, oldPos, read);
                 }
                 currentReadBytes += read;
+                if (currentReadBytes >= dataLen) {
+                    if (isHeader) {
+                        item.setHeader(result);
+                    } else {
+                        item.setBody(result);
+                    }
+                    decoder = null;
+                }
             }
             if (dataLen - currentReadBytes <= 0 && buf.remaining() >= 4) {
                 totalReadBytes += currentReadBytes;
                 currentReadBytes = 0;
-                resetDecoder();
                 int crc = (int) crc32c.getValue();
                 if (crc != buf.getInt()) {
                     throw new ChecksumException("crc32c not match: index=" + header.index + ",pos="
@@ -395,17 +405,6 @@ class FileLogLoader implements RaftLog.LogIterator {
 
         private void finishRead() {
             nextIndex += result.size();
-        }
-
-        private void resetDecoder() {
-            if (currentDecoder != null) {
-                try {
-                    currentDecoder.finish(decodeContext);
-                    decodeContext.reset();
-                } finally {
-                    currentDecoder = null;
-                }
-            }
         }
     }
 

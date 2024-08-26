@@ -45,12 +45,18 @@ public class PbParserExTest {
         }
 
         @Override
-        protected void end(boolean success) {
+        protected boolean end(boolean success) {
             if (success) {
                 endSuccessCount++;
             } else {
                 endFailCount++;
             }
+            return success;
+        }
+
+        @Override
+        protected Object getResult() {
+            return this;
         }
     }
 
@@ -68,13 +74,15 @@ public class PbParserExTest {
         buf.mark();
 
         EmptyCallback callback = new EmptyCallback();
-        PbParser parser = new PbParser(callback, buf.remaining());
+        DecodeContext context = CodecTestUtil.createContext();
+        PbParser parser = new PbParser(context, callback, buf.remaining());
         try {
             parser.parse(buf);
             fail();
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("var int too long"));
-            assertTrue(parser.isError());
+            assertTrue(parser.isFinished());
+            assertTrue(parser.shouldSkip());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -82,13 +90,14 @@ public class PbParserExTest {
 
         buf.reset();
         callback = new EmptyCallback();
-        parser = new PbParser(callback, buf.remaining());
+        parser = new PbParser(context, callback, buf.remaining());
         try {
             parseByByte(buf, parser);
             fail();
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("var int too long"));
-            assertTrue(parser.isError());
+            assertTrue(parser.isFinished());
+            assertTrue(parser.shouldSkip());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -103,14 +112,16 @@ public class PbParserExTest {
         buf.flip();
         buf.mark();
 
+        DecodeContext context = CodecTestUtil.createContext();
         EmptyCallback callback = new EmptyCallback();
-        PbParser parser = new PbParser(callback, buf.remaining() - 1);
+        PbParser parser = new PbParser(context, callback, buf.remaining() - 1);
         try {
             parser.parse(buf);
             fail();
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("size exceed"));
-            assertTrue(parser.isError());
+            assertTrue(parser.isFinished());
+            assertTrue(parser.shouldSkip());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -118,13 +129,14 @@ public class PbParserExTest {
 
         buf.reset();
         callback = new EmptyCallback();
-        parser = new PbParser(callback, buf.remaining() - 1);
+        parser = new PbParser(context, callback, buf.remaining() - 1);
         try {
             parseByByte(buf, parser);
             fail();
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("size exceed"));
-            assertTrue(parser.isError());
+            assertTrue(parser.isFinished());
+            assertTrue(parser.shouldSkip());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -140,14 +152,16 @@ public class PbParserExTest {
         buf.flip();
         buf.mark();
 
+        DecodeContext context = CodecTestUtil.createContext();
         EmptyCallback callback = new EmptyCallback();
-        PbParser parser = new PbParser(callback, buf.remaining());
+        PbParser parser = new PbParser(context, callback, buf.remaining());
         try {
             parser.parse(buf);
             fail();
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("field length overflow"));
-            assertTrue(parser.isError());
+            assertTrue(parser.isFinished());
+            assertTrue(parser.shouldSkip());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -163,14 +177,16 @@ public class PbParserExTest {
         buf.flip();
         buf.mark();
 
+        DecodeContext context = CodecTestUtil.createContext();
         EmptyCallback callback = new EmptyCallback();
-        PbParser parser = new PbParser(callback, buf.remaining());
+        PbParser parser = new PbParser(context, callback, buf.remaining());
         try {
             parser.parse(buf);
             fail();
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("bad field len"));
-            assertTrue(parser.isError());
+            assertTrue(parser.isFinished());
+            assertTrue(parser.shouldSkip());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -184,14 +200,16 @@ public class PbParserExTest {
         buf.flip();
         buf.mark();
 
+        DecodeContext context = CodecTestUtil.createContext();
         EmptyCallback callback = new EmptyCallback();
-        PbParser parser = new PbParser(callback, buf.remaining());
+        PbParser parser = new PbParser(context, callback, buf.remaining());
         try {
             parser.parse(buf);
             fail();
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("bad index:"));
-            assertTrue(parser.isError());
+            assertTrue(parser.isFinished());
+            assertTrue(parser.shouldSkip());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -209,14 +227,16 @@ public class PbParserExTest {
         buf.flip();
         buf.mark();
 
+        DecodeContext context = CodecTestUtil.createContext();
         EmptyCallback callback = new EmptyCallback();
-        PbParser parser = new PbParser(callback, buf.remaining());
+        PbParser parser = new PbParser(context, callback, buf.remaining());
         try {
             parser.parse(buf);
             fail();
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("var long too long"));
-            assertTrue(parser.isError());
+            assertTrue(parser.isFinished());
+            assertTrue(parser.shouldSkip());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -224,13 +244,14 @@ public class PbParserExTest {
 
         buf.reset();
         callback = new EmptyCallback();
-        parser = new PbParser(callback, buf.remaining());
+        parser = new PbParser(context, callback, buf.remaining());
         try {
             parseByByte(buf, parser);
             fail();
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("var long too long"));
-            assertTrue(parser.isError());
+            assertTrue(parser.isFinished());
+            assertTrue(parser.shouldSkip());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -245,14 +266,16 @@ public class PbParserExTest {
         buf.flip();
         buf.mark();
 
+        DecodeContext context = CodecTestUtil.createContext();
         EmptyCallback callback = new EmptyCallback();
-        PbParser parser = new PbParser(callback, buf.remaining() - 1);
+        PbParser parser = new PbParser(context, callback, buf.remaining() - 1);
         try {
             parser.parse(buf);
             fail();
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("size exceed"));
-            assertTrue(parser.isError());
+            assertTrue(parser.isFinished());
+            assertTrue(parser.shouldSkip());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);
@@ -260,13 +283,14 @@ public class PbParserExTest {
 
         buf.reset();
         callback = new EmptyCallback();
-        parser = new PbParser(callback, buf.remaining() - 1);
+        parser = new PbParser(context, callback, buf.remaining() - 1);
         try {
             parseByByte(buf, parser);
             fail();
         } catch (PbException e) {
             assertTrue(e.getMessage().startsWith("size exceed"));
-            assertTrue(parser.isError());
+            assertTrue(parser.isFinished());
+            assertTrue(parser.shouldSkip());
         }
         assertEquals(1, callback.beginCount);
         assertEquals(0, callback.endSuccessCount);

@@ -38,7 +38,7 @@ public class HandshakeBody {
         private final HandshakeBody result = new HandshakeBody();
 
         @Override
-        public HandshakeBody getResult() {
+        protected HandshakeBody getResult() {
             return result;
         }
 
@@ -65,8 +65,8 @@ public class HandshakeBody {
         public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == 8) {
                 ConfigBody.Callback nestedCallback = currentPos == 0 ? new ConfigBody.Callback() : null;
-                nestedCallback = parseNested(index, buf, fieldLen, currentPos, nestedCallback);
-                result.config = nestedCallback.result;
+                result.config = parseNested(index, buf, fieldLen, currentPos, nestedCallback);
+                return !context.getNestedParser().shouldSkip();
             }
             return true;
         }

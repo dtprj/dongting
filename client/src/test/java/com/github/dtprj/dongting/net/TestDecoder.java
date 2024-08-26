@@ -15,19 +15,33 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.codec.CopyDecoder;
+import com.github.dtprj.dongting.codec.CopyDecoderCallback;
 
 import java.nio.ByteBuffer;
 
 /**
  * @author huangli
  */
-class IoFullPackByteBufferDecoder extends CopyDecoder<ByteBuffer> {
+class IoFullPackByteBufferDecoderCallback extends CopyDecoderCallback<ByteBuffer> {
+
+    private ByteBuffer r;
+
     @Override
-    public ByteBuffer decode(ByteBuffer buffer) {
-        ByteBuffer buf = ByteBuffer.allocate(buffer.remaining());
-        buf.put(buffer);
-        buf.flip();
-        return buf;
+    public boolean decode(ByteBuffer buffer) {
+        r = ByteBuffer.allocate(buffer.remaining());
+        r.put(buffer);
+        r.flip();
+        return true;
+    }
+
+    @Override
+    protected ByteBuffer getResult() {
+        return r;
+    }
+
+    @Override
+    public boolean end(boolean success) {
+        r = null;
+        return super.end(success);
     }
 }

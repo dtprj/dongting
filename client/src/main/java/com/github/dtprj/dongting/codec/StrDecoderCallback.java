@@ -13,22 +13,32 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.net;
+package com.github.dtprj.dongting.codec;
 
-import com.github.dtprj.dongting.codec.DecoderCallback;
-
-import java.util.concurrent.Executor;
+import java.nio.ByteBuffer;
 
 /**
+ *
  * @author huangli
  */
-public abstract class ReqProcessor<T> {
+public class StrDecoderCallback extends DecoderCallback<String> {
 
-    Executor executor;
-    boolean useDefaultExecutor;
+    private String s;
 
-    public abstract WritePacket process(ReadPacket<T> packet, ReqContext reqContext) throws Exception;
+    @Override
+    public boolean doDecode(ByteBuffer buf, int fieldLen, int currentPos) {
+        s = parseUTF8(buf, fieldLen, currentPos);
+        return true;
+    }
 
-    public abstract DecoderCallback<T> createDecoder(int command);
+    @Override
+    protected String getResult() {
+        return s;
+    }
 
+    @Override
+    protected boolean end(boolean success) {
+        this.s = null;
+        return success;
+    }
 }

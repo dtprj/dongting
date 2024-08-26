@@ -65,6 +65,11 @@ public class ConfigBody {
             }
             return true;
         }
+
+        @Override
+        protected ConfigBody getResult() {
+            return result;
+        }
     }
 
     public int calcActualBodySize(){

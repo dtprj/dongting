@@ -20,34 +20,105 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public abstract class Decoder<T> {
+public class Decoder {
+    private boolean beginCalled = false;
+    private boolean endCalled = false;
+    private boolean skip = false;
 
-    public final T decode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
-        int oldPos = buffer.position();
-        int oldLimit = buffer.limit();
-        int end = Math.min(oldLimit, oldPos - currentPos + bodyLen);
-        try {
-            if (oldLimit - oldPos > bodyLen - currentPos) {
-                buffer.limit(end);
-            }
-            return doDecode(context, buffer, bodyLen, currentPos);
-        } finally {
-            buffer.limit(oldLimit);
-            buffer.position(end);
+    private DecodeContext context;
+    private DecoderCallback<?> callback;
+
+    public Decoder(DecodeContext context, DecoderCallback<?> callback) {
+        this.context = context;
+        this.callback = callback;
+    }
+
+    public Decoder() {
+    }
+
+    void reset() {
+        if (beginCalled && !endCalled) {
+            callEndAndReset(false);
         }
     }
 
-    protected abstract T doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos);
-
-    public void finish(DecodeContext context) {
-    }
-
-    public static final Decoder<Void> VOID_DECODER = new Decoder<Void>() {
-        @Override
-        public Void doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
+    private Object callEndAndReset(boolean success) {
+        if (endCalled) {
             return null;
         }
+        endCalled = true;
+        try {
+            if (success) {
+                success = callback.end(true);
+            } else {
+                callback.end(false);
+            }
+            if (success) {
+                return callback.getResult();
+            } else {
+                return null;
+            }
+        } finally {
+            context.status = null;
+            callback.context = null;
+            skip = !success;
+        }
+    }
 
-    };
+    public boolean isFinished() {
+        return endCalled;
+    }
+
+    public boolean shouldSkip() {
+        return skip;
+    }
+
+    public void prepareNext(DecodeContext context, DecoderCallback<?> callback) {
+        this.context = context;
+        this.callback = callback;
+
+        callback.context = context;
+
+        this.beginCalled = false;
+        this.endCalled = false;
+        this.skip = false;
+    }
+
+    public final Object decode(ByteBuffer buffer, int bodyLen, int currentPos) {
+        if (endCalled) {
+            throw new CodecException("decode finished");
+        }
+        if (currentPos == 0 && !beginCalled) {
+            beginCalled = true;
+            callback.begin(bodyLen);
+        }
+        if (bodyLen == 0) {
+            return callEndAndReset(true);
+        }
+        int oldPos = buffer.position();
+        int oldLimit = buffer.limit();
+        int endPos = Math.min(oldLimit, oldPos - currentPos + bodyLen);
+        if (skip) {
+            buffer.position(endPos);
+        } else {
+            if (oldLimit > endPos) {
+                buffer.limit(endPos);
+            }
+            try {
+                skip = !callback.doDecode(buffer, bodyLen, currentPos);
+            } catch (RuntimeException | Error e) {
+                skip = true;
+                callEndAndReset(false);
+                throw e;
+            } finally {
+                buffer.limit(oldLimit);
+                buffer.position(endPos);
+            }
+        }
+        if (oldLimit >= endPos) {
+            return callEndAndReset(!skip);
+        }
+        return null;
+    }
 
 }

@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.codec.Decoder;
+import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.BugLog;
@@ -133,14 +133,14 @@ public class NioClient extends NioNet {
         this.startFutures = null;
     }
 
-    public <T> CompletableFuture<ReadPacket<T>> sendRequest(WritePacket request, Decoder<T> decoder, DtTime timeout) {
-        return sendRequest(null, request, decoder, timeout);
+    public <T> CompletableFuture<ReadPacket<T>> sendRequest(WritePacket request, DecoderCallback<T> decoderCallback, DtTime timeout) {
+        return sendRequest(null, request, decoderCallback, timeout);
     }
 
-    public <T> CompletableFuture<ReadPacket<T>> sendRequest(Peer peer, WritePacket request, Decoder<T> decoder,
+    public <T> CompletableFuture<ReadPacket<T>> sendRequest(Peer peer, WritePacket request, DecoderCallback<T> decoderCallback,
                                                             DtTime timeout) {
         CompletableFuture<ReadPacket<T>> f = new CompletableFuture<>();
-        send(worker, peer, request, decoder, timeout, new RpcCallback<T>() {
+        send(worker, peer, request, decoderCallback, timeout, new RpcCallback<T>() {
             @Override
             public void success(ReadPacket<T> resp) {
                 f.complete(resp);
@@ -154,13 +154,13 @@ public class NioClient extends NioNet {
         return f;
     }
 
-    public <T> void sendRequest(WritePacket request, Decoder<T> decoder, DtTime timeout, RpcCallback<T> callback) {
-        send(worker, null, request, decoder, timeout, callback);
+    public <T> void sendRequest(WritePacket request, DecoderCallback<T> decoderCallback, DtTime timeout, RpcCallback<T> callback) {
+        send(worker, null, request, decoderCallback, timeout, callback);
     }
 
-    public <T> void sendRequest(Peer peer, WritePacket request, Decoder<T> decoder, DtTime timeout,
+    public <T> void sendRequest(Peer peer, WritePacket request, DecoderCallback<T> decoderCallback, DtTime timeout,
                                 RpcCallback<T> callback) {
-        send(worker, peer, request, decoder, timeout, callback);
+        send(worker, peer, request, decoderCallback, timeout, callback);
     }
 
     public CompletableFuture<Void> sendOneWay(WritePacket request, DtTime timeout) {

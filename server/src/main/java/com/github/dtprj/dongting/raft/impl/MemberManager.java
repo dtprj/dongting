@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.codec.ByteArrayEncoder;
-import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
+import com.github.dtprj.dongting.codec.PbNoCopyDecoderCallback;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -382,7 +382,7 @@ public class MemberManager {
             boolean result = raftStatus.getLastApplied() >= prepareIndex;
             resultMap.put(n.getNodeId(), CompletableFuture.completedFuture(result));
         } else {
-            final PbNoCopyDecoder<QueryStatusResp> decoder = new PbNoCopyDecoder<>(
+            final PbNoCopyDecoderCallback<QueryStatusResp> decoder = new PbNoCopyDecoderCallback<>(
                     c -> new QueryStatusResp.QueryStatusRespCallback());
             CompletableFuture<Boolean> queryFuture = client.sendRequest(n.getPeer(), new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, groupId),
                             decoder, new DtTime(3, TimeUnit.SECONDS))

@@ -60,15 +60,29 @@ public class ByteArrayEncoder implements Encodable {
         return data;
     }
 
-    public static final Decoder<ByteArrayEncoder> DECODER = new Decoder<ByteArrayEncoder>() {
+    public static final class Callback extends DecoderCallback<ByteArrayEncoder> {
+
+        private byte[] r;
+
         @Override
-        public ByteArrayEncoder doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
-            byte[] bs = ByteArrayDecoder.decode0(context, buffer, bodyLen, currentPos);
-            if (bs != null) {
-                return new ByteArrayEncoder(bs);
-            } else {
+        public boolean doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+            r = parseBytes(buffer, bodyLen, currentPos);
+            return true;
+        }
+
+        @Override
+        protected ByteArrayEncoder getResult() {
+            if (r == null) {
                 return null;
+            } else {
+                return new ByteArrayEncoder(r);
             }
+        }
+
+        @Override
+        protected boolean end(boolean success) {
+            this.r = null;
+            return success;
         }
     };
 }

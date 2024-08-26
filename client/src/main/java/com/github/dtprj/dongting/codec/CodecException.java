@@ -13,22 +13,17 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.net;
+package com.github.dtprj.dongting.codec;
 
-import com.github.dtprj.dongting.codec.DecoderCallback;
-
-import java.util.concurrent.Executor;
+import com.github.dtprj.dongting.common.DtException;
 
 /**
  * @author huangli
  */
-public abstract class ReqProcessor<T> {
+public class CodecException extends DtException {
+    private static final long serialVersionUID = 5411340370121496052L;
 
-    Executor executor;
-    boolean useDefaultExecutor;
-
-    public abstract WritePacket process(ReadPacket<T> packet, ReqContext reqContext) throws Exception;
-
-    public abstract DecoderCallback<T> createDecoder(int command);
-
+    public CodecException(String message) {
+        super(message);
+    }
 }

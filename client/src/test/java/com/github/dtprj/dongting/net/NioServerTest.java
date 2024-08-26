@@ -16,10 +16,10 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.codec.CopyDecoder;
-import com.github.dtprj.dongting.codec.Decoder;
+import com.github.dtprj.dongting.codec.CopyDecoderCallback;
+import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.DtPacket;
-import com.github.dtprj.dongting.codec.RefBufferDecoder;
+import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -99,8 +99,8 @@ public class NioServerTest {
             }
 
             @Override
-            public Decoder createDecoder(int command) {
-                return new IoFullPackByteBufferDecoder();
+            public DecoderCallback createDecoder(int command) {
+                return new IoFullPackByteBufferDecoderCallback();
             }
         });
     }
@@ -391,11 +391,16 @@ public class NioServerTest {
             }
 
             @Override
-            public Decoder<Object> createDecoder(int command) {
-                return new CopyDecoder<>() {
+            public DecoderCallback<Object> createDecoder(int command) {
+                return new CopyDecoderCallback<>() {
                     @Override
-                    public Object decode(ByteBuffer buffer) {
+                    public boolean decode(ByteBuffer buffer) {
                         throw new ArrayIndexOutOfBoundsException();
+                    }
+
+                    @Override
+                    protected Object getResult() {
+                        return null;
                     }
                 };
             }
@@ -432,8 +437,8 @@ public class NioServerTest {
             }
 
             @Override
-            public Decoder createDecoder(int command) {
-                return RefBufferDecoder.INSTANCE;
+            public DecoderCallback createDecoder(int command) {
+                return RefBufferDecoderCallback.INSTANCE;
             }
         }, null);
         server.register(10002, new ReqProcessor() {
@@ -443,8 +448,8 @@ public class NioServerTest {
             }
 
             @Override
-            public Decoder createDecoder(int command) {
-                return RefBufferDecoder.INSTANCE;
+            public DecoderCallback createDecoder(int command) {
+                return RefBufferDecoderCallback.INSTANCE;
             }
         });
         server.register(10003, new ReqProcessor() {
@@ -454,8 +459,8 @@ public class NioServerTest {
             }
 
             @Override
-            public Decoder createDecoder(int command) {
-                return RefBufferDecoder.INSTANCE;
+            public DecoderCallback createDecoder(int command) {
+                return RefBufferDecoderCallback.INSTANCE;
             }
         }, null);
         server.register(10004, new ReqProcessor() {
@@ -465,8 +470,8 @@ public class NioServerTest {
             }
 
             @Override
-            public Decoder createDecoder(int command) {
-                return RefBufferDecoder.INSTANCE;
+            public DecoderCallback createDecoder(int command) {
+                return RefBufferDecoderCallback.INSTANCE;
             }
         });
         server.start();
@@ -540,8 +545,8 @@ public class NioServerTest {
             }
 
             @Override
-            public Decoder createDecoder(int command) {
-                return RefBufferDecoder.INSTANCE;
+            public DecoderCallback createDecoder(int command) {
+                return RefBufferDecoderCallback.INSTANCE;
             }
         });
         server.start();

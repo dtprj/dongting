@@ -31,6 +31,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class PbParserTest {
 
+    private DecodeContext context = CodecTestUtil.createContext();
+
     static class NestedMsg {
         private int f101;
         private String f102;
@@ -97,10 +99,15 @@ public class PbParserTest {
         }
 
         @Override
-        protected void end(boolean success) {
+        protected boolean end(boolean success) {
             endCount++;
+            return success;
         }
 
+        @Override
+        protected NestedMsg getResult() {
+            return msg;
+        }
     }
 
     static class Msg {
@@ -235,13 +242,14 @@ public class PbParserTest {
         }
 
         @Override
-        protected void end(boolean success) {
+        protected boolean end(boolean success) {
             if (success) {
                 endSuccessCount++;
                 afterSuccess();
             } else {
                 endFailCount++;
             }
+            return success;
         }
 
         private void afterSuccess() {
@@ -308,8 +316,10 @@ public class PbParserTest {
                 f4BeginCount += begin ? 1 : 0;
                 f4EndCount += end ? 1 : 0;
             } else if (index == 7) {
-                nestedCallback = parseNested(index, buf, len, currentPos, begin ? new NestedCallback() : null);
-                readMsg.f7 = nestedCallback.msg;
+                if (nestedCallback == null) {
+                    nestedCallback = new NestedCallback();
+                }
+                readMsg.f7 = parseNested(index, buf, len, currentPos, nestedCallback);
             } else {
                 fail();
             }
@@ -331,13 +341,18 @@ public class PbParserTest {
             setF6Count++;
             return true;
         }
+
+        @Override
+        protected Object getResult() {
+            return this;
+        }
     }
 
     @Test
     public void testParse() {
         Callback callback = new Callback(0, 0, "", "", 0, 0, new NestedMsg(0, null));
         ByteBuffer buf = callback.buildPacket();
-        PbParser parser = new PbParser(callback, buf.remaining());
+        PbParser parser = new PbParser(context, callback, buf.remaining());
         parser.parse(buf);
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endSuccessCount);
@@ -345,7 +360,7 @@ public class PbParserTest {
 
         callback = new Callback(100, 200, "msg", "body", 100, 200, new NestedMsg(0, "123"));
         buf = callback.buildPacket();
-        parser = new PbParser(callback, buf.remaining());
+        parser = new PbParser(context, callback, buf.remaining());
         parser.parse(buf);
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endSuccessCount);
@@ -354,7 +369,7 @@ public class PbParserTest {
         callback.reset(Integer.MAX_VALUE, Long.MAX_VALUE, "msg", "body", Integer.MAX_VALUE, Long.MAX_VALUE,
                 new NestedMsg(Integer.MAX_VALUE, "abc"));
         buf = callback.buildPacket();
-        parser.prepareNext(callback, buf.remaining());
+        parser.prepareNext(context, callback, buf.remaining());
         parser.parse(buf);
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endSuccessCount);
@@ -362,7 +377,7 @@ public class PbParserTest {
 
         callback.reset(-1, -1, "msg", "body", -1, -1, new NestedMsg(-1, "abc"));
         buf = callback.buildPacket();
-        parser.prepareNext(callback, buf.remaining());
+        parser.prepareNext(context, callback, buf.remaining());
         parser.parse(buf);
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endSuccessCount);
@@ -370,7 +385,7 @@ public class PbParserTest {
 
         callback.reset(-1000, -2000, "msg", "body", -1000, -2000, new NestedMsg(-10000, null));
         buf = callback.buildPacket();
-        parser.prepareNext(callback, buf.remaining());
+        parser.prepareNext(context, callback, buf.remaining());
         parser.parse(buf);
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endSuccessCount);
@@ -381,7 +396,7 @@ public class PbParserTest {
     public void testSingleParse() {
         Callback callback = new Callback(100, 200, "msg", "body", 100, 200, new NestedMsg(30000, "abc"));
         ByteBuffer buffer = callback.buildPacket();
-        PbParser parser = new PbParser(callback, buffer.remaining());
+        PbParser parser = new PbParser(context, callback, buffer.remaining());
         parser.parse(buffer);
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endSuccessCount);
@@ -392,7 +407,7 @@ public class PbParserTest {
 
         callback.reset(100, 200, "msg", "body", 100, 200, new NestedMsg(30000, "abc"));
         buffer = callback.buildPacket();
-        parser.prepareNext(callback, buffer.remaining());
+        parser.prepareNext(context, callback, buffer.remaining());
         parser.parse(buffer);
         assertEquals(1, callback.beginCount);
         assertEquals(1, callback.endSuccessCount);
@@ -425,7 +440,7 @@ public class PbParserTest {
     private void testHalfParse0(int maxStep, int f1, long f2, String f3, String f4, int f5, long f6, NestedMsg f7) {
         Callback callback = new Callback(f1, f2, f3, f4, f5, f6, f7);
         ByteBuffer buf = callback.buildPacket();
-        PbParser parser = new PbParser(callback, buf.remaining());
+        PbParser parser = new PbParser(context, callback, buf.remaining());
         halfParse(maxStep, parser, buf.array());
 
         assertEquals(1, callback.beginCount);
@@ -520,7 +535,7 @@ public class PbParserTest {
 
         supplier = () -> new Callback(10000, 20000, "msg", "body", 10000, 20000, new NestedMsg(10000, "abc")) {
             @Override
-            protected void end(boolean success) {
+            protected boolean end(boolean success) {
                 throw new ArrayIndexOutOfBoundsException();
             }
         };
@@ -535,7 +550,7 @@ public class PbParserTest {
         Callback callback = callbackBuilder.get();
         ByteBuffer buf = callback.buildPacket();
         int size = buf.remaining();
-        PbParser parser = new PbParser(callback, size);
+        PbParser parser = new PbParser(context, callback, size);
 
         try {
             parser.parse(buf);
@@ -553,30 +568,30 @@ public class PbParserTest {
         Callback callback = callbackBuilder.get();
         ByteBuffer buf = callback.buildPacket();
         int size = buf.remaining();
-        PbParser parser = new PbParser(callback, size);
+        PbParser parser = new PbParser(context, callback, size);
 
         parser.parse(buf);
         assertEquals(expectBegin, callback.beginCount);
         assertEquals(expectEndSuccess, callback.endSuccessCount);
         assertEquals(expectEndFail, callback.endFailCount);
 
-        parser.prepareNext(callback, size);
+        parser.prepareNext(context, callback, size);
         halfParse(1, parser, buf.array());
-        parser.prepareNext(callback, size);
+        parser.prepareNext(context, callback, size);
         halfParse(2, parser, buf.array());
-        parser.prepareNext(callback, size);
+        parser.prepareNext(context, callback, size);
         halfParse(3, parser, buf.array());
-        parser.prepareNext(callback, size);
+        parser.prepareNext(context, callback, size);
         halfParse(4, parser, buf.array());
-        parser.prepareNext(callback, size);
+        parser.prepareNext(context, callback, size);
         halfParse(5, parser, buf.array());
-        parser.prepareNext(callback, size);
+        parser.prepareNext(context, callback, size);
         halfParse(6, parser, buf.array());
-        parser.prepareNext(callback, size);
+        parser.prepareNext(context, callback, size);
         halfParse(7, parser, buf.array());
-        parser.prepareNext(callback, size);
+        parser.prepareNext(context, callback, size);
         halfParse(8, parser, buf.array());
-        parser.prepareNext(callback, size);
+        parser.prepareNext(context, callback, size);
         halfParse(9, parser, buf.array());
 
         assertEquals(expectBegin * 10, callback.beginCount);

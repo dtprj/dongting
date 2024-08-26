@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.codec.Decoder;
+import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.common.DtTime;
 
 /**
@@ -34,26 +34,26 @@ class WriteData {
     // only for request or one way request
     private final Peer peer;
     final RpcCallback<?> callback;
-    private final Decoder<?> respDecoder;
+    private final DecoderCallback<?> respDecoderCallback;
 
     // for request or one way request (client side)
-    public <T> WriteData(Peer peer, WritePacket data, DtTime timeout, RpcCallback<T> callback, Decoder<T> respDecoder) {
+    public <T> WriteData(Peer peer, WritePacket data, DtTime timeout, RpcCallback<T> callback, DecoderCallback<T> respDecoderCallback) {
         this.peer = peer;
         this.data = data;
         this.timeout = timeout;
         this.callback = callback;
-        this.respDecoder = respDecoder;
+        this.respDecoderCallback = respDecoderCallback;
         this.estimateSize = data.calcMaxPacketSize();
     }
 
     // for request or one way request (server push)
-    public <T> WriteData(DtChannelImpl dtc, WritePacket data, DtTime timeout, RpcCallback<T> callback, Decoder<T> respDecoder) {
+    public <T> WriteData(DtChannelImpl dtc, WritePacket data, DtTime timeout, RpcCallback<T> callback, DecoderCallback<T> respDecoderCallback) {
         this.dtc = dtc;
         this.peer = null;
         this.data = data;
         this.timeout = timeout;
         this.callback = callback;
-        this.respDecoder = respDecoder;
+        this.respDecoderCallback = respDecoderCallback;
         this.estimateSize = data.calcMaxPacketSize();
     }
 
@@ -64,7 +64,7 @@ class WriteData {
         this.data = data;
         this.timeout = timeout;
         this.callback = null;
-        this.respDecoder = null;
+        this.respDecoderCallback = null;
         this.estimateSize = data.calcMaxPacketSize();
     }
 
@@ -96,8 +96,8 @@ class WriteData {
         return timeout;
     }
 
-    public Decoder<?> getRespDecoder() {
-        return respDecoder;
+    public DecoderCallback<?> getRespDecoder() {
+        return respDecoderCallback;
     }
 
     public Peer getPeer() {

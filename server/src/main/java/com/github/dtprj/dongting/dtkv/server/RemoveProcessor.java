@@ -15,9 +15,9 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.codec.Decoder;
+import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.PbCallback;
-import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
+import com.github.dtprj.dongting.codec.PbNoCopyDecoderCallback;
 import com.github.dtprj.dongting.codec.StrEncoder;
 import com.github.dtprj.dongting.dtkv.RemoveReq;
 import com.github.dtprj.dongting.net.CmdCodes;
@@ -39,7 +39,7 @@ import java.nio.ByteBuffer;
  */
 public class RemoveProcessor extends AbstractRaftBizProcessor<RemoveReq> {
 
-    private static final PbNoCopyDecoder<RemoveReq> DECODER = new PbNoCopyDecoder<>(c -> new PbCallback<>() {
+    private static final PbNoCopyDecoderCallback<RemoveReq> DECODER = new PbNoCopyDecoderCallback<>(c -> new PbCallback<>() {
         private final RemoveReq result = new RemoveReq();
         @Override
         public boolean readVarNumber(int index, long value) {
@@ -68,7 +68,7 @@ public class RemoveProcessor extends AbstractRaftBizProcessor<RemoveReq> {
     }
 
     @Override
-    public Decoder<RemoveReq> createDecoder(int cmd) {
+    public DecoderCallback<RemoveReq> createDecoder(int cmd) {
         return DECODER;
     }
 

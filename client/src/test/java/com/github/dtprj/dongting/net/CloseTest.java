@@ -16,7 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.codec.RefBufferDecoder;
+import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.TestUtil;
 import com.github.dtprj.dongting.common.Tick;
@@ -80,7 +80,7 @@ public class CloseTest {
 
         ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.allocate(1));
         wf.setCommand(CMD);
-        CompletableFuture<?> f = client.sendRequest(wf, RefBufferDecoder.INSTANCE, new DtTime(10, TimeUnit.SECONDS));
+        CompletableFuture<?> f = client.sendRequest(wf, RefBufferDecoderCallback.INSTANCE, new DtTime(10, TimeUnit.SECONDS));
 
         TestUtil.waitUtil(() -> received);
 
@@ -102,7 +102,7 @@ public class CloseTest {
 
         ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.allocate(1));
         wf.setCommand(CMD);
-        CompletableFuture<?> f = client.sendRequest(wf, RefBufferDecoder.INSTANCE, new DtTime(10, TimeUnit.SECONDS));
+        CompletableFuture<?> f = client.sendRequest(wf, RefBufferDecoderCallback.INSTANCE, new DtTime(10, TimeUnit.SECONDS));
 
         TestUtil.waitUtil(() -> received);
 

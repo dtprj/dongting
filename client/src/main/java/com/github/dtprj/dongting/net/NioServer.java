@@ -16,8 +16,8 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
-import com.github.dtprj.dongting.codec.Decoder;
-import com.github.dtprj.dongting.codec.RefBufferDecoder;
+import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.log.DtLog;
@@ -213,10 +213,10 @@ public class NioServer extends NioNet implements Runnable {
         log.warn("force stop done");
     }
 
-    public <T> CompletableFuture<ReadPacket<T>> sendRequest(DtChannel dtc, WritePacket request, Decoder<T> decoder,
+    public <T> CompletableFuture<ReadPacket<T>> sendRequest(DtChannel dtc, WritePacket request, DecoderCallback<T> decoderCallback,
                                                             DtTime timeout) {
         CompletableFuture<ReadPacket<T>> f = new CompletableFuture<>();
-        push((DtChannelImpl) dtc, request, decoder, timeout, new RpcCallback<T>() {
+        push((DtChannelImpl) dtc, request, decoderCallback, timeout, new RpcCallback<T>() {
             @Override
             public void success(ReadPacket<T> resp) {
                 f.complete(resp);
@@ -230,9 +230,9 @@ public class NioServer extends NioNet implements Runnable {
         return f;
     }
 
-    public <T> void sendRequest(DtChannel dtc, WritePacket request, Decoder<T> decoder, DtTime timeout,
+    public <T> void sendRequest(DtChannel dtc, WritePacket request, DecoderCallback<T> decoderCallback, DtTime timeout,
                                 RpcCallback<T> callback) {
-        push((DtChannelImpl) dtc, request, decoder, timeout, callback);
+        push((DtChannelImpl) dtc, request, decoderCallback, timeout, callback);
     }
 
     public CompletableFuture<Void> sendOneWay(DtChannel dtc, WritePacket request, DtTime timeout) {
@@ -265,7 +265,7 @@ public class NioServer extends NioNet implements Runnable {
 
     public static class PingProcessor extends ReqProcessor<RefBuffer> {
 
-        private static final RefBufferDecoder DECODER = RefBufferDecoder.PLAIN_INSTANCE;
+        private static final RefBufferDecoderCallback DECODER = RefBufferDecoderCallback.PLAIN_INSTANCE;
 
         public PingProcessor() {
         }
@@ -278,7 +278,7 @@ public class NioServer extends NioNet implements Runnable {
         }
 
         @Override
-        public Decoder<RefBuffer> createDecoder(int command) {
+        public DecoderCallback<RefBuffer> createDecoder(int command) {
             return DECODER;
         }
 

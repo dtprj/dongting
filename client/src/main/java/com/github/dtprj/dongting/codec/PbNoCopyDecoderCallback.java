@@ -22,105 +22,106 @@ import java.util.function.Function;
  * @author huangli
  */
 @SuppressWarnings("Convert2Diamond")
-public final class PbNoCopyDecoder<T> extends Decoder<T> {
+public final class PbNoCopyDecoderCallback<T> extends DecoderCallback<T> {
 
     private final Function<DecodeContext, PbCallback<T>> callbackCreator;
+    private PbCallback<T> pbCallback;
 
-    public PbNoCopyDecoder(Function<DecodeContext, PbCallback<T>> callbackCreator) {
+    public PbNoCopyDecoderCallback(Function<DecodeContext, PbCallback<T>> callbackCreator) {
         this.callbackCreator = callbackCreator;
     }
 
     @Override
-    public T doDecode(DecodeContext context, ByteBuffer buffer, int bodyLen, int currentPos) {
-        PbCallback<T> callback;
-        PbParser p = context.nestedParser;
+    protected boolean end(boolean success) {
+        pbCallback = null;
+        return success;
+    }
+
+    @Override
+    protected T getResult() {
+        return pbCallback == null ? null : pbCallback.getResult();
+    }
+
+    @Override
+    public boolean doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
+        PbParser p;
         if (currentPos == 0) {
-            callback = callbackCreator.apply(context);
-            if (p == null) {
-                p = new PbParser(callback, bodyLen);
-                context.nestedParser = p;
-            } else {
-                p.prepareNext(callback, bodyLen);
-            }
+            pbCallback = callbackCreator.apply(context);
+            p = context.prepareNestedParser(pbCallback, bodyLen);
         } else {
-            //noinspection unchecked
-            callback = (PbCallback<T>) p.callback;
+            p = context.nestedParser;
         }
-        boolean end = buffer.remaining() >= bodyLen - currentPos;
         p.parse(buffer);
 
+        boolean end = buffer.remaining() >= bodyLen - currentPos;
         if (end) {
             if (!p.isFinished()) {
                 throw new PbException("parse not finish after read all bytes. bodyLen="
                         + bodyLen + ", currentPos=" + currentPos + "class=" + getClass());
             }
-            return callback.getResult();
         } else {
             if (p.isFinished()) {
                 throw new PbException("parse finished without read all bytes. bodyLen="
                         + bodyLen + ", currentPos=" + currentPos + "class=" + getClass());
             }
-            return null;
         }
+        return true;
     }
 
-    @Override
-    public void finish(DecodeContext context) {
-        PbParser p = context.nestedParser;
-        if (p != null) {
-            p.reset();
-        }
-    }
-
-    public static final PbNoCopyDecoder<Integer> SIMPLE_INT_DECODER = new PbNoCopyDecoder<Integer>(c -> new PbCallback<Integer>() {
-        private int value;
+    public static final class IntCallback extends PbCallback<Integer> {
 
         @Override
         public boolean readFix32(int index, int value) {
             if (index == 1) {
-                this.value = value;
+                this.context.status = value;
             }
             return true;
         }
 
         @Override
-        public Integer getResult() {
-            return value;
+        protected Integer getResult() {
+            return (Integer) this.context.status;
         }
-    });
+    }
 
-    public static final PbNoCopyDecoder<Long> SIMPLE_LONG_DECODER = new PbNoCopyDecoder<Long>(c -> new PbCallback<Long>() {
-        private long value;
+    public static final class LongCallback extends PbCallback<Long> {
 
         @Override
         public boolean readFix64(int index, long value) {
             if (index == 1) {
-                this.value = value;
+                this.context.status = value;
             }
             return true;
         }
 
         @Override
-        public Long getResult() {
-            return value;
+        protected Long getResult() {
+            return (Long) this.context.status;
         }
-    });
+    }
 
-    public static final PbNoCopyDecoder<String> SIMPLE_STR_DECODER = new PbNoCopyDecoder<String>(c -> new PbCallback<String>() {
-        private String value;
+    public static final class StringCallback extends PbCallback<String> {
+
+        private String s;
 
         @Override
         public boolean readBytes(int index, ByteBuffer buf, int fieldLen, int currentPos) {
             if (index == 1) {
-                value = parseUTF8(buf, fieldLen, currentPos);
+                s = parseUTF8(buf, fieldLen, currentPos);
             }
             return true;
         }
 
         @Override
-        public String getResult() {
-            return value;
+        protected String getResult() {
+            return s;
         }
-    });
+
+        @Override
+        protected boolean end(boolean success) {
+            s = null;
+            return success;
+        }
+    }
 
 }

@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.codec.Decoder;
-import com.github.dtprj.dongting.codec.PbNoCopyDecoder;
+import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.codec.PbNoCopyDecoderCallback;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -63,7 +63,7 @@ public class VoteManager {
     private HashSet<Integer> votes;
     private int currentVoteId;
 
-    private static final Decoder<VoteResp> RESP_DECODER = new PbNoCopyDecoder<>(c -> new VoteResp.Callback());
+    private static final DecoderCallback<VoteResp> RESP_DECODE_CALLBACK = new PbNoCopyDecoderCallback<>(c -> new VoteResp.Callback());
 
     public VoteManager(NioClient client, GroupComponents gc) {
         this.gc = gc;
@@ -189,7 +189,7 @@ public class VoteManager {
             fireRespProcessFiber(req, resp, null, member, voteIdOfRequest);
         } else {
             CompletableFuture<ReadPacket<VoteResp>> f = client.sendRequest(member.getNode().getPeer(), wf,
-                    RESP_DECODER, timeout);
+                    RESP_DECODE_CALLBACK, timeout);
             log.info("send {} request. remoteNode={}, groupId={}, term={}, lastLogIndex={}, lastLogTerm={}",
                     preVote ? "pre-vote" : "vote", member.getNode().getNodeId(), groupId,
                     currentTerm, req.getLastLogIndex(), req.getLastLogTerm());
