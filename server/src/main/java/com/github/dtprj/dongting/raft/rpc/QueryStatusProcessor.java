@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoderCallback;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -34,7 +35,7 @@ public class QueryStatusProcessor extends RaftSequenceProcessor<Integer> {
     }
 
     @Override
-    public DecoderCallback<Integer> createDecoder(int command) {
+    public DecoderCallback<Integer> createDecoder(int command, DecodeContext context) {
         return new PbNoCopyDecoderCallback<>(PbNoCopyDecoderCallback.IntCallback::new);
     }
 

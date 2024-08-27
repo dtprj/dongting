@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoderCallback;
@@ -38,7 +39,7 @@ import java.nio.ByteBuffer;
  */
 public class PutProcessor extends AbstractRaftBizProcessor<PutReq> {
 
-    private static final PbNoCopyDecoderCallback<PutReq> DECODER = new PbNoCopyDecoderCallback<>(() -> new PbCallback<>() {
+    private static final class PutReqDecoderCallback extends PbCallback<PutReq> {
 
         private final PutReq result = new PutReq();
 
@@ -64,7 +65,7 @@ public class PutProcessor extends AbstractRaftBizProcessor<PutReq> {
         public PutReq getResult() {
             return result;
         }
-    });
+    }
 
     public PutProcessor(RaftServer raftServer) {
         super(raftServer);
@@ -72,8 +73,8 @@ public class PutProcessor extends AbstractRaftBizProcessor<PutReq> {
 
 
     @Override
-    public DecoderCallback<PutReq> createDecoder(int cmd) {
-        return DECODER;
+    public DecoderCallback<PutReq> createDecoder(int cmd, DecodeContext context) {
+        return new PbNoCopyDecoderCallback<>(PutReqDecoderCallback::new);
     }
 
     @Override

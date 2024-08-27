@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.common.DtTime;
@@ -265,8 +266,6 @@ public class NioServer extends NioNet implements Runnable {
 
     public static class PingProcessor extends ReqProcessor<RefBuffer> {
 
-        private static final RefBufferDecoderCallback DECODER = new RefBufferDecoderCallback(true);
-
         public PingProcessor() {
         }
 
@@ -278,8 +277,8 @@ public class NioServer extends NioNet implements Runnable {
         }
 
         @Override
-        public DecoderCallback<RefBuffer> createDecoder(int command) {
-            return DECODER;
+        public DecoderCallback<RefBuffer> createDecoder(int command, DecodeContext c) {
+            return new RefBufferDecoderCallback(true);
         }
 
     }

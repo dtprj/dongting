@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoderCallback;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -36,8 +37,6 @@ import com.github.dtprj.dongting.raft.server.RaftServer;
 public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeaderReq> {
 
     private static final DtLog log = DtLogs.getLogger(TransferLeaderProcessor.class);
-
-    private static final DecoderCallback<TransferLeaderReq> DECODE_CALLBACK = new PbNoCopyDecoderCallback<>(TransferLeaderReq.Callback::new);
 
     public TransferLeaderProcessor(RaftServer raftServer) {
         super(raftServer);
@@ -83,7 +82,7 @@ public class TransferLeaderProcessor extends RaftSequenceProcessor<TransferLeade
     }
 
     @Override
-    public DecoderCallback<TransferLeaderReq> createDecoder(int command) {
-        return DECODE_CALLBACK;
+    public DecoderCallback<TransferLeaderReq> createDecoder(int command, DecodeContext context) {
+        return new PbNoCopyDecoderCallback<>(TransferLeaderReq.Callback::new);
     }
 }

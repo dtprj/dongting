@@ -274,7 +274,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 }
             }
             if (currentDecoderCallback == null) {
-                currentDecoderCallback = processorForRequest.createDecoder(packet.getCommand());
+                currentDecoderCallback = processorForRequest.createDecoder(packet.getCommand(), decodeContext);
             }
         }
         return true;

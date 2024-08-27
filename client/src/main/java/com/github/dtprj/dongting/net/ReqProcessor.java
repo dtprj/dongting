@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 
 import java.util.concurrent.Executor;
@@ -29,6 +30,6 @@ public abstract class ReqProcessor<T> {
 
     public abstract WritePacket process(ReadPacket<T> packet, ReqContext reqContext) throws Exception;
 
-    public abstract DecoderCallback<T> createDecoder(int command);
+    public abstract DecoderCallback<T> createDecoder(int command, DecodeContext context);
 
 }

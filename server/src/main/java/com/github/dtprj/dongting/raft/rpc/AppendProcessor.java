@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.raft.rpc;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.PbNoCopyDecoderCallback;
 import com.github.dtprj.dongting.common.Pair;
@@ -61,18 +62,14 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
     public static final int APPEND_NOT_MEMBER_IN_GROUP = 5;
     public static final int APPEND_SERVER_ERROR = 6;
 
-    private final PbNoCopyDecoderCallback<AppendReqCallback> appendDecoder;
-
-    private static final DecoderCallback<InstallSnapshotReq> INSTALL_SNAPSHOT_DECODE_CALLBACK = new PbNoCopyDecoderCallback<>(
-            InstallSnapshotReq.Callback::new);
+    private final Function<Integer, RaftCodecFactory> decoderFactory;
 
     public AppendProcessor(RaftServer raftServer) {
         super(raftServer);
-        Function<Integer, RaftCodecFactory> decoderFactory = groupId -> {
+        this.decoderFactory = groupId -> {
             RaftGroup g = raftServer.getRaftGroup(groupId);
             return g == null ? null : g.getStateMachine();
         };
-        this.appendDecoder = new PbNoCopyDecoderCallback<>(() -> new AppendReqCallback(decoderFactory));
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -103,11 +100,11 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     @Override
-    public DecoderCallback createDecoder(int command) {
+    public DecoderCallback createDecoder(int command, DecodeContext context) {
         if (command == Commands.RAFT_APPEND_ENTRIES) {
-            return appendDecoder;
+            return new PbNoCopyDecoderCallback<>(() -> new AppendReqCallback(decoderFactory));
         } else {
-            return INSTALL_SNAPSHOT_DECODE_CALLBACK;
+            return new PbNoCopyDecoderCallback<>(InstallSnapshotReq.Callback::new);
         }
     }
 

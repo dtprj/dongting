@@ -33,7 +33,6 @@ import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.raft.QueryStatusResp;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.rpc.RaftPingPacketCallback;
-import com.github.dtprj.dongting.raft.rpc.RaftPingProcessor;
 import com.github.dtprj.dongting.raft.rpc.RaftPingWritePacket;
 import com.github.dtprj.dongting.raft.rpc.TransferLeaderReq;
 import com.github.dtprj.dongting.raft.server.LogItem;
@@ -212,7 +211,7 @@ public class MemberManager {
             DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
             RaftPingWritePacket f = new RaftPingWritePacket(groupId, serverConfig.getNodeId(),
                     raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers());
-            client.sendRequest(raftNodeEx.getPeer(), f, RaftPingProcessor.DECODER, timeout)
+            client.sendRequest(raftNodeEx.getPeer(), f, new PbNoCopyDecoderCallback<>(RaftPingPacketCallback::new), timeout)
                     .whenCompleteAsync((rf, ex) -> processPingResult(raftNodeEx, member, rf, ex, nodeEpochWhenStartPing),
                             groupConfig.getFiberGroup().getExecutor());
         } catch (Exception e) {

@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.CopyDecoderCallback;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.DtPacket;
 import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
@@ -99,7 +100,7 @@ public class NioServerTest {
             }
 
             @Override
-            public DecoderCallback createDecoder(int command) {
+            public DecoderCallback createDecoder(int command, DecodeContext context) {
                 return new IoFullPackByteBufferDecoderCallback();
             }
         });
@@ -391,7 +392,7 @@ public class NioServerTest {
             }
 
             @Override
-            public DecoderCallback<Object> createDecoder(int command) {
+            public DecoderCallback<Object> createDecoder(int command, DecodeContext context) {
                 return new CopyDecoderCallback<>() {
                     @Override
                     public boolean decode(ByteBuffer buffer) {
@@ -437,7 +438,7 @@ public class NioServerTest {
             }
 
             @Override
-            public DecoderCallback createDecoder(int command) {
+            public DecoderCallback createDecoder(int command, DecodeContext context) {
                 return new RefBufferDecoderCallback();
             }
         }, null);
@@ -448,7 +449,7 @@ public class NioServerTest {
             }
 
             @Override
-            public DecoderCallback createDecoder(int command) {
+            public DecoderCallback createDecoder(int command, DecodeContext context) {
                 return new RefBufferDecoderCallback();
             }
         });
@@ -459,7 +460,7 @@ public class NioServerTest {
             }
 
             @Override
-            public DecoderCallback createDecoder(int command) {
+            public DecoderCallback createDecoder(int command, DecodeContext context) {
                 return new RefBufferDecoderCallback();
             }
         }, null);
@@ -470,7 +471,7 @@ public class NioServerTest {
             }
 
             @Override
-            public DecoderCallback createDecoder(int command) {
+            public DecoderCallback createDecoder(int command, DecodeContext context) {
                 return new RefBufferDecoderCallback();
             }
         });
@@ -545,7 +546,7 @@ public class NioServerTest {
             }
 
             @Override
-            public DecoderCallback createDecoder(int command) {
+            public DecoderCallback createDecoder(int command, DecodeContext context) {
                 return new RefBufferDecoderCallback();
             }
         });
