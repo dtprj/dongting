@@ -30,6 +30,8 @@ public class DecodeContext {
     private final RefBufferFactory heapPool;
     PbParser nestedParser;
     Decoder nestedDecoder;
+
+    // reset in PbParser and Decoder
     Object status;
 
     private DecodeContext nestedContext;
@@ -68,7 +70,6 @@ public class DecodeContext {
         if (nestedDecoder != null) {
             nestedDecoder.reset();
         }
-        status = null;
     }
 
     public DecodeContext createOrGetNestedContext() {
