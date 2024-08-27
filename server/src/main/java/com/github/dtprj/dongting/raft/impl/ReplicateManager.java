@@ -143,9 +143,6 @@ abstract class AbstractLeaderRepFrame extends FiberFrame<Void> {
     protected final int groupId;
     protected final RaftMember member;
 
-    protected static final PbNoCopyDecoderCallback<AppendRespCallback> APPEND_RESP_DECODER =
-            new PbNoCopyDecoderCallback<>(AppendRespCallback::new);
-
     public AbstractLeaderRepFrame(ReplicateManager replicateManager, RaftMember member) {
         this.groupId = replicateManager.groupId;
         this.member = member;
@@ -366,7 +363,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         long perfStartTime = perfCallback.takeTime(PerfConsts.RAFT_D_REPLICATE_RPC);
         // release in AppendReqWritePacket
         CompletableFuture<ReadPacket<AppendRespCallback>> f = client.sendRequest(member.getNode().getPeer(),
-                req, APPEND_RESP_DECODER, timeout);
+                req, new PbNoCopyDecoderCallback<>(AppendRespCallback::new), timeout);
 
         long bytes = 0;
         for (int size = items.size(), i = 0; i < size; i++) {
@@ -687,7 +684,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         wf.setCommand(Commands.RAFT_INSTALL_SNAPSHOT);
         DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
         CompletableFuture<ReadPacket<AppendRespCallback>> future = client.sendRequest(
-                member.getNode().getPeer(), wf, APPEND_RESP_DECODER, timeout);
+                member.getNode().getPeer(), wf, new PbNoCopyDecoderCallback<>(AppendRespCallback::new), timeout);
         int bytes = data == null ? 0 : data.getBuffer().remaining();
         snapshotOffset += bytes;
         FiberFuture<Void> f = getFiberGroup().newFuture("install-" + groupId + "-" + req.offset);
