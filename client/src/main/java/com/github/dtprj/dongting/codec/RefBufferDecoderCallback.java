@@ -24,13 +24,14 @@ import java.nio.ByteBuffer;
  */
 public class RefBufferDecoderCallback extends DecoderCallback<RefBuffer> {
 
-    public static final RefBufferDecoderCallback INSTANCE = new RefBufferDecoderCallback(false);
-    public static final RefBufferDecoderCallback PLAIN_INSTANCE = new RefBufferDecoderCallback(true);
-
     private final boolean plain;
     private RefBuffer r;
 
-    private RefBufferDecoderCallback(boolean plain) {
+    public RefBufferDecoderCallback() {
+        this(false);
+    }
+
+    public RefBufferDecoderCallback(boolean plain) {
         this.plain = plain;
     }
 

@@ -85,7 +85,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
             case BIZ_TYPE_REMOVE:
                 return null;
             case BIZ_TYPE_PUT:
-                return RefBufferDecoderCallback.INSTANCE;
+                return new RefBufferDecoderCallback();
             default:
                 throw new IllegalArgumentException("unknown bizType " + bizType);
         }

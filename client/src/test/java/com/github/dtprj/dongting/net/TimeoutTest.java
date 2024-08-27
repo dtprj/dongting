@@ -80,7 +80,7 @@ public class TimeoutTest {
     private CompletableFuture<?> send(DtTime timeout, int bytes) {
         ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.allocate(bytes));
         wf.setCommand(CMD);
-        return client.sendRequest(wf, RefBufferDecoderCallback.INSTANCE, timeout);
+        return client.sendRequest(wf, new RefBufferDecoderCallback(), timeout);
     }
 
     private void registerDelayPingProcessor(CountDownLatch latch1, CountDownLatch latch2) {

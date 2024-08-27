@@ -256,7 +256,7 @@ public class NioClientTest {
     }
 
     private static void sendSync(int maxBodySize, NioClient client, long timeoutMillis) throws Exception {
-        sendSync(maxBodySize, client, timeoutMillis, RefBufferDecoderCallback.INSTANCE);
+        sendSync(maxBodySize, client, timeoutMillis, new RefBufferDecoderCallback());
         sendSync(maxBodySize, client, timeoutMillis, new IoFullPackByteBufferDecoderCallback());
     }
 
@@ -293,7 +293,7 @@ public class NioClientTest {
         wf.setCommand(Commands.CMD_PING);
 
         CompletableFuture<ReadPacket<RefBuffer>> f = client.sendRequest(peer, wf,
-                RefBufferDecoderCallback.INSTANCE, new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
+                new RefBufferDecoderCallback(), new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
         ReadPacket<RefBuffer> rf = f.get(5000, TimeUnit.MILLISECONDS);
         assertEquals(wf.getSeq(), rf.getSeq());
         assertEquals(PacketType.TYPE_RESP, rf.getPacketType());
@@ -311,7 +311,7 @@ public class NioClientTest {
         wf.setCommand(Commands.CMD_PING);
 
         CompletableFuture<ReadPacket<RefBuffer>> f = client.sendRequest(wf,
-                RefBufferDecoderCallback.INSTANCE, new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
+                new RefBufferDecoderCallback(), new DtTime(timeoutMillis, TimeUnit.MILLISECONDS));
         return f.thenApply(rf -> {
             assertEquals(wf.getSeq(), rf.getSeq());
             assertEquals(PacketType.TYPE_RESP, rf.getPacketType());
@@ -672,7 +672,7 @@ public class NioClientTest {
         for (int i = 0; i < loop; i++) {
             ByteBufferWritePacket wf = new ByteBufferWritePacket(ByteBuffer.wrap(bs));
             wf.setCommand(Commands.CMD_PING);
-            CompletableFuture<?> f = client.sendRequest(wf, RefBufferDecoderCallback.INSTANCE,
+            CompletableFuture<?> f = client.sendRequest(wf, new RefBufferDecoderCallback(),
                     new DtTime(100, TimeUnit.SECONDS));
             int index = i;
             allFutures[i] = f.handle((v, e) -> {
