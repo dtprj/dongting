@@ -87,6 +87,8 @@ public class PbParser {
         this.size = DtUtil.checkNotNegative(size, "size");
         this.status = STATUS_INIT;
 
+        context.status = null;
+
         callback.context = context;
         callback.parser = this;
 

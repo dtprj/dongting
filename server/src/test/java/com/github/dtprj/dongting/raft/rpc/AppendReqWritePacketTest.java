@@ -40,12 +40,12 @@ public class AppendReqWritePacketTest {
     private final RaftCodecFactory raftCodecFactory = new RaftCodecFactory() {
 
         @Override
-        public DecoderCallback<? extends Encodable> createBodyDecoder(int bizType) {
+        public DecoderCallback<? extends Encodable> createBodyCallback(int bizType, DecodeContext context) {
             return new ByteArrayEncoder.Callback();
         }
 
         @Override
-        public DecoderCallback<? extends Encodable> createHeaderDecoder(int bizType) {
+        public DecoderCallback<? extends Encodable> createHeaderCallback(int bizType, DecodeContext context) {
             return new ByteArrayEncoder.Callback();
         }
     };

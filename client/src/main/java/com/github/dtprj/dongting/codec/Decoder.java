@@ -77,6 +77,7 @@ public class Decoder {
         this.context = context;
         this.callback = callback;
 
+        context.status = null;
         callback.context = context;
 
         this.beginCalled = false;

@@ -64,6 +64,7 @@ class FileLogLoader implements RaftLog.LogIterator {
     private final LogHeader header = new LogHeader();
     private final RaftCodecFactory codecFactory;
     private final DecodeContext decodeContext;
+    private final Decoder decoder;
 
     private boolean error;
     private boolean close;
@@ -93,6 +94,7 @@ class FileLogLoader implements RaftLog.LogIterator {
         this.directPool = t.getDirectPool();
         this.readBuffer = directPool.borrow(readBufferSize);
         this.decodeContext = new DecodeContext(t.getHeapPool());
+        this.decoder = new Decoder();
         reset();
     }
 
@@ -131,7 +133,6 @@ class FileLogLoader implements RaftLog.LogIterator {
 
         private int totalReadBytes;
         private int currentReadBytes;
-        private Decoder decoder;
         private final List<LogItem> result = new LinkedList<>();
         private int state = STATE_ITEM_HEADER;
         private LogItem item;
@@ -151,10 +152,7 @@ class FileLogLoader implements RaftLog.LogIterator {
 
         @Override
         protected FrameCallResult doFinally() {
-            if (decoder != null) {
-                decodeContext.reset(decoder);
-                decoder = null;
-            }
+            decodeContext.reset(decoder);
             return Fiber.frameReturn();
         }
 
@@ -324,18 +322,14 @@ class FileLogLoader implements RaftLog.LogIterator {
         private boolean readData(ByteBuffer buf, int dataLen, boolean isHeader) {
             if (dataLen - currentReadBytes > 0 && buf.remaining() > 0) {
                 int oldPos = buf.position();
-                if (decoder == null) {
-                    DecoderCallback<?> callback;
-                    if (header.type == LogItem.TYPE_NORMAL) {
-                        callback = isHeader ? codecFactory.createHeaderDecoder(header.bizType)
-                                : codecFactory.createBodyDecoder(header.bizType);
-                    } else {
-                        callback = new ByteArrayEncoder.Callback();
-                    }
-                    decoder = decodeContext.prepareNestedDecoder(callback, dataLen);
+                DecoderCallback<?> callback;
+                if (header.type == LogItem.TYPE_NORMAL) {
+                    callback = isHeader ? codecFactory.createHeaderCallback(header.bizType, decodeContext)
+                            : codecFactory.createBodyCallback(header.bizType, decodeContext);
                 } else {
-                    decoder = decodeContext.getNestedDecoder();
+                    callback = new ByteArrayEncoder.Callback();
                 }
+                decoder.prepareNext(decodeContext, callback);
                 Encodable result = (Encodable) decoder.decode(buf, dataLen, currentReadBytes);
                 int read = buf.position() - oldPos;
                 if (read > 0) {
@@ -348,7 +342,6 @@ class FileLogLoader implements RaftLog.LogIterator {
                     } else {
                         item.setBody(result);
                     }
-                    decoder = null;
                 }
             }
             if (dataLen - currentReadBytes <= 0 && buf.remaining() >= 4) {

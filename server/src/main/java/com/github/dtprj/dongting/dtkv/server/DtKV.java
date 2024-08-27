@@ -16,6 +16,7 @@
 package com.github.dtprj.dongting.dtkv.server;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
@@ -67,7 +68,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     }
 
     @Override
-    public DecoderCallback<? extends Encodable> createHeaderDecoder(int bizType) {
+    public DecoderCallback<? extends Encodable> createHeaderCallback(int bizType, DecodeContext context) {
         switch (bizType) {
             case BIZ_TYPE_GET:
             case BIZ_TYPE_REMOVE:
@@ -79,7 +80,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     }
 
     @Override
-    public DecoderCallback<? extends Encodable> createBodyDecoder(int bizType) {
+    public DecoderCallback<? extends Encodable> createBodyCallback(int bizType, DecodeContext context) {
         switch (bizType) {
             case BIZ_TYPE_GET:
             case BIZ_TYPE_REMOVE:
