@@ -32,6 +32,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
@@ -418,11 +419,8 @@ public class NioServerTest {
             assertEquals(CmdCodes.SUCCESS, invoke(2, CMD_BIZ_PING1, 5000, in, out));
             assertEquals(CmdCodes.SUCCESS, invoke(2, CMD_BIZ_PING2, 5000, in, out));
 
-            assertEquals(CmdCodes.BIZ_ERROR, invoke(3, 10001, 5000, in, out));
+            assertThrows(EOFException.class, () -> invoke(3, 10001, 5000, in, out));
 
-            assertEquals(CmdCodes.SUCCESS, invoke(5, CMD_IO_PING, 5000, in, out));
-            assertEquals(CmdCodes.SUCCESS, invoke(6, CMD_BIZ_PING1, 5000, in, out));
-            assertEquals(CmdCodes.SUCCESS, invoke(7, CMD_BIZ_PING2, 5000, in, out));
         } finally {
             DtUtil.close(s);
         }

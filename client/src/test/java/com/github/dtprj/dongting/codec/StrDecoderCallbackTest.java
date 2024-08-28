@@ -78,7 +78,6 @@ public class StrDecoderCallbackTest {
         buf.clear();
         buf.position(10);
         buf.limit(100);
-        decoder.prepareNext(decodeContext, callback);
         String s = (String) decoder.decode(buf, 100, 10);
         assertEquals(new String(bytes, 0, 100), s);
 
@@ -89,8 +88,6 @@ public class StrDecoderCallbackTest {
         buf.clear();
         buf.position(10);
         buf.limit(buf.capacity());
-
-        decoder.prepareNext(decodeContext, callback);
         s = (String) decoder.decode(buf, buf.capacity(), 10);
         assertEquals(new String(bytes, 0, buf.capacity()), s);
     }
@@ -103,12 +100,10 @@ public class StrDecoderCallbackTest {
         buf.clear();
         buf.position(10);
         buf.limit(20);
-        decoder.prepareNext(decodeContext, callback);
         assertNull(decoder.decode(buf, 100, 10));
         buf.clear();
         buf.position(20);
         buf.limit(100);
-        decoder.prepareNext(decodeContext, callback);
         String s = (String) decoder.decode(buf, 100, 20);
         assertEquals(new String(bytes, 0, 100), s);
 
@@ -119,12 +114,10 @@ public class StrDecoderCallbackTest {
         buf.clear();
         buf.position(10);
         buf.limit(20);
-        decoder.prepareNext(decodeContext, callback);
         assertNull(decoder.decode(buf, buf.capacity(), 10));
         buf.clear();
         buf.position(20);
         buf.limit(buf.capacity());
-        decoder.prepareNext(decodeContext, callback);
         s = (String) decoder.decode(buf, buf.capacity(), 20);
         assertEquals(new String(bytes, 0, buf.capacity()), s);
     }

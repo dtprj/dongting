@@ -233,6 +233,13 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         }
         try {
             packet.body = decoder.decode(buf, fieldLen, currentPos);
+        } catch (RuntimeException | Error e) {
+            if (packet.packetType == PacketType.TYPE_RESP) {
+                if (requestForResp != null) {
+                    requestForResp.callFail(false, e);
+                }
+            }
+            throw e;
         } finally {
             if (end) {
                 // so if the body is not last field, exception throws

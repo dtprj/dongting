@@ -53,6 +53,8 @@ public class PbParser {
         this.callback = Objects.requireNonNull(callback);
         this.context = Objects.requireNonNull(context);
         callback.context = context;
+        callback.parser = this;
+        context.status = null;
         this.size = DtUtil.checkNotNegative(size, "size");
         this.status = STATUS_INIT;
     }
@@ -124,7 +126,7 @@ public class PbParser {
     private Object parse0(ByteBuffer buf) {
         int remain = buf.remaining();
         PbCallback<?> callback = this.callback;
-        while (remain > 0) {
+        while (true) {
             switch (this.status) {
                 case STATUS_INIT:
                     callBegin(callback, size);
@@ -158,8 +160,10 @@ public class PbParser {
                 default:
                     throw new PbException("invalid status: " + status);
             }
+            if (remain <= 0) {
+                return null;
+            }
         }
-        return null;
     }
 
     private Object callEnd(PbCallback<?> callback, boolean success) {

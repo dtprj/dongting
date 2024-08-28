@@ -25,6 +25,7 @@ public final class PbNoCopyDecoderCallback<T> extends DecoderCallback<T> {
 
     private final Supplier<PbCallback<T>> callbackCreator;
     private PbCallback<T> pbCallback;
+    private Object result;
 
     public PbNoCopyDecoderCallback(Supplier<PbCallback<T>> callbackCreator) {
         this.callbackCreator = callbackCreator;
@@ -33,12 +34,13 @@ public final class PbNoCopyDecoderCallback<T> extends DecoderCallback<T> {
     @Override
     protected boolean end(boolean success) {
         pbCallback = null;
+        result = null;
         return success;
     }
 
     @Override
     protected T getResult() {
-        return pbCallback == null ? null : pbCallback.getResult();
+        return (T) result;
     }
 
     @Override
@@ -50,18 +52,18 @@ public final class PbNoCopyDecoderCallback<T> extends DecoderCallback<T> {
         } else {
             p = context.nestedParser;
         }
-        p.parse(buffer);
-
         boolean end = buffer.remaining() >= bodyLen - currentPos;
+        result = p.parse(buffer);
+
         if (end) {
             if (!p.isFinished()) {
                 throw new PbException("parse not finish after read all bytes. bodyLen="
-                        + bodyLen + ", currentPos=" + currentPos + "class=" + getClass());
+                        + bodyLen + ", currentPos=" + currentPos + ", callback=" + pbCallback);
             }
         } else {
             if (p.isFinished()) {
                 throw new PbException("parse finished without read all bytes. bodyLen="
-                        + bodyLen + ", currentPos=" + currentPos + "class=" + getClass());
+                        + bodyLen + ", currentPos=" + currentPos + ", callback=" + pbCallback);
             }
         }
         return true;

@@ -31,6 +31,8 @@ public class Decoder {
     public Decoder(DecodeContext context, DecoderCallback<?> callback) {
         this.context = context;
         this.callback = callback;
+        context.status = null;
+        callback.context = context;
     }
 
     public Decoder() {
@@ -49,13 +51,11 @@ public class Decoder {
         endCalled = true;
         try {
             if (success) {
+                Object o = callback.getResult();
                 success = callback.end(true);
+                return o;
             } else {
                 callback.end(false);
-            }
-            if (success) {
-                return callback.getResult();
-            } else {
                 return null;
             }
         } finally {
@@ -93,33 +93,42 @@ public class Decoder {
             beginCalled = true;
             callback.begin(bodyLen);
         }
-        if (bodyLen == 0) {
-            return callEndAndReset(true);
-        }
         int oldPos = buffer.position();
         int oldLimit = buffer.limit();
-        int endPos = Math.min(oldLimit, oldPos - currentPos + bodyLen);
-        if (skip) {
-            buffer.position(endPos);
-        } else {
-            if (oldLimit > endPos) {
-                buffer.limit(endPos);
+        int endPos = oldPos + bodyLen - currentPos;
+        try {
+            if (skip) {
+                buffer.position(Math.min(oldLimit, endPos));
+                return null;
+            } else {
+                if (oldLimit >= endPos) {
+                    buffer.limit(endPos);
+                    try {
+                        skip = !callback.doDecode(buffer, bodyLen, currentPos);
+                    } finally {
+                        buffer.limit(oldLimit);
+                        buffer.position(endPos);
+                    }
+                    return callback.getResult();
+                } else {
+                    try {
+                        skip = !callback.doDecode(buffer, bodyLen, currentPos);
+                    } finally {
+                        buffer.limit(oldLimit);
+                        buffer.position(oldLimit);
+                    }
+                    return null;
+                }
             }
-            try {
-                skip = !callback.doDecode(buffer, bodyLen, currentPos);
-            } catch (RuntimeException | Error e) {
-                skip = true;
-                callEndAndReset(false);
-                throw e;
-            } finally {
-                buffer.limit(oldLimit);
-                buffer.position(endPos);
+        } catch (RuntimeException | Error e) {
+            skip = true;
+            callEndAndReset(false);
+            throw e;
+        } finally {
+            if (oldLimit >= endPos) {
+                callEndAndReset(!skip);
             }
         }
-        if (oldLimit >= endPos) {
-            return callEndAndReset(!skip);
-        }
-        return null;
     }
 
 }

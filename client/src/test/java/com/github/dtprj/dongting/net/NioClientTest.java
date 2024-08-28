@@ -732,12 +732,7 @@ public class NioClientTest {
                 assertEquals(MockRuntimeException.class, e.getCause().getClass());
             }
         }
-
-        // not affect the following requests
-        for (int i = 0; i < 10; i++) {
-            sendSync(5000, client, tick(1000));
-        }
-
+        TestUtil.waitUtil(() -> client.getPeers().get(0).getStatus() == PeerStatus.not_connect);
     }
 
     @Test
