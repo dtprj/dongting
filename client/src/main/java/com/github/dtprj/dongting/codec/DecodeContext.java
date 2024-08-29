@@ -88,7 +88,7 @@ public class DecodeContext {
         return nestedParser;
     }
 
-    public Decoder prepareNestedDecoder(DecoderCallback<?> nestedCallback, int len) {
+    public Decoder prepareNestedDecoder(DecoderCallback<?> nestedCallback) {
         if (nestedDecoder == null) {
             nestedDecoder = new Decoder(createOrGetNestedContext(), nestedCallback);
         } else {

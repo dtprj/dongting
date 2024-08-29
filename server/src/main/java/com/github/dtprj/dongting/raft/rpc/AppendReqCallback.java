@@ -233,7 +233,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                     } else {
                         currentDecoderCallback = new ByteArrayEncoder.Callback();
                     }
-                    d = context.prepareNestedDecoder(currentDecoderCallback, len);
+                    d = context.prepareNestedDecoder(currentDecoderCallback);
                 } else {
                     d = context.getNestedDecoder();
                 }
@@ -250,7 +250,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                     } else {
                         currentDecoderCallback = new ByteArrayEncoder.Callback();
                     }
-                    d = context.prepareNestedDecoder(currentDecoderCallback, len);
+                    d = context.prepareNestedDecoder(currentDecoderCallback);
                 } else {
                     d = context.getNestedDecoder();
                 }

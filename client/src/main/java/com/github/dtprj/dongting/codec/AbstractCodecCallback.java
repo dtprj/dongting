@@ -186,7 +186,7 @@ public abstract class AbstractCodecCallback<T> {
                                       DecoderCallback<X> nestedCallback) {
         Decoder nestedDecoder;
         if (currentPos == 0) {
-            nestedDecoder = context.prepareNestedDecoder(nestedCallback, fieldLen);
+            nestedDecoder = context.prepareNestedDecoder(nestedCallback);
         } else {
             nestedDecoder = context.nestedDecoder;
         }
