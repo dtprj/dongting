@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.fiber;
 
 import com.github.dtprj.dongting.common.DtException;
-import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.LongObjMap;
 import com.github.dtprj.dongting.log.BugLog;
@@ -345,7 +344,7 @@ public class FiberGroup {
         return dispatcher;
     }
 
-    public DtThread getThread() {
+    public DispatcherThread getThread() {
         return dispatcher.thread;
     }
 

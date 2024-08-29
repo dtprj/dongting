@@ -22,8 +22,8 @@ import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.codec.StrEncoder;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
-import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.DtTime;
+import com.github.dtprj.dongting.fiber.DispatcherThread;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -171,7 +171,7 @@ public class DtKV extends AbstractLifeCircle implements StateMachine {
     private void install0(long offset, boolean done, ByteBuffer data) {
         if (offset == 0) {
             newStatus(KvStatus.INSTALLING_SNAPSHOT, new KvImpl());
-            encodeStatus = new EncodeStatus(((DtThread) Thread.currentThread()).getHeapPool());
+            encodeStatus = new EncodeStatus(((DispatcherThread) Thread.currentThread()).getHeapPool());
         } else if (kvStatus.status != KvStatus.INSTALLING_SNAPSHOT) {
             throw new IllegalStateException("current status error: " + kvStatus.status);
         }

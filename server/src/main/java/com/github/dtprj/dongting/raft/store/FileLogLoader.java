@@ -21,7 +21,7 @@ import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
-import com.github.dtprj.dongting.common.DtThread;
+import com.github.dtprj.dongting.fiber.DispatcherThread;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
@@ -90,7 +90,7 @@ class FileLogLoader implements RaftLog.LogIterator {
         this.cancelIndicator = cancelIndicator;
         this.tailCache = ((RaftStatusImpl) groupConfig.getRaftStatus()).getTailCache();
 
-        DtThread t = groupConfig.getFiberGroup().getThread();
+        DispatcherThread t = groupConfig.getFiberGroup().getThread();
         this.directPool = t.getDirectPool();
         this.readBuffer = directPool.borrow(readBufferSize);
         this.decodeContext = new DecodeContext(t.getHeapPool());

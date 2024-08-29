@@ -15,14 +15,18 @@
  */
 package com.github.dtprj.dongting.fiber;
 
-import com.github.dtprj.dongting.common.DtThread;
+import com.github.dtprj.dongting.buf.ByteBufferPool;
+import com.github.dtprj.dongting.buf.RefBufferFactory;
 
 /**
  * @author huangli
  */
-class DispatcherThread extends DtThread {
+public final class DispatcherThread extends Thread {
 
     FiberGroup currentGroup;
+
+    private ByteBufferPool directPool;
+    private RefBufferFactory heapPool;
 
     DispatcherThread(Runnable r, String name) {
         super(r, name);
@@ -44,4 +48,19 @@ class DispatcherThread extends DtThread {
         return currentDispatcherThread().currentGroup.currentFiber;
     }
 
+    public ByteBufferPool getDirectPool() {
+        return directPool;
+    }
+
+    public void setDirectPool(ByteBufferPool directPool) {
+        this.directPool = directPool;
+    }
+
+    public RefBufferFactory getHeapPool() {
+        return heapPool;
+    }
+
+    public void setHeapPool(RefBufferFactory heapPool) {
+        this.heapPool = heapPool;
+    }
 }

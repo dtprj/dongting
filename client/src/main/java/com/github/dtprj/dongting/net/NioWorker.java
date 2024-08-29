@@ -19,7 +19,6 @@ import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
-import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.IntObjMap;
@@ -57,7 +56,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
     private static final DtLog log = DtLogs.getLogger(NioWorker.class);
 
     private final String workerName;
-    private final DtThread thread;
+    private final Thread thread;
     private final NioStatus nioStatus;
     private final NioConfig config;
     private final NioClient client;
@@ -93,7 +92,7 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
         this.nioStatus = nioStatus;
         this.config = config;
         this.client = client;
-        this.thread = new DtThread(this, workerName);
+        this.thread = new Thread(this, workerName);
         this.workerName = workerName;
         this.cleanIntervalNanos = config.getCleanInterval() * 1000 * 1000;
         this.perfCallback = config.getPerfCallback();
@@ -111,8 +110,6 @@ class NioWorker extends AbstractLifeCircle implements Runnable {
 
         ByteBufferPool releaseSafePool = createReleaseSafePool((TwoLevelPool) heapPool, ioWorkerQueue);
         RefBufferFactory refBufferFactory = new RefBufferFactory(releaseSafePool, 800);
-        thread.setDirectPool(directPool);
-        thread.setHeapPool(refBufferFactory);
 
         workerStatus = new WorkerStatus(this);
         workerStatus.setIoQueue(ioWorkerQueue);

@@ -20,7 +20,6 @@ import com.github.dtprj.dongting.buf.PoolFactory;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
 import com.github.dtprj.dongting.buf.TwoLevelPool;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
-import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IndexedQueue;
 import com.github.dtprj.dongting.common.NoopPerfCallback;
@@ -618,7 +617,7 @@ public class Dispatcher extends AbstractLifeCircle {
         return (boolean) SHOULD_STOP.get(this);
     }
 
-    public DtThread getThread() {
+    public DispatcherThread getThread() {
         return thread;
     }
 }

@@ -17,8 +17,8 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
-import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.PerfCallback;
+import com.github.dtprj.dongting.fiber.DispatcherThread;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberCondition;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -67,7 +67,7 @@ public abstract class ChainWriter {
         this.writePerfType1 = writePerfType1;
         this.writePerfType2 = writePerfType2;
         this.forcePerfType = forcePerfType;
-        DtThread t = config.getFiberGroup().getThread();
+        DispatcherThread t = config.getFiberGroup().getThread();
         this.directPool = t.getDirectPool();
         this.needForceCondition = new FiberCondition("needForceCond", config.getFiberGroup());
         this.forceFiber = new Fiber(fiberNamePrefix + "-" + config.getGroupId(), config.getFiberGroup(),

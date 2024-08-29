@@ -18,8 +18,8 @@ package com.github.dtprj.dongting.raft.store;
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.EncodeContext;
-import com.github.dtprj.dongting.common.DtThread;
 import com.github.dtprj.dongting.common.PerfCallback;
+import com.github.dtprj.dongting.fiber.DispatcherThread;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberChannel;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -77,7 +77,7 @@ class LogAppender {
         this.chainWriter = chainWriter;
         this.groupConfig = groupConfig;
 
-        DtThread thread = groupConfig.getFiberGroup().getThread();
+        DispatcherThread thread = groupConfig.getFiberGroup().getThread();
         this.directPool = thread.getDirectPool();
         this.encodeContext = new EncodeContext(thread.getHeapPool());
         this.fileLenMask = logFileQueue.fileLength() - 1;

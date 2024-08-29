@@ -15,7 +15,7 @@
  */
 package com.github.dtprj.dongting.dtkv.server;
 
-import com.github.dtprj.dongting.common.DtThread;
+import com.github.dtprj.dongting.fiber.DispatcherThread;
 import com.github.dtprj.dongting.fiber.FiberFuture;
 import com.github.dtprj.dongting.fiber.FiberGroup;
 import com.github.dtprj.dongting.raft.RaftException;
@@ -40,7 +40,7 @@ class KvSnapshot extends Snapshot {
 
     private Value currentValue;
 
-    private final EncodeStatus encodeStatus = new EncodeStatus(((DtThread) Thread.currentThread()).getHeapPool());
+    private final EncodeStatus encodeStatus = new EncodeStatus(((DispatcherThread) Thread.currentThread()).getHeapPool());
 
     public KvSnapshot(SnapshotInfo si, Supplier<KvStatus> statusSupplier, Consumer<Snapshot> closeCallback) {
         super(si);

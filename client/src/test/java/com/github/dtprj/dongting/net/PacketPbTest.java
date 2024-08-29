@@ -3,11 +3,8 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.buf.DefaultPoolFactory;
-import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.codec.CodecTestUtil;
 import com.github.dtprj.dongting.codec.DtPacket;
-import com.github.dtprj.dongting.common.DtThread;
-import com.github.dtprj.dongting.common.Timestamp;
 import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.Test;
 
@@ -16,7 +13,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.Arrays;
 import java.util.Random;
-import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -28,18 +24,7 @@ public class PacketPbTest {
 
     @Test
     public void testInDtThread() throws Exception {
-        CompletableFuture<Void> f = new CompletableFuture<>();
-        DtThread dtThread = new DtThread(() -> {
-            try {
-                test();
-                f.complete(null);
-            } catch (Throwable e) {
-                f.completeExceptionally(e);
-            }
-        }, "dtThread");
-        dtThread.setHeapPool(new RefBufferFactory(new DefaultPoolFactory().createPool(new Timestamp(), false), 0));
-        dtThread.start();
-        f.get();
+        test();
     }
 
     private void test() throws Exception {
@@ -116,7 +101,7 @@ public class PacketPbTest {
         buf.flip();
 
         WorkerStatus workerStatus = new WorkerStatus(null);
-        workerStatus.setHeapPool(((DtThread) Thread.currentThread()).getHeapPool());
+        workerStatus.setHeapPool(CodecTestUtil.createContext().getHeapPool());
 
         DtChannelImpl dtc = new DtChannelImpl(new NioStatus(), workerStatus,
                 new NioClientConfig(), null, SocketChannel.open(), 0) {
