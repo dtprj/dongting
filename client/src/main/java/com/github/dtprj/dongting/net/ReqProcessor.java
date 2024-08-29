@@ -30,6 +30,6 @@ public abstract class ReqProcessor<T> {
 
     public abstract WritePacket process(ReadPacket<T> packet, ReqContext reqContext) throws Exception;
 
-    public abstract DecoderCallback<T> createDecoder(int command, DecodeContext context);
+    public abstract DecoderCallback<T> createDecoderCallback(int command, DecodeContext context);
 
 }

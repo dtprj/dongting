@@ -44,7 +44,7 @@ public class NodePingProcessor extends ReqProcessor<NodePingCallback> {
     }
 
     @Override
-    public DecoderCallback<NodePingCallback> createDecoder(int command, DecodeContext context) {
+    public DecoderCallback<NodePingCallback> createDecoderCallback(int command, DecodeContext context) {
         return new PbNoCopyDecoderCallback<>(NodePingCallback::new);
     }
 }

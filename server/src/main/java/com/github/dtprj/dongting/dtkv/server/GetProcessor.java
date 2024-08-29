@@ -68,7 +68,7 @@ public class GetProcessor extends AbstractRaftBizProcessor<GetReq> {
     }
 
     @Override
-    public DecoderCallback<GetReq> createDecoder(int cmd, DecodeContext context) {
+    public DecoderCallback<GetReq> createDecoderCallback(int cmd, DecodeContext context) {
         return new PbNoCopyDecoderCallback<>(GetReqDecoderCallback::new);
     }
 

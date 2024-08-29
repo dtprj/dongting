@@ -69,7 +69,7 @@ public class RemoveProcessor extends AbstractRaftBizProcessor<RemoveReq> {
     }
 
     @Override
-    public DecoderCallback<RemoveReq> createDecoder(int cmd, DecodeContext context) {
+    public DecoderCallback<RemoveReq> createDecoderCallback(int cmd, DecodeContext context) {
         return new PbNoCopyDecoderCallback<>(RemoveReqDecoderCallback::new);
     }
 

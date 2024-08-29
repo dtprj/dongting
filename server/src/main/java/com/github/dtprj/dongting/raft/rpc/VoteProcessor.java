@@ -173,7 +173,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
     }
 
     @Override
-    public DecoderCallback<VoteReq> createDecoder(int command, DecodeContext context) {
+    public DecoderCallback<VoteReq> createDecoderCallback(int command, DecodeContext context) {
         return new PbNoCopyDecoderCallback<>(VoteReq.Callback::new);
     }
 }

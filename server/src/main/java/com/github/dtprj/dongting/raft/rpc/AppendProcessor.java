@@ -100,7 +100,7 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     @Override
-    public DecoderCallback createDecoder(int command, DecodeContext context) {
+    public DecoderCallback createDecoderCallback(int command, DecodeContext context) {
         if (command == Commands.RAFT_APPEND_ENTRIES) {
             return new PbNoCopyDecoderCallback<>(() -> new AppendReqCallback(decoderFactory));
         } else {

@@ -211,7 +211,7 @@ public class TimeoutTest {
             }
 
             @Override
-            public DecoderCallback<ByteBuffer> createDecoder(int command, DecodeContext context) {
+            public DecoderCallback<ByteBuffer> createDecoderCallback(int command, DecodeContext context) {
                 return new IoFullPackByteBufferDecoderCallback() {
                     @Override
                     public boolean decode(ByteBuffer buffer) {
