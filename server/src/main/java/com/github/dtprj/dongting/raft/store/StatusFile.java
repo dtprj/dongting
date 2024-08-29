@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.store;
 
 import com.github.dtprj.dongting.buf.ByteBufferPool;
 import com.github.dtprj.dongting.common.DtUtil;
-import com.github.dtprj.dongting.fiber.DispatcherThread;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FiberFuture;
@@ -148,7 +147,7 @@ public class StatusFile implements AutoCloseable {
 
     public FiberFuture<Void> update(boolean sync) {
         try {
-            ByteBufferPool directPool = ((DispatcherThread) Thread.currentThread()).getDirectPool();
+            ByteBufferPool directPool = fiberGroup.getThread().getDirectPool();
             ByteBuffer buf = directPool.borrow(FILE_LENGTH);
             buf.position(CRC_HEX_LENGTH);
             buf.put((byte) '\n');

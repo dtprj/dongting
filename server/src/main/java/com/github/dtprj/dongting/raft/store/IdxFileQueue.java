@@ -245,7 +245,7 @@ class IdxFileQueue extends FileQueue implements IdxOps {
             // don't cross file
             len = (int) (logFile.endPos - startIdxPos);
         }
-        DispatcherThread t = (DispatcherThread) Thread.currentThread();
+        DispatcherThread t = groupConfig.getFiberGroup().getThread();
         ByteBuffer buf = t.getDirectPool().borrow(len);
         buf.limit(len);
         fillAndSubmit(buf, startIdx, logFile, suggestForce);
