@@ -16,7 +16,6 @@
 package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.ByteArrayEncoder;
-import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.PbCallback;
@@ -114,7 +113,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                 }
                 callback = new LogItemCallback(raftCodecFactory);
             }
-            LogItem i = (LogItem) parseNested(index, buf, len, currentPos, callback);
+            LogItem i = (LogItem) parseNested(buf, len, currentPos, callback);
             if (end) {
                 logs.add(i);
             }
@@ -225,7 +224,6 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
             boolean end = buf.remaining() >= len - currentPos;
             DecoderCallback<? extends Encodable> currentDecoderCallback;
             if (index == 7) {
-                Decoder d;
                 if (begin) {
                     item.setActualHeaderSize(len);
                     if (item.getType() == LogItem.TYPE_NORMAL) {
@@ -233,16 +231,14 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                     } else {
                         currentDecoderCallback = new ByteArrayEncoder.Callback();
                     }
-                    d = context.prepareNestedDecoder(currentDecoderCallback);
                 } else {
-                    d = context.getNestedDecoder();
+                    currentDecoderCallback = null;
                 }
-                Encodable result = (Encodable) d.decode(buf, len, currentPos);
+                Encodable result = parseNested(buf, len, currentPos, currentDecoderCallback);
                 if (end) {
                     item.setHeader(result);
                 }
             } else if (index == 8) {
-                Decoder d;
                 if (begin) {
                     item.setActualBodySize(len);
                     if (item.getType() == LogItem.TYPE_NORMAL) {
@@ -250,11 +246,10 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                     } else {
                         currentDecoderCallback = new ByteArrayEncoder.Callback();
                     }
-                    d = context.prepareNestedDecoder(currentDecoderCallback);
                 } else {
-                    d = context.getNestedDecoder();
+                    currentDecoderCallback = null;
                 }
-                Encodable result = (Encodable) d.decode(buf, len, currentPos);
+                Encodable result = parseNested(buf, len, currentPos, currentDecoderCallback);
                 if (end) {
                     item.setBody(result);
                 }

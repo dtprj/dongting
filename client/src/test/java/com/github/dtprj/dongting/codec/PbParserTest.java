@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class PbParserTest {
 
-    private DecodeContext context = CodecTestUtil.createContext();
+    private final DecodeContext context = CodecTestUtil.createContext();
 
     static class NestedMsg {
         private int f101;
@@ -319,7 +319,7 @@ public class PbParserTest {
                 if (nestedCallback == null) {
                     nestedCallback = new NestedCallback();
                 }
-                readMsg.f7 = parseNested(index, buf, len, currentPos, nestedCallback);
+                readMsg.f7 = parseNested(buf, len, currentPos, nestedCallback);
             } else {
                 fail();
             }

@@ -159,7 +159,7 @@ public abstract class AbstractCodecCallback<T> {
     }
 
     @SuppressWarnings("unchecked")
-    protected final <X> X parseNested(int index, ByteBuffer buf, int fieldLen, int currentPos,
+    protected final <X> X parseNested(ByteBuffer buf, int fieldLen, int currentPos,
                                       PbCallback<X> nestedCallback) {
         PbParser nestedParser;
         if (currentPos == 0) {
@@ -171,20 +171,20 @@ public abstract class AbstractCodecCallback<T> {
         X result = (X) nestedParser.parse(buf);
         if (end) {
             if (!nestedParser.isFinished()) {
-                throw new PbException("parse not finish after read all bytes. index=" + index
-                        + ", fieldLen=" + fieldLen + ", currentPos=" + currentPos + "class=" + getClass());
+                throw new PbException("parse not finish after read all bytes. fieldLen=" + fieldLen
+                        + ", currentPos=" + currentPos + "class=" + getClass());
             }
         } else {
             if (nestedParser.isFinished()) {
-                throw new PbException("parse finished without read all bytes. index=" + index
-                        + ", fieldLen=" + fieldLen + ", currentPos=" + currentPos + "class=" + getClass());
+                throw new PbException("parse finished without read all bytes. fieldLen=" + fieldLen
+                        + ", currentPos=" + currentPos + "class=" + getClass());
             }
         }
         return result;
     }
 
     @SuppressWarnings("unchecked")
-    protected final <X> X parseNested(int index, ByteBuffer buf, int fieldLen, int currentPos,
+    protected final <X> X parseNested(ByteBuffer buf, int fieldLen, int currentPos,
                                       DecoderCallback<X> nestedCallback) {
         Decoder nestedDecoder;
         if (currentPos == 0) {
@@ -196,13 +196,13 @@ public abstract class AbstractCodecCallback<T> {
         X result = (X) nestedDecoder.decode(buf, fieldLen, currentPos);
         if (end) {
             if (!nestedDecoder.isFinished()) {
-                throw new PbException("decode not finish after read all bytes. index=" + index
-                        + ", fieldLen=" + fieldLen + ", currentPos=" + currentPos + "class=" + getClass());
+                throw new PbException("decode not finish after read all bytes. fieldLen="
+                        + fieldLen + ", currentPos=" + currentPos + "class=" + getClass());
             }
         } else {
             if (nestedDecoder.isFinished()) {
-                throw new PbException("decode finished without read all bytes. index=" + index
-                        + ", fieldLen=" + fieldLen + ", currentPos=" + currentPos + "class=" + getClass());
+                throw new PbException("decode finished without read all bytes. fieldLen="
+                        + fieldLen + ", currentPos=" + currentPos + "class=" + getClass());
             }
         }
         return result;

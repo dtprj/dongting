@@ -79,7 +79,7 @@ public class DecodeContext {
         return nestedContext;
     }
 
-    public PbParser prepareNestedParser(PbCallback<?> nestedCallback, int len) {
+    PbParser prepareNestedParser(PbCallback<?> nestedCallback, int len) {
         if (nestedParser == null) {
             nestedParser = new PbParser(createOrGetNestedContext(), nestedCallback, len);
         } else {
@@ -88,7 +88,7 @@ public class DecodeContext {
         return nestedParser;
     }
 
-    public Decoder prepareNestedDecoder(DecoderCallback<?> nestedCallback) {
+    Decoder prepareNestedDecoder(DecoderCallback<?> nestedCallback) {
         if (nestedDecoder == null) {
             nestedDecoder = new Decoder(createOrGetNestedContext(), nestedCallback);
         } else {
