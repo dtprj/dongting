@@ -169,7 +169,6 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
     static class LogItemCallback extends PbCallback<Object> {
         private final LogItem item = new LogItem();
         private final RaftCodecFactory codecFactory;
-        private DecoderCallback<? extends Encodable> currentDecoderCallback;
 
         public LogItemCallback(RaftCodecFactory codecFactory) {
             this.codecFactory = codecFactory;
@@ -224,6 +223,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
         public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
             boolean begin = currentPos == 0;
             boolean end = buf.remaining() >= len - currentPos;
+            DecoderCallback<? extends Encodable> currentDecoderCallback;
             if (index == 7) {
                 Decoder d;
                 if (begin) {

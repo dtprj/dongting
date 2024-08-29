@@ -158,6 +158,7 @@ public abstract class AbstractCodecCallback<T> {
         }
     }
 
+    @SuppressWarnings("unchecked")
     protected final <X> X parseNested(int index, ByteBuffer buf, int fieldLen, int currentPos,
                                       PbCallback<X> nestedCallback) {
         PbParser nestedParser;
@@ -182,6 +183,7 @@ public abstract class AbstractCodecCallback<T> {
         return result;
     }
 
+    @SuppressWarnings("unchecked")
     protected final <X> X parseNested(int index, ByteBuffer buf, int fieldLen, int currentPos,
                                       DecoderCallback<X> nestedCallback) {
         Decoder nestedDecoder;
