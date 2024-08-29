@@ -322,14 +322,16 @@ class FileLogLoader implements RaftLog.LogIterator {
         private boolean readData(ByteBuffer buf, int dataLen, boolean isHeader) {
             if (dataLen - currentReadBytes > 0 && buf.remaining() > 0) {
                 int oldPos = buf.position();
-                DecoderCallback<?> callback;
-                if (header.type == LogItem.TYPE_NORMAL) {
-                    callback = isHeader ? codecFactory.createHeaderCallback(header.bizType, decodeContext)
-                            : codecFactory.createBodyCallback(header.bizType, decodeContext);
-                } else {
-                    callback = new ByteArrayEncoder.Callback();
+                if (currentReadBytes == 0) {
+                    DecoderCallback<?> callback;
+                    if (header.type == LogItem.TYPE_NORMAL) {
+                        callback = isHeader ? codecFactory.createHeaderCallback(header.bizType, decodeContext)
+                                : codecFactory.createBodyCallback(header.bizType, decodeContext);
+                    } else {
+                        callback = new ByteArrayEncoder.Callback();
+                    }
+                    decoder.prepareNext(decodeContext, callback);
                 }
-                decoder.prepareNext(decodeContext, callback);
                 Encodable result = (Encodable) decoder.decode(buf, dataLen, currentReadBytes);
                 int read = buf.position() - oldPos;
                 if (read > 0) {
