@@ -38,6 +38,7 @@ public final class PbNoCopyDecoderCallback<T> extends DecoderCallback<T> {
         return success;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     protected T getResult() {
         return (T) result;
@@ -81,7 +82,8 @@ public final class PbNoCopyDecoderCallback<T> extends DecoderCallback<T> {
 
         @Override
         protected Integer getResult() {
-            return (Integer) this.context.status;
+            Integer r = (Integer) this.context.status;
+            return r == null ? 0 : r;
         }
     }
 
@@ -97,7 +99,8 @@ public final class PbNoCopyDecoderCallback<T> extends DecoderCallback<T> {
 
         @Override
         protected Long getResult() {
-            return (Long) this.context.status;
+            Long r = (Long) this.context.status;
+            return r == null ? 0 : r;
         }
     }
 
