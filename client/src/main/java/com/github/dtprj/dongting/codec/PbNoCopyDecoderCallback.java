@@ -24,7 +24,6 @@ import java.util.function.Supplier;
 public final class PbNoCopyDecoderCallback<T> extends DecoderCallback<T> {
 
     private final Supplier<PbCallback<T>> callbackCreator;
-    private PbCallback<T> pbCallback;
     private Object result;
 
     public PbNoCopyDecoderCallback(Supplier<PbCallback<T>> callbackCreator) {
@@ -33,7 +32,6 @@ public final class PbNoCopyDecoderCallback<T> extends DecoderCallback<T> {
 
     @Override
     protected boolean end(boolean success) {
-        pbCallback = null;
         result = null;
         return success;
     }
@@ -46,12 +44,10 @@ public final class PbNoCopyDecoderCallback<T> extends DecoderCallback<T> {
 
     @Override
     public boolean doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
-        PbParser p;
+        PbParser p = context.getOrCreateNestedParser();
         if (currentPos == 0) {
-            pbCallback = callbackCreator.get();
-            p = context.prepareNestedParser(pbCallback, bodyLen);
-        } else {
-            p = context.nestedParser;
+            PbCallback<T> pbCallback = callbackCreator.get();
+            p.prepareNext(context.getOrCreateNestedContext(), pbCallback, bodyLen);
         }
         boolean end = buffer.remaining() >= bodyLen - currentPos;
         result = p.parse(buffer);
@@ -59,12 +55,12 @@ public final class PbNoCopyDecoderCallback<T> extends DecoderCallback<T> {
         if (end) {
             if (!p.isFinished()) {
                 throw new PbException("parse not finish after read all bytes. bodyLen="
-                        + bodyLen + ", currentPos=" + currentPos + ", callback=" + pbCallback);
+                        + bodyLen + ", currentPos=" + currentPos + ", callback=" + p.callback);
             }
         } else {
             if (p.isFinished()) {
                 throw new PbException("parse finished without read all bytes. bodyLen="
-                        + bodyLen + ", currentPos=" + currentPos + ", callback=" + pbCallback);
+                        + bodyLen + ", currentPos=" + currentPos + ", callback=" + p.callback);
             }
         }
         return true;

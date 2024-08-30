@@ -24,19 +24,19 @@ import com.github.dtprj.dongting.log.DtLogs;
  */
 public class DecodeContext {
     private static final DtLog log = DtLogs.getLogger(DecodeContext.class);
+
     static final int THREAD_LOCAL_BUFFER_SIZE = 4 * 1024;
     private static final ThreadLocal<byte[]> THREAD_LOCAL_BUFFER = ThreadLocal.withInitial(() -> new byte[THREAD_LOCAL_BUFFER_SIZE]);
+    private final byte[] threadLocalBuffer = THREAD_LOCAL_BUFFER.get();
 
     private final RefBufferFactory heapPool;
-    PbParser nestedParser;
-    Decoder nestedDecoder;
+
+    private PbParser nestedParser;
+    private Decoder nestedDecoder;
+    private DecodeContext nestedContext;
 
     // reset in PbParser and Decoder
     Object status;
-
-    private DecodeContext nestedContext;
-
-    private final byte[] threadLocalBuffer = THREAD_LOCAL_BUFFER.get();
 
     public DecodeContext(RefBufferFactory heapPool) {
         this.heapPool = heapPool;
@@ -72,44 +72,24 @@ public class DecodeContext {
         }
     }
 
-    public DecodeContext createOrGetNestedContext() {
+    public DecodeContext getOrCreateNestedContext() {
         if (nestedContext == null) {
             nestedContext = new DecodeContext(heapPool);
         }
         return nestedContext;
     }
 
-    PbParser prepareNestedParser(PbCallback<?> nestedCallback, int len) {
-        DecodeContext sub = nestedContext;
-        if (sub == null) {
-            sub = new DecodeContext(heapPool);
-            nestedContext = sub;
-        }
+    public PbParser getOrCreateNestedParser() {
         if (nestedParser == null) {
             nestedParser = new PbParser();
         }
-        nestedParser.prepareNext(sub, nestedCallback, len);
         return nestedParser;
     }
 
-    Decoder prepareNestedDecoder(DecoderCallback<?> nestedCallback) {
-        DecodeContext sub = nestedContext;
-        if (sub == null) {
-            sub = new DecodeContext(heapPool);
-            nestedContext = sub;
-        }
+    public Decoder getOrCreateNestedDecoder() {
         if (nestedDecoder == null) {
             nestedDecoder = new Decoder();
         }
-        nestedDecoder.prepareNext(sub, nestedCallback);
-        return nestedDecoder;
-    }
-
-    public PbParser getNestedParser() {
-        return nestedParser;
-    }
-
-    public Decoder getNestedDecoder() {
         return nestedDecoder;
     }
 

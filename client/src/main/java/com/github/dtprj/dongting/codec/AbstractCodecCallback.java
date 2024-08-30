@@ -161,11 +161,9 @@ public abstract class AbstractCodecCallback<T> {
     @SuppressWarnings("unchecked")
     protected final <X> X parseNested(ByteBuffer buf, int fieldLen, int currentPos,
                                       PbCallback<X> nestedCallback) {
-        PbParser nestedParser;
+        PbParser nestedParser = context.getOrCreateNestedParser();
         if (currentPos == 0) {
-            nestedParser = context.prepareNestedParser(nestedCallback, fieldLen);
-        } else {
-            nestedParser = context.nestedParser;
+            nestedParser.prepareNext(context.getOrCreateNestedContext(), nestedCallback, fieldLen);
         }
         boolean end = buf.remaining() >= fieldLen - currentPos;
         X result = (X) nestedParser.parse(buf);
@@ -186,11 +184,9 @@ public abstract class AbstractCodecCallback<T> {
     @SuppressWarnings("unchecked")
     protected final <X> X parseNested(ByteBuffer buf, int fieldLen, int currentPos,
                                       DecoderCallback<X> nestedCallback) {
-        Decoder nestedDecoder;
+        Decoder nestedDecoder = context.getOrCreateNestedDecoder();
         if (currentPos == 0) {
-            nestedDecoder = context.prepareNestedDecoder(nestedCallback);
-        } else {
-            nestedDecoder = context.nestedDecoder;
+            nestedDecoder.prepareNext(context.getOrCreateNestedContext(), nestedCallback);
         }
         boolean end = buf.remaining() >= fieldLen - currentPos;
         X result = (X) nestedDecoder.decode(buf, fieldLen, currentPos);

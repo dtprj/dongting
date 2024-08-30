@@ -227,7 +227,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                 if (begin) {
                     item.setActualHeaderSize(len);
                     if (item.getType() == LogItem.TYPE_NORMAL) {
-                        currentDecoderCallback = codecFactory.createHeaderCallback(item.getBizType(), context.createOrGetNestedContext());
+                        currentDecoderCallback = codecFactory.createHeaderCallback(item.getBizType(), context.getOrCreateNestedContext());
                     } else {
                         currentDecoderCallback = new ByteArrayEncoder.Callback();
                     }
@@ -242,7 +242,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
                 if (begin) {
                     item.setActualBodySize(len);
                     if (item.getType() == LogItem.TYPE_NORMAL) {
-                        currentDecoderCallback = codecFactory.createBodyCallback(item.getBizType(), context.createOrGetNestedContext());
+                        currentDecoderCallback = codecFactory.createBodyCallback(item.getBizType(), context.getOrCreateNestedContext());
                     } else {
                         currentDecoderCallback = new ByteArrayEncoder.Callback();
                     }
