@@ -80,20 +80,28 @@ public class DecodeContext {
     }
 
     PbParser prepareNestedParser(PbCallback<?> nestedCallback, int len) {
-        if (nestedParser == null) {
-            nestedParser = new PbParser(createOrGetNestedContext(), nestedCallback, len);
-        } else {
-            nestedParser.prepareNext(createOrGetNestedContext(), nestedCallback, len);
+        DecodeContext sub = nestedContext;
+        if (sub == null) {
+            sub = new DecodeContext(heapPool);
+            nestedContext = sub;
         }
+        if (nestedParser == null) {
+            nestedParser = new PbParser();
+        }
+        nestedParser.prepareNext(sub, nestedCallback, len);
         return nestedParser;
     }
 
     Decoder prepareNestedDecoder(DecoderCallback<?> nestedCallback) {
-        if (nestedDecoder == null) {
-            nestedDecoder = new Decoder(createOrGetNestedContext(), nestedCallback);
-        } else {
-            nestedDecoder.prepareNext(createOrGetNestedContext(), nestedCallback);
+        DecodeContext sub = nestedContext;
+        if (sub == null) {
+            sub = new DecodeContext(heapPool);
+            nestedContext = sub;
         }
+        if (nestedDecoder == null) {
+            nestedDecoder = new Decoder();
+        }
+        nestedDecoder.prepareNext(sub, nestedCallback);
         return nestedDecoder;
     }
 

@@ -29,7 +29,8 @@ public class PbNoCopyDecoderCallbackTest {
     public void test() {
         DecodeContext c = CodecTestUtil.createContext();
         PbNoCopyDecoderCallback<Integer> callback = new PbNoCopyDecoderCallback<>(PbNoCopyDecoderCallback.IntCallback::new);
-        Decoder decoder = new Decoder(c, callback);
+        Decoder decoder = new Decoder();
+        decoder.prepareNext(c, callback);
 
         ByteBuffer buf = ByteBuffer.allocate(30);
         PbUtil.writeFix32(buf, 1, 2000);

@@ -28,13 +28,6 @@ public class Decoder {
     private DecodeContext context;
     private DecoderCallback<?> callback;
 
-    public Decoder(DecodeContext context, DecoderCallback<?> callback) {
-        this.context = context;
-        this.callback = callback;
-        context.status = null;
-        callback.context = context;
-    }
-
     public Decoder() {
     }
 

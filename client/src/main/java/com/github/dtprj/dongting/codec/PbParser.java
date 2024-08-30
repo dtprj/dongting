@@ -49,16 +49,6 @@ public class PbParser {
 
     private DecodeContext context;
 
-    public PbParser(DecodeContext context, PbCallback<?> callback, int size) {
-        this.callback = Objects.requireNonNull(callback);
-        this.context = Objects.requireNonNull(context);
-        callback.context = context;
-        callback.parser = this;
-        context.status = null;
-        this.size = DtUtil.checkNotNegative(size, "size");
-        this.status = STATUS_INIT;
-    }
-
     public PbParser() {
         this.status = STATUS_INIT;
     }

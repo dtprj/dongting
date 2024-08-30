@@ -75,7 +75,8 @@ public class PbParserExTest {
 
         EmptyCallback callback = new EmptyCallback();
         DecodeContext context = CodecTestUtil.createContext();
-        PbParser parser = new PbParser(context, callback, buf.remaining());
+        PbParser parser = new PbParser();
+        parser.prepareNext(context, callback, buf.remaining());
         try {
             parser.parse(buf);
             fail();
@@ -90,7 +91,7 @@ public class PbParserExTest {
 
         buf.reset();
         callback = new EmptyCallback();
-        parser = new PbParser(context, callback, buf.remaining());
+        parser.prepareNext(context, callback, buf.remaining());
         try {
             parseByByte(buf, parser);
             fail();
@@ -114,7 +115,8 @@ public class PbParserExTest {
 
         DecodeContext context = CodecTestUtil.createContext();
         EmptyCallback callback = new EmptyCallback();
-        PbParser parser = new PbParser(context, callback, buf.remaining() - 1);
+        PbParser parser = new PbParser();
+        parser.prepareNext(context, callback, buf.remaining() - 1);
         try {
             parser.parse(buf);
             fail();
@@ -129,7 +131,7 @@ public class PbParserExTest {
 
         buf.reset();
         callback = new EmptyCallback();
-        parser = new PbParser(context, callback, buf.remaining() - 1);
+        parser.prepareNext(context, callback, buf.remaining() - 1);
         try {
             parseByByte(buf, parser);
             fail();
@@ -154,7 +156,8 @@ public class PbParserExTest {
 
         DecodeContext context = CodecTestUtil.createContext();
         EmptyCallback callback = new EmptyCallback();
-        PbParser parser = new PbParser(context, callback, buf.remaining());
+        PbParser parser = new PbParser();
+        parser.prepareNext(context, callback, buf.remaining());
         try {
             parser.parse(buf);
             fail();
@@ -179,7 +182,8 @@ public class PbParserExTest {
 
         DecodeContext context = CodecTestUtil.createContext();
         EmptyCallback callback = new EmptyCallback();
-        PbParser parser = new PbParser(context, callback, buf.remaining());
+        PbParser parser = new PbParser();
+        parser.prepareNext(context, callback, buf.remaining());
         try {
             parser.parse(buf);
             fail();
@@ -202,7 +206,8 @@ public class PbParserExTest {
 
         DecodeContext context = CodecTestUtil.createContext();
         EmptyCallback callback = new EmptyCallback();
-        PbParser parser = new PbParser(context, callback, buf.remaining());
+        PbParser parser = new PbParser();
+        parser.prepareNext(context, callback, buf.remaining());
         try {
             parser.parse(buf);
             fail();
@@ -229,7 +234,8 @@ public class PbParserExTest {
 
         DecodeContext context = CodecTestUtil.createContext();
         EmptyCallback callback = new EmptyCallback();
-        PbParser parser = new PbParser(context, callback, buf.remaining());
+        PbParser parser = new PbParser();
+        parser.prepareNext(context, callback, buf.remaining());
         try {
             parser.parse(buf);
             fail();
@@ -244,7 +250,7 @@ public class PbParserExTest {
 
         buf.reset();
         callback = new EmptyCallback();
-        parser = new PbParser(context, callback, buf.remaining());
+        parser.prepareNext(context, callback, buf.remaining());
         try {
             parseByByte(buf, parser);
             fail();
@@ -268,7 +274,8 @@ public class PbParserExTest {
 
         DecodeContext context = CodecTestUtil.createContext();
         EmptyCallback callback = new EmptyCallback();
-        PbParser parser = new PbParser(context, callback, buf.remaining() - 1);
+        PbParser parser = new PbParser();
+        parser.prepareNext(context, callback, buf.remaining() - 1);
         try {
             parser.parse(buf);
             fail();
@@ -283,7 +290,7 @@ public class PbParserExTest {
 
         buf.reset();
         callback = new EmptyCallback();
-        parser = new PbParser(context, callback, buf.remaining() - 1);
+        parser.prepareNext(context, callback, buf.remaining() - 1);
         try {
             parseByByte(buf, parser);
             fail();
