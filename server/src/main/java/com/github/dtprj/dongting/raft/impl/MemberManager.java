@@ -16,8 +16,7 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.codec.ByteArrayEncoder;
-import com.github.dtprj.dongting.codec.DecodeContext;
-import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.IntObjMap;
 import com.github.dtprj.dongting.fiber.Fiber;
@@ -51,7 +50,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
@@ -383,7 +381,7 @@ public class MemberManager {
             boolean result = raftStatus.getLastApplied() >= prepareIndex;
             resultMap.put(n.getNodeId(), CompletableFuture.completedFuture(result));
         } else {
-            final Function<DecodeContext, DecoderCallback<QueryStatusResp>> decoder = ctx -> ctx.getOrCreatePbNoCopyDecoderCallback(
+            final DecoderCallbackCreator<QueryStatusResp> decoder = ctx -> ctx.getOrCreatePbNoCopyDecoderCallback(
                     new QueryStatusResp.QueryStatusRespCallback());
             CompletableFuture<Boolean> queryFuture = client.sendRequest(n.getPeer(), new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, groupId),
                             decoder, new DtTime(3, TimeUnit.SECONDS))

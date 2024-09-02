@@ -28,8 +28,8 @@ public class PacketPbTest {
     }
 
     private void test() throws Exception {
-        test0(0, 0, 0, 0, "1", new byte[]{1}, 0, 0);
-        test0(1, 1, 1, 1, "123", new byte[]{1, 5}, 1, 1);
+        test0(1, 0, 0, 0, "1", new byte[]{1}, 0, 0);
+        test0(2, 1, 1, 1, "123", new byte[]{1, 5}, 1, 1);
         test0(1000, 1000, 1000, 1000, "123", null, 10000, 1000);
         test0(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, "汉字", null, Long.MAX_VALUE, 1000);
         test0(-1, -1, -1, -1, "123", null, -1, 1000);
@@ -120,6 +120,11 @@ public class PacketPbTest {
 
             @Override
             protected void writeErrorInIoThread(Packet req, int code, String msg) {
+            }
+
+            @Override
+            protected boolean end(boolean success) {
+                return success;
             }
         };
         dtc.getParser().parse(buf);

@@ -15,8 +15,7 @@
  */
 package com.github.dtprj.dongting.raft;
 
-import com.github.dtprj.dongting.codec.DecodeContext;
-import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -45,7 +44,6 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Function;
 
 /**
  * @author huangli
@@ -185,16 +183,15 @@ public class RaftClient extends AbstractLifeCircle {
         }
     }
 
-    public <T> void sendRequest(int groupId, RetryableWritePacket request,
-                                Function<DecodeContext, DecoderCallback<T>> decoderCallback, DtTime timeout,
-                                RpcCallback<T> callback) {
+    public <T> void sendRequest(int groupId, RetryableWritePacket request, DecoderCallbackCreator<T> decoder,
+                                DtTime timeout, RpcCallback<T> callback) {
         GroupInfo groupInfo = groups.get(groupId);
         if (groupInfo == null) {
             RpcCallback.callFail(callback, new NoSuchGroupException(groupId));
             return;
         }
         if (groupInfo.leader != null) {
-            send(request, decoderCallback, timeout, callback, groupInfo, true);
+            send(request, decoder, timeout, callback, groupInfo, true);
         } else {
             CompletableFuture<GroupInfo> leaderFuture;
             if (groupInfo.leaderFuture == null) {
@@ -210,13 +207,13 @@ public class RaftClient extends AbstractLifeCircle {
                 } else if (timeout.isTimeout()) {
                     RpcCallback.callFail(callback, new NetTimeoutException("timeout after find leader"));
                 } else {
-                    send(request, decoderCallback, timeout, callback, gi, true);
+                    send(request, decoder, timeout, callback, gi, true);
                 }
             });
         }
     }
 
-    private <T> void send(RetryableWritePacket request, Function<DecodeContext, DecoderCallback<T>> decoderCallback,
+    private <T> void send(RetryableWritePacket request, DecoderCallbackCreator<T> decoder,
                           DtTime timeout, RpcCallback<T> c, GroupInfo gi, boolean retry) {
         RpcCallback<T> newCallback = new RpcCallback<T>() {
             @Override
@@ -232,7 +229,7 @@ public class RaftClient extends AbstractLifeCircle {
                         Peer newLeader = updateLeaderFromExtra(ncEx.getRespPacket(), gi);
                         if (newLeader != null && !timeout.isTimeout()) {
                             request.reset();
-                            send(request, decoderCallback, timeout, c, gi, false);
+                            send(request, decoder, timeout, c, gi, false);
                             return;
                         }
                     }
@@ -240,7 +237,7 @@ public class RaftClient extends AbstractLifeCircle {
                 c.fail(ex);
             }
         };
-        client.sendRequest(gi.leader, request, decoderCallback, timeout, newCallback);
+        client.sendRequest(gi.leader, request, decoder, timeout, newCallback);
     }
 
     private CompletableFuture<GroupInfo> updateLeaderInfo(int groupId) {

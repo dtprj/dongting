@@ -18,6 +18,7 @@ package com.github.dtprj.dongting.net;
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.codec.RefBufferDecoderCallback;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -38,7 +39,6 @@ import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Function;
 
 /**
  * @author huangli
@@ -216,10 +216,9 @@ public class NioServer extends NioNet implements Runnable {
     }
 
     public <T> CompletableFuture<ReadPacket<T>> sendRequest(DtChannel dtc, WritePacket request,
-                                                            Function<DecodeContext, DecoderCallback<T>> decoderCallback,
-                                                            DtTime timeout) {
+                                                            DecoderCallbackCreator<T> decoder, DtTime timeout) {
         CompletableFuture<ReadPacket<T>> f = new CompletableFuture<>();
-        push((DtChannelImpl) dtc, request, decoderCallback, timeout, new RpcCallback<T>() {
+        push((DtChannelImpl) dtc, request, decoder, timeout, new RpcCallback<T>() {
             @Override
             public void success(ReadPacket<T> resp) {
                 f.complete(resp);
@@ -233,10 +232,9 @@ public class NioServer extends NioNet implements Runnable {
         return f;
     }
 
-    public <T> void sendRequest(DtChannel dtc, WritePacket request,
-                                Function<DecodeContext, DecoderCallback<T>> decoderCallback, DtTime timeout,
-                                RpcCallback<T> callback) {
-        push((DtChannelImpl) dtc, request, decoderCallback, timeout, callback);
+    public <T> void sendRequest(DtChannel dtc, WritePacket request, DecoderCallbackCreator<T> decoder,
+                                DtTime timeout, RpcCallback<T> callback) {
+        push((DtChannelImpl) dtc, request, decoder, timeout, callback);
     }
 
     public CompletableFuture<Void> sendOneWay(DtChannel dtc, WritePacket request, DtTime timeout) {

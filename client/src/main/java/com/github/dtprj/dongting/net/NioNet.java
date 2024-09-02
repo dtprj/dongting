@@ -15,8 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
-import com.github.dtprj.dongting.codec.DecodeContext;
-import com.github.dtprj.dongting.codec.DecoderCallback;
+import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtException;
 import com.github.dtprj.dongting.common.DtThreadFactory;
@@ -36,7 +35,6 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Function;
 
 /**
  * @author huangli
@@ -86,22 +84,22 @@ public abstract class NioNet extends AbstractLifeCircle {
         nioStatus.registerProcessor(cmd, processor);
     }
 
-    <T> void send(NioWorker worker, Peer peer, WritePacket request, Function<DecodeContext, DecoderCallback<T>> decoderCallback,
+    <T> void send(NioWorker worker, Peer peer, WritePacket request, DecoderCallbackCreator<T> decoder,
                   DtTime timeout, RpcCallback<T> callback) {
-        send0(worker, peer, null, request, decoderCallback, timeout, callback);
+        send0(worker, peer, null, request, decoder, timeout, callback);
     }
 
-    <T> void push(DtChannelImpl dtc, WritePacket request, Function<DecodeContext, DecoderCallback<T>> decoderCallback,
+    <T> void push(DtChannelImpl dtc, WritePacket request, DecoderCallbackCreator<T> decoder,
                   DtTime timeout, RpcCallback<T> callback) {
-        send0(dtc.workerStatus.getWorker(), null, dtc, request, decoderCallback, timeout, callback);
+        send0(dtc.workerStatus.getWorker(), null, dtc, request, decoder, timeout, callback);
     }
 
     private <T> void send0(NioWorker worker, Peer peer, DtChannelImpl dtc, WritePacket request,
-                           Function<DecodeContext, DecoderCallback<T>> decoderCallback, DtTime timeout,
+                           DecoderCallbackCreator<T> decoder, DtTime timeout,
                            RpcCallback<T> callback) {
         try {
             int estimateSize = generalCheck(request, timeout, callback);
-            request.setPacketType(decoderCallback != null ? PacketType.TYPE_REQ : PacketType.TYPE_ONE_WAY);
+            request.setPacketType(decoder != null ? PacketType.TYPE_REQ : PacketType.TYPE_ONE_WAY);
 
             while (true) {
                 VersionFactory.getInstance().acquireFence();
@@ -146,9 +144,9 @@ public abstract class NioNet extends AbstractLifeCircle {
         }
         WriteData wd;
         if (peer != null) {
-            wd = new WriteData(peer, request, timeout, callback, decoderCallback);
+            wd = new WriteData(peer, request, timeout, callback, decoder);
         } else {
-            wd = new WriteData(dtc, request, timeout, callback, decoderCallback);
+            wd = new WriteData(dtc, request, timeout, callback, decoder);
         }
         worker.writeReqInBizThreads(wd);
     }
