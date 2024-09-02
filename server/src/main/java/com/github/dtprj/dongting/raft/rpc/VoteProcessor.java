@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.codec.PbNoCopyDecoderCallback;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.fiber.FrameCallResult;
@@ -174,7 +173,7 @@ public class VoteProcessor extends RaftSequenceProcessor<VoteReq> {
 
     @Override
     public DecoderCallback<VoteReq> createDecoderCallback(int command, DecodeContext context) {
-        return new PbNoCopyDecoderCallback<>(VoteReq.Callback::new);
+        return context.getOrCreatePbNoCopyDecoderCallback(new VoteReq.Callback());
     }
 }
 

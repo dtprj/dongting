@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.codec.PbNoCopyDecoderCallback;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -186,7 +185,7 @@ public class VoteManager {
             fireRespProcessFiber(req, resp, null, member, voteIdOfRequest);
         } else {
             CompletableFuture<ReadPacket<VoteResp>> f = client.sendRequest(member.getNode().getPeer(), wf,
-                    new PbNoCopyDecoderCallback<>(VoteResp.Callback::new), timeout);
+                    ctx -> ctx.getOrCreatePbNoCopyDecoderCallback(new VoteResp.Callback()), timeout);
             log.info("send {} request. remoteNode={}, groupId={}, term={}, lastLogIndex={}, lastLogTerm={}",
                     preVote ? "pre-vote" : "vote", member.getNode().getNodeId(), groupId,
                     currentTerm, req.getLastLogIndex(), req.getLastLogTerm());

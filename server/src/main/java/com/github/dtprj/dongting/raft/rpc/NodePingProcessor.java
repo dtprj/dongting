@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.codec.PbNoCopyDecoderCallback;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.ReqContext;
 import com.github.dtprj.dongting.net.ReqProcessor;
@@ -45,6 +44,6 @@ public class NodePingProcessor extends ReqProcessor<NodePingCallback> {
 
     @Override
     public DecoderCallback<NodePingCallback> createDecoderCallback(int command, DecodeContext context) {
-        return new PbNoCopyDecoderCallback<>(NodePingCallback::new);
+        return context.getOrCreatePbNoCopyDecoderCallback(new NodePingCallback());
     }
 }

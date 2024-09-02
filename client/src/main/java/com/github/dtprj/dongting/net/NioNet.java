@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtException;
@@ -35,6 +36,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Function;
 
 /**
  * @author huangli
@@ -84,17 +86,19 @@ public abstract class NioNet extends AbstractLifeCircle {
         nioStatus.registerProcessor(cmd, processor);
     }
 
-    <T> void send(NioWorker worker, Peer peer, WritePacket request, DecoderCallback<T> decoderCallback,
+    <T> void send(NioWorker worker, Peer peer, WritePacket request, Function<DecodeContext, DecoderCallback<T>> decoderCallback,
                   DtTime timeout, RpcCallback<T> callback) {
         send0(worker, peer, null, request, decoderCallback, timeout, callback);
     }
 
-    <T> void push(DtChannelImpl dtc, WritePacket request, DecoderCallback<T> decoderCallback, DtTime timeout, RpcCallback<T> callback) {
+    <T> void push(DtChannelImpl dtc, WritePacket request, Function<DecodeContext, DecoderCallback<T>> decoderCallback,
+                  DtTime timeout, RpcCallback<T> callback) {
         send0(dtc.workerStatus.getWorker(), null, dtc, request, decoderCallback, timeout, callback);
     }
 
     private <T> void send0(NioWorker worker, Peer peer, DtChannelImpl dtc, WritePacket request,
-                           DecoderCallback<T> decoderCallback, DtTime timeout, RpcCallback<T> callback) {
+                           Function<DecodeContext, DecoderCallback<T>> decoderCallback, DtTime timeout,
+                           RpcCallback<T> callback) {
         try {
             int estimateSize = generalCheck(request, timeout, callback);
             request.setPacketType(decoderCallback != null ? PacketType.TYPE_REQ : PacketType.TYPE_ONE_WAY);

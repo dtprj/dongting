@@ -38,6 +38,9 @@ public class DecodeContext {
     // reset in PbParser and Decoder
     Object status;
 
+    // caches
+    private PbNoCopyDecoderCallback pbNoCopyDecoderCallback;
+
     public DecodeContext(RefBufferFactory heapPool) {
         this.heapPool = heapPool;
     }
@@ -99,5 +102,15 @@ public class DecodeContext {
 
     public byte[] getThreadLocalBuffer() {
         return threadLocalBuffer;
+    }
+
+    public <T> PbNoCopyDecoderCallback<T> getOrCreatePbNoCopyDecoderCallback(PbCallback<T> callback) {
+        PbNoCopyDecoderCallback c = pbNoCopyDecoderCallback;
+        if (c == null) {
+            c = new PbNoCopyDecoderCallback();
+            this.pbNoCopyDecoderCallback = c;
+        }
+        c.prepareNext(callback);
+        return c;
     }
 }

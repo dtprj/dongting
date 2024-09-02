@@ -264,7 +264,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 }
             }
             if (currentDecoderCallback == null) {
-                currentDecoderCallback = requestForResp.getRespDecoder();
+                currentDecoderCallback = requestForResp.respDecoderCallback.apply(decodeContext.getOrCreateNestedContext());
             }
         } else {
             // req or one way
@@ -274,14 +274,14 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             }
             if (processorForRequest == null) {
                 processorForRequest = nioStatus.getProcessor(packet.getCommand());
-                if (processorForRequest == null) {
+                if (processorForRequest == null && packet.getPacketType() == PacketType.TYPE_REQ) {
                     log.warn("command {} is not support", packet.getCommand());
                     writeErrorInIoThread(packet, CmdCodes.COMMAND_NOT_SUPPORT, null);
                     return false;
                 }
             }
             if (currentDecoderCallback == null) {
-                currentDecoderCallback = processorForRequest.createDecoderCallback(packet.getCommand(), decodeContext);
+                currentDecoderCallback = processorForRequest.createDecoderCallback(packet.getCommand(), decodeContext.getOrCreateNestedContext());
             }
         }
         return true;

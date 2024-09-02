@@ -67,7 +67,7 @@ public class KvClient extends AbstractLifeCircle {
         };
         wf.setCommand(Commands.DTKV_PUT);
         CompletableFuture<Void> f = new CompletableFuture<>();
-        raftClient.sendRequest(groupId, wf, DecoderCallback.VOID_DECODE_CALLBACK, timeout, RpcCallback.create(f));
+        raftClient.sendRequest(groupId, wf, c -> DecoderCallback.VOID_DECODE_CALLBACK, timeout, RpcCallback.create(f));
         return f;
     }
 
@@ -91,7 +91,7 @@ public class KvClient extends AbstractLifeCircle {
         };
         wf.setCommand(Commands.DTKV_GET);
         CompletableFuture<byte[]> f = new CompletableFuture<>();
-        raftClient.sendRequest(groupId, wf, new ByteArrayDecoderCallback(), timeout, RpcCallback.create(f));
+        raftClient.sendRequest(groupId, wf, ctx -> new ByteArrayDecoderCallback(), timeout, RpcCallback.create(f));
         return f;
     }
 
@@ -126,8 +126,8 @@ public class KvClient extends AbstractLifeCircle {
                 f.completeExceptionally(ex);
             }
         };
-        raftClient.sendRequest(groupId, wf, new PbNoCopyDecoderCallback<>(
-                PbNoCopyDecoderCallback.IntCallback::new), timeout, c);
+        raftClient.sendRequest(groupId, wf, ctx -> ctx.getOrCreatePbNoCopyDecoderCallback(
+                new PbNoCopyDecoderCallback.IntCallback()), timeout, c);
         return f;
     }
 

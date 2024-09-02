@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.codec.PbNoCopyDecoderCallback;
 import com.github.dtprj.dongting.common.Pair;
 import com.github.dtprj.dongting.fiber.Fiber;
 import com.github.dtprj.dongting.fiber.FiberFrame;
@@ -102,9 +101,9 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
     @Override
     public DecoderCallback createDecoderCallback(int command, DecodeContext context) {
         if (command == Commands.RAFT_APPEND_ENTRIES) {
-            return new PbNoCopyDecoderCallback<>(() -> new AppendReqCallback(decoderFactory));
+            return context.getOrCreatePbNoCopyDecoderCallback(new AppendReqCallback(decoderFactory));
         } else {
-            return new PbNoCopyDecoderCallback<>(InstallSnapshotReq.Callback::new);
+            return context.getOrCreatePbNoCopyDecoderCallback(new InstallSnapshotReq.Callback());
         }
     }
 

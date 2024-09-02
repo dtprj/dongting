@@ -15,8 +15,11 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.common.DtTime;
+
+import java.util.function.Function;
 
 /**
  * @author huangli
@@ -34,26 +37,30 @@ class WriteData {
     // only for request or one way request
     private final Peer peer;
     final RpcCallback<?> callback;
-    private final DecoderCallback<?> respDecoderCallback;
+    final Function<DecodeContext, DecoderCallback<?>> respDecoderCallback;
 
     // for request or one way request (client side)
-    public <T> WriteData(Peer peer, WritePacket data, DtTime timeout, RpcCallback<T> callback, DecoderCallback<T> respDecoderCallback) {
+    public <T> WriteData(Peer peer, WritePacket data, DtTime timeout, RpcCallback<T> callback,
+                         Function<DecodeContext, DecoderCallback<T>> respDecoderCallback) {
         this.peer = peer;
         this.data = data;
         this.timeout = timeout;
         this.callback = callback;
-        this.respDecoderCallback = respDecoderCallback;
+        Function t = respDecoderCallback;
+        this.respDecoderCallback = t;
         this.estimateSize = data.calcMaxPacketSize();
     }
 
     // for request or one way request (server push)
-    public <T> WriteData(DtChannelImpl dtc, WritePacket data, DtTime timeout, RpcCallback<T> callback, DecoderCallback<T> respDecoderCallback) {
+    public <T> WriteData(DtChannelImpl dtc, WritePacket data, DtTime timeout, RpcCallback<T> callback,
+                         Function<DecodeContext, DecoderCallback<T>> respDecoderCallback) {
         this.dtc = dtc;
         this.peer = null;
         this.data = data;
         this.timeout = timeout;
         this.callback = callback;
-        this.respDecoderCallback = respDecoderCallback;
+        Function t = respDecoderCallback;
+        this.respDecoderCallback = t;
         this.estimateSize = data.calcMaxPacketSize();
     }
 
@@ -94,10 +101,6 @@ class WriteData {
 
     public DtTime getTimeout() {
         return timeout;
-    }
-
-    public DecoderCallback<?> getRespDecoder() {
-        return respDecoderCallback;
     }
 
     public Peer getPeer() {

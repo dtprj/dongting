@@ -18,7 +18,6 @@ package com.github.dtprj.dongting.dtkv.server;
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.PbCallback;
-import com.github.dtprj.dongting.codec.PbNoCopyDecoderCallback;
 import com.github.dtprj.dongting.codec.StrEncoder;
 import com.github.dtprj.dongting.dtkv.PutReq;
 import com.github.dtprj.dongting.net.CmdCodes;
@@ -74,7 +73,7 @@ public class PutProcessor extends AbstractRaftBizProcessor<PutReq> {
 
     @Override
     public DecoderCallback<PutReq> createDecoderCallback(int cmd, DecodeContext context) {
-        return new PbNoCopyDecoderCallback<>(PutReqDecoderCallback::new);
+        return context.getOrCreatePbNoCopyDecoderCallback(new PutReqDecoderCallback());
     }
 
     @Override

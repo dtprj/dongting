@@ -15,6 +15,7 @@
  */
 package com.github.dtprj.dongting.net;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -133,11 +134,14 @@ public class NioClient extends NioNet {
         this.startFutures = null;
     }
 
-    public <T> CompletableFuture<ReadPacket<T>> sendRequest(WritePacket request, DecoderCallback<T> decoderCallback, DtTime timeout) {
+    public <T> CompletableFuture<ReadPacket<T>> sendRequest(WritePacket request,
+                                                            Function<DecodeContext, DecoderCallback<T>> decoderCallback,
+                                                            DtTime timeout) {
         return sendRequest(null, request, decoderCallback, timeout);
     }
 
-    public <T> CompletableFuture<ReadPacket<T>> sendRequest(Peer peer, WritePacket request, DecoderCallback<T> decoderCallback,
+    public <T> CompletableFuture<ReadPacket<T>> sendRequest(Peer peer, WritePacket request,
+                                                            Function<DecodeContext, DecoderCallback<T>> decoderCallback,
                                                             DtTime timeout) {
         CompletableFuture<ReadPacket<T>> f = new CompletableFuture<>();
         send(worker, peer, request, decoderCallback, timeout, new RpcCallback<T>() {
@@ -154,11 +158,13 @@ public class NioClient extends NioNet {
         return f;
     }
 
-    public <T> void sendRequest(WritePacket request, DecoderCallback<T> decoderCallback, DtTime timeout, RpcCallback<T> callback) {
+    public <T> void sendRequest(WritePacket request, Function<DecodeContext, DecoderCallback<T>> decoderCallback,
+                                DtTime timeout, RpcCallback<T> callback) {
         send(worker, null, request, decoderCallback, timeout, callback);
     }
 
-    public <T> void sendRequest(Peer peer, WritePacket request, DecoderCallback<T> decoderCallback, DtTime timeout,
+    public <T> void sendRequest(Peer peer, WritePacket request,
+                                Function<DecodeContext, DecoderCallback<T>> decoderCallback, DtTime timeout,
                                 RpcCallback<T> callback) {
         send(worker, peer, request, decoderCallback, timeout, callback);
     }

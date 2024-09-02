@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.raft.rpc;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.codec.PbNoCopyDecoderCallback;
 import com.github.dtprj.dongting.fiber.FiberFrame;
 import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.ReadPacket;
@@ -51,6 +50,6 @@ public class RaftPingProcessor extends RaftSequenceProcessor<RaftPingPacketCallb
 
     @Override
     public DecoderCallback<RaftPingPacketCallback> createDecoderCallback(int command, DecodeContext context) {
-        return new PbNoCopyDecoderCallback<>(RaftPingPacketCallback::new);
+        return context.getOrCreatePbNoCopyDecoderCallback(new RaftPingPacketCallback());
     }
 }

@@ -38,6 +38,7 @@ import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 
 /**
  * @author huangli
@@ -214,7 +215,8 @@ public class NioServer extends NioNet implements Runnable {
         log.warn("force stop done");
     }
 
-    public <T> CompletableFuture<ReadPacket<T>> sendRequest(DtChannel dtc, WritePacket request, DecoderCallback<T> decoderCallback,
+    public <T> CompletableFuture<ReadPacket<T>> sendRequest(DtChannel dtc, WritePacket request,
+                                                            Function<DecodeContext, DecoderCallback<T>> decoderCallback,
                                                             DtTime timeout) {
         CompletableFuture<ReadPacket<T>> f = new CompletableFuture<>();
         push((DtChannelImpl) dtc, request, decoderCallback, timeout, new RpcCallback<T>() {
@@ -231,7 +233,8 @@ public class NioServer extends NioNet implements Runnable {
         return f;
     }
 
-    public <T> void sendRequest(DtChannel dtc, WritePacket request, DecoderCallback<T> decoderCallback, DtTime timeout,
+    public <T> void sendRequest(DtChannel dtc, WritePacket request,
+                                Function<DecodeContext, DecoderCallback<T>> decoderCallback, DtTime timeout,
                                 RpcCallback<T> callback) {
         push((DtChannelImpl) dtc, request, decoderCallback, timeout, callback);
     }

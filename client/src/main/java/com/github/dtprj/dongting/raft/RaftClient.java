@@ -15,8 +15,8 @@
  */
 package com.github.dtprj.dongting.raft;
 
+import com.github.dtprj.dongting.codec.DecodeContext;
 import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.codec.PbNoCopyDecoderCallback;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -45,6 +45,7 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Function;
 
 /**
  * @author huangli
@@ -184,7 +185,8 @@ public class RaftClient extends AbstractLifeCircle {
         }
     }
 
-    public <T> void sendRequest(int groupId, RetryableWritePacket request, DecoderCallback<T> decoderCallback, DtTime timeout,
+    public <T> void sendRequest(int groupId, RetryableWritePacket request,
+                                Function<DecodeContext, DecoderCallback<T>> decoderCallback, DtTime timeout,
                                 RpcCallback<T> callback) {
         GroupInfo groupInfo = groups.get(groupId);
         if (groupInfo == null) {
@@ -214,8 +216,8 @@ public class RaftClient extends AbstractLifeCircle {
         }
     }
 
-    private <T> void send(RetryableWritePacket request, DecoderCallback<T> decoderCallback, DtTime timeout,
-                          RpcCallback<T> c, GroupInfo gi, boolean retry) {
+    private <T> void send(RetryableWritePacket request, Function<DecodeContext, DecoderCallback<T>> decoderCallback,
+                          DtTime timeout, RpcCallback<T> c, GroupInfo gi, boolean retry) {
         RpcCallback<T> newCallback = new RpcCallback<T>() {
             @Override
             public void success(ReadPacket<T> resp) {
@@ -277,8 +279,7 @@ public class RaftClient extends AbstractLifeCircle {
         NodeInfo node = it.next();
         PbIntWritePacket req = new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, gi.groupId);
         DtTime rpcTimeout = new DtTime(3, TimeUnit.SECONDS);
-        DecoderCallback<QueryStatusResp> decoderCallback = new PbNoCopyDecoderCallback<>(QueryStatusResp.QueryStatusRespCallback::new);
-        client.sendRequest(node.getPeer(), req, decoderCallback, rpcTimeout)
+        client.sendRequest(node.getPeer(), req, c -> c.getOrCreatePbNoCopyDecoderCallback(new QueryStatusResp.QueryStatusRespCallback()), rpcTimeout)
                 .whenComplete((rf, ex) -> processLeaderQueryResult(gi, it, rf, ex, node));
     }
 

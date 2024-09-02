@@ -16,23 +16,27 @@
 package com.github.dtprj.dongting.codec;
 
 import java.nio.ByteBuffer;
-import java.util.function.Supplier;
 
 /**
  * @author huangli
  */
 public final class PbNoCopyDecoderCallback<T> extends DecoderCallback<T> {
 
-    private final Supplier<PbCallback<T>> callbackCreator;
     private Object result;
+    private PbCallback<T> callback;
 
-    public PbNoCopyDecoderCallback(Supplier<PbCallback<T>> callbackCreator) {
-        this.callbackCreator = callbackCreator;
+    PbNoCopyDecoderCallback() {
+    }
+
+    void prepareNext(PbCallback<T> callback) {
+        this.result = null;
+        this.callback = callback;
     }
 
     @Override
     protected boolean end(boolean success) {
         result = null;
+        callback = null;
         return success;
     }
 
@@ -46,8 +50,7 @@ public final class PbNoCopyDecoderCallback<T> extends DecoderCallback<T> {
     public boolean doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
         PbParser p = context.getOrCreateNestedParser();
         if (currentPos == 0) {
-            PbCallback<T> pbCallback = callbackCreator.get();
-            p.prepareNext(context.getOrCreateNestedContext(), pbCallback, bodyLen);
+            p.prepareNext(context.getOrCreateNestedContext(), callback, bodyLen);
         }
         boolean end = buffer.remaining() >= bodyLen - currentPos;
         result = p.parse(buffer);

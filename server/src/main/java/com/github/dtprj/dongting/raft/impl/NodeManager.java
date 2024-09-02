@@ -15,7 +15,6 @@
  */
 package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.codec.PbNoCopyDecoderCallback;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
@@ -197,7 +196,7 @@ public class NodeManager extends AbstractLifeCircle {
     private CompletableFuture<Void> sendNodePing(RaftNodeEx nodeEx) {
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
         CompletableFuture<ReadPacket<NodePingCallback>> f = client.sendRequest(nodeEx.getPeer(),
-                new NodePingWritePacket(selfNodeId, uuid), new PbNoCopyDecoderCallback<>(NodePingCallback::new), timeout);
+                new NodePingWritePacket(selfNodeId, uuid), ctx -> ctx.getOrCreatePbNoCopyDecoderCallback(new NodePingCallback()), timeout);
         return f.thenAccept(rf -> whenRpcFinish(rf, nodeEx));
     }
 

@@ -28,9 +28,8 @@ public class PbNoCopyDecoderCallbackTest {
     @Test
     public void test() {
         DecodeContext c = CodecTestUtil.createContext();
-        PbNoCopyDecoderCallback<Integer> callback = new PbNoCopyDecoderCallback<>(PbNoCopyDecoderCallback.IntCallback::new);
         Decoder decoder = new Decoder();
-        decoder.prepareNext(c, callback);
+        decoder.prepareNext(c, c.getOrCreatePbNoCopyDecoderCallback(new PbNoCopyDecoderCallback.IntCallback()));
 
         ByteBuffer buf = ByteBuffer.allocate(30);
         PbUtil.writeFix32(buf, 1, 2000);
@@ -43,7 +42,7 @@ public class PbNoCopyDecoderCallbackTest {
         PbUtil.writeFix32(buf, 1, 0);
         buf.flip();
 
-        decoder.prepareNext(c, callback);
+        decoder.prepareNext(c, c.getOrCreatePbNoCopyDecoderCallback(new PbNoCopyDecoderCallback.IntCallback()));
         r = decoder.decode(buf, buf.remaining(), 0);
         Assertions.assertEquals(0, r);
     }
