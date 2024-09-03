@@ -20,7 +20,7 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-public final class PbNoCopyDecoderCallback<T> extends DecoderCallback<T> {
+final class PbNoCopyDecoderCallback<T> extends DecoderCallback<T> {
 
     private Object result;
     private PbCallback<T> callback;

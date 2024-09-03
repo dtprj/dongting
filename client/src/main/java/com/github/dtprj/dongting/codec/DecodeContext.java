@@ -104,7 +104,7 @@ public class DecodeContext {
         return threadLocalBuffer;
     }
 
-    public <T> PbNoCopyDecoderCallback<T> getOrCreatePbNoCopyDecoderCallback(PbCallback<T> callback) {
+    public <T> DecoderCallback<T> getOrCreatePbNoCopyDecoderCallback(PbCallback<T> callback) {
         PbNoCopyDecoderCallback c = pbNoCopyDecoderCallback;
         if (c == null) {
             c = new PbNoCopyDecoderCallback();
