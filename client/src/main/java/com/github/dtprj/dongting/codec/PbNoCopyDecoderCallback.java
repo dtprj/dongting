@@ -24,6 +24,7 @@ final class PbNoCopyDecoderCallback extends DecoderCallback<Object> {
 
     private Object result;
     private PbCallback<?> callback;
+    private final PbParser parser = new PbParser();
 
     PbNoCopyDecoderCallback() {
     }
@@ -37,6 +38,7 @@ final class PbNoCopyDecoderCallback extends DecoderCallback<Object> {
     protected boolean end(boolean success) {
         result = null;
         callback = null;
+        parser.reset();
         return success;
     }
 
@@ -47,22 +49,21 @@ final class PbNoCopyDecoderCallback extends DecoderCallback<Object> {
 
     @Override
     public boolean doDecode(ByteBuffer buffer, int bodyLen, int currentPos) {
-        PbParser p = context.getOrCreateNestedParser();
         if (currentPos == 0) {
-            p.prepareNext(context.getOrCreateNestedContext(), callback, bodyLen);
+            parser.prepareNext(context, callback, bodyLen);
         }
         boolean end = buffer.remaining() >= bodyLen - currentPos;
-        result = p.parse(buffer);
+        result = parser.parse(buffer);
 
         if (end) {
-            if (!p.isFinished()) {
+            if (!parser.isFinished()) {
                 throw new PbException("parse not finish after read all bytes. bodyLen="
-                        + bodyLen + ", currentPos=" + currentPos + ", callback=" + p.callback);
+                        + bodyLen + ", currentPos=" + currentPos + ", callback=" + parser.callback);
             }
         } else {
-            if (p.isFinished()) {
+            if (parser.isFinished()) {
                 throw new PbException("parse finished without read all bytes. bodyLen="
-                        + bodyLen + ", currentPos=" + currentPos + ", callback=" + p.callback);
+                        + bodyLen + ", currentPos=" + currentPos + ", callback=" + parser.callback);
             }
         }
         return true;
