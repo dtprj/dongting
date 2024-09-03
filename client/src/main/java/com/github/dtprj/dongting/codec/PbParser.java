@@ -82,7 +82,6 @@ public class PbParser {
         context.status = null;
 
         callback.context = context;
-        callback.parser = this;
 
         this.pendingBytes = 0;
         this.parsedBytes = 0;
@@ -174,7 +173,6 @@ public class PbParser {
 
                 context.status = null;
                 callback.context = null;
-                callback.parser = null;
 
                 this.callback = null;
             }

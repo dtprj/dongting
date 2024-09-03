@@ -22,8 +22,6 @@ import java.nio.ByteBuffer;
  */
 public abstract class PbCallback<T> extends AbstractCodecCallback<T> {
 
-    protected PbParser parser;
-
     public boolean readVarNumber(int index, long value) {
         return true;
     }
