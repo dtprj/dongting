@@ -66,7 +66,6 @@ public class HandshakeBody {
             if (index == 8) {
                 ConfigBody.Callback nestedCallback = currentPos == 0 ? new ConfigBody.Callback() : null;
                 result.config = parseNested(buf, fieldLen, currentPos, nestedCallback);
-                return !context.getOrCreateNestedParser().shouldSkip();
             }
             return true;
         }
