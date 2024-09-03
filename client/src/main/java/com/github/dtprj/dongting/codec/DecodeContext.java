@@ -40,6 +40,8 @@ public class DecodeContext {
 
     // caches
     private PbNoCopyDecoderCallback pbNoCopyDecoderCallback;
+    private RefBufferDecoderCallback refBufferDecoderCallback;
+    private RefBufferDecoderCallback refBufferDecoderCallbackPlain;
 
     public DecodeContext() {
     }
@@ -121,5 +123,23 @@ public class DecodeContext {
         }
         c.prepareNext(callback);
         return (DecoderCallback<T>) c;
+    }
+
+    public RefBufferDecoderCallback createRefBufferDecoderCallback(boolean plain) {
+        RefBufferDecoderCallback c;
+        if (plain) {
+            c = refBufferDecoderCallbackPlain;
+            if (c == null) {
+                c = new RefBufferDecoderCallback(true);
+                this.refBufferDecoderCallbackPlain = c;
+            }
+        } else {
+            c = refBufferDecoderCallback;
+            if (c == null) {
+                c = new RefBufferDecoderCallback(false);
+                this.refBufferDecoderCallback = c;
+            }
+        }
+        return c;
     }
 }
