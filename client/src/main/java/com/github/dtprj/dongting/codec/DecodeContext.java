@@ -104,6 +104,7 @@ public class DecodeContext {
         return threadLocalBuffer;
     }
 
+    @SuppressWarnings("unchecked")
     public <T> DecoderCallback<T> toDecoderCallback(PbCallback<T> callback) {
         PbNoCopyDecoderCallback c = pbNoCopyDecoderCallback;
         if (c == null) {
@@ -111,6 +112,6 @@ public class DecodeContext {
             this.pbNoCopyDecoderCallback = c;
         }
         c.prepareNext(callback);
-        return c;
+        return (DecoderCallback<T>) c;
     }
 }

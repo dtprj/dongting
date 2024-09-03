@@ -20,15 +20,15 @@ import java.nio.ByteBuffer;
 /**
  * @author huangli
  */
-final class PbNoCopyDecoderCallback<T> extends DecoderCallback<T> {
+final class PbNoCopyDecoderCallback extends DecoderCallback<Object> {
 
     private Object result;
-    private PbCallback<T> callback;
+    private PbCallback<?> callback;
 
     PbNoCopyDecoderCallback() {
     }
 
-    void prepareNext(PbCallback<T> callback) {
+    void prepareNext(PbCallback<?> callback) {
         this.result = null;
         this.callback = callback;
     }
@@ -40,10 +40,9 @@ final class PbNoCopyDecoderCallback<T> extends DecoderCallback<T> {
         return success;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    protected T getResult() {
-        return (T) result;
+    protected Object getResult() {
+        return result;
     }
 
     @Override
