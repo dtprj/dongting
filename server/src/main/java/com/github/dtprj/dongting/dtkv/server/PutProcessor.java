@@ -73,7 +73,7 @@ public class PutProcessor extends AbstractRaftBizProcessor<PutReq> {
 
     @Override
     public DecoderCallback<PutReq> createDecoderCallback(int cmd, DecodeContext context) {
-        return context.getOrCreatePbNoCopyDecoderCallback(new PutReqDecoderCallback());
+        return context.toDecoderCallback(new PutReqDecoderCallback());
     }
 
     @Override

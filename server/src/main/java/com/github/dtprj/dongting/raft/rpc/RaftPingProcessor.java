@@ -50,6 +50,6 @@ public class RaftPingProcessor extends RaftSequenceProcessor<RaftPingPacketCallb
 
     @Override
     public DecoderCallback<RaftPingPacketCallback> createDecoderCallback(int command, DecodeContext context) {
-        return context.getOrCreatePbNoCopyDecoderCallback(new RaftPingPacketCallback());
+        return context.toDecoderCallback(new RaftPingPacketCallback());
     }
 }

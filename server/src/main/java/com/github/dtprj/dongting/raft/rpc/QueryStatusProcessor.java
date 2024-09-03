@@ -36,7 +36,7 @@ public class QueryStatusProcessor extends RaftSequenceProcessor<Integer> {
 
     @Override
     public DecoderCallback<Integer> createDecoderCallback(int command, DecodeContext context) {
-        return context.getOrCreatePbNoCopyDecoderCallback(new PbIntCallback());
+        return context.toDecoderCallback(new PbIntCallback());
     }
 
     @Override

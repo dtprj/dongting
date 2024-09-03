@@ -185,7 +185,7 @@ public class VoteManager {
             fireRespProcessFiber(req, resp, null, member, voteIdOfRequest);
         } else {
             CompletableFuture<ReadPacket<VoteResp>> f = client.sendRequest(member.getNode().getPeer(), wf,
-                    ctx -> ctx.getOrCreatePbNoCopyDecoderCallback(new VoteResp.Callback()), timeout);
+                    ctx -> ctx.toDecoderCallback(new VoteResp.Callback()), timeout);
             log.info("send {} request. remoteNode={}, groupId={}, term={}, lastLogIndex={}, lastLogTerm={}",
                     preVote ? "pre-vote" : "vote", member.getNode().getNodeId(), groupId,
                     currentTerm, req.getLastLogIndex(), req.getLastLogTerm());

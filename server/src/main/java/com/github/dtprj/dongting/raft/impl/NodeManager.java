@@ -196,7 +196,7 @@ public class NodeManager extends AbstractLifeCircle {
     private CompletableFuture<Void> sendNodePing(RaftNodeEx nodeEx) {
         DtTime timeout = new DtTime(config.getRpcTimeout(), TimeUnit.MILLISECONDS);
         CompletableFuture<ReadPacket<NodePingCallback>> f = client.sendRequest(nodeEx.getPeer(),
-                new NodePingWritePacket(selfNodeId, uuid), ctx -> ctx.getOrCreatePbNoCopyDecoderCallback(new NodePingCallback()), timeout);
+                new NodePingWritePacket(selfNodeId, uuid), ctx -> ctx.toDecoderCallback(new NodePingCallback()), timeout);
         return f.thenAccept(rf -> whenRpcFinish(rf, nodeEx));
     }
 

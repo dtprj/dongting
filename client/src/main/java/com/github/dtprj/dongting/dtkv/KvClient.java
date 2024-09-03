@@ -126,7 +126,7 @@ public class KvClient extends AbstractLifeCircle {
                 f.completeExceptionally(ex);
             }
         };
-        raftClient.sendRequest(groupId, wf, ctx -> ctx.getOrCreatePbNoCopyDecoderCallback(
+        raftClient.sendRequest(groupId, wf, ctx -> ctx.toDecoderCallback(
                 new PbIntCallback()), timeout, c);
         return f;
     }

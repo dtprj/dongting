@@ -362,7 +362,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         long perfStartTime = perfCallback.takeTime(PerfConsts.RAFT_D_REPLICATE_RPC);
         // release in AppendReqWritePacket
         CompletableFuture<ReadPacket<AppendRespCallback>> f = client.sendRequest(member.getNode().getPeer(),
-                req, ctx -> ctx.getOrCreatePbNoCopyDecoderCallback(new AppendRespCallback()), timeout);
+                req, ctx -> ctx.toDecoderCallback(new AppendRespCallback()), timeout);
 
         long bytes = 0;
         for (int size = items.size(), i = 0; i < size; i++) {
@@ -683,7 +683,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         wf.setCommand(Commands.RAFT_INSTALL_SNAPSHOT);
         DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
         CompletableFuture<ReadPacket<AppendRespCallback>> future = client.sendRequest(
-                member.getNode().getPeer(), wf, ctx -> ctx.getOrCreatePbNoCopyDecoderCallback(new AppendRespCallback()), timeout);
+                member.getNode().getPeer(), wf, ctx -> ctx.toDecoderCallback(new AppendRespCallback()), timeout);
         int bytes = data == null ? 0 : data.getBuffer().remaining();
         snapshotOffset += bytes;
         FiberFuture<Void> f = getFiberGroup().newFuture("install-" + groupId + "-" + req.offset);

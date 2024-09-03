@@ -101,9 +101,9 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
     @Override
     public DecoderCallback createDecoderCallback(int command, DecodeContext context) {
         if (command == Commands.RAFT_APPEND_ENTRIES) {
-            return context.getOrCreatePbNoCopyDecoderCallback(new AppendReqCallback(decoderFactory));
+            return context.toDecoderCallback(new AppendReqCallback(decoderFactory));
         } else {
-            return context.getOrCreatePbNoCopyDecoderCallback(new InstallSnapshotReq.Callback());
+            return context.toDecoderCallback(new InstallSnapshotReq.Callback());
         }
     }
 

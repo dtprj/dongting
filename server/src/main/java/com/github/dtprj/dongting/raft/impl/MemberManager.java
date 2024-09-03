@@ -211,7 +211,7 @@ public class MemberManager {
             DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
             RaftPingWritePacket f = new RaftPingWritePacket(groupId, serverConfig.getNodeId(),
                     raftStatus.getNodeIdOfMembers(), raftStatus.getNodeIdOfObservers());
-            client.sendRequest(raftNodeEx.getPeer(), f, ctx -> ctx.getOrCreatePbNoCopyDecoderCallback(new RaftPingPacketCallback()), timeout)
+            client.sendRequest(raftNodeEx.getPeer(), f, ctx -> ctx.toDecoderCallback(new RaftPingPacketCallback()), timeout)
                     .whenCompleteAsync((rf, ex) -> processPingResult(raftNodeEx, member, rf, ex, nodeEpochWhenStartPing),
                             groupConfig.getFiberGroup().getExecutor());
         } catch (Exception e) {
@@ -381,7 +381,7 @@ public class MemberManager {
             boolean result = raftStatus.getLastApplied() >= prepareIndex;
             resultMap.put(n.getNodeId(), CompletableFuture.completedFuture(result));
         } else {
-            final DecoderCallbackCreator<QueryStatusResp> decoder = ctx -> ctx.getOrCreatePbNoCopyDecoderCallback(
+            final DecoderCallbackCreator<QueryStatusResp> decoder = ctx -> ctx.toDecoderCallback(
                     new QueryStatusResp.QueryStatusRespCallback());
             CompletableFuture<Boolean> queryFuture = client.sendRequest(n.getPeer(), new PbIntWritePacket(Commands.RAFT_QUERY_STATUS, groupId),
                             decoder, new DtTime(3, TimeUnit.SECONDS))
