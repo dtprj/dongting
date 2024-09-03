@@ -23,6 +23,7 @@ import com.github.dtprj.dongting.codec.PbParser;
 import com.github.dtprj.dongting.net.RpcEncodeContext;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
+import com.github.dtprj.dongting.util.CodecTestUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -70,7 +71,7 @@ public class AppendReqWritePacketTest {
 
         buf.clear();
 
-        DecodeContext decodeContext = new DecodeContext(null);
+        DecodeContext decodeContext = CodecTestUtil.createContext();
         AppendReqCallback c = new AppendReqCallback(g -> raftCodecFactory);
         PbParser p = new PbParser();
         p.prepareNext(decodeContext, c, f.actualBodySize());
@@ -90,7 +91,7 @@ public class AppendReqWritePacketTest {
     private void testSmallBufferEncode0(boolean addHeader, boolean addBody) {
         AppendReqWritePacket f = createFrame(addHeader, addBody);
         RpcEncodeContext context = new RpcEncodeContext(null);
-        DecodeContext decodeContext = new DecodeContext(null);
+        DecodeContext decodeContext = CodecTestUtil.createContext();
         AppendReqCallback c = new AppendReqCallback(g -> raftCodecFactory);
         PbParser p = new PbParser();
         p.prepareNext(decodeContext, c, f.actualBodySize());

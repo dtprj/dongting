@@ -13,21 +13,20 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package com.github.dtprj.dongting.codec;
+package com.github.dtprj.dongting.raft.impl;
 
-import com.github.dtprj.dongting.buf.ByteBufferPool;
-import com.github.dtprj.dongting.buf.DefaultPoolFactory;
-import com.github.dtprj.dongting.buf.RefBufferFactory;
-import com.github.dtprj.dongting.common.Timestamp;
+import com.github.dtprj.dongting.codec.DecodeContext;
 
 /**
  * @author huangli
  */
-public class CodecTestUtil {
-    public static DecodeContext createContext() {
-        ByteBufferPool pool = new DefaultPoolFactory().createPool(new Timestamp(), false);
-        DecodeContext c = new DecodeContext();
-        c.setHeapPool(new RefBufferFactory(pool, 128));
-        return c;
+public final class DecodeContextEx extends DecodeContext {
+
+    public DecodeContextEx() {
+    }
+
+    @Override
+    protected DecodeContext createNestedInstance() {
+        return new DecodeContextEx();
     }
 }

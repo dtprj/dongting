@@ -83,7 +83,9 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         this.channelIndexInWorker = channelIndexInWorker;
         this.peer = peer;
 
-        this.decodeContext = new DecodeContext(workerStatus.getHeapPool());
+        this.decodeContext = nioConfig.getDecodeContextFactory().get();
+        this.decodeContext.setHeapPool(workerStatus.getHeapPool());
+
         this.parser = new MultiParser(decodeContext, this, nioConfig.getMaxPacketSize());
         this.decoder = new Decoder();
 

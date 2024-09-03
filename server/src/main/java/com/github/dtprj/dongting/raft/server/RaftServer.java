@@ -37,6 +37,7 @@ import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.RaftNode;
 import com.github.dtprj.dongting.raft.impl.ApplyManager;
 import com.github.dtprj.dongting.raft.impl.CommitManager;
+import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.InitFiberFrame;
 import com.github.dtprj.dongting.raft.impl.LinearTaskRunner;
@@ -157,6 +158,7 @@ public class RaftServer extends AbstractLifeCircle {
             serviceServerConfig.setName("RaftServiceServer" + serverConfig.getNodeId());
             serviceServerConfig.setBizThreads(0);
             // use multi io threads
+            serviceServerConfig.setDecodeContextFactory(DecodeContextEx::new);
             serviceNioServer = new NioServer(serviceServerConfig);
             addRaftGroupProcessor(serviceNioServer, Commands.RAFT_QUERY_STATUS, queryStatusProcessor);
         } else {
@@ -180,6 +182,7 @@ public class RaftServer extends AbstractLifeCircle {
         nc.setMaxInBytes(0);
         nc.setMaxBodySize(Integer.MAX_VALUE);
         nc.setMaxPacketSize(Integer.MAX_VALUE);
+        nc.setDecodeContextFactory(DecodeContextEx::new);
     }
 
     private void createRaftGroups(RaftServerConfig serverConfig,

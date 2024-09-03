@@ -29,7 +29,7 @@ public class DecodeContext {
     private static final ThreadLocal<byte[]> THREAD_LOCAL_BUFFER = ThreadLocal.withInitial(() -> new byte[THREAD_LOCAL_BUFFER_SIZE]);
     private final byte[] threadLocalBuffer = THREAD_LOCAL_BUFFER.get();
 
-    private final RefBufferFactory heapPool;
+    private RefBufferFactory heapPool;
 
     private PbParser nestedParser;
     private Decoder nestedDecoder;
@@ -41,8 +41,11 @@ public class DecodeContext {
     // caches
     private PbNoCopyDecoderCallback pbNoCopyDecoderCallback;
 
-    public DecodeContext(RefBufferFactory heapPool) {
-        this.heapPool = heapPool;
+    public DecodeContext() {
+    }
+
+    protected DecodeContext createNestedInstance() {
+        return new DecodeContext();
     }
 
     public void reset(PbParser root) {
@@ -77,7 +80,8 @@ public class DecodeContext {
 
     public DecodeContext getOrCreateNestedContext() {
         if (nestedContext == null) {
-            nestedContext = new DecodeContext(heapPool);
+            nestedContext = createNestedInstance();
+            nestedContext.heapPool = heapPool;
         }
         return nestedContext;
     }
@@ -98,6 +102,10 @@ public class DecodeContext {
 
     public RefBufferFactory getHeapPool() {
         return heapPool;
+    }
+
+    public void setHeapPool(RefBufferFactory heapPool) {
+        this.heapPool = heapPool;
     }
 
     public byte[] getThreadLocalBuffer() {
