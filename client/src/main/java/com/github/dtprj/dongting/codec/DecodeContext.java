@@ -78,7 +78,7 @@ public class DecodeContext {
         }
     }
 
-    public DecodeContext getOrCreateNestedContext() {
+    public DecodeContext createOrGetNestedContext() {
         if (nestedContext == null) {
             nestedContext = createNestedInstance();
             nestedContext.heapPool = heapPool;
@@ -86,14 +86,14 @@ public class DecodeContext {
         return nestedContext;
     }
 
-    PbParser getOrCreateNestedParser() {
+    PbParser createOrGetNestedParser() {
         if (nestedParser == null) {
             nestedParser = new PbParser();
         }
         return nestedParser;
     }
 
-    Decoder getOrCreateNestedDecoder() {
+    Decoder createOrGetNestedDecoder() {
         if (nestedDecoder == null) {
             nestedDecoder = new Decoder();
         }

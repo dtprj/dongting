@@ -135,7 +135,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 return false;
             }
             if (currentDecoderCallback != null) {
-                decoder.prepareNext(decodeContext.getOrCreateNestedContext(), currentDecoderCallback);
+                decoder.prepareNext(decodeContext.createOrGetNestedContext(), currentDecoderCallback);
                 packet.body = decoder.decode(SimpleByteBufferPool.EMPTY_BUFFER, 0, 0);
             }
         }
@@ -231,7 +231,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         }
 
         if (currentPos == 0) {
-            decoder.prepareNext(decodeContext.getOrCreateNestedContext(), currentDecoderCallback);
+            decoder.prepareNext(decodeContext.createOrGetNestedContext(), currentDecoderCallback);
         }
         try {
             packet.body = decoder.decode(buf, fieldLen, currentPos);
@@ -266,7 +266,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 }
             }
             if (currentDecoderCallback == null) {
-                currentDecoderCallback = requestForResp.respDecoderCallback.apply(decodeContext.getOrCreateNestedContext());
+                currentDecoderCallback = requestForResp.respDecoderCallback.apply(decodeContext.createOrGetNestedContext());
             }
         } else {
             // req or one way
@@ -283,7 +283,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 }
             }
             if (currentDecoderCallback == null) {
-                currentDecoderCallback = processorForRequest.createDecoderCallback(packet.getCommand(), decodeContext.getOrCreateNestedContext());
+                currentDecoderCallback = processorForRequest.createDecoderCallback(packet.getCommand(), decodeContext.createOrGetNestedContext());
             }
         }
         return true;
