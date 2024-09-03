@@ -17,7 +17,7 @@ package com.github.dtprj.dongting.dtkv;
 
 import com.github.dtprj.dongting.codec.ByteArrayDecoderCallback;
 import com.github.dtprj.dongting.codec.DecoderCallback;
-import com.github.dtprj.dongting.codec.PbNoCopyDecoderCallback;
+import com.github.dtprj.dongting.codec.PbIntCallback;
 import com.github.dtprj.dongting.codec.PbUtil;
 import com.github.dtprj.dongting.common.AbstractLifeCircle;
 import com.github.dtprj.dongting.common.DtTime;
@@ -127,7 +127,7 @@ public class KvClient extends AbstractLifeCircle {
             }
         };
         raftClient.sendRequest(groupId, wf, ctx -> ctx.getOrCreatePbNoCopyDecoderCallback(
-                new PbNoCopyDecoderCallback.IntCallback()), timeout, c);
+                new PbIntCallback()), timeout, c);
         return f;
     }
 
