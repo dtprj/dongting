@@ -90,6 +90,9 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
         // if no error occurs in io thread, this method will not be called.
         // AppendProcessor do not call invokeCleanUp()
         ReadPacket<Object> f = reqInfo.getReqFrame();
+        if (f.getBody() == null) {
+            return;
+        }
         if (f.getCommand() == Commands.RAFT_APPEND_ENTRIES) {
             AppendReq req = (AppendReq) f.getBody();
             RaftUtil.release(req.getLogs());
@@ -473,7 +476,7 @@ class InstallFiberFrame extends AbstractAppendFrame<InstallSnapshotReq> {
         if (RaftUtil.writeNotFinished(raftStatus)) {
             return RaftUtil.waitWriteFinish(raftStatus, this);
         }
-        return Fiber.call(gc.getRaftLog().beginInstall(), this:: applyConfigChange);
+        return Fiber.call(gc.getRaftLog().beginInstall(), this::applyConfigChange);
     }
 
     private FrameCallResult applyConfigChange(Void unused) {
