@@ -17,6 +17,7 @@ package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.buf.RefBuffer;
 import com.github.dtprj.dongting.buf.RefBufferFactory;
+import com.github.dtprj.dongting.codec.DecoderCallbackCreator;
 import com.github.dtprj.dongting.common.DtTime;
 import com.github.dtprj.dongting.common.DtUtil;
 import com.github.dtprj.dongting.common.Pair;
@@ -39,7 +40,7 @@ import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.raft.RaftException;
 import com.github.dtprj.dongting.raft.rpc.AppendProcessor;
 import com.github.dtprj.dongting.raft.rpc.AppendReqWritePacket;
-import com.github.dtprj.dongting.raft.rpc.AppendRespCallback;
+import com.github.dtprj.dongting.raft.rpc.AppendResp;
 import com.github.dtprj.dongting.raft.rpc.InstallSnapshotReq;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.server.RaftGroupConfigEx;
@@ -141,6 +142,11 @@ abstract class AbstractLeaderRepFrame extends FiberFrame<Void> {
     protected final int term;
     protected final int groupId;
     protected final RaftMember member;
+
+    protected static final DecoderCallbackCreator<AppendResp> APPEND_RESP_DECODER_CALLBACK_CREATOR = ctx -> {
+        AppendResp.Callback c = ((DecodeContextEx) ctx).createOrGetAppendRespCallback();
+        return ctx.toDecoderCallback(c);
+    };
 
     public AbstractLeaderRepFrame(ReplicateManager replicateManager, RaftMember member) {
         this.groupId = replicateManager.groupId;
@@ -361,8 +367,8 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         DtTime timeout = new DtTime(ts.getNanoTime(), serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
         long perfStartTime = perfCallback.takeTime(PerfConsts.RAFT_D_REPLICATE_RPC);
         // release in AppendReqWritePacket
-        CompletableFuture<ReadPacket<AppendRespCallback>> f = client.sendRequest(member.getNode().getPeer(),
-                req, ctx -> ctx.toDecoderCallback(new AppendRespCallback()), timeout);
+        CompletableFuture<ReadPacket<AppendResp>> f = client.sendRequest(member.getNode().getPeer(),
+                req, APPEND_RESP_DECODER_CALLBACK_CREATOR, timeout);
 
         long bytes = 0;
         for (int size = items.size(), i = 0; i < size; i++) {
@@ -379,7 +385,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
                 getFiberGroup().getExecutor());
     }
 
-    void afterAppendRpc(ReadPacket<AppendRespCallback> rf, Throwable ex, long prevLogIndex, int prevLogTerm,
+    void afterAppendRpc(ReadPacket<AppendResp> rf, Throwable ex, long prevLogIndex, int prevLogTerm,
                         long leaseStartNanos, int itemCount, long bytes, long perfStartTime) {
         perfCallback.fireTime(PerfConsts.RAFT_D_REPLICATE_RPC, perfStartTime, itemCount, bytes);
         if (epochChange()) {
@@ -412,10 +418,10 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         }
     }
 
-    private void processAppendResult(ReadPacket<AppendRespCallback> rf, long prevLogIndex,
+    private void processAppendResult(ReadPacket<AppendResp> rf, long prevLogIndex,
                                      int prevLogTerm, long leaseStartNanos, int count) {
         long expectNewMatchIndex = prevLogIndex + count;
-        AppendRespCallback body = rf.getBody();
+        AppendResp body = rf.getBody();
         RaftStatusImpl raftStatus = this.raftStatus;
         int remoteTerm = body.getTerm();
         if (replicateManager.checkTermFailed(remoteTerm)) {
@@ -469,7 +475,7 @@ class LeaderRepFrame extends AbstractLeaderRepFrame {
         }
     }
 
-    private void processLogNotMatch(long prevLogIndex, int prevLogTerm, AppendRespCallback body,
+    private void processLogNotMatch(long prevLogIndex, int prevLogTerm, AppendResp body,
                                     RaftStatusImpl raftStatus) {
         log.info("log not match. remoteId={}, groupId={}, matchIndex={}, prevLogIndex={}, prevLogTerm={}, remoteLogTerm={}, remoteLogIndex={}, localTerm={}",
                 member.getNode().getNodeId(), groupId, member.getMatchIndex(), prevLogIndex, prevLogTerm, body.getSuggestTerm(),
@@ -682,8 +688,8 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         InstallSnapshotReq.InstallReqWritePacket wf = new InstallSnapshotReq.InstallReqWritePacket(req);
         wf.setCommand(Commands.RAFT_INSTALL_SNAPSHOT);
         DtTime timeout = new DtTime(serverConfig.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        CompletableFuture<ReadPacket<AppendRespCallback>> future = client.sendRequest(
-                member.getNode().getPeer(), wf, ctx -> ctx.toDecoderCallback(new AppendRespCallback()), timeout);
+        CompletableFuture<ReadPacket<AppendResp>> future = client.sendRequest(
+                member.getNode().getPeer(), wf, APPEND_RESP_DECODER_CALLBACK_CREATOR, timeout);
         int bytes = data == null ? 0 : data.getBuffer().remaining();
         snapshotOffset += bytes;
         FiberFuture<Void> f = getFiberGroup().newFuture("install-" + groupId + "-" + req.offset);
@@ -691,7 +697,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
         return f;
     }
 
-    private void afterInstallRpc(ReadPacket<AppendRespCallback> rf, Throwable ex,
+    private void afterInstallRpc(ReadPacket<AppendResp> rf, Throwable ex,
                                  InstallSnapshotReq req, FiberFuture<Void> f) {
         if (epochChange()) {
             f.completeExceptionally(new RaftCancelException("epoch not match, ignore install snapshot response."));
@@ -702,7 +708,7 @@ class LeaderInstallFrame extends AbstractLeaderRepFrame {
             f.completeExceptionally(ex);
             return;
         }
-        AppendRespCallback respBody = rf.getBody();
+        AppendResp respBody = rf.getBody();
         if (!respBody.isSuccess()) {
             incrementEpoch();
             f.completeExceptionally(new RaftException("install snapshot fail. remoteNode="

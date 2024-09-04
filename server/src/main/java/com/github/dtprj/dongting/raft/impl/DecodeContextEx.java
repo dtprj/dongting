@@ -16,11 +16,19 @@
 package com.github.dtprj.dongting.raft.impl;
 
 import com.github.dtprj.dongting.codec.DecodeContext;
+import com.github.dtprj.dongting.raft.rpc.AppendReq;
+import com.github.dtprj.dongting.raft.rpc.AppendResp;
+import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
+
+import java.util.function.Function;
 
 /**
  * @author huangli
  */
 public final class DecodeContextEx extends DecodeContext {
+
+    private AppendReq.Callback appendReqCallback;
+    private AppendResp.Callback appendRespCallback;
 
     public DecodeContextEx() {
     }
@@ -28,5 +36,19 @@ public final class DecodeContextEx extends DecodeContext {
     @Override
     protected DecodeContext createNestedInstance() {
         return new DecodeContextEx();
+    }
+
+    public AppendReq.Callback createOrGetAppendReqCallback(Function<Integer, RaftCodecFactory> decoderFactory) {
+        if (appendReqCallback == null) {
+            appendReqCallback = new AppendReq.Callback(decoderFactory);
+        }
+        return appendReqCallback;
+    }
+
+    public AppendResp.Callback createOrGetAppendRespCallback() {
+        if (appendRespCallback == null) {
+            appendRespCallback = new AppendResp.Callback();
+        }
+        return appendRespCallback;
     }
 }

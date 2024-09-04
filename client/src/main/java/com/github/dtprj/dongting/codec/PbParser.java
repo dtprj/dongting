@@ -159,8 +159,9 @@ public class PbParser {
         if (this.status > STATUS_END_SKIP) {
             try {
                 if (success) {
+                    Object o = callback.getResult();
                     success = callback.end(true);
-                    return callback.getResult();
+                    return o;
                 } else {
                     callback.end(false);
                     return null;

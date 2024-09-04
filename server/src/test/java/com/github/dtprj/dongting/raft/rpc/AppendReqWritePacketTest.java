@@ -72,12 +72,12 @@ public class AppendReqWritePacketTest {
         buf.clear();
 
         DecodeContext decodeContext = CodecTestUtil.createContext();
-        AppendReqCallback c = new AppendReqCallback(g -> raftCodecFactory);
+        AppendReq.Callback c = new AppendReq.Callback(g -> raftCodecFactory);
         PbParser p = new PbParser();
         p.prepareNext(decodeContext, c, f.actualBodySize());
-        p.parse(buf);
+        AppendReq result = (AppendReq) p.parse(buf);
 
-        check(f, c);
+        check(f, result);
     }
 
     @Test
@@ -92,11 +92,12 @@ public class AppendReqWritePacketTest {
         AppendReqWritePacket f = createFrame(addHeader, addBody);
         RpcEncodeContext context = new RpcEncodeContext(null);
         DecodeContext decodeContext = CodecTestUtil.createContext();
-        AppendReqCallback c = new AppendReqCallback(g -> raftCodecFactory);
+        AppendReq.Callback c = new AppendReq.Callback(g -> raftCodecFactory);
         PbParser p = new PbParser();
         p.prepareNext(decodeContext, c, f.actualBodySize());
         Random r = new Random();
         int actualBodySize = f.actualBodySize();
+        AppendReq parseResult = null;
         for (int encodeBytes = 0; encodeBytes < actualBodySize; ) {
             int size = r.nextBoolean() ? r.nextInt(5) + 1 : r.nextInt(100) + 1;
             ByteBuffer buf = ByteBuffer.allocate(size);
@@ -108,10 +109,10 @@ public class AppendReqWritePacketTest {
             buf.flip();
             encodeBytes += buf.remaining();
             if (buf.remaining() > 0) {
-                p.parse(buf);
+                parseResult = (AppendReq) p.parse(buf);
             }
         }
-        check(f, c);
+        check(f, parseResult);
     }
 
     private AppendReqWritePacket createFrame(boolean addHeader, boolean addBody) {
@@ -143,7 +144,7 @@ public class AppendReqWritePacketTest {
         return f;
     }
 
-    private void check(AppendReqWritePacket f, AppendReqCallback c) {
+    private void check(AppendReqWritePacket f, AppendReq c) {
         assertEquals(f.groupId, c.getGroupId());
         assertEquals(f.term, c.getTerm());
         assertEquals(f.leaderId, c.getLeaderId());

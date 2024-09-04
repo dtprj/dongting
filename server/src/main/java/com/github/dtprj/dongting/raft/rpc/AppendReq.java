@@ -19,13 +19,15 @@ import com.github.dtprj.dongting.codec.ByteArrayEncoder;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.Encodable;
 import com.github.dtprj.dongting.codec.PbCallback;
-import com.github.dtprj.dongting.codec.PbException;
+import com.github.dtprj.dongting.log.DtLog;
+import com.github.dtprj.dongting.log.DtLogs;
 import com.github.dtprj.dongting.raft.impl.RaftUtil;
 import com.github.dtprj.dongting.raft.server.LogItem;
 import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -40,92 +42,16 @@ import java.util.function.Function;
 //  fixed64 leader_commit = 6;
 //  repeated LogItem entries = 7;
 //}
-public class AppendReqCallback extends PbCallback<AppendReqCallback> {
-
-    private final Function<Integer, RaftCodecFactory> decoderFactory;
-    private RaftCodecFactory raftCodecFactory;
+public class AppendReq {
+    private static final DtLog log = DtLogs.getLogger(AppendReq.class);
 
     private int groupId;
     private int term;
     private int leaderId;
     private long prevLogIndex;
     private int prevLogTerm;
-    private final ArrayList<LogItem> logs = new ArrayList<>();
     private long leaderCommit;
-
-
-    public AppendReqCallback(Function<Integer, RaftCodecFactory> decoderFactory) {
-        this.decoderFactory = decoderFactory;
-    }
-
-    @Override
-    protected boolean end(boolean success) {
-        if (!success) {
-            RaftUtil.release(logs);
-        }
-        return success;
-    }
-
-    @Override
-    public boolean readVarNumber(int index, long value) {
-        switch (index) {
-            case 1:
-                groupId = (int) value;
-                break;
-            case 2:
-                term = (int) value;
-                break;
-            case 3:
-                leaderId = (int) value;
-                break;
-            case 5:
-                prevLogTerm = (int) value;
-                break;
-        }
-        return true;
-    }
-
-    @Override
-    public boolean readFix64(int index, long value) {
-        switch (index) {
-            case 4:
-                prevLogIndex = value;
-                break;
-            case 6:
-                leaderCommit = value;
-                break;
-        }
-        return true;
-    }
-
-    @Override
-    public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
-        boolean end = buf.remaining() >= len - currentPos;
-        if (index == 7) {
-            LogItemCallback callback = null;
-            if (currentPos == 0) {
-                if (raftCodecFactory == null) {
-                    // group id should encode before entries
-                    raftCodecFactory = decoderFactory.apply(groupId);
-                    if (raftCodecFactory == null) {
-                        throw new PbException("can't find raft group: " + groupId);
-                    }
-                }
-                callback = new LogItemCallback(raftCodecFactory);
-            }
-            LogItem i = (LogItem) parseNested(buf, len, currentPos, callback);
-            if (end) {
-                logs.add(i);
-            }
-        }
-        return true;
-    }
-
-    @Override
-    public AppendReqCallback getResult() {
-        return this;
-    }
-
+    private final LinkedList<LogItem> logs = new LinkedList<>();
 
     public int getGroupId() {
         return groupId;
@@ -151,8 +77,91 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
         return leaderCommit;
     }
 
-    public ArrayList<LogItem> getLogs() {
+    public List<LogItem> getLogs() {
         return logs;
+    }
+
+    public static class Callback extends PbCallback<AppendReq> {
+
+        private final Function<Integer, RaftCodecFactory> decoderFactory;
+        private AppendReq result;
+
+        private final LogItemCallback logItemCallback = new LogItemCallback();
+
+        public Callback(Function<Integer, RaftCodecFactory> decoderFactory) {
+            this.decoderFactory = decoderFactory;
+        }
+
+        @Override
+        protected void begin(int len) {
+            result = new AppendReq();
+        }
+
+        @Override
+        protected boolean end(boolean success) {
+            if (!success) {
+                RaftUtil.release(result.logs);
+            }
+            result = null;
+            logItemCallback.codecFactory = null;
+            return success;
+        }
+
+        @Override
+        public boolean readVarNumber(int index, long value) {
+            switch (index) {
+                case 1:
+                    result.groupId = (int) value;
+                    break;
+                case 2:
+                    result.term = (int) value;
+                    break;
+                case 3:
+                    result.leaderId = (int) value;
+                    break;
+                case 5:
+                    result.prevLogTerm = (int) value;
+                    break;
+            }
+            return true;
+        }
+
+        @Override
+        public boolean readFix64(int index, long value) {
+            switch (index) {
+                case 4:
+                    result.prevLogIndex = value;
+                    break;
+                case 6:
+                    result.leaderCommit = value;
+                    break;
+            }
+            return true;
+        }
+
+        @Override
+        public boolean readBytes(int index, ByteBuffer buf, int len, int currentPos) {
+            boolean end = buf.remaining() >= len - currentPos;
+            if (index == 7) {
+                if (logItemCallback.codecFactory == null) {
+                    logItemCallback.codecFactory = decoderFactory.apply(result.groupId);
+                    if (logItemCallback.codecFactory == null) {
+                        log.error("can't find raft group: {}", result.groupId);
+                        return false;
+                    }
+                }
+                LogItem i = (LogItem) parseNested(buf, len, currentPos, logItemCallback);
+                if (end) {
+                    result.logs.add(i);
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public AppendReq getResult() {
+            return result;
+        }
     }
 
     //message LogItem {
@@ -166,11 +175,12 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
     //  bytes body = 8;
     //}
     static class LogItemCallback extends PbCallback<Object> {
-        private final LogItem item = new LogItem();
-        private final RaftCodecFactory codecFactory;
+        private LogItem item;
+        private RaftCodecFactory codecFactory;
 
-        public LogItemCallback(RaftCodecFactory codecFactory) {
-            this.codecFactory = codecFactory;
+        @Override
+        protected void begin(int len) {
+            item = new LogItem();
         }
 
         @Override
@@ -178,6 +188,7 @@ public class AppendReqCallback extends PbCallback<AppendReqCallback> {
             if (!success) {
                 item.release();
             }
+            item = null;
             return success;
         }
 

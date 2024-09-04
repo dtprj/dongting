@@ -29,6 +29,7 @@ import com.github.dtprj.dongting.net.CmdCodes;
 import com.github.dtprj.dongting.net.Commands;
 import com.github.dtprj.dongting.net.ReadPacket;
 import com.github.dtprj.dongting.net.WritePacket;
+import com.github.dtprj.dongting.raft.impl.DecodeContextEx;
 import com.github.dtprj.dongting.raft.impl.GroupComponents;
 import com.github.dtprj.dongting.raft.impl.LinearTaskRunner;
 import com.github.dtprj.dongting.raft.impl.MemberManager;
@@ -45,6 +46,7 @@ import com.github.dtprj.dongting.raft.sm.RaftCodecFactory;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -75,7 +77,7 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
     @Override
     protected int getGroupId(ReadPacket frame) {
         if (frame.getCommand() == Commands.RAFT_APPEND_ENTRIES) {
-            ReadPacket<AppendReqCallback> f = (ReadPacket<AppendReqCallback>) frame;
+            ReadPacket<AppendReq> f = (ReadPacket<AppendReq>) frame;
             return f.getBody().getGroupId();
         } else {
             ReadPacket<InstallSnapshotReq> f = (ReadPacket<InstallSnapshotReq>) frame;
@@ -89,7 +91,7 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
         // AppendProcessor do not call invokeCleanUp()
         ReadPacket<Object> f = reqInfo.getReqFrame();
         if (f.getCommand() == Commands.RAFT_APPEND_ENTRIES) {
-            AppendReqCallback req = (AppendReqCallback) f.getBody();
+            AppendReq req = (AppendReq) f.getBody();
             RaftUtil.release(req.getLogs());
         } else {
             InstallSnapshotReq req = (InstallSnapshotReq) f.getBody();
@@ -101,7 +103,8 @@ public class AppendProcessor extends RaftSequenceProcessor<Object> {
     @Override
     public DecoderCallback createDecoderCallback(int command, DecodeContext context) {
         if (command == Commands.RAFT_APPEND_ENTRIES) {
-            return context.toDecoderCallback(new AppendReqCallback(decoderFactory));
+            AppendReq.Callback c = ((DecodeContextEx) context).createOrGetAppendReqCallback(decoderFactory);
+            return context.toDecoderCallback(c);
         } else {
             return context.toDecoderCallback(new InstallSnapshotReq.Callback());
         }
@@ -230,13 +233,13 @@ abstract class AbstractAppendFrame<C> extends FiberFrame<Void> {
     }
 }
 
-class AppendFiberFrame extends AbstractAppendFrame<AppendReqCallback> {
+class AppendFiberFrame extends AbstractAppendFrame<AppendReq> {
 
     private static final DtLog log = DtLogs.getLogger(AppendProcessor.class);
 
     private boolean needRelease = true;
 
-    public AppendFiberFrame(ReqInfoEx<AppendReqCallback> reqInfo, AppendProcessor processor) {
+    public AppendFiberFrame(ReqInfoEx<AppendReq> reqInfo, AppendProcessor processor) {
         super("append", processor, reqInfo);
     }
 
@@ -254,7 +257,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReqCallback> {
     @Override
     protected FrameCallResult doFinally() {
         gc.getRaftStatus().copyShareStatus();
-        AppendReqCallback req = reqInfo.getReqFrame().getBody();
+        AppendReq req = reqInfo.getReqFrame().getBody();
         if (needRelease) {
             RaftUtil.release(req.getLogs());
         }
@@ -273,7 +276,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReqCallback> {
 
     @Override
     protected FrameCallResult process() {
-        AppendReqCallback req = reqInfo.getReqFrame().getBody();
+        AppendReq req = reqInfo.getReqFrame().getBody();
         RaftStatusImpl raftStatus = gc.getRaftStatus();
         if (reqInfo.getReqContext().getTimeout().isTimeout(raftStatus.getTs())) {
             // not generate response
@@ -296,8 +299,8 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReqCallback> {
         return doAppend(reqInfo, gc);
     }
 
-    private FrameCallResult doAppend(ReqInfoEx<AppendReqCallback> reqInfo, GroupComponents gc) {
-        AppendReqCallback req = reqInfo.getReqFrame().getBody();
+    private FrameCallResult doAppend(ReqInfoEx<AppendReq> reqInfo, GroupComponents gc) {
+        AppendReq req = reqInfo.getReqFrame().getBody();
         RaftStatusImpl raftStatus = gc.getRaftStatus();
         if (req.getPrevLogIndex() < raftStatus.getCommitIndex()) {
             BugLog.getLog().error("leader append request prevLogIndex less than local commit index. leaderId={}, prevLogIndex={}, commitIndex={}, groupId={}",
@@ -305,7 +308,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReqCallback> {
             writeAppendResp(AppendProcessor.APPEND_PREV_LOG_INDEX_LESS_THAN_LOCAL_COMMIT, null);
             return Fiber.frameReturn();
         }
-        ArrayList<LogItem> logs = req.getLogs();
+        List<LogItem> logs = req.getLogs();
         if (logs == null || logs.isEmpty()) {
             log.error("bad request: no logs");
             writeAppendResp(AppendProcessor.APPEND_REQ_ERROR, null);
@@ -382,7 +385,7 @@ class AppendFiberFrame extends AbstractAppendFrame<AppendReqCallback> {
             // not generate response
             return Fiber.frameReturn();
         }
-        AppendReqCallback req = reqInfo.getReqFrame().getBody();
+        AppendReq req = reqInfo.getReqFrame().getBody();
         if (pos == null) {
             log.info("follower has no suggest index, will install snapshot. groupId={}", raftStatus.getGroupId());
             writeAppendResp(AppendProcessor.APPEND_LOG_NOT_MATCH, null);

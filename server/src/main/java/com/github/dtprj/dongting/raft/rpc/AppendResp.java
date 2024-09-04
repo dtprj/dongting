@@ -26,44 +26,12 @@ import com.github.dtprj.dongting.codec.PbCallback;
 //  uint32 append_code = 3;
 //  uint32 suggest_term = 4;
 //  fixed64 suggest_index = 5;
-public class AppendRespCallback extends PbCallback<AppendRespCallback> {
+public class AppendResp {
     private int term;
     private boolean success;
     private int appendCode;
     private int suggestTerm;
     private long suggestIndex;
-
-    @Override
-    public boolean readVarNumber(int index, long value) {
-        switch (index) {
-            case 1:
-                term = (int) value;
-                break;
-            case 2:
-                success = value != 0;
-                break;
-            case 3:
-                appendCode = (int) value;
-                break;
-            case 4:
-                suggestTerm = (int) value;
-                break;
-        }
-        return true;
-    }
-
-    @Override
-    public boolean readFix64(int index, long value) {
-        if (index == 5) {
-            suggestIndex = value;
-        }
-        return true;
-    }
-
-    @Override
-    public AppendRespCallback getResult() {
-        return this;
-    }
 
     public int getTerm() {
         return term;
@@ -83,5 +51,53 @@ public class AppendRespCallback extends PbCallback<AppendRespCallback> {
 
     public long getSuggestIndex() {
         return suggestIndex;
+    }
+
+    public static class Callback extends PbCallback<AppendResp> {
+
+        private AppendResp result;
+
+        @Override
+        protected void begin(int len) {
+            result = new AppendResp();
+        }
+
+        @Override
+        protected boolean end(boolean success) {
+            result = null;
+            return success;
+        }
+
+        @Override
+        public boolean readVarNumber(int index, long value) {
+            switch (index) {
+                case 1:
+                    result.term = (int) value;
+                    break;
+                case 2:
+                    result.success = value != 0;
+                    break;
+                case 3:
+                    result.appendCode = (int) value;
+                    break;
+                case 4:
+                    result.suggestTerm = (int) value;
+                    break;
+            }
+            return true;
+        }
+
+        @Override
+        public boolean readFix64(int index, long value) {
+            if (index == 5) {
+                result.suggestIndex = value;
+            }
+            return true;
+        }
+
+        @Override
+        public AppendResp getResult() {
+            return result;
+        }
     }
 }
