@@ -135,8 +135,7 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
                 return false;
             }
             if (currentDecoderCallback != null) {
-                decoder.prepareNext(decodeContext.createOrGetNestedContext(), currentDecoderCallback);
-                packet.body = decoder.decode(SimpleByteBufferPool.EMPTY_BUFFER, 0, 0);
+                packet.body = parseNested(SimpleByteBufferPool.EMPTY_BUFFER, 0, 0, currentDecoderCallback);
             }
         }
         currentDecoderCallback = null;
@@ -230,11 +229,8 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             return false;
         }
 
-        if (currentPos == 0) {
-            decoder.prepareNext(decodeContext.createOrGetNestedContext(), currentDecoderCallback);
-        }
         try {
-            packet.body = decoder.decode(buf, fieldLen, currentPos);
+            packet.body = parseNested(buf, fieldLen, currentPos, currentDecoderCallback);
         } catch (RuntimeException | Error e) {
             if (packet.packetType == PacketType.TYPE_RESP) {
                 if (requestForResp != null) {
