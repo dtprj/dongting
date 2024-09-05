@@ -60,13 +60,14 @@ final class PbNoCopyDecoderCallback extends DecoderCallback<Object> {
                 throw new PbException("parse not finish after read all bytes. bodyLen="
                         + bodyLen + ", currentPos=" + currentPos + ", callback=" + parser.callback);
             }
+            return !parser.shouldSkip();
         } else {
             if (parser.isFinished()) {
                 throw new PbException("parse finished without read all bytes. bodyLen="
                         + bodyLen + ", currentPos=" + currentPos + ", callback=" + parser.callback);
             }
+            return true;
         }
-        return true;
     }
 
 }

@@ -88,14 +88,14 @@ public class DecodeContext {
         return nestedContext;
     }
 
-    PbParser createOrGetNestedParser() {
+    public PbParser createOrGetNestedParser() {
         if (nestedParser == null) {
             nestedParser = new PbParser();
         }
         return nestedParser;
     }
 
-    Decoder createOrGetNestedDecoder() {
+    public Decoder createOrGetNestedDecoder() {
         if (nestedDecoder == null) {
             nestedDecoder = new Decoder();
         }

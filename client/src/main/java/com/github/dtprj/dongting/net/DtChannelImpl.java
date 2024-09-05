@@ -17,7 +17,6 @@ package com.github.dtprj.dongting.net;
 
 import com.github.dtprj.dongting.buf.SimpleByteBufferPool;
 import com.github.dtprj.dongting.codec.DecodeContext;
-import com.github.dtprj.dongting.codec.Decoder;
 import com.github.dtprj.dongting.codec.DecoderCallback;
 import com.github.dtprj.dongting.codec.PbCallback;
 import com.github.dtprj.dongting.codec.PbException;
@@ -55,7 +54,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
     int seq = 1;
 
     private final MultiParser parser;
-    private final Decoder decoder;
 
     // read status
     private ReadPacket packet;
@@ -87,7 +85,6 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
         this.decodeContext.setHeapPool(workerStatus.getHeapPool());
 
         this.parser = new MultiParser(decodeContext, this, nioConfig.getMaxPacketSize());
-        this.decoder = new Decoder();
 
         this.respWriter = new RespWriter(workerStatus.getIoQueue(), workerStatus.getWakeupRunnable(), this);
 
@@ -242,9 +239,12 @@ class DtChannelImpl extends PbCallback<Object> implements DtChannel {
             if (end) {
                 // so if the body is not last field, exception throws
                 readBody = true;
+                if (context.createOrGetNestedDecoder().shouldSkip()) {
+                    log.warn("skip parse, command={}", packet.getCommand());
+                }
             }
         }
-        return !decoder.shouldSkip();
+        return true;
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
